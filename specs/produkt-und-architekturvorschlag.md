@@ -117,6 +117,8 @@ keine getrennte öffentliche Bestellliste und Akquisiteursliste.
 #### Arbeitsbereich für Charity-Admins
 
 - Aktion, Zeitraum, Ziel und Begünstigte
+- Mitglieder in selbst verwaltete Aktionen einladen
+- Einladungen und aktionsbezogene Rollen überblicken
 - Überblick über Firmen, Kontakte und Akquisiteure
 - neue und unzugeordnete öffentliche Bestellungen
 - Bestellungen prüfen
@@ -135,17 +137,21 @@ Admin-Seiten benötigt.
 Eine fachliche Vorführung soll ohne technische Erklärung zeigen können:
 
 1. Charity-Admin legt Krapfentaxi mit Zeitraum, Ziel und Begünstigten an.
-2. Die öffentliche Aktionsseite mit Bestellformular ist erreichbar.
-3. Ein Akquisiteur legt eine neue Firma an und ist ihr automatisch zugeordnet.
-4. Ein zweiter Akquisiteur findet dieselbe Firma, sieht die Warnung mit dem
+2. Charity-Admin lädt ein neues Mitglied als Akquisiteur dieser Aktion ein.
+3. Das Mitglied bestätigt per Magic Link oder Code und ist damit angemeldet
+   sowie der Aktion zugeordnet.
+4. Die öffentliche Aktionsseite mit Bestellformular ist erreichbar.
+5. Ein Akquisiteur legt eine neue Firma an und ist ihr automatisch zugeordnet.
+6. Ein zweiter Akquisiteur findet dieselbe Firma, sieht die Warnung mit dem
    Namen des ersten und ordnet sich nach Bestätigung ebenfalls zu.
-5. Ein Akquisiteur erfasst eine Bestellung im Gespräch.
-6. Ein externer Besucher bestellt alternativ über die öffentliche Seite.
-7. Die öffentliche Bestellung erscheint bei bereits zugeordneten
+7. Ein Akquisiteur erfasst eine Bestellung im Gespräch.
+8. Ein externer Besucher bestellt alternativ über die öffentliche Seite.
+9. Die öffentliche Bestellung erscheint bei bereits zugeordneten
    Akquisiteuren als neue Aktivität.
-8. Der Charity-Admin prüft die Bestellung und gibt die Rechnung frei.
-9. LeonAid erzeugt und versendet das Rechnungs-PDF.
-10. Dashboard und PWA zeigen den aktualisierten Fortschritt der Aktion.
+10. Der Charity-Admin bestätigt für die Rechnungsfreigabe seine Anmeldung
+    erneut.
+11. LeonAid erzeugt und versendet das Rechnungs-PDF.
+12. Dashboard und PWA zeigen den aktualisierten Fortschritt der Aktion.
 
 ### 1.7 Was gehört ausdrücklich noch nicht zum PoC?
 
@@ -160,6 +166,8 @@ Eine fachliche Vorführung soll ohne technische Erklärung zeigen können:
 - vollständige Vereinsbuchhaltung
 - frei konfigurierbarer Formularbaukasten oder allgemeines CMS
 - gleichzeitiger Betrieb mehrerer Clubs in einer Installation
+- Passkeys, Social Login und SSO
+- selbstständige Änderung der Login-E-Mail durch Mitglieder
 
 Andere Clubs können später jeweils eine eigene LeonAid-Installation betreiben.
 Lions Open und Weihnachtsmarkt werden noch nicht umgesetzt; ihr fachliches
@@ -255,8 +263,8 @@ verfeinert werden.
 - **Kontext:** Arbeitet überwiegend am Desktop, ehrenamtlich und oft in kurzen
   Zeitfenstern.
 - **Kernaufgaben:** Aktion, Ziel und Beneficiaries pflegen; Akquisiteure
-  unterstützen; Kontakte und Mehrfachzuordnungen überblicken; Bestellungen
-  prüfen; Rechnungen freigeben; Fortschritt berichten.
+  einladen und unterstützen; Kontakte und Mehrfachzuordnungen überblicken;
+  Bestellungen prüfen; Rechnungen freigeben; Fortschritt berichten.
 - **Braucht:** klare Neuigkeiten- und Ausnahmenliste, verständliche
   Massenaktionen, nachvollziehbaren Status und möglichst wenig Systemwechsel.
 - **Zu validieren:** Reicht Twenty als primärer Arbeitsplatz oder braucht diese
@@ -403,6 +411,17 @@ Die Begriffe sind absichtlich fachlich und nicht an Twenty-Feldnamen gebunden:
 - `ActionMembership`
   - Person, Charity-Aktion, Rolle
   - Aktivzeitraum und Stellvertretung
+- `UserAccount`
+  - E-Mail als verifizierte Login-Adresse, Anzeigename und Status
+  - Status `invited → active → suspended → archived`
+  - globale Rollen getrennt von `ActionMembership`
+- `ActionInvitation`
+  - unveränderlicher Snapshot aus E-Mail, Charity-Aktion, vorgesehener Rolle
+    und einladendem Benutzer
+  - Status, Ablaufzeitpunkt und einmalig verwendbares Bestätigungsmerkmal
+- `UserSession`
+  - widerrufbare Sitzung, Ablaufzeitpunkt, letzter Zugriff und Gerätehinweis
+  - Zeitpunkt der letzten frischen Anmeldung für sensible Aktionen
 - `AcquisitionAssignment`
   - Charity-Aktion, Twenty-Company/Person, Akquisiteur
   - Status, Priorität, nächste Aktion, Fälligkeit
@@ -671,7 +690,141 @@ Microservices:
 Der CRM-Zugriff liegt hinter einem fachlichen Port. Weder PWA noch
 ERP-light kennen Twenty-JSON oder Feld-IDs.
 
-### 6.2 Akquisiteur-PWA
+### 6.2 Login- und User-Management im PoC
+
+#### Grundentscheidung
+
+LeonAid verwaltet seine Benutzer selbst. Twenty ist weder
+Benutzerverzeichnis noch Login-System für Akquisiteure. Eine natürliche Person
+besitzt genau einen LeonAid-Account und kann gleichzeitig globale sowie
+aktionsbezogene Rollen haben.
+
+Der öffentliche Besucher benötigt keinen Account. Öffentliche Aktionsseiten
+und Formulare bleiben ohne Anmeldung erreichbar.
+
+#### Einladung und Aktivierung
+
+Es gibt im PoC keine offene Selbstregistrierung. Ein System-Admin oder
+Charity-Admin lädt ein Mitglied per E-Mail ein.
+
+Für Charity-Admins gelten dabei zwei Grenzen:
+
+- Sie dürfen neue Mitglieder einladen.
+- Sie dürfen ausschließlich in Charity-Aktionen einladen, die sie selbst
+  verwalten.
+
+Die Einladung enthält einen unveränderlichen Snapshot aus:
+
+- E-Mail-Adresse,
+- Charity-Aktion,
+- vorgesehener aktionsbezogener Rolle,
+- einladendem Benutzer.
+
+Ändert sich die Rolle oder Aktion vor der Annahme, wird die alte Einladung
+widerrufen und eine neue erzeugt. Ein alter Link darf keine inzwischen
+zurückgenommene Berechtigung aktivieren.
+
+Der Empfänger bestätigt die Einladung per Magic Link oder sechsstelligen Code.
+Mit dieser einen Bestätigung werden gleichzeitig:
+
+1. der LeonAid-Account aktiviert, sofern er neu ist,
+2. die verifizierte E-Mail als Login-Adresse übernommen,
+3. die in der Einladung enthaltene `ActionMembership` aktiviert.
+
+Eine zusätzliche Freigabe oder zweite Annahme innerhalb der App ist nicht
+erforderlich. Existiert zur E-Mail bereits ein LeonAid-Account, wird kein
+zweiter Account erzeugt; nur die neue Aktionsmitgliedschaft wird nach
+Bestätigung aktiviert.
+
+#### Anmeldung
+
+Der PoC verwendet passwortlose Anmeldung:
+
+- Magic Link per E-Mail,
+- sechsstelliger Code als gleichwertiger Fallback,
+- kurze Gültigkeit,
+- einmalige Verwendung,
+- gehashte Speicherung des Bestätigungsmerkmals,
+- Rate Limits pro E-Mail und IP,
+- neutrale Antworten, die nicht verraten, ob ein Account existiert.
+
+Passkeys werden erst nach einem erfolgreichen Magic-Link/Code-Pilot
+betrachtet. Passwörter, Social Login und öffentliche Registrierung sind keine
+PoC-Anforderungen.
+
+#### Sitzungen und frische Anmeldung
+
+Nach erfolgreicher Anmeldung erhält der Benutzer eine 90 Tage gültige,
+serverseitig widerrufbare Sitzung:
+
+- zufällige Session-ID in einem `HttpOnly`, `Secure`,
+  `SameSite=Lax`-Cookie,
+- kein langlebiges Login-Token in `localStorage`,
+- mehrere Geräte pro Benutzer erlaubt,
+- letzter Zugriff und Gerätehinweis sichtbar,
+- einzelne Sitzung oder alle Sitzungen widerrufbar,
+- Sperrung eines Accounts widerruft alle Sitzungen.
+
+Normale Akquiseaktionen benötigen innerhalb der gültigen Sitzung keine erneute
+Anmeldung. Für wichtige Admin- und Finanzaktionen ist eine **frische
+Anmeldung** erforderlich. Dazu gehören mindestens:
+
+- Mitglieder einladen, entfernen oder Rollen ändern,
+- Benutzer sperren oder Sitzungen widerrufen,
+- Rechnung freigeben, stornieren oder korrigieren,
+- Kontakt-, Rechnungs- oder Datenschutzdaten exportieren,
+- Datenimporte und Löschungen,
+- Integrations- und Systemeinstellungen ändern.
+
+Nach Magic-Link/Code-Bestätigung gilt die Anmeldung für ein kurzes,
+konfigurierbares Zeitfenster als frisch. Der initial vorgeschlagene Wert sind
+zehn Minuten und wird im Pilot auf Bedienbarkeit geprüft.
+
+#### Benutzerverwaltung
+
+Der PoC benötigt folgende Verwaltungsfunktionen:
+
+- Mitglieder einladen,
+- Einladung erneut senden oder widerrufen,
+- Einladungsstatus anzeigen,
+- globale und aktionsbezogene Rollen getrennt anzeigen,
+- aktionsbezogene Rollen innerhalb der eigenen Aktionen vergeben,
+- Accounts sperren und reaktivieren,
+- aktive Sitzungen anzeigen und widerrufen,
+- letzten Login anzeigen,
+- Rollen-, Einladungs- und Statusänderungen auditieren.
+
+Account-Zustände:
+
+- `invited`: eingeladen, aber noch nicht bestätigt,
+- `active`: normal nutzbar,
+- `suspended`: kein Login; Historie bleibt erhalten,
+- `archived`: ehemaliges Mitglied; historische Referenzen bleiben erhalten.
+
+Mitglieder können ihre E-Mail-Adresse im PoC nicht selbst ändern. Bei einer
+falsch adressierten, noch offenen Einladung wird diese widerrufen und für die
+richtige Adresse neu erstellt. Ein Self-Service-E-Mail-Wechsel für aktive
+Accounts ist außerhalb des PoC.
+
+Charity-Admins dürfen keine globalen System- oder Finanzrollen vergeben. Diese
+bleiben dem System-Admin vorbehalten.
+
+#### Verhältnis zu Twenty
+
+Akquisiteure und andere operative Rollen erhalten keine Twenty-Accounts.
+Charity-Admins, die direkt in Twenty arbeiten, besitzen im PoC zusätzlich
+einen separaten Twenty-Account und verwenden dort Twentys Anmeldung.
+
+Dieser zweite Login ist für die wenigen Twenty-Admins im PoC akzeptiert. Ein
+gemeinsames SSO wird nicht umgesetzt; in Twenty Free Self-hosted ist SSO nicht
+enthalten. Sollte später der Twenty-Organization-Tarif oder ein eigener
+Identity Provider eingesetzt werden, kann SSO neu bewertet werden.
+
+Die konkrete Auth-Bibliothek wird zusammen mit dem Core-Techstack ausgewählt.
+Der fachliche Vertrag aus Einladung, Magic Link/Code, widerrufbaren Sitzungen
+und getrennten Rollen gilt unabhängig davon.
+
+### 6.3 Akquisiteur-PWA
 
 Der PoC braucht eine fokussierte, mobil nutzbare Oberfläche:
 
@@ -722,11 +875,13 @@ automatisch die aktionsbezogene Zuordnung für den anlegenden Akquisiteur.
 Offline-Schreibsynchronisierung, Push-Nachrichten und komplexe Dashboards sind
 keine PoC-Voraussetzung.
 
-### 6.3 Charity-Admin-Oberfläche
+### 6.4 Charity-Admin-Oberfläche
 
 Der Admin-Arbeitsplatz ist fachlich breiter als die PWA:
 
 - Aktion und Zeitraum verwalten,
+- neue Mitglieder ausschließlich in selbst verwaltete Aktionen einladen,
+- Einladungsstatus und aktionsbezogene Rollen verwalten,
 - Akquisiteure bei Bedarf proaktiv Firmen/Kontakten zuordnen,
 - Firmen importieren und Zuweisungen verteilen,
 - Kontakte und Mehrfachzuordnungen überblicken,
@@ -738,7 +893,7 @@ Der Admin-Arbeitsplatz ist fachlich breiter als die PWA:
 Im PoC darf dieser Arbeitsplatz aus **Twenty plus wenigen LeonAid-Admin-Seiten**
 bestehen. Es ist kein Ziel, mit Gewalt alles in eine einzige UI zu pressen.
 
-### 6.4 Öffentliches Frontend mit Astro 7 – bewusst light
+### 6.5 Öffentliches Frontend mit Astro 7 – bewusst light
 
 Astro 7 ist seit Juni 2026 verfügbar. Es passt gut zu content-lastigen,
 zeitlich begrenzten Aktionsseiten mit wenig Client-JavaScript. Astro Actions
@@ -785,7 +940,7 @@ Die Standardformulare brauchen:
 - Kampagnen-/Quellenparameter,
 - definierte Lösch- und Aufbewahrungsregeln.
 
-### 6.5 Frontend-Stack und gemeinsame Shell
+### 6.6 Frontend-Stack und gemeinsame Shell
 
 Für die internen LeonAid-Oberflächen ist folgender Frontend-Stack vorgeschlagen:
 
@@ -855,7 +1010,7 @@ Vorgeschlagene Navigation:
 Eine sichtbare Sidebar ist kein Ersatz für Rechteprüfung. API-Endpunkte und
 Datensätze werden unabhängig von der Navigation autorisiert.
 
-### 6.6 Krapfentaxi-Auslieferung und Routenansicht
+### 6.7 Krapfentaxi-Auslieferung und Routenansicht
 
 Die Auslieferung ist ein optionales `delivery`-Capability-Modul und keine
 Pflichtfunktion jeder Charity-Aktion. Dieses Modul ist **nach PoC/MVP
@@ -1123,28 +1278,32 @@ den gemeinsamen Action-Core plus die Capabilities `acquisition`, `offerings`,
 `ordering` und `invoicing`:
 
 1. Charity-Admin legt eine Aktion mit Zeitraum an.
-2. LeonAid veröffentlicht dafür eine schlanke, zeitgesteuerte Aktionsseite mit
+2. Charity-Admin lädt ein neues Mitglied als Akquisiteur dieser Aktion ein.
+3. Das Mitglied bestätigt per Magic Link oder Code; Account und
+   Aktionsmitgliedschaft werden gemeinsam aktiv.
+4. LeonAid veröffentlicht dafür eine schlanke, zeitgesteuerte Aktionsseite mit
    einem normalen Astro-Bestellformular.
-3. Firmen/Personen werden aus Twenty gewählt oder einmalig importiert.
-4. Charity-Admin kann Firmen Akquisiteuren zuordnen, muss dies aber nicht.
-5. Akquisiteur sieht seine – gegebenenfalls mit anderen geteilten –
+5. Firmen/Personen werden aus Twenty gewählt oder einmalig importiert.
+6. Charity-Admin kann Firmen Akquisiteuren zuordnen, muss dies aber nicht.
+7. Akquisiteur sieht seine – gegebenenfalls mit anderen geteilten –
    Zuordnungen in der PWA.
-6. Akquisiteur dokumentiert Kontakt, Wiedervorlage und Ergebnis.
-7. Akquisiteur kann einen neuen Sponsor anlegen. Ein bestehender Match wird
+8. Akquisiteur dokumentiert Kontakt, Wiedervorlage und Ergebnis.
+9. Akquisiteur kann einen neuen Sponsor anlegen. Ein bestehender Match wird
    mit den Namen bereits zugeordneter Akquisiteure als Warnung angezeigt. Nach
    expliziter Bestätigung wird der Akquisiteur zusätzlich zugeordnet. Ist kein
    Match vorhanden, schreibt die Core API Company/Person kontrolliert nach
    Twenty.
-8. Akquisiteur erfasst eine Bestellung/Zusage.
-9. Alternativ erzeugt das Public-Web-Formular Kontakt/Firma und Bestellung.
+10. Akquisiteur erfasst eine Bestellung/Zusage.
+11. Alternativ erzeugt das Public-Web-Formular Kontakt/Firma und Bestellung.
    Bereits zugeordnete Akquisiteure sehen dies unter „Neues/Aktivitäten“.
-10. Charity-Admin prüft und gibt die Rechnung frei.
-11. LeonAid vergibt die Rechnungsnummer und rendert ein Typst-PDF.
-12. LeonAid sendet die Rechnung über den Mail-Relay und protokolliert den Versand.
-13. Bestellmengen sind als Boxen und/oder Krapfen nachvollziehbar; ein
+12. Charity-Admin bestätigt seine Anmeldung frisch, prüft die Bestellung und
+    gibt die Rechnung frei.
+13. LeonAid vergibt die Rechnungsnummer und rendert ein Typst-PDF.
+14. LeonAid sendet die Rechnung über den Mail-Relay und protokolliert den Versand.
+15. Bestellmengen sind als Boxen und/oder Krapfen nachvollziehbar; ein
     Herstellerabschlag kann manuell ermittelt werden.
-14. Charity-Admin markiert die Zahlung manuell.
-15. Dashboard zeigt Pipeline, Zielerreichung, Bestellungen, fakturierten Betrag
+16. Charity-Admin markiert die Zahlung manuell.
+17. Dashboard zeigt Pipeline, Zielerreichung, Bestellungen, fakturierten Betrag
     und offene Posten.
 
 ### 10.2 Nicht enthalten
@@ -1163,6 +1322,8 @@ den gemeinsamen Action-Core plus die Capabilities `acquisition`, `offerings`,
 - allgemeine Mitgliederverwaltung,
 - vollständige Buchhaltung,
 - Mandantenfähigkeit innerhalb einer Installation.
+- Passkeys, Social Login, SSO und öffentliche Selbstregistrierung,
+- Self-Service-Änderung der Login-E-Mail.
 
 Public Web ist Bestandteil des Core-PoC. listmonk bleibt optional; der
 Core-PoC muss ohne Mailing-System vollständig demonstrierbar sein.
@@ -1179,6 +1340,14 @@ Der PoC ist erst erfolgreich, wenn folgende Belege vorliegen:
 
 - serverseitiger Negativtest: Akquisiteur A sieht/ändert keinen Kontakt, der
   ausschließlich B zugeordnet ist; gemeinsame Zuordnungen sind sichtbar,
+- Charity-Admin kann nur in selbst verwaltete Aktionen einladen,
+- Einladungsbestätigung aktiviert genau einen Account und genau die
+  vorgesehene Aktionsmitgliedschaft,
+- Magic Link und Code sind kurzlebig, einmal verwendbar und verraten bei der
+  Anforderung nicht, ob ein Account existiert,
+- gesperrter Account und widerrufene Sitzung verlieren sofort den Zugriff,
+- 90-Tage-Sitzung erlaubt normale Akquise; sensible Admin-/Finanzaktion
+  verlangt eine frische Anmeldung,
 - bestehender Match zeigt vor einer weiteren Zuordnung die Namen der bereits
   zugeordneten Akquisiteure und verlangt eine explizite Bestätigung,
 - Charity-Admin kann den realen Ablauf ohne direkte Datenbankarbeit bedienen,
@@ -1264,8 +1433,9 @@ Die nächsten Entscheidungen sollten in dieser Reihenfolge fallen:
    Kontakte, Zuweisungen und Pipeline?
 3. **Technischen Core-Stack wählen:** Sprache und Framework erst nach
    Festlegung der Module, Jobs, Auth- und Deployment-Anforderungen.
-4. **Auth-Modell festlegen:** Einladung/Magic Link/Passkey, Sitzungsdauer,
-   Widerruf und Stellvertretung.
+4. **Auth-Vertrag umsetzen:** Einladungen, Magic Link plus Code,
+   90-Tage-Sitzungen, Widerruf und frische Anmeldung; konkrete Bibliothek mit
+   dem Core-Stack auswählen.
 5. **Rechnungsfachlichkeit klären:** Träger, Nummernkreis, Steuerfälle,
    Pflichtangaben, Freigabe, Aufbewahrung und E-Rechnung.
 6. **PoC-Vertikalschnitt umsetzen.**
