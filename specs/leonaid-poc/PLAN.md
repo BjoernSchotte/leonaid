@@ -215,25 +215,25 @@ die angegebenen Abhängigkeiten erfüllt sind.
 
 ## M0 – Entscheidungen, Baseline und reproduzierbare Toolchain
 
-### [ ] POC-000 Scope-Baseline und Traceability festschreiben
+### [x] POC-000 Scope-Baseline und Traceability festschreiben
 
 Abhängigkeiten: keine
 
 Akzeptanzkriterien:
 
-- [ ] Enthaltene und ausgeschlossene PoC-Funktionen entsprechen Kapitel 10.1
+- [x] Enthaltene und ausgeschlossene PoC-Funktionen entsprechen Kapitel 10.1
       und 10.2 des Konzepts.
-- [ ] Jede harte Vorgabe aus Kapitel 10.3 ist mindestens einem Task und Test
+- [x] Jede harte Vorgabe aus Kapitel 10.3 ist mindestens einem Task und Test
       in diesem Plan zugeordnet.
-- [ ] Offene Rechts-/Rechnungsfragen besitzen Owner, Entscheidungsdatum und
+- [x] Offene Rechts-/Rechnungsfragen besitzen Owner, Entscheidungsdatum und
       blockieren keine stillschweigend angenommene Implementierung.
-- [ ] Architekturentscheidungen werden als kurze ADRs versioniert.
+- [x] Architekturentscheidungen werden als kurze ADRs versioniert.
 
 Tests/Nachweise:
 
-- [ ] Automatischer Traceability-Check meldet unbekannte oder doppelte
+- [x] Automatischer Traceability-Check meldet unbekannte oder doppelte
       Requirement-IDs.
-- [ ] Manueller Scope-Review mit Produktverantwortlichem ist protokolliert.
+- [x] Manueller Scope-Review mit Produktverantwortlichem ist protokolliert.
 
 ### [ ] POC-001 Abhängigkeiten und Images exakt pinnen
 

@@ -1493,44 +1493,44 @@ aber keine spekulativen Golfturnier- oder Weihnachtsmarkt-Funktionen.
 
 Der PoC ist erst erfolgreich, wenn folgende Belege vorliegen:
 
-- serverseitiger Negativtest: Akquisiteur A sieht/ändert keinen Kontakt, der
+- **POC-GATE-001:** Serverseitiger Negativtest: Akquisiteur A sieht/ändert keinen Kontakt, der
   ausschließlich B zugeordnet ist; gemeinsame Zuordnungen sind sichtbar,
-- Charity-Admin kann nur in selbst verwaltete Aktionen einladen,
-- Einladungsbestätigung aktiviert genau einen Account und genau die
+- **POC-GATE-002:** Charity-Admin kann nur in selbst verwaltete Aktionen einladen,
+- **POC-GATE-003:** Einladungsbestätigung aktiviert genau einen Account und genau die
   vorgesehene Aktionsmitgliedschaft,
-- Magic Link und Code sind kurzlebig, einmal verwendbar und verraten bei der
+- **POC-GATE-004:** Magic Link und Code sind kurzlebig, einmal verwendbar und verraten bei der
   Anforderung nicht, ob ein Account existiert,
-- gesperrter Account und widerrufene Sitzung verlieren sofort den Zugriff,
-- 90-Tage-Sitzung erlaubt normale Akquise; sensible Admin-/Finanzaktion
+- **POC-GATE-005:** Gesperrter Account und widerrufene Sitzung verlieren sofort den Zugriff,
+- **POC-GATE-006:** 90-Tage-Sitzung erlaubt normale Akquise; sensible Admin-/Finanzaktion
   verlangt eine frische Anmeldung,
-- bestehender Match zeigt vor einer weiteren Zuordnung die Namen der bereits
+- **POC-GATE-007:** Bestehender Match zeigt vor einer weiteren Zuordnung die Namen der bereits
   zugeordneten Akquisiteure und verlangt eine explizite Bestätigung,
-- Charity-Admin kann den realen Ablauf ohne direkte Datenbankarbeit bedienen,
-- Twenty-Schema lässt sich reproduzierbar aufsetzen,
-- API-Limits reichen für den Pilot,
-- eine Bestellung erzeugt genau eine freigegebene Rechnung,
-- ausgestellte Rechnung bleibt trotz späterer CRM-Adressänderung unverändert,
-- erzeugte Rechnung ist über Aktion, Bestellung, Firma/Kontakt und
+- **POC-GATE-008:** Charity-Admin kann den realen Ablauf ohne direkte Datenbankarbeit bedienen,
+- **POC-GATE-009:** Twenty-Schema lässt sich reproduzierbar aufsetzen,
+- **POC-GATE-010:** API-Limits reichen für den Pilot,
+- **POC-GATE-011:** Eine Bestellung erzeugt genau eine freigegebene Rechnung,
+- **POC-GATE-012:** Ausgestellte Rechnung bleibt trotz späterer CRM-Adressänderung unverändert,
+- **POC-GATE-013:** Erzeugte Rechnung ist über Aktion, Bestellung, Firma/Kontakt und
   Rechnungsansicht abrufbar; unberechtigte Rollen erhalten keinen Download,
-- RustFS-Ausfall verliert weder Dokumentmetadaten noch erzeugt er eine
+- **POC-GATE-014:** RustFS-Ausfall verliert weder Dokumentmetadaten noch erzeugt er eine
   vermeintlich erfolgreiche Rechnungsauslieferung,
-- ein Rechnungs-PDF lässt sich aus dem externen RustFS-Backup auf einer
+- **POC-GATE-015:** Ein Rechnungs-PDF lässt sich aus dem externen RustFS-Backup auf einer
   frischen Instanz wiederherstellen und stimmt danach mit seiner gespeicherten
   Prüfsumme überein,
-- derselbe Storage-Vertrag besteht gegen RustFS und einen zweiten
+- **POC-GATE-016:** Derselbe Storage-Vertrag besteht gegen RustFS und einen zweiten
   S3-kompatiblen Test-Endpunkt,
-- wiederholter Job oder Formular-Request erzeugt weder eine zweite Bestellung
+- **POC-GATE-017:** Wiederholter Job oder Formular-Request erzeugt weder eine zweite Bestellung
   noch eine zweite identische Zuordnung,
-- öffentliche Bestellung bei bestehendem Kontakt erscheint für alle bereits
+- **POC-GATE-018:** Öffentliche Bestellung bei bestehendem Kontakt erscheint für alle bereits
   zugeordneten Akquisiteure unter „Neues/Aktivitäten“,
-- `/krapfentaxi` löst ausschließlich auf die aktuell veröffentlichte Aktion
+- **POC-GATE-019:** `/krapfentaxi` löst ausschließlich auf die aktuell veröffentlichte Aktion
   auf; ein Alias-Wechsel lässt bestehende Archiv-Adressen unverändert,
-- eine archivierte Aktion ist unter ihrer unveränderlichen
+- **POC-GATE-020:** Eine archivierte Aktion ist unter ihrer unveränderlichen
   `/archive/...`-Adresse lesbar, nimmt aber weder im UI noch über die Core API
   weitere Formularübermittlungen an,
-- PDF lässt sich in mindestens zwei realen PDF-Viewern öffnen,
-- Versandstatus und Fehler sind im Admin-Bereich nachvollziehbar,
-- Backup und Restore von Twenty und LeonAid wurden praktisch getestet.
+- **POC-GATE-021:** PDF lässt sich in mindestens zwei realen PDF-Viewern öffnen,
+- **POC-GATE-022:** Versandstatus und Fehler sind im Admin-Bereich nachvollziehbar,
+- **POC-GATE-023:** Backup und Restore von Twenty und LeonAid wurden praktisch getestet.
 
 ## 11. Capability-Landkarte für einen Lions-Club
 

@@ -1,0 +1,38 @@
+requirement_id	category	source	tasks	tests
+POC-SCOPE-001	included	Konzept 10.1	POC-050,POC-052	Krapfentaxi-Aktion ohne Datenbankzugriff anlegen und aktivieren
+POC-SCOPE-002	included	Konzept 10.1	POC-041,POC-042	Einladung per Magic Link und Code annehmen
+POC-SCOPE-003	included	Konzept 10.1	POC-060,POC-061,POC-062,POC-063	Sponsor zuordnen Aktivitaet erfassen und Konflikt bestaetigen
+POC-SCOPE-004	included	Konzept 10.1	POC-070,POC-071,POC-072	Public-Seite und reale Bestellung durchlaufen
+POC-SCOPE-005	included	Konzept 10.1	POC-080,POC-081,POC-082	Interne und oeffentliche Bestellung samt Feed pruefen
+POC-SCOPE-006	included	Konzept 10.1	POC-090,POC-091,POC-092,POC-093,POC-094,POC-095	Rechnung PDF Versand und Zahlung end-to-end pruefen
+POC-SCOPE-007	included	Konzept 10.1	POC-101	Dashboardwerte gegen Golden Data pruefen
+POC-SCOPE-008	excluded	Konzept 10.2	POC-000	Kein dynamischer Form Builder und kein CMS im PoC
+POC-SCOPE-009	excluded	Konzept 10.2	POC-000	Kein listmonk Offline Sync Push oder Payment Provider im Core PoC
+POC-SCOPE-010	excluded	Konzept 10.2	POC-000	Keine automatische Zahlungserkennung Mahnung oder vollstaendige Buchhaltung
+POC-SCOPE-011	excluded	Konzept 10.2	POC-000	Keine Tourenplanung Fahrerdisposition Lager oder Herstellerabrechnung
+POC-SCOPE-012	excluded	Konzept 10.2	POC-000	Keine allgemeine Mitgliederverwaltung oder Multi Tenant Installation
+POC-SCOPE-013	excluded	Konzept 10.2	POC-000	Keine Passkeys Social Logins SSO Selbstregistrierung oder E-Mail-Self-Service
+POC-SCOPE-014	excluded	Konzept 10.2	POC-000	Lions Open und Weihnachtsmarkt sind nachgelagerte Use Cases
+POC-GATE-001	gate	Konzept 10.3	POC-043,POC-062	Akquisiteur A sieht und aendert keinen exklusiven Datensatz von B
+POC-GATE-002	gate	Konzept 10.3	POC-041	Charity Admin laedt nur in selbst verwaltete Aktion ein
+POC-GATE-003	gate	Konzept 10.3	POC-041	Einladungsannahme aktiviert genau einen Account und eine Membership
+POC-GATE-004	gate	Konzept 10.3	POC-041	Magic Link und Code sind kurzlebig einmalig und enumeration safe
+POC-GATE-005	gate	Konzept 10.3	POC-040,POC-042	Gesperrter Account und widerrufene Sitzung verlieren sofort Zugriff
+POC-GATE-006	gate	Konzept 10.3	POC-042	Normale Akquise mit 90 Tage Sitzung und Fresh Login fuer sensible Aktion
+POC-GATE-007	gate	Konzept 10.3	POC-032,POC-063	Match zeigt vorhandene Akquisiteure und verlangt Bestaetigung
+POC-GATE-008	gate	Konzept 10.3	POC-052,POC-122	Charity Admin bedient Ablauf ohne direkte Datenbankarbeit
+POC-GATE-009	gate	Konzept 10.3	POC-030	Twenty Schema wird zweimal idempotent provisioniert
+POC-GATE-010	gate	Konzept 10.3	POC-031	Twenty API Limits und Pagination reichen fuer Golden Pilot
+POC-GATE-011	gate	Konzept 10.3	POC-090	Bestellung erzeugt bei konkurrierender Freigabe genau eine Rechnung
+POC-GATE-012	gate	Konzept 10.3	POC-090	Ausgestellte Rechnung bleibt nach CRM Adressaenderung unveraendert
+POC-GATE-013	gate	Konzept 10.3	POC-092,POC-093	Dokument ist fachlich auffindbar und unberechtigt nicht ladbar
+POC-GATE-014	gate	Konzept 10.3	POC-092	RustFS Ausfall erzeugt keinen falschen Erfolg und Job bleibt retrybar
+POC-GATE-015	gate	Konzept 10.3	POC-112	RustFS Backup wird frisch restored und Hash stimmt
+POC-GATE-016	gate	Konzept 10.3	POC-092	Storage Contractsuite besteht gegen RustFS und zweiten echten S3 Dienst
+POC-GATE-017	gate	Konzept 10.3	POC-022,POC-072,POC-081	Wiederholter Job oder Formular Request erzeugt keine Duplikate
+POC-GATE-018	gate	Konzept 10.3	POC-072,POC-082	Oeffentliche Bestellung erscheint bei allen zugeordneten Akquisiteuren
+POC-GATE-019	gate	Konzept 10.3	POC-070	Alias zeigt nur aktive Aktion und Wechsel aendert Archiv URL nicht
+POC-GATE-020	gate	Konzept 10.3	POC-070,POC-071	Archiv ist lesbar und nimmt keine Formularuebermittlung an
+POC-GATE-021	gate	Konzept 10.3	POC-091	PDF oeffnet in mindestens zwei realen Viewern
+POC-GATE-022	gate	Konzept 10.3	POC-094,POC-114	Versandstatus und Fehler sind im Admin Bereich nachvollziehbar
+POC-GATE-023	gate	Konzept 10.3	POC-112	Backup und Restore von Twenty und LeonAid sind praktisch bewiesen
