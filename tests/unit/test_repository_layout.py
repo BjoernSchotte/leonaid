@@ -27,10 +27,13 @@ def test_planned_repository_roots_exist() -> None:
         "infra/rustfs",
         "infra/proxy",
         "infra/backup",
+        "migrations/versions",
         "tests/integration",
         "tests/contract",
         "tests/e2e",
         "tests/fixtures/golden/v1",
+        "tests/fixtures/schema",
+        "tools/schema",
     )
     missing = [relative for relative in expected if not (root / relative).is_dir()]
     assert missing == []

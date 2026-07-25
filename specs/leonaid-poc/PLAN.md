@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012 und POC-020
-vollständig bewiesen
+bis POC-021 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -443,29 +443,32 @@ Tests/Nachweise:
 Nachweis:
 [POC-020 – Python-Core und Schichtengrenzen](proofs/POC-020.md).
 
-### [ ] POC-021 Relationales Core-Schema und Migrationen implementieren
+### [x] POC-021 Relationales Core-Schema und Migrationen implementieren
 
 Abhängigkeiten: POC-020, POC-011
 
 Akzeptanzkriterien:
 
-- [ ] Tabellen decken das Kernmodell aus
+- [x] Tabellen decken das Kernmodell aus
       [Kapitel 4.2](../produkt-und-architekturvorschlag.md#42-empfohlenes-kernmodell)
       für den PoC ab.
-- [ ] Geldwerte verwenden exakte Dezimal-/Minor-Unit-Semantik; Zeitpunkte
+- [x] Geldwerte verwenden exakte Dezimal-/Minor-Unit-Semantik; Zeitpunkte
       sind timezone-aware.
-- [ ] Fremdschlüssel, Unique Constraints und Check Constraints sichern
+- [x] Fremdschlüssel, Unique Constraints und Check Constraints sichern
       zentrale Invarianten.
-- [ ] Migrationen sind vorwärts ausführbar; destruktive Änderungen benötigen
+- [x] Migrationen sind vorwärts ausführbar; destruktive Änderungen benötigen
       explizite Datenmigration und Backup.
-- [ ] Audit- und Outbox-Daten sind transaktional mit Fachänderungen.
+- [x] Audit- und Outbox-Daten sind transaktional mit Fachänderungen.
 
 Tests/Nachweise:
 
-- [ ] Migrationstest baut eine leere Datenbank bis Head auf.
-- [ ] Upgrade-Test migriert den vorherigen Schema-Snapshot mit Daten.
-- [ ] Integrationstests beweisen Constraints durch reale fehlgeschlagene
+- [x] Migrationstest baut eine leere Datenbank bis Head auf.
+- [x] Upgrade-Test migriert den vorherigen Schema-Snapshot mit Daten.
+- [x] Integrationstests beweisen Constraints durch reale fehlgeschlagene
       Inserts/Transitions.
+
+Nachweis:
+[POC-021 – Core-Schema und Migrationen](proofs/POC-021.md).
 
 ### [ ] POC-022 Unit-of-Work, Repositories und transaktionale Outbox bauen
 

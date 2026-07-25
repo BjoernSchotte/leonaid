@@ -27,14 +27,26 @@ vorhandenen Secrets.
 | `./leonaid check` | nicht mutierende Policy-, Format-, Typ- und Unit-Gates |
 | `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
 | `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
-| `./leonaid test-integration` | isolierten Leerstart, Netzgrenzen, Profile und Persistenz real testen |
+| `./leonaid test-integration` | Compose, Reset, ASGI und Migrationen aus leeren Volumes real testen |
 | `./leonaid test-e2e` | echte Browserjourneys, ab POC-041 |
-| `./leonaid seed` | Golden Dataset v1 idempotent einspielen, ab POC-012 |
-| `./leonaid reset` | markierte lokale Testumgebung zurücksetzen, ab POC-012 |
+| `./leonaid seed` | Golden Dataset v1 idempotent in reale Systeme einspielen |
+| `./leonaid snapshot [NAME]` | geheimnisfreien kanonischen Systemzustand schreiben |
+| `./leonaid reset` | markierte lokale Testumgebung sicher zurücksetzen |
 
-Die noch reservierten Befehle `test-e2e`, `seed` und `reset` scheitern bis zu
-ihrem Meilenstein bewusst mit Exitcode 64 und nennen den zuständigen Task. Sie
-geben keinen grünen Scheinerfolg aus.
+Der noch reservierte Befehl `test-e2e` scheitert bis zu seinem Meilenstein
+bewusst mit Exitcode 64 und nennt den zuständigen Task. Er gibt keinen grünen
+Scheinerfolg aus.
+
+## Core-Migrationen
+
+Der API-Container führt beim Start `alembic upgrade head` aus und startet
+Uvicorn erst nach einer erfolgreichen Migration. Migrationen liegen unter
+`migrations/`; ihre Vorwärtsrichtung darf keine destruktive Änderung ohne
+explizite Datenmigrations- und Backup-Referenz enthalten.
+
+`tools/schema/test.sh` beweist den Leeraufbau und das Upgrade des versionierten
+Vorgänger-Snapshots gegen echtes PostgreSQL. Der Test ist außerdem Bestandteil
+von `./leonaid test-integration`.
 
 ## Secrets
 
