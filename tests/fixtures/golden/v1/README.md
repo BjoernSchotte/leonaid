@@ -55,6 +55,9 @@ besitzt zusätzlich den stabilen kanonischen Pfad
 - `dataset.json` enthält ausschließlich Eingabedaten.
 - `expected.json` enthält Counts, Sichtbarkeiten, Match-Ergebnisse,
   Mengen-/Geldberechnungen, Feed-Sichten und Public-Auflösung.
+- `documents/*.typ` sind die deterministischen Quellen der drei synthetischen
+  Golden-Rechnungen. `./leonaid seed` rendert sie mit dem gepinnten Typst-Image,
+  legt die PDFs in RustFS ab und speichert SHA-256 plus Rechnungszuordnung.
 
 Prüfung:
 

@@ -1,6 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 bis POC-002 und POC-011 vollständig bewiesen
+Status: in Umsetzung; POC-000 bis POC-002 und POC-010 bis POC-012
+vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -368,27 +369,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-011 – Golden Dataset v1](proofs/POC-011.md).
 
-### [ ] POC-012 Reset-, Seed- und Snapshot-Werkzeuge bauen
+### [x] POC-012 Reset-, Seed- und Snapshot-Werkzeuge bauen
 
 Abhängigkeiten: POC-010, POC-011
 
 Akzeptanzkriterien:
 
-- [ ] Ein Befehl setzt Core-PostgreSQL, Twenty, RustFS und Mailpit auf Golden
+- [x] Ein Befehl setzt Core-PostgreSQL, Twenty, RustFS und Mailpit auf Golden
       Data v1 zurück.
-- [ ] Twenty-Daten werden über unterstützte Metadata-/Data-APIs aufgebaut,
+- [x] Twenty-Daten werden über unterstützte Metadata-/Data-APIs aufgebaut,
       nicht durch Änderungen an internen Twenty-Tabellen.
-- [ ] RustFS enthält reale Golden-PDFs mit gespeicherten SHA-256-Prüfsummen.
-- [ ] Seed-Vorgang ist wiederholbar und erzeugt keine Duplikate.
-- [ ] Reset verweigert sich außerhalb eindeutig markierter Testumgebungen.
+- [x] RustFS enthält reale Golden-PDFs mit gespeicherten SHA-256-Prüfsummen.
+- [x] Seed-Vorgang ist wiederholbar und erzeugt keine Duplikate.
+- [x] Reset verweigert sich außerhalb eindeutig markierter Testumgebungen.
 
 Tests/Nachweise:
 
-- [ ] Zwei aufeinanderfolgende Seeds liefern identische fachliche Counts und
+- [x] Zwei aufeinanderfolgende Seeds liefern identische fachliche Counts und
       IDs.
-- [ ] Nach absichtlicher Datenveränderung stellt Reset exakt den erwarteten
+- [x] Nach absichtlicher Datenveränderung stellt Reset exakt den erwarteten
       Snapshot wieder her.
-- [ ] Sicherheitsprüfung beweist, dass ein Produktions-DSN abgewiesen wird.
+- [x] Sicherheitsprüfung beweist, dass ein Produktions-DSN abgewiesen wird.
+
+Nachweis:
+[POC-012 – Reset, Seed und Snapshot](proofs/POC-012.md).
 
 ### [ ] POC-013 Testkit für echte Systeme bereitstellen
 

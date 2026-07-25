@@ -41,12 +41,17 @@ services:
       - "8000"
     environment:
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      TWENTY_BASE_URL: http://twenty-server:3000
+      TWENTY_ORIGIN: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
       TWENTY_HEALTH_URL: http://twenty-server:3000/healthz
       RUSTFS_HEALTH_URL: http://rustfs:9000/health
       RUSTFS_ENDPOINT_URL: http://rustfs:9000
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+      MAILPIT_API_URL: http://mailpit:8025/mail
+      MAILPIT_SMTP_HOST: mailpit
+      MAILPIT_SMTP_PORT: "1025"
     networks:
       - edge
       - core-data
@@ -167,7 +172,7 @@ services:
     environment: &twenty-environment
       NODE_PORT: "3000"
       PG_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
-      SERVER_URL: http://localhost:${LEONAID_HTTP_PORT:-8080}/crm
+      SERVER_URL: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
       REDIS_URL: redis://twenty-redis:6379
       DISABLE_DB_MIGRATIONS: "false"
       DISABLE_CRON_JOBS_REGISTRATION: "false"
@@ -176,6 +181,7 @@ services:
       FALLBACK_ENCRYPTION_KEY: ${TWENTY_LOGIN_TOKEN_SECRET}
       APP_SECRET: ${LEONAID_SECRET_KEY}
       SIGN_IN_PREFILLED: "false"
+      IS_EMAIL_VERIFICATION_REQUIRED: "false"
       IS_MULTIWORKSPACE_ENABLED: "false"
     volumes:
       - twenty-server-data:/app/packages/twenty-server/.local-storage

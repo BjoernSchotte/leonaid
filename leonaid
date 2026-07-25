@@ -18,8 +18,9 @@ Commands:
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
-  seed              Seed Golden Dataset v1 (available with POC-012)
-  reset             Reset real local systems (available with POC-012)
+  seed              Idempotently seed Golden Dataset v1 into real systems
+  snapshot [NAME]   Write a deterministic real-system snapshot under .local/
+  reset             Safely reset all local core systems to Golden Dataset v1
   help              Show this help
 EOF
 }
@@ -56,6 +57,7 @@ run_bun() {
 
 compose() {
   docker compose \
+    --project-name "${LEONAID_COMPOSE_PROJECT:-leonaid}" \
     --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
     "$@"
@@ -64,17 +66,12 @@ compose() {
 bootstrap() {
   require_docker
   mkdir -p "$root/.cache"
-  if [ ! -f "$root/.env.local" ]; then
-    docker run --rm \
-      -v "$root:/workspace" \
-      -w /workspace \
-      "$PYTHON_IMAGE" \
-      python tools/dx/generate_secrets.py .env.example .env.local
-    chmod 600 "$root/.env.local"
-    echo "bootstrap: lokale Secrets in .env.local erzeugt"
-  else
-    echo "bootstrap: vorhandene .env.local bleibt unverändert"
-  fi
+  docker run --rm \
+    -v "$root:/workspace" \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/dx/generate_secrets.py .env.example .env.local
+  chmod 600 "$root/.env.local"
   run_python uv sync --frozen --all-groups --no-install-project
   run_bun bun install --frozen-lockfile --ignore-scripts
   echo "bootstrap: OK: ausschließlich gelockte Docker-Toolchains verwendet"
@@ -179,11 +176,11 @@ check_all() {
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
-    src tests tools/compose/persistence_probe.py
+    src tests tools/compose/persistence_probe.py tools/dx tools/seed
   run_python uv run --frozen --no-sync ruff format --check \
-    src tests tools/compose/persistence_probe.py
+    src tests tools/compose/persistence_probe.py tools/dx tools/seed
   run_python uv run --frozen --no-sync mypy \
-    src tools/compose/persistence_probe.py
+    src tools/compose/persistence_probe.py tools/dx tools/seed
   run_python uv run --frozen --no-sync pytest tests/unit
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -215,6 +212,79 @@ dev() {
   echo "dev: OK: LeonAid ist bereit unter http://127.0.0.1:$port"
 }
 
+validate_reset_target() {
+  project=${LEONAID_COMPOSE_PROJECT:-leonaid}
+  compose --profile dev-mail config --format json |
+    docker run --rm -i \
+      -v "$root:/workspace:ro" \
+      "$PYTHON_IMAGE" \
+      python /workspace/tools/seed/safety.py \
+      --project-name "$project" \
+      --env-file /workspace/.env.local
+}
+
+render_golden_pdfs() {
+  source_directory="$root/tests/fixtures/golden/v1/documents"
+  output_directory="$root/.artifacts/golden-v1/invoices"
+  mkdir -p "$output_directory"
+  for source in "$source_directory"/KT26-*.typ; do
+    filename=$(basename "$source" .typ)
+    docker run --rm \
+      -v "$source_directory:/input:ro" \
+      -v "$output_directory:/output" \
+      "$TYPST_IMAGE" \
+      compile \
+      --creation-timestamp 1782864000 \
+      --jobs 1 \
+      "/input/$filename.typ" \
+      "/output/$filename.pdf"
+  done
+}
+
+run_golden_tool() {
+  compose --profile dev-mail run --rm --no-deps \
+    --env-from-file "$root/.env.local" \
+    --volume "$root:/repo:ro" \
+    --volume "$root/.local:/repo/.local" \
+    --entrypoint python \
+    api /repo/tools/seed/golden.py "$@"
+}
+
+seed_systems() {
+  require_docker
+  compose --profile dev-mail up --detach --wait --wait-timeout 420
+  render_golden_pdfs
+  mkdir -p "$root/.local"
+  run_golden_tool seed \
+    /repo/tests/fixtures/golden/v1 \
+    /repo/.artifacts/golden-v1/invoices
+}
+
+snapshot_systems() {
+  require_docker
+  name=${1:-golden-v1.json}
+  case "$name" in
+    *[!A-Za-z0-9._-]* | .* | *..*)
+      echo "snapshot: ERROR: NAME darf nur A-Z, a-z, 0-9, Punkt, Unterstrich und Bindestrich enthalten." >&2
+      exit 64
+      ;;
+  esac
+  mkdir -p "$root/.local/snapshots"
+  run_golden_tool snapshot \
+    /repo/tests/fixtures/golden/v1 \
+    --output "/repo/.local/snapshots/$name"
+}
+
+reset_systems() {
+  require_docker
+  validate_reset_target
+  compose --profile dev-mail down --volumes --remove-orphans
+  compose --profile dev-mail up --build --detach --wait --wait-timeout 420
+  seed_systems
+  snapshot_systems golden-v1.json
+  echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"
+}
+
 command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
@@ -228,10 +298,12 @@ case "$command" in
   test-integration)
     require_docker
     /bin/sh "$root/tools/compose/test.sh" "$root"
+    /bin/sh "$root/tools/seed/test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
-  seed) future_command seed POC-012 ;;
-  reset) future_command reset POC-012 ;;
+  seed) seed_systems ;;
+  snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
+  reset) reset_systems ;;
   help|-h|--help) usage ;;
   *)
     echo "leonaid: Unbekannter Befehl '$command'." >&2

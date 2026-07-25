@@ -1,8 +1,17 @@
-:8080 {
+(common_headers) {
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 	}
+}
+
+http://crm.localhost:8080 {
+	import common_headers
+	reverse_proxy twenty-server:3000
+}
+
+:8080 {
+	import common_headers
 
 	handle /_health {
 		respond "ready" 200

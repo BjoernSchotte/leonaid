@@ -25,4 +25,7 @@ docker compose --env-file .env.local -f infra/compose/compose.yml \
 räumt nur dessen Container, Netze und Volumes auf. Der Test startet aus
 leeren Volumes, prüft sämtliche Healthchecks und Host-Portbindungen, schreibt
 Golden Data über PostgreSQL und die echte S3-API und verifiziert sie nach
-einem Neustart aller Standardcontainer.
+einem Neustart aller Standardcontainer. Anschließend beweist er
+Reset-Sicherheit, idempotentes Seeding über die offizielle Twenty API, echte
+Typst-PDFs in RustFS, einen leeren Mailpit-Stand sowie die exakte
+Wiederherstellung nach realen Mutationen aller vier Systeme.

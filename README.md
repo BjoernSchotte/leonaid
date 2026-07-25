@@ -31,8 +31,23 @@ Projektpakete müssen nicht global installiert werden.
 
 `bootstrap` erzeugt `.env.local`, installiert die exakt gelockten Python- und
 Frontend-Pakete in den digest-gepinnten Containern und ruft anschließend
-`doctor` auf. Verfügbare und für spätere Meilensteine bereits reservierte
-Befehle zeigt `./leonaid help`.
+`doctor` auf. Die lokalen Twenty-Admin-Zugangsdaten stehen ausschließlich in
+der ignorierten Datei `.env.local` unter `TWENTY_BOOTSTRAP_EMAIL` und
+`TWENTY_BOOTSTRAP_PASSWORD`; sie werden nie geloggt oder committed.
+
+Der reale Golden-Stack lässt sich anschließend reproduzierbar bedienen:
+
+```sh
+./leonaid dev
+./leonaid seed
+./leonaid snapshot
+./leonaid reset
+```
+
+`reset` löscht ausschließlich ein explizit freigegebenes lokales LeonAid-
+Compose-Projekt und stellt Core-PostgreSQL, Twenty, RustFS und Mailpit auf
+Golden Data v1 wieder her. Verfügbare und für spätere Meilensteine bereits
+reservierte Befehle zeigt `./leonaid help`.
 
 ## Dokumente
 

@@ -22,6 +22,10 @@ compose() {
     "$@"
 }
 
+compose_all_profiles() {
+  compose --profile dev-mail --profile mailing --profile observability "$@"
+}
+
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -29,12 +33,12 @@ cleanup() {
     compose ps >&2 || true
     compose logs --no-color --tail=80 >&2 || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1 || true
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 profiles=$(compose config --profiles | sort)
 expected_profiles=$(printf '%s\n' dev-mail mailing observability | sort)
@@ -90,7 +94,9 @@ curl --fail --silent "$base_url/api/health/ready" | grep -q '"status":"ready"'
 curl --fail --silent "$base_url/app/" | grep -q "LeonAid Akquise"
 curl --fail --silent "$base_url/admin/" | grep -q "LeonAid Verwaltung"
 curl --fail --silent "$base_url/" | grep -q "Krapfentaxi 2026"
-curl --fail --silent "$base_url/crm/healthz" | grep -q '"status":"ok"'
+curl --fail --silent \
+  --resolve "crm.localhost:$port:127.0.0.1" \
+  "http://crm.localhost:$port/healthz" | grep -q '"status":"ok"'
 
 echo "compose-test: schreibe das echte Golden Dataset nach PostgreSQL und RustFS"
 compose run --rm --no-deps \
@@ -122,8 +128,7 @@ if [ "$twenty_tables_after" != "$twenty_tables_before" ]; then
 fi
 
 echo "compose-test: startet und prüft optionale Profile"
-compose --profile dev-mail --profile mailing --profile observability \
-  up --detach --wait --wait-timeout 420
+compose_all_profiles up --detach --wait --wait-timeout 420
 for service in mailpit listmonk listmonk-postgres otel-collector; do
   container_id=$(compose ps --quiet "$service")
   health=$(docker inspect --format '{{.State.Health.Status}}' "$container_id")

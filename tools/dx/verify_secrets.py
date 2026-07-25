@@ -6,6 +6,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED"}
+
 
 def parse_env(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -41,8 +43,14 @@ def main() -> int:
     if actual.get("LEONAID_ENV") != "local":
         print("secret-check: ERROR: LEONAID_ENV must be local", file=sys.stderr)
         return 1
+    if actual.get("LEONAID_RESET_ALLOWED") != "true":
+        print(
+            "secret-check: ERROR: LEONAID_RESET_ALLOWED must be true locally",
+            file=sys.stderr,
+        )
+        return 1
 
-    secret_values = [value for key, value in actual.items() if key != "LEONAID_ENV"]
+    secret_values = [value for key, value in actual.items() if key not in CONFIG_KEYS]
     if any(
         not value
         or "__GENERATE_" in value
@@ -53,7 +61,10 @@ def main() -> int:
         print("secret-check: ERROR: empty, short or template secret", file=sys.stderr)
         return 1
     if len(secret_values) != len(set(secret_values)):
-        print("secret-check: ERROR: logically separate secrets must be unique", file=sys.stderr)
+        print(
+            "secret-check: ERROR: logically separate secrets must be unique",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"secret-check: OK: {len(secret_values)} unique generated secrets")

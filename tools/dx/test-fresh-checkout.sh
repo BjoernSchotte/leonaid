@@ -55,9 +55,7 @@ docker run --rm \
   /workspace/.env.example /workspace/.env.local
 
 for reservation in \
-  "test-e2e:POC-041" \
-  "seed:POC-012" \
-  "reset:POC-012"; do
+  "test-e2e:POC-041"; do
   command_name=${reservation%%:*}
   task=${reservation##*:}
   if "$checkout/leonaid" "$command_name" >"$tmp/$command_name.out" 2>&1; then
