@@ -69,7 +69,10 @@ compose() {
 bootstrap() {
   require_docker
   mkdir -p "$root/.cache"
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
   docker run --rm \
+    --user "$host_user_id:$host_group_id" \
     -v "$root:/workspace" \
     -w /workspace \
     "$PYTHON_IMAGE" \
