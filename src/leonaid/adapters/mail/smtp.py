@@ -1,0 +1,106 @@
+"""SMTP outbox handler with a durable idempotency ledger."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import smtplib
+from email.message import EmailMessage
+from typing import Any
+from uuid import UUID, uuid5
+
+import asyncpg
+
+from leonaid.domain.outbox import ClaimedOutboxEvent
+
+MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
+
+
+class SmtpMailHandler:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        *,
+        host: str,
+        port: int,
+        sender: str,
+        timeout_seconds: float = 5,
+    ) -> None:
+        if not host.strip() or port < 1 or not sender.strip():
+            raise ValueError("SMTP-Konfiguration ist unvollständig.")
+        self._pool = pool
+        self._host = host
+        self._port = port
+        self._sender = sender
+        self._timeout_seconds = timeout_seconds
+
+    async def handle(self, event: ClaimedOutboxEvent) -> None:
+        recipient = self._required_text(event, "to")
+        subject = self._required_text(event, "subject")
+        text = self._required_text(event, "text")
+        if await self._was_sent(event.idempotency_key):
+            return
+
+        message_id = self.message_id(event.idempotency_key)
+        message = EmailMessage()
+        message["From"] = self._sender
+        message["To"] = recipient
+        message["Subject"] = subject
+        message["Message-ID"] = message_id
+        message.set_content(text)
+        await asyncio.to_thread(self._send, message)
+
+        recipient_sha256 = hashlib.sha256(
+            recipient.strip().casefold().encode()
+        ).hexdigest()
+        async with self._pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO mail_delivery (
+                    id, outbox_event_id, idempotency_key, message_id,
+                    recipient_sha256, status
+                )
+                VALUES ($1, $2, $3, $4, $5, 'sent')
+                ON CONFLICT (idempotency_key) DO NOTHING
+                """,
+                uuid5(MAIL_DELIVERY_NAMESPACE, event.idempotency_key),
+                event.id,
+                event.idempotency_key,
+                message_id,
+                recipient_sha256,
+            )
+
+    def _send(self, message: EmailMessage) -> None:
+        with smtplib.SMTP(
+            self._host,
+            self._port,
+            timeout=self._timeout_seconds,
+        ) as smtp:
+            smtp.send_message(message)
+
+    async def _was_sent(self, idempotency_key: str) -> bool:
+        async with self._pool.acquire() as connection:
+            return bool(
+                await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM mail_delivery
+                        WHERE idempotency_key = $1 AND status = 'sent'
+                    )
+                    """,
+                    idempotency_key,
+                )
+            )
+
+    @staticmethod
+    def message_id(idempotency_key: str) -> str:
+        digest = hashlib.sha256(idempotency_key.encode()).hexdigest()
+        return f"<{digest}@outbox.leonaid.invalid>"
+
+    @staticmethod
+    def _required_text(event: ClaimedOutboxEvent, key: str) -> str:
+        value = event.payload.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Mail-Payload-Feld {key} fehlt.")
+        return value

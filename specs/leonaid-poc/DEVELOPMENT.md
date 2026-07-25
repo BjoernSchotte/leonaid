@@ -27,7 +27,7 @@ vorhandenen Secrets.
 | `./leonaid check` | nicht mutierende Policy-, Format-, Typ- und Unit-Gates |
 | `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
 | `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
-| `./leonaid test-integration` | Compose, Reset, ASGI und Migrationen aus leeren Volumes real testen |
+| `./leonaid test-integration` | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
 | `./leonaid test-e2e` | echte Browserjourneys, ab POC-041 |
 | `./leonaid seed` | Golden Dataset v1 idempotent in reale Systeme einspielen |
 | `./leonaid snapshot [NAME]` | geheimnisfreien kanonischen Systemzustand schreiben |
@@ -47,6 +47,26 @@ explizite Datenmigrations- und Backup-Referenz enthalten.
 `tools/schema/test.sh` beweist den Leeraufbau und das Upgrade des versionierten
 Vorgänger-Snapshots gegen echtes PostgreSQL. Der Test ist außerdem Bestandteil
 von `./leonaid test-integration`.
+
+## Durable Jobs und Outbox
+
+Der `worker`-Service verarbeitet die transaktionale PostgreSQL-Outbox. Ein
+Application Service schreibt Fachänderung, Audit, Befehlsnachweis und
+Outbox-Event in derselben Unit of Work. Der Worker beansprucht fällige Jobs mit
+`FOR UPDATE SKIP LOCKED` sowie einem Claim-Token; nur der aktuelle Claim darf
+Erfolg oder Fehler speichern.
+
+Retry verwendet exponentiellen Backoff bis zum sichtbaren Dead-Letter-Status.
+Der operative CLI-Einstieg unter
+`python -m leonaid.entrypoints.worker.outbox` bietet `status`, `retry`,
+`run-once` und `run-until-idle`. Der manuelle Wiederanlauf speichert Zeitpunkt,
+Operator und Zähler. Produktive Autorisierung für diese Operation wird mit den
+Admin- und Rollen-Tasks ergänzt; der PoC-022-Nachweis verwendet den isolierten
+Operator `poc022-operator`.
+
+`tools/outbox/test.sh` beendet einen echten Producer nach dem Commit, startet
+zwei konkurrierende Worker-Container und stoppt Mailpit real, um Retry, Dead
+Letter und Wiederanlauf ohne Mock-Server zu beweisen.
 
 ## Secrets
 

@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import asyncpg
 
+from leonaid.entrypoints.worker.outbox import build_worker
+
 last_database_success = 0.0
 
 
@@ -44,12 +46,39 @@ class HealthHandler(BaseHTTPRequestHandler):
         return
 
 
-async def dependency_loop() -> None:
+async def durable_worker_loop() -> None:
+    while True:
+        pool = None
+        try:
+            pool, _, worker = await build_worker(
+                database_url=os.environ["CORE_DATABASE_URL"],
+                worker_id=f"compose-worker-{os.getpid()}",
+                max_attempts=int(os.environ.get("OUTBOX_MAX_ATTEMPTS", "5")),
+                base_backoff_seconds=float(
+                    os.environ.get("OUTBOX_BASE_BACKOFF_SECONDS", "5")
+                ),
+                claim_lease_seconds=float(
+                    os.environ.get("OUTBOX_CLAIM_LEASE_SECONDS", "300")
+                ),
+            )
+            while True:
+                handled = await worker.run_once()
+                if not handled:
+                    await asyncio.sleep(0.25)
+        except Exception:
+            await asyncio.sleep(2)
+        finally:
+            if pool is not None:
+                await pool.close()
+
+
+async def database_readiness_loop() -> None:
     global last_database_success
     while True:
         try:
             connection = await asyncpg.connect(
-                os.environ["CORE_DATABASE_URL"], timeout=3
+                os.environ["CORE_DATABASE_URL"],
+                timeout=3,
             )
             try:
                 await connection.fetchval("SELECT 1")
@@ -61,11 +90,15 @@ async def dependency_loop() -> None:
         await asyncio.sleep(2)
 
 
+async def service_loop() -> None:
+    await asyncio.gather(durable_worker_loop(), database_readiness_loop())
+
+
 def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", 8010), HealthHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    asyncio.run(dependency_loop())
+    asyncio.run(service_loop())
 
 
 if __name__ == "__main__":

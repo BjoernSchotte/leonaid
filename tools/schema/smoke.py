@@ -26,11 +26,13 @@ EXPECTED_TABLES = {
     "beneficiary",
     "charity_action",
     "charity_action_capability",
+    "command_receipt",
     "commitment",
     "commitment_line",
     "consent_record",
     "generated_document",
     "invoice",
+    "mail_delivery",
     "offering",
     "outbox_event",
     "payment_record",
@@ -79,7 +81,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0001_core_schema":
+    if revision != "0002_durable_outbox":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(

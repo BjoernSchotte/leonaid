@@ -177,13 +177,13 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/schema tools/seed
+    tools/dx tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/schema tools/seed
+    tools/dx tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/schema tools/seed
+    tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync pytest tests/unit
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -304,6 +304,7 @@ case "$command" in
     /bin/sh "$root/tools/seed/test.sh" "$root"
     /bin/sh "$root/tools/core/test.sh" "$root"
     /bin/sh "$root/tools/schema/test.sh" "$root"
+    /bin/sh "$root/tools/outbox/test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
   seed) seed_systems ;;

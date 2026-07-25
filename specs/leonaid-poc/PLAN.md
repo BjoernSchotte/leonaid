@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012 und POC-020
-bis POC-021 vollständig bewiesen
+bis POC-022 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -470,26 +470,29 @@ Tests/Nachweise:
 Nachweis:
 [POC-021 – Core-Schema und Migrationen](proofs/POC-021.md).
 
-### [ ] POC-022 Unit-of-Work, Repositories und transaktionale Outbox bauen
+### [x] POC-022 Unit-of-Work, Repositories und transaktionale Outbox bauen
 
 Abhängigkeiten: POC-021
 
 Akzeptanzkriterien:
 
-- [ ] Application Service führt Fachänderung, AuditEvent und OutboxEvent in
+- [x] Application Service führt Fachänderung, AuditEvent und OutboxEvent in
       einer Transaktion aus.
-- [ ] Worker beanspruchen Jobs konkurrierend sicher.
-- [ ] Retry, Backoff, Dead-Letter-Zustand und manueller Wiederanlauf sind
+- [x] Worker beanspruchen Jobs konkurrierend sicher.
+- [x] Retry, Backoff, Dead-Letter-Zustand und manueller Wiederanlauf sind
       sichtbar.
-- [ ] Jeder externe Effekt besitzt einen stabilen Idempotenzschlüssel.
+- [x] Jeder externe Effekt besitzt einen stabilen Idempotenzschlüssel.
 
 Tests/Nachweise:
 
-- [ ] Echter PostgreSQL-Test beendet den Prozess zwischen Commit und Versand
+- [x] Echter PostgreSQL-Test beendet den Prozess zwischen Commit und Versand
       und beweist spätere genau-einmalige fachliche Wirkung.
-- [ ] Zwei reale Worker verarbeiten denselben Job nicht doppelt.
-- [ ] Wiederholter Job erzeugt weder doppelte Bestellung noch Rechnung oder
+- [x] Zwei reale Worker verarbeiten denselben Job nicht doppelt.
+- [x] Wiederholter Job erzeugt weder doppelte Bestellung noch Rechnung oder
       Mail.
+
+Nachweis:
+[POC-022 – Unit of Work und transaktionale Outbox](proofs/POC-022.md).
 
 ### [ ] POC-023 OpenAPI- und TypeScript-Client-Pipeline etablieren
 
