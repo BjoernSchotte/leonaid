@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "enabled": true,
+  "automerge": false,
+  "dependencyDashboard": true,
+  "rangeStrategy": "pin",
+  "pinDigests": true,
+  "prCreation": "immediate",
+  "labels": [
+    "dependencies"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^infra\\/locks\\/images\\.env$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9./-]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Every dependency change needs an explicit reviewable PR",
+      "matchManagers": [
+        "bun",
+        "dockerfile",
+        "docker-compose",
+        "pep621",
+        "github-actions"
+      ],
+      "automerge": false,
+      "rangeStrategy": "pin"
+    }
+  ]
+}

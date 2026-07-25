@@ -1,0 +1,18 @@
+{
+  "name": "@leonaid/root",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "bun@1.2.19",
+  "engines": {
+    "bun": "1.2.19",
+    "node": "22.17.1"
+  },
+  "scripts": {
+    "check:locks": "bun install --frozen-lockfile --ignore-scripts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.54.1",
+    "prettier": "3.6.2",
+    "typescript": "5.8.3"
+  }
+}

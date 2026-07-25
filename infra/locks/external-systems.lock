@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-07-25",
+  "nextReviewOn": "2026-08-25",
+  "systems": [
+    {
+      "id": "twenty",
+      "version": "2.24.0",
+      "image": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "digest": "sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "license": "AGPL-3.0-only",
+      "upstream": "https://github.com/twentyhq/twenty/tree/twenty/v2.24.0",
+      "roles": ["crm-server", "crm-worker"]
+    },
+    {
+      "id": "postgres",
+      "version": "16.9-alpine3.21",
+      "image": "docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
+      "digest": "sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
+      "license": "PostgreSQL",
+      "upstream": "https://github.com/docker-library/postgres/tree/2c6fe8daca9d2ccc143afe6b1cdbc1eb80379d3f",
+      "roles": ["core-postgres", "twenty-postgres"]
+    },
+    {
+      "id": "redis",
+      "version": "7.4.5-alpine3.21",
+      "image": "docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
+      "digest": "sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08",
+      "license": "RSALv2 OR SSPL-1.0",
+      "upstream": "https://github.com/redis/docker-library-redis/tree/732a2608af90db97efa8ddd993fcbb63f5d2883b",
+      "roles": ["twenty-redis"]
+    },
+    {
+      "id": "rustfs",
+      "version": "1.0.0-beta.11",
+      "image": "docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c",
+      "digest": "sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.11",
+      "roles": ["object-storage"]
+    },
+    {
+      "id": "mailpit",
+      "version": "1.30.0",
+      "image": "docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d",
+      "digest": "sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d",
+      "license": "MIT",
+      "upstream": "https://github.com/axllent/mailpit/releases/tag/v1.30.0",
+      "roles": ["development-smtp"]
+    },
+    {
+      "id": "caddy",
+      "version": "2.10.2-alpine",
+      "image": "docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+      "digest": "sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/caddyserver/caddy/releases/tag/v2.10.2",
+      "roles": ["reverse-proxy"]
+    },
+    {
+      "id": "python",
+      "version": "3.13.5-slim-bookworm",
+      "image": "docker.io/library/python:3.13.5-slim-bookworm@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419",
+      "digest": "sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419",
+      "license": "PSF-2.0",
+      "upstream": "https://github.com/docker-library/python/tree/3fae0a14ac171f46e47d7ce41567e40524af5bcc",
+      "roles": ["api-runtime", "worker-runtime", "lock-verifier"]
+    },
+    {
+      "id": "uv",
+      "version": "0.8.5-python3.13-bookworm-slim",
+      "image": "ghcr.io/astral-sh/uv:0.8.5-python3.13-bookworm-slim@sha256:72943d818a2fa37faa5cfeb37d7afbfcafc405ed072bdac5c80cbce5e8dc5018",
+      "digest": "sha256:72943d818a2fa37faa5cfeb37d7afbfcafc405ed072bdac5c80cbce5e8dc5018",
+      "license": "Apache-2.0 OR MIT",
+      "upstream": "https://github.com/astral-sh/uv/releases/tag/0.8.5",
+      "roles": ["python-lock", "python-sync"]
+    },
+    {
+      "id": "node",
+      "version": "22.17.1-alpine3.22",
+      "image": "docker.io/library/node:22.17.1-alpine3.22@sha256:5539840ce9d013fa13e3b9814c9353024be7ac75aca5db6d039504a56c04ea59",
+      "digest": "sha256:5539840ce9d013fa13e3b9814c9353024be7ac75aca5db6d039504a56c04ea59",
+      "license": "MIT",
+      "upstream": "https://github.com/nodejs/node/releases/tag/v22.17.1",
+      "roles": ["frontend-runtime"]
+    },
+    {
+      "id": "bun",
+      "version": "1.2.19-alpine",
+      "image": "docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55",
+      "digest": "sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55",
+      "license": "MIT",
+      "upstream": "https://github.com/oven-sh/bun/releases/tag/bun-v1.2.19",
+      "roles": ["frontend-lock", "frontend-build"]
+    },
+    {
+      "id": "typst",
+      "version": "0.13.1",
+      "image": "ghcr.io/typst/typst:v0.13.1@sha256:253fa1351e43316f5f8dd12d0dd7906b7eedc0c986bff9a374be749032da00c0",
+      "digest": "sha256:253fa1351e43316f5f8dd12d0dd7906b7eedc0c986bff9a374be749032da00c0",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/typst/typst/releases/tag/v0.13.1",
+      "roles": ["pdf-renderer"]
+    },
+    {
+      "id": "playwright",
+      "version": "1.54.1-noble",
+      "image": "mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f",
+      "digest": "sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/microsoft/playwright/releases/tag/v1.54.1",
+      "roles": ["e2e-browsers"]
+    },
+    {
+      "id": "syft",
+      "version": "1.28.0",
+      "image": "docker.io/anchore/syft:v1.28.0@sha256:bc71d110d271c823b3e3c58702aa8ad6bf06e2abd3c1ff7c8966420a9a57dc00",
+      "digest": "sha256:bc71d110d271c823b3e3c58702aa8ad6bf06e2abd3c1ff7c8966420a9a57dc00",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/anchore/syft/releases/tag/v1.28.0",
+      "roles": ["sbom-generator"]
+    },
+    {
+      "id": "alpine",
+      "version": "3.22.1",
+      "image": "docker.io/library/alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1",
+      "digest": "sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1",
+      "license": "MIT",
+      "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tags/v3.22.1",
+      "roles": ["shell-verifier"]
+    }
+  ]
+}

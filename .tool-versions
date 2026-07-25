@@ -1,0 +1,6 @@
+python 3.13.5
+nodejs 22.17.1
+bun 1.2.19
+uv 0.8.5
+typst 0.13.1
+playwright 1.54.1

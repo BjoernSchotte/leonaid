@@ -1,6 +1,6 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: ausführungsbereit, noch nicht begonnen  
+Status: in Umsetzung; POC-000 und POC-001 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -235,30 +235,33 @@ Tests/Nachweise:
       Requirement-IDs.
 - [x] Manueller Scope-Review mit Produktverantwortlichem ist protokolliert.
 
-### [ ] POC-001 Abhängigkeiten und Images exakt pinnen
+### [x] POC-001 Abhängigkeiten und Images exakt pinnen
 
 Abhängigkeiten: POC-000
 
 Akzeptanzkriterien:
 
-- [ ] Python-Version steht in einer Toolchain-Datei; alle Python-Pakete stehen
+- [x] Python-Version steht in einer Toolchain-Datei; alle Python-Pakete stehen
       mit exakter Version und Hash im Lockfile.
-- [ ] Bun/Node-Version und alle Frontend-Pakete sind exakt gelockt.
-- [ ] Twenty, PostgreSQL, Redis, RustFS, Mailpit, Reverse Proxy und alle
+- [x] Bun/Node-Version und alle Frontend-Pakete sind exakt gelockt.
+- [x] Twenty, PostgreSQL, Redis, RustFS, Mailpit, Reverse Proxy und alle
       Hilfscontainer sind mit Version und Image-Digest erfasst.
-- [ ] Typst-Version, Browser-Versionen und Playwright-Browserartefakte sind
+- [x] Typst-Version, Browser-Versionen und Playwright-Browserartefakte sind
       reproduzierbar gepinnt.
-- [ ] Eine maschinenlesbare `external-systems.lock` dokumentiert Image,
+- [x] Eine maschinenlesbare `external-systems.lock` dokumentiert Image,
       Digest, Lizenz, Upstream-Link und geprüftes Upgrade-Datum.
-- [ ] Renovierungsautomation darf nur explizite Update-PRs erzeugen; kein
+- [x] Renovierungsautomation darf nur explizite Update-PRs erzeugen; kein
       Build lädt stillschweigend eine neue Version.
 
 Tests/Nachweise:
 
-- [ ] CI lehnt `latest`, ungebundene Image-Tags und nicht exakt gelockte
+- [x] CI lehnt `latest`, ungebundene Image-Tags und nicht exakt gelockte
       Direktabhängigkeiten ab.
-- [ ] Zwei frische Checkouts erzeugen dieselben Dependency- und Image-Locks.
-- [ ] SBOMs für Python, Frontend und Container werden als Artefakte erzeugt.
+- [x] Zwei frische Checkouts erzeugen dieselben Dependency- und Image-Locks.
+- [x] SBOMs für Python, Frontend und Container werden als Artefakte erzeugt.
+
+Nachweis:
+[POC-001 – exakte Pins, Reproduzierbarkeit und SBOMs](proofs/POC-001.md).
 
 ### [ ] POC-002 Monorepo, Befehle und lokale Developer Experience aufsetzen
 

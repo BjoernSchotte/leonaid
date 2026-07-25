@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "playwright": "1.54.1",
+  "imageId": "playwright",
+  "artifacts": {
+    "chromium": {
+      "revision": "1181",
+      "version": "139.0.7258.5"
+    },
+    "firefox": {
+      "revision": "1489",
+      "version": "140.0.2"
+    },
+    "webkit": {
+      "revision": "2191",
+      "version": "Playwright WebKit 26"
+    }
+  },
+  "verifiedAt": "2026-07-25"
+}
