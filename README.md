@@ -17,7 +17,7 @@ Noch kein Code.
 
 ## Dokumente
 
-- [Architektur & Design](docs/architektur.md) — die maßgebliche Grundlage (Architektur,
+- [Architektur & Design](specs/architektur.md) — die maßgebliche Grundlage (Architektur,
   Datenmodell, Auth-Flow, BFF-API, Hosting, Aufwand, Risiken, Roadmap, Entscheidungslog).
 
 ## Eckdaten der Lösung (Kurzfassung)
