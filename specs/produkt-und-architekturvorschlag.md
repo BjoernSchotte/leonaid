@@ -193,8 +193,9 @@ Die fachliche Aufteilung wird technisch so umgesetzt:
 
 - **Twenty CRM** verwaltet Firmen, Personen, Beziehungen und allgemeine
   Kontaktaktivitäten.
-- **LeonAid Core** verwaltet Charity-Aktionen, Rollen und Zuordnungen,
-  Sponsor-Pipeline, Bestellungen und Ausgangsrechnungen.
+- **LeonAid Core** ist ein serverseitiger Python-Dienst auf Basis von FastAPI
+  und verwaltet Charity-Aktionen, Rollen und Zuordnungen, Sponsor-Pipeline,
+  Bestellungen und Ausgangsrechnungen.
 - Eine eigene **PWA/Weboberfläche** dient Akquisiteuren.
 - Charity-Admins arbeiten im PoC mit Twenty und ergänzenden
   LeonAid-Admin-Seiten.
@@ -661,7 +662,7 @@ Rechte, Abhängigkeiten oder Workflows nachweislich nicht ausreichen.
 
 ```mermaid
 flowchart LR
-    A["Akquisiteur PWA"] --> API["LeonAid Core API"]
+    A["Akquisiteur PWA"] --> API["LeonAid Core API<br/>Python / FastAPI"]
     CA["Charity-Admin UI<br/>zunächst Twenty"] --> T["Twenty CRM"]
     CA --> API
     PUB["Astro 7 Public Web<br/>Teil des Core"] --> API
@@ -693,8 +694,63 @@ Microservices:
   verteilen,
 - spätere Extraktion bleibt möglich, wenn Last oder Teamgrenzen sie rechtfertigen.
 
+Der serverseitige Stack wird für den PoC verbindlich auf **Python mit
+FastAPI** festgelegt. FastAPI stellt die HTTP-API und den OpenAPI-Vertrag
+bereit. Aus diesem Vertrag wird der TypeScript-Client für Web-App, PWA und
+eine mögliche spätere Tauri-App generiert.
+
+Die Schichten bleiben dabei getrennt:
+
+```text
+HTTP / FastAPI Routes
+        ↓
+Application Services und Autorisierung
+        ↓
+Domain-Module
+        ↓
+Repositories und Integrationsadapter
+        ↓
+PostgreSQL, Twenty, RustFS, Mail-Relay
+```
+
+FastAPI-Routen bleiben dünn. Sie validieren Transportdaten, lösen den
+angemeldeten Benutzer auf und rufen autorisierte Application Services auf.
+Charity-Aktionsstatus, Zuordnungsregeln, Matching, Rechnungsfreigabe,
+Nummernvergabe, Dokumentzugriff und andere Fachentscheidungen gehören nicht
+in Route Handler, Frontend oder Integrationsadapter.
+
+Langlebige oder wiederholbare Vorgänge wie PDF-Erzeugung, Mailversand,
+Synchronisation und spätere AI-Läufe werden über die transaktionale Outbox
+und dedizierte Worker ausgeführt. FastAPI-`BackgroundTasks` sind kein Ersatz
+für durable Jobs.
+
 Der CRM-Zugriff liegt hinter einem fachlichen Port. Weder PWA noch
 ERP-light kennen Twenty-JSON oder Feld-IDs.
+
+#### Spätere FastMCP- und LLM-Erweiterung
+
+Der Python-Stack soll später um FastMCP und LLM-gestützte Fähigkeiten
+erweiterbar sein. FastMCP wird dann als zusätzlicher Protokolladapter vor
+ausgewählten Application Services eingesetzt:
+
+```text
+Web/PWA/Tauri ── HTTP/OpenAPI ─┐
+                              ├─ autorisierte Application Services
+AI-Clients ───── MCP/FastMCP ──┘
+```
+
+MCP-Tools implementieren keine zweite Fachlogik und erhalten keinen direkten
+ungeprüften Datenbank-, Twenty- oder RustFS-Zugriff. Jedes Tool übernimmt
+Benutzer-/Mandantenkontext, Rollen, Aktionsbezug, Audit und Bestätigungsregeln
+des normalen Core. Schreibende oder finanzrelevante AI-Aktionen benötigen
+eine explizite, serverseitig geprüfte menschliche Freigabe.
+
+Ein automatisch aus allen FastAPI-Endpunkten veröffentlichtes MCP-Interface
+ist nicht vorgesehen. Tool-Schemas werden bewusst klein, fachlich benannt und
+nach minimal erforderlichen Rechten freigegeben. LLM-Provider,
+Prompt-/Modellversion, Tool-Aufrufe und relevante Ergebnisse müssen
+nachvollziehbar protokolliert werden, ohne unnötig personenbezogene Daten in
+Prompts oder Logs zu kopieren.
 
 ### 6.2 Login- und User-Management im PoC
 
@@ -906,6 +962,12 @@ zeitlich begrenzten Aktionsseiten mit wenig Client-JavaScript. Astro Actions
 können validierte Formulare serverseitig verarbeiten; sie ersetzen jedoch
 nicht die fachliche Core API.
 
+Astro Actions dürfen Transportvalidierung, Spam-Schutz und die Weiterleitung
+an die Core API übernehmen. Aktionsstatus, Preis-, Verfügbarkeits-,
+Matching- oder Bestelllogik wird dort nicht implementiert. Ein direkter
+Aufruf der Core API muss dieselben fachlichen Regeln erzwingen wie der Weg
+über Astro.
+
 Empfohlene Grenze:
 
 - Astro rendert eine schlanke Darstellung der Aktion,
@@ -996,6 +1058,21 @@ Die PWA verwendet gezielt Packages und Features der allgemeinen Web-App,
 bekommt aber eigene Navigation, Offline-/Installationsverhalten und einen
 kleineren rollenbezogenen Funktionsumfang. Es gibt keine Einbettung der Web-App
 per iframe und kein Copy-and-paste derselben Screens.
+
+Für alle Frontends gilt die Grenze: Keine wichtige Fachlogik wandert in
+Browser-only Code. Frontend-Code darf Darstellung, Interaktionszustand,
+optimistische UI, lokale Eingabevalidierung und ausdrücklich vorgesehene
+clientseitige Integrationen enthalten. Jede Berechtigung, Geschäftsregel und
+persistente Zustandsänderung wird serverseitig erneut geprüft.
+
+Eine bewusst vorgesehene spätere Ausnahme ist eine AI-Oberfläche, etwa mit
+CopilotKit für Chat, Streaming, Generative UI, geteilten UI-Zustand oder
+Human-in-the-Loop-Interaktionen. Auch dabei ist nur die
+**Interaktionslogik** clientseitig: Frontend-Tools dürfen UI-Zustand lesen,
+Komponenten anzeigen oder eine Benutzerbestätigung einholen. Fachliche
+Tools, Datenzugriffe und Mutationen laufen über den autorisierten
+FastAPI-/FastMCP-Backendpfad. Ein vom LLM vorgeschlagener Tool-Aufruf ist
+niemals selbst ein Berechtigungsnachweis.
 
 shadcn/ui steht unter MIT-Lizenz. Für ein neues Projekt ist seit Juli 2026
 Base UI der Standard-Unterbau; die konkrete Primitive-Basis wird zu Beginn
@@ -1731,6 +1808,16 @@ Regel risikoärmer als ein eigener Row-Level-Permissions-Fork.
 - [RustFS-Dokumentation](https://docs.rustfs.com/)
 - [RustFS Docker-Installation](https://docs.rustfs.com/installation/docker/)
 - [RustFS Repository und Feature-Status](https://github.com/rustfs/rustfs)
+
+### Backend und spätere AI-Erweiterung
+
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [FastAPI Dependency Injection](https://fastapi.tiangolo.com/tutorial/dependencies/)
+- [FastAPI Background Tasks](https://fastapi.tiangolo.com/tutorial/background-tasks/)
+- [FastMCP](https://gofastmcp.com/)
+- [FastMCP Authorization](https://gofastmcp.com/servers/authorization)
+- [CopilotKit](https://docs.copilotkit.ai/)
+- [CopilotKit Frontend Tools](https://docs.copilotkit.ai/microsoft-agent-framework/generative-ui/frontend-tools)
 
 ### Kommunikation
 
