@@ -176,11 +176,11 @@ check_all() {
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
-    src tests tools/compose/persistence_probe.py tools/dx tools/seed
+    src tests tools/compose/persistence_probe.py tools/core tools/dx tools/seed
   run_python uv run --frozen --no-sync ruff format --check \
-    src tests tools/compose/persistence_probe.py tools/dx tools/seed
+    src tests tools/compose/persistence_probe.py tools/core tools/dx tools/seed
   run_python uv run --frozen --no-sync mypy \
-    src tools/compose/persistence_probe.py tools/dx tools/seed
+    src tools/compose/persistence_probe.py tools/core tools/dx tools/seed
   run_python uv run --frozen --no-sync pytest tests/unit
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -299,6 +299,7 @@ case "$command" in
     require_docker
     /bin/sh "$root/tools/compose/test.sh" "$root"
     /bin/sh "$root/tools/seed/test.sh" "$root"
+    /bin/sh "$root/tools/core/test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
   seed) seed_systems ;;

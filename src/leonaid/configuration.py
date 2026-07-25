@@ -1,0 +1,72 @@
+"""Typed startup configuration with secret-safe diagnostics."""
+
+from __future__ import annotations
+
+from typing import Literal
+from urllib.parse import urlparse
+
+from pydantic import Field, HttpUrl, SecretStr, ValidationError, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ConfigurationError(RuntimeError):
+    """Configuration failed without exposing its values."""
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    environment: Literal["local", "test", "production"] = Field(alias="LEONAID_ENV")
+    service_name: str = Field(default="leonaid-api", alias="LEONAID_SERVICE_NAME")
+    service_version: str = Field(default="0.0.0", alias="LEONAID_SERVICE_VERSION")
+    api_version: str = Field(default="v1", alias="LEONAID_API_VERSION")
+    core_database_url: SecretStr = Field(alias="CORE_DATABASE_URL")
+    twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
+    rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
+
+    @field_validator("core_database_url")
+    @classmethod
+    def validate_core_database_url(cls, value: SecretStr) -> SecretStr:
+        parsed = urlparse(value.get_secret_value())
+        if (
+            parsed.scheme not in {"postgresql", "postgres"}
+            or parsed.hostname is None
+            or parsed.username is None
+            or parsed.path in {"", "/"}
+        ):
+            raise ValueError("ungültiger PostgreSQL-DSN")
+        return value
+
+    def safe_summary(self) -> dict[str, str]:
+        return {
+            "environment": self.environment,
+            "serviceName": self.service_name,
+            "serviceVersion": self.service_version,
+            "apiVersion": self.api_version,
+            "coreDatabaseHost": urlparse(
+                self.core_database_url.get_secret_value()
+            ).hostname
+            or "invalid",
+            "twentyHealthHost": self.twenty_health_url.host or "invalid",
+            "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
+        }
+
+
+def load_settings() -> Settings:
+    try:
+        # BaseSettings resolves required aliases from the process environment.
+        return Settings()  # type: ignore[call-arg]
+    except ValidationError as error:
+        diagnostics = sorted(
+            {
+                f"{'.'.join(str(part) for part in item['loc'])}:{item['type']}"
+                for item in error.errors(include_url=False, include_input=False)
+            }
+        )
+        raise ConfigurationError(
+            "LeonAid-Konfiguration ist ungültig: " + ", ".join(diagnostics)
+        ) from None

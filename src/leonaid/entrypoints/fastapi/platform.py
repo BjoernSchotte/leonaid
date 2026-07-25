@@ -1,63 +1,169 @@
-"""Platform health endpoints for the real Compose stack."""
+"""FastAPI composition root and transport-level policies."""
 
 from __future__ import annotations
 
-import os
-from typing import Any
+import re
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from uuid import uuid4
 
-import asyncpg
-import httpx
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
-app = FastAPI(title="LeonAid Core", version="0.0.0")
+from leonaid.adapters.http_readiness import HttpReadinessProbe
+from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
+from leonaid.application.errors import ApplicationError
+from leonaid.application.platform import PlatformApplicationService
+from leonaid.configuration import Settings, load_settings
+from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.platform import PlatformIdentity
+from leonaid.entrypoints.fastapi.routes import router
 
-
-async def postgres_ready() -> dict[str, Any]:
-    connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=3)
-    try:
-        value = await connection.fetchval("SELECT 1")
-        return {"status": "ready", "probe": value}
-    finally:
-        await connection.close()
-
-
-async def http_ready(name: str, url: str) -> dict[str, Any]:
-    async with httpx.AsyncClient(timeout=3) as client:
-        response = await client.get(url)
-        if response.status_code >= 500:
-            raise RuntimeError(f"{name} returned {response.status_code}")
-        return {"status": "ready", "httpStatus": response.status_code}
+REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 
 
-@app.get("/health/live")
-async def live() -> dict[str, str]:
-    return {"service": "leonaid-api", "status": "live"}
+def request_id_for(request: Request) -> str:
+    value = getattr(request.state, "request_id", None)
+    return value if isinstance(value, str) else str(uuid4())
 
 
-@app.get("/health/ready")
-async def ready(response: Response) -> dict[str, Any]:
-    checks: dict[str, Any] = {}
-    probes = (
-        ("postgres", postgres_ready),
-        (
-            "twenty",
-            lambda: http_ready("twenty", os.environ["TWENTY_HEALTH_URL"]),
-        ),
-        (
-            "rustfs",
-            lambda: http_ready("rustfs", os.environ["RUSTFS_HEALTH_URL"]),
+def error_response(
+    request: Request,
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": code,
+                "message": message,
+                "requestId": request_id_for(request),
+            }
+        },
+    )
+
+
+def build_service(settings: Settings) -> PlatformApplicationService:
+    identity = PlatformIdentity(
+        service=settings.service_name,
+        release=settings.service_version,
+        api_version=settings.api_version,
+    )
+    return PlatformApplicationService(
+        identity=identity,
+        probes=(
+            PostgresReadinessProbe(
+                settings.core_database_url.get_secret_value(),
+            ),
+            HttpReadinessProbe("twenty", str(settings.twenty_health_url)),
+            HttpReadinessProbe("rustfs", str(settings.rustfs_health_url)),
         ),
     )
-    for name, probe in probes:
-        try:
-            checks[name] = await probe()
-        except Exception as error:  # readiness must aggregate dependency failures
-            checks[name] = {"status": "not-ready", "type": type(error).__name__}
-    is_ready = all(check["status"] == "ready" for check in checks.values())
-    if not is_ready:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    return {
-        "service": "leonaid-api",
-        "status": "ready" if is_ready else "not-ready",
-        "checks": checks,
-    }
+
+
+def create_app(configured_settings: Settings | None = None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        settings = configured_settings or load_settings()
+        application.state.settings_summary = settings.safe_summary()
+        application.state.platform_service = build_service(settings)
+        yield
+
+    application = FastAPI(
+        title="LeonAid Core",
+        version="0.0.0",
+        lifespan=lifespan,
+    )
+
+    @application.middleware("http")
+    async def correlate_request(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        supplied = request.headers.get("x-request-id", "")
+        request.state.request_id = (
+            supplied if REQUEST_ID.fullmatch(supplied) else str(uuid4())
+        )
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
+
+    @application.exception_handler(ApplicationError)
+    async def application_error(
+        request: Request,
+        error: ApplicationError,
+    ) -> JSONResponse:
+        return error_response(
+            request,
+            status_code=400,
+            code=error.code,
+            message=error.message,
+        )
+
+    @application.exception_handler(DomainInvariantError)
+    async def domain_error(
+        request: Request,
+        error: DomainInvariantError,
+    ) -> JSONResponse:
+        return error_response(
+            request,
+            status_code=422,
+            code=error.code,
+            message=error.message,
+        )
+
+    @application.exception_handler(RequestValidationError)
+    async def validation_error(
+        request: Request,
+        _error: RequestValidationError,
+    ) -> JSONResponse:
+        return error_response(
+            request,
+            status_code=422,
+            code="request_invalid",
+            message="Die Anfrage enthält ungültige oder fehlende Angaben.",
+        )
+
+    @application.exception_handler(StarletteHTTPException)
+    async def http_error(
+        request: Request,
+        error: StarletteHTTPException,
+    ) -> JSONResponse:
+        codes = {
+            404: ("endpoint_not_found", "Dieser API-Endpunkt existiert nicht."),
+            405: ("method_not_allowed", "Diese HTTP-Methode ist hier nicht erlaubt."),
+        }
+        code, message = codes.get(
+            error.status_code,
+            ("http_error", "Die HTTP-Anfrage konnte nicht verarbeitet werden."),
+        )
+        return error_response(
+            request,
+            status_code=error.status_code,
+            code=code,
+            message=message,
+        )
+
+    @application.exception_handler(Exception)
+    async def unexpected_error(
+        request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        return error_response(
+            request,
+            status_code=500,
+            code="internal_error",
+            message="Die Anfrage ist unerwartet fehlgeschlagen.",
+        )
+
+    application.include_router(router)
+    return application
+
+
+app = create_app()

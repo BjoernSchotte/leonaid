@@ -1,6 +1,6 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 bis POC-002 und POC-010 bis POC-012
+Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012 und POC-020
 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
@@ -420,25 +420,28 @@ Tests/Nachweise:
 
 ## M2 – Python/FastAPI-Kern, Datenbank und Verträge
 
-### [ ] POC-020 Python-Anwendung und Schichtengrenzen aufsetzen
+### [x] POC-020 Python-Anwendung und Schichtengrenzen aufsetzen
 
 Abhängigkeiten: POC-002
 
 Akzeptanzkriterien:
 
-- [ ] FastAPI ist ausschließlich HTTP-Adapter vor Application Services.
-- [ ] Domain und Application Layer importieren weder FastAPI noch konkrete
+- [x] FastAPI ist ausschließlich HTTP-Adapter vor Application Services.
+- [x] Domain und Application Layer importieren weder FastAPI noch konkrete
       PostgreSQL-, Twenty-, RustFS- oder SMTP-Clients.
-- [ ] Konfiguration ist typisiert, secretsicher und beim Start validiert.
-- [ ] Einheitliches Fehlerformat enthält stabilen Fehlercode und Request-ID.
-- [ ] `/health/live`, `/health/ready` und versionierte API-Basis existieren.
+- [x] Konfiguration ist typisiert, secretsicher und beim Start validiert.
+- [x] Einheitliches Fehlerformat enthält stabilen Fehlercode und Request-ID.
+- [x] `/health/live`, `/health/ready` und versionierte API-Basis existieren.
 
 Tests/Nachweise:
 
-- [ ] Architekturtest verhindert unerlaubte Import-Richtungen.
-- [ ] Unit-Tests prüfen Konfigurations- und Domain-Invarianten mit echten
+- [x] Architekturtest verhindert unerlaubte Import-Richtungen.
+- [x] Unit-Tests prüfen Konfigurations- und Domain-Invarianten mit echten
       Objekten.
-- [ ] Integrationstest startet den realen ASGI-Server gegen PostgreSQL.
+- [x] Integrationstest startet den realen ASGI-Server gegen PostgreSQL.
+
+Nachweis:
+[POC-020 – Python-Core und Schichtengrenzen](proofs/POC-020.md).
 
 ### [ ] POC-021 Relationales Core-Schema und Migrationen implementieren
 
