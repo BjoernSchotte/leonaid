@@ -8,6 +8,8 @@ project=leonaid-poc023-test
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 temporary=$(mktemp -d)
+host_user_id=$(id -u)
+host_group_id=$(id -g)
 
 compose() {
   docker compose \
@@ -33,6 +35,7 @@ docker run --rm \
   python tools/openapi/generate.py --root /workspace --check
 
 docker run --rm \
+  --user "$host_user_id:$host_group_id" \
   -e PYTHONPATH=/workspace/src \
   -e UV_CACHE_DIR=/tmp/uv-cache \
   -v "$root:/workspace:ro" \
