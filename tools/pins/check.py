@@ -180,7 +180,7 @@ def check_python(root: Path, problems: Problems) -> None:
 
 
 def iter_package_json(root: Path) -> list[Path]:
-    excluded = {".artifacts", ".git", "node_modules"}
+    excluded = {".artifacts", ".cache", ".git", ".venv", "node_modules"}
     return sorted(
         path
         for path in root.rglob("package.json")
@@ -373,7 +373,10 @@ def check_image_references(root: Path, problems: Problems) -> None:
         if not path.is_file():
             continue
         relative = path.relative_to(root)
-        if any(part in {".artifacts", ".git", "node_modules"} for part in relative.parts):
+        if any(
+            part in {".artifacts", ".cache", ".git", ".venv", "node_modules"}
+            for part in relative.parts
+        ):
             continue
         name = path.name.lower()
         if name.startswith("dockerfile") or (

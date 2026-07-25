@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "LeonAid: bootstrap",
+      "type": "shell",
+      "command": "./leonaid bootstrap",
+      "problemMatcher": []
+    },
+    {
+      "label": "LeonAid: doctor",
+      "type": "shell",
+      "command": "./leonaid doctor",
+      "problemMatcher": []
+    },
+    {
+      "label": "LeonAid: check",
+      "type": "shell",
+      "command": "./leonaid check",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "LeonAid: dev",
+      "type": "shell",
+      "command": "./leonaid dev",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

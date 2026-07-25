@@ -1,6 +1,6 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 und POC-001 vollständig bewiesen
+Status: in Umsetzung; POC-000 bis POC-002 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -263,29 +263,32 @@ Tests/Nachweise:
 Nachweis:
 [POC-001 – exakte Pins, Reproduzierbarkeit und SBOMs](proofs/POC-001.md).
 
-### [ ] POC-002 Monorepo, Befehle und lokale Developer Experience aufsetzen
+### [x] POC-002 Monorepo, Befehle und lokale Developer Experience aufsetzen
 
 Abhängigkeiten: POC-001
 
 Akzeptanzkriterien:
 
-- [ ] Repository-Schnitt aus Kapitel 2 ist angelegt.
-- [ ] Ein einziger dokumentierter Bootstrap-Befehl installiert Toolchains,
+- [x] Repository-Schnitt aus Kapitel 2 ist angelegt.
+- [x] Ein einziger dokumentierter Bootstrap-Befehl installiert Toolchains,
       ohne globale Projektpakete vorauszusetzen.
-- [ ] Einheitliche Befehle existieren für `bootstrap`, `dev`, `check`,
+- [x] Einheitliche Befehle existieren für `bootstrap`, `dev`, `check`,
       `test-unit`, `test-integration`, `test-e2e`, `seed`, `reset` und
       `doctor`.
-- [ ] `doctor` erklärt fehlende Voraussetzungen und konkrete Korrekturen.
-- [ ] Editor-Konfiguration, Typprüfung, Formatierung und Debug-Profile sind
+- [x] `doctor` erklärt fehlende Voraussetzungen und konkrete Korrekturen.
+- [x] Editor-Konfiguration, Typprüfung, Formatierung und Debug-Profile sind
       dokumentiert.
-- [ ] Lokale Secrets entstehen aus einer Vorlage und werden nie committed.
+- [x] Lokale Secrets entstehen aus einer Vorlage und werden nie committed.
 
 Tests/Nachweise:
 
-- [ ] Frischer Checkout auf einer sauberen Entwicklungsmaschine besteht
+- [x] Frischer Checkout auf einer sauberen Entwicklungsmaschine besteht
       `bootstrap` und `doctor`.
-- [ ] `check` verändert keine Dateien und endet bei einem Dirty Diff mit
+- [x] `check` verändert keine Dateien und endet bei einem Dirty Diff mit
       verständlicher Diagnose.
+
+Nachweis:
+[POC-002 – Monorepo und Docker-basierte DX](proofs/POC-002.md).
 
 ### [ ] POC-003 CI-Pipeline und Beweisartefakte einrichten
 

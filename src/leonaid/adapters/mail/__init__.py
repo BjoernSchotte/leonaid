@@ -1,0 +1,1 @@
+"""SMTP mail adapters."""

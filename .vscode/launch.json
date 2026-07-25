@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: Attach to Docker",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/workspace"
+        }
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "PWA: Chromium",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost/app/",
+      "webRoot": "${workspaceFolder}/apps/pwa"
+    },
+    {
+      "name": "Public Web: Chromium",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost/krapfentaxi",
+      "webRoot": "${workspaceFolder}/apps/public"
+    }
+  ]
+}

@@ -41,3 +41,7 @@ line-length = 88
 [tool.mypy]
 python_version = "3.13"
 strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-config", "--strict-markers"]

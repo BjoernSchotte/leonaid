@@ -14,9 +14,25 @@ Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 
 ## Status
 
-🟡 **Design-Phase.** Dieses Repo enthält aktuell Vorschläge und frühere
-Architekturüberlegungen.
-Noch kein Code.
+🟡 **PoC in Umsetzung.** Der technische Plan wird taskweise umgesetzt. Ein
+Task wird erst nach realen, Docker-basierten Nachweisen abgehakt, committed
+und direkt auf `main` gepusht.
+
+## Lokaler Einstieg
+
+Voraussetzung ist ausschließlich eine laufende Docker-Umgebung wie OrbStack.
+Projektpakete müssen nicht global installiert werden.
+
+```sh
+./leonaid bootstrap
+./leonaid doctor
+./leonaid check
+```
+
+`bootstrap` erzeugt `.env.local`, installiert die exakt gelockten Python- und
+Frontend-Pakete in den digest-gepinnten Containern und ruft anschließend
+`doctor` auf. Verfügbare und für spätere Meilensteine bereits reservierte
+Befehle zeigt `./leonaid help`.
 
 ## Dokumente
 
@@ -24,6 +40,10 @@ Noch kein Code.
   neues Zielbild mit PoC-Schnitt, Systemgrenzen, Compose-Profilen und Capability-Landkarte.
 - [Architektur & Design](specs/architektur.md) — bisheriger, engerer Entwurf für
   den reinen Akquise-PoC; wird anhand des neuen Zielbilds neu bewertet.
+- [Technischer Implementierungsplan](specs/leonaid-poc/PLAN.md) — abhakbare
+  Tasks, Akzeptanzkriterien und reale Tests.
+- [Development Guide](specs/leonaid-poc/DEVELOPMENT.md) — Docker-Workflow,
+  Editor, Debugging und Fehlerdiagnose.
 
 ## Eckdaten der Lösung (Kurzfassung)
 
