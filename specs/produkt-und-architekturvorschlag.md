@@ -121,6 +121,7 @@ keine getrennte öffentliche Bestellliste und Akquisiteursliste.
 - neue und unzugeordnete öffentliche Bestellungen
 - Bestellungen prüfen
 - Rechnungen freigeben und erneut versenden
+- erzeugte Rechnungen abrufen und herunterladen
 - Zahlung manuell markieren
 - einfache Auswertung zu Fortschritt, Bestellmenge, Rechnungen und offenen
   Posten
@@ -227,7 +228,8 @@ Nicht zum PoC und voraussichtlich nicht zum eigenen Produktkern gehören:
   Anlagenbuchhaltung,
 - eigener Bankzugang oder Zahlungsdienst,
 - eigener Mail Transfer Agent,
-- allgemeines Dokumentenmanagement,
+- allgemeines Dokumentenmanagement für beliebige Vereinsdateien; fachlich
+  erzeugte Dokumente wie Rechnungen gehören ausdrücklich zum Core,
 - komplexes Event-Ticketing,
 - Lohn, Reisekosten oder Personalverwaltung,
 - rechtliche und steuerliche Logik für Spendenbescheinigungen ohne fachliche
@@ -419,6 +421,11 @@ Die Begriffe sind absichtlich fachlich und nicht an Twenty-Feldnamen gebunden:
   - Empfänger- und Positions-Snapshot
   - Nummer, Daten, Fälligkeit, Beträge, Steuerhinweis
   - Status und Dokumentversion
+- `GeneratedDocument`
+  - Dokumenttyp, Dateiformat, Speicherreferenz, Hash und Erstellungszeitpunkt
+  - fachliche Zuordnung zu Charity-Aktion, Bestellung/Zusage und Rechnung
+  - CRM-Zuordnung zu Firma und/oder Kontakt
+  - unveränderliche Version; neue Erzeugung legt eine neue Version an
 - `PaymentRecord`
   - im PoC manuell erfasster Zahlungseingang
 - `ConsentRecord` und `SuppressionEntry`
@@ -920,6 +927,10 @@ ERP-light bedeutet ausschließlich Ausgangsrechnungen für Charity-Aktionen:
 - Status `draft → approved → issued → sent → paid | cancelled`,
 - PDF-Generierung mit Typst,
 - Dokument-Hash und Render-Version,
+- dauerhafte, gesicherte Dokumentablage,
+- Abruf und Download über Rechnung, Bestellung/Zusage, Charity-Aktion sowie
+  zugeordnete Firma beziehungsweise Kontakt,
+- Berechtigungsprüfung anhand des zugehörigen Fachobjekts,
 - Versand über Outbox und Versandprotokoll,
 - erneuter Versand ohne Neuerstellung der Rechnung,
 - Storno/Korrektur statt Überschreiben einer ausgestellten Rechnung,
@@ -935,7 +946,34 @@ zurückgestellt.
 Die Rechnung wird erst nach expliziter Freigabe aus einer Bestellung erzeugt.
 `Commitment` und `Invoice` bleiben getrennte Aggregate.
 
-### 7.2 Nicht im PoC
+### 7.2 Dokumentablage – fachlich begrenzt
+
+LeonAid benötigt kein allgemeines Dokumentenmanagementsystem, aber eine
+verlässliche Ablage für selbst erzeugte fachliche Dokumente.
+
+Im PoC gilt:
+
+- Rechnungs-PDFs werden nach der Erzeugung dauerhaft in einer
+  S3-kompatiblen oder vergleichbaren Objektablage gespeichert.
+- In der Datenbank liegt ein `GeneratedDocument` mit Typ, Speicherreferenz,
+  Dateiformat, Hash, Render-Version und Erstellungszeitpunkt.
+- Das Dokument ist mit der Charity-Aktion, Bestellung/Zusage, Rechnung und
+  der betroffenen Firma beziehungsweise Person verknüpft.
+- Charity-Admins und berechtigte Finanzrollen können es aus diesen
+  Fachkontexten abrufen und herunterladen.
+- Akquisiteure erhalten nur Zugriff, wenn der konkrete Use-Case dies erlaubt;
+  eine Kontaktzuordnung allein gibt nicht automatisch Zugriff auf
+  Finanzdokumente.
+- Ein versandtes Rechnungs-PDF wird nicht überschrieben. Korrektur oder
+  erneutes Rendern erzeugt eine nachvollziehbare neue Dokumentversion.
+- Löschung, Aufbewahrung und Backup folgen dem zugehörigen Fachobjekt und den
+  rechtlich festgelegten Fristen.
+
+Nicht enthalten sind freie Ordnerstrukturen, beliebige Dateiablage,
+Office-Bearbeitung, gemeinsames Kommentieren, Volltextsuche über Vereinsdateien
+oder ein allgemeines Dokumentenportal.
+
+### 7.3 Nicht im PoC
 
 - automatische Bankanbindung und Zahlungszuordnung,
 - Mahnstufen,
@@ -946,7 +984,7 @@ Die Rechnung wird erst nach expliziter Freigabe aus einer Bestellung erzeugt.
 - Spendenbescheinigungen,
 - Payment Provider.
 
-### 7.3 E-Rechnung als frühes Designkriterium
+### 7.4 E-Rechnung als frühes Designkriterium
 
 Seit 2025 gelten in Deutschland neue Anforderungen an E-Rechnungen im
 inländischen B2B-Bereich, mit Übergangsfristen bis Ende 2026 beziehungsweise
@@ -963,7 +1001,7 @@ Technisch sollte LeonAid deshalb:
 Typst ist ein guter PDF-Renderer, ersetzt aber weder das strukturierte
 E-Rechnungsformat noch steuerliche Fachprüfung.
 
-### 7.4 Build-versus-integrate
+### 7.5 Build-versus-integrate
 
 **Empfehlung für den PoC:** das eng begrenzte ERP-light selbst bauen, weil
 Bestellung, Charity-Aktion und Rechnung zusammengehören und der gewünschte
@@ -1148,6 +1186,8 @@ Der PoC ist erst erfolgreich, wenn folgende Belege vorliegen:
 - API-Limits reichen für den Pilot,
 - eine Bestellung erzeugt genau eine freigegebene Rechnung,
 - ausgestellte Rechnung bleibt trotz späterer CRM-Adressänderung unverändert,
+- erzeugte Rechnung ist über Aktion, Bestellung, Firma/Kontakt und
+  Rechnungsansicht abrufbar; unberechtigte Rollen erhalten keinen Download,
 - wiederholter Job oder Formular-Request erzeugt weder eine zweite Bestellung
   noch eine zweite identische Zuordnung,
 - öffentliche Bestellung bei bestehendem Kontakt erscheint für alle bereits
