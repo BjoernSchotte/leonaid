@@ -7,40 +7,193 @@
 
 ## 1. Kurzfassung
 
-LeonAid sollte **keine allgemeine Vereinssoftware** und kein vollständiges ERP
-werden. Der eigene Produktkern ist der Lions-spezifische Ablauf:
+### 1.1 Der PoC in einem Satz
 
-> **Charity-Aktion → Akquisiteur → Firmenkontakt → Ansprache → Zusage oder
-> Bestellung → Rechnung → Zahlung**
+Der erste LeonAid-Prototyp unterstützt eine konkrete Charity-Aktion vom
+öffentlichen Auftritt über die Sponsorengewinnung bis zur Bestellung und
+Ausgangsrechnung.
 
-Die vorgeschlagene Aufteilung ist:
+Als erster realer Anwendungsfall dient **Krapfentaxi**. Dabei soll nachweisbar
+werden, dass LeonAid den heute über Webseiten, Excel-Listen, persönliche
+Kontakte und manuelle Rechnungen verteilten Ablauf in einer verständlichen
+Arbeitsumgebung zusammenführen kann.
 
-- **Twenty CRM** ist führend für Firmen, Personen, Beziehungen und allgemeine
+### 1.2 Welches Problem wird im PoC gelöst?
+
+Heute entstehen mehrere voneinander getrennte Informationsstände:
+
+- Firmen und Ansprechpartner stehen in persönlichen oder gemeinsamen Listen.
+- Lions-Mitglieder wissen nicht immer, wer eine Firma bereits angesprochen hat.
+- Zusagen und Bestellungen kommen über Gespräche und öffentliche Kanäle.
+- Der Fortschritt der Gesamtaktion ist nur mit manueller Zusammenführung
+  erkennbar.
+- Rechnungsdaten müssen aus Bestellungen erneut übertragen werden.
+
+Der PoC schafft für genau diesen Ablauf einen gemeinsamen, aktuellen Stand.
+Er soll noch nicht alle Vereinsaufgaben lösen.
+
+### 1.3 Wer benutzt den PoC?
+
+#### Charity-Admin
+
+Der Charity-Admin bereitet die Aktion vor und behält den Überblick. Er pflegt
+Zeitraum, Ziel und Begünstigte, sieht neue Bestellungen und kann Rechnungen
+freigeben. Firmen können vorab Akquisiteuren zugeordnet werden; das ist aber
+keine Voraussetzung.
+
+#### Akquisiteur
+
+Der Akquisiteur ist ein Lions-Mitglied, das Firmen oder persönliche Kontakte
+als Sponsoren gewinnen möchte. Er verwendet eine einfach bedienbare,
+installierbare Web-App auf dem Smartphone.
+
+Er kann:
+
+- vorhandene Firmen und Kontakte sehen,
+- neue Firmen und Personen anlegen,
+- einen Kontaktversuch und eine Wiedervorlage dokumentieren,
+- eine Zusage oder Bestellung aufnehmen,
+- Neuigkeiten zu seinen Kontakten sehen,
+- den Fortschritt der Charity-Aktion verfolgen.
+
+Ist eine Firma bereits anderen Akquisiteuren zugeordnet, zeigt LeonAid eine
+Warnung mit deren Namen. Der Akquisiteur kann abbrechen oder sich bewusst
+zusätzlich zuordnen.
+
+#### Öffentlicher Besteller oder Sponsor
+
+Ein externer Besucher öffnet die öffentliche Aktionsseite ohne Anmeldung. Beim
+Krapfentaxi kann er dort über ein normales Formular Krapfen bestellen.
+
+LeonAid erkennt, soweit mit den einfachen PoC-Regeln möglich, eine bereits
+bekannte Firma oder Person. Existiert der Kontakt noch nicht, wird er angelegt.
+Bereits zugeordnete Akquisiteure sehen die neue öffentliche Bestellung in
+ihrem Bereich **„Neues/Aktivitäten“**.
+
+#### Finanzverantwortlicher oder Charity-Admin
+
+Aus einer geprüften Bestellung wird eine Ausgangsrechnung erstellt. LeonAid
+vergibt die Rechnungsnummer, erzeugt ein PDF und versendet es per E-Mail. Der
+Zahlungseingang wird im PoC noch manuell markiert.
+
+### 1.4 Die zwei Wege zu einer Bestellung
+
+```mermaid
+flowchart LR
+    A["Persönliche Akquise"] --> B["Firma oder Kontakt"]
+    B --> C["Zusage oder Bestellung"]
+
+    D["Öffentliche Aktionsseite"] --> E["Bestellformular"]
+    E --> C
+
+    C --> F["Prüfung durch Charity-Admin"]
+    F --> G["Rechnung als PDF"]
+    G --> H["Versand und manueller Zahlungsstatus"]
+```
+
+Beide Wege landen im selben Bestell- und Rechnungsprozess. Dadurch gibt es
+keine getrennte öffentliche Bestellliste und Akquisiteursliste.
+
+### 1.5 Welche sichtbaren Produktteile entstehen?
+
+#### Öffentliche Aktionsseite
+
+- Zweck, Zeitraum und Begünstigte der Charity-Aktion
+- aktuelles Angebot, beim Krapfentaxi beispielsweise Krapfenboxen
+- normales öffentliches Bestellformular
+- Bestätigung nach erfolgreicher Übermittlung
+
+#### PWA für Akquisiteure
+
+- Anmeldung
+- Übersicht der aktiven Charity-Aktionen
+- motivierende Anzeige des manuell gepflegten Aktionsziels
+- eigene und gemeinsam zugeordnete Firmen/Kontakte
+- Kontaktdetail mit Status, Notiz und Wiedervorlage
+- neuer Sponsor
+- Bestellung/Zusage erfassen
+- „Neues/Aktivitäten“
+
+#### Arbeitsbereich für Charity-Admins
+
+- Aktion, Zeitraum, Ziel und Begünstigte
+- Überblick über Firmen, Kontakte und Akquisiteure
+- neue und unzugeordnete öffentliche Bestellungen
+- Bestellungen prüfen
+- Rechnungen freigeben und erneut versenden
+- Zahlung manuell markieren
+- einfache Auswertung zu Fortschritt, Bestellmenge, Rechnungen und offenen
+  Posten
+
+Ein Teil dieses Arbeitsbereichs kann im PoC direkt in Twenty stattfinden. Der
+PoC soll praktisch zeigen, wo Twenty ausreicht und wo LeonAid eigene
+Admin-Seiten benötigt.
+
+### 1.6 Was gilt als erfolgreiche PoC-Demonstration?
+
+Eine fachliche Vorführung soll ohne technische Erklärung zeigen können:
+
+1. Charity-Admin legt Krapfentaxi mit Zeitraum, Ziel und Begünstigten an.
+2. Die öffentliche Aktionsseite mit Bestellformular ist erreichbar.
+3. Ein Akquisiteur legt eine neue Firma an und ist ihr automatisch zugeordnet.
+4. Ein zweiter Akquisiteur findet dieselbe Firma, sieht die Warnung mit dem
+   Namen des ersten und ordnet sich nach Bestätigung ebenfalls zu.
+5. Ein Akquisiteur erfasst eine Bestellung im Gespräch.
+6. Ein externer Besucher bestellt alternativ über die öffentliche Seite.
+7. Die öffentliche Bestellung erscheint bei bereits zugeordneten
+   Akquisiteuren als neue Aktivität.
+8. Der Charity-Admin prüft die Bestellung und gibt die Rechnung frei.
+9. LeonAid erzeugt und versendet das Rechnungs-PDF.
+10. Dashboard und PWA zeigen den aktualisierten Fortschritt der Aktion.
+
+### 1.7 Was gehört ausdrücklich noch nicht zum PoC?
+
+- Tourenplanung und Fahrer-App
+- Zeitfenster und Etikettendruck
+- Verpackungs- oder Lagerbestand
+- automatische Herstellerabrechnung
+- automatische Bankanbindung und Mahnwesen
+- zusätzliche Geldspenden und Spendenbescheinigungen
+- Newsletter-System
+- allgemeine Mitglieder- und Beitragsverwaltung
+- vollständige Vereinsbuchhaltung
+- frei konfigurierbarer Formularbaukasten oder allgemeines CMS
+- gleichzeitiger Betrieb mehrerer Clubs in einer Installation
+
+Andere Clubs können später jeweils eine eigene LeonAid-Installation betreiben.
+Lions Open und Weihnachtsmarkt werden noch nicht umgesetzt; ihr fachliches
+Modell wird aber vor dem PoC-Abschluss gegengeprüft, damit der gemeinsame
+Charity-Aktionskern nicht nur für Krapfentaxi funktioniert.
+
+### 1.8 Begriffe ohne Technikjargon
+
+| Begriff | Bedeutung in diesem Konzept |
+|---|---|
+| **PoC** | Ein funktionsfähiger Beweis, dass der wichtigste Ablauf praktisch funktioniert; noch kein vollständiges Produkt |
+| **Charity-Aktion** | Eine zeitlich begrenzte Aktion wie Krapfentaxi, Lions Open oder Weihnachtsmarkt |
+| **Beneficiary/Begünstigter** | Organisation oder Zweck, dem der Erlös der Aktion zugutekommt |
+| **Akquisiteur** | Lions-Mitglied, das Firmen oder Personen als Sponsoren beziehungsweise Besteller gewinnt |
+| **PWA** | Installierbare Web-App, die sich auf dem Smartphone weitgehend wie eine App anfühlt |
+| **CRM/Twenty** | Gemeinsame Verwaltung der Firmen und Ansprechpartner |
+| **ERP-light** | Der kleine LeonAid-Bereich für Ausgangsrechnungen; keine vollständige Buchhaltung |
+| **Public Web** | Öffentliche Aktionsseite und Formular für Personen ohne LeonAid-Anmeldung |
+
+### 1.9 Technische Kurzfassung
+
+Die fachliche Aufteilung wird technisch so umgesetzt:
+
+- **Twenty CRM** verwaltet Firmen, Personen, Beziehungen und allgemeine
   Kontaktaktivitäten.
-- **LeonAid Core** ist führend für Charity-Aktionen, Rollen und Zuordnungen,
-  die aktionsbezogene Sponsor-Pipeline, Bestellungen sowie Ausgangsrechnungen.
-- Eine eigene **PWA/Weboberfläche** dient Akquisiteuren. Sie zeigt ausschließlich
-  die ihnen zugeordneten Aktionen und Kontakte.
-- Charity-Admins arbeiten im PoC möglichst direkt in **Twenty**. Ein kurzer
-  Capability-Spike entscheidet, ob das für den Charity-Lifecycle gut genug ist
-  oder ein eigenes Admin-Frontend notwendig wird.
-- Ein öffentliches **Astro-7-Frontend** gehört zum Core und stellt zeitlich
-  begrenzte Aktionsseiten sowie aktionsbezogene Standardformulare bereit.
-- **Transaktionale E-Mails** werden aus LeonAid über einen externen SMTP/API-Relay
-  versendet. Newsletter sind eine optionale Integrationsdomäne; dafür ist
-  **listmonk** der derzeit passendste schlanke OSS-Kandidat.
-- **ERP-light** ist ein Modul des LeonAid-Kerns mit eigener Datenhaltung und
-  klaren Invarianten. Es ist weder ein Twenty-Custom-Object noch eine
-  vollständige Buchhaltung.
-- Aktionsspezifische operative Module wie eine spätere
-  **Krapfentaxi-Auslieferung** hängen am LeonAid-Kern, ohne das allgemeine
-  CRM-Modell zu verbiegen.
-- Docker Compose bleibt die Betriebsbasis. Interne Web-App/PWA und Public Web
-  starten gemeinsam als Core; nur Mailing, Entwicklungs-Mail und Observability
-  werden über Profile zugeschaltet.
-
-Die wichtigste Änderung gegenüber der bisherigen Architektur ist damit:
-**Twenty ist nicht das System of Record für die gesamte Fachdomäne.**
+- **LeonAid Core** verwaltet Charity-Aktionen, Rollen und Zuordnungen,
+  Sponsor-Pipeline, Bestellungen und Ausgangsrechnungen.
+- Eine eigene **PWA/Weboberfläche** dient Akquisiteuren.
+- Charity-Admins arbeiten im PoC mit Twenty und ergänzenden
+  LeonAid-Admin-Seiten.
+- Das öffentliche **Astro-7-Frontend** gehört zum Core.
+- Transaktionale E-Mails laufen über einen externen Versanddienst.
+- **ERP-light** ist Teil von LeonAid, aber keine vollständige Buchhaltung.
+- Docker Compose startet interne Oberfläche, Public Web, LeonAid und Twenty
+  gemeinsam; optionale Systeme bleiben getrennt.
 
 ## 2. Produktgrenze
 
