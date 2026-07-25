@@ -403,8 +403,14 @@ Die Begriffe sind absichtlich fachlich und nicht an Twenty-Feldnamen gebunden:
   - Status `draft → scheduled → active → completed → archived`
   - verantwortliche Charity-Admins
   - manuell gepflegtes Aktionsziel, aktueller Ist-Wert und Einheit
-  - Public-Slug und Publikationsfenster
+  - unveränderlicher Archiv-Slug, beispielsweise `krapfentaxi-2025`, und
+    Publikationsfenster
   - aktivierte fachliche Capabilities, nicht ein hart codierter Aktionstyp
+- `PublicActionAlias`
+  - stabiler öffentlicher Alias, beispielsweise `krapfentaxi`
+  - verweist auf höchstens eine aktuell veröffentlichte `CharityAction`
+  - ist innerhalb einer LeonAid-Installation eindeutig und kann beim Wechsel
+    auf die Folgeaktion atomar umgeschaltet werden
 - `Beneficiary`
   - Organisation, Bezeichnung und öffentliche Beschreibung
   - Beziehung: eine Charity-Aktion hat einen oder mehrere Begünstigte
@@ -903,12 +909,33 @@ nicht die fachliche Core API.
 Empfohlene Grenze:
 
 - Astro rendert eine schlanke Darstellung der Aktion,
-- Public Slug und Publikationszeitraum kommen aus LeonAid,
+- öffentlicher Alias, Archiv-Slug und Publikationszeitraum kommen aus LeonAid,
 - pro Aktion definierte Standardformulare senden ausschließlich an klar
   definierte Public-Endpunkte der Core API,
 - Core validiert Aktion, Zeitraum, Produkte, Preise und Idempotenz erneut,
 - Formulare erzeugen `Commitment`-Datensätze, niemals direkt Rechnungen,
 - Bestätigungsmail läuft über die Core-Outbox.
+
+Dabei werden stabile Kampagnenadressen und konkrete Aktionsjahrgänge getrennt:
+
+- `/krapfentaxi` ist ein leicht kommunizierbarer Alias und zeigt auf die
+  aktuell veröffentlichte Krapfentaxi-Aktion.
+- `/archive/krapfentaxi-2025` ist die dauerhafte, kanonische Adresse eines
+  konkreten abgeschlossenen Aktionsjahrgangs. Ein Archiv-Slug wird nie
+  wiederverwendet.
+- Nach Abschluss ist eine Aktion nur noch unter ihrer Archiv-Adresse
+  erreichbar. Die Archivseite ist schreibgeschützt; Bestell- und andere
+  Aktionsformulare sind dort nicht mehr absendbar.
+- Beim Start der Folgeaktion wird der Alias atomar auf diese Aktion
+  umgeschaltet. Bestehende Archiv-Adressen ändern sich dadurch nicht.
+- Gibt es gerade keine veröffentlichte Aktion für einen Alias, zeigt die
+  Alias-Adresse eine einfache „Derzeit keine aktive Aktion“-Seite anstatt
+  versehentlich eine alte Aktion oder ein aktives Formular auszuliefern.
+
+Die Core API akzeptiert einen öffentlichen Formular-Request nur, wenn die
+konkrete Aktion aktuell veröffentlicht ist, innerhalb ihres Bestellfensters
+liegt und weiterhin das Ziel des verwendeten Alias ist. Ein direkter Request
+gegen eine Archiv-Aktion wird serverseitig abgewiesen.
 
 Für den Krapfentaxi-PoC gehört ein normales öffentliches Bestellformular dazu.
 Es erhebt die erforderlichen Firmen-/Kontaktdaten, Bestellpositionen und
@@ -1109,9 +1136,10 @@ verlässliche Ablage für selbst erzeugte fachliche Dokumente.
 Im PoC gilt:
 
 - Rechnungs-PDFs werden nach der Erzeugung dauerhaft in einer
-  S3-kompatiblen oder vergleichbaren Objektablage gespeichert.
+  S3-kompatiblen Objektablage gespeichert.
 - In der Datenbank liegt ein `GeneratedDocument` mit Typ, Speicherreferenz,
-  Dateiformat, Hash, Render-Version und Erstellungszeitpunkt.
+  Bucket, Object Key, optionaler Version-ID, Dateiformat, Größe, Hash,
+  Render-Version und Erstellungszeitpunkt.
 - Das Dokument ist mit der Charity-Aktion, Bestellung/Zusage, Rechnung und
   der betroffenen Firma beziehungsweise Person verknüpft.
 - Charity-Admins und berechtigte Finanzrollen können es aus diesen
@@ -1123,6 +1151,47 @@ Im PoC gilt:
   erneutes Rendern erzeugt eine nachvollziehbare neue Dokumentversion.
 - Löschung, Aufbewahrung und Backup folgen dem zugehörigen Fachobjekt und den
   rechtlich festgelegten Fristen.
+
+Die Anwendung wird konsequent vom konkreten Storage-Produkt entkoppelt. Ein
+kleiner serverseitiger Storage-Vertrag kapselt mindestens:
+
+- Objekt schreiben und dabei Prüfsumme und Metadaten zurückgeben,
+- Objekt-Metadaten lesen,
+- geschützten Download streamen oder eine sehr kurzlebige signierte URL
+  erzeugen,
+- neue Dokumentversion ablegen,
+- Objekt nur über einen autorisierten Aufbewahrungs-/Löschprozess entfernen.
+
+Geschäftslogik, Datenmodell und UI verwenden nie herstellerspezifische
+RustFS-APIs. Der S3-Endpunkt, Region, Bucket, Path-Style-Konfiguration und
+Zugangsdaten kommen aus der Deployment-Konfiguration. Damit lässt sich RustFS
+später ohne Änderung der Fachlogik durch einen anderen S3-kompatiblen
+Self-hosted- oder Managed-Dienst ersetzen.
+
+### 7.2.1 RustFS im PoC
+
+RustFS ist die vorgesehene S3-kompatible Objektablage für den PoC. Dafür
+sprechen die Apache-2.0-Lizenz, der Single-Node- und Docker-Betrieb sowie die
+positive Produktionserfahrung eines beteiligten Teams. RustFS wird dennoch
+wie jede Infrastrukturkomponente für den konkreten LeonAid-Betrieb geprüft;
+der interne Erfahrungswert ersetzt keine eigenen Restore-, Upgrade- und
+Berechtigungstests.
+
+Für den PoC gelten folgende Betriebsregeln:
+
+- ein auf eine konkrete Version oder einen Digest gepinntes Container-Image,
+- ein privater Bucket ohne anonymen oder direkten öffentlichen Zugriff,
+- ein eigener technischer LeonAid-Zugang mit minimaler Bucket-Policy,
+- RustFS-API und Administrationsoberfläche nur im internen Netz,
+- persistentes Daten-Volume und ein verschlüsseltes Backup außerhalb
+  desselben VPS,
+- Downloads ausschließlich nach Core-Autorisierung,
+- keine Annahme, dass Single Node/Single Disk selbst Redundanz erzeugt,
+- dokumentierter und praktisch getesteter Restore auf eine frische Instanz.
+
+Die für LeonAid benötigte S3-Teilmenge wird zusätzlich als providerneutraler
+Vertragstest gegen RustFS und mindestens einen zweiten S3-kompatiblen Dienst
+ausgeführt. Damit wird die behauptete Austauschbarkeit praktisch belegt.
 
 Nicht enthalten sind freie Ordnerstrukturen, beliebige Dateiablage,
 Office-Bearbeitung, gemeinsames Kommentieren, Volltextsuche über Vereinsdateien
@@ -1232,7 +1301,7 @@ werden nicht installationsübergreifend geteilt.
 
 | Gruppe | Dienste | Start |
 |---|---|---|
-| **Core** | Reverse Proxy, LeonAid API, Worker, Core-PostgreSQL, interne Web-App/PWA, Astro-7-Public-Web, Twenty Server/Worker, Twenty-PostgreSQL, Twenty-Redis | standardmäßig |
+| **Core** | Reverse Proxy, LeonAid API, Worker, Core-PostgreSQL, RustFS, interne Web-App/PWA, Astro-7-Public-Web, Twenty Server/Worker, Twenty-PostgreSQL, Twenty-Redis | standardmäßig |
 | **mailing** | listmonk und eigene PostgreSQL-DB/Role | `--profile mailing` |
 | **dev-mail** | Mailpit | nur lokal mit `--profile dev-mail` |
 | **observability** | Metriken, Logs, Fehlertracking nach Betriebsentscheidung | `--profile observability` |
@@ -1261,8 +1330,10 @@ Startvoraussetzung für Core werden.
 - interne APIs, PostgreSQL und Redis nicht auf Host-Ports veröffentlichen,
 - pro System eigene DB und DB-Rolle,
 - Secrets nicht in Compose-Dateien committen,
+- RustFS-API und -Konsole nicht direkt öffentlich exponieren,
 - Healthchecks und abhängige Readiness statt reiner Startreihenfolge,
-- verschlüsselte Backups und regelmäßig getesteter Restore,
+- verschlüsselte Backups einschließlich RustFS-Objekten und regelmäßig
+  getesteter Restore,
 - kontrollierte Upgrades zuerst in Staging,
 - Outbox-Jobs idempotent und sichtbar wiederholbar machen.
 
@@ -1281,8 +1352,9 @@ den gemeinsamen Action-Core plus die Capabilities `acquisition`, `offerings`,
 2. Charity-Admin lädt ein neues Mitglied als Akquisiteur dieser Aktion ein.
 3. Das Mitglied bestätigt per Magic Link oder Code; Account und
    Aktionsmitgliedschaft werden gemeinsam aktiv.
-4. LeonAid veröffentlicht dafür eine schlanke, zeitgesteuerte Aktionsseite mit
-   einem normalen Astro-Bestellformular.
+4. LeonAid veröffentlicht dafür unter `/krapfentaxi` eine schlanke,
+   zeitgesteuerte Aktionsseite mit einem normalen Astro-Bestellformular. Der
+   konkrete Jahrgang besitzt zusätzlich einen unveränderlichen Archiv-Slug.
 5. Firmen/Personen werden aus Twenty gewählt oder einmalig importiert.
 6. Charity-Admin kann Firmen Akquisiteuren zuordnen, muss dies aber nicht.
 7. Akquisiteur sieht seine – gegebenenfalls mit anderen geteilten –
@@ -1321,7 +1393,7 @@ den gemeinsamen Action-Core plus die Capabilities `acquisition`, `offerings`,
 - Asset-Erstellung oder Canva-Integration,
 - allgemeine Mitgliederverwaltung,
 - vollständige Buchhaltung,
-- Mandantenfähigkeit innerhalb einer Installation.
+- Mandantenfähigkeit innerhalb einer Installation,
 - Passkeys, Social Login, SSO und öffentliche Selbstregistrierung,
 - Self-Service-Änderung der Login-E-Mail.
 
@@ -1357,10 +1429,22 @@ Der PoC ist erst erfolgreich, wenn folgende Belege vorliegen:
 - ausgestellte Rechnung bleibt trotz späterer CRM-Adressänderung unverändert,
 - erzeugte Rechnung ist über Aktion, Bestellung, Firma/Kontakt und
   Rechnungsansicht abrufbar; unberechtigte Rollen erhalten keinen Download,
+- RustFS-Ausfall verliert weder Dokumentmetadaten noch erzeugt er eine
+  vermeintlich erfolgreiche Rechnungsauslieferung,
+- ein Rechnungs-PDF lässt sich aus dem externen RustFS-Backup auf einer
+  frischen Instanz wiederherstellen und stimmt danach mit seiner gespeicherten
+  Prüfsumme überein,
+- derselbe Storage-Vertrag besteht gegen RustFS und einen zweiten
+  S3-kompatiblen Test-Endpunkt,
 - wiederholter Job oder Formular-Request erzeugt weder eine zweite Bestellung
   noch eine zweite identische Zuordnung,
 - öffentliche Bestellung bei bestehendem Kontakt erscheint für alle bereits
   zugeordneten Akquisiteure unter „Neues/Aktivitäten“,
+- `/krapfentaxi` löst ausschließlich auf die aktuell veröffentlichte Aktion
+  auf; ein Alias-Wechsel lässt bestehende Archiv-Adressen unverändert,
+- eine archivierte Aktion ist unter ihrer unveränderlichen
+  `/archive/...`-Adresse lesbar, nimmt aber weder im UI noch über die Core API
+  weitere Formularübermittlungen an,
 - PDF lässt sich in mindestens zwei realen PDF-Viewern öffnen,
 - Versandstatus und Fehler sind im Admin-Bereich nachvollziehbar,
 - Backup und Restore von Twenty und LeonAid wurden praktisch getestet.
@@ -1473,7 +1557,140 @@ Die nächsten Entscheidungen sollten in dieser Reihenfolge fallen:
 - Wie werden Dokumente revisionssicher gespeichert und gesichert?
 - Reichen Twenty Tasks für leichte Aufgaben und Wiedervorlagen?
 
-## 15. Quellen
+## 15. Addendum: Berechtigungen als Erweiterung zu Twenty
+
+### 15.1 Begriffsklärung und aktueller Befund
+
+Zwei Ebenen dürfen nicht vermischt werden:
+
+- **Role-Level Permissions** beantworten, welche Objekte, Felder,
+  Einstellungen und Aktionen eine Rolle grundsätzlich nutzen darf.
+- **Row-Level Permissions** beantworten, welche konkreten Datensätze dieser
+  Objekte ein Benutzer sehen oder verändern darf.
+
+Role-Level Permissions müssen für LeonAid nicht nachgebaut werden. Twenty
+unterstützt Rollen sowie Objekt-, Feld-, Settings- und Aktionsrechte und kann
+auch API-Keys einer eingeschränkten Rolle zuordnen. Diese Funktionen gehören
+laut aktueller Preisdokumentation zum freien Self-hosted Umfang. Nur die
+feingranularen Row-Level Permissions sind dem Organization-Tarif vorbehalten.
+
+Für LeonAid reicht eine reine Twenty-Rolle deshalb nicht aus: Die Rolle
+„Akquisiteur“ dürfte zwar beispielsweise Companies lesen, könnte damit aber
+ohne zusätzliche Zeilenprüfung alle Companies sehen. Benötigt wird dagegen
+die Regel „nur Firmen und Kontakte, die mir in dieser Charity-Aktion
+zugeordnet sind“.
+
+### 15.2 Empfohlene Lösung für LeonAid
+
+Die Zeilenberechtigung wird im LeonAid Core umgesetzt, nicht durch einen Fork
+des Twenty-Servers:
+
+1. Akquisiteure und andere eingeschränkte operative Rollen erhalten keinen
+   direkten Twenty-Login und keinen Twenty-API-Key.
+2. PWA und interne LeonAid-Oberflächen sprechen ausschließlich mit der
+   LeonAid Core API.
+3. Die Core API ermittelt aus der serverseitigen Sitzung den Benutzer. Eine
+   vom Client übermittelte Benutzer-, Rollen- oder Akquisiteur-ID gilt nie als
+   Autorisierungsnachweis.
+4. Vor jeder Abfrage und Mutation prüft der Core zunächst die
+   `ActionMembership` und anschließend die konkrete Beziehung, beispielsweise
+   `AcquisitionAssignment`.
+5. Erst danach greift der Core über einen eigenen, minimal berechtigten
+   Twenty-API-Key auf Company oder Person zu.
+6. Suchergebnisse, Zähler, Exporte, Aktivitäten und Downloads werden bereits
+   serverseitig auf erlaubte Datensätze beschränkt. Ein bloßes Ausblenden in
+   der Oberfläche ist keine Berechtigung.
+7. Charity-Admins dürfen über Twenty oder LeonAid weitergehende CRM-Rechte
+   erhalten. Ihre Twenty-Rolle wird dennoch auf die tatsächlich benötigten
+   Objekte, Felder und Aktionen begrenzt.
+
+Die fachliche Entscheidung bleibt damit in LeonAid:
+
+```text
+darf lesen =
+  globale Systemrolle erlaubt den Vorgang
+  UND aktive Mitgliedschaft in der Charity-Aktion
+  UND (
+    Benutzer verwaltet die Aktion
+    ODER Benutzer besitzt eine passende AcquisitionAssignment
+  )
+```
+
+Für neue Firmen gilt die bereits definierte Sonderregel: Ein Akquisiteur darf
+eine Company/Person über LeonAid anlegen. Der Core führt das Matching durch,
+zeigt bei einem Treffer die vorhandenen Akquisiteure an und schreibt erst nach
+expliziter Bestätigung kontrolliert nach Twenty.
+
+### 15.3 Technische Bausteine
+
+| Baustein | Aufgabe |
+|---|---|
+| Twenty-Rollen | grobe Objekt-, Feld-, Settings- und Aktionsrechte für Admins und Integrations-Keys |
+| `ActionMembership` | Rolle einer Person innerhalb einer konkreten Charity-Aktion |
+| `AcquisitionAssignment` | sichtbare/bearbeitbare Company oder Person je Aktion und Akquisiteur |
+| Core Policy Layer | zentrale Regeln für Lesen, Anlegen, Ändern, Export und Dokumentzugriff |
+| Twenty Gateway | einzige serverseitige Komponente mit Twenty-Zugang; akzeptiert keine ungeprüften Benutzerfilter |
+| Audit Log | protokolliert sensible Zugriffe, Zuweisungen und administrative Änderungen |
+
+Die Policies sollten als wiederverwendbare, testbare Funktionen vor den
+fachlichen Services liegen. Listenabfragen müssen aus einer erlaubten
+ID-Menge beziehungsweise einem serverseitig erzeugten Filter entstehen.
+„Datensatz laden und anschließend aussortieren“ ist für Suche, Pagination,
+Aggregationen und Exporte zu fehleranfällig.
+
+Der Twenty-Integrations-Key erhält eine eigene Rolle. Diese erlaubt nur die
+für Synchronisation und Matching benötigten Objekte, Felder und Operationen.
+Ein allgemeiner Admin-Key im Core würde die Schutzwirkung des Gateways unnötig
+reduzieren.
+
+### 15.4 Aufwand und Grenzen
+
+| Variante | Aufwand | Einschätzung |
+|---|---:|---|
+| Vorhandene Twenty-Rollen konfigurieren | niedrig | für Charity-Admins und Integrations-Key direkt nutzen |
+| Row-Level-Regeln im LeonAid Core | mittel | empfohlener Bestandteil des PoC; passt zur ohnehin geplanten PWA und Core API |
+| Native Row-Level-Rechte im freien Twenty nachbauen | hoch bis sehr hoch | nicht für den PoC empfohlen |
+| Twenty Organization lizenzieren | niedrig technisch, laufende Kosten | prüfen, falls viele eingeschränkte Benutzer direkt in Twenty arbeiten sollen |
+
+Ein sicherer Nachbau direkt in Twenty wäre kein kleiner UI-Patch. Die Regeln
+müssten konsistent in REST und GraphQL, Listen und Einzelzugriffen, Suche,
+Relationen, Aggregationen, Exporten, Dateien, Workflows, Webhooks und
+Hintergrundjobs durchgesetzt werden. Zusätzlich wären Permission-Caching,
+Widerruf, Migrationen, Indizes, Negativtests und die Nachpflege bei jedem
+Twenty-Upgrade erforderlich. Datenbank-RLS nachträglich unter Twentys
+dynamisch erzeugte Workspace-Schemas zu legen wäre ebenfalls ein tiefer,
+schwer upgradebarer Eingriff und wird hier nicht empfohlen.
+
+Der Core-Ansatz ist beherrschbar, weil er einen engeren Vertrag absichert:
+Akquisiteure nutzen nur die für LeonAid vorgesehenen Endpunkte. Er macht
+Twenty selbst jedoch nicht zeilensicher. Wer einen direkten Twenty-Zugang
+besitzt, unterliegt nur den dort konfigurierten Rechten. Deshalb ist „kein
+direkter Twenty-Zugang für Akquisiteure“ eine Sicherheitsgrenze und keine
+reine UI-Entscheidung.
+
+### 15.5 PoC-Nachweise
+
+Der Berechtigungsansatz gilt erst als tragfähig, wenn automatisierte
+Negativtests mindestens belegen:
+
+- Ein Akquisiteur kann einen ausschließlich fremd zugeordneten Datensatz
+  weder über Detail-ID, Suche, Liste, Aktivität noch Export erkennen.
+- Bei einer gemeinsamen Zuordnung sehen beide Akquisiteure denselben
+  CRM-Datensatz, aber keine weiteren Zuweisungen außerhalb ihrer Aktion.
+- Eine entfernte `ActionMembership` oder `AcquisitionAssignment` entzieht den
+  Zugriff ohne Neuanmeldung.
+- Manipulierte Action-, User- oder Assignee-IDs im Request erweitern den
+  Zugriff nicht.
+- Zähler, Pagination und Fehlermeldungen verraten keine Existenz verborgener
+  Datensätze.
+- Der Twenty-Integrations-Key kann keine fachlich unnötigen Objekte oder
+  Felder lesen und keine administrativen Aktionen ausführen.
+
+Neu zu bewerten wäre diese Architektur, wenn Akquisiteure künftig die native
+Twenty-Oberfläche verwenden sollen. Dann ist der Organization-Tarif in der
+Regel risikoärmer als ein eigener Row-Level-Permissions-Fork.
+
+## 16. Quellen
 
 ### Twenty
 
@@ -1486,6 +1703,7 @@ Die nächsten Entscheidungen sollten in dieser Reihenfolge fallen:
 - [Data Model FAQ](https://docs.twenty.com/user-guide/data-model/how-tos/data-model-faq)
 - [Relation Fields](https://docs.twenty.com/user-guide/data-model/capabilities/relation-fields)
 - [Permissions](https://docs.twenty.com/user-guide/permissions-access/capabilities/permissions)
+- [App Roles & Permissions](https://docs.twenty.com/developers/extend/apps/config/roles)
 - [Pricing Plans](https://docs.twenty.com/user-guide/billing/capabilities/pricing-plans)
 - [API](https://docs.twenty.com/developers/extend/api)
 - [Webhooks](https://docs.twenty.com/developers/extend/webhooks)
@@ -1507,6 +1725,12 @@ Die nächsten Entscheidungen sollten in dieser Reihenfolge fallen:
 - [BMF: steuerliche Änderungen 2025 – E-Rechnung](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/das-aendert-sich-2025.html)
 - [Invoice Ninja – Dokumentation](https://invoiceninja.github.io/)
 - [Invoice Ninja – Invoice API](https://invoiceninja.github.io/docs/api-reference/invoices)
+
+### Dateiablage
+
+- [RustFS-Dokumentation](https://docs.rustfs.com/)
+- [RustFS Docker-Installation](https://docs.rustfs.com/installation/docker/)
+- [RustFS Repository und Feature-Status](https://github.com/rustfs/rustfs)
 
 ### Kommunikation
 
