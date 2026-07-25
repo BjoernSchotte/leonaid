@@ -1,0 +1,38 @@
+:8080 {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	handle /_health {
+		respond "ready" 200
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle_path /app/* {
+		reverse_proxy pwa:3000
+	}
+
+	handle_path /admin/* {
+		reverse_proxy web:3000
+	}
+
+	handle_path /crm/* {
+		reverse_proxy twenty-server:3000
+	}
+
+	handle /mail/* {
+		reverse_proxy mailpit:8025
+	}
+
+	handle_path /mailing/* {
+		reverse_proxy listmonk:9000
+	}
+
+	handle {
+		reverse_proxy public:3000
+	}
+}

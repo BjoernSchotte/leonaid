@@ -318,27 +318,30 @@ Tests/Nachweise:
 
 ## M1 – Reale lokale Plattform und Golden Dataset
 
-### [ ] POC-010 Docker-Compose-Corestack bereitstellen
+### [x] POC-010 Docker-Compose-Corestack bereitstellen
 
 Abhängigkeiten: POC-001, POC-002
 
 Akzeptanzkriterien:
 
-- [ ] Standardstart enthält Reverse Proxy, FastAPI, Worker, Core-PostgreSQL,
+- [x] Standardstart enthält Reverse Proxy, FastAPI, Worker, Core-PostgreSQL,
       Web, PWA, Public Web, Twenty Server/Worker/PostgreSQL/Redis und RustFS.
-- [ ] Mailpit läuft nur im lokalen `dev-mail`-Profil.
-- [ ] Mailing und Observability bleiben optionale Profile.
-- [ ] Nur der Reverse Proxy ist regulär öffentlich erreichbar.
-- [ ] Alle Dienste besitzen aussagekräftige Health- und Readiness-Checks.
-- [ ] Volumes, Netzwerke, Rollen und Datenbanken sind fachlich getrennt.
+- [x] Mailpit läuft nur im lokalen `dev-mail`-Profil.
+- [x] Mailing und Observability bleiben optionale Profile.
+- [x] Nur der Reverse Proxy ist regulär öffentlich erreichbar.
+- [x] Alle Dienste besitzen aussagekräftige Health- und Readiness-Checks.
+- [x] Volumes, Netzwerke, Rollen und Datenbanken sind fachlich getrennt.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest startet den Stack aus leeren Volumes und wartet auf
+- [x] Integrationstest startet den Stack aus leeren Volumes und wartet auf
       echte Readiness statt auf feste Sleeps.
-- [ ] Netzwerkprüfung beweist, dass Datenbanken, RustFS-Admin und interne APIs
+- [x] Netzwerkprüfung beweist, dass Datenbanken, RustFS-Admin und interne APIs
       nicht am öffentlichen Interface lauschen.
-- [ ] Neustart aller Container erhält persistente Golden Data.
+- [x] Neustart aller Container erhält persistente Golden Data.
+
+Nachweis:
+[POC-010 – Docker-Compose-Corestack](proofs/POC-010.md).
 
 ### [x] POC-011 Golden Dataset v1 spezifizieren und versionieren
 

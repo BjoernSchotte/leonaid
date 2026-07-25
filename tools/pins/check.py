@@ -28,6 +28,8 @@ REQUIRED_SYSTEMS = {
     "caddy",
     "mailpit",
     "node",
+    "listmonk",
+    "otel",
     "playwright",
     "postgres",
     "python",

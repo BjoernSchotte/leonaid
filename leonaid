@@ -13,10 +13,10 @@ Usage: ./leonaid <command>
 Commands:
   bootstrap         Create local secrets and install locked packages in Docker
   doctor            Diagnose Docker, locks, secrets and local dependencies
-  dev               Start the PoC core stack (available with POC-010)
+  dev               Build and start the ready PoC core stack
   check             Run non-mutating quality and policy gates
   test-unit         Run unit tests with Golden Data domain objects
-  test-integration  Run real-system integration tests (available with POC-010)
+  test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
   seed              Seed Golden Dataset v1 (available with POC-012)
   reset             Reset real local systems (available with POC-012)
@@ -51,6 +51,13 @@ run_bun() {
     -v "$root:/workspace" \
     -w /workspace \
     "$BUN_IMAGE" \
+    "$@"
+}
+
+compose() {
+  docker compose \
+    --env-file "$root/.env.local" \
+    --file "$root/infra/compose/compose.yml" \
     "$@"
 }
 
@@ -106,6 +113,13 @@ doctor() {
     failures=$((failures + 1))
   else
     echo "doctor: OK: lokale Secrets vorhanden, generiert und ignoriert"
+  fi
+
+  if [ -f "$root/.env.local" ] && ! compose config --quiet; then
+    echo "doctor: FEHLER: Compose-Konfiguration oder Umgebungsvariablen sind ungültig." >&2
+    failures=$((failures + 1))
+  elif [ -f "$root/.env.local" ]; then
+    echo "doctor: OK: Compose-Corestack ist vollständig auflösbar"
   fi
 
   if [ ! -L "$root/.venv/bin/python" ] && [ ! -x "$root/.venv/bin/python" ]; then
@@ -164,9 +178,12 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
-  run_python uv run --frozen --no-sync ruff check src tests
-  run_python uv run --frozen --no-sync ruff format --check src tests
-  run_python uv run --frozen --no-sync mypy src
+  run_python uv run --frozen --no-sync ruff check \
+    src tests tools/compose/persistence_probe.py
+  run_python uv run --frozen --no-sync ruff format --check \
+    src tests tools/compose/persistence_probe.py
+  run_python uv run --frozen --no-sync mypy \
+    src tools/compose/persistence_probe.py
   run_python uv run --frozen --no-sync pytest tests/unit
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -186,6 +203,18 @@ future_command() {
   exit 64
 }
 
+dev() {
+  require_docker
+  if [ ! -f "$root/.env.local" ]; then
+    echo "leonaid: ERROR: .env.local fehlt. Führe './leonaid bootstrap' aus." >&2
+    exit 1
+  fi
+  compose up --build --detach --wait --wait-timeout 420
+  port=$(sed -n 's/^LEONAID_HTTP_PORT=//p' "$root/.env.local" | tail -n 1)
+  port=${port:-8080}
+  echo "dev: OK: LeonAid ist bereit unter http://127.0.0.1:$port"
+}
+
 command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
@@ -195,8 +224,11 @@ case "$command" in
     require_docker
     run_python uv run --frozen --no-sync pytest tests/unit
     ;;
-  dev) future_command dev POC-010 ;;
-  test-integration) future_command test-integration POC-010 ;;
+  dev) dev ;;
+  test-integration)
+    require_docker
+    /bin/sh "$root/tools/compose/test.sh" "$root"
+    ;;
   test-e2e) future_command test-e2e POC-041 ;;
   seed) future_command seed POC-012 ;;
   reset) future_command reset POC-012 ;;

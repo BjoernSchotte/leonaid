@@ -23,6 +23,8 @@ def main() -> int:
         "container-caddy.cdx.json",
         "container-typst.cdx.json",
         "container-playwright.cdx.json",
+        "container-listmonk.cdx.json",
+        "container-otel.cdx.json",
     }
     actual = {path.name for path in root.glob("*.cdx.json")}
     missing = sorted(expected - actual)

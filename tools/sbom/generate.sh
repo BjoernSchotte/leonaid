@@ -48,8 +48,10 @@ mailpit_image="$MAILPIT_IMAGE"
 caddy_image="$CADDY_IMAGE"
 typst_image="$TYPST_IMAGE"
 playwright_image="$PLAYWRIGHT_IMAGE"
+listmonk_image="$LISTMONK_IMAGE"
+otel_image="$OTEL_IMAGE"
 
-for system_id in python node twenty postgres redis rustfs mailpit caddy typst playwright; do
+for system_id in python node twenty postgres redis rustfs mailpit caddy typst playwright listmonk otel; do
   eval "image=\${${system_id}_image}"
   docker run --rm \
     -v "$output:/out" \
@@ -63,4 +65,4 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python /verify.py /sbom
 
-echo "sbom: OK: Python, frontend and 10 runtime container SBOMs in $output"
+echo "sbom: OK: Python, frontend and 12 runtime container SBOMs in $output"

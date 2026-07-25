@@ -26,14 +26,15 @@ vorhandenen Secrets.
 | `./leonaid doctor` | Docker, Compose, Locks, Secrets und Installationen diagnostizieren |
 | `./leonaid check` | nicht mutierende Policy-, Format-, Typ- und Unit-Gates |
 | `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
-| `./leonaid dev` | vollständigen Corestack starten, ab POC-010 |
-| `./leonaid test-integration` | reale abhängige Systeme testen, ab POC-010 |
+| `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
+| `./leonaid test-integration` | isolierten Leerstart, Netzgrenzen, Profile und Persistenz real testen |
 | `./leonaid test-e2e` | echte Browserjourneys, ab POC-041 |
 | `./leonaid seed` | Golden Dataset v1 idempotent einspielen, ab POC-012 |
 | `./leonaid reset` | markierte lokale Testumgebung zurücksetzen, ab POC-012 |
 
-Reservierte Befehle scheitern bis zu ihrem Meilenstein bewusst mit Exitcode 64
-und nennen den zuständigen Task. Sie geben keinen grünen Scheinerfolg aus.
+Die noch reservierten Befehle `test-e2e`, `seed` und `reset` scheitern bis zu
+ihrem Meilenstein bewusst mit Exitcode 64 und nennen den zuständigen Task. Sie
+geben keinen grünen Scheinerfolg aus.
 
 ## Secrets
 

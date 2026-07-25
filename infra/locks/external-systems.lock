@@ -19,7 +19,7 @@
       "digest": "sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
       "license": "PostgreSQL",
       "upstream": "https://github.com/docker-library/postgres/tree/2c6fe8daca9d2ccc143afe6b1cdbc1eb80379d3f",
-      "roles": ["core-postgres", "twenty-postgres"]
+      "roles": ["core-postgres", "twenty-postgres", "listmonk-postgres"]
     },
     {
       "id": "redis",
@@ -128,6 +128,24 @@
       "license": "MIT",
       "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tags/v3.22.1",
       "roles": ["shell-verifier"]
+    },
+    {
+      "id": "listmonk",
+      "version": "5.0.3",
+      "image": "docker.io/listmonk/listmonk:v5.0.3@sha256:d8f1a7fe7852a529139389564f32a914c278d394c75cb72bcde55bb2324f182e",
+      "digest": "sha256:d8f1a7fe7852a529139389564f32a914c278d394c75cb72bcde55bb2324f182e",
+      "license": "AGPL-3.0-only",
+      "upstream": "https://github.com/knadh/listmonk/releases/tag/v5.0.3",
+      "roles": ["optional-campaign-mailing"]
+    },
+    {
+      "id": "otel",
+      "version": "0.130.1",
+      "image": "docker.io/otel/opentelemetry-collector-contrib:0.130.1@sha256:9c247564e65ca19f97d891cca19a1a8d291ce631b890885b44e3503c5fdb3895",
+      "digest": "sha256:9c247564e65ca19f97d891cca19a1a8d291ce631b890885b44e3503c5fdb3895",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.130.1",
+      "roles": ["optional-observability"]
     }
   ]
 }

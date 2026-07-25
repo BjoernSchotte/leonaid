@@ -1,0 +1,380 @@
+name: leonaid
+
+services:
+  proxy:
+    image: docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LEONAID_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      pwa:
+        condition: service_healthy
+      public:
+        condition: service_healthy
+      twenty-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/_health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.core
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - leonaid.entrypoints.fastapi.platform:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      TWENTY_HEALTH_URL: http://twenty-server:3000/healthz
+      RUSTFS_HEALTH_URL: http://rustfs:9000/health
+      RUSTFS_ENDPOINT_URL: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+    networks:
+      - edge
+      - core-data
+      - crm-data
+      - storage-data
+      - mail-data
+      - telemetry
+    depends_on:
+      core-postgres:
+        condition: service_healthy
+      twenty-server:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3)"
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.core
+    restart: unless-stopped
+    command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
+    environment:
+      CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      RUSTFS_ENDPOINT_URL: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+    networks:
+      - core-data
+      - crm-data
+      - storage-data
+      - mail-data
+      - telemetry
+    depends_on:
+      core-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8010/health/ready', timeout=3)"
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  core-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CORE_POSTGRES_DB:-leonaid}
+      POSTGRES_USER: ${CORE_POSTGRES_USER:-leonaid}
+      POSTGRES_PASSWORD: ${CORE_POSTGRES_PASSWORD}
+    volumes:
+      - core-postgres-data:/var/lib/postgresql/data
+    networks:
+      - core-data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      APP_NAME: "LeonAid Verwaltung"
+      APP_KIND: web
+    networks:
+      - edge
+    healthcheck: &frontend-health
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pwa:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      APP_NAME: "LeonAid Akquise"
+      APP_KIND: pwa
+    networks:
+      - edge
+    healthcheck: *frontend-health
+
+  public:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      APP_NAME: "Krapfentaxi 2026"
+      APP_KIND: public
+    networks:
+      - edge
+    healthcheck: *frontend-health
+
+  twenty-server:
+    image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
+    restart: unless-stopped
+    environment: &twenty-environment
+      NODE_PORT: "3000"
+      PG_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
+      SERVER_URL: http://localhost:${LEONAID_HTTP_PORT:-8080}/crm
+      REDIS_URL: redis://twenty-redis:6379
+      DISABLE_DB_MIGRATIONS: "false"
+      DISABLE_CRON_JOBS_REGISTRATION: "false"
+      STORAGE_TYPE: local
+      ENCRYPTION_KEY: ${TWENTY_ACCESS_TOKEN_SECRET}
+      FALLBACK_ENCRYPTION_KEY: ${TWENTY_LOGIN_TOKEN_SECRET}
+      APP_SECRET: ${LEONAID_SECRET_KEY}
+      SIGN_IN_PREFILLED: "false"
+      IS_MULTIWORKSPACE_ENABLED: "false"
+    volumes:
+      - twenty-server-data:/app/packages/twenty-server/.local-storage
+    networks:
+      - edge
+      - crm-data
+    depends_on:
+      twenty-postgres:
+        condition: service_healthy
+      twenty-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:3000/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  twenty-worker:
+    image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
+    restart: unless-stopped
+    command: ["yarn", "worker:prod"]
+    environment:
+      <<: *twenty-environment
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - twenty-server-data:/app/packages/twenty-server/.local-storage
+    networks:
+      - crm-data
+    depends_on:
+      twenty-postgres:
+        condition: service_healthy
+      twenty-redis:
+        condition: service_healthy
+      twenty-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[w]orker:prod' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  twenty-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TWENTY_POSTGRES_DB:-default}
+      POSTGRES_USER: ${TWENTY_POSTGRES_USER:-twenty}
+      POSTGRES_PASSWORD: ${TWENTY_POSTGRES_PASSWORD}
+    volumes:
+      - twenty-postgres-data:/var/lib/postgresql/data
+    networks:
+      - crm-data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  twenty-redis:
+    image: docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - twenty-redis-data:/data
+    networks:
+      - crm-data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rustfs:
+    image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs-data:/data
+    networks:
+      - storage-data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    profiles: ["dev-mail"]
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_DATABASE: /data/mailpit.db
+      MP_WEBROOT: /mail/
+    volumes:
+      - mailpit-data:/data
+    networks:
+      - edge
+      - mail-data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  listmonk:
+    image: docker.io/listmonk/listmonk:v5.0.3@sha256:d8f1a7fe7852a529139389564f32a914c278d394c75cb72bcde55bb2324f182e
+    profiles: ["mailing"]
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - "./listmonk --install --yes --idempotent && ./listmonk"
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: listmonk-postgres
+      LISTMONK_db__port: "5432"
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: ${LISTMONK_POSTGRES_PASSWORD}
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+    networks:
+      - edge
+      - mailing-data
+    depends_on:
+      listmonk-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  listmonk-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    profiles: ["mailing"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: listmonk
+      POSTGRES_USER: listmonk
+      POSTGRES_PASSWORD: ${LISTMONK_POSTGRES_PASSWORD}
+    volumes:
+      - listmonk-postgres-data:/var/lib/postgresql/data
+    networks:
+      - mailing-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U listmonk -d listmonk"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.130.1@sha256:9c247564e65ca19f97d891cca19a1a8d291ce631b890885b44e3503c5fdb3895
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    networks:
+      - telemetry
+    healthcheck:
+      test:
+        - CMD
+        - /otelcol-contrib
+        - validate
+        - --config=/etc/otelcol-contrib/config.yaml
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  core-postgres-data:
+  twenty-postgres-data:
+  twenty-redis-data:
+  twenty-server-data:
+  rustfs-data:
+  mailpit-data:
+  listmonk-postgres-data:
+
+networks:
+  edge:
+  core-data:
+    internal: true
+  crm-data:
+    internal: true
+  storage-data:
+    internal: true
+  mail-data:
+    internal: true
+  mailing-data:
+    internal: true
+  telemetry:
+    internal: true

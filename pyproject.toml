@@ -42,6 +42,10 @@ line-length = 88
 python_version = "3.13"
 strict = true
 
+[[tool.mypy.overrides]]
+module = ["asyncpg", "boto3", "botocore.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-config", "--strict-markers"]

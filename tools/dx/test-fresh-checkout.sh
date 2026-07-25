@@ -55,8 +55,6 @@ docker run --rm \
   /workspace/.env.example /workspace/.env.local
 
 for reservation in \
-  "dev:POC-010" \
-  "test-integration:POC-010" \
   "test-e2e:POC-041" \
   "seed:POC-012" \
   "reset:POC-012"; do
