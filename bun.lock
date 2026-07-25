@@ -9,8 +9,14 @@
         "typescript": "5.8.3",
       },
     },
+    "packages/api-client": {
+      "name": "@leonaid/api-client",
+      "version": "0.0.0",
+    },
   },
   "packages": {
+    "@leonaid/api-client": ["@leonaid/api-client@workspace:packages/api-client"],
+
     "@playwright/test": ["@playwright/test@1.54.1", "", { "dependencies": { "playwright": "1.54.1" }, "bin": { "playwright": "cli.js" } }, "sha512-FS8hQ12acieG2dYSksmLOF7BNxnVf2afRJdCuM1eMSxj6QTSE6G4InGF7oApGgDb65MX7AwMVlIkpru0yZA4Xw=="],
 
     "fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],

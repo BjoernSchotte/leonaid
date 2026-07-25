@@ -25,6 +25,7 @@ vorhandenen Secrets.
 | `./leonaid bootstrap` | Secrets und gelockte lokale Dependency-Bäume anlegen |
 | `./leonaid doctor` | Docker, Compose, Locks, Secrets und Installationen diagnostizieren |
 | `./leonaid check` | nicht mutierende Policy-, Format-, Typ- und Unit-Gates |
+| `./leonaid generate-api-client` | OpenAPI-Dokument und TypeScript-Client deterministisch regenerieren |
 | `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
 | `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
 | `./leonaid test-integration` | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
@@ -67,6 +68,28 @@ Operator `poc022-operator`.
 `tools/outbox/test.sh` beendet einen echten Producer nach dem Commit, startet
 zwei konkurrierende Worker-Container und stoppt Mailpit real, um Retry, Dead
 Letter und Wiederanlauf ohne Mock-Server zu beweisen.
+
+## OpenAPI und TypeScript-Client
+
+FastAPI ist der Owner des HTTP-Vertrags. Alle Operationen besitzen eine
+explizite `operationId`, Response-Schemas und das einheitliche
+`ApiErrorResponse`-Schema. `./leonaid generate-api-client` schreibt daraus
+`packages/api-client/openapi.json` und
+`packages/api-client/src/generated.ts`.
+
+Beide Dateien werden committed, aber nie manuell editiert. `./leonaid check`
+regeneriert im Prüfmodus, typprüft das Package und verbietet direkte
+`fetch("/api/...")`-Aufrufe sowie direkte Imports des generierten
+Transportartefakts aus Frontend-Code. Web, PWA, Public Web, gemeinsame
+Features und eine spätere Tauri-App importieren ausschließlich
+`@leonaid/api-client`.
+
+Der Breaking-Change-Gate vergleicht Pull Requests mit dem OpenAPI-Dokument des
+Base-Commits. Entfernte Pfade, Operationen, Erfolgsantworten, Schemas oder
+Properties sowie neue Pflichtfelder und geänderte Typverträge scheitern. Eine
+Ausnahme benötigt exakte Alt-/Neu-SHA-256, die vollständige maschinenlesbare
+Änderungsliste und eine Begründung in
+`specs/leonaid-poc/openapi-breaking-approvals.json`.
 
 ## Secrets
 

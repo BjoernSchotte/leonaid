@@ -33,6 +33,7 @@ def test_planned_repository_roots_exist() -> None:
         "tests/e2e",
         "tests/fixtures/golden/v1",
         "tests/fixtures/schema",
+        "tools/openapi",
         "tools/outbox",
         "tools/schema",
     )

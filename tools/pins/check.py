@@ -232,7 +232,11 @@ def check_frontend(root: Path, problems: Problems) -> None:
             f"{bun_lock}: direct dependency {name}@{version} is absent",
         )
     for line_number, line in enumerate(lock_text.splitlines(), 1):
-        if re.search(r'^\s+"[^"]+": \["[^"]+@[^\"]+"', line) and "sha512-" not in line:
+        if (
+            re.search(r'^\s+"[^"]+": \["[^"]+@[^\"]+"', line)
+            and "@workspace:" not in line
+            and "sha512-" not in line
+        ):
             problems.add(f"{bun_lock}:{line_number}: package entry has no integrity hash")
 
 

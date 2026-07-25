@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012 und POC-020
-bis POC-022 vollständig bewiesen
+bis POC-023 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -494,25 +494,28 @@ Tests/Nachweise:
 Nachweis:
 [POC-022 – Unit of Work und transaktionale Outbox](proofs/POC-022.md).
 
-### [ ] POC-023 OpenAPI- und TypeScript-Client-Pipeline etablieren
+### [x] POC-023 OpenAPI- und TypeScript-Client-Pipeline etablieren
 
 Abhängigkeiten: POC-020
 
 Akzeptanzkriterien:
 
-- [ ] API-Operationen besitzen stabile IDs, Schemas, Fehlercodes und
+- [x] API-Operationen besitzen stabile IDs, Schemas, Fehlercodes und
       Beispiele aus Golden Data.
-- [ ] TypeScript-Client wird deterministisch aus dem OpenAPI-Dokument erzeugt.
-- [ ] Frontends importieren Transporttypen ausschließlich aus `api-client`.
-- [ ] Breaking Changes werden in CI sichtbar und benötigen eine bewusste
+- [x] TypeScript-Client wird deterministisch aus dem OpenAPI-Dokument erzeugt.
+- [x] Frontends importieren Transporttypen ausschließlich aus `api-client`.
+- [x] Breaking Changes werden in CI sichtbar und benötigen eine bewusste
       Freigabe.
 
 Tests/Nachweise:
 
-- [ ] Regeneration hinterlässt bei unverändertem API-Vertrag keinen Diff.
-- [ ] Contracttest führt den generierten Client gegen den realen FastAPI-
+- [x] Regeneration hinterlässt bei unverändertem API-Vertrag keinen Diff.
+- [x] Contracttest führt den generierten Client gegen den realen FastAPI-
       Prozess aus.
-- [ ] Fehlerantworten werden im Client typisiert und UI-tauglich abgebildet.
+- [x] Fehlerantworten werden im Client typisiert und UI-tauglich abgebildet.
+
+Nachweis:
+[POC-023 – OpenAPI und TypeScript-Client](proofs/POC-023.md).
 
 ---
 

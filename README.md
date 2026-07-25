@@ -49,6 +49,9 @@ Compose-Projekt und stellt Core-PostgreSQL, Twenty, RustFS und Mailpit auf
 Golden Data v1 wieder her. Verfügbare und für spätere Meilensteine bereits
 reservierte Befehle zeigt `./leonaid help`.
 
+Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
+`./leonaid generate-api-client` gemeinsam aus FastAPI regeneriert.
+
 ## Dokumente
 
 - [Produkt- und Architekturvorschlag](specs/produkt-und-architekturvorschlag.md) —

@@ -15,6 +15,8 @@ Commands:
   doctor            Diagnose Docker, locks, secrets and local dependencies
   dev               Build and start the ready PoC core stack
   check             Run non-mutating quality and policy gates
+  generate-api-client
+                    Regenerate canonical OpenAPI and TypeScript client
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
@@ -38,6 +40,7 @@ require_docker() {
 
 run_python() {
   docker run --rm \
+    -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
     -v "$root:/workspace" \
@@ -177,14 +180,21 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/outbox tools/schema tools/seed
+    tools/dx tools/openapi tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/outbox tools/schema tools/seed
+    tools/dx tools/openapi tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/outbox tools/schema tools/seed
+    tools/openapi tools/outbox tools/schema tools/seed
   run_python uv run --frozen --no-sync pytest tests/unit
+  run_python uv run --frozen --no-sync \
+    python tools/openapi/generate.py --root /workspace --check
+  run_python uv run --frozen --no-sync \
+    python tools/openapi/check_frontend.py --root /workspace
+  run_bun bun run typecheck:api-client
+  run_bun bun node_modules/prettier/bin/prettier.cjs --check \
+    packages/api-client tests/contract package.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ "$before" != "$after" ] || [ -n "$after" ]; then
@@ -305,8 +315,14 @@ case "$command" in
     /bin/sh "$root/tools/core/test.sh" "$root"
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
+    /bin/sh "$root/tools/openapi/test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
+  generate-api-client)
+    require_docker
+    run_python uv run --frozen --no-sync \
+      python tools/openapi/generate.py --root /workspace
+    ;;
   seed) seed_systems ;;
   snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
   reset) reset_systems ;;
