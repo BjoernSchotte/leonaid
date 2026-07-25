@@ -1,40 +1,46 @@
 # LeonAid — Charity-Verwaltung für Service Clubs
 
-Open-Source-Plattform für die Charity-Arbeit von Service Clubs. Der aktuelle
-PoC bildet als ersten Baustein die verteilte Sponsoren-Akquise ab.
-Ersetzt die bisherigen, manuellen Excel-Listen.
+Open-Source-Plattform für die Charity-Arbeit von Service Clubs. Der geplante
+PoC verbindet verteilte Sponsoren-Akquise, aktionsbezogene Abwicklung und
+Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 
-- **Orga-Team** (2 Personen) arbeitet im **Twenty CRM** (Web/Desktop): Kampagnen anlegen,
-  Excel importieren, Sponsoren den Mitgliedern zuweisen, Auswertung.
-- **Club-Mitglieder** nutzen eine schlanke **PWA** auf dem Handy-Homescreen:
-  ihre persönliche Anrufliste sehen, anrufen, Status abhaken, Notiz erfassen,
-  neuen Kontakt anlegen. Bewusst seniorengerecht (große Buttons, ein Login per Magic-Link).
+- **Charity-Admins** verwalten Aktionen, Akquisiteure, Bestellungen und
+  Rechnungsabläufe. Ein PoC-Spike klärt, wie weit Twenty dafür als
+  Admin-Oberfläche reicht.
+- **Akquisiteure** nutzen eine schlanke **PWA** für ihre zugeordneten Aktionen,
+  Firmen, Wiedervorlagen und Zusagen.
+- Aktionsspezifische Rollen wie **Ausfahrer** können später über optionale
+  Capabilities ergänzt werden.
 
 ## Status
 
-🟡 **Design-Phase.** Dieses Repo enthält aktuell die Architektur-Entscheidung.
+🟡 **Design-Phase.** Dieses Repo enthält aktuell Vorschläge und frühere
+Architekturüberlegungen.
 Noch kein Code.
 
 ## Dokumente
 
-- [Architektur & Design](specs/architektur.md) — die maßgebliche Grundlage (Architektur,
-  Datenmodell, Auth-Flow, BFF-API, Hosting, Aufwand, Risiken, Roadmap, Entscheidungslog).
+- [Produkt- und Architekturvorschlag](specs/produkt-und-architekturvorschlag.md) —
+  neues Zielbild mit PoC-Schnitt, Systemgrenzen, Compose-Profilen und Capability-Landkarte.
+- [Architektur & Design](specs/architektur.md) — bisheriger, engerer Entwurf für
+  den reinen Akquise-PoC; wird anhand des neuen Zielbilds neu bewertet.
 
 ## Eckdaten der Lösung (Kurzfassung)
 
 | | |
 |---|---|
 | **Backend** | [Twenty CRM](https://github.com/twentyhq/twenty) (Open Source, AGPL-3.0), self-hosted |
-| **Mitglieder-Frontend** | Eigene PWA (Vite/React) auf dem Handy-Homescreen |
-| **BFF** | Python / FastAPI + httpx — Tooling: `uv`, `ruff`, `mypy`, `pytest`, CI |
-| **Login (Mitglieder)** | Magic-Link per E-Mail, 6-stelliger Code als Fallback |
+| **Operatives Frontend** | React/TypeScript-PWA, shadcn/ui, freie Hugeicons; gemeinsame App Shell |
+| **LeonAid Core** | Modularer Monolith; Sprache und Framework werden nach dem Fachmodell entschieden |
+| **ERP-light** | Bestellungen, Ausgangsrechnungen, Typst-PDF und manueller Zahlungsstatus |
+| **Public Web** | Astro 7 als Teil des Core; zeitlich begrenzte Aktionsseiten und aktionsbezogene Standardformulare |
+| **Kommunikation** | externer Mail-Relay; optionales listmonk-Compose-Profil |
 | **Hosting** | Hetzner (EU → DSGVO-sauber), Docker Compose, TLS via Caddy |
 | **Team** | 2 Personen (Infra/Backend + Frontend/UX) |
-| **Aufwand MVP** | ~20–29 Personentage (inkl. Tests/CI) |
 
 ## Warum nicht Twenty direkt am Handy?
 
-Twenty hat **keine native Mobile-App und keine produktive PWA** (kein Service Worker,
-unreife mobile Bedienung, zu kleine Touch-Ziele). Twentys eigener Login kann zudem nur
-Passwort/SSO — beides ungeeignet für ältere Mitglieder. Deshalb: Twenty als unsichtbares
-Backend, davor eine eigene, bewusst einfache PWA. Details siehe Architektur-Doc.
+Twenty ist ein flexibles CRM, aber keine auf operative Rollen zugeschnittene
+PWA. Das freie Self-hosted Twenty bietet zudem keine Row-Level Permissions.
+Deshalb greifen diese Rollen ausschließlich über die eigene PWA und die
+serverseitige LeonAid-Autorisierung zu.
