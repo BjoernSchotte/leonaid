@@ -170,9 +170,9 @@ Eine fachliche Vorführung soll ohne technische Erklärung zeigen können:
 - selbstständige Änderung der Login-E-Mail durch Mitglieder
 
 Andere Clubs können später jeweils eine eigene LeonAid-Installation betreiben.
-Lions Open und Weihnachtsmarkt werden noch nicht umgesetzt; ihr fachliches
-Modell wird aber vor dem PoC-Abschluss gegengeprüft, damit der gemeinsame
-Charity-Aktionskern nicht nur für Krapfentaxi funktioniert.
+Der PoC beweist ausschließlich den vollständigen Krapfentaxi-Ablauf. Lions
+Open und Weihnachtsmarkt sind nachgelagerte Use Cases und weder Bestandteil
+noch Abnahmevoraussetzung des PoC.
 
 ### 1.8 Begriffe ohne Technikjargon
 
@@ -565,6 +565,12 @@ laufende oder historische Aktionen nicht automatisch.
 Damit lassen sich jährliche Wiederholungen aus dem Vorjahr kopieren, ohne
 operative Datensätze, Teilnehmer, Bestellungen oder Rechnungsnummern zu
 duplizieren.
+
+Im PoC werden nur das Krapfentaxi-Template und eine technisch neutrale leere
+Aktion umgesetzt. Die Templates für Lions Open und Weihnachtsmarkt folgen
+erst mit den jeweiligen nachgelagerten Use Cases. Ihre noch nicht validierten
+Anforderungen dürfen den ersten Krapfentaxi-Schnitt nicht blockieren oder den
+Core vorsorglich verkomplizieren.
 
 ## 5. Twenty CRM – aktueller Capability-Befund
 
@@ -1477,11 +1483,11 @@ den gemeinsamen Action-Core plus die Capabilities `acquisition`, `offerings`,
 Public Web ist Bestandteil des Core-PoC. listmonk bleibt optional; der
 Core-PoC muss ohne Mailing-System vollständig demonstrierbar sein.
 
-Lions Open und Weihnachtsmarkt werden im PoC noch nicht vollständig umgesetzt.
-Vor Abschluss des Fachmodells werden aber je ein **Modellierungs- und
-Navigations-Walkthrough** durchgeführt. Das Modell gilt nur dann als tragfähig,
-wenn beide Aktionen ohne Krapfentaxi-Sonderfelder im `CharityAction`-Core
-abbildbar sind.
+Lions Open und Weihnachtsmarkt sind nachgelagerte Use Cases. Ihre
+Modellierungs- und Navigations-Walkthroughs finden erst nach dem
+Krapfentaxi-PoC statt und blockieren dessen Abnahme nicht. Der PoC hält
+weiterhin die in Kapitel 4.3 beschriebenen Modulgrenzen ein, implementiert
+aber keine spekulativen Golfturnier- oder Weihnachtsmarkt-Funktionen.
 
 ### 10.3 Harte PoC-Gates
 

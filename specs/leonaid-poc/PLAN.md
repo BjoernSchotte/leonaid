@@ -134,7 +134,7 @@ reservierte Testdomain.
 | Bereich | Mindestinhalt |
 |---|---|
 | Benutzer | 1 System-Admin, 2 Charity-Admins, 3 Akquisiteure, 1 Finanzrolle, 1 gesperrter Benutzer |
-| Aktionen | Krapfentaxi aktiv, Krapfentaxi Vorjahr archiviert, zweite fremdverwaltete Aktion, je ein Modellierungsbeispiel Lions Open und Weihnachtsmarkt |
+| Aktionen | Krapfentaxi aktiv, Krapfentaxi Vorjahr archiviert und zweite fremdverwaltete Krapfentaxi-Testaktion |
 | Beneficiaries | mindestens 2 Begünstigte der aktiven Krapfentaxi-Aktion |
 | Firmen | eindeutige Firma, normalisierter Namenskonflikt, Firma mit zwei Ansprechpartnern, Firma ohne Zuweisung |
 | Personen | eigenständiger Sponsor ohne Firma, gleichnamige Person mit unterscheidenden Zusatzdaten |
@@ -712,21 +712,23 @@ Abhängigkeiten: POC-050
 
 Akzeptanzkriterien:
 
-- [ ] Templates für Krapfentaxi, Lions Open, Weihnachtsmarkt und leere Aktion
+- [ ] Templates für Krapfentaxi und eine technisch neutrale leere Aktion
       existieren.
 - [ ] Krapfentaxi setzt PoC-Capabilities, Angebote und Formularkonfiguration.
 - [ ] Aktion erhält einen Snapshot; spätere Templateänderung verändert sie
       nicht rückwirkend.
 - [ ] Vorjahreskopie übernimmt Konfiguration, aber keine operativen
       Bestellungen, Teilnehmer, Rechnungen oder Nummern.
+- [ ] Lions-Open- und Weihnachtsmarkt-Templates bleiben ausdrücklich
+      nachgelagert und erzeugen keine spekulativen PoC-Felder oder Module.
 
 Tests/Nachweise:
 
 - [ ] Unit-Test prüft Snapshot- und Kopierregeln.
 - [ ] Integrationstest ändert eine Template-Version und beweist unveränderte
       historische Aktionen.
-- [ ] Modellierungstests instanziieren Lions Open und Weihnachtsmarkt ohne
-      Krapfentaxi-Felder im Core.
+- [ ] Architekturtest stellt sicher, dass Krapfentaxi-spezifische Daten in
+      typisierten Capability-Modulen und nicht in `CharityAction` liegen.
 
 ### [ ] POC-052 Charity-Admin-Aktionsverwaltung als hochwertige UI bauen
 
@@ -1295,43 +1297,7 @@ Tests/Nachweise:
 
 ---
 
-## M12 – Architekturvalidierung, finale E2E-Demo und Übergabe
-
-### [ ] POC-120 Lions-Open-Modellierungs- und Navigations-Walkthrough
-
-Abhängigkeiten: POC-051, POC-100
-
-Akzeptanzkriterien:
-
-- [ ] Golden-Beispiel bildet Sponsoring, Teilnehmer/Flight und optionale
-      Rechnung über Capability-Module ab.
-- [ ] `CharityAction` erhält keine Golf-Sonderfelder.
-- [ ] Navigation zeigt nur aktivierte Fähigkeiten.
-- [ ] Fehlende reale Anforderungen werden als offene Fragen dokumentiert.
-
-Tests/Nachweise:
-
-- [ ] Modellinstanz wird real persistiert und über Admin-UI angezeigt.
-- [ ] Schema-/Architekturtest beweist fehlende Golf-Sonderfelder im Core.
-- [ ] Walkthrough mit fachlichem Vertreter ist protokolliert.
-
-### [ ] POC-121 Weihnachtsmarkt-Modellierungs- und Navigations-Walkthrough
-
-Abhängigkeiten: POC-051, POC-100
-
-Akzeptanzkriterien:
-
-- [ ] Golden-Beispiel bildet Stand/Buchung, Betreiber, Helferschicht und
-      optionale Rechnung über Capability-Module ab.
-- [ ] `CharityAction` erhält keine Weihnachtsmarkt-Sonderfelder.
-- [ ] Navigation zeigt nur aktivierte Fähigkeiten.
-- [ ] Nicht belegte Prozesse bleiben außerhalb des PoC.
-
-Tests/Nachweise:
-
-- [ ] Modellinstanz wird real persistiert und über Admin-UI angezeigt.
-- [ ] Schema-/Architekturtest beweist fehlende Markt-Sonderfelder im Core.
-- [ ] Walkthrough mit fachlichem Vertreter ist protokolliert.
+## M12 – Krapfentaxi-Abnahme und Übergabe
 
 ### [ ] POC-122 Vollständige Krapfentaxi-Golden-Journey abnehmen
 
@@ -1359,8 +1325,7 @@ Tests/Nachweise:
 
 ### [ ] POC-123 PoC-Abnahme, Runbooks und DX-Übergabe abschließen
 
-Abhängigkeiten: POC-102, POC-112, POC-113, POC-114, POC-120, POC-121,
-POC-122
+Abhängigkeiten: POC-102, POC-112, POC-113, POC-114, POC-122
 
 Akzeptanzkriterien:
 
@@ -1427,9 +1392,13 @@ vollständig lauffähige Golden Journey.
 | Reales, portables PDF | POC-091 |
 | Sichtbarer Versandstatus | POC-094, POC-114 |
 | Vollständiger Backup/Restore | POC-112 |
-| Aktionsunabhängiges Modell | POC-120, POC-121 |
 | World-class UX/DX | POC-002, POC-100, POC-102, POC-123 |
 
 Der PoC ist nicht abgeschlossen, solange ein Eintrag dieser Matrix nur durch
 eine Annahme, einen Mock, einen Screenshot ohne überprüften Zustand oder einen
 manuellen Datenbankeingriff „belegt“ ist.
+
+Lions Open und Weihnachtsmarkt beginnen erst nach erfolgreicher
+Krapfentaxi-Abnahme mit jeweils eigener Discovery, Golden Data und einem
+separaten Implementierungsplan. Sie sind keine versteckten Abhängigkeiten
+dieses Plans.
