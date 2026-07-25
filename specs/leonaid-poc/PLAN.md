@@ -1,6 +1,6 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 bis POC-002 vollständig bewiesen
+Status: in Umsetzung; POC-000 bis POC-002 und POC-011 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -340,27 +340,30 @@ Tests/Nachweise:
       nicht am öffentlichen Interface lauschen.
 - [ ] Neustart aller Container erhält persistente Golden Data.
 
-### [ ] POC-011 Golden Dataset v1 spezifizieren und versionieren
+### [x] POC-011 Golden Dataset v1 spezifizieren und versionieren
 
 Abhängigkeiten: POC-000
 
 Akzeptanzkriterien:
 
-- [ ] Alle Entitäten aus Kapitel 3.1 besitzen stabile IDs und synthetische
+- [x] Alle Entitäten aus Kapitel 3.1 besitzen stabile IDs und synthetische
       Inhalte.
-- [ ] Erwartete Sichtbarkeit, Summen, Status, Matches und Feed-Einträge sind
+- [x] Erwartete Sichtbarkeit, Summen, Status, Matches und Feed-Einträge sind
       maschinenlesbar hinterlegt.
-- [ ] Eine README erklärt jede Persona und jeden Konfliktfall.
-- [ ] Golden Data enthält keine realen Mitglieder-, Firmen- oder
+- [x] Eine README erklärt jede Persona und jeden Konfliktfall.
+- [x] Golden Data enthält keine realen Mitglieder-, Firmen- oder
       Kontaktdaten.
-- [ ] Dataset-Version und Schema-Version werden gemeinsam geprüft.
+- [x] Dataset-Version und Schema-Version werden gemeinsam geprüft.
 
 Tests/Nachweise:
 
-- [ ] Schema- und Referenzintegrität des Datasets werden ohne laufende App
+- [x] Schema- und Referenzintegrität des Datasets werden ohne laufende App
       validiert.
-- [ ] Erwartete Rechnungsbeträge, Boxen-/Stückzahlen und Zuweisungsmengen
+- [x] Erwartete Rechnungsbeträge, Boxen-/Stückzahlen und Zuweisungsmengen
       werden aus den Daten reproduzierbar berechnet.
+
+Nachweis:
+[POC-011 – Golden Dataset v1](proofs/POC-011.md).
 
 ### [ ] POC-012 Reset-, Seed- und Snapshot-Werkzeuge bauen
 

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "idFormat": "uuid",
+  "requiredCollections": [
+    "users",
+    "actions",
+    "actionMemberships",
+    "beneficiaries",
+    "companies",
+    "persons",
+    "assignments",
+    "offers",
+    "commitments",
+    "invoices",
+    "activities",
+    "matchScenarios",
+    "publicRoutes"
+  ],
+  "enums": {
+    "userRole": [
+      "SYSTEM_ADMIN",
+      "CHARITY_ADMIN",
+      "ACQUIRER",
+      "FINANCE"
+    ],
+    "userStatus": [
+      "ACTIVE",
+      "LOCKED"
+    ],
+    "actionStatus": [
+      "DRAFT",
+      "ACTIVE",
+      "ARCHIVED"
+    ],
+    "membershipRole": [
+      "CHARITY_ADMIN",
+      "ACQUIRER",
+      "FINANCE"
+    ],
+    "commitmentStatus": [
+      "DRAFT",
+      "REVIEW_READY",
+      "PUBLIC_RECEIVED",
+      "INVOICED"
+    ],
+    "invoiceStatus": [
+      "OPEN",
+      "PAID",
+      "CANCELLED"
+    ]
+  }
+}

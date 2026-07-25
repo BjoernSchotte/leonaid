@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "1.0.0",
+  "schemaVersion": 1,
+  "useCase": "krapfentaxi",
+  "synthetic": true,
+  "reservedEmailDomain": "leonaid.invalid",
+  "files": [
+    "schema.json",
+    "dataset.json",
+    "expected.json",
+    "README.md"
+  ]
+}

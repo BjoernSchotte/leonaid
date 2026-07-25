@@ -160,6 +160,10 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
+    /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check src tests
   run_python uv run --frozen --no-sync ruff format --check src tests
   run_python uv run --frozen --no-sync mypy src

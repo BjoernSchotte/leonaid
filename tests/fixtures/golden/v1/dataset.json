@@ -1,0 +1,539 @@
+{
+  "datasetVersion": "1.0.0",
+  "schemaVersion": 1,
+  "users": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "email": "system-admin@leonaid.invalid",
+      "givenName": "Simone",
+      "familyName": "System",
+      "role": "SYSTEM_ADMIN",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "email": "klara.kern@leonaid.invalid",
+      "givenName": "Klara",
+      "familyName": "Kern",
+      "role": "CHARITY_ADMIN",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000003",
+      "email": "felix.fremd@leonaid.invalid",
+      "givenName": "Felix",
+      "familyName": "Fremd",
+      "role": "CHARITY_ADMIN",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000004",
+      "email": "anna.akquise@leonaid.invalid",
+      "givenName": "Anna",
+      "familyName": "Akquise",
+      "role": "ACQUIRER",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000005",
+      "email": "bernd.binder@leonaid.invalid",
+      "givenName": "Bernd",
+      "familyName": "Binder",
+      "role": "ACQUIRER",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000006",
+      "email": "carla.club@leonaid.invalid",
+      "givenName": "Carla",
+      "familyName": "Club",
+      "role": "ACQUIRER",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000007",
+      "email": "finn.finanzen@leonaid.invalid",
+      "givenName": "Finn",
+      "familyName": "Finanzen",
+      "role": "FINANCE",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000008",
+      "email": "gesa.gesperrt@leonaid.invalid",
+      "givenName": "Gesa",
+      "familyName": "Gesperrt",
+      "role": "ACQUIRER",
+      "status": "LOCKED"
+    }
+  ],
+  "actions": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "name": "Krapfentaxi 2026",
+      "kind": "KRAPFENTAXI",
+      "status": "ACTIVE",
+      "startsOn": "2026-09-01",
+      "endsOn": "2026-11-15",
+      "goalAmountCents": 100000,
+      "currency": "EUR",
+      "publicAlias": "krapfentaxi",
+      "archiveSlug": "krapfentaxi-2026"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "name": "Krapfentaxi 2025",
+      "kind": "KRAPFENTAXI",
+      "status": "ARCHIVED",
+      "startsOn": "2025-09-01",
+      "endsOn": "2025-11-15",
+      "goalAmountCents": 80000,
+      "currency": "EUR",
+      "publicAlias": null,
+      "archiveSlug": "krapfentaxi-2025"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000003",
+      "name": "Krapfentaxi Nord 2026",
+      "kind": "KRAPFENTAXI",
+      "status": "DRAFT",
+      "startsOn": "2026-10-01",
+      "endsOn": "2026-11-30",
+      "goalAmountCents": 60000,
+      "currency": "EUR",
+      "publicAlias": null,
+      "archiveSlug": "krapfentaxi-nord-2026"
+    }
+  ],
+  "actionMemberships": [
+    {
+      "id": "21000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000002",
+      "role": "CHARITY_ADMIN"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000002",
+      "userId": "10000000-0000-4000-8000-000000000002",
+      "role": "CHARITY_ADMIN"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000003",
+      "actionId": "20000000-0000-4000-8000-000000000003",
+      "userId": "10000000-0000-4000-8000-000000000003",
+      "role": "CHARITY_ADMIN"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000004",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000004",
+      "role": "ACQUIRER"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000005",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000005",
+      "role": "ACQUIRER"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000006",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000006",
+      "role": "ACQUIRER"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000007",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000007",
+      "role": "FINANCE"
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000008",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "userId": "10000000-0000-4000-8000-000000000008",
+      "role": "ACQUIRER"
+    }
+  ],
+  "beneficiaries": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "name": "Kinderhafen Beispielstadt",
+      "description": "Synthetische Begünstigte für Freizeitangebote."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "name": "Jugendhilfe Musterbogen",
+      "description": "Synthetische Begünstigte für Lernmaterial."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000003",
+      "actionId": "20000000-0000-4000-8000-000000000002",
+      "name": "Archivhilfe Beispiel",
+      "description": "Synthetische Vorjahresbegünstigte."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000004",
+      "actionId": "20000000-0000-4000-8000-000000000003",
+      "name": "Nordhilfe Muster",
+      "description": "Synthetische Begünstigte der fremden Testaktion."
+    }
+  ],
+  "companies": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "name": "Musterwerk GmbH",
+      "normalizedName": "musterwerk gmbh",
+      "postalCode": "10115",
+      "city": "Beispielstadt"
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000002",
+      "name": "Bäckerei Sonnenseite KG",
+      "normalizedName": "baeckerei sonnenseite kg",
+      "postalCode": "10243",
+      "city": "Beispielstadt"
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000003",
+      "name": "Doppelkontakt AG",
+      "normalizedName": "doppelkontakt ag",
+      "postalCode": "12043",
+      "city": "Musterhausen"
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000004",
+      "name": "Freie Firma e.K.",
+      "normalizedName": "freie firma ek",
+      "postalCode": "13187",
+      "city": "Beispielstadt"
+    }
+  ],
+  "persons": [
+    {
+      "id": "50000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "givenName": "Mara",
+      "familyName": "Muster",
+      "email": "mara.muster@musterwerk.leonaid.invalid",
+      "postalCode": "10115"
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000002",
+      "companyId": "40000000-0000-4000-8000-000000000002",
+      "givenName": "Max",
+      "familyName": "Mustermann",
+      "email": "max.mustermann@sonnenseite.leonaid.invalid",
+      "postalCode": "10243"
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000003",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "givenName": "Petra",
+      "familyName": "Partner",
+      "email": "petra.partner@doppelkontakt.leonaid.invalid",
+      "postalCode": "12043"
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000004",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "givenName": "Paul",
+      "familyName": "Partner",
+      "email": "paul.partner@doppelkontakt.leonaid.invalid",
+      "postalCode": "12043"
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000005",
+      "companyId": null,
+      "givenName": "Sophie",
+      "familyName": "Sponsor",
+      "email": "sophie.sponsor@leonaid.invalid",
+      "postalCode": "14050"
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000006",
+      "companyId": null,
+      "givenName": "Max",
+      "familyName": "Mustermann",
+      "email": "max.mustermann.privat@leonaid.invalid",
+      "postalCode": "14467"
+    }
+  ],
+  "assignments": [
+    {
+      "id": "60000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "personId": null,
+      "acquirerId": "10000000-0000-4000-8000-000000000004"
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000002",
+      "personId": null,
+      "acquirerId": "10000000-0000-4000-8000-000000000005"
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000003",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "personId": null,
+      "acquirerId": "10000000-0000-4000-8000-000000000004"
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000004",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "personId": null,
+      "acquirerId": "10000000-0000-4000-8000-000000000005"
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000005",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": null,
+      "personId": "50000000-0000-4000-8000-000000000005",
+      "acquirerId": "10000000-0000-4000-8000-000000000006"
+    }
+  ],
+  "offers": [
+    {
+      "id": "70000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "name": "Krapfenbox",
+      "active": true,
+      "unit": "BOX",
+      "piecesPerUnit": 24,
+      "unitPriceCents": 3600,
+      "currency": "EUR"
+    },
+    {
+      "id": "70000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "name": "Kleine Krapfenbox",
+      "active": false,
+      "unit": "BOX",
+      "piecesPerUnit": 12,
+      "unitPriceCents": 1800,
+      "currency": "EUR"
+    }
+  ],
+  "commitments": [
+    {
+      "id": "80000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "personId": null,
+      "source": "INTERNAL",
+      "status": "DRAFT",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 2
+        }
+      ]
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000002",
+      "personId": null,
+      "source": "INTERNAL",
+      "status": "REVIEW_READY",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000003",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "personId": null,
+      "source": "PUBLIC",
+      "status": "PUBLIC_RECEIVED",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000004",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": null,
+      "personId": "50000000-0000-4000-8000-000000000005",
+      "source": "INTERNAL",
+      "status": "INVOICED",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 10
+        }
+      ]
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000005",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "personId": null,
+      "source": "PUBLIC",
+      "status": "INVOICED",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 4
+        }
+      ]
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000006",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "companyId": "40000000-0000-4000-8000-000000000002",
+      "personId": null,
+      "source": "INTERNAL",
+      "status": "INVOICED",
+      "lines": [
+        {
+          "offerId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "invoices": [
+    {
+      "id": "90000000-0000-4000-8000-000000000001",
+      "commitmentId": "80000000-0000-4000-8000-000000000004",
+      "number": "KT26-0001",
+      "status": "OPEN",
+      "amountCents": 36000,
+      "currency": "EUR",
+      "addressSnapshot": {
+        "recipient": "Sophie Sponsor",
+        "street": "Testweg 10",
+        "postalCode": "14050",
+        "city": "Beispielstadt",
+        "country": "DE"
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000002",
+      "commitmentId": "80000000-0000-4000-8000-000000000005",
+      "number": "KT26-0002",
+      "status": "PAID",
+      "amountCents": 14400,
+      "currency": "EUR",
+      "addressSnapshot": {
+        "recipient": "Musterwerk GmbH",
+        "street": "Beispielallee 1",
+        "postalCode": "10115",
+        "city": "Beispielstadt",
+        "country": "DE"
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000003",
+      "commitmentId": "80000000-0000-4000-8000-000000000006",
+      "number": "KT26-0003",
+      "status": "CANCELLED",
+      "amountCents": 3600,
+      "currency": "EUR",
+      "addressSnapshot": {
+        "recipient": "Bäckerei Sonnenseite KG",
+        "street": "Sonnenstraße 2",
+        "postalCode": "10243",
+        "city": "Beispielstadt",
+        "country": "DE"
+      }
+    }
+  ],
+  "activities": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "SPONSOR_CREATED",
+      "actorId": "10000000-0000-4000-8000-000000000004",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "commitmentId": null
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000002",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "CO_ASSIGNMENT_ADDED",
+      "actorId": "10000000-0000-4000-8000-000000000005",
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "commitmentId": null
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000003",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "PUBLIC_COMMITMENT_RECEIVED",
+      "actorId": null,
+      "companyId": "40000000-0000-4000-8000-000000000003",
+      "commitmentId": "80000000-0000-4000-8000-000000000003"
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000004",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "INVOICE_PAID",
+      "actorId": "10000000-0000-4000-8000-000000000007",
+      "companyId": "40000000-0000-4000-8000-000000000001",
+      "commitmentId": "80000000-0000-4000-8000-000000000005"
+    }
+  ],
+  "matchScenarios": [
+    {
+      "id": "b0000000-0000-4000-8000-000000000001",
+      "kind": "COMPANY_NORMALIZED_NAME",
+      "input": {
+        "name": "Baeckerei  Sonnenseite K.G."
+      },
+      "normalizedKey": "baeckerei sonnenseite kg",
+      "expectedCompanyIds": [
+        "40000000-0000-4000-8000-000000000002"
+      ],
+      "warningAcquirerIds": [
+        "10000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000002",
+      "kind": "PERSON_NAME_WITHOUT_COMPANY",
+      "input": {
+        "givenName": "Max",
+        "familyName": "Mustermann"
+      },
+      "expectedPersonIds": [
+        "50000000-0000-4000-8000-000000000002",
+        "50000000-0000-4000-8000-000000000006"
+      ],
+      "requiresDisambiguation": true
+    }
+  ],
+  "publicRoutes": [
+    {
+      "id": "c0000000-0000-4000-8000-000000000001",
+      "path": "/krapfentaxi",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "ACTIVE_ALIAS"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000002",
+      "path": "/archive/krapfentaxi-2026",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "kind": "ARCHIVE_CANONICAL"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000003",
+      "path": "/archive/krapfentaxi-2025",
+      "actionId": "20000000-0000-4000-8000-000000000002",
+      "kind": "ARCHIVE_CANONICAL"
+    }
+  ]
+}
