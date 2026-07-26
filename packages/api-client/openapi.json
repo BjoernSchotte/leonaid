@@ -1,6 +1,51 @@
 {
   "components": {
     "schemas": {
+      "AcceptInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "magicToken": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Magictoken"
+          }
+        },
+        "title": "AcceptInvitationRequest",
+        "type": "object"
+      },
       "ApiErrorDetail": {
         "additionalProperties": false,
         "properties": {
@@ -47,6 +92,46 @@
           "error"
         ],
         "title": "ApiErrorResponse",
+        "type": "object"
+      },
+      "CreateInvitationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "charity_admin",
+              "acquirer",
+              "finance_reader",
+              "driver"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "email",
+          "displayName",
+          "role"
+        ],
+        "title": "CreateInvitationRequest",
         "type": "object"
       },
       "CurrentIdentityResponse": {
@@ -176,6 +261,159 @@
           "roleLabel"
         ],
         "title": "IdentityMembershipResponse",
+        "type": "object"
+      },
+      "InvitationAcceptanceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "charity_admin",
+              "acquirer",
+              "finance_reader",
+              "driver"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "const": "accepted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "actionId",
+          "actionName",
+          "role"
+        ],
+        "title": "InvitationAcceptanceResponse",
+        "type": "object"
+      },
+      "InvitationDispatchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitationId": {
+            "format": "uuid",
+            "title": "Invitationid",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitationId",
+          "status"
+        ],
+        "title": "InvitationDispatchResponse",
+        "type": "object"
+      },
+      "InvitationOptionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/InviteableActionResponse"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/InvitationRoleOptionResponse"
+            },
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actions",
+          "roles"
+        ],
+        "title": "InvitationOptionsResponse",
+        "type": "object"
+      },
+      "InvitationRevocationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "revoked",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "InvitationRevocationResponse",
+        "type": "object"
+      },
+      "InvitationRoleOptionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "enum": [
+              "charity_admin",
+              "acquirer",
+              "finance_reader",
+              "driver"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "InvitationRoleOptionResponse",
+        "type": "object"
+      },
+      "InviteableActionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "scheduled",
+              "active"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "title": "InviteableActionResponse",
         "type": "object"
       },
       "NavigationItemResponse": {
@@ -378,6 +616,302 @@
           }
         },
         "summary": "Current Identity",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/invitations": {
+      "post": {
+        "operationId": "createInvitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationDispatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          }
+        },
+        "summary": "Create Invitation",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/invitations/options": {
+      "get": {
+        "operationId": "getInvitationOptions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationOptionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          }
+        },
+        "summary": "Invitation Options",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/invitations/{invitation_id}": {
+      "delete": {
+        "operationId": "revokeInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invitation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationRevocationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          }
+        },
+        "summary": "Revoke Invitation",
         "tags": [
           "identity"
         ]

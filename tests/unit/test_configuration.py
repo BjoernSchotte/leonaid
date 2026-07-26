@@ -13,6 +13,11 @@ def valid_settings(**overrides: str) -> Settings:
         "LEONAID_SERVICE_VERSION": "0.0.0",
         "LEONAID_API_VERSION": "v1",
         "CORE_DATABASE_URL": "postgresql://golden-user:top-secret@core-postgres/leonaid",
+        "LEONAID_SECRET_KEY": "invitation-hmac-secret-with-at-least-32-characters",
+        "LEONAID_SESSION_ENCRYPTION_KEY": (
+            "mail-payload-secret-with-at-least-32-characters"
+        ),
+        "LEONAID_PUBLIC_BASE_URL": "http://localhost:8080",
         "TWENTY_HEALTH_URL": "http://twenty-server:3000/healthz",
         "RUSTFS_HEALTH_URL": "http://rustfs:9000/health",
     }
@@ -29,6 +34,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "serviceName": "leonaid-api",
         "serviceVersion": "0.0.0",
         "apiVersion": "v1",
+        "publicBaseHost": "localhost",
+        "invitationTtlMinutes": "30",
         "coreDatabaseHost": "core-postgres",
         "twentyHealthHost": "twenty-server",
         "rustfsHealthHost": "rustfs",

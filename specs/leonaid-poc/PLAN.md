@@ -1,7 +1,8 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 vollständig bewiesen
+POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-041 vollständig
+bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -644,31 +645,34 @@ Tests/Nachweise:
 Nachweis:
 [POC-040 – Benutzerkonten, Rollen und ActionMembership](proofs/POC-040.md).
 
-### [ ] POC-041 Einladung mit Magic Link und sechsstelligen Code bauen
+### [x] POC-041 Einladung mit Magic Link und sechsstelligen Code bauen
 
 Abhängigkeiten: POC-040, POC-022
 
 Akzeptanzkriterien:
 
-- [ ] Charity-Admin kann ausschließlich in selbst verwaltete Aktionen
+- [x] Charity-Admin kann ausschließlich in selbst verwaltete Aktionen
       einladen; System-Admin entsprechend globaler Rechte.
-- [ ] Einladung enthält unveränderlichen Snapshot von E-Mail, Aktion, Rolle
+- [x] Einladung enthält unveränderlichen Snapshot von E-Mail, Aktion, Rolle
       und Einladendem.
-- [ ] Annahme aktiviert Account und vorgesehene ActionMembership atomar.
-- [ ] Link und Code sind kurzlebig, einmal verwendbar und gespeichert nur in
+- [x] Annahme aktiviert Account und vorgesehene ActionMembership atomar.
+- [x] Link und Code sind kurzlebig, einmal verwendbar und gespeichert nur in
       geeigneter gehashter Form.
-- [ ] Anfrage verrät nicht, ob ein Account existiert.
-- [ ] E-Mail wird über Outbox und realen SMTP-Pfad versendet.
+- [x] Anfrage verrät nicht, ob ein Account existiert.
+- [x] E-Mail wird über Outbox und realen SMTP-Pfad versendet.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Codeformat, Ablaufregeln und Einladungstransitionen.
-- [ ] Integrationstest liest die echte Einladung aus Mailpit und nimmt sie
+- [x] Unit-Tests prüfen Codeformat, Ablaufregeln und Einladungstransitionen.
+- [x] Integrationstest liest die echte Einladung aus Mailpit und nimmt sie
       über Link sowie in einem zweiten Fall über Code an.
-- [ ] Wiederverwendung, Ablauf und widerrufene Einladung werden real
+- [x] Wiederverwendung, Ablauf und widerrufene Einladung werden real
       abgewiesen.
-- [ ] E2E beweist, dass fremdverwaltete Aktionen nicht auswählbar und direkte
+- [x] E2E beweist, dass fremdverwaltete Aktionen nicht auswählbar und direkte
       Requests verboten sind.
+
+Nachweis:
+[POC-041 – Einladungen mit Magic Link und Code](proofs/POC-041.md).
 
 ### [ ] POC-042 90-Tage-Sitzung, Widerruf und Fresh Login umsetzen
 

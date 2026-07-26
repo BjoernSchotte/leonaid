@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     service_version: str = Field(default="0.0.0", alias="LEONAID_SERVICE_VERSION")
     api_version: str = Field(default="v1", alias="LEONAID_API_VERSION")
     core_database_url: SecretStr = Field(alias="CORE_DATABASE_URL")
+    invitation_hmac_secret: SecretStr = Field(alias="LEONAID_SECRET_KEY")
+    mail_payload_secret: SecretStr = Field(alias="LEONAID_SESSION_ENCRYPTION_KEY")
+    public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    invitation_ttl_minutes: int = Field(
+        default=30,
+        ge=5,
+        le=1440,
+        alias="LEONAID_INVITATION_TTL_MINUTES",
+    )
     twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
     rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
 
@@ -47,6 +56,8 @@ class Settings(BaseSettings):
             "serviceName": self.service_name,
             "serviceVersion": self.service_version,
             "apiVersion": self.api_version,
+            "publicBaseHost": self.public_base_url.host or "invalid",
+            "invitationTtlMinutes": str(self.invitation_ttl_minutes),
             "coreDatabaseHost": urlparse(
                 self.core_database_url.get_secret_value()
             ).hostname

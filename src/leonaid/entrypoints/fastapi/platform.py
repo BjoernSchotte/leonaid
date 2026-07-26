@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -14,7 +15,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from leonaid.adapters.http_readiness import HttpReadinessProbe
+from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
+from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.application.errors import (
@@ -24,6 +27,7 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.application.identity import IdentityQueryService
+from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
@@ -84,6 +88,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         pool = await create_pool(settings.core_database_url.get_secret_value())
         application.state.identity_service = IdentityQueryService(
             AsyncpgIdentityRepository(pool)
+        )
+        application.state.invitation_service = InvitationService(
+            AsyncpgInvitationRepository(pool),
+            SecureMailPayload(settings.mail_payload_secret.get_secret_value()),
+            hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
+            public_base_url=str(settings.public_base_url),
+            ttl=timedelta(minutes=settings.invitation_ttl_minutes),
         )
         try:
             yield

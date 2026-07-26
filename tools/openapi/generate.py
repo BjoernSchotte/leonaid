@@ -115,6 +115,83 @@ def response_type(operation: dict[str, Any]) -> str:
     raise GenerationError("Operation ohne 2xx-Antwort.")
 
 
+def camel_identifier(value: str) -> str:
+    parts = value.split("_")
+    candidate = parts[0] + "".join(part.capitalize() for part in parts[1:])
+    if not IDENTIFIER.fullmatch(candidate):
+        raise GenerationError(f"Parametername ist kein TypeScript-Identifier: {value}")
+    return candidate
+
+
+def path_parameters(
+    path: str,
+    path_item: dict[str, Any],
+    operation: dict[str, Any],
+) -> list[tuple[str, str, str]]:
+    combined: list[Any] = []
+    for source in (path_item.get("parameters", []), operation.get("parameters", [])):
+        if not isinstance(source, list):
+            raise GenerationError("parameters muss eine Liste sein.")
+        combined.extend(source)
+    result: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for parameter in combined:
+        if not isinstance(parameter, dict):
+            raise GenerationError("Ungültiger OpenAPI-Parameter.")
+        location = parameter.get("in")
+        name = parameter.get("name")
+        schema = parameter.get("schema")
+        if (
+            location != "path"
+            or not isinstance(name, str)
+            or not isinstance(schema, dict)
+            or parameter.get("required") is not True
+        ):
+            raise GenerationError("Nur erforderliche Pfadparameter werden unterstützt.")
+        if name in seen:
+            raise GenerationError(f"Doppelter Pfadparameter: {name}")
+        seen.add(name)
+        result.append((name, camel_identifier(name), ts_type(schema)))
+    placeholders = set(re.findall(r"\{([^{}]+)\}", path))
+    if placeholders != seen:
+        raise GenerationError(
+            f"Pfadparameter stimmen nicht mit dem Pfad überein: {path}"
+        )
+    return result
+
+
+def request_body_type(operation: dict[str, Any]) -> str | None:
+    request_body = operation.get("requestBody")
+    if request_body is None:
+        return None
+    if not isinstance(request_body, dict) or request_body.get("required") is not True:
+        raise GenerationError(
+            "Nur erforderliche JSON-Request-Bodies werden unterstützt."
+        )
+    content = request_body.get("content")
+    if not isinstance(content, dict):
+        raise GenerationError("RequestBody ohne content.")
+    media = content.get("application/json")
+    if not isinstance(media, dict) or not isinstance(media.get("schema"), dict):
+        raise GenerationError("RequestBody ohne JSON-Schema.")
+    return ts_type(media["schema"])
+
+
+def path_expression(
+    path: str,
+    parameters: list[tuple[str, str, str]],
+) -> str:
+    if not parameters:
+        return json.dumps(path)
+    value = path
+    for original, identifier, _parameter_type in parameters:
+        value = value.replace(
+            "{" + original + "}",
+            "${encodeURIComponent(String(" + identifier + "))}",
+        )
+    return f"`{value}`"
+
+
 def model_lines(document: dict[str, Any]) -> list[str]:
     components = document.get("components", {})
     schemas = components.get("schemas", {}) if isinstance(components, dict) else {}
@@ -151,20 +228,34 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
             if operation_id in seen:
                 raise GenerationError(f"Doppelte operationId: {operation_id}")
             seen.add(operation_id)
-            if operation.get("parameters") or operation.get("requestBody"):
-                raise GenerationError(
-                    f"{operation_id}: Parameter/RequestBody noch nicht unterstützt."
-                )
+            parameters = path_parameters(path, path_item, operation)
+            body_type = request_body_type(operation)
             result_type = response_type(operation)
+            arguments = [
+                f"    {identifier}: {parameter_type},"
+                for _original, identifier, parameter_type in parameters
+            ]
+            if body_type is not None:
+                arguments.append(f"    body: {body_type},")
+            arguments.append("    options: RequestOptions = {},")
+            init_lines = [f"      {{ method: {json.dumps(method.upper())} }},"]
+            if body_type is not None:
+                init_lines = [
+                    "      {",
+                    f"        method: {json.dumps(method.upper())},",
+                    '        headers: { "Content-Type": "application/json" },',
+                    "        body: JSON.stringify(body),",
+                    "      },",
+                ]
             lines.extend(
                 [
                     "",
                     f"  async {operation_id}(",
-                    "    options: RequestOptions = {},",
+                    *arguments,
                     f"  ): Promise<{result_type}> {{",
                     f"    return this.request<{result_type}>(",
-                    f"      {json.dumps(path)},",
-                    f"      {{ method: {json.dumps(method.upper())} }},",
+                    f"      {path_expression(path, parameters)},",
+                    *init_lines,
                     "      options,",
                     "    );",
                     "  }",
@@ -220,7 +311,11 @@ def generate_typescript(document: dict[str, Any]) -> str:
         "  ): Promise<T> {",
         "    const response = await this.#fetch(`${this.#baseUrl}${path}`, {",
         "      ...init,",
-        '      headers: { Accept: "application/json", ...options.headers },',
+        "      headers: {",
+        '        Accept: "application/json",',
+        "        ...(init.headers as Readonly<Record<string, string>> | undefined),",
+        "        ...options.headers,",
+        "      },",
         "      signal: options.signal,",
         "    });",
         "    const body = await response.json() as unknown;",

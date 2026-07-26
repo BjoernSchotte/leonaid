@@ -24,9 +24,10 @@ Commands:
                     Run the real Twenty CRM gateway contract
   test-crm-import   Prove the Golden XLSX import against an empty real Twenty
   test-identity     Prove accounts, roles, sessions and persona navigation
+  test-invitations  Prove invitation permissions, link/code and real delivery
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
-  test-e2e          Run browser journeys (available with POC-041)
+  test-e2e          Run all currently implemented real browser journeys
   seed              Idempotently seed Golden Dataset v1 into real systems
   snapshot [NAME]   Write a deterministic real-system snapshot under .local/
   reset             Safely reset all local core systems to Golden Dataset v1
@@ -190,15 +191,16 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/identity tools/openapi tools/outbox tools/schema tools/seed \
-    tools/twenty
+    tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
+    tools/schema tools/seed tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/identity tools/openapi tools/outbox tools/schema tools/seed \
-    tools/twenty
+    tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
+    tools/schema tools/seed tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/identity tools/openapi tools/outbox tools/schema tools/seed tools/twenty
+    tools/identity tools/invitations tools/openapi tools/outbox tools/schema \
+    tools/seed tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -387,11 +389,16 @@ case "$command" in
     /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
     /bin/sh "$root/tools/twenty/import_test.sh" "$root"
     /bin/sh "$root/tools/identity/test.sh" "$root"
+    /bin/sh "$root/tools/invitations/test.sh" "$root"
     ;;
-  test-e2e) future_command test-e2e POC-041 ;;
+  test-e2e)
+    /bin/sh "$root/tools/identity/test.sh" "$root"
+    /bin/sh "$root/tools/invitations/test.sh" "$root"
+    ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
+  test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

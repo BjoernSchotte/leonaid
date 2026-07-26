@@ -51,6 +51,7 @@ ASSIGNMENT_A = "60000000-0000-4000-8000-000000000001"
 ASSIGNMENT_B = "60000000-0000-4000-8000-000000000002"
 AUDIT = "d0000000-0000-4000-8000-000000000001"
 OUTBOX = "e0000000-0000-4000-8000-000000000001"
+INVITATION = "41000000-0000-4000-8000-000000000041"
 
 
 class SchemaError(RuntimeError):
@@ -81,7 +82,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0002_durable_outbox":
+    if revision != "0003_invitation_credentials":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -206,6 +207,56 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             ACTION,
         ),
         "rückwärts gerichteter Aktionsstatus",
+    )
+    await connection.execute(
+        """
+        INSERT INTO action_invitation (
+            id,
+            action_id,
+            invited_by_user_id,
+            email_snapshot,
+            display_name_snapshot,
+            action_name_snapshot,
+            invited_by_name_snapshot,
+            role_snapshot,
+            status,
+            token_digest,
+            code_digest,
+            expires_at
+        )
+        VALUES (
+            $1, $2, $3, 'invite@leonaid.invalid', 'Invite Golden',
+            'Krapfentaxi 2026', 'Anna Akquise', 'acquirer', 'pending',
+            $4, $5, CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+        )
+        """,
+        INVITATION,
+        ACTION,
+        USER_A,
+        "a" * 64,
+        "b" * 64,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE action_invitation
+            SET email_snapshot = 'changed@leonaid.invalid'
+            WHERE id = $1
+            """,
+            INVITATION,
+        ),
+        "veränderter Einladungs-Snapshot",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE action_invitation
+            SET status = 'accepted'
+            WHERE id = $1
+            """,
+            INVITATION,
+        ),
+        "unvollständige Einladungsannahme",
     )
 
 

@@ -14,6 +14,7 @@ from uuid import UUID
 
 import asyncpg
 
+from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
@@ -46,6 +47,9 @@ async def build_worker(
             sender=os.environ.get(
                 "LEONAID_MAIL_FROM",
                 "LeonAid <noreply@leonaid.invalid>",
+            ),
+            secure_payload=SecureMailPayload(
+                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
             ),
         ),
     }

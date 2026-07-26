@@ -11,6 +11,7 @@ from uuid import UUID, uuid5
 
 import asyncpg
 
+from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.domain.outbox import ClaimedOutboxEvent
 
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
@@ -24,6 +25,7 @@ class SmtpMailHandler:
         host: str,
         port: int,
         sender: str,
+        secure_payload: SecureMailPayload | None = None,
         timeout_seconds: float = 5,
     ) -> None:
         if not host.strip() or port < 1 or not sender.strip():
@@ -32,12 +34,14 @@ class SmtpMailHandler:
         self._host = host
         self._port = port
         self._sender = sender
+        self._secure_payload = secure_payload
         self._timeout_seconds = timeout_seconds
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
-        recipient = self._required_text(event, "to")
-        subject = self._required_text(event, "subject")
-        text = self._required_text(event, "text")
+        fields = self._mail_fields(event)
+        recipient = fields["to"]
+        subject = fields["subject"]
+        text = fields["text"]
         if await self._was_sent(event.idempotency_key):
             return
 
@@ -104,3 +108,14 @@ class SmtpMailHandler:
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"Mail-Payload-Feld {key} fehlt.")
         return value
+
+    def _mail_fields(self, event: ClaimedOutboxEvent) -> dict[str, str]:
+        encrypted = event.payload.get("secureMail")
+        if encrypted is None:
+            return {
+                key: self._required_text(event, key)
+                for key in ("to", "subject", "text")
+            }
+        if not isinstance(encrypted, str) or self._secure_payload is None:
+            raise ValueError("Sicherer Mail-Payload kann nicht gelesen werden.")
+        return self._secure_payload.reveal(encrypted)

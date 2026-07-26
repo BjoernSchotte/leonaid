@@ -5,7 +5,14 @@ from __future__ import annotations
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from email_validator import EmailNotValidError, validate_email
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class TransportModel(BaseModel):
@@ -63,6 +70,99 @@ class CurrentIdentityResponse(TransportModel):
     action_memberships: list[IdentityMembershipResponse]
     role_labels: list[str]
     navigation: list[NavigationItemResponse]
+
+
+ActionRoleValue = Literal[
+    "charity_admin",
+    "acquirer",
+    "finance_reader",
+    "driver",
+]
+
+
+def normalized_invitation_email(value: str) -> str:
+    normalized = value.strip().casefold()
+    if normalized.endswith(".invalid"):
+        local, separator, domain = normalized.partition("@")
+        if (
+            separator
+            and local
+            and domain.endswith(".invalid")
+            and normalized.count("@") == 1
+            and not any(character.isspace() for character in normalized)
+            and len(normalized) <= 320
+        ):
+            return normalized
+    try:
+        return validate_email(
+            normalized,
+            check_deliverability=False,
+        ).normalized
+    except EmailNotValidError as error:
+        raise ValueError("Die E-Mail-Adresse ist ungültig.") from error
+
+
+class InviteableActionResponse(TransportModel):
+    id: UUID
+    name: str
+    status: Literal["draft", "scheduled", "active"]
+
+
+class InvitationRoleOptionResponse(TransportModel):
+    value: ActionRoleValue
+    label: str
+
+
+class InvitationOptionsResponse(TransportModel):
+    actions: list[InviteableActionResponse]
+    roles: list[InvitationRoleOptionResponse]
+
+
+class CreateInvitationRequest(TransportModel):
+    action_id: UUID
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=160)
+    role: ActionRoleValue
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalized_invitation_email(value)
+
+
+class InvitationDispatchResponse(TransportModel):
+    invitation_id: UUID
+    status: Literal["queued"]
+
+
+class AcceptInvitationRequest(TransportModel):
+    magic_token: str | None = Field(default=None, min_length=32, max_length=256)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    code: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalized_invitation_email(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def exactly_one_credential(self) -> AcceptInvitationRequest:
+        magic = self.magic_token is not None
+        code = self.email is not None and self.code is not None
+        if magic == code or (self.email is None) != (self.code is None):
+            raise ValueError("Magic Token oder E-Mail mit Code ist erforderlich.")
+        return self
+
+
+class InvitationAcceptanceResponse(TransportModel):
+    status: Literal["accepted"]
+    action_id: UUID
+    action_name: str
+    role: ActionRoleValue
+
+
+class InvitationRevocationResponse(TransportModel):
+    status: Literal["revoked"]
 
 
 class ApiErrorDetail(TransportModel):

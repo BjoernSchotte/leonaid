@@ -54,21 +54,6 @@ docker run --rm \
   python /workspace/tools/dx/verify_secrets.py \
   /workspace/.env.example /workspace/.env.local
 
-for reservation in \
-  "test-e2e:POC-041"; do
-  command_name=${reservation%%:*}
-  task=${reservation##*:}
-  if "$checkout/leonaid" "$command_name" >"$tmp/$command_name.out" 2>&1; then
-    echo "dx-proof: ERROR: reserved command $command_name reported false success" >&2
-    exit 1
-  fi
-  if ! grep -F "$task" "$tmp/$command_name.out" >/dev/null; then
-    echo "dx-proof: ERROR: reserved command $command_name did not name $task" >&2
-    cat "$tmp/$command_name.out" >&2
-    exit 1
-  fi
-done
-
 printf '\nDX dirty-tree proof\n' >>"$checkout/README.md"
 if "$checkout/leonaid" check >"$tmp/dirty.out" 2>&1; then
   echo "dx-proof: ERROR: dirty checkout unexpectedly passed check" >&2

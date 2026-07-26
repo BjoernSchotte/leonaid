@@ -9,3 +9,8 @@ Host-neutraler TypeScript-Client für die LeonAid-Core-API.
 
 Beide generierten Dateien werden committed. Manuelle Änderungen sind
 unzulässig; `tools/openapi/generate.py --check` erkennt Drift.
+
+Der Generator unterstützt die im PoC verwendeten erforderlichen
+JSON-Request-Bodies und erforderlichen Pfadparameter. Pfadwerte werden
+URL-kodiert, Content-Type-Header mit Aufrufoptionen zusammengeführt und nicht
+unterstützte OpenAPI-Formen weiterhin explizit abgewiesen.

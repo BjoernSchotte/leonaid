@@ -42,3 +42,18 @@ PostgreSQL/FastAPI und bedient anschließend Admin- und PWA-Shell mit einem
 echten Chromium. Laufzeit-Sitzungstoken liegen nur in einer temporären Datei
 mit Modus `0600`; die geheimnisfreien Screenshots bleiben ignoriert unter
 `.artifacts/poc040/`.
+
+Der gezielte Einladungsnachweis läuft mit:
+
+```sh
+./leonaid test-invitations
+```
+
+Er startet PostgreSQL, FastAPI, Worker, Mailpit, Caddy und die Web-Oberflächen
+aus leeren isolierten Volumes. Der Vertrag lädt echte Einladungsmails aus
+Mailpit, nimmt getrennte Einladungen per Link und Code an und prüft Ablauf,
+Widerruf, Wiederverwendung, Fehlversuchssperre, atomare
+Account-/Membership-Aktivierung und AuditEvents. Anschließend beweist Chromium
+bei Desktop- und Mobilbreite die serverseitig begrenzte Aktionsauswahl sowie
+die öffentliche Code-Eingabe. Geheimnisfreie Screenshots bleiben unter
+`.artifacts/poc041/`.

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from tools.openapi.breaking import breaking_changes, digest, is_approved
+from tools.openapi.generate import generate_typescript
 
 
 def document(
@@ -63,3 +64,98 @@ def test_breaking_policy_requires_exact_hash_changes_and_rationale() -> None:
     approval["approvals"][0]["oldSha256"] = digest(old)
     approval["approvals"][0]["newSha256"] = digest(new)
     assert is_approved(changes, old, new, approval) is True
+
+
+def test_client_generator_supports_json_body_and_encoded_path_parameter() -> None:
+    contract = {
+        "paths": {
+            "/api/v1/examples": {
+                "post": {
+                    "operationId": "createExample",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ExampleRequest"
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ExampleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            },
+            "/api/v1/examples/{example_id}": {
+                "delete": {
+                    "operationId": "deleteExample",
+                    "parameters": [
+                        {
+                            "in": "path",
+                            "name": "example_id",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ExampleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            },
+        },
+        "components": {
+            "schemas": {
+                "ApiErrorDetail": {
+                    "type": "object",
+                    "properties": {
+                        "code": {"type": "string"},
+                        "message": {"type": "string"},
+                        "requestId": {"type": "string"},
+                    },
+                    "required": ["code", "message", "requestId"],
+                },
+                "ApiErrorResponse": {
+                    "type": "object",
+                    "properties": {
+                        "error": {"$ref": "#/components/schemas/ApiErrorDetail"}
+                    },
+                    "required": ["error"],
+                },
+                "ExampleRequest": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                },
+                "ExampleResponse": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                },
+            }
+        },
+    }
+
+    generated = generate_typescript(contract)
+
+    assert "body: ExampleRequest" in generated
+    assert '"Content-Type": "application/json"' in generated
+    assert "body: JSON.stringify(body)" in generated
+    assert "exampleId: string" in generated
+    assert "encodeURIComponent(String(exampleId))" in generated
