@@ -189,7 +189,7 @@ function applicationPage() {
       .field { display: grid; gap: .4rem; }
       .field-wide { grid-column: 1 / -1; }
       label { color: #31415c; font-size: .82rem; font-weight: 720; }
-      input, select {
+      input, select, textarea {
         width: 100%;
         min-height: 2.85rem;
         padding: .65rem .75rem;
@@ -199,7 +199,8 @@ function applicationPage() {
         background: #fff;
         font: inherit;
       }
-      input:focus, select:focus {
+      textarea { min-height: 6rem; resize: vertical; }
+      input:focus, select:focus, textarea:focus {
         border-color: #8b6b19;
         outline: 3px solid rgba(230, 189, 79, .28);
       }
@@ -231,6 +232,35 @@ function applicationPage() {
       }
       .form-status[data-state="success"] { color: #167044; }
       .form-status[data-state="error"] { color: #a33a2c; }
+      fieldset {
+        min-width: 0;
+        margin: 0;
+        padding: 1rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .8rem;
+      }
+      legend { padding: 0 .35rem; font-weight: 760; }
+      .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+      .choice {
+        display: flex;
+        min-height: 2.7rem;
+        align-items: center;
+        gap: .55rem;
+        padding: .55rem .65rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .65rem;
+      }
+      .choice input { width: 1.1rem; min-height: auto; }
+      .beneficiary-list { display: grid; gap: .8rem; }
+      .beneficiary-row {
+        display: grid;
+        grid-template-columns: minmax(12rem, .8fr) minmax(16rem, 1.2fr);
+        gap: .8rem;
+        padding: .9rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .8rem;
+        background: #f9fafc;
+      }
       .mobile-nav { display: none; }
       @media (max-width: 760px) {
         .shell { display: block; padding-bottom: 5rem; }
@@ -240,6 +270,7 @@ function applicationPage() {
         .content { padding-top: 1.5rem; }
         .form-grid { grid-template-columns: 1fr; }
         .field-wide { grid-column: auto; }
+        .choice-grid, .beneficiary-row { grid-template-columns: 1fr; }
         .mobile-nav {
           position: fixed;
           z-index: 2;
@@ -349,6 +380,137 @@ function applicationPage() {
               '<p id="invitation-status" class="form-status field-wide" role="status" aria-live="polite"></p>' +
             '</form>' +
           '</section>';
+      }
+
+      function actionCreationMarkup() {
+        const capabilities = [
+          ["acquisition", "Akquise"],
+          ["offerings", "Angebote"],
+          ["ordering", "Bestellungen"],
+          ["invoicing", "Rechnungen"],
+        ];
+        return '<p class="eyebrow">Charity-Aktionen</p>' +
+          '<h1>Neue Aktion anlegen</h1>' +
+          '<p class="lead">Lege den neutralen fachlichen Kern an. Aktionsspezifische Angebote und Formulare folgen getrennt.</p>' +
+          '<section class="panel" aria-labelledby="action-heading">' +
+            '<h2 id="action-heading" class="section-title">Grunddaten</h2>' +
+            '<form id="action-form" class="form-grid">' +
+              '<div class="field field-wide"><label for="action-name">Name der Aktion</label>' +
+                '<input id="action-name" data-testid="action-name" name="name" maxlength="200" required></div>' +
+              '<div class="field"><label for="action-carrier">Träger</label>' +
+                '<input id="action-carrier" data-testid="action-carrier" name="carrierName" maxlength="200" required></div>' +
+              '<div class="field"><label for="action-slug">Archiv-Slug</label>' +
+                '<input id="action-slug" data-testid="action-slug" name="archiveSlug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="160" required></div>' +
+              '<div class="field field-wide"><label for="action-purpose">Zweck</label>' +
+                '<textarea id="action-purpose" data-testid="action-purpose" name="purpose" maxlength="2000" required></textarea></div>' +
+              '<div class="field"><label for="action-start">Beginn</label>' +
+                '<input id="action-start" data-testid="action-start" name="startsOn" type="date" required></div>' +
+              '<div class="field"><label for="action-end">Ende</label>' +
+                '<input id="action-end" data-testid="action-end" name="endsOn" type="date" required></div>' +
+              '<fieldset class="field-wide"><legend>Funktionen</legend><div class="choice-grid">' +
+                capabilities.map(([value, label]) =>
+                  '<label class="choice"><input type="checkbox" name="capability" value="' +
+                    value + '"><span>' + label + '</span></label>'
+                ).join("") +
+              '</div></fieldset>' +
+              '<div class="field"><label for="action-goal">Zielwert</label>' +
+                '<input id="action-goal" data-testid="action-goal" name="goalValue" inputmode="decimal" required></div>' +
+              '<div class="field"><label for="action-unit">Einheit</label>' +
+                '<input id="action-unit" data-testid="action-unit" name="unit" maxlength="40" required></div>' +
+              '<div class="field"><label for="action-actual">Ist-Wert</label>' +
+                '<input id="action-actual" data-testid="action-actual" name="actualValue" inputmode="decimal" value="0" required></div>' +
+              '<div class="field"><label for="action-currency">Währung (optional)</label>' +
+                '<input id="action-currency" data-testid="action-currency" name="currency" pattern="[A-Z]{3}" maxlength="3"></div>' +
+              '<fieldset class="field-wide"><legend>Begünstigte</legend>' +
+                '<div id="beneficiary-list" class="beneficiary-list"></div>' +
+                '<button class="button-secondary" data-testid="add-beneficiary" type="button">Weiteren Begünstigten hinzufügen</button>' +
+              '</fieldset>' +
+              '<p class="form-help field-wide">Die Aktion startet als Entwurf. Mindestens ein Begünstigter ist erforderlich.</p>' +
+              '<button class="button field-wide" data-testid="action-submit" type="submit">Aktion als Entwurf anlegen</button>' +
+              '<p id="action-status" class="form-status field-wide" role="status" aria-live="polite"></p>' +
+            '</form>' +
+          '</section>';
+      }
+
+      function beneficiaryRow(index) {
+        const row = document.createElement("div");
+        row.className = "beneficiary-row";
+        row.dataset.beneficiaryIndex = String(index);
+        row.innerHTML = '<div class="field"><label>Name der Organisation' +
+          '<input data-testid="beneficiary-name-' + index + '" name="beneficiaryName" maxlength="200" required></label></div>' +
+          '<div class="field"><label>Öffentliche Beschreibung' +
+          '<textarea data-testid="beneficiary-description-' + index + '" name="beneficiaryDescription" maxlength="2000" required></textarea></label></div>';
+        return row;
+      }
+
+      function setupActionCreationForm() {
+        const form = document.querySelector("#action-form");
+        if (!form) return;
+        const list = document.querySelector("#beneficiary-list");
+        const add = form.querySelector('[data-testid="add-beneficiary"]');
+        const submit = form.querySelector('[data-testid="action-submit"]');
+        const status = document.querySelector("#action-status");
+        let beneficiaryCount = 0;
+        const addBeneficiary = () => {
+          list.append(beneficiaryRow(beneficiaryCount));
+          beneficiaryCount += 1;
+        };
+        addBeneficiary();
+        add.addEventListener("click", addBeneficiary);
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          submit.disabled = true;
+          status.dataset.state = "";
+          status.textContent = "Charity-Aktion wird sicher angelegt …";
+          const values = new FormData(form);
+          const beneficiaries = [...list.querySelectorAll(".beneficiary-row")].map((row) => ({
+            organizationName: row.querySelector('[name="beneficiaryName"]').value,
+            publicDescription: row.querySelector('[name="beneficiaryDescription"]').value,
+          }));
+          const currency = values.get("currency")?.toString().trim();
+          try {
+            const response = await fetch("/api/v1/actions", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({
+                carrierName: values.get("carrierName"),
+                name: values.get("name"),
+                purpose: values.get("purpose"),
+                startsOn: values.get("startsOn"),
+                endsOn: values.get("endsOn"),
+                archiveSlug: values.get("archiveSlug"),
+                capabilities: values.getAll("capability"),
+                beneficiaries,
+                goal: {
+                  goalValue: values.get("goalValue"),
+                  actualValue: values.get("actualValue"),
+                  unit: values.get("unit"),
+                  currency: currency || null,
+                },
+              }),
+            });
+            if (!response.ok) {
+              const failure = await response.json().catch(() => ({}));
+              if (failure.error?.code === "fresh_login_required") {
+                const returnTo = encodeURIComponent(window.location.pathname);
+                window.location.assign("/fresh-login?returnTo=" + returnTo);
+                return;
+              }
+              throw new Error(failure.error?.code ?? "create");
+            }
+            const action = await response.json();
+            status.dataset.state = "success";
+            status.dataset.actionId = action.id;
+            status.textContent = action.name + " wurde als Entwurf angelegt.";
+            form.reset();
+          } catch {
+            status.dataset.state = "error";
+            status.textContent = "Die Aktion konnte nicht angelegt werden. Prüfe Zeitraum, Slug, Ziel und Begünstigte.";
+          } finally {
+            submit.disabled = false;
+          }
+        });
       }
 
       function appendOptions(select, options, valueKey, labelKey) {
@@ -469,14 +631,17 @@ function applicationPage() {
                 '</div><button class="button-secondary" data-testid="logout" type="button">Abmelden</button></div>' +
             '</header>' +
             '<div class="content">' +
-              (surface === "web" && window.location.pathname.startsWith("/admin/members")
-                ? invitationMarkup()
-                : dashboardMarkup(identity, surface)) +
+              (surface === "web" && window.location.pathname.startsWith("/admin/actions/new")
+                ? actionCreationMarkup()
+                : surface === "web" && window.location.pathname.startsWith("/admin/members")
+                  ? invitationMarkup()
+                  : dashboardMarkup(identity, surface)) +
             '</div>' +
           '</main>' +
           navMarkup(navigation, "mobile-nav") +
         '</div>';
         setupInvitationForm();
+        setupActionCreationForm();
         setupLogout();
       }
 
@@ -513,7 +678,9 @@ function authenticationPage(kind) {
   const introduction = fresh
     ? "Bestätige deine Anmeldung erneut, bevor du eine sensible Änderung ausführst."
     : "Fordere einen einmaligen Magic Link oder sechsstelligen Code für deine Login-E-Mail an.";
-  const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
+  const requestLabel = fresh
+    ? "Code per E-Mail senden"
+    : "Login-Code anfordern";
   const requestEndpoint = fresh ? "/api/v1/auth/fresh" : "/api/v1/auth/login";
   const completeEndpoint = fresh
     ? "/api/v1/auth/fresh/complete"

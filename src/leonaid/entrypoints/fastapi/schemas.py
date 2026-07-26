@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -235,6 +236,109 @@ class SessionRevocationResponse(TransportModel):
     revoked_count: int = Field(ge=0)
 
 
+ActionCapabilityValue = Literal[
+    "acquisition",
+    "offerings",
+    "ordering",
+    "invoicing",
+]
+CharityActionStatusValue = Literal[
+    "draft",
+    "scheduled",
+    "active",
+    "completed",
+    "archived",
+]
+
+
+def decimal_text(value: str) -> str:
+    normalized = value.strip()
+    try:
+        parsed = Decimal(normalized)
+    except InvalidOperation as error:
+        raise ValueError("Der Wert muss eine Dezimalzahl sein.") from error
+    if not parsed.is_finite():
+        raise ValueError("Der Wert muss eine endliche Dezimalzahl sein.")
+    return normalized
+
+
+class ActionGoalRequest(TransportModel):
+    goal_value: str | None = None
+    actual_value: str = "0"
+    unit: str | None = Field(default=None, max_length=40)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+
+    @field_validator("goal_value", "actual_value")
+    @classmethod
+    def validate_decimal(cls, value: str | None) -> str | None:
+        return decimal_text(value) if value is not None else None
+
+
+class ActionGoalResponse(TransportModel):
+    goal_value: str | None
+    actual_value: str
+    unit: str | None
+    currency: str | None
+
+
+class BeneficiaryDraftRequest(TransportModel):
+    organization_name: str = Field(min_length=1, max_length=200)
+    public_description: str = Field(min_length=1, max_length=2_000)
+
+
+class BeneficiaryResponse(TransportModel):
+    id: UUID
+    organization_name: str
+    public_description: str
+    sort_order: int = Field(ge=0)
+
+
+class CreateCharityActionRequest(TransportModel):
+    carrier_name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200)
+    purpose: str = Field(min_length=1, max_length=2_000)
+    starts_on: date
+    ends_on: date
+    archive_slug: str = Field(
+        min_length=1,
+        max_length=160,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+    capabilities: list[ActionCapabilityValue]
+    beneficiaries: list[BeneficiaryDraftRequest] = Field(min_length=1)
+    goal: ActionGoalRequest
+
+
+class CharityActionResponse(TransportModel):
+    id: UUID
+    carrier_name: str
+    name: str
+    purpose: str
+    status: CharityActionStatusValue
+    starts_on: date
+    ends_on: date
+    archive_slug: str
+    capabilities: list[ActionCapabilityValue]
+    beneficiaries: list[BeneficiaryResponse]
+    goal: ActionGoalResponse
+
+
+class SetActionGoalRequest(ActionGoalRequest):
+    pass
+
+
+class SetActionCapabilitiesRequest(TransportModel):
+    capabilities: list[ActionCapabilityValue]
+
+
+class SetActionBeneficiariesRequest(TransportModel):
+    beneficiaries: list[BeneficiaryDraftRequest] = Field(min_length=1)
+
+
+class TransitionCharityActionRequest(TransportModel):
+    target_status: CharityActionStatusValue
+
+
 class QueryModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -356,6 +460,14 @@ AUTHENTICATED_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte.",
     },
     **ERROR_RESPONSES,
+}
+
+AUTHENTICATED_CONFLICT_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    **AUTHENTICATED_ERROR_RESPONSES,
+    409: {
+        "model": ApiErrorResponse,
+        "description": "Änderung kollidiert mit dem aktuellen Zustand.",
+    },
 }
 
 RequestIdHeader = Annotated[

@@ -24,5 +24,9 @@ class ResourceNotFound(ApplicationError):
     """A requested domain resource does not exist."""
 
 
+class Conflict(ApplicationError):
+    """A requested mutation conflicts with current persisted state."""
+
+
 class DependencyUnavailable(ApplicationError):
     """A required external dependency is not configured or available."""

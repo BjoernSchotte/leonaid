@@ -76,7 +76,15 @@
       "startsOn": "2026-09-01",
       "endsOn": "2026-11-15",
       "goalAmountCents": 100000,
+      "actualAmountCents": 90000,
+      "goalUnit": "EUR",
       "currency": "EUR",
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing"
+      ],
       "publicAlias": "krapfentaxi",
       "archiveSlug": "krapfentaxi-2026"
     },
@@ -88,7 +96,15 @@
       "startsOn": "2025-09-01",
       "endsOn": "2025-11-15",
       "goalAmountCents": 80000,
+      "actualAmountCents": 0,
+      "goalUnit": "EUR",
       "currency": "EUR",
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing"
+      ],
       "publicAlias": null,
       "archiveSlug": "krapfentaxi-2025"
     },
@@ -100,7 +116,15 @@
       "startsOn": "2026-10-01",
       "endsOn": "2026-11-30",
       "goalAmountCents": 60000,
+      "actualAmountCents": 0,
+      "goalUnit": "EUR",
       "currency": "EUR",
+      "capabilities": [
+        "acquisition",
+        "offerings",
+        "ordering",
+        "invoicing"
+      ],
       "publicAlias": null,
       "archiveSlug": "krapfentaxi-nord-2026"
     }

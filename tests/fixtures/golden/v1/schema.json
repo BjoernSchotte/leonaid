@@ -29,8 +29,16 @@
     ],
     "actionStatus": [
       "DRAFT",
+      "SCHEDULED",
       "ACTIVE",
+      "COMPLETED",
       "ARCHIVED"
+    ],
+    "actionCapability": [
+      "acquisition",
+      "offerings",
+      "ordering",
+      "invoicing"
     ],
     "membershipRole": [
       "CHARITY_ADMIN",

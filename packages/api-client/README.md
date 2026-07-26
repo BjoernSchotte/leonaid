@@ -25,3 +25,9 @@ Seit POC-043 umfasst der Vertrag die serverseitig zugeschnittenen
 Akquise-Endpunkte für Liste, Count, CSV-Export, Detail, Aktivitäten und
 Dokumentmetadaten. Der Client übermittelt keine Actor-, Rollen- oder
 Assignee-ID; die Core-Sitzung ist die einzige Identitätsquelle.
+
+Seit POC-050 umfasst der Vertrag außerdem das Erstellen und Lesen neutraler
+Charity-Aktionen sowie typisierte Änderungen an Ziel, Capabilities,
+Begünstigten und Lifecycle. Dezimalwerte werden verlustfrei als kanonische
+Strings übertragen. Schreibzugriffe bleiben serverseitig an eine frische
+Sitzung und die zentrale Aktionsberechtigung gebunden.

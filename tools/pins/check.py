@@ -83,11 +83,15 @@ def read_toml(path: Path, problems: Problems) -> dict[str, Any]:
     return value
 
 
-def check_toolchain(root: Path, systems: dict[str, dict[str, Any]], problems: Problems) -> None:
+def check_toolchain(
+    root: Path, systems: dict[str, dict[str, Any]], problems: Problems
+) -> None:
     path = root / ".tool-versions"
     values: dict[str, str] = {}
     try:
-        for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for line_number, raw in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
             if not raw.strip() or raw.lstrip().startswith("#"):
                 continue
             fields = raw.split()
@@ -99,12 +103,17 @@ def check_toolchain(root: Path, systems: dict[str, dict[str, Any]], problems: Pr
                 problems.add(f"{path}:{line_number}: duplicate tool {key}")
             values[key] = version
             if not PINNED_VERSION.fullmatch(version):
-                problems.add(f"{path}:{line_number}: {key} is not exactly pinned: {version}")
+                problems.add(
+                    f"{path}:{line_number}: {key} is not exactly pinned: {version}"
+                )
     except OSError as error:
         problems.add(f"{path}: cannot read: {error}")
         return
 
-    problems.require(set(values) == TOOLCHAIN_KEYS, f"{path}: expected tools {sorted(TOOLCHAIN_KEYS)}")
+    problems.require(
+        set(values) == TOOLCHAIN_KEYS,
+        f"{path}: expected tools {sorted(TOOLCHAIN_KEYS)}",
+    )
     expected_prefixes = {
         "python": ("python", values.get("python", "")),
         "nodejs": ("node", values.get("nodejs", "")),
@@ -130,7 +139,9 @@ def check_python(root: Path, problems: Problems) -> None:
     dependencies: list[tuple[str, str]] = []
     project_dependencies = project.get("project", {}).get("dependencies", [])
     if isinstance(project_dependencies, list):
-        dependencies.extend(("project.dependencies", str(item)) for item in project_dependencies)
+        dependencies.extend(
+            ("project.dependencies", str(item)) for item in project_dependencies
+        )
     else:
         problems.add(f"{project_path}: project.dependencies must be an array")
 
@@ -138,11 +149,17 @@ def check_python(root: Path, problems: Problems) -> None:
     if isinstance(groups, dict):
         for group, items in groups.items():
             if not isinstance(items, list):
-                problems.add(f"{project_path}: dependency group {group} must be an array")
+                problems.add(
+                    f"{project_path}: dependency group {group} must be an array"
+                )
                 continue
-            dependencies.extend((f"dependency-groups.{group}", str(item)) for item in items)
+            dependencies.extend(
+                (f"dependency-groups.{group}", str(item)) for item in items
+            )
 
-    problems.require(bool(dependencies), f"{project_path}: no direct dependencies found")
+    problems.require(
+        bool(dependencies), f"{project_path}: no direct dependencies found"
+    )
     for section, dependency in dependencies:
         if not PYTHON_DEPENDENCY.fullmatch(dependency):
             problems.add(
@@ -150,7 +167,9 @@ def check_python(root: Path, problems: Problems) -> None:
             )
 
     packages = lock.get("package", [])
-    problems.require(isinstance(packages, list) and bool(packages), f"{lock_path}: no packages")
+    problems.require(
+        isinstance(packages, list) and bool(packages), f"{lock_path}: no packages"
+    )
     if not isinstance(packages, list):
         return
     for package in packages:
@@ -159,7 +178,9 @@ def check_python(root: Path, problems: Problems) -> None:
             continue
         name = str(package.get("name", "<unnamed>"))
         version = str(package.get("version", ""))
-        problems.require(bool(version), f"{lock_path}: package {name} has no exact version")
+        problems.require(
+            bool(version), f"{lock_path}: package {name} has no exact version"
+        )
         source = package.get("source", {})
         if not isinstance(source, dict) or "registry" not in source:
             continue
@@ -171,7 +192,9 @@ def check_python(root: Path, problems: Problems) -> None:
         if isinstance(wheels, list):
             artifacts.extend(item for item in wheels if isinstance(item, dict))
         if not artifacts:
-            problems.add(f"{lock_path}: registry package {name} {version} has no hashed artifact")
+            problems.add(
+                f"{lock_path}: registry package {name} {version} has no hashed artifact"
+            )
             continue
         for artifact in artifacts:
             digest = artifact.get("hash")
@@ -214,7 +237,9 @@ def check_frontend(root: Path, problems: Problems) -> None:
             for name, version in dependencies.items():
                 if isinstance(version, str) and version.startswith("workspace:"):
                     continue
-                if not isinstance(version, str) or not PINNED_VERSION.fullmatch(version):
+                if not isinstance(version, str) or not PINNED_VERSION.fullmatch(
+                    version
+                ):
                     problems.add(
                         f"{path}: {section} dependency {name} is not exactly pinned: {version}"
                     )
@@ -225,7 +250,9 @@ def check_frontend(root: Path, problems: Problems) -> None:
     except OSError as error:
         problems.add(f"{bun_lock}: cannot read: {error}")
         return
-    problems.require('"lockfileVersion": 1' in lock_text, f"{bun_lock}: unexpected lock format")
+    problems.require(
+        '"lockfileVersion": 1' in lock_text, f"{bun_lock}: unexpected lock format"
+    )
     for name, version in root_package.get("devDependencies", {}).items():
         problems.require(
             f'"{name}@{version}"' in lock_text,
@@ -237,7 +264,9 @@ def check_frontend(root: Path, problems: Problems) -> None:
             and "@workspace:" not in line
             and "sha512-" not in line
         ):
-            problems.add(f"{bun_lock}:{line_number}: package entry has no integrity hash")
+            problems.add(
+                f"{bun_lock}:{line_number}: package entry has no integrity hash"
+            )
 
 
 def check_external_systems(root: Path, problems: Problems) -> dict[str, dict[str, Any]]:
@@ -279,7 +308,11 @@ def check_external_systems(root: Path, problems: Problems) -> dict[str, dict[str
         if isinstance(upstream, str) and not upstream.startswith("https://"):
             problems.add(f"{path}: {system_id} upstream must use https")
         roles = item.get("roles")
-        if not isinstance(roles, list) or not roles or not all(isinstance(role, str) for role in roles):
+        if (
+            not isinstance(roles, list)
+            or not roles
+            or not all(isinstance(role, str) for role in roles)
+        ):
             problems.add(f"{path}: {system_id} roles must be a non-empty string array")
 
     problems.require(
@@ -294,7 +327,9 @@ def check_external_systems(root: Path, problems: Problems) -> dict[str, dict[str
     return systems
 
 
-def check_env_parity(root: Path, systems: dict[str, dict[str, Any]], problems: Problems) -> None:
+def check_env_parity(
+    root: Path, systems: dict[str, dict[str, Any]], problems: Problems
+) -> None:
     path = root / "infra/locks/images.env"
     values: dict[str, str] = {}
     try:
@@ -316,17 +351,24 @@ def check_env_parity(root: Path, systems: dict[str, dict[str, Any]], problems: P
             problems.add(f"{path}:{line_number}: duplicate variable {key}")
         values[key] = value
 
-    expected = {f"{system_id.upper().replace('-', '_')}_IMAGE": item["image"] for system_id, item in systems.items()}
+    expected = {
+        f"{system_id.upper().replace('-', '_')}_IMAGE": item["image"]
+        for system_id, item in systems.items()
+    }
     if values != expected:
         missing = sorted(set(expected) - set(values))
         extra = sorted(set(values) - set(expected))
-        changed = sorted(key for key in set(values) & set(expected) if values[key] != expected[key])
+        changed = sorted(
+            key for key in set(values) & set(expected) if values[key] != expected[key]
+        )
         problems.add(
             f"{path}: external lock parity failed; missing={missing}, extra={extra}, changed={changed}"
         )
 
 
-def check_browsers(root: Path, systems: dict[str, dict[str, Any]], problems: Problems) -> None:
+def check_browsers(
+    root: Path, systems: dict[str, dict[str, Any]], problems: Problems
+) -> None:
     path = root / "infra/locks/browser-artifacts.lock"
     lock = read_json(path, problems)
     playwright = str(lock.get("playwright", ""))
@@ -346,7 +388,9 @@ def check_browsers(root: Path, systems: dict[str, dict[str, Any]], problems: Pro
             if not isinstance(artifact, dict):
                 problems.add(f"{path}: browser {name} must be an object")
                 continue
-            if not str(artifact.get("revision", "")).isdigit() or not artifact.get("version"):
+            if not str(artifact.get("revision", "")).isdigit() or not artifact.get(
+                "version"
+            ):
                 problems.add(f"{path}: browser {name} needs exact revision and version")
 
 
@@ -392,15 +436,21 @@ def check_image_references(root: Path, problems: Problems) -> None:
             candidates.append(path)
     reference = re.compile(r"(?:^\s*image:\s*|^\s*FROM\s+)([^\s#]+)", re.IGNORECASE)
     for path in candidates:
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
             match = reference.search(line)
             if not match:
                 continue
             image = match.group(1)
             if "${" in image:
-                problems.add(f"{path}:{line_number}: image reference must be literal for pin audit")
+                problems.add(
+                    f"{path}:{line_number}: image reference must be literal for pin audit"
+                )
             elif not IMAGE.fullmatch(image):
-                problems.add(f"{path}:{line_number}: image reference is not tag+digest pinned: {image}")
+                problems.add(
+                    f"{path}:{line_number}: image reference is not tag+digest pinned: {image}"
+                )
 
 
 def main() -> int:
@@ -417,7 +467,9 @@ def main() -> int:
     if problems.items:
         for item in problems.items:
             print(f"pin-check: ERROR: {item}", file=sys.stderr)
-        print(f"pin-check: FAILED with {len(problems.items)} problem(s)", file=sys.stderr)
+        print(
+            f"pin-check: FAILED with {len(problems.items)} problem(s)", file=sys.stderr
+        )
         return 1
     print(
         f"pin-check: OK: {len(systems)} images, "

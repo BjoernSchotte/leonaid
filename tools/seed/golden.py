@@ -571,6 +571,7 @@ async def seed_identity(
 
     for action in dataset["actions"]:
         goal_value = Decimal(int(action["goalAmountCents"])) / Decimal(100)
+        actual_value = Decimal(int(action["actualAmountCents"])) / Decimal(100)
         await connection.execute(
             """
             INSERT INTO charity_action (
@@ -587,7 +588,7 @@ async def seed_identity(
                 goal_unit,
                 currency
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 'EUR', $10)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             ON CONFLICT (id) DO UPDATE
             SET carrier_name = EXCLUDED.carrier_name,
                 name = EXCLUDED.name,
@@ -597,6 +598,7 @@ async def seed_identity(
                 ends_on = EXCLUDED.ends_on,
                 archive_slug = EXCLUDED.archive_slug,
                 goal_value = EXCLUDED.goal_value,
+                actual_value = EXCLUDED.actual_value,
                 goal_unit = EXCLUDED.goal_unit,
                 currency = EXCLUDED.currency,
                 updated_at = CURRENT_TIMESTAMP
@@ -610,7 +612,52 @@ async def seed_identity(
             date.fromisoformat(str(action["endsOn"])),
             action["archiveSlug"],
             goal_value,
+            actual_value,
+            action["goalUnit"],
             action["currency"],
+        )
+
+    golden_action_ids = [action["id"] for action in dataset["actions"]]
+    await connection.execute(
+        "DELETE FROM charity_action_capability WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
+    )
+    for action in dataset["actions"]:
+        await connection.executemany(
+            """
+            INSERT INTO charity_action_capability (action_id, capability)
+            VALUES ($1, $2)
+            """,
+            [(action["id"], capability) for capability in action["capabilities"]],
+        )
+
+    await connection.execute(
+        "DELETE FROM beneficiary WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
+    )
+    beneficiary_groups: dict[str, list[JsonObject]] = {}
+    for beneficiary in dataset["beneficiaries"]:
+        beneficiary_groups.setdefault(str(beneficiary["actionId"]), []).append(
+            beneficiary
+        )
+    for action_id, beneficiaries in beneficiary_groups.items():
+        await connection.executemany(
+            """
+            INSERT INTO beneficiary (
+                id, action_id, organization_name, public_description, sort_order
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            [
+                (
+                    beneficiary["id"],
+                    action_id,
+                    beneficiary["name"],
+                    beneficiary["description"],
+                    index,
+                )
+                for index, beneficiary in enumerate(beneficiaries)
+            ],
         )
 
     for user in dataset["users"]:
@@ -663,7 +710,6 @@ async def seed_identity(
             membership_role[str(membership["role"])],
         )
 
-    golden_action_ids = [action["id"] for action in dataset["actions"]]
     await connection.execute(
         "DELETE FROM public_action_alias WHERE action_id = ANY($1::uuid[])",
         golden_action_ids,

@@ -9,10 +9,16 @@ export type AcquisitionPartyCountResponse = { readonly total: number; };
 export type AcquisitionPartyExportResponse = { readonly actionId: string; readonly items: Array<AcquisitionPartyResponse>; };
 export type AcquisitionPartyListResponse = { readonly items: Array<AcquisitionPartyResponse>; readonly limit: number; readonly offset: number; readonly total: number; };
 export type AcquisitionPartyResponse = { readonly assignedAcquirerIds: Array<string>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
+export type ActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly unit?: string | null; };
+export type ActionGoalResponse = { readonly actualValue: string; readonly currency: string | null; readonly goalValue: string | null; readonly unit: string | null; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
+export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
+export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
+export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
+export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
@@ -34,6 +40,10 @@ export type ReadinessResponse = { readonly checks: Record<string, DependencyStat
 export type RequestLoginRequest = { readonly email: string; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
+export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; };
+export type SetActionCapabilitiesRequest = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; };
+export type SetActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly unit?: string | null; };
+export type TransitionCharityActionRequest = { readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 
 export type FetchLike = (
   input: RequestInfo | URL,
@@ -88,6 +98,32 @@ export class LeonAidApiClient {
       throw new Error(`LeonAid API returned HTTP ${response.status}`);
     }
     return body as T;
+  }
+
+  async createCharityAction(
+    body: CreateCharityActionRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      "/api/v1/actions",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getCharityAction(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}`,
+      { method: "GET" },
+      options,
+    );
   }
 
   async listAcquisitionActivities(
@@ -192,6 +228,70 @@ export class LeonAidApiClient {
     return this.request<AcquisitionPartyResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/parties/${encodeURIComponent(String(partyKind))}/${encodeURIComponent(String(partyId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async setCharityActionBeneficiaries(
+    actionId: string,
+    body: SetActionBeneficiariesRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/beneficiaries`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setCharityActionCapabilities(
+    actionId: string,
+    body: SetActionCapabilitiesRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/capabilities`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setCharityActionGoal(
+    actionId: string,
+    body: SetActionGoalRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/goal`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async transitionCharityAction(
+    actionId: string,
+    body: TransitionCharityActionRequest,
+    options: RequestOptions = {},
+  ): Promise<CharityActionResponse> {
+    return this.request<CharityActionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/transitions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

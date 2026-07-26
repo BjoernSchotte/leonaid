@@ -19,3 +19,11 @@ Sitzung. Die Oberfläche bietet einen echten Logout. Sensible Admin-Aufrufe
 fordern bei abgelaufener Frische gezielt zur erneuten Anmeldung auf und führen
 anschließend zum beabsichtigten internen Ziel zurück; normale Arbeit bleibt
 innerhalb der gültigen Sitzung ohne erneuten Login möglich.
+
+POC-050 ergänzt unter `/admin/actions/new` den ersten vollständigen
+Charity-Admin-Workflow. Eine neutrale Aktion kann mit Träger, Zweck, Zeitraum,
+Archiv-Slug, typisierten Capabilities, Zielwert und mehreren dynamischen
+Begünstigten angelegt werden. Validierung und Berechtigung liegen im
+FastAPI-Core; die Oberfläche enthält keine eigene Fachlogik und ist weiterhin
+die bewusst kleine Vorstufe zur gemeinsamen React-/shadcn-Umsetzung in
+POC-100.

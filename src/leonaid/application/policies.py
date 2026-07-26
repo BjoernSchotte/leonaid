@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied, ResourceNotFound
-from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.policies import PolicySurface, may_manage_action
 
 
@@ -35,6 +35,19 @@ def require_action_manager(
         code,
         message
         or f"Diese {surface.value}-Aktion erfordert die Verwaltung der Charity-Aktion.",
+    )
+
+
+def require_action_creator(principal: IdentityPrincipal) -> None:
+    may_create = principal.is_system_admin or any(
+        membership.role is ActionRole.CHARITY_ADMIN
+        for membership in principal.action_memberships
+    )
+    if principal.account.can_authenticate and may_create:
+        return
+    raise PermissionDenied(
+        "action_creation_forbidden",
+        "Nur Charity- oder System-Admins dürfen Charity-Aktionen anlegen.",
     )
 
 

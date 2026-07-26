@@ -2,7 +2,7 @@
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
 POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-043 vollständig
-bewiesen
+bewiesen; POC-050 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -742,27 +742,34 @@ Nachweis:
 
 ## M5 – Charity-Aktionskern und Admin-Arbeitsplatz
 
-### [ ] POC-050 CharityAction-Lifecycle, Capabilities und Beneficiaries bauen
+### [x] POC-050 CharityAction-Lifecycle, Capabilities und Beneficiaries bauen
 
 Abhängigkeiten: POC-021, POC-043
 
 Akzeptanzkriterien:
 
-- [ ] Lifecycle `draft → scheduled → active → completed → archived` ist
+- [x] Lifecycle `draft → scheduled → active → completed → archived` ist
       serverseitig abgesichert.
-- [ ] Aktionskern enthält keine Krapfentaxi-spezifischen Felder.
-- [ ] PoC-Capabilities `acquisition`, `offerings`, `ordering`, `invoicing`
+- [x] Aktionskern enthält keine Krapfentaxi-spezifischen Felder.
+- [x] PoC-Capabilities `acquisition`, `offerings`, `ordering`, `invoicing`
       sind typisiert aktivierbar.
-- [ ] Eine Aktion besitzt ein bis viele Beneficiaries.
-- [ ] Zielwert, Ist-Wert und Einheit können manuell gepflegt werden.
-- [ ] Änderungen werden auditiert.
+- [x] Eine Aktion besitzt ein bis viele Beneficiaries.
+- [x] Zielwert, Ist-Wert und Einheit können manuell gepflegt werden.
+- [x] Änderungen werden auditiert.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen alle erlaubten/verbotenen Transitionen und
+- [x] Unit-Tests prüfen alle erlaubten/verbotenen Transitionen und
       Capability-Invarianten.
-- [ ] Integrationstest persistiert mehrere Beneficiaries und Zielwerte.
-- [ ] E2E erstellt eine Aktion vollständig ohne Datenbankzugriff.
+- [x] Integrationstest persistiert mehrere Beneficiaries und Zielwerte.
+- [x] E2E erstellt eine Aktion vollständig ohne Datenbankzugriff.
+
+Die Umsetzung folgt
+[Kapitel 4.2](../produkt-und-architekturvorschlag.md#42-empfohlenes-kernmodell)
+und
+[Kapitel 4.3](../produkt-und-architekturvorschlag.md#43-aktionsunabhängiger-kern-und-capability-module).
+Nachweis:
+[POC-050 – neutraler CharityAction-Kern](proofs/POC-050.md).
 
 ### [ ] POC-051 Versionierte Aktionstemplates implementieren
 

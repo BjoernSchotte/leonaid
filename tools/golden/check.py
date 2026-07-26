@@ -184,6 +184,18 @@ def main() -> int:
             and action["goalAmountCents"] > 0,
             f"actions: invalid goal for {action['id']}",
         )
+        problems.require(
+            isinstance(action.get("actualAmountCents"), int)
+            and action["actualAmountCents"] >= 0,
+            f"actions: invalid actual value for {action['id']}",
+        )
+        capabilities = action.get("capabilities")
+        problems.require(
+            isinstance(capabilities, list)
+            and len(capabilities) == len(set(capabilities))
+            and set(capabilities).issubset(enums.get("actionCapability", [])),
+            f"actions: invalid capabilities for {action['id']}",
+        )
     beneficiary_actions = Counter(
         item.get("actionId") for item in beneficiaries.values()
     )
@@ -201,17 +213,18 @@ def main() -> int:
     membership_by_user: dict[str, set[str]] = defaultdict(set)
     for membership in memberships.values():
         user_id = membership.get("userId")
-        action_id = membership.get("actionId")
+        membership_action_id = membership.get("actionId")
         problems.require(user_id in users, f"membership: unknown user {user_id}")
         problems.require(
-            action_id in actions, f"membership: unknown action {action_id}"
+            membership_action_id in actions,
+            f"membership: unknown action {membership_action_id}",
         )
         problems.require(
             membership.get("role") in enums.get("membershipRole", []),
             f"membership: unknown role for {membership['id']}",
         )
         if user_id in users and users[user_id]["status"] == "ACTIVE":
-            membership_by_user[user_id].add(action_id)
+            membership_by_user[user_id].add(str(membership_action_id))
 
     visible: dict[str, list[str]] = {}
     all_action_ids = sorted(actions)
@@ -250,12 +263,13 @@ def main() -> int:
     assignment_users_by_person: dict[str, set[str]] = defaultdict(set)
     assignment_keys: set[tuple[str, str, str]] = set()
     for assignment in assignments.values():
-        action_id = assignment.get("actionId")
+        assignment_action_id = assignment.get("actionId")
         company_id = assignment.get("companyId")
         person_id = assignment.get("personId")
         acquirer_id = assignment.get("acquirerId")
         problems.require(
-            action_id in actions, f"assignments: unknown action {action_id}"
+            assignment_action_id in actions,
+            f"assignments: unknown action {assignment_action_id}",
         )
         problems.require(
             (company_id is None) != (person_id is None),
@@ -266,7 +280,7 @@ def main() -> int:
             f"assignments: invalid acquirer {acquirer_id}",
         )
         target_id = str(company_id or person_id)
-        key = (str(action_id), target_id, str(acquirer_id))
+        key = (str(assignment_action_id), target_id, str(acquirer_id))
         problems.require(key not in assignment_keys, f"assignments: duplicate {key}")
         assignment_keys.add(key)
         assignment_counts[str(acquirer_id)] += 1
@@ -327,22 +341,24 @@ def main() -> int:
             isinstance(lines, list) and bool(lines), "commitment lines missing"
         )
         for line in lines if isinstance(lines, list) else []:
-            offer = offers.get(str(line.get("offerId")))
+            line_offer = offers.get(str(line.get("offerId")))
             quantity = line.get("quantity")
-            problems.require(offer is not None, "commitment line has unknown offer")
+            problems.require(
+                line_offer is not None, "commitment line has unknown offer"
+            )
             problems.require(
                 isinstance(quantity, int) and quantity > 0,
                 "commitment line quantity must be positive integer",
             )
-            if offer is None or not isinstance(quantity, int):
+            if line_offer is None or not isinstance(quantity, int):
                 continue
             problems.require(
-                offer["actionId"] == commitment.get("actionId"),
+                line_offer["actionId"] == commitment.get("actionId"),
                 "commitment and offer actions differ",
             )
             boxes += quantity
-            pieces += quantity * offer["piecesPerUnit"]
-            amount += quantity * offer["unitPriceCents"]
+            pieces += quantity * line_offer["piecesPerUnit"]
+            amount += quantity * line_offer["unitPriceCents"]
         calculations[commitment["id"]] = {
             "boxes": boxes,
             "pieces": pieces,
@@ -477,18 +493,18 @@ def main() -> int:
     aliases: set[str] = set()
     for route in routes.values():
         path = route.get("path")
-        action_id = route.get("actionId")
+        route_action_id = route.get("actionId")
         problems.require(
             isinstance(path, str) and path.startswith("/"), "route path invalid"
         )
-        problems.require(action_id in actions, "route action invalid")
+        problems.require(route_action_id in actions, "route action invalid")
         problems.require(path not in resolution, f"duplicate public route {path}")
-        resolution[str(path)] = str(action_id)
+        resolution[str(path)] = str(route_action_id)
         if route.get("kind") == "ACTIVE_ALIAS":
             aliases.add(str(path))
-            if action_id in actions:
+            if route_action_id in actions:
                 problems.require(
-                    actions[str(action_id)]["status"] == "ACTIVE",
+                    actions[str(route_action_id)]["status"] == "ACTIVE",
                     "active alias must resolve to active action",
                 )
     problems.require(aliases == {"/krapfentaxi"}, "active alias set differs")

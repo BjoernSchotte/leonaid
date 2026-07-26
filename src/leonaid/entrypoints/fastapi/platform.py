@@ -19,6 +19,7 @@ from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.acquisition import (
     AsyncpgAcquisitionPolicyRepository,
 )
+from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
@@ -29,9 +30,11 @@ from leonaid.adapters.twenty.gateway import (
     TwentyGatewaySettings,
 )
 from leonaid.application.acquisition import AcquisitionPolicyService
+from leonaid.application.actions import CharityActionService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
+    Conflict,
     DependencyUnavailable,
     PermissionDenied,
     ResourceNotFound,
@@ -100,6 +103,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.identity_service = IdentityQueryService(
             AsyncpgIdentityRepository(pool),
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
+        )
+        application.state.action_service = CharityActionService(
+            AsyncpgCharityActionRepository(pool)
         )
         mail_payload = SecureMailPayload(
             settings.mail_payload_secret.get_secret_value()
@@ -170,6 +176,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             status_code = 403
         elif isinstance(error, ResourceNotFound):
             status_code = 404
+        elif isinstance(error, Conflict):
+            status_code = 409
         elif isinstance(error, DependencyUnavailable):
             status_code = 503
         return error_response(

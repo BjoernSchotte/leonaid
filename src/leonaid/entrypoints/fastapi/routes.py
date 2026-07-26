@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -12,16 +13,29 @@ from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
 )
+from leonaid.application.actions import (
+    BeneficiaryDraft,
+    CharityActionService,
+    CreateActionDraft,
+)
 from leonaid.application.errors import DependencyUnavailable
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.sessions import SessionGrant, SessionService
 from leonaid.application.crm import CrmPartyKind
+from leonaid.domain.actions import (
+    ActionCapability,
+    ActionGoal,
+    CharityAction,
+    CharityActionStatus,
+)
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
+    ActionGoalRequest,
+    ActionGoalResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityResponse,
     AcquisitionDocumentResponse,
@@ -31,10 +45,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcquisitionPartyListResponse,
     AcquisitionPartyResponse,
     AcquisitionSearchQuery,
+    AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
+    BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
     CreateInvitationRequest,
+    CreateCharityActionRequest,
     CurrentIdentityResponse,
     ERROR_RESPONSES,
     FreshLoginStatusResponse,
@@ -51,6 +68,12 @@ from leonaid.entrypoints.fastapi.schemas import (
     RequestLoginRequest,
     SessionAuthenticationResponse,
     SessionRevocationResponse,
+    BeneficiaryResponse,
+    CharityActionResponse,
+    SetActionBeneficiariesRequest,
+    SetActionCapabilitiesRequest,
+    SetActionGoalRequest,
+    TransitionCharityActionRequest,
 )
 
 router = APIRouter()
@@ -80,6 +103,10 @@ def acquisition_service(request: Request) -> AcquisitionPolicyService:
             "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
         )
     return service
+
+
+def action_service(request: Request) -> CharityActionService:
+    return cast(CharityActionService, request.app.state.action_service)
 
 
 def session_token(request: Request) -> str | None:
@@ -125,6 +152,67 @@ def acquisition_party_response(
     party: AcquisitionParty,
 ) -> AcquisitionPartyResponse:
     return AcquisitionPartyResponse.model_validate(party)
+
+
+def decimal_text(value: Decimal) -> str:
+    text = format(value, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def charity_action_response(action: CharityAction) -> CharityActionResponse:
+    return CharityActionResponse(
+        id=action.id,
+        carrier_name=action.carrier_name,
+        name=action.name,
+        purpose=action.purpose,
+        status=action.status.value,
+        starts_on=action.starts_on,
+        ends_on=action.ends_on,
+        archive_slug=action.archive_slug,
+        capabilities=sorted(
+            (item.value for item in action.capabilities),
+        ),
+        beneficiaries=[
+            BeneficiaryResponse(
+                id=item.id,
+                organization_name=item.organization_name,
+                public_description=item.public_description,
+                sort_order=item.sort_order,
+            )
+            for item in action.beneficiaries
+        ],
+        goal=ActionGoalResponse(
+            goal_value=(
+                decimal_text(action.goal.goal_value)
+                if action.goal.goal_value is not None
+                else None
+            ),
+            actual_value=decimal_text(action.goal.actual_value),
+            unit=action.goal.unit,
+            currency=action.goal.currency,
+        ),
+    )
+
+
+def goal_from_request(body: ActionGoalRequest) -> ActionGoal:
+    return ActionGoal(
+        goal_value=Decimal(body.goal_value) if body.goal_value is not None else None,
+        actual_value=Decimal(body.actual_value),
+        unit=body.unit.strip() if body.unit is not None else None,
+        currency=body.currency,
+    )
+
+
+def beneficiary_drafts(
+    values: list[BeneficiaryDraftRequest],
+) -> tuple[BeneficiaryDraft, ...]:
+    return tuple(
+        BeneficiaryDraft(
+            organization_name=item.organization_name,
+            public_description=item.public_description,
+        )
+        for item in values
+    )
 
 
 @router.get(
@@ -361,6 +449,154 @@ async def revoke_user_sessions(
         status="revoked",
         revoked_count=revoked_count,
     )
+
+
+@router.post(
+    "/api/v1/actions",
+    operation_id="createCharityAction",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["actions"],
+)
+async def create_charity_action(
+    request: Request,
+    body: CreateCharityActionRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).create(
+        actor,
+        CreateActionDraft(
+            carrier_name=body.carrier_name,
+            name=body.name,
+            purpose=body.purpose,
+            starts_on=body.starts_on,
+            ends_on=body.ends_on,
+            archive_slug=body.archive_slug,
+            capabilities=tuple(ActionCapability(item) for item in body.capabilities),
+            beneficiaries=beneficiary_drafts(body.beneficiaries),
+            goal=goal_from_request(body.goal),
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = f"/api/v1/actions/{action.id}"
+    return charity_action_response(action)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}",
+    operation_id="getCharityAction",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_charity_action(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    action = await action_service(request).get(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/goal",
+    operation_id="setCharityActionGoal",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_goal(
+    action_id: UUID,
+    request: Request,
+    body: SetActionGoalRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).set_goal(
+        actor,
+        action_id,
+        goal_from_request(body),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/capabilities",
+    operation_id="setCharityActionCapabilities",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_capabilities(
+    action_id: UUID,
+    request: Request,
+    body: SetActionCapabilitiesRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).set_capabilities(
+        actor,
+        action_id,
+        tuple(ActionCapability(item) for item in body.capabilities),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/beneficiaries",
+    operation_id="setCharityActionBeneficiaries",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_beneficiaries(
+    action_id: UUID,
+    request: Request,
+    body: SetActionBeneficiariesRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).set_beneficiaries(
+        actor,
+        action_id,
+        beneficiary_drafts(body.beneficiaries),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/transitions",
+    operation_id="transitionCharityAction",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def transition_charity_action(
+    action_id: UUID,
+    request: Request,
+    body: TransitionCharityActionRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).transition(
+        actor,
+        action_id,
+        CharityActionStatus(body.target_status),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
 
 
 @router.get(

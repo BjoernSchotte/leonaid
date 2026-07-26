@@ -92,6 +92,19 @@ sich ausschließlich am LeonAid Core; der Twenty-Key wird nur in den
 Core-Container injiziert. Entfernte Memberships und Assignments wirken im
 nächsten Request ohne neue Anmeldung.
 
+Der gezielte Nachweis des neutralen Charity-Aktionskerns läuft mit:
+
+```sh
+./leonaid test-actions
+```
+
+Er startet die gepinnten Standarddienste aus leeren isolierten Volumes,
+persistiert Lifecycle, Capabilities, Zielwerte, mehrere Begünstigte und
+AuditEvents über FastAPI/PostgreSQL und erstellt anschließend mit echtem
+Chromium eine vollständige Aktion unter `/admin/actions/new`. Der Browser
+verifiziert das Ergebnis ausschließlich über die Core-API. Der
+geheimnisfreie Screenshot bleibt unter `.artifacts/poc050/`.
+
 `./leonaid provision-twenty` legt den lokalen Integrations-Key mit restriktiven
 Dateirechten unter `.local/twenty/integration.env` ab. Alle folgenden
 `./leonaid`-Compose-Kommandos lesen ihn automatisch ein, ohne ihn in
