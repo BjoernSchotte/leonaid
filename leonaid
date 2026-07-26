@@ -17,6 +17,7 @@ Commands:
   check             Run non-mutating quality and policy gates
   generate-api-client
                     Regenerate canonical OpenAPI and TypeScript client
+  provision-twenty  Provision and verify Twenty schema, roles and API key
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
@@ -183,13 +184,13 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/openapi tools/outbox tools/schema tools/seed
+    tools/dx tools/openapi tools/outbox tools/schema tools/seed tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/openapi tools/outbox tools/schema tools/seed
+    tools/dx tools/openapi tools/outbox tools/schema tools/seed tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/openapi tools/outbox tools/schema tools/seed
+    tools/openapi tools/outbox tools/schema tools/seed tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -266,6 +267,27 @@ run_golden_tool() {
     api /repo/tools/seed/golden.py "$@"
 }
 
+provision_twenty() {
+  require_docker
+  mkdir -p "$root/.local/twenty"
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  compose build api
+  compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+  compose run --rm --no-deps \
+    --user "$host_user_id:$host_group_id" \
+    --env-from-file "$root/.env.local" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$root/.local:/repo/.local" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/twenty/provision.py apply \
+    --token-output /repo/.local/twenty/integration.env \
+    --snapshot-output /repo/.local/twenty/schema-snapshot.json
+  echo "provision-twenty: OK: lokaler Key liegt geschützt unter .local/twenty/integration.env"
+}
+
 seed_systems() {
   require_docker
   compose --profile dev-mail up --detach --wait --wait-timeout 420
@@ -319,6 +341,7 @@ case "$command" in
     /bin/sh "$root/tools/schema/test.sh" "$root"
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/openapi/test.sh" "$root"
+    /bin/sh "$root/tools/twenty/test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
   generate-api-client)
@@ -326,6 +349,7 @@ case "$command" in
     run_python uv run --frozen --no-sync \
       python tools/openapi/generate.py --root /workspace
     ;;
+  provision-twenty) provision_twenty ;;
   seed) seed_systems ;;
   snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
   reset) reset_systems ;;

@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012 und POC-020
-bis POC-023 vollständig bewiesen
+Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
+POC-023 und POC-030 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -521,26 +521,29 @@ Nachweis:
 
 ## M3 – Twenty-Integration und CRM-Vertrag
 
-### [ ] POC-030 Twenty-Schema reproduzierbar provisionieren
+### [x] POC-030 Twenty-Schema reproduzierbar provisionieren
 
 Abhängigkeiten: POC-010, POC-012
 
 Akzeptanzkriterien:
 
-- [ ] Benötigte Custom Objects, Fields, Relations, Views und Rollen sind
+- [x] Benötigte Custom Objects, Fields, Relations, Views und Rollen sind
       deklarativ beschrieben.
-- [ ] Provisionierung nutzt die gepinnte Twenty Metadata API.
-- [ ] Integrations-Key besitzt nur benötigte Objekt-, Feld- und Aktionsrechte.
-- [ ] Schemaänderungen sind idempotent und liefern verständliche Drifts.
-- [ ] Verwendete Twenty-Capabilities und Limits sind dokumentiert.
+- [x] Provisionierung nutzt die gepinnte Twenty Metadata API.
+- [x] Integrations-Key besitzt nur benötigte Objekt-, Feld- und Aktionsrechte.
+- [x] Schemaänderungen sind idempotent und liefern verständliche Drifts.
+- [x] Verwendete Twenty-Capabilities und Limits sind dokumentiert.
 
 Tests/Nachweise:
 
-- [ ] Contracttest provisioniert eine leere Twenty-Instanz zweimal ohne
+- [x] Contracttest provisioniert eine leere Twenty-Instanz zweimal ohne
       Duplikate.
-- [ ] Drift-Test verändert ein Feld real und erkennt die Abweichung.
-- [ ] Negativtest beweist, dass der Integrations-Key administrative und
+- [x] Drift-Test verändert ein Feld real und erkennt die Abweichung.
+- [x] Negativtest beweist, dass der Integrations-Key administrative und
       fachfremde Objekte nicht nutzen kann.
+
+Nachweis:
+[POC-030 – deklaratives Twenty-Schema und Least Privilege](proofs/POC-030.md).
 
 ### [ ] POC-031 Twenty Gateway und fachliche CRM-Ports implementieren
 

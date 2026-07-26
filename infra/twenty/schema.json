@@ -1,0 +1,625 @@
+{
+  "schemaVersion": 1,
+  "twenty": {
+    "version": "2.24.0",
+    "imageDigest": "sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+    "metadataGraphqlPath": "/metadata",
+    "metadataRestPath": "/rest/metadata"
+  },
+  "objects": [
+    {
+      "nameSingular": "charityAction",
+      "namePlural": "charityActions",
+      "labelSingular": "Charity-Aktion",
+      "labelPlural": "Charity-Aktionen",
+      "description": "Lesemodell für den Charity-Admin-Arbeitsplatz; LeonAid Core bleibt fachlich führend.",
+      "icon": "IconHeartHandshake",
+      "isSearchable": true,
+      "fields": [
+        {
+          "name": "leonaidId",
+          "label": "LeonAid ID",
+          "description": "Stabile Referenz auf die fachlich führende Charity-Aktion im LeonAid Core.",
+          "icon": "IconFingerprint",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": true
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "description": "Gespiegelter Lifecycle der Charity-Aktion.",
+          "icon": "IconProgress",
+          "type": "SELECT",
+          "isNullable": true,
+          "isUnique": false,
+          "options": [
+            {
+              "id": "0b2f55af-d852-40a8-91ed-2d674c8d0001",
+              "label": "Entwurf",
+              "value": "DRAFT",
+              "color": "gray",
+              "position": 0
+            },
+            {
+              "id": "0b2f55af-d852-40a8-91ed-2d674c8d0002",
+              "label": "Geplant",
+              "value": "SCHEDULED",
+              "color": "blue",
+              "position": 1
+            },
+            {
+              "id": "0b2f55af-d852-40a8-91ed-2d674c8d0003",
+              "label": "Aktiv",
+              "value": "ACTIVE",
+              "color": "green",
+              "position": 2
+            },
+            {
+              "id": "0b2f55af-d852-40a8-91ed-2d674c8d0004",
+              "label": "Abgeschlossen",
+              "value": "COMPLETED",
+              "color": "orange",
+              "position": 3
+            },
+            {
+              "id": "0b2f55af-d852-40a8-91ed-2d674c8d0005",
+              "label": "Archiviert",
+              "value": "ARCHIVED",
+              "color": "purple",
+              "position": 4
+            }
+          ]
+        },
+        {
+          "name": "startsAt",
+          "label": "Beginn",
+          "description": "Beginn des Aktionszeitraums.",
+          "icon": "IconCalendarEvent",
+          "type": "DATE_TIME",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "endsAt",
+          "label": "Ende",
+          "description": "Ende des Aktionszeitraums.",
+          "icon": "IconCalendarDue",
+          "type": "DATE_TIME",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "goalValue",
+          "label": "Aktionsziel",
+          "description": "Manuell gepflegter Zielwert der Aktion.",
+          "icon": "IconTargetArrow",
+          "type": "NUMBER",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "goalUnit",
+          "label": "Zieleinheit",
+          "description": "Einheit des Aktionsziels.",
+          "icon": "IconRulerMeasure",
+          "type": "SELECT",
+          "isNullable": true,
+          "isUnique": false,
+          "options": [
+            {
+              "id": "b1293508-f4b5-4287-a6d8-df1102dc0001",
+              "label": "Euro",
+              "value": "EUR",
+              "color": "green",
+              "position": 0
+            },
+            {
+              "id": "b1293508-f4b5-4287-a6d8-df1102dc0002",
+              "label": "Boxen",
+              "value": "BOXES",
+              "color": "orange",
+              "position": 1
+            },
+            {
+              "id": "b1293508-f4b5-4287-a6d8-df1102dc0003",
+              "label": "Stück",
+              "value": "PIECES",
+              "color": "blue",
+              "position": 2
+            }
+          ]
+        },
+        {
+          "name": "archiveSlug",
+          "label": "Archiv-Slug",
+          "description": "Unveränderlicher öffentlicher Archivbezeichner.",
+          "icon": "IconLink",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": true
+        }
+      ]
+    },
+    {
+      "nameSingular": "acquisitionAssignment",
+      "namePlural": "acquisitionAssignments",
+      "labelSingular": "Akquise-Zuweisung",
+      "labelPlural": "Akquise-Zuweisungen",
+      "description": "Aktionsbezogene CRM-Sicht einer Sponsorenzuweisung; Autorisierung und Historie bleiben im LeonAid Core.",
+      "icon": "IconUserHandshake",
+      "isSearchable": true,
+      "fields": [
+        {
+          "name": "leonaidId",
+          "label": "LeonAid ID",
+          "description": "Stabile Referenz auf die fachlich führende Zuweisung im LeonAid Core.",
+          "icon": "IconFingerprint",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": true
+        },
+        {
+          "name": "status",
+          "label": "Akquise-Status",
+          "description": "Gespiegelter Status der aktionsbezogenen Sponsorengewinnung.",
+          "icon": "IconProgress",
+          "type": "SELECT",
+          "isNullable": true,
+          "isUnique": false,
+          "options": [
+            {
+              "id": "789a1269-4e8e-493e-9775-1694088f0001",
+              "label": "Neu",
+              "value": "NEW",
+              "color": "gray",
+              "position": 0
+            },
+            {
+              "id": "789a1269-4e8e-493e-9775-1694088f0002",
+              "label": "Kontaktiert",
+              "value": "CONTACTED",
+              "color": "blue",
+              "position": 1
+            },
+            {
+              "id": "789a1269-4e8e-493e-9775-1694088f0003",
+              "label": "Zusage",
+              "value": "COMMITTED",
+              "color": "green",
+              "position": 2
+            },
+            {
+              "id": "789a1269-4e8e-493e-9775-1694088f0004",
+              "label": "Kein Interesse",
+              "value": "LOST",
+              "color": "red",
+              "position": 3
+            }
+          ]
+        },
+        {
+          "name": "priority",
+          "label": "Priorität",
+          "description": "Arbeitspriorität innerhalb der Charity-Aktion.",
+          "icon": "IconFlag",
+          "type": "SELECT",
+          "isNullable": true,
+          "isUnique": false,
+          "options": [
+            {
+              "id": "87eb57f7-da0a-4630-a47e-8d85d60a0001",
+              "label": "Niedrig",
+              "value": "LOW",
+              "color": "gray",
+              "position": 0
+            },
+            {
+              "id": "87eb57f7-da0a-4630-a47e-8d85d60a0002",
+              "label": "Normal",
+              "value": "NORMAL",
+              "color": "blue",
+              "position": 1
+            },
+            {
+              "id": "87eb57f7-da0a-4630-a47e-8d85d60a0003",
+              "label": "Hoch",
+              "value": "HIGH",
+              "color": "red",
+              "position": 2
+            }
+          ]
+        },
+        {
+          "name": "nextActionAt",
+          "label": "Nächste Aktion",
+          "description": "Fälligkeit der nächsten Kontaktaktion.",
+          "icon": "IconClockPlay",
+          "type": "DATE_TIME",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "acquirerUserId",
+          "label": "Akquisiteur-ID",
+          "description": "Stabile LeonAid-User-ID des zugeordneten Akquisiteurs.",
+          "icon": "IconUserCheck",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "acquirerDisplayName",
+          "label": "Akquisiteur",
+          "description": "Anzeigename für die Charity-Admin-Sicht; LeonAid Core bleibt führend.",
+          "icon": "IconUser",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": false
+        },
+        {
+          "name": "charityAction",
+          "label": "Charity-Aktion",
+          "description": "Zugehörige Charity-Aktion.",
+          "icon": "IconHeartHandshake",
+          "type": "RELATION",
+          "isNullable": true,
+          "isUnique": false,
+          "relation": {
+            "type": "MANY_TO_ONE",
+            "targetObject": "charityAction",
+            "targetFieldLabel": "Akquise-Zuweisungen",
+            "targetFieldIcon": "IconUserHandshake"
+          }
+        },
+        {
+          "name": "company",
+          "label": "Firma",
+          "description": "Zugeordnete Twenty-Firma.",
+          "icon": "IconBuilding",
+          "type": "RELATION",
+          "isNullable": true,
+          "isUnique": false,
+          "relation": {
+            "type": "MANY_TO_ONE",
+            "targetObject": "company",
+            "targetFieldLabel": "LeonAid Akquise-Zuweisungen",
+            "targetFieldIcon": "IconUserHandshake"
+          }
+        },
+        {
+          "name": "person",
+          "label": "Person",
+          "description": "Zugeordnete Twenty-Person, wenn keine Firma im Vordergrund steht.",
+          "icon": "IconUser",
+          "type": "RELATION",
+          "isNullable": true,
+          "isUnique": false,
+          "relation": {
+            "type": "MANY_TO_ONE",
+            "targetObject": "person",
+            "targetFieldLabel": "LeonAid Akquise-Zuweisungen",
+            "targetFieldIcon": "IconUserHandshake"
+          }
+        }
+      ]
+    }
+  ],
+  "views": [
+    {
+      "id": "48f0e752-1144-4e41-af61-77624dfa1001",
+      "object": "charityAction",
+      "name": "LeonAid Aktionen",
+      "type": "TABLE",
+      "icon": "IconHeartHandshake",
+      "position": 10,
+      "isCompact": false,
+      "openRecordIn": "RECORD_PAGE",
+      "fields": [
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1001",
+          "field": "name",
+          "position": 0,
+          "size": 220
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1002",
+          "field": "status",
+          "position": 1,
+          "size": 140
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1003",
+          "field": "startsAt",
+          "position": 2,
+          "size": 160
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1004",
+          "field": "endsAt",
+          "position": 3,
+          "size": 160
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1005",
+          "field": "goalValue",
+          "position": 4,
+          "size": 130
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1006",
+          "field": "goalUnit",
+          "position": 5,
+          "size": 130
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae1007",
+          "field": "archiveSlug",
+          "position": 6,
+          "size": 220
+        }
+      ]
+    },
+    {
+      "id": "48f0e752-1144-4e41-af61-77624dfa2001",
+      "object": "acquisitionAssignment",
+      "name": "LeonAid Akquise",
+      "type": "TABLE",
+      "icon": "IconUserHandshake",
+      "position": 20,
+      "isCompact": false,
+      "openRecordIn": "RECORD_PAGE",
+      "fields": [
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2001",
+          "field": "name",
+          "position": 0,
+          "size": 220
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2002",
+          "field": "charityAction",
+          "position": 1,
+          "size": 220
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2003",
+          "field": "company",
+          "position": 2,
+          "size": 220
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2004",
+          "field": "person",
+          "position": 3,
+          "size": 200
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2005",
+          "field": "acquirerDisplayName",
+          "position": 4,
+          "size": 180
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2006",
+          "field": "status",
+          "position": 5,
+          "size": 150
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2007",
+          "field": "priority",
+          "position": 6,
+          "size": 130
+        },
+        {
+          "id": "6ad050bc-038d-472a-a8be-f69a21ae2008",
+          "field": "nextActionAt",
+          "position": 7,
+          "size": 170
+        }
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "fa92b0c4-b24e-4d5c-a203-893bfcb21001",
+      "label": "LeonAid Integration",
+      "description": "Technische Minimalrolle für den LeonAid-Core; kein Settings-, Rollen-, Export- oder Workflow-Zugriff.",
+      "icon": "IconApi",
+      "canBeAssignedToUsers": false,
+      "canBeAssignedToAgents": false,
+      "canBeAssignedToApiKeys": true,
+      "permissionFlags": [],
+      "objects": [
+        {
+          "object": "company",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "readFields": [
+            "id",
+            "name",
+            "address",
+            "people",
+            "leonaidAkquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt"
+          ],
+          "updateFields": [
+            "name",
+            "address",
+            "people",
+            "leonaidAkquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy"
+          ]
+        },
+        {
+          "object": "person",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "readFields": [
+            "id",
+            "name",
+            "emails",
+            "company",
+            "leonaidAkquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt"
+          ],
+          "updateFields": [
+            "name",
+            "emails",
+            "company",
+            "leonaidAkquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy"
+          ]
+        },
+        {
+          "object": "charityAction",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "readFields": [
+            "id",
+            "name",
+            "leonaidId",
+            "status",
+            "startsAt",
+            "endsAt",
+            "goalValue",
+            "goalUnit",
+            "archiveSlug",
+            "akquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt"
+          ],
+          "updateFields": [
+            "name",
+            "leonaidId",
+            "status",
+            "startsAt",
+            "endsAt",
+            "goalValue",
+            "goalUnit",
+            "archiveSlug",
+            "akquiseZuweisungen",
+            "position",
+            "createdBy",
+            "updatedBy"
+          ]
+        },
+        {
+          "object": "acquisitionAssignment",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "readFields": [
+            "id",
+            "name",
+            "leonaidId",
+            "status",
+            "priority",
+            "nextActionAt",
+            "acquirerUserId",
+            "acquirerDisplayName",
+            "charityAction",
+            "company",
+            "person",
+            "position",
+            "createdBy",
+            "updatedBy",
+            "createdAt",
+            "updatedAt"
+          ],
+          "updateFields": [
+            "name",
+            "leonaidId",
+            "status",
+            "priority",
+            "nextActionAt",
+            "acquirerUserId",
+            "acquirerDisplayName",
+            "charityAction",
+            "company",
+            "person",
+            "position",
+            "createdBy",
+            "updatedBy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fa92b0c4-b24e-4d5c-a203-893bfcb22001",
+      "label": "LeonAid Charity-Admin",
+      "description": "CRM-Arbeitsrolle für Companies, People und die LeonAid-Admin-Lesemodelle; keine Systemverwaltung.",
+      "icon": "IconHeartHandshake",
+      "canBeAssignedToUsers": true,
+      "canBeAssignedToAgents": false,
+      "canBeAssignedToApiKeys": false,
+      "permissionFlags": [
+        "VIEWS",
+        "IMPORT_CSV",
+        "EXPORT_CSV"
+      ],
+      "objects": [
+        {
+          "object": "company",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "allFields": true
+        },
+        {
+          "object": "person",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "allFields": true
+        },
+        {
+          "object": "charityAction",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "allFields": true
+        },
+        {
+          "object": "acquisitionAssignment",
+          "canRead": true,
+          "canUpdate": true,
+          "canSoftDelete": false,
+          "canDestroy": false,
+          "allFields": true
+        }
+      ]
+    }
+  ],
+  "apiKey": {
+    "name": "LeonAid Core Integration",
+    "role": "LeonAid Integration",
+    "expiresAt": "2027-07-25T00:00:00.000Z"
+  }
+}
