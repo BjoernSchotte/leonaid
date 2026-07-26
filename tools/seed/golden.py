@@ -34,6 +34,14 @@ GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
     0,
     tzinfo=timezone.utc,
 )
+GOLDEN_COMMITMENT_CREATED_AT = datetime(
+    2026,
+    7,
+    2,
+    8,
+    0,
+    tzinfo=timezone.utc,
+)
 JsonObject = dict[str, Any]
 
 
@@ -875,6 +883,13 @@ async def seed_operational_golden(
         )
 
     offers = {str(item["id"]): item for item in dataset["offers"]}
+    companies = {str(item["id"]): item for item in dataset["companies"]}
+    persons = {str(item["id"]): item for item in dataset["persons"]}
+    people_by_company: dict[str, list[JsonObject]] = {}
+    for person in dataset["persons"]:
+        company_id = person.get("companyId")
+        if company_id is not None:
+            people_by_company.setdefault(str(company_id), []).append(person)
     invoices_by_commitment = {
         str(item["commitmentId"]): item for item in dataset["invoices"]
     }
@@ -890,19 +905,49 @@ async def seed_operational_golden(
         "INVOICED": "invoiced",
     }
     commitments_by_id: dict[str, JsonObject] = {}
-    for commitment in dataset["commitments"]:
+    for commitment_index, commitment in enumerate(dataset["commitments"]):
         commitments_by_id[str(commitment["id"])] = commitment
         total_minor = sum(
             int(line["quantity"]) * int(offers[str(line["offerId"])]["unitPriceCents"])
             for line in commitment["lines"]
         )
         invoice = invoices_by_commitment.get(str(commitment["id"]))
-        customer_snapshot = {
-            "companyId": commitment["companyId"],
-            "personId": commitment["personId"],
-            "datasetVersion": DATASET_VERSION,
-        }
-        recipient_snapshot = invoice["addressSnapshot"] if invoice is not None else None
+        company_id = commitment["companyId"]
+        person_id = commitment["personId"]
+        if company_id is not None:
+            company = companies[str(company_id)]
+            company_people = people_by_company.get(str(company_id), [])
+            buyer_email = str(company_people[0]["email"]) if company_people else None
+            customer_snapshot = {
+                "partyKind": "company",
+                "twentyId": str(company_id),
+                "displayName": str(company["name"]),
+                "email": buyer_email,
+            }
+        else:
+            person = persons[str(person_id)]
+            buyer_email = str(person["email"])
+            customer_snapshot = {
+                "partyKind": "person",
+                "twentyId": str(person_id),
+                "displayName": (
+                    f"{person['givenName']} {person['familyName']}".strip()
+                ),
+                "email": buyer_email,
+            }
+        if invoice is not None:
+            address = invoice["addressSnapshot"]
+            recipient_snapshot = {
+                "recipientName": address["recipient"],
+                "streetLine1": address["street"],
+                "postalCode": address["postalCode"],
+                "city": address["city"],
+                "countryCode": address["country"],
+                "email": buyer_email,
+            }
+        else:
+            recipient_snapshot = None
+        created_at = GOLDEN_COMMITMENT_CREATED_AT + timedelta(minutes=commitment_index)
         await connection.execute(
             """
             INSERT INTO commitment (
@@ -915,10 +960,13 @@ async def seed_operational_golden(
                 customer_snapshot,
                 invoice_recipient_snapshot,
                 currency,
-                total_minor
+                total_minor,
+                created_at,
+                updated_at
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7::json, $8::json, 'EUR', $9
+                $1, $2, $3, $4, $5, $6, $7::json, $8::json, 'EUR', $9,
+                $10, $10
             )
             """,
             commitment["id"],
@@ -934,6 +982,7 @@ async def seed_operational_golden(
                 else None
             ),
             total_minor,
+            created_at,
         )
         for line in commitment["lines"]:
             offer = offers[str(line["offerId"])]

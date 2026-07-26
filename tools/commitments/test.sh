@@ -5,15 +5,21 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_COMMITMENT_TEST_PROJECT:-leonaid-poc080-test}
+project=${LEONAID_COMMITMENT_TEST_PROJECT:-leonaid-poc081-test}
+http_port=${LEONAID_COMMITMENT_TEST_PORT:-18096}
+https_port=${LEONAID_COMMITMENT_TEST_HTTPS_PORT:-18456}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 fixture="$root/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
 integration_key=""
+anna_session="poc080-10000000-0000-4000-8000-000000000004-server-session-token-value"
+klara_session="poc080-10000000-0000-4000-8000-000000000002-server-session-token-value"
 
 compose() {
-  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_HTTP_PORT="$http_port" \
+    LEONAID_HTTPS_PORT="$https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
@@ -29,7 +35,7 @@ cleanup() {
     compose logs --no-color --tail=160 \
       api core-postgres twenty-server twenty-worker >&2 || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
   exit "$status"
 }
@@ -40,8 +46,8 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose build api
+compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+compose build api pwa web
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -96,4 +102,59 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/commitments/contract.py
 
-echo "commitment-test: OK: Offering-, Mengen- und Commitment-Vertrag real bewiesen"
+compose up --detach --wait --wait-timeout 420 pwa web proxy
+
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env LEONAID_E2E_PROOF_PATH=/proof/poc081-created.json \
+  --env ANNA_SESSION="$anna_session" \
+  --env KLARA_SESSION="$klara_session" \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  --config=tests/e2e/pwa.config.mjs \
+  commitments.spec.mjs \
+  --output=/proof/test-results \
+  --reporter=line
+
+compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env API_BASE_URL=http://api:8000 \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --env UI_PROOF_PATH=/proof/poc081-created.json \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/commitments/verify_ui.py
+
+for screenshot in \
+  commitment-capture-mobile.png \
+  commitment-success-mobile.png \
+  commitment-admin-desktop.png; do
+  if [ ! -s "$proof/$screenshot" ]; then
+    echo "commitment-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    exit 1
+  fi
+done
+for browser in chromium firefox webkit; do
+  for width in 390 768 1440; do
+    screenshot="$proof/commitment-capture-$browser-$width.png"
+    if [ ! -s "$screenshot" ]; then
+      echo "commitment-test: ERROR: Browsermatrix fehlt: $screenshot" >&2
+      exit 1
+    fi
+  done
+done
+
+mkdir -p "$root/.artifacts/poc081"
+cp "$proof"/commitment-*.png "$root/.artifacts/poc081/"
+cp "$proof/poc081-created.json" "$root/.artifacts/poc081/"
+
+echo "commitment-test: OK: Serververtrag, Browsererfassung, Admin-Sicht,"
+echo "commitment-test:     Golden-Summen und 9 Browser/Viewports real bewiesen"

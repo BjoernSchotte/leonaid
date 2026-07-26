@@ -38,12 +38,12 @@ cleanup() {
     compose ps >&2 || true
     compose logs --no-color --tail=100 >&2 || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 echo "seed-test: beweist Ablehnung eines Produktions-DSN vor jeder Löschung"
 if compose config --format json |

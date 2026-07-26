@@ -2,6 +2,7 @@ import {
   Add01Icon,
   ArrowRight02Icon,
   Mail01Icon,
+  PackageAdd01Icon,
   Search01Icon,
   TelephoneIcon,
   UserMultiple02Icon,
@@ -106,9 +107,11 @@ function IconAction({
 }
 
 function SponsorRow({
+  actionId,
   identity,
   item,
 }: {
+  readonly actionId: string;
   readonly identity: CurrentIdentityResponse;
   readonly item: AcquisitionActivityWorkItemResponse;
 }) {
@@ -177,7 +180,7 @@ function SponsorRow({
           </IconAction>
         ) : null}
         <a
-          className="acq-contact-action acq-contact-action--next"
+          className="acq-contact-action"
           href={`/app/activities?assignment=${encodeURIComponent(item.assignmentId)}`}
         >
           <span>Aktivität</span>
@@ -188,16 +191,30 @@ function SponsorRow({
             strokeWidth={1.8}
           />
         </a>
+        <a
+          className="acq-contact-action acq-contact-action--next"
+          href={`/app/commitments/new?action=${encodeURIComponent(actionId)}&assignment=${encodeURIComponent(item.assignmentId)}`}
+        >
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={PackageAdd01Icon}
+            size={18}
+            strokeWidth={1.8}
+          />
+          <span>Bestellung</span>
+        </a>
       </div>
     </article>
   );
 }
 
 function SponsorList({
+  actionId,
   identity,
   items,
   onCreate,
 }: {
+  readonly actionId: string;
   readonly identity: CurrentIdentityResponse;
   readonly items: ReadonlyArray<AcquisitionActivityWorkItemResponse>;
   readonly onCreate: () => void;
@@ -259,6 +276,7 @@ function SponsorList({
         <div className="acq-sponsor-list" data-testid="sponsor-list">
           {visible.map((item) => (
             <SponsorRow
+              actionId={actionId}
               identity={identity}
               item={item}
               key={item.assignmentId}
@@ -878,6 +896,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         </StatusMessage>
       ) : (
         <SponsorList
+          actionId={actionId}
           identity={identity}
           items={board.data?.workItems ?? []}
           onCreate={() => setView("new")}

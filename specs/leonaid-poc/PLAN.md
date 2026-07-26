@@ -1019,24 +1019,24 @@ Tests/Nachweise:
 - [x] Integrationstest persistiert alle Golden-Bestellquellen.
 - [x] Manipulierte Clientbeträge verändern den berechneten Gesamtbetrag nicht.
 
-### [ ] POC-081 Interne Bestell-/Zusagenerfassung bauen
+### [x] POC-081 Interne Bestell-/Zusagenerfassung bauen
 
 Abhängigkeiten: POC-062, POC-080
 
 Akzeptanzkriterien:
 
-- [ ] Akquisiteur kann aus dem Sponsor-Kontext eine Bestellung/Zusage
+- [x] Akquisiteur kann aus dem Sponsor-Kontext eine Bestellung/Zusage
       erfassen.
-- [ ] Formular zeigt Angebot, Einheit, Menge, Preis und Rechnungsempfänger
+- [x] Formular zeigt Angebot, Einheit, Menge, Preis und Rechnungsempfänger
       verständlich.
-- [ ] Entwurf und prüfbereite Bestellung sind visuell unterscheidbar.
-- [ ] Wiederholung und konkurrierender Submit sind idempotent.
+- [x] Entwurf und prüfbereite Bestellung sind visuell unterscheidbar.
+- [x] Wiederholung und konkurrierender Submit sind idempotent.
 
 Tests/Nachweise:
 
-- [ ] E2E erfasst eine Bestellung als Akquisiteur und prüft sie als Admin.
-- [ ] Integrationstest erzeugt bei parallelem Submit genau ein Commitment.
-- [ ] Golden-Gesamtsummen stimmen in API, UI und Datenbank überein.
+- [x] E2E erfasst eine Bestellung als Akquisiteur und prüft sie als Admin.
+- [x] Integrationstest erzeugt bei parallelem Submit genau ein Commitment.
+- [x] Golden-Gesamtsummen stimmen in API, UI und Datenbank überein.
 
 ### [ ] POC-082 ActivityEvent und „Neues/Aktivitäten“ umsetzen
 

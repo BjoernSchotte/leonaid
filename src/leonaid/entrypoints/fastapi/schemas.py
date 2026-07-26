@@ -538,6 +538,31 @@ class CommitmentResponse(TransportModel):
     replayed: bool
 
 
+class CommitmentCaptureContextResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    offerings: list[ConfiguredOfferingResponse]
+
+
+class CommitmentRecordResponse(TransportModel):
+    commitment: CommitmentResponse
+    created_at: datetime
+    captured_by_display_name: str | None
+
+
+class CommitmentCurrencyTotalResponse(TransportModel):
+    currency: str
+    total_minor: int = Field(ge=0)
+
+
+class CommitmentListResponse(TransportModel):
+    action_id: UUID
+    items: list[CommitmentRecordResponse]
+    currency_totals: list[CommitmentCurrencyTotalResponse]
+    total_pieces: int = Field(ge=0)
+    total_boxes: int = Field(ge=0)
+
+
 class UpdateActionDetailsRequest(TransportModel):
     revision: int = Field(ge=1)
     carrier_name: str = Field(min_length=1, max_length=200)

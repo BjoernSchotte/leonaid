@@ -1,0 +1,693 @@
+.commitment-page {
+  display: grid;
+  gap: clamp(1.1rem, 2.4vw, 1.8rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.commitment-page__header {
+  display: grid;
+  gap: 0.42rem;
+  max-width: 58rem;
+}
+
+.commitment-page__header h1,
+.commitment-page__header p,
+.commitment-summary h2,
+.commitment-summary p,
+.commitment-success h1,
+.commitment-success p {
+  margin: 0;
+}
+
+.commitment-page__header h1,
+.commitment-success h1 {
+  color: var(--foreground);
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: -0.048em;
+}
+
+.commitment-page__header > p:not(.commitment-eyebrow),
+.commitment-page__header > div > p:not(.commitment-eyebrow),
+.commitment-success > p:not(.commitment-eyebrow) {
+  max-width: 49rem;
+  color: var(--muted);
+  font-size: clamp(0.94rem, 2vw, 1.05rem);
+  line-height: 1.65;
+}
+
+.commitment-eyebrow {
+  color: var(--accent-foreground);
+  font-size: 0.72rem !important;
+  font-weight: 820;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.commitment-back-link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.commitment-back-link:hover {
+  color: var(--foreground);
+}
+
+.commitment-capture {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+}
+
+.commitment-capture__form {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  border-block: 1px solid var(--border);
+}
+
+.commitment-step {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  margin: 0;
+  padding: 1.35rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.commitment-step:last-child {
+  border-bottom: 0;
+}
+
+.commitment-step legend {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 790;
+  overflow-wrap: anywhere;
+}
+
+.commitment-step legend > span {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-size: 0.73rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-step__intro {
+  max-width: 43rem;
+  margin: -0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.commitment-field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.38rem;
+}
+
+.commitment-field label {
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.commitment-field small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.commitment-field input,
+.commitment-field select {
+  width: 100%;
+  min-height: 2.95rem;
+  padding: 0.68rem 0.76rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+.commitment-field input::placeholder {
+  color: color-mix(in oklch, var(--muted) 82%, var(--foreground));
+}
+
+.commitment-field input:focus,
+.commitment-field select:focus {
+  border-color: var(--focus);
+  outline: 3px solid color-mix(in oklch, var(--focus) 32%, transparent);
+  outline-offset: 0;
+}
+
+.commitment-field--wide {
+  grid-column: 1 / -1;
+}
+
+.commitment-party {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.commitment-party > span,
+.commitment-summary__heading > span,
+.commitment-ledger-row__buyer > span {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--accent-foreground);
+  background: var(--accent);
+}
+
+.commitment-party > div,
+.commitment-summary__heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.commitment-party strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitment-party small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.commitment-offering-grid,
+.commitment-recipient-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+}
+
+.commitment-summary {
+  display: grid;
+  align-content: start;
+  gap: 1.1rem;
+  min-width: 0;
+  padding: clamp(1.1rem, 3vw, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.commitment-summary__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.commitment-summary__heading h2 {
+  font-size: 1.12rem;
+  letter-spacing: -0.025em;
+}
+
+.commitment-summary__heading p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.commitment-summary__facts,
+.commitment-success__facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.commitment-summary__facts > div,
+.commitment-success__facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.commitment-summary__facts dt,
+.commitment-success__facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.commitment-summary__facts dd,
+.commitment-success__facts dd {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 720;
+  text-align: right;
+}
+
+.commitment-summary__total {
+  display: grid;
+  gap: 0.18rem;
+  padding: 1rem 0;
+  border-block: 1px solid var(--border);
+}
+
+.commitment-summary__total > span,
+.commitment-summary__total > small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.commitment-summary__total > strong {
+  color: var(--foreground);
+  font-size: clamp(1.65rem, 5vw, 2.2rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+
+.commitment-submit-choices {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.commitment-submit-choices > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.commitment-submit-choices .ui-button {
+  width: 100%;
+  min-height: 3rem;
+  white-space: normal;
+}
+
+.commitment-submit-choices small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.commitment-status {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.commitment-status::before {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.commitment-status[data-status="review_ready"] {
+  border-color: color-mix(in oklch, var(--info) 38%, var(--border));
+  color: var(--info-text);
+  background: color-mix(in oklch, var(--info) 11%, var(--surface));
+}
+
+.commitment-status[data-status="draft"] {
+  border-style: dashed;
+}
+
+.commitment-status[data-status="confirmed"],
+.commitment-status[data-status="invoiced"] {
+  border-color: color-mix(in oklch, var(--success) 34%, var(--border));
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.commitment-status[data-status="cancelled"] {
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 9%, var(--surface));
+}
+
+.commitment-success {
+  display: grid;
+  width: min(100%, 44rem);
+  justify-self: center;
+  justify-items: start;
+  gap: 0.65rem;
+  padding-block: clamp(2rem, 8vw, 5rem);
+}
+
+.commitment-success__icon {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 13%, var(--surface));
+}
+
+.commitment-success__facts {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.commitment-success__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.commitment-loading {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.commitment-loading span {
+  height: 5rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.commitment-empty {
+  display: grid;
+  min-height: 11rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  padding: 1.5rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: var(--surface-muted);
+  text-align: center;
+}
+
+.commitment-empty svg {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-bottom: 0.2rem;
+  color: var(--accent-foreground);
+}
+
+.commitment-empty strong {
+  color: var(--foreground);
+}
+
+.commitment-empty span {
+  max-width: 34rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.commitment-page__header--admin {
+  max-width: none;
+}
+
+.commitment-action-picker {
+  width: min(100%, 22rem);
+}
+
+.commitment-totals {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-block: 1px solid var(--border);
+}
+
+.commitment-totals > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.commitment-totals > div:last-child {
+  border-bottom: 0;
+}
+
+.commitment-totals > div > span {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--accent-foreground);
+  background: var(--accent);
+}
+
+.commitment-totals p {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.commitment-totals small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.commitment-totals strong {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.commitment-ledger-toolbar > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-filter {
+  display: inline-grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.commitment-filter button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 0.18rem);
+  color: var(--muted);
+  background: transparent;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.commitment-filter button[aria-selected="true"] {
+  color: var(--foreground);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.commitment-filter button:focus-visible,
+.commitment-back-link:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.commitment-ledger {
+  display: grid;
+  border-block: 1px solid var(--border);
+}
+
+.commitment-ledger-row {
+  display: grid;
+  min-width: 0;
+  gap: 0.85rem;
+  padding: 1rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.commitment-ledger-row:last-child {
+  border-bottom: 0;
+}
+
+.commitment-ledger-row__buyer {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.commitment-ledger-row__buyer > div,
+.commitment-ledger-row__order,
+.commitment-ledger-row__status {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.commitment-ledger-row__buyer strong,
+.commitment-ledger-row__order strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commitment-ledger-row__buyer small,
+.commitment-ledger-row__order span,
+.commitment-ledger-row__order small,
+.commitment-ledger-row__status small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.commitment-ledger-row__status {
+  justify-items: start;
+}
+
+.commitment-ledger-row__amount {
+  align-self: center;
+  color: var(--foreground);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 660px) {
+  .commitment-offering-grid,
+  .commitment-recipient-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commitment-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .commitment-totals > div {
+    padding-inline: 1rem;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .commitment-totals > div:first-child {
+    padding-left: 0;
+  }
+
+  .commitment-totals > div:last-child {
+    border-right: 0;
+  }
+}
+
+@media (min-width: 940px) {
+  .commitment-capture {
+    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.72fr);
+    align-items: start;
+    gap: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .commitment-summary {
+    position: sticky;
+    top: 6rem;
+  }
+
+  .commitment-page__header--admin {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 2rem;
+  }
+
+  .commitment-ledger-row {
+    grid-template-columns:
+      minmax(13rem, 1.2fr)
+      minmax(13rem, 1fr)
+      minmax(8rem, 0.65fr)
+      auto;
+    align-items: center;
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .commitment-ledger-row__amount {
+    justify-self: end;
+  }
+}
+
+@media (max-width: 600px) {
+  .commitment-ledger-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commitment-filter {
+    width: 100%;
+  }
+
+  .commitment-success__actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .commitment-success__actions .ui-button {
+    width: 100%;
+  }
+}
+
+@media (pointer: coarse) {
+  .commitment-field input,
+  .commitment-field select,
+  .commitment-filter button,
+  .commitment-back-link {
+    min-height: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commitment-loading span {
+    animation: none;
+  }
+}

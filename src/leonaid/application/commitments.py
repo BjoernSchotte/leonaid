@@ -19,9 +19,12 @@ from leonaid.domain.commitments import (
     CommitmentSource,
     CommitmentStatus,
     InvoiceRecipientSnapshot,
+    Money,
+    Offering,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.domain.policies import may_manage_action
 
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 
@@ -106,7 +109,49 @@ class CommitmentDraft:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class CommitmentCaptureContext:
+    action_id: UUID
+    action_name: str
+    offerings: tuple[Offering, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CommitmentRecord:
+    commitment: Commitment
+    created_at: datetime
+    captured_by_display_name: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class CommitmentCurrencyTotal:
+    currency: str
+    total: Money
+
+
+@dataclass(frozen=True, slots=True)
+class CommitmentList:
+    action_id: UUID
+    records: tuple[CommitmentRecord, ...]
+    currency_totals: tuple[CommitmentCurrencyTotal, ...]
+    total_boxes: int
+    total_pieces: int
+
+
 class CommitmentRepository(Protocol):
+    async def capture_context(
+        self,
+        *,
+        action_id: UUID,
+        evaluated_at: datetime,
+    ) -> CommitmentCaptureContext: ...
+
+    async def list_for_action(
+        self,
+        *,
+        action_id: UUID,
+    ) -> tuple[CommitmentRecord, ...]: ...
+
     async def create(
         self,
         *,
@@ -125,6 +170,51 @@ class CommitmentRepository(Protocol):
 class CommitmentService:
     def __init__(self, repository: CommitmentRepository) -> None:
         self._repository = repository
+
+    async def capture_context(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> CommitmentCaptureContext:
+        if not actor.account.can_authenticate or (
+            ActionRole.ACQUIRER not in actor.roles_for(action_id)
+            and not may_manage_action(actor, action_id)
+        ):
+            raise PermissionDenied(
+                "commitment_capture_required",
+                "Für diese Aktion darfst du keine Bestellung erfassen.",
+            )
+        return await self._repository.capture_context(
+            action_id=action_id,
+            evaluated_at=evaluated_at or datetime.now(timezone.utc),
+        )
+
+    async def list_for_action(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+    ) -> CommitmentList:
+        require_action_manager(actor, action_id)
+        records = await self._repository.list_for_action(action_id=action_id)
+        totals: dict[str, Money] = {}
+        for record in records:
+            total = record.commitment.total
+            totals[total.currency] = totals.get(
+                total.currency,
+                Money(0, total.currency),
+            ).plus(total)
+        return CommitmentList(
+            action_id=action_id,
+            records=records,
+            currency_totals=tuple(
+                CommitmentCurrencyTotal(currency=currency, total=totals[currency])
+                for currency in sorted(totals)
+            ),
+            total_boxes=sum(record.commitment.total_boxes for record in records),
+            total_pieces=sum(record.commitment.total_pieces for record in records),
+        )
 
     async def create_internal(
         self,

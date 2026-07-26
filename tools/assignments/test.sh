@@ -33,7 +33,7 @@ cleanup() {
     compose logs --no-color --tail=120 \
       api core-postgres twenty-server twenty-worker pwa proxy >&2 || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
   exit "$status"
 }
@@ -44,7 +44,7 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose build api pwa
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker

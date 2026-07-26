@@ -390,7 +390,11 @@ reset_systems() {
   require_docker
   validate_reset_target
   compose --profile dev-mail down --volumes --remove-orphans
+  rm -f "$root/.local/twenty/integration.env"
   compose --profile dev-mail up --build --detach --wait --wait-timeout 420
+  provision_twenty
+  compose --profile dev-mail up --detach --force-recreate \
+    --wait --wait-timeout 420 api worker
   seed_systems
   snapshot_systems golden-v1.json
   echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"

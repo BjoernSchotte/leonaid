@@ -23,8 +23,11 @@ from leonaid.application.assignments import (
     AssignmentManagementService,
 )
 from leonaid.application.commitments import (
+    CommitmentCaptureContext,
     CommitmentDraft,
+    CommitmentList,
     CommitmentLineDraft,
+    CommitmentRecord,
     CommitmentService,
 )
 from leonaid.application.actions import (
@@ -113,8 +116,12 @@ from leonaid.entrypoints.fastapi.schemas import (
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
     CommitmentBuyerResponse,
+    CommitmentCaptureContextResponse,
+    CommitmentCurrencyTotalResponse,
     CommitmentInvoiceRecipientResponse,
+    CommitmentListResponse,
     CommitmentLineResponse,
+    CommitmentRecordResponse,
     CommitmentResponse,
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
@@ -648,6 +655,59 @@ def commitment_response(commitment: Commitment) -> CommitmentResponse:
         total_pieces=commitment.total_pieces,
         total_boxes=commitment.total_boxes,
         replayed=commitment.replayed,
+    )
+
+
+def commitment_capture_context_response(
+    context: CommitmentCaptureContext,
+) -> CommitmentCaptureContextResponse:
+    return CommitmentCaptureContextResponse(
+        action_id=context.action_id,
+        action_name=context.action_name,
+        offerings=[
+            ConfiguredOfferingResponse(
+                id=offering.id,
+                code=offering.code,
+                name=offering.name,
+                status=offering.status.value,
+                unit=offering.pricing_unit.value,
+                allowed_quantity_units=sorted(
+                    unit.value for unit in offering.allowed_quantity_units
+                ),
+                pieces_per_unit=offering.pieces_per_unit,
+                unit_price_minor=offering.unit_price.amount_minor,
+                currency=offering.unit_price.currency,
+                available_from=offering.available_from,
+                available_until=offering.available_until,
+            )
+            for offering in context.offerings
+        ],
+    )
+
+
+def commitment_record_response(
+    record: CommitmentRecord,
+) -> CommitmentRecordResponse:
+    return CommitmentRecordResponse(
+        commitment=commitment_response(record.commitment),
+        created_at=record.created_at,
+        captured_by_display_name=record.captured_by_display_name,
+    )
+
+
+def commitment_list_response(value: CommitmentList) -> CommitmentListResponse:
+    return CommitmentListResponse(
+        action_id=value.action_id,
+        items=[commitment_record_response(record) for record in value.records],
+        currency_totals=[
+            CommitmentCurrencyTotalResponse(
+                currency=item.currency,
+                total_minor=item.total.amount_minor,
+            )
+            for item in value.currency_totals
+        ],
+        total_pieces=value.total_pieces,
+        total_boxes=value.total_boxes,
     )
 
 
@@ -1203,6 +1263,42 @@ async def get_charity_action_configuration(
     )
     response.headers["Cache-Control"] = "no-store"
     return charity_action_configuration_response(action, configuration)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/commitment-capture",
+    operation_id="getCommitmentCaptureContext",
+    response_model=CommitmentCaptureContextResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def get_commitment_capture_context(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> CommitmentCaptureContextResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    context = await commitment_service(request).capture_context(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return commitment_capture_context_response(context)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/commitments",
+    operation_id="listCommitments",
+    response_model=CommitmentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def list_commitments(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> CommitmentListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    commitments = await commitment_service(request).list_for_action(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return commitment_list_response(commitments)
 
 
 @router.post(

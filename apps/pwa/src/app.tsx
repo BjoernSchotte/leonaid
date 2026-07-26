@@ -10,7 +10,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
-import { ActivityWorkspace, SponsorWorkspace } from "@leonaid/features";
+import {
+  ActivityWorkspace,
+  CommitmentCapturePage,
+  SponsorWorkspace,
+} from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
 interface AppProps {
@@ -23,6 +27,9 @@ interface InstallPromptEvent extends Event {
 }
 
 function currentRoute() {
+  if (window.location.pathname.startsWith("/app/commitments")) {
+    return "commitment" as const;
+  }
   if (window.location.pathname.startsWith("/app/activities")) {
     return "activities" as const;
   }
@@ -323,6 +330,8 @@ export function App({ client }: AppProps) {
       >
         {route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
+        ) : route === "commitment" ? (
+          <CommitmentCapturePage client={client} identity={identity.data} />
         ) : route === "activities" ? (
           <ActivityWorkspace client={client} identity={identity.data} />
         ) : (

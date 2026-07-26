@@ -29,7 +29,7 @@ outbox_cli() {
 }
 
 cleanup() {
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
 

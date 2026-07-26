@@ -8,6 +8,7 @@ import {
   Invoice03Icon,
   Logout01Icon,
   Menu01Icon,
+  PackageAdd01Icon,
   Settings02Icon,
   SidebarLeftIcon,
   UserGroupIcon,
@@ -37,15 +38,18 @@ const navigationIcons = {
   activities: Activity01Icon,
   invoices: Invoice03Icon,
   members: UserGroupIcon,
+  orders: PackageAdd01Icon,
   "overview-pwa": DashboardSquare01Icon,
   "overview-web": DashboardSquare01Icon,
+  commitment: PackageAdd01Icon,
   sponsors: AddressBookIcon,
   system: Settings02Icon,
 } as const;
 
-const implementedWebNavigation = new Set(["actions", "members"]);
+const implementedWebNavigation = new Set(["actions", "members", "orders"]);
 const implementedPwaNavigation = new Set([
   "activities",
+  "commitment",
   "overview-pwa",
   "sponsors",
 ]);

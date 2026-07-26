@@ -45,7 +45,7 @@ cleanup() {
     echo "invitation-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
   exit "$status"
 }
@@ -64,7 +64,7 @@ run_python() {
     api "$@"
 }
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose up --build --detach --wait --wait-timeout 420 \
   proxy worker mailpit
 

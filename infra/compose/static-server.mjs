@@ -29,6 +29,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
         ? pathname.slice(1)
         : pathname === "/" ||
             pathname === "/members" ||
+            pathname === "/orders" ||
             pathname === "/actions" ||
             pathname.startsWith("/actions/")
           ? "index.html"
@@ -45,7 +46,8 @@ function assetFile(requestUrl, assetDirectory, kind) {
           ? "offline.html"
           : pathname === "/" ||
               pathname === "/sponsors" ||
-              pathname === "/activities"
+              pathname === "/activities" ||
+              pathname.startsWith("/commitments/")
             ? "index.html"
             : undefined;
   }

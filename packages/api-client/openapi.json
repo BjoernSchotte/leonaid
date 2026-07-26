@@ -1450,6 +1450,54 @@
         "title": "CommitmentBuyerResponse",
         "type": "object"
       },
+      "CommitmentCaptureContextResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "offerings": {
+            "items": {
+              "$ref": "#/components/schemas/ConfiguredOfferingResponse"
+            },
+            "title": "Offerings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "offerings"
+        ],
+        "title": "CommitmentCaptureContextResponse",
+        "type": "object"
+      },
+      "CommitmentCurrencyTotalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "totalMinor": {
+            "minimum": 0.0,
+            "title": "Totalminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency",
+          "totalMinor"
+        ],
+        "title": "CommitmentCurrencyTotalResponse",
+        "type": "object"
+      },
       "CommitmentInvoiceRecipientRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1679,6 +1727,80 @@
           "currency"
         ],
         "title": "CommitmentLineResponse",
+        "type": "object"
+      },
+      "CommitmentListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "currencyTotals": {
+            "items": {
+              "$ref": "#/components/schemas/CommitmentCurrencyTotalResponse"
+            },
+            "title": "Currencytotals",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CommitmentRecordResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "totalBoxes": {
+            "minimum": 0.0,
+            "title": "Totalboxes",
+            "type": "integer"
+          },
+          "totalPieces": {
+            "minimum": 0.0,
+            "title": "Totalpieces",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actionId",
+          "items",
+          "currencyTotals",
+          "totalPieces",
+          "totalBoxes"
+        ],
+        "title": "CommitmentListResponse",
+        "type": "object"
+      },
+      "CommitmentRecordResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capturedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capturedbydisplayname"
+          },
+          "commitment": {
+            "$ref": "#/components/schemas/CommitmentResponse"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commitment",
+          "createdAt",
+          "capturedByDisplayName"
+        ],
+        "title": "CommitmentRecordResponse",
         "type": "object"
       },
       "CommitmentResponse": {
@@ -6281,7 +6403,201 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/commitment-capture": {
+      "get": {
+        "operationId": "getCommitmentCaptureContext",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentCaptureContextResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Commitment Capture Context",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/commitments": {
+      "get": {
+        "operationId": "listCommitments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Commitments",
+        "tags": [
+          "commitments"
+        ]
+      },
       "post": {
         "operationId": "createCommitment",
         "parameters": [

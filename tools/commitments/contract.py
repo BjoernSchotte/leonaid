@@ -45,6 +45,10 @@ def token_for(user_id: UUID) -> str:
     return f"poc080-{user_id}-server-session-token-value"
 
 
+def session_headers(token: str) -> dict[str, str]:
+    return {"Cookie": f"{SESSION_COOKIE_NAME}={token}"}
+
+
 async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[UUID, str]:
     now = datetime.now(timezone.utc)
     users = (KLARA_ID, ANNA_ID)
@@ -92,7 +96,7 @@ async def post_commitment(
     return await client.post(
         f"/api/v1/actions/{ACTION_ID}/commitments",
         headers={
-            "Cookie": f"{SESSION_COOKIE_NAME}={token}",
+            **session_headers(token),
             "Idempotency-Key": idempotency_key,
             "X-Request-ID": request_id,
         },
@@ -225,6 +229,52 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     )
 
     async with httpx.AsyncClient(base_url=api_url, timeout=60) as api:
+        capture_context = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/commitment-capture",
+            headers=session_headers(tokens[ANNA_ID]),
+        )
+        capture_context.raise_for_status()
+        capture_value = capture_context.json()
+        if (
+            capture_value["actionName"] != "Krapfentaxi 2026"
+            or len(capture_value["offerings"]) != 1
+            or capture_value["offerings"][0]["id"] != str(ACTIVE_OFFERING_ID)
+            or capture_value["offerings"][0]["unitPriceMinor"] != 3_600
+        ):
+            raise ContractFailure("Akquisiteur erhält keinen korrekten Bestellkontext")
+
+        forbidden_list = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/commitments",
+            headers=session_headers(tokens[ANNA_ID]),
+        )
+        if forbidden_list.status_code != 403:
+            raise ContractFailure(
+                "Akquisiteur konnte den vollständigen Admin-Arbeitsvorrat lesen"
+            )
+
+        seeded_list = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/commitments",
+            headers=session_headers(tokens[KLARA_ID]),
+        )
+        seeded_list.raise_for_status()
+        seeded_value = seeded_list.json()
+        if (
+            len(seeded_value["items"]) != 6
+            or seeded_value["totalBoxes"] != 25
+            or seeded_value["totalPieces"] != 600
+            or seeded_value["currencyTotals"]
+            != [{"currency": "EUR", "totalMinor": 90_000}]
+            or {item["commitment"]["source"] for item in seeded_value["items"]}
+            != {"acquisition", "public_form", "admin"}
+            or any(
+                not item["commitment"]["buyer"]["displayName"]
+                for item in seeded_value["items"]
+            )
+        ):
+            raise ContractFailure(
+                "Golden-Gesamtsummen oder Bestell-Snapshots fehlen in der Admin-API"
+            )
+
         created = await post_commitment(
             api,
             token=tokens[ANNA_ID],
@@ -364,6 +414,55 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ):
             raise ContractFailure("Admin-Commitment verwendet keinen Serverpreis")
 
+        parallel_body = body_for(
+            source="acquisition",
+            company_id=MUSTERWERK_ID,
+            company_name="Musterwerk GmbH",
+            quantity=1,
+            ready=True,
+        )
+        parallel_responses = await asyncio.gather(
+            *(
+                post_commitment(
+                    api,
+                    token=tokens[ANNA_ID],
+                    idempotency_key="poc081:parallel:musterwerk",
+                    request_id=f"poc081:parallel:{index}",
+                    body=parallel_body,
+                )
+                for index in range(12)
+            )
+        )
+        for response in parallel_responses:
+            response.raise_for_status()
+        parallel_values = [response.json() for response in parallel_responses]
+        parallel_ids = {item["id"] for item in parallel_values}
+        if (
+            len(parallel_ids) != 1
+            or sum(not item["replayed"] for item in parallel_values) != 1
+            or any(item["totalMinor"] != 3_600 for item in parallel_values)
+        ):
+            raise ContractFailure(
+                "Parallele Submits erzeugten mehr als ein fachliches Commitment"
+            )
+
+        final_list = await api.get(
+            f"/api/v1/actions/{ACTION_ID}/commitments",
+            headers=session_headers(tokens[KLARA_ID]),
+        )
+        final_list.raise_for_status()
+        final_value = final_list.json()
+        if (
+            len(final_value["items"]) != 9
+            or final_value["totalBoxes"] != 29
+            or final_value["totalPieces"] != 696
+            or final_value["currencyTotals"]
+            != [{"currency": "EUR", "totalMinor": 104_400}]
+        ):
+            raise ContractFailure(
+                "API-Summen nach serieller und paralleler Erfassung sind falsch"
+            )
+
     persisted = await connection.fetchrow(
         """
         SELECT
@@ -414,14 +513,36 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
           AND request_id IN ('poc080:create-acquisition', 'poc080:create-admin')
         """
     )
-    if duplicate_count != 1 or audit_count != 2:
+    parallel_count = await connection.fetchval(
+        "SELECT count(*) FROM commitment WHERE idempotency_key = $1",
+        "poc081:parallel:musterwerk",
+    )
+    parallel_audit_count = await connection.fetchval(
+        """
+        SELECT count(*)
+        FROM audit_event
+        WHERE event_type = 'commitment_created'
+          AND entity_id = (
+              SELECT id
+              FROM commitment
+              WHERE idempotency_key = 'poc081:parallel:musterwerk'
+          )
+        """
+    )
+    if (
+        duplicate_count != 1
+        or audit_count != 2
+        or parallel_count != 1
+        or parallel_audit_count != 1
+    ):
         raise ContractFailure(
             "Idempotenz oder transaktionaler Commitment-Audit ist unvollständig"
         )
 
     print(
-        "commitment-contract: drei Golden-Quellen, Serverpreise, 25 Boxen/"
-        "600 Stück, getrennte Snapshots und idempotente Persistenz real bewiesen"
+        "commitment-contract: drei Golden-Quellen, Capture-/Admin-API, "
+        "Serverpreise, 25 Boxen/600 Stück, getrennte Snapshots und zwölf "
+        "parallele Submits als genau ein Commitment real bewiesen"
     )
 
 
