@@ -567,6 +567,77 @@ class SponsorResolutionResponse(TransportModel):
     prior_assignees: list[AssignedAcquirerResponse]
 
 
+AssignmentPartyKindValue = Literal["company", "person"]
+AssignmentStatusValue = Literal[
+    "open",
+    "contacted",
+    "committed",
+    "declined",
+    "handed_over",
+]
+
+
+class CreateAcquisitionAssignmentRequest(TransportModel):
+    party_kind: AssignmentPartyKindValue
+    party_id: UUID
+    acquirer_user_id: UUID
+
+
+class UpdateAcquisitionAssignmentRequest(TransportModel):
+    revision: int = Field(ge=1)
+    status: Literal["open", "contacted", "committed", "declined"]
+    priority: int = Field(ge=0, le=3)
+    next_action: str | None = Field(default=None, max_length=300)
+    due_at: datetime | None = None
+
+
+class HandOverAcquisitionAssignmentRequest(TransportModel):
+    revision: int = Field(ge=1)
+    target_acquirer_user_id: UUID
+
+
+class AcquisitionAssignmentResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    party_kind: AssignmentPartyKindValue
+    party_id: UUID
+    acquirer_user_id: UUID
+    acquirer_display_name: str
+    status: AssignmentStatusValue
+    priority: int = Field(ge=0, le=3)
+    next_action: str | None
+    due_at: datetime | None
+    revision: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime
+
+
+class AcquisitionAssignmentMutationResponse(TransportModel):
+    assignment: AcquisitionAssignmentResponse
+    created: bool
+
+
+class AcquisitionAssignmentHistoryResponse(TransportModel):
+    id: UUID
+    assignment_id: UUID
+    changed_by_user_id: UUID
+    changed_by_display_name: str
+    previous_state: dict[str, object]
+    new_state: dict[str, object]
+    changed_at: datetime
+
+
+class AcquisitionAssignmentDetailsResponse(TransportModel):
+    assignment: AcquisitionAssignmentResponse
+    history: list[AcquisitionAssignmentHistoryResponse]
+
+
+class AcquisitionAssignmentHandoverResponse(TransportModel):
+    source: AcquisitionAssignmentResponse
+    target: AcquisitionAssignmentResponse
+    target_created: bool
+
+
 class AcquisitionPartyResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID

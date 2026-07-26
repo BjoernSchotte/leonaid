@@ -832,26 +832,29 @@ Nachweis:
 
 ## M6 – Akquise und PWA
 
-### [ ] POC-060 AcquisitionAssignment und Historie implementieren
+### [x] POC-060 AcquisitionAssignment und Historie implementieren
 
 Abhängigkeiten: POC-032, POC-043, POC-050
 
 Akzeptanzkriterien:
 
-- [ ] Eindeutigkeit gilt für Aktion + CRM-Partei + Akquisiteur.
-- [ ] Mehrere Akquisiteure dürfen derselben Partei zugeordnet sein.
-- [ ] Zuweisung, Übergabe, Status, Priorität, nächste Aktion und Fälligkeit
+- [x] Eindeutigkeit gilt für Aktion + CRM-Partei + Akquisiteur.
+- [x] Mehrere Akquisiteure dürfen derselben Partei zugeordnet sein.
+- [x] Zuweisung, Übergabe, Status, Priorität, nächste Aktion und Fälligkeit
       sind historisiert.
-- [ ] Proaktive Admin-Zuweisung ist möglich, aber nicht Voraussetzung für
+- [x] Proaktive Admin-Zuweisung ist möglich, aber nicht Voraussetzung für
       Neuanlage durch Akquisiteur.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Mehrfachzuordnung und Historienregeln.
-- [ ] Integrationstest erzeugt konkurrierend dieselbe Zuweisung und erhält
+- [x] Unit-Tests prüfen Mehrfachzuordnung und Historienregeln.
+- [x] Integrationstest erzeugt konkurrierend dieselbe Zuweisung und erhält
       genau einen Datensatz.
-- [ ] E2E zeigt gemeinsame Zuordnung samt Namen und verhindert keine
+- [x] E2E zeigt gemeinsame Zuordnung samt Namen und verhindert keine
       bestätigte Mitzuordnung.
+
+Nachweis:
+[POC-060 – AcquisitionAssignment und Historie](proofs/POC-060.md).
 
 ### [ ] POC-061 AcquisitionActivity und Wiedervorlage implementieren
 

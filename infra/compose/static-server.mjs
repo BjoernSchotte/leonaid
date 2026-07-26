@@ -847,6 +847,27 @@ function applicationPage() {
               throw new Error("resolve");
             }
             const resolution = await response.json();
+            const sharedAssignees = [
+              ...resolution.priorAssignees,
+              { userId: identity.userId, displayName: identity.displayName },
+            ]
+              .filter(
+                (item, index, values) =>
+                  values.findIndex((candidate) => candidate.userId === item.userId) ===
+                  index,
+              )
+              .sort((left, right) =>
+                left.displayName.localeCompare(right.displayName, "de"),
+              );
+            const sharedMarkup =
+              sharedAssignees.length > 1
+                ? '<span class="assignment-warning" data-testid="shared-assignees">' +
+                  '<strong>Gemeinsam betreut</strong> ' +
+                  escapeHtml(
+                    sharedAssignees.map((item) => item.displayName).join(", "),
+                  ) +
+                  "</span>"
+                : "";
             status.dataset.state = "success";
             status.textContent = resolution.displayName + " ist jetzt dir zugeordnet.";
             result.innerHTML = '<div class="success-card" data-testid="sponsor-success">' +
@@ -855,6 +876,7 @@ function applicationPage() {
               (resolution.outcome === "created"
                 ? " wurde neu im CRM angelegt."
                 : " wurde aus dem CRM übernommen.") +
+              sharedMarkup +
               '</div><div class="form-actions" style="margin-top: 1rem">' +
               '<button class="button-secondary" data-testid="sponsor-next" type="button">Weiteren Sponsor erfassen</button></div>';
             result.querySelector('[data-testid="sponsor-next"]').addEventListener(

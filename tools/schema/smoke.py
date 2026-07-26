@@ -91,7 +91,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0006_action_administration":
+    if revision != "0007_assignment_management":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -239,6 +239,17 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         ACTION,
         COMPANY,
         USER_A,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE acquisition_assignment
+            SET revision = 0
+            WHERE id = $1
+            """,
+            ASSIGNMENT_A,
+        ),
+        "nicht positive Zuordnungsrevision",
     )
     await expect_database_error(
         lambda: connection.execute(

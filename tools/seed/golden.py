@@ -16,6 +16,7 @@ from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid5
 
 import asyncpg
 import boto3
@@ -24,6 +25,15 @@ from botocore.exceptions import ClientError
 
 DATASET_VERSION = "1.0.0"
 OBJECT_PREFIX = "golden/v1/invoices/"
+ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
+GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
+    2026,
+    7,
+    1,
+    8,
+    0,
+    tzinfo=timezone.utc,
+)
 JsonObject = dict[str, Any]
 
 
@@ -792,6 +802,36 @@ async def seed_operational_golden(
             assignment["companyId"],
             assignment["personId"],
             assignment["acquirerId"],
+        )
+        await connection.execute(
+            """
+            INSERT INTO acquisition_assignment_history (
+                id,
+                assignment_id,
+                changed_by_user_id,
+                previous_state,
+                new_state,
+                changed_at
+            )
+            VALUES ($1, $2, $3, '{}'::jsonb, $4::jsonb, $5)
+            """,
+            uuid5(
+                ASSIGNMENT_HISTORY_NAMESPACE,
+                f"golden-assignment:{assignment['id']}:initial",
+            ),
+            assignment["id"],
+            assignment["acquirerId"],
+            json.dumps(
+                {
+                    "status": "open",
+                    "priority": 0,
+                    "nextAction": None,
+                    "dueAt": None,
+                    "acquirerUserId": assignment["acquirerId"],
+                },
+                separators=(",", ":"),
+            ),
+            GOLDEN_ASSIGNMENT_CHANGED_AT,
         )
 
     offers = {

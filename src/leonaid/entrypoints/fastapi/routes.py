@@ -13,6 +13,10 @@ from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
 )
+from leonaid.application.assignments import (
+    AssignmentHandoverResult,
+    AssignmentManagementService,
+)
 from leonaid.application.actions import (
     BeneficiaryDraft,
     CharityActionService,
@@ -42,6 +46,12 @@ from leonaid.domain.actions import (
     CharityAction,
     CharityActionStatus,
 )
+from leonaid.domain.acquisition import (
+    AcquisitionAssignment,
+    AssignmentHistoryEntry,
+    AssignmentPartyKind,
+    AssignmentStatus,
+)
 from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
@@ -60,6 +70,11 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateSummaryResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityResponse,
+    AcquisitionAssignmentDetailsResponse,
+    AcquisitionAssignmentHandoverResponse,
+    AcquisitionAssignmentHistoryResponse,
+    AcquisitionAssignmentMutationResponse,
+    AcquisitionAssignmentResponse,
     AcquisitionDocumentResponse,
     AcquisitionPageQuery,
     AcquisitionPartyCountResponse,
@@ -75,12 +90,14 @@ from leonaid.entrypoints.fastapi.schemas import (
     CompleteLoginRequest,
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
+    CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
     CreateInvitationRequest,
     CreateCharityActionRequest,
     CurrentIdentityResponse,
     ERROR_RESPONSES,
     FreshLoginStatusResponse,
+    HandOverAcquisitionAssignmentRequest,
     InvitationAcceptanceResponse,
     InvitationDispatchResponse,
     InvitationOptionsResponse,
@@ -108,6 +125,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SponsorMatchResponse,
     SponsorResolutionResponse,
     TransitionCharityActionRequest,
+    UpdateAcquisitionAssignmentRequest,
     UpdateActionDetailsRequest,
 )
 
@@ -143,6 +161,16 @@ def acquisition_service(request: Request) -> AcquisitionPolicyService:
 def sponsor_matching_service(request: Request) -> SponsorMatchingService:
     service = request.app.state.sponsor_matching_service
     if not isinstance(service, SponsorMatchingService):
+        raise DependencyUnavailable(
+            "crm_integration_not_configured",
+            "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
+        )
+    return service
+
+
+def assignment_management_service(request: Request) -> AssignmentManagementService:
+    service = request.app.state.assignment_management_service
+    if not isinstance(service, AssignmentManagementService):
         raise DependencyUnavailable(
             "crm_integration_not_configured",
             "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
@@ -225,6 +253,42 @@ def sponsor_resolution_response(
     resolution: SponsorResolution,
 ) -> SponsorResolutionResponse:
     return SponsorResolutionResponse.model_validate(resolution)
+
+
+def acquisition_assignment_response(
+    assignment: AcquisitionAssignment,
+) -> AcquisitionAssignmentResponse:
+    return AcquisitionAssignmentResponse(
+        id=assignment.id,
+        action_id=assignment.action_id,
+        party_kind=assignment.party_kind.value,
+        party_id=assignment.party_id,
+        acquirer_user_id=assignment.acquirer_user_id,
+        acquirer_display_name=assignment.acquirer_display_name,
+        status=assignment.state.status.value,
+        priority=assignment.state.priority,
+        next_action=assignment.state.next_action,
+        due_at=assignment.state.due_at,
+        revision=assignment.revision,
+        created_at=assignment.created_at,
+        updated_at=assignment.updated_at,
+    )
+
+
+def acquisition_assignment_history_response(
+    entry: AssignmentHistoryEntry,
+) -> AcquisitionAssignmentHistoryResponse:
+    return AcquisitionAssignmentHistoryResponse.model_validate(entry)
+
+
+def acquisition_assignment_handover_response(
+    result: AssignmentHandoverResult,
+) -> AcquisitionAssignmentHandoverResponse:
+    return AcquisitionAssignmentHandoverResponse(
+        source=acquisition_assignment_response(result.source),
+        target=acquisition_assignment_response(result.target),
+        target_created=result.target_created,
+    )
 
 
 def decimal_text(value: Decimal) -> str:
@@ -1019,6 +1083,129 @@ async def list_acquisition_parties(
         offset=page.offset,
         limit=page.limit,
     )
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/acquisition/assignments",
+    operation_id="createAcquisitionAssignment",
+    response_model=AcquisitionAssignmentMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["acquisition"],
+)
+async def create_acquisition_assignment(
+    action_id: UUID,
+    request: Request,
+    body: CreateAcquisitionAssignmentRequest,
+    response: Response,
+) -> AcquisitionAssignmentMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await assignment_management_service(request).create_proactive(
+        actor,
+        action_id,
+        party_kind=AssignmentPartyKind(body.party_kind),
+        party_id=body.party_id,
+        acquirer_user_id=body.acquirer_user_id,
+        request_id=request_id(request),
+    )
+    if not result.created:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/acquisition/assignments/{result.assignment.id}"
+    )
+    return AcquisitionAssignmentMutationResponse(
+        assignment=acquisition_assignment_response(result.assignment),
+        created=result.created,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/assignments/{assignment_id}",
+    operation_id="getAcquisitionAssignment",
+    response_model=AcquisitionAssignmentDetailsResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def get_acquisition_assignment(
+    action_id: UUID,
+    assignment_id: UUID,
+    request: Request,
+    response: Response,
+) -> AcquisitionAssignmentDetailsResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    details = await assignment_management_service(request).details(
+        actor,
+        action_id,
+        assignment_id,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionAssignmentDetailsResponse(
+        assignment=acquisition_assignment_response(details.assignment),
+        history=[
+            acquisition_assignment_history_response(item) for item in details.history
+        ],
+    )
+
+
+@router.patch(
+    "/api/v1/actions/{action_id}/acquisition/assignments/{assignment_id}",
+    operation_id="updateAcquisitionAssignment",
+    response_model=AcquisitionAssignmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def update_acquisition_assignment(
+    action_id: UUID,
+    assignment_id: UUID,
+    request: Request,
+    body: UpdateAcquisitionAssignmentRequest,
+    response: Response,
+) -> AcquisitionAssignmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    assignment = await assignment_management_service(request).update(
+        actor,
+        action_id,
+        assignment_id,
+        expected_revision=body.revision,
+        status=AssignmentStatus(body.status),
+        priority=body.priority,
+        next_action=body.next_action,
+        due_at=body.due_at,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return acquisition_assignment_response(assignment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/acquisition/assignments/{assignment_id}/handover",
+    operation_id="handOverAcquisitionAssignment",
+    response_model=AcquisitionAssignmentHandoverResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def hand_over_acquisition_assignment(
+    action_id: UUID,
+    assignment_id: UUID,
+    request: Request,
+    body: HandOverAcquisitionAssignmentRequest,
+    response: Response,
+) -> AcquisitionAssignmentHandoverResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await assignment_management_service(request).hand_over(
+        actor,
+        action_id,
+        assignment_id,
+        expected_revision=body.revision,
+        target_acquirer_user_id=body.target_acquirer_user_id,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/acquisition/assignments/{result.target.id}"
+    )
+    return acquisition_assignment_handover_response(result)
 
 
 @router.post(

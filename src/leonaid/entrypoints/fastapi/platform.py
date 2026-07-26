@@ -30,6 +30,7 @@ from leonaid.adapters.twenty.gateway import (
     TwentyGatewaySettings,
 )
 from leonaid.application.acquisition import AcquisitionPolicyService
+from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.errors import (
     ApplicationError,
@@ -133,17 +134,25 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                     api_key=settings.twenty_integration_api_key,
                 )
             )
+            acquisition_repository = AsyncpgAcquisitionPolicyRepository(pool)
             application.state.acquisition_service = AcquisitionPolicyService(
-                AsyncpgAcquisitionPolicyRepository(pool),
+                acquisition_repository,
                 crm_gateway,
             )
             application.state.sponsor_matching_service = SponsorMatchingService(
-                AsyncpgAcquisitionPolicyRepository(pool),
+                acquisition_repository,
                 crm_gateway,
+            )
+            application.state.assignment_management_service = (
+                AssignmentManagementService(
+                    acquisition_repository,
+                    crm_gateway,
+                )
             )
         else:
             application.state.acquisition_service = None
             application.state.sponsor_matching_service = None
+            application.state.assignment_management_service = None
         try:
             yield
         finally:

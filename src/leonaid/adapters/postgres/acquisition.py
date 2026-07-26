@@ -16,7 +16,13 @@ from leonaid.application.acquisition import (
     AcquisitionPolicyRepository,
     PartyAssignmentRoster,
 )
+from leonaid.application.assignments import (
+    AssignmentCreateResult,
+    AssignmentHandoverResult,
+    AssignmentManagementRepository,
+)
 from leonaid.application.crm import CrmPartyKind
+from leonaid.application.errors import Conflict
 from leonaid.application.sponsor_matching import (
     AssignedAcquirer,
     RecordedAssignment,
@@ -24,11 +30,19 @@ from leonaid.application.sponsor_matching import (
     SponsorResolutionOutcome,
 )
 from leonaid.domain.policies import AcquisitionAccessLevel, AuthorizedPartyScope
+from leonaid.domain.acquisition import (
+    AcquisitionAssignment,
+    AssignmentHistoryEntry,
+    AssignmentPartyKind,
+    AssignmentState,
+    AssignmentStatus,
+)
 
 
 class AsyncpgAcquisitionPolicyRepository(
     AcquisitionPolicyRepository,
     SponsorMatchingRepository,
+    AssignmentManagementRepository,
 ):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -88,7 +102,10 @@ class AsyncpgAcquisitionPolicyRepository(
                     JOIN acquisition_assignment AS assignment
                       ON assignment.action_id = access.action_id
                     WHERE access.access_level = 'manage'
-                       OR assignment.acquirer_user_id = $1
+                       OR (
+                            assignment.acquirer_user_id = $1
+                            AND assignment.status <> 'handed_over'
+                       )
                 )
                 SELECT
                     access.access_level,
@@ -149,6 +166,7 @@ class AsyncpgAcquisitionPolicyRepository(
                     OR membership.active_until > $4
                  )
                 WHERE assignment.action_id = $1
+                  AND assignment.status <> 'handed_over'
                   AND (
                     assignment.twenty_company_id = ANY($2::uuid[])
                     OR assignment.twenty_person_id = ANY($3::uuid[])
@@ -248,6 +266,7 @@ class AsyncpgAcquisitionPolicyRepository(
                   ON account.id = assignment.acquirer_user_id
                  AND account.status = 'active'
                 WHERE assignment.action_id = $1
+                  AND assignment.status <> 'handed_over'
                   AND {party_column} = ANY($2::uuid[])
                 ORDER BY
                     {party_column},
@@ -366,7 +385,48 @@ class AsyncpgAcquisitionPolicyRepository(
                     raise RuntimeError(
                         "Akquise-Zuordnung konnte nicht ermittelt werden."
                     )
-                if created:
+                persisted = await connection.fetchrow(
+                    """
+                    SELECT status, priority, next_action, due_at
+                    FROM acquisition_assignment
+                    WHERE id = $1
+                    FOR UPDATE
+                    """,
+                    inserted_id,
+                )
+                if persisted is None:
+                    raise RuntimeError("Akquise-Zuordnung konnte nicht gelesen werden.")
+                reactivated = not created and str(persisted["status"]) == "handed_over"
+                if reactivated:
+                    await connection.execute(
+                        """
+                        UPDATE acquisition_assignment
+                        SET status = 'open',
+                            priority = 0,
+                            next_action = NULL,
+                            due_at = NULL,
+                            revision = revision + 1,
+                            updated_at = $2
+                        WHERE id = $1
+                        """,
+                        inserted_id,
+                        occurred_at,
+                    )
+                assignment_added = created or reactivated
+                if assignment_added:
+                    previous_state: dict[str, object] = {}
+                    if reactivated:
+                        previous_state = {
+                            "status": str(persisted["status"]),
+                            "priority": int(persisted["priority"]),
+                            "nextAction": persisted["next_action"],
+                            "dueAt": (
+                                persisted["due_at"].isoformat()
+                                if persisted["due_at"] is not None
+                                else None
+                            ),
+                            "acquirerUserId": str(actor_user_id),
+                        }
                     await connection.execute(
                         """
                         INSERT INTO acquisition_assignment_history (
@@ -377,17 +437,19 @@ class AsyncpgAcquisitionPolicyRepository(
                             new_state,
                             changed_at
                         )
-                        VALUES ($1, $2, $3, '{}'::jsonb, $4::jsonb, $5)
+                        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
                         """,
                         uuid4(),
                         inserted_id,
                         actor_user_id,
+                        json.dumps(previous_state, separators=(",", ":")),
                         json.dumps(
                             {
                                 "status": "open",
                                 "priority": 0,
                                 "nextAction": None,
                                 "dueAt": None,
+                                "acquirerUserId": str(actor_user_id),
                             },
                             separators=(",", ":"),
                         ),
@@ -423,7 +485,8 @@ class AsyncpgAcquisitionPolicyRepository(
                         {
                             "normalizedKey": normalized_key,
                             "assignmentId": str(inserted_id),
-                            "assignmentCreated": created,
+                            "assignmentCreated": assignment_added,
+                            "assignmentReactivated": reactivated,
                             "priorAssigneeIds": [
                                 str(item) for item in prior_assignee_ids
                             ],
@@ -432,7 +495,616 @@ class AsyncpgAcquisitionPolicyRepository(
                     ),
                     occurred_at,
                 )
-        return RecordedAssignment(assignment_id=inserted_id, created=created)
+        return RecordedAssignment(
+            assignment_id=inserted_id,
+            created=assignment_added,
+        )
+
+    async def get_assignment(
+        self,
+        action_id: UUID,
+        assignment_id: UUID,
+    ) -> AcquisitionAssignment | None:
+        async with self._pool.acquire() as connection:
+            row = await self._assignment_record(
+                connection,
+                action_id=action_id,
+                assignment_id=assignment_id,
+            )
+        return self._assignment(row) if row is not None else None
+
+    async def assignment_history(
+        self,
+        assignment_id: UUID,
+    ) -> tuple[AssignmentHistoryEntry, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    history.id,
+                    history.assignment_id,
+                    history.changed_by_user_id,
+                    account.display_name AS changed_by_display_name,
+                    history.previous_state,
+                    history.new_state,
+                    history.changed_at
+                FROM acquisition_assignment_history AS history
+                JOIN user_account AS account
+                  ON account.id = history.changed_by_user_id
+                WHERE history.assignment_id = $1
+                ORDER BY history.changed_at, history.id
+                """,
+                assignment_id,
+            )
+        return tuple(self._history(item) for item in rows)
+
+    async def create_proactive_assignment(
+        self,
+        *,
+        action_id: UUID,
+        party_kind: AssignmentPartyKind,
+        party_id: UUID,
+        acquirer_user_id: UUID,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> AssignmentCreateResult | None:
+        company_id = party_id if party_kind is AssignmentPartyKind.COMPANY else None
+        person_id = party_id if party_kind is AssignmentPartyKind.PERSON else None
+        conflict_target = self._assignment_conflict_target(party_kind)
+        assignment_id = uuid4()
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                allowed = await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM charity_action AS action
+                        JOIN charity_action_capability AS capability
+                          ON capability.action_id = action.id
+                         AND capability.capability = 'acquisition'
+                        JOIN action_membership AS target_membership
+                          ON target_membership.action_id = action.id
+                         AND target_membership.user_id = $3
+                         AND target_membership.role = 'acquirer'
+                         AND target_membership.active_from <= $4
+                         AND (
+                            target_membership.active_until IS NULL
+                            OR target_membership.active_until > $4
+                         )
+                        JOIN user_account AS target_account
+                          ON target_account.id = target_membership.user_id
+                         AND target_account.status = 'active'
+                        WHERE action.id = $1
+                          AND (
+                            EXISTS (
+                                SELECT 1
+                                FROM user_global_role AS global_role
+                                WHERE global_role.user_id = $2
+                                  AND global_role.role = 'system_admin'
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM action_membership AS actor_membership
+                                WHERE actor_membership.action_id = action.id
+                                  AND actor_membership.user_id = $2
+                                  AND actor_membership.role = 'charity_admin'
+                                  AND actor_membership.active_from <= $4
+                                  AND (
+                                    actor_membership.active_until IS NULL
+                                    OR actor_membership.active_until > $4
+                                  )
+                            )
+                          )
+                    )
+                    """,
+                    action_id,
+                    actor_user_id,
+                    acquirer_user_id,
+                    occurred_at,
+                )
+                if not allowed:
+                    return None
+                inserted_id = await connection.fetchval(
+                    f"""
+                    INSERT INTO acquisition_assignment (
+                        id,
+                        action_id,
+                        twenty_company_id,
+                        twenty_person_id,
+                        acquirer_user_id,
+                        status,
+                        priority,
+                        revision,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, 'open', 0, 1, $6, $6)
+                    ON CONFLICT {conflict_target} DO NOTHING
+                    RETURNING id
+                    """,
+                    assignment_id,
+                    action_id,
+                    company_id,
+                    person_id,
+                    acquirer_user_id,
+                    occurred_at,
+                )
+                created = inserted_id is not None
+                if inserted_id is None:
+                    inserted_id = await connection.fetchval(
+                        """
+                        SELECT assignment.id
+                        FROM acquisition_assignment AS assignment
+                        WHERE assignment.action_id = $1
+                          AND assignment.acquirer_user_id = $2
+                          AND (
+                            ($3::uuid IS NOT NULL AND assignment.twenty_company_id = $3)
+                            OR ($4::uuid IS NOT NULL AND assignment.twenty_person_id = $4)
+                          )
+                        FOR UPDATE
+                        """,
+                        action_id,
+                        acquirer_user_id,
+                        company_id,
+                        person_id,
+                    )
+                if inserted_id is None:
+                    raise RuntimeError(
+                        "Proaktive Zuordnung konnte nicht ermittelt werden."
+                    )
+                row = await self._assignment_record(
+                    connection,
+                    action_id=action_id,
+                    assignment_id=inserted_id,
+                )
+                if row is None:
+                    raise RuntimeError(
+                        "Proaktive Zuordnung konnte nicht gelesen werden."
+                    )
+                current = self._assignment(row)
+                previous_snapshot: dict[str, object] = {}
+                event_type = "acquisition_assignment_created"
+                changed = created
+                if not created and current.state.status is AssignmentStatus.HANDED_OVER:
+                    previous_snapshot = current.state.snapshot(
+                        acquirer_user_id=current.acquirer_user_id
+                    )
+                    await connection.execute(
+                        """
+                        UPDATE acquisition_assignment
+                        SET status = 'open',
+                            priority = 0,
+                            next_action = NULL,
+                            due_at = NULL,
+                            revision = revision + 1,
+                            updated_at = $2
+                        WHERE id = $1
+                        """,
+                        current.id,
+                        occurred_at,
+                    )
+                    row = await self._assignment_record(
+                        connection,
+                        action_id=action_id,
+                        assignment_id=current.id,
+                    )
+                    if row is None:
+                        raise RuntimeError("Reaktivierte Zuordnung ist verschwunden.")
+                    current = self._assignment(row)
+                    event_type = "acquisition_assignment_reactivated"
+                    changed = True
+                if changed:
+                    await self._append_history(
+                        connection,
+                        assignment=current,
+                        actor_user_id=actor_user_id,
+                        previous_state=previous_snapshot,
+                        occurred_at=occurred_at,
+                    )
+                    await self._append_assignment_audit(
+                        connection,
+                        assignment=current,
+                        actor_user_id=actor_user_id,
+                        event_type=event_type,
+                        request_id=request_id,
+                        payload={
+                            "partyKind": party_kind.value,
+                            "partyId": str(party_id),
+                            "acquirerUserId": str(acquirer_user_id),
+                            "created": created,
+                        },
+                        occurred_at=occurred_at,
+                    )
+        return AssignmentCreateResult(assignment=current, created=created)
+
+    async def save_assignment(
+        self,
+        previous: AcquisitionAssignment,
+        changed: AcquisitionAssignment,
+        *,
+        actor_user_id: UUID,
+        actor_may_manage: bool,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> AcquisitionAssignment | None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                updated_id = await connection.fetchval(
+                    """
+                    UPDATE acquisition_assignment AS assignment
+                    SET status = $4,
+                        priority = $5,
+                        next_action = $6,
+                        due_at = $7,
+                        revision = $8,
+                        updated_at = $9
+                    WHERE assignment.id = $1
+                      AND assignment.action_id = $2
+                      AND assignment.revision = $3
+                      AND (
+                        (
+                          $11::boolean
+                          AND (
+                            EXISTS (
+                              SELECT 1
+                              FROM user_global_role AS global_role
+                              WHERE global_role.user_id = $10
+                                AND global_role.role = 'system_admin'
+                            )
+                            OR EXISTS (
+                              SELECT 1
+                              FROM action_membership AS manager_membership
+                              WHERE manager_membership.action_id = assignment.action_id
+                                AND manager_membership.user_id = $10
+                                AND manager_membership.role = 'charity_admin'
+                                AND manager_membership.active_from <= $9
+                                AND (
+                                  manager_membership.active_until IS NULL
+                                  OR manager_membership.active_until > $9
+                                )
+                            )
+                          )
+                        )
+                        OR (
+                          assignment.acquirer_user_id = $10
+                          AND EXISTS (
+                            SELECT 1
+                            FROM action_membership AS own_membership
+                            JOIN user_account AS own_account
+                              ON own_account.id = own_membership.user_id
+                             AND own_account.status = 'active'
+                            WHERE own_membership.action_id = assignment.action_id
+                              AND own_membership.user_id = $10
+                              AND own_membership.role = 'acquirer'
+                              AND own_membership.active_from <= $9
+                              AND (
+                                own_membership.active_until IS NULL
+                                OR own_membership.active_until > $9
+                              )
+                          )
+                        )
+                      )
+                    RETURNING assignment.id
+                    """,
+                    previous.id,
+                    previous.action_id,
+                    previous.revision,
+                    changed.state.status.value,
+                    changed.state.priority,
+                    changed.state.next_action,
+                    changed.state.due_at,
+                    changed.revision,
+                    occurred_at,
+                    actor_user_id,
+                    actor_may_manage,
+                )
+                if updated_id is None:
+                    await self._raise_revision_if_changed(
+                        connection,
+                        previous.id,
+                        previous.revision,
+                    )
+                    return None
+                await self._append_history(
+                    connection,
+                    assignment=changed,
+                    actor_user_id=actor_user_id,
+                    previous_state=previous.state.snapshot(
+                        acquirer_user_id=previous.acquirer_user_id
+                    ),
+                    occurred_at=occurred_at,
+                )
+                await self._append_assignment_audit(
+                    connection,
+                    assignment=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="acquisition_assignment_updated",
+                    request_id=request_id,
+                    payload={
+                        "previousRevision": previous.revision,
+                        "revision": changed.revision,
+                    },
+                    occurred_at=occurred_at,
+                )
+                row = await self._assignment_record(
+                    connection,
+                    action_id=previous.action_id,
+                    assignment_id=previous.id,
+                )
+        if row is None:
+            raise RuntimeError("Aktualisierte Zuordnung konnte nicht gelesen werden.")
+        return self._assignment(row)
+
+    async def hand_over_assignment(
+        self,
+        previous: AcquisitionAssignment,
+        changed: AcquisitionAssignment,
+        *,
+        target_acquirer_user_id: UUID,
+        actor_user_id: UUID,
+        actor_may_manage: bool,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> AssignmentHandoverResult | None:
+        company_id = (
+            previous.party_id
+            if previous.party_kind is AssignmentPartyKind.COMPANY
+            else None
+        )
+        person_id = (
+            previous.party_id
+            if previous.party_kind is AssignmentPartyKind.PERSON
+            else None
+        )
+        conflict_target = self._assignment_conflict_target(previous.party_kind)
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                source_id = await connection.fetchval(
+                    """
+                    SELECT assignment.id
+                    FROM acquisition_assignment AS assignment
+                    WHERE assignment.id = $1
+                      AND assignment.action_id = $2
+                      AND assignment.revision = $3
+                      AND assignment.status <> 'handed_over'
+                      AND (
+                        (
+                          $6::boolean
+                          AND (
+                            EXISTS (
+                              SELECT 1
+                              FROM user_global_role AS global_role
+                              WHERE global_role.user_id = $4
+                                AND global_role.role = 'system_admin'
+                            )
+                            OR EXISTS (
+                              SELECT 1
+                              FROM action_membership AS manager_membership
+                              WHERE manager_membership.action_id = assignment.action_id
+                                AND manager_membership.user_id = $4
+                                AND manager_membership.role = 'charity_admin'
+                                AND manager_membership.active_from <= $5
+                                AND (
+                                  manager_membership.active_until IS NULL
+                                  OR manager_membership.active_until > $5
+                                )
+                            )
+                          )
+                        )
+                        OR (
+                          assignment.acquirer_user_id = $4
+                          AND EXISTS (
+                            SELECT 1
+                            FROM action_membership AS own_membership
+                            JOIN user_account AS own_account
+                              ON own_account.id = own_membership.user_id
+                             AND own_account.status = 'active'
+                            WHERE own_membership.action_id = assignment.action_id
+                              AND own_membership.user_id = $4
+                              AND own_membership.role = 'acquirer'
+                              AND own_membership.active_from <= $5
+                              AND (
+                                own_membership.active_until IS NULL
+                                OR own_membership.active_until > $5
+                              )
+                          )
+                        )
+                      )
+                    FOR UPDATE
+                    """,
+                    previous.id,
+                    previous.action_id,
+                    previous.revision,
+                    actor_user_id,
+                    occurred_at,
+                    actor_may_manage,
+                )
+                if source_id is None:
+                    await self._raise_revision_if_changed(
+                        connection,
+                        previous.id,
+                        previous.revision,
+                    )
+                    return None
+                target_available = await connection.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM action_membership AS membership
+                        JOIN user_account AS account
+                          ON account.id = membership.user_id
+                         AND account.status = 'active'
+                        JOIN charity_action_capability AS capability
+                          ON capability.action_id = membership.action_id
+                         AND capability.capability = 'acquisition'
+                        WHERE membership.action_id = $1
+                          AND membership.user_id = $2
+                          AND membership.role = 'acquirer'
+                          AND membership.active_from <= $3
+                          AND (
+                            membership.active_until IS NULL
+                            OR membership.active_until > $3
+                          )
+                    )
+                    """,
+                    previous.action_id,
+                    target_acquirer_user_id,
+                    occurred_at,
+                )
+                if not target_available:
+                    return None
+                target_id = uuid4()
+                inserted_id = await connection.fetchval(
+                    f"""
+                    INSERT INTO acquisition_assignment (
+                        id,
+                        action_id,
+                        twenty_company_id,
+                        twenty_person_id,
+                        acquirer_user_id,
+                        status,
+                        priority,
+                        next_action,
+                        due_at,
+                        revision,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, 'open', $6, $7, $8, 1, $9, $9
+                    )
+                    ON CONFLICT {conflict_target} DO NOTHING
+                    RETURNING id
+                    """,
+                    target_id,
+                    previous.action_id,
+                    company_id,
+                    person_id,
+                    target_acquirer_user_id,
+                    previous.state.priority,
+                    previous.state.next_action,
+                    previous.state.due_at,
+                    occurred_at,
+                )
+                target_created = inserted_id is not None
+                if inserted_id is None:
+                    inserted_id = await connection.fetchval(
+                        """
+                        SELECT assignment.id
+                        FROM acquisition_assignment AS assignment
+                        WHERE assignment.action_id = $1
+                          AND assignment.acquirer_user_id = $2
+                          AND (
+                            ($3::uuid IS NOT NULL AND assignment.twenty_company_id = $3)
+                            OR ($4::uuid IS NOT NULL AND assignment.twenty_person_id = $4)
+                          )
+                        FOR UPDATE
+                        """,
+                        previous.action_id,
+                        target_acquirer_user_id,
+                        company_id,
+                        person_id,
+                    )
+                if inserted_id is None:
+                    raise RuntimeError("Übergabe-Ziel konnte nicht ermittelt werden.")
+                target_row = await self._assignment_record(
+                    connection,
+                    action_id=previous.action_id,
+                    assignment_id=inserted_id,
+                )
+                if target_row is None:
+                    raise RuntimeError("Übergabe-Ziel konnte nicht gelesen werden.")
+                target = self._assignment(target_row)
+                target_previous: dict[str, object] = {}
+                target_changed = target_created
+                if (
+                    not target_created
+                    and target.state.status is AssignmentStatus.HANDED_OVER
+                ):
+                    target_previous = target.state.snapshot(
+                        acquirer_user_id=target.acquirer_user_id
+                    )
+                    await connection.execute(
+                        """
+                        UPDATE acquisition_assignment
+                        SET status = 'open',
+                            priority = $2,
+                            next_action = $3,
+                            due_at = $4,
+                            revision = revision + 1,
+                            updated_at = $5
+                        WHERE id = $1
+                        """,
+                        target.id,
+                        previous.state.priority,
+                        previous.state.next_action,
+                        previous.state.due_at,
+                        occurred_at,
+                    )
+                    target_row = await self._assignment_record(
+                        connection,
+                        action_id=previous.action_id,
+                        assignment_id=target.id,
+                    )
+                    if target_row is None:
+                        raise RuntimeError("Reaktiviertes Übergabe-Ziel fehlt.")
+                    target = self._assignment(target_row)
+                    target_changed = True
+                await connection.execute(
+                    """
+                    UPDATE acquisition_assignment
+                    SET status = 'handed_over',
+                        revision = $2,
+                        updated_at = $3
+                    WHERE id = $1
+                    """,
+                    previous.id,
+                    changed.revision,
+                    occurred_at,
+                )
+                if target_changed:
+                    await self._append_history(
+                        connection,
+                        assignment=target,
+                        actor_user_id=actor_user_id,
+                        previous_state=target_previous,
+                        occurred_at=occurred_at,
+                    )
+                await self._append_history(
+                    connection,
+                    assignment=changed,
+                    actor_user_id=actor_user_id,
+                    previous_state=previous.state.snapshot(
+                        acquirer_user_id=previous.acquirer_user_id
+                    ),
+                    occurred_at=occurred_at,
+                )
+                await self._append_assignment_audit(
+                    connection,
+                    assignment=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="acquisition_assignment_handed_over",
+                    request_id=request_id,
+                    payload={
+                        "targetAssignmentId": str(target.id),
+                        "targetAcquirerUserId": str(target_acquirer_user_id),
+                        "targetCreated": target_created,
+                    },
+                    occurred_at=occurred_at,
+                )
+                source_row = await self._assignment_record(
+                    connection,
+                    action_id=previous.action_id,
+                    assignment_id=previous.id,
+                )
+        if source_row is None:
+            raise RuntimeError("Übergebene Ausgangszuordnung fehlt.")
+        return AssignmentHandoverResult(
+            source=self._assignment(source_row),
+            target=target,
+            target_created=target_created,
+        )
 
     async def activities(
         self,
@@ -535,6 +1207,192 @@ class AsyncpgAcquisitionPolicyRepository(
             sha256=str(row["sha256"]),
             version=int(row["version"]),
             created_at=row["created_at"],
+        )
+
+    @staticmethod
+    async def _assignment_record(
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        assignment_id: UUID,
+    ) -> asyncpg.Record | None:
+        return await connection.fetchrow(
+            """
+            SELECT
+                assignment.id,
+                assignment.action_id,
+                assignment.twenty_company_id,
+                assignment.twenty_person_id,
+                assignment.acquirer_user_id,
+                account.display_name AS acquirer_display_name,
+                assignment.status,
+                assignment.priority,
+                assignment.next_action,
+                assignment.due_at,
+                assignment.revision,
+                assignment.created_at,
+                assignment.updated_at
+            FROM acquisition_assignment AS assignment
+            JOIN user_account AS account
+              ON account.id = assignment.acquirer_user_id
+            WHERE assignment.action_id = $1
+              AND assignment.id = $2
+            """,
+            action_id,
+            assignment_id,
+        )
+
+    @staticmethod
+    def _assignment(row: asyncpg.Record) -> AcquisitionAssignment:
+        company_id = row["twenty_company_id"]
+        person_id = row["twenty_person_id"]
+        if company_id is not None:
+            party_kind = AssignmentPartyKind.COMPANY
+            party_id = company_id
+        elif person_id is not None:
+            party_kind = AssignmentPartyKind.PERSON
+            party_id = person_id
+        else:
+            raise RuntimeError("Eine Akquise-Zuordnung besitzt keinen Partnerbezug.")
+        return AcquisitionAssignment(
+            id=row["id"],
+            action_id=row["action_id"],
+            party_kind=party_kind,
+            party_id=party_id,
+            acquirer_user_id=row["acquirer_user_id"],
+            acquirer_display_name=str(row["acquirer_display_name"]),
+            state=AssignmentState(
+                status=AssignmentStatus(str(row["status"])),
+                priority=int(row["priority"]),
+                next_action=row["next_action"],
+                due_at=row["due_at"],
+            ),
+            revision=int(row["revision"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _history(row: asyncpg.Record) -> AssignmentHistoryEntry:
+        return AssignmentHistoryEntry(
+            id=row["id"],
+            assignment_id=row["assignment_id"],
+            changed_by_user_id=row["changed_by_user_id"],
+            changed_by_display_name=str(row["changed_by_display_name"]),
+            previous_state=AsyncpgAcquisitionPolicyRepository._json_object(
+                row["previous_state"]
+            ),
+            new_state=AsyncpgAcquisitionPolicyRepository._json_object(row["new_state"]),
+            changed_at=row["changed_at"],
+        )
+
+    @staticmethod
+    def _json_object(value: object) -> dict[str, object]:
+        decoded = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(decoded, dict):
+            raise RuntimeError("Assignment-Historie enthält kein JSON-Objekt.")
+        return {str(key): item for key, item in decoded.items()}
+
+    @staticmethod
+    async def _append_history(
+        connection: asyncpg.Connection[Any],
+        *,
+        assignment: AcquisitionAssignment,
+        actor_user_id: UUID,
+        previous_state: dict[str, object],
+        occurred_at: datetime,
+    ) -> None:
+        await connection.execute(
+            """
+            INSERT INTO acquisition_assignment_history (
+                id,
+                assignment_id,
+                changed_by_user_id,
+                previous_state,
+                new_state,
+                changed_at
+            )
+            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
+            """,
+            uuid4(),
+            assignment.id,
+            actor_user_id,
+            json.dumps(previous_state, separators=(",", ":")),
+            json.dumps(
+                assignment.state.snapshot(acquirer_user_id=assignment.acquirer_user_id),
+                separators=(",", ":"),
+            ),
+            occurred_at,
+        )
+
+    @staticmethod
+    async def _append_assignment_audit(
+        connection: asyncpg.Connection[Any],
+        *,
+        assignment: AcquisitionAssignment,
+        actor_user_id: UUID,
+        event_type: str,
+        request_id: str,
+        payload: dict[str, object],
+        occurred_at: datetime,
+    ) -> None:
+        await connection.execute(
+            """
+            INSERT INTO audit_event (
+                id,
+                action_id,
+                actor_user_id,
+                event_type,
+                entity_type,
+                entity_id,
+                request_id,
+                payload,
+                occurred_at
+            )
+            VALUES ($1, $2, $3, $4, 'acquisition_assignment', $5, $6, $7::jsonb, $8)
+            """,
+            uuid4(),
+            assignment.action_id,
+            actor_user_id,
+            event_type,
+            assignment.id,
+            request_id,
+            json.dumps(payload, separators=(",", ":")),
+            occurred_at,
+        )
+
+    @staticmethod
+    async def _raise_revision_if_changed(
+        connection: asyncpg.Connection[Any],
+        assignment_id: UUID,
+        expected_revision: int,
+    ) -> None:
+        current_revision = await connection.fetchval(
+            """
+            SELECT revision
+            FROM acquisition_assignment
+            WHERE id = $1
+            """,
+            assignment_id,
+        )
+        if current_revision is not None and int(current_revision) != expected_revision:
+            raise Conflict(
+                "assignment_revision_conflict",
+                "Die Zuordnung wurde zwischenzeitlich geändert. Bitte lade sie neu.",
+            )
+
+    @staticmethod
+    def _assignment_conflict_target(
+        party_kind: AssignmentPartyKind,
+    ) -> str:
+        if party_kind is AssignmentPartyKind.COMPANY:
+            return (
+                "(action_id, twenty_company_id, acquirer_user_id) "
+                "WHERE twenty_company_id IS NOT NULL"
+            )
+        return (
+            "(action_id, twenty_person_id, acquirer_user_id) "
+            "WHERE twenty_person_id IS NOT NULL"
         )
 
     @staticmethod

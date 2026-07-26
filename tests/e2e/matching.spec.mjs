@@ -83,6 +83,12 @@ test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", asyn
     await expect(page.locator('[data-testid="sponsor-success"]')).toContainText(
       "Zuordnung gespeichert",
     );
+    await expect(
+      page.locator('[data-testid="shared-assignees"]'),
+    ).toContainText("Anna Akquise");
+    await expect(
+      page.locator('[data-testid="shared-assignees"]'),
+    ).toContainText("Bernd Binder");
     await expect(page.locator("#sponsor-status")).toContainText(
       "ist jetzt dir zugeordnet",
     );

@@ -4,6 +4,11 @@
 export type AcceptInvitationRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type AcquisitionActivityListResponse = { readonly items: Array<AcquisitionActivityResponse>; readonly limit: number; readonly offset: number; readonly total: number; };
 export type AcquisitionActivityResponse = { readonly actionId: string; readonly actorUserId: string | null; readonly channel: string; readonly id: string; readonly note: string | null; readonly occurredAt: string; readonly outcome: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
+export type AcquisitionAssignmentDetailsResponse = { readonly assignment: AcquisitionAssignmentResponse; readonly history: Array<AcquisitionAssignmentHistoryResponse>; };
+export type AcquisitionAssignmentHandoverResponse = { readonly source: AcquisitionAssignmentResponse; readonly target: AcquisitionAssignmentResponse; readonly targetCreated: boolean; };
+export type AcquisitionAssignmentHistoryResponse = { readonly assignmentId: string; readonly changedAt: string; readonly changedByDisplayName: string; readonly changedByUserId: string; readonly id: string; readonly newState: Record<string, unknown>; readonly previousState: Record<string, unknown>; };
+export type AcquisitionAssignmentMutationResponse = { readonly assignment: AcquisitionAssignmentResponse; readonly created: boolean; };
+export type AcquisitionAssignmentResponse = { readonly acquirerDisplayName: string; readonly acquirerUserId: string; readonly actionId: string; readonly createdAt: string; readonly dueAt: string | null; readonly id: string; readonly nextAction: string | null; readonly partyId: string; readonly partyKind: "company" | "person"; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined" | "handed_over"; readonly updatedAt: string; };
 export type AcquisitionDocumentResponse = { readonly actionId: string; readonly createdAt: string; readonly documentType: string; readonly id: string; readonly mediaType: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly sha256: string; readonly version: number; };
 export type AcquisitionPartyCountResponse = { readonly total: number; };
 export type AcquisitionPartyExportResponse = { readonly actionId: string; readonly items: Array<AcquisitionPartyResponse>; };
@@ -27,6 +32,7 @@ export type CompleteFreshLoginRequest = { readonly code?: string | null; readonl
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
+export type CreateAcquisitionAssignmentRequest = { readonly acquirerUserId: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly templateKey: "blank" | "krapfentaxi"; readonly templateVersion?: number | null; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
@@ -34,6 +40,7 @@ export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly status: "fresh"; };
+export type HandOverAcquisitionAssignmentRequest = { readonly revision: number; readonly targetAcquirerUserId: string; };
 export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
 export type InvitationAcceptanceResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "accepted"; };
 export type InvitationDispatchResponse = { readonly invitationId: string; readonly status: "queued"; };
@@ -63,6 +70,7 @@ export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<
 export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCandidateResponse>; readonly input: SponsorDraftResponse; readonly normalizedKey: string; readonly partyKind: "company" | "person"; readonly status: "no_match" | "single_match" | "ambiguous_match"; };
 export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly twentyId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
+export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
 
 export type FetchLike = (
@@ -188,6 +196,68 @@ export class LeonAidApiClient {
     return this.request<AcquisitionActivityListResponse>(
       requestPath,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async createAcquisitionAssignment(
+    actionId: string,
+    body: CreateAcquisitionAssignmentRequest,
+    options: RequestOptions = {},
+  ): Promise<AcquisitionAssignmentMutationResponse> {
+    return this.request<AcquisitionAssignmentMutationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/assignments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getAcquisitionAssignment(
+    actionId: string,
+    assignmentId: string,
+    options: RequestOptions = {},
+  ): Promise<AcquisitionAssignmentDetailsResponse> {
+    return this.request<AcquisitionAssignmentDetailsResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/assignments/${encodeURIComponent(String(assignmentId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateAcquisitionAssignment(
+    actionId: string,
+    assignmentId: string,
+    body: UpdateAcquisitionAssignmentRequest,
+    options: RequestOptions = {},
+  ): Promise<AcquisitionAssignmentResponse> {
+    return this.request<AcquisitionAssignmentResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/assignments/${encodeURIComponent(String(assignmentId))}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async handOverAcquisitionAssignment(
+    actionId: string,
+    assignmentId: string,
+    body: HandOverAcquisitionAssignmentRequest,
+    options: RequestOptions = {},
+  ): Promise<AcquisitionAssignmentHandoverResponse> {
+    return this.request<AcquisitionAssignmentHandoverResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/assignments/${encodeURIComponent(String(assignmentId))}/handover`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }
