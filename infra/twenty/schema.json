@@ -451,6 +451,7 @@
             "updatedAt"
           ],
           "updateFields": [
+            "id",
             "name",
             "address",
             "people",
@@ -480,6 +481,7 @@
             "updatedAt"
           ],
           "updateFields": [
+            "id",
             "name",
             "emails",
             "phones",

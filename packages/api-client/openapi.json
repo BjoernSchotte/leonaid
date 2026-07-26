@@ -2615,6 +2615,11 @@
       "ResolveSponsorMatchRequest": {
         "additionalProperties": false,
         "properties": {
+          "commandId": {
+            "format": "uuid",
+            "title": "Commandid",
+            "type": "string"
+          },
           "confirmExistingAssignments": {
             "default": false,
             "title": "Confirmexistingassignments",
@@ -2646,6 +2651,7 @@
           }
         },
         "required": [
+          "commandId",
           "sponsor",
           "expectedStatus"
         ],
@@ -3211,6 +3217,18 @@
             "title": "Assignmentid",
             "type": "string"
           },
+          "contactTwentyId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacttwentyid"
+          },
           "displayName": {
             "title": "Displayname",
             "type": "string"
@@ -3242,6 +3260,10 @@
             "title": "Priorassignees",
             "type": "array"
           },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
           "twentyId": {
             "format": "uuid",
             "title": "Twentyid",
@@ -3256,7 +3278,9 @@
           "normalizedKey",
           "assignmentId",
           "assignmentCreated",
-          "priorAssignees"
+          "priorAssignees",
+          "contactTwentyId",
+          "replayed"
         ],
         "title": "SponsorResolutionResponse",
         "type": "object"

@@ -903,26 +903,26 @@ Tests/Nachweise:
 Nachweis:
 [POC-062 – PWA-Shell, Aktionen und Sponsorlisten](proofs/POC-062.md).
 
-### [ ] POC-063 Sponsor-Neuanlage und Konflikt-UX bauen
+### [x] POC-063 Sponsor-Neuanlage und Konflikt-UX bauen
 
 Abhängigkeiten: POC-032, POC-060, POC-062
 
 Akzeptanzkriterien:
 
-- [ ] Formular verlangt nur minimale Firmen-/Kontaktdaten.
-- [ ] Während der Eingabe oder vor Submit erfolgt serverseitiges Matching.
-- [ ] Treffer zeigt unterscheidbare Firmendaten und vorhandene Akquisiteure.
-- [ ] Nutzer kann abbrechen oder explizit „Trotzdem ebenfalls zuordnen“.
-- [ ] Kein Treffer erzeugt Company/Person in Twenty und eigene Assignment in
+- [x] Formular verlangt nur minimale Firmen-/Kontaktdaten.
+- [x] Während der Eingabe oder vor Submit erfolgt serverseitiges Matching.
+- [x] Treffer zeigt unterscheidbare Firmendaten und vorhandene Akquisiteure.
+- [x] Nutzer kann abbrechen oder explizit „Trotzdem ebenfalls zuordnen“.
+- [x] Kein Treffer erzeugt Company/Person in Twenty und eigene Assignment in
       einer nachvollziehbaren Operation.
-- [ ] Doppelklick oder Retry erzeugt keine Duplikate.
+- [x] Doppelklick oder Retry erzeugt keine Duplikate.
 
 Tests/Nachweise:
 
-- [ ] E2E deckt No-Match, Single-Match, Ambiguous-Match, Abbruch und
+- [x] E2E deckt No-Match, Single-Match, Ambiguous-Match, Abbruch und
       bestätigte Mitzuordnung ab.
-- [ ] Integrationstest wiederholt dieselbe idempotente Mutation real.
-- [ ] Twenty wird anschließend direkt geprüft: exakt erwartete Company,
+- [x] Integrationstest wiederholt dieselbe idempotente Mutation real.
+- [x] Twenty wird anschließend direkt geprüft: exakt erwartete Company,
       Person und Relationen existieren.
 
 ---

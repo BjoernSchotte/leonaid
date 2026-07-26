@@ -1329,6 +1329,7 @@ async def resolve_sponsor_match(
         expected_status=SponsorMatchStatus(body.expected_status),
         selected_twenty_id=body.selected_twenty_id,
         confirm_existing_assignments=body.confirm_existing_assignments,
+        command_id=body.command_id,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"

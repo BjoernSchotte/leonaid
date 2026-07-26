@@ -897,6 +897,7 @@ function applicationPage() {
         let mode = "company";
         let currentMatch = null;
         let currentDraft = null;
+        let currentCommandId = null;
         let selectedId = null;
 
         const setMode = (nextMode) => {
@@ -917,6 +918,7 @@ function applicationPage() {
           givenInput.required = mode === "person";
           familyInput.required = mode === "person";
           currentMatch = null;
+          currentCommandId = null;
           result.className = "result-empty";
           result.innerHTML = '<div><strong id="sponsor-result-heading">Bereit zur Prüfung</strong>' +
             '<span>LeonAid gleicht nur den führenden Namen ab und zeigt weitere Angaben getrennt.</span></div>';
@@ -987,6 +989,7 @@ function applicationPage() {
 
         const renderMatch = (match) => {
           currentMatch = match;
+          currentCommandId = crypto.randomUUID();
           selectedId =
             match.status === "single_match" ? match.candidates[0].twentyId : null;
           const selectable = match.status === "ambiguous_match";
@@ -1041,6 +1044,7 @@ function applicationPage() {
             "click",
             () => {
               currentMatch = null;
+              currentCommandId = null;
               result.className = "result-empty";
               result.innerHTML = '<div><strong id="sponsor-result-heading">Prüfung abgebrochen</strong>' +
                 '<span>Du kannst die Eingaben anpassen und erneut prüfen.</span></div>';
@@ -1054,7 +1058,7 @@ function applicationPage() {
         };
 
         const resolve = async () => {
-          if (!currentMatch || !currentDraft) return;
+          if (!currentMatch || !currentDraft || !currentCommandId) return;
           const button = result.querySelector('[data-testid="sponsor-resolve"]');
           const candidate = selectedCandidate();
           const hasOtherAssignees = candidate?.assignedAcquirers.some(
@@ -1072,6 +1076,7 @@ function applicationPage() {
                 credentials: "include",
                 headers: { "Content-Type": "application/json", Accept: "application/json" },
                 body: JSON.stringify({
+                  commandId: currentCommandId,
                   sponsor: currentDraft,
                   expectedStatus: currentMatch.status,
                   selectedTwentyId: selectedId,

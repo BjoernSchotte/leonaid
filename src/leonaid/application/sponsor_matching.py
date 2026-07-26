@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import unicodedata
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Protocol
-from uuid import UUID, uuid4
+from uuid import UUID, uuid5
 
 from leonaid.application.crm import (
     CompanyData,
@@ -142,6 +145,18 @@ class SponsorDraft:
             raise ValueError(
                 "Ohne Firma sind Vorname und Nachname für das Matching erforderlich."
             )
+        if (
+            self.company_name is not None
+            and any(
+                value is not None
+                for value in (self.given_name, self.family_name, self.email)
+            )
+            and (self.given_name is None or self.family_name is None)
+        ):
+            raise ValueError(
+                "Für einen Firmenkontakt sind Vorname und Nachname gemeinsam "
+                "erforderlich."
+            )
         if self.email is not None and (
             "@" not in self.email
             or self.email.startswith("@")
@@ -202,12 +217,35 @@ class SponsorResolution:
     assignment_id: UUID
     assignment_created: bool
     prior_assignees: tuple[AssignedAcquirer, ...]
+    contact_twenty_id: UUID | None
+    replayed: bool
 
 
 @dataclass(frozen=True, slots=True)
 class RecordedAssignment:
     assignment_id: UUID
     created: bool
+
+
+class SponsorResolutionCommand(Protocol):
+    @property
+    def existing_result(self) -> SponsorResolution | None: ...
+
+    async def record_resolution(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        party_kind: CrmPartyKind,
+        twenty_id: UUID,
+        outcome: SponsorResolutionOutcome,
+        normalized_key: str,
+        prior_assignee_ids: tuple[UUID, ...],
+        request_id: str,
+        occurred_at: datetime,
+    ) -> RecordedAssignment | None: ...
+
+    async def complete(self, result: SponsorResolution) -> None: ...
 
 
 class SponsorMatchingRepository(Protocol):
@@ -228,19 +266,53 @@ class SponsorMatchingRepository(Protocol):
         evaluated_at: datetime,
     ) -> dict[UUID, tuple[AssignedAcquirer, ...]]: ...
 
-    async def record_resolution(
+    def resolution_command(
         self,
         *,
-        action_id: UUID,
-        actor_user_id: UUID,
-        party_kind: CrmPartyKind,
-        twenty_id: UUID,
-        outcome: SponsorResolutionOutcome,
-        normalized_key: str,
-        prior_assignee_ids: tuple[UUID, ...],
-        request_id: str,
-        occurred_at: datetime,
-    ) -> RecordedAssignment | None: ...
+        lock_key: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> AbstractAsyncContextManager[SponsorResolutionCommand]: ...
+
+
+SPONSOR_RESOLUTION_NAMESPACE = UUID("c932e32c-c0f8-4f19-a13f-e2b22ddab433")
+
+
+def _resolution_request_hash(
+    *,
+    action_id: UUID,
+    actor_user_id: UUID,
+    command_id: UUID,
+    draft: SponsorDraft,
+    expected_status: SponsorMatchStatus,
+    selected_twenty_id: UUID | None,
+    confirm_existing_assignments: bool,
+) -> str:
+    serialized = json.dumps(
+        {
+            "actionId": str(action_id),
+            "actorUserId": str(actor_user_id),
+            "commandId": str(command_id),
+            "confirmExistingAssignments": confirm_existing_assignments,
+            "expectedStatus": expected_status.value,
+            "selectedTwentyId": (
+                str(selected_twenty_id) if selected_twenty_id is not None else None
+            ),
+            "sponsor": {
+                "city": draft.city,
+                "companyName": draft.company_name,
+                "email": draft.email,
+                "familyName": draft.family_name,
+                "givenName": draft.given_name,
+                "postalCode": draft.postal_code,
+                "streetLine1": draft.street_line_1,
+            },
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 class SponsorMatchingService:
@@ -262,6 +334,157 @@ class SponsorMatchingService:
     ) -> SponsorMatchResult:
         evaluated_at = datetime.now(timezone.utc)
         await self._authorize(actor, action_id, evaluated_at=evaluated_at)
+        return await self._preview_authorized(
+            action_id,
+            draft,
+            request_id=request_id,
+            evaluated_at=evaluated_at,
+        )
+
+    async def resolve(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        draft: SponsorDraft,
+        *,
+        expected_status: SponsorMatchStatus,
+        selected_twenty_id: UUID | None,
+        confirm_existing_assignments: bool,
+        command_id: UUID,
+        request_id: str,
+    ) -> SponsorResolution:
+        evaluated_at = datetime.now(timezone.utc)
+        await self._authorize(actor, action_id, evaluated_at=evaluated_at)
+        idempotency_key = f"sponsor.resolve:{action_id}:{actor.account.id}:{command_id}"
+        request_hash = _resolution_request_hash(
+            action_id=action_id,
+            actor_user_id=actor.account.id,
+            command_id=command_id,
+            draft=draft,
+            expected_status=expected_status,
+            selected_twenty_id=selected_twenty_id,
+            confirm_existing_assignments=confirm_existing_assignments,
+        )
+        lock_key = (
+            f"sponsor.match:{action_id}:{draft.party_kind.value}:{draft.normalized_key}"
+        )
+        async with self._repository.resolution_command(
+            lock_key=lock_key,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        ) as command:
+            if command.existing_result is not None:
+                return command.existing_result
+
+            outcome: SponsorResolutionOutcome
+            candidate: SponsorMatchCandidate
+            contact_twenty_id: UUID | None = None
+            primary_id = uuid5(
+                SPONSOR_RESOLUTION_NAMESPACE,
+                f"{idempotency_key}:primary",
+            )
+            contact_id = uuid5(
+                SPONSOR_RESOLUTION_NAMESPACE,
+                f"{idempotency_key}:contact",
+            )
+            recovered = (
+                await self._recover_created_candidate(
+                    draft,
+                    primary_id=primary_id,
+                    contact_id=contact_id,
+                    correlation_id=f"{request_id}:recover",
+                )
+                if expected_status is SponsorMatchStatus.NO_MATCH
+                else None
+            )
+            if recovered is not None:
+                candidate, contact_twenty_id = recovered
+                outcome = SponsorResolutionOutcome.CREATED
+            else:
+                preview = await self._preview_authorized(
+                    action_id,
+                    draft,
+                    request_id=request_id,
+                    evaluated_at=evaluated_at,
+                )
+                if preview.status is not expected_status:
+                    raise Conflict(
+                        "sponsor_match_changed",
+                        "Der CRM-Bestand hat sich geändert. Bitte prüfe die "
+                        "Treffer erneut.",
+                    )
+                if preview.status is SponsorMatchStatus.NO_MATCH:
+                    if selected_twenty_id is not None:
+                        raise Conflict(
+                            "sponsor_match_selection_invalid",
+                            "Für eine Neuanlage darf kein bestehender Treffer "
+                            "gewählt sein.",
+                        )
+                    candidate, contact_twenty_id = await self._create_candidate(
+                        draft,
+                        primary_id=primary_id,
+                        contact_id=contact_id,
+                        correlation_id=f"{request_id}:create",
+                    )
+                    outcome = SponsorResolutionOutcome.CREATED
+                else:
+                    candidate = self._selected_candidate(
+                        preview,
+                        selected_twenty_id,
+                    )
+                    other_assignees = tuple(
+                        assignee
+                        for assignee in candidate.assigned_acquirers
+                        if assignee.user_id != actor.account.id
+                    )
+                    if other_assignees and not confirm_existing_assignments:
+                        names = ", ".join(item.display_name for item in other_assignees)
+                        raise Conflict(
+                            "sponsor_match_confirmation_required",
+                            f"Der Sponsor ist bereits {names} zugeordnet. "
+                            "Bestätige die zusätzliche Zuordnung ausdrücklich.",
+                        )
+                    outcome = SponsorResolutionOutcome.REUSED
+
+            occurred_at = datetime.now(timezone.utc)
+            recorded = await command.record_resolution(
+                action_id=action_id,
+                actor_user_id=actor.account.id,
+                party_kind=candidate.party_kind,
+                twenty_id=candidate.twenty_id,
+                outcome=outcome,
+                normalized_key=draft.normalized_key,
+                prior_assignee_ids=tuple(
+                    item.user_id for item in candidate.assigned_acquirers
+                ),
+                request_id=request_id,
+                occurred_at=occurred_at,
+            )
+            if recorded is None:
+                raise concealed_resource()
+            resolution = SponsorResolution(
+                outcome=outcome,
+                party_kind=candidate.party_kind,
+                twenty_id=candidate.twenty_id,
+                display_name=candidate.display_name,
+                normalized_key=draft.normalized_key,
+                assignment_id=recorded.assignment_id,
+                assignment_created=recorded.created,
+                prior_assignees=candidate.assigned_acquirers,
+                contact_twenty_id=contact_twenty_id,
+                replayed=False,
+            )
+            await command.complete(resolution)
+            return resolution
+
+    async def _preview_authorized(
+        self,
+        action_id: UUID,
+        draft: SponsorDraft,
+        *,
+        request_id: str,
+        evaluated_at: datetime,
+    ) -> SponsorMatchResult:
         records: tuple[CompanyRecord | PersonRecord, ...]
         if draft.party_kind is CrmPartyKind.COMPANY:
             records = await self._matching_companies(
@@ -293,92 +516,12 @@ class SponsorMatchingService:
                 key=lambda item: (item.display_name.casefold(), str(item.twenty_id)),
             )
         )
-        status = match_status(len(candidates))
         return SponsorMatchResult(
-            status=status,
+            status=match_status(len(candidates)),
             party_kind=draft.party_kind,
             normalized_key=draft.normalized_key,
             input=draft,
             candidates=candidates,
-        )
-
-    async def resolve(
-        self,
-        actor: IdentityPrincipal,
-        action_id: UUID,
-        draft: SponsorDraft,
-        *,
-        expected_status: SponsorMatchStatus,
-        selected_twenty_id: UUID | None,
-        confirm_existing_assignments: bool,
-        request_id: str,
-    ) -> SponsorResolution:
-        preview = await self.preview(
-            actor,
-            action_id,
-            draft,
-            request_id=request_id,
-        )
-        if preview.status is not expected_status:
-            raise Conflict(
-                "sponsor_match_changed",
-                "Der CRM-Bestand hat sich geändert. Bitte prüfe die Treffer erneut.",
-            )
-
-        outcome: SponsorResolutionOutcome
-        candidate: SponsorMatchCandidate
-        if preview.status is SponsorMatchStatus.NO_MATCH:
-            if selected_twenty_id is not None:
-                raise Conflict(
-                    "sponsor_match_selection_invalid",
-                    "Für eine Neuanlage darf kein bestehender Treffer gewählt sein.",
-                )
-            candidate = await self._create_candidate(
-                draft,
-                correlation_id=f"{request_id}:create",
-            )
-            outcome = SponsorResolutionOutcome.CREATED
-        else:
-            candidate = self._selected_candidate(preview, selected_twenty_id)
-            other_assignees = tuple(
-                assignee
-                for assignee in candidate.assigned_acquirers
-                if assignee.user_id != actor.account.id
-            )
-            if other_assignees and not confirm_existing_assignments:
-                names = ", ".join(item.display_name for item in other_assignees)
-                raise Conflict(
-                    "sponsor_match_confirmation_required",
-                    f"Der Sponsor ist bereits {names} zugeordnet. "
-                    "Bestätige die zusätzliche Zuordnung ausdrücklich.",
-                )
-            outcome = SponsorResolutionOutcome.REUSED
-
-        occurred_at = datetime.now(timezone.utc)
-        recorded = await self._repository.record_resolution(
-            action_id=action_id,
-            actor_user_id=actor.account.id,
-            party_kind=candidate.party_kind,
-            twenty_id=candidate.twenty_id,
-            outcome=outcome,
-            normalized_key=preview.normalized_key,
-            prior_assignee_ids=tuple(
-                item.user_id for item in candidate.assigned_acquirers
-            ),
-            request_id=request_id,
-            occurred_at=occurred_at,
-        )
-        if recorded is None:
-            raise concealed_resource()
-        return SponsorResolution(
-            outcome=outcome,
-            party_kind=candidate.party_kind,
-            twenty_id=candidate.twenty_id,
-            display_name=candidate.display_name,
-            normalized_key=preview.normalized_key,
-            assignment_id=recorded.assignment_id,
-            assignment_created=recorded.created,
-            prior_assignees=candidate.assigned_acquirers,
         )
 
     async def _authorize(
@@ -454,13 +597,14 @@ class SponsorMatchingService:
         self,
         draft: SponsorDraft,
         *,
+        primary_id: UUID,
+        contact_id: UUID,
         correlation_id: str,
-    ) -> SponsorMatchCandidate:
-        leonaid_id = uuid4()
+    ) -> tuple[SponsorMatchCandidate, UUID | None]:
         if draft.party_kind is CrmPartyKind.COMPANY:
             assert draft.company_name is not None
             company_record, _receipt = await self._crm.create_company(
-                leonaid_id,
+                primary_id,
                 CompanyData(
                     name=draft.company_name,
                     address=PostalAddress(
@@ -471,11 +615,17 @@ class SponsorMatchingService:
                 ),
                 correlation_id=correlation_id,
             )
-            return self._company_candidate(company_record, {})
+            contact_twenty_id = await self._create_company_contact(
+                draft,
+                company_record.twenty_id,
+                contact_id=contact_id,
+                correlation_id=f"{correlation_id}:contact",
+            )
+            return self._company_candidate(company_record, {}), contact_twenty_id
         assert draft.given_name is not None
         assert draft.family_name is not None
         person_record, _receipt = await self._crm.create_person(
-            leonaid_id,
+            primary_id,
             PersonData(
                 given_name=draft.given_name,
                 family_name=draft.family_name,
@@ -483,7 +633,134 @@ class SponsorMatchingService:
             ),
             correlation_id=correlation_id,
         )
-        return self._person_candidate(person_record, {})
+        return self._person_candidate(person_record, {}), None
+
+    async def _recover_created_candidate(
+        self,
+        draft: SponsorDraft,
+        *,
+        primary_id: UUID,
+        contact_id: UUID,
+        correlation_id: str,
+    ) -> tuple[SponsorMatchCandidate, UUID | None] | None:
+        if draft.party_kind is CrmPartyKind.COMPANY:
+            company = await self._crm.get_company(
+                primary_id,
+                correlation_id=f"{correlation_id}:company",
+            )
+            if company is None:
+                return None
+            self._validate_recovered_company(company, draft)
+            contact_twenty_id = await self._recover_or_create_company_contact(
+                draft,
+                company.twenty_id,
+                contact_id=contact_id,
+                correlation_id=f"{correlation_id}:contact",
+            )
+            return self._company_candidate(company, {}), contact_twenty_id
+
+        person = await self._crm.get_person(
+            primary_id,
+            correlation_id=f"{correlation_id}:person",
+        )
+        if person is None:
+            return None
+        self._validate_recovered_person(person, draft, company_twenty_id=None)
+        return self._person_candidate(person, {}), None
+
+    async def _create_company_contact(
+        self,
+        draft: SponsorDraft,
+        company_twenty_id: UUID,
+        *,
+        contact_id: UUID,
+        correlation_id: str,
+    ) -> UUID | None:
+        if draft.given_name is None or draft.family_name is None:
+            return None
+        person, _receipt = await self._crm.create_person(
+            contact_id,
+            PersonData(
+                given_name=draft.given_name,
+                family_name=draft.family_name,
+                email=draft.email,
+                company_twenty_id=company_twenty_id,
+            ),
+            correlation_id=correlation_id,
+        )
+        return person.twenty_id
+
+    async def _recover_or_create_company_contact(
+        self,
+        draft: SponsorDraft,
+        company_twenty_id: UUID,
+        *,
+        contact_id: UUID,
+        correlation_id: str,
+    ) -> UUID | None:
+        if draft.given_name is None or draft.family_name is None:
+            return None
+        person = await self._crm.get_person(
+            contact_id,
+            correlation_id=f"{correlation_id}:get",
+        )
+        if person is None:
+            return await self._create_company_contact(
+                draft,
+                company_twenty_id,
+                contact_id=contact_id,
+                correlation_id=f"{correlation_id}:create",
+            )
+        self._validate_recovered_person(
+            person,
+            draft,
+            company_twenty_id=company_twenty_id,
+        )
+        return person.twenty_id
+
+    @staticmethod
+    def _validate_recovered_company(
+        record: CompanyRecord,
+        draft: SponsorDraft,
+    ) -> None:
+        expected = (
+            draft.street_line_1,
+            draft.postal_code,
+            draft.city,
+        )
+        actual = (
+            record.data.address.street_line_1,
+            record.data.address.postal_code,
+            record.data.address.city,
+        )
+        if (
+            normalize_match_name(record.data.name) != draft.normalized_key
+            or actual != expected
+        ):
+            raise Conflict(
+                "sponsor_idempotency_crm_conflict",
+                "Der wiederaufgenommene CRM-Datensatz passt nicht mehr zur "
+                "ursprünglichen Eingabe.",
+            )
+
+    @staticmethod
+    def _validate_recovered_person(
+        record: PersonRecord,
+        draft: SponsorDraft,
+        *,
+        company_twenty_id: UUID | None,
+    ) -> None:
+        if (
+            normalize_match_name(f"{record.data.given_name} {record.data.family_name}")
+            != normalize_match_name(f"{draft.given_name} {draft.family_name}")
+            or record.data.email != draft.email
+            or record.data.company_twenty_id != company_twenty_id
+        ):
+            raise Conflict(
+                "sponsor_idempotency_crm_conflict",
+                "Der wiederaufgenommene CRM-Kontakt passt nicht mehr zur "
+                "ursprünglichen Eingabe.",
+            )
 
     @staticmethod
     def _company_candidate(

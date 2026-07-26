@@ -511,8 +511,17 @@ class SponsorDraftRequest(TransportModel):
         company_name = (self.company_name or "").strip()
         given_name = (self.given_name or "").strip()
         family_name = (self.family_name or "").strip()
+        email = (self.email or "").strip()
         if not company_name and (not given_name or not family_name):
             raise ValueError("Gib einen Firmennamen oder Vorname und Nachname an.")
+        if (
+            company_name
+            and (given_name or family_name or email)
+            and (not given_name or not family_name)
+        ):
+            raise ValueError(
+                "Gib für einen Firmenkontakt Vorname und Nachname gemeinsam an."
+            )
         return self
 
 
@@ -550,6 +559,7 @@ class SponsorMatchResponse(TransportModel):
 
 
 class ResolveSponsorMatchRequest(TransportModel):
+    command_id: UUID
     sponsor: SponsorDraftRequest
     expected_status: Literal["no_match", "single_match", "ambiguous_match"]
     selected_twenty_id: UUID | None = None
@@ -565,6 +575,8 @@ class SponsorResolutionResponse(TransportModel):
     assignment_id: UUID
     assignment_created: bool
     prior_assignees: list[AssignedAcquirerResponse]
+    contact_twenty_id: UUID | None
+    replayed: bool
 
 
 AssignmentPartyKindValue = Literal["company", "person"]

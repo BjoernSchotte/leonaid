@@ -186,7 +186,10 @@ class TwentyCrmGateway:
             operation_kind="write",
             correlation_id=correlation_id,
             leonaid_id=leonaid_id,
-            json_body=_company_to_wire(company),
+            json_body={
+                "id": str(leonaid_id),
+                **_company_to_wire(company),
+            },
         )
         record = _company_from_wire(_single_record(response, "company"))
         return record, _receipt(
@@ -338,7 +341,10 @@ class TwentyCrmGateway:
             operation_kind="write",
             correlation_id=correlation_id,
             leonaid_id=leonaid_id,
-            json_body=_person_to_wire(person),
+            json_body={
+                "id": str(leonaid_id),
+                **_person_to_wire(person),
+            },
         )
         record = _person_from_wire(_single_record(response, "person"))
         return record, _receipt(

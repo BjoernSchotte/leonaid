@@ -8,7 +8,13 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import {
   ApiError,
@@ -44,6 +50,19 @@ function sponsorError(error: unknown) {
     error.detail.code === "sponsor_match_changed"
   ) {
     return "Der CRM-Bestand hat sich seit der Prüfung geändert. Prüfe den Sponsor erneut, bevor du ihn zuordnest.";
+  }
+  if (
+    error instanceof ApiError &&
+    (error.detail.code === "idempotency_conflict" ||
+      error.detail.code === "sponsor_idempotency_crm_conflict")
+  ) {
+    return "Diese Verarbeitung passt nicht mehr zur ursprünglichen Eingabe. Brich die Prüfung ab und starte sie neu.";
+  }
+  if (
+    error instanceof ApiError &&
+    error.detail.code === "idempotency_incomplete"
+  ) {
+    return "Die vorherige Verarbeitung läuft noch. Versuche das Speichern gleich noch einmal.";
   }
   if (error instanceof ApiError && error.status === 403) {
     return "Du darfst in dieser Aktion keine Sponsoren übernehmen. Wähle eine eigene Aktion oder wende dich an den Charity-Admin.";
@@ -269,6 +288,7 @@ function candidateAddress(candidate: SponsorMatchCandidateResponse) {
 function MatchResult({
   currentUser,
   match,
+  onCancel,
   onResolve,
   resolving,
   resolution,
@@ -277,6 +297,7 @@ function MatchResult({
 }: {
   readonly currentUser: CurrentIdentityResponse;
   readonly match: SponsorMatchResponse | null;
+  readonly onCancel: () => void;
   readonly onResolve: () => void;
   readonly resolving: boolean;
   readonly resolution: SponsorResolutionResponse | null;
@@ -307,6 +328,9 @@ function MatchResult({
             {shared.map((item) => item.displayName).join(", ")}
           </span>
         ) : null}
+        <Button onClick={onCancel} variant="secondary">
+          Weiteren Sponsor erfassen
+        </Button>
       </div>
     );
   }
@@ -332,7 +356,10 @@ function MatchResult({
   const selected = match.candidates.find(
     (candidate) => candidate.twentyId === selectedId,
   );
-  const hasExistingAssignments = (selected?.assignedAcquirers.length ?? 0) > 0;
+  const hasOtherAssignments =
+    selected?.assignedAcquirers.some(
+      (assignee) => assignee.userId !== currentUser.userId,
+    ) ?? false;
   const title =
     match.status === "no_match"
       ? "Kein gleichnamiger Sponsor gefunden"
@@ -383,21 +410,32 @@ function MatchResult({
           ))}
         </div>
       ) : null}
-      <Button
-        data-testid="sponsor-resolve"
-        disabled={
-          resolving || (match.status !== "no_match" && selectedId.length === 0)
-        }
-        onClick={onResolve}
-      >
-        {resolving
-          ? "Zuordnung wird gespeichert …"
-          : match.status === "no_match"
-            ? "Sponsor anlegen und mir zuordnen"
-            : hasExistingAssignments
-              ? "Trotzdem ebenfalls zuordnen"
-              : "Diesen Sponsor mir zuordnen"}
-      </Button>
+      <div className="acq-match-actions">
+        <Button
+          data-testid="sponsor-resolve"
+          disabled={
+            resolving ||
+            (match.status !== "no_match" && selectedId.length === 0)
+          }
+          onClick={onResolve}
+        >
+          {resolving
+            ? "Zuordnung wird gespeichert …"
+            : match.status === "no_match"
+              ? "Sponsor anlegen und mir zuordnen"
+              : hasOtherAssignments
+                ? "Trotzdem ebenfalls zuordnen"
+                : "Diesen Sponsor mir zuordnen"}
+        </Button>
+        <Button
+          data-testid="sponsor-cancel"
+          disabled={resolving}
+          onClick={onCancel}
+          variant="secondary"
+        >
+          Prüfung abbrechen
+        </Button>
+      </div>
     </div>
   );
 }
@@ -413,12 +451,15 @@ function SponsorCapture({
   readonly identity: CurrentIdentityResponse;
   readonly onAssigned: () => Promise<unknown>;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<SponsorMode>("company");
   const [match, setMatch] = useState<SponsorMatchResponse | null>(null);
   const [draft, setDraft] = useState<SponsorDraftRequest | null>(null);
+  const [commandId, setCommandId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [resolution, setResolution] =
     useState<SponsorResolutionResponse | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const preview = useMutation({
     mutationFn: (nextDraft: SponsorDraftRequest) =>
@@ -426,6 +467,7 @@ function SponsorCapture({
     onSuccess: (result, nextDraft) => {
       setDraft(nextDraft);
       setMatch(result);
+      setCommandId(crypto.randomUUID());
       setResolution(null);
       setSelectedId(
         result.status === "single_match"
@@ -436,11 +478,12 @@ function SponsorCapture({
   });
   const resolve = useMutation({
     mutationFn: async () => {
-      if (!draft || !match) throw new Error("missing-match");
+      if (!draft || !match || !commandId) throw new Error("missing-match");
       const selected = match.candidates.find(
         (candidate) => candidate.twentyId === selectedId,
       );
       return client.resolveSponsorMatch(actionId, {
+        commandId,
         confirmExistingAssignments:
           (selected?.assignedAcquirers.length ?? 0) > 0,
         expectedStatus: match.status,
@@ -461,27 +504,60 @@ function SponsorCapture({
       const value = String(values.get(name) ?? "").trim();
       return value || null;
     };
+    const givenName = optional("givenName");
+    const familyName = optional("familyName");
+    const email = optional("email");
+    if (
+      mode === "company" &&
+      (givenName || familyName || email) &&
+      (!givenName || !familyName)
+    ) {
+      setFormError(
+        "Gib für den Ansprechpartner Vorname und Nachname gemeinsam an.",
+      );
+      return;
+    }
     const nextDraft: SponsorDraftRequest =
       mode === "company"
         ? {
             city: optional("city"),
             companyName: optional("companyName"),
-            email: optional("email"),
-            familyName: optional("familyName"),
-            givenName: optional("givenName"),
+            email,
+            familyName,
+            givenName,
             postalCode: optional("postalCode"),
             streetLine1: optional("streetLine1"),
           }
         : {
             companyName: null,
-            email: optional("email"),
-            familyName: optional("familyName"),
-            givenName: optional("givenName"),
+            email,
+            familyName,
+            givenName,
           };
+    setFormError(null);
     setMatch(null);
+    setCommandId(null);
     setResolution(null);
     preview.mutate(nextDraft);
   }
+
+  function resetCapture() {
+    preview.reset();
+    resolve.reset();
+    formRef.current?.reset();
+    setDraft(null);
+    setMatch(null);
+    setCommandId(null);
+    setSelectedId("");
+    setResolution(null);
+    setFormError(null);
+  }
+
+  const formLocked =
+    preview.isPending ||
+    resolve.isPending ||
+    match !== null ||
+    resolution !== null;
 
   return (
     <div className="acq-capture-layout">
@@ -498,93 +574,150 @@ function SponsorCapture({
             </p>
           </div>
         </div>
-        <form className="acq-form" id="sponsor-form" onSubmit={submit}>
-          <div
-            aria-label="Sponsorart"
-            className="acq-segment acq-field--wide"
-            role="group"
-          >
-            <button
-              aria-pressed={mode === "company"}
-              onClick={() => setMode("company")}
-              type="button"
+        <form
+          className="acq-form"
+          id="sponsor-form"
+          onSubmit={submit}
+          ref={formRef}
+        >
+          <fieldset className="acq-capture-fields" disabled={formLocked}>
+            <legend className="sr-only">Sponsor-Daten</legend>
+            <div
+              aria-label="Sponsorart"
+              className="acq-segment acq-field--wide"
+              role="group"
             >
-              Firma
-            </button>
-            <button
-              aria-pressed={mode === "person"}
-              onClick={() => setMode("person")}
-              type="button"
-            >
-              Privatperson
-            </button>
-          </div>
-          {mode === "company" ? (
-            <div className="acq-field acq-field--wide">
-              <label htmlFor="sponsor-company">Firmenname</label>
-              <p>Der offizielle oder im Alltag verwendete Firmenname.</p>
-              <input
-                data-testid="sponsor-company"
-                id="sponsor-company"
-                maxLength={300}
-                name="companyName"
-                required
-              />
+              <button
+                aria-pressed={mode === "company"}
+                onClick={() => setMode("company")}
+                type="button"
+              >
+                Firma
+              </button>
+              <button
+                aria-pressed={mode === "person"}
+                onClick={() => setMode("person")}
+                type="button"
+              >
+                Privatperson
+              </button>
             </div>
-          ) : null}
-          <div className="acq-field">
-            <label htmlFor="sponsor-given-name">Vorname</label>
-            <input
-              id="sponsor-given-name"
-              maxLength={200}
-              name="givenName"
-              required={mode === "person"}
-            />
-          </div>
-          <div className="acq-field">
-            <label htmlFor="sponsor-family-name">Nachname</label>
-            <input
-              id="sponsor-family-name"
-              maxLength={200}
-              name="familyName"
-              required={mode === "person"}
-            />
-          </div>
-          <div className="acq-field acq-field--wide">
-            <label htmlFor="sponsor-email">E-Mail (optional)</label>
-            <p>Hilft bei gleichnamigen Personen und später beim Kontakt.</p>
-            <input
-              autoComplete="email"
-              id="sponsor-email"
-              maxLength={320}
-              name="email"
-              type="email"
-            />
-          </div>
-          {mode === "company" ? (
-            <>
+            {mode === "company" ? (
               <div className="acq-field acq-field--wide">
-                <label htmlFor="sponsor-street">Straße (optional)</label>
-                <input id="sponsor-street" maxLength={300} name="streetLine1" />
-              </div>
-              <div className="acq-field">
-                <label htmlFor="sponsor-postal-code">PLZ (optional)</label>
+                <label htmlFor="sponsor-company">Firmenname</label>
+                <p id="sponsor-company-help">
+                  Der offizielle oder im Alltag verwendete Firmenname. LeonAid
+                  nutzt ihn für die CRM-Prüfung.
+                </p>
                 <input
-                  id="sponsor-postal-code"
-                  maxLength={40}
-                  name="postalCode"
+                  aria-describedby="sponsor-company-help"
+                  data-testid="sponsor-company"
+                  id="sponsor-company"
+                  maxLength={300}
+                  name="companyName"
+                  placeholder="Musterbetrieb GmbH"
+                  required
                 />
               </div>
-              <div className="acq-field">
-                <label htmlFor="sponsor-city">Ort (optional)</label>
-                <input id="sponsor-city" maxLength={200} name="city" />
-              </div>
-            </>
-          ) : null}
+            ) : null}
+            <div className="acq-field">
+              <label htmlFor="sponsor-given-name">
+                Vorname{mode === "company" ? " (optional)" : ""}
+              </label>
+              <p id="sponsor-given-name-help">
+                {mode === "company"
+                  ? "Ansprechpartner in der Firma; Name immer vollständig angeben."
+                  : "Gemeinsam mit dem Nachnamen der CRM-Matchschlüssel."}
+              </p>
+              <input
+                aria-describedby="sponsor-given-name-help"
+                id="sponsor-given-name"
+                maxLength={200}
+                name="givenName"
+                required={mode === "person"}
+              />
+            </div>
+            <div className="acq-field">
+              <label htmlFor="sponsor-family-name">
+                Nachname{mode === "company" ? " (optional)" : ""}
+              </label>
+              <p id="sponsor-family-name-help">
+                {mode === "company"
+                  ? "Wird zusammen mit dem Vornamen als Firmenkontakt angelegt."
+                  : "Erforderlich, damit die Person eindeutig geprüft werden kann."}
+              </p>
+              <input
+                aria-describedby="sponsor-family-name-help"
+                id="sponsor-family-name"
+                maxLength={200}
+                name="familyName"
+                required={mode === "person"}
+              />
+            </div>
+            <div className="acq-field acq-field--wide">
+              <label htmlFor="sponsor-email">E-Mail (optional)</label>
+              <p id="sponsor-email-help">
+                Hilft beim Kontakt und bei gleichnamigen Personen; sie ist kein
+                führender Matchschlüssel.
+              </p>
+              <input
+                aria-describedby="sponsor-email-help"
+                autoComplete="email"
+                id="sponsor-email"
+                maxLength={320}
+                name="email"
+                placeholder="kontakt@beispiel.de"
+                type="email"
+              />
+            </div>
+            {mode === "company" ? (
+              <>
+                <div className="acq-field acq-field--wide">
+                  <label htmlFor="sponsor-street">Straße (optional)</label>
+                  <p id="sponsor-street-help">
+                    Dient zur Unterscheidung und späteren Routenplanung.
+                  </p>
+                  <input
+                    aria-describedby="sponsor-street-help"
+                    id="sponsor-street"
+                    maxLength={300}
+                    name="streetLine1"
+                    placeholder="Musterstraße 12"
+                  />
+                </div>
+                <div className="acq-field">
+                  <label htmlFor="sponsor-postal-code">PLZ (optional)</label>
+                  <p id="sponsor-postal-code-help">
+                    Hilft bei Trefferprüfung und Auslieferung.
+                  </p>
+                  <input
+                    aria-describedby="sponsor-postal-code-help"
+                    id="sponsor-postal-code"
+                    maxLength={40}
+                    name="postalCode"
+                    placeholder="80331"
+                  />
+                </div>
+                <div className="acq-field">
+                  <label htmlFor="sponsor-city">Ort (optional)</label>
+                  <p id="sponsor-city-help">
+                    Wird zusammen mit der PLZ im Treffer angezeigt.
+                  </p>
+                  <input
+                    aria-describedby="sponsor-city-help"
+                    id="sponsor-city"
+                    maxLength={200}
+                    name="city"
+                    placeholder="München"
+                  />
+                </div>
+              </>
+            ) : null}
+          </fieldset>
           <div className="acq-form__actions acq-field--wide">
             <Button
               data-testid="sponsor-preview"
-              disabled={preview.isPending}
+              disabled={formLocked}
               type="submit"
             >
               {preview.isPending ? "CRM wird geprüft …" : "Im CRM prüfen"}
@@ -600,6 +733,9 @@ function SponsorCapture({
               <StatusMessage tone="success">
                 {resolution.displayName} ist jetzt dir zugeordnet.
               </StatusMessage>
+            ) : null}
+            {formError ? (
+              <StatusMessage tone="error">{formError}</StatusMessage>
             ) : null}
             {preview.isError || resolve.isError ? (
               <StatusMessage tone="error">
@@ -617,6 +753,7 @@ function SponsorCapture({
         <MatchResult
           currentUser={identity}
           match={match}
+          onCancel={resetCapture}
           onResolve={() => resolve.mutate()}
           resolving={resolve.isPending}
           resolution={resolution}
@@ -714,6 +851,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
           actionId={actionId}
           client={client}
           identity={identity}
+          key={actionId}
           onAssigned={async () => {
             await board.refetch();
           }}

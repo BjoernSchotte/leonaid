@@ -61,6 +61,11 @@ def test_draft_uses_company_or_full_person_name_as_the_only_match_key() -> None:
     assert company.postal_code == "48143"
     with pytest.raises(ValueError, match="Vorname und Nachname"):
         SponsorDraft(given_name="Nurvorname")
+    with pytest.raises(ValueError, match="Firmenkontakt"):
+        SponsorDraft(
+            company_name="Löwen-Apotheke GmbH",
+            email="kontakt@example.invalid",
+        )
 
 
 def test_match_status_is_explicit_for_zero_one_and_multiple_candidates() -> None:

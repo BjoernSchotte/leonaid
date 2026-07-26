@@ -166,6 +166,22 @@
   gap: 1rem;
 }
 
+.acq-capture-fields {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.acq-capture-fields:disabled .acq-field,
+.acq-capture-fields:disabled .acq-segment {
+  opacity: 0.72;
+}
+
 .acq-form--nested {
   margin-top: 0.75rem;
 }
@@ -653,6 +669,12 @@
   gap: 0.28rem;
 }
 
+.acq-match-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
 .acq-match-result__heading > h2,
 .acq-match-success > strong {
   margin: 0;
@@ -786,6 +808,10 @@
   }
 
   .acq-form {
+    grid-template-columns: 1fr;
+  }
+
+  .acq-capture-fields {
     grid-template-columns: 1fr;
   }
 

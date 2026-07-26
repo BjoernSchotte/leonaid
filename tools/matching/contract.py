@@ -43,6 +43,10 @@ def token_for(user_id: UUID) -> str:
     return f"poc032-{user_id}-server-session-token-value"
 
 
+def command_id(label: str) -> str:
+    return str(uuid5(SESSION_NAMESPACE, f"sponsor-command:{label}"))
+
+
 async def seed_sessions(connection: asyncpg.Connection[Any]) -> dict[UUID, str]:
     now = datetime.now(timezone.utc)
     users = (ANNA_ID, KLARA_ID)
@@ -121,6 +125,22 @@ async def twenty_record(
     return record
 
 
+async def twenty_collection(
+    client: httpx.AsyncClient,
+    collection: str,
+) -> list[dict[str, Any]]:
+    response = await client.get(f"/rest/{collection}", params={"limit": 100})
+    response.raise_for_status()
+    payload = response.json()
+    data = payload.get("data") if isinstance(payload, dict) else None
+    records = data.get(collection) if isinstance(data, dict) else None
+    if not isinstance(records, list) or not all(
+        isinstance(record, dict) for record in records
+    ):
+        raise ContractFailure(f"Twenty-{collection}-Liste fehlt")
+    return records
+
+
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
     tokens = await seed_sessions(connection)
     path = f"/api/v1/actions/{ACTION_ID}/acquisition/sponsor-match"
@@ -173,6 +193,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
 
         resolve_body: dict[str, object] = {
+            "commandId": command_id("reuse-unconfirmed"),
             "sponsor": company_draft,
             "expectedStatus": "single_match",
             "selectedTwentyId": str(GOLDEN_COMPANY_ID),
@@ -205,6 +226,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         if premature != 0:
             raise ContractFailure("Abgelehnte Bestätigung hat dennoch zugeordnet")
 
+        resolve_body["commandId"] = command_id("reuse-confirmed")
         resolve_body["confirmExistingAssignments"] = True
         reused = await post(
             api,
@@ -263,6 +285,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             f"{path}/resolve",
             tokens[ANNA_ID],
             {
+                "commandId": command_id("person-no-selection"),
                 "sponsor": person_draft,
                 "expectedStatus": "ambiguous_match",
                 "selectedTwentyId": None,
@@ -280,6 +303,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             f"{path}/resolve",
             tokens[ANNA_ID],
             {
+                "commandId": command_id("person-selected"),
                 "sponsor": person_draft,
                 "expectedStatus": "ambiguous_match",
                 "selectedTwentyId": str(PRIVATE_MAX_ID),
@@ -297,6 +321,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
 
         new_company_draft = {
             "companyName": "POC032 Nordlicht Werkstatt GmbH",
+            "givenName": "Nora",
+            "familyName": "Nordlicht",
+            "email": "nora.nordlicht@leonaid.invalid",
             "streetLine1": "Testweg 32",
             "postalCode": "20320",
             "city": "Hamburg",
@@ -311,29 +338,129 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         no_company.raise_for_status()
         if no_company.json()["status"] != "no_match":
             raise ContractFailure("Neue Company wurde fälschlich gematcht")
-        created_company = await post(
+        new_company_command = command_id("new-company")
+        new_company_body = {
+            "commandId": new_company_command,
+            "sponsor": new_company_draft,
+            "expectedStatus": "no_match",
+            "selectedTwentyId": None,
+            "confirmExistingAssignments": False,
+        }
+        created_company_responses = await asyncio.gather(
+            post(
+                api,
+                f"{path}/resolve",
+                tokens[ANNA_ID],
+                new_company_body,
+                "poc032:new-company-resolve-a",
+            ),
+            post(
+                api,
+                f"{path}/resolve",
+                tokens[ANNA_ID],
+                new_company_body,
+                "poc032:new-company-resolve-b",
+            ),
+        )
+        for response in created_company_responses:
+            response.raise_for_status()
+        company_payloads = [response.json() for response in created_company_responses]
+        if (
+            {payload["outcome"] for payload in company_payloads} != {"created"}
+            or {payload["replayed"] for payload in company_payloads} != {False, True}
+            or len({payload["twentyId"] for payload in company_payloads}) != 1
+            or len({payload["assignmentId"] for payload in company_payloads}) != 1
+        ):
+            raise ContractFailure(
+                "Paralleler Retry wurde nicht als identischer Vorgang wiedergegeben"
+            )
+        created_company_payload = company_payloads[0]
+        if (
+            created_company_payload["assignmentCreated"] is not True
+            or not created_company_payload["contactTwentyId"]
+        ):
+            raise ContractFailure(
+                "Neue Company wurde nicht mit Zuordnung und Kontakt angelegt"
+            )
+
+        replay = await post(
             api,
             f"{path}/resolve",
             tokens[ANNA_ID],
-            {
-                "sponsor": new_company_draft,
-                "expectedStatus": "no_match",
-                "selectedTwentyId": None,
-                "confirmExistingAssignments": False,
-            },
-            "poc032:new-company-resolve",
+            new_company_body,
+            "poc032:new-company-retry",
         )
-        created_company.raise_for_status()
+        replay.raise_for_status()
         if (
-            created_company.json()["outcome"] != "created"
-            or created_company.json()["assignmentCreated"] is not True
+            replay.json()["replayed"] is not True
+            or replay.json()["twentyId"] != created_company_payload["twentyId"]
+            or replay.json()["assignmentId"] != created_company_payload["assignmentId"]
         ):
-            raise ContractFailure("Neue Company wurde nicht real angelegt/zugeordnet")
-        await twenty_record(
+            raise ContractFailure("Sequentieller Retry ist nicht idempotent")
+
+        changed_body = dict(new_company_body)
+        changed_body["sponsor"] = {**new_company_draft, "city": "Anderer Ort"}
+        changed = await post(
+            api,
+            f"{path}/resolve",
+            tokens[ANNA_ID],
+            changed_body,
+            "poc032:new-company-idempotency-conflict",
+        )
+        if changed.status_code != 409 or error_code(changed) != "idempotency_conflict":
+            raise ContractFailure(
+                "Dieselbe Vorgangs-ID akzeptierte abweichende Eingaben"
+            )
+
+        created_company_record = await twenty_record(
             twenty,
             "companies",
-            created_company.json()["twentyId"],
+            created_company_payload["twentyId"],
         )
+        if created_company_record.get("name") != new_company_draft["companyName"]:
+            raise ContractFailure("Twenty-Company besitzt nicht den exakten Namen")
+        created_contact = await twenty_record(
+            twenty,
+            "people",
+            created_company_payload["contactTwentyId"],
+        )
+        if (
+            created_contact.get("name", {}).get("firstName") != "Nora"
+            or created_contact.get("name", {}).get("lastName") != "Nordlicht"
+            or created_contact.get("emails", {}).get("primaryEmail")
+            != "nora.nordlicht@leonaid.invalid"
+            or created_contact.get("companyId") != created_company_payload["twentyId"]
+        ):
+            raise ContractFailure(
+                "Twenty-Kontakt ist nicht exakt mit der neuen Company verknüpft"
+            )
+        company_duplicates = [
+            record
+            for record in await twenty_collection(twenty, "companies")
+            if record.get("name") == new_company_draft["companyName"]
+        ]
+        contact_duplicates = [
+            record
+            for record in await twenty_collection(twenty, "people")
+            if record.get("emails", {}).get("primaryEmail")
+            == "nora.nordlicht@leonaid.invalid"
+        ]
+        if len(company_duplicates) != 1 or len(contact_duplicates) != 1:
+            raise ContractFailure("Retry erzeugte Duplikate in Twenty")
+        assignment_count = await connection.fetchval(
+            """
+            SELECT count(*)
+            FROM acquisition_assignment
+            WHERE action_id = $1
+              AND twenty_company_id = $2
+              AND acquirer_user_id = $3
+            """,
+            ACTION_ID,
+            UUID(created_company_payload["twentyId"]),
+            ANNA_ID,
+        )
+        if assignment_count != 1:
+            raise ContractFailure("Retry erzeugte doppelte Zuordnungen")
 
         new_person_draft = {
             "givenName": "Noah",
@@ -355,6 +482,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             f"{path}/resolve",
             tokens[ANNA_ID],
             {
+                "commandId": command_id("new-person"),
                 "sponsor": new_person_draft,
                 "expectedStatus": "no_match",
                 "selectedTwentyId": None,
@@ -387,7 +515,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             [
                 "poc032:reuse-confirmed",
                 "poc032:person-selected",
-                "poc032:new-company-resolve",
+                "poc032:new-company-resolve-a",
+                "poc032:new-company-resolve-b",
                 "poc032:new-person-resolve",
             ],
         )

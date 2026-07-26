@@ -10,10 +10,10 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
   );
 }
 
-test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", async ({
+test("Akquisiteurin prüft Neuanlage, Mehrdeutigkeit, Abbruch und Mehrfachzuordnung", async ({
   browser,
 }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,
@@ -29,6 +29,15 @@ test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", asyn
     },
   ]);
   const page = await context.newPage();
+  const resolveBodies = [];
+  page.on("request", (request) => {
+    if (
+      request.url().endsWith("/acquisition/sponsor-match/resolve") &&
+      request.method() === "POST"
+    ) {
+      resolveBodies.push(request.postDataJSON());
+    }
+  });
   try {
     await page.goto(`${baseUrl}/app/sponsors`);
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
@@ -38,6 +47,35 @@ test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", asyn
     await expect(
       page.getByRole("heading", { name: "Sponsor erfassen" }),
     ).toBeVisible();
+    await expect(page.locator("#sponsor-company-help")).toContainText(
+      "CRM-Prüfung",
+    );
+    await expect(page.getByTestId("sponsor-company")).toHaveAttribute(
+      "aria-describedby",
+      "sponsor-company-help",
+    );
+
+    await page.getByRole("button", { name: "Privatperson" }).click();
+    await page.locator("#sponsor-given-name").fill("MAX");
+    await page.locator("#sponsor-family-name").fill("mustermann");
+    await page.getByTestId("sponsor-preview").click();
+    await expect(
+      page.getByRole("heading", { name: "Mehrere mögliche Treffer" }),
+    ).toBeVisible();
+    await expect(page.locator(".candidate")).toHaveCount(2);
+    await expect(page.getByTestId("sponsor-resolve")).toBeDisabled();
+    await page.screenshot({
+      path: `${artifactDirectory}/matching-ambiguous-mobile.png`,
+      fullPage: true,
+    });
+    await page.getByTestId("sponsor-cancel").click();
+    await expect(
+      page.getByText("Noch keine CRM-Prüfung", { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("#sponsor-given-name")).toBeEnabled();
+    expect(resolveBodies).toHaveLength(0);
+
+    await page.getByRole("button", { name: "Firma", exact: true }).click();
 
     await page
       .locator('[data-testid="sponsor-company"]')
@@ -96,6 +134,59 @@ test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", asyn
     );
     await page.screenshot({
       path: `${artifactDirectory}/matching-success-mobile.png`,
+      fullPage: true,
+    });
+
+    await page
+      .getByRole("button", { name: "Weiteren Sponsor erfassen" })
+      .click();
+    await page
+      .getByTestId("sponsor-company")
+      .fill("POC063 Hafenlicht Logistik GmbH");
+    await page.locator("#sponsor-given-name").fill("Helena");
+    await page.locator("#sponsor-family-name").fill("Hafenlicht");
+    await page
+      .locator("#sponsor-email")
+      .fill("helena.hafenlicht@leonaid.invalid");
+    await page.locator("#sponsor-street").fill("Kaiweg 63");
+    await page.locator("#sponsor-postal-code").fill("20457");
+    await page.locator("#sponsor-city").fill("Hamburg");
+    await page.getByTestId("sponsor-preview").click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Kein gleichnamiger Sponsor gefunden",
+      }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/matching-no-match-mobile.png`,
+      fullPage: true,
+    });
+
+    const createdResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/acquisition/sponsor-match/resolve") &&
+        response.request().method() === "POST" &&
+        response.status() === 201,
+    );
+    await page.getByTestId("sponsor-resolve").dblclick();
+    const created = await createdResponse;
+    const createdPayload = await created.json();
+    expect(createdPayload).toMatchObject({
+      assignmentCreated: true,
+      displayName: "POC063 Hafenlicht Logistik GmbH",
+      outcome: "created",
+      replayed: false,
+    });
+    expect(createdPayload.contactTwentyId).toMatch(/^[0-9a-f-]{36}$/);
+    await expect(page.getByTestId("sponsor-success")).toContainText(
+      "wurde neu im CRM angelegt",
+    );
+    await page.waitForTimeout(300);
+    expect(resolveBodies.length).toBeGreaterThanOrEqual(2);
+    const creationBodies = resolveBodies.slice(1);
+    expect(new Set(creationBodies.map((body) => body.commandId)).size).toBe(1);
+    await page.screenshot({
+      path: `${artifactDirectory}/matching-created-mobile.png`,
       fullPage: true,
     });
   } finally {

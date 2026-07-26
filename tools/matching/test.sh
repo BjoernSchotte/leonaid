@@ -45,7 +45,7 @@ if [ ! -f "$env_file" ]; then
 fi
 
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose build api
+compose build api pwa
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
@@ -120,14 +120,18 @@ docker run --rm \
   --output=/proof/test-results \
   --reporter=line
 
-for screenshot in matching-warning-mobile.png matching-success-mobile.png; do
+for screenshot in \
+  matching-ambiguous-mobile.png \
+  matching-warning-mobile.png \
+  matching-success-mobile.png \
+  matching-no-match-mobile.png \
+  matching-created-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "matching-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
     exit 1
   fi
 done
-mkdir -p "$root/.artifacts/poc032"
-cp "$proof/matching-warning-mobile.png" "$root/.artifacts/poc032/"
-cp "$proof/matching-success-mobile.png" "$root/.artifacts/poc032/"
+mkdir -p "$root/.artifacts/poc063"
+cp "$proof/"matching-*.png "$root/.artifacts/poc063/"
 
-echo "matching-test: OK: realer Core/Twenty-Matchingvertrag bewiesen"
+echo "matching-test: OK: realer Core/Twenty-Vertrag und vollständige Konflikt-UX bewiesen"

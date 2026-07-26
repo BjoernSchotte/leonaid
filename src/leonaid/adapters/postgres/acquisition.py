@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -32,6 +34,8 @@ from leonaid.application.sponsor_matching import (
     AssignedAcquirer,
     RecordedAssignment,
     SponsorMatchingRepository,
+    SponsorResolution,
+    SponsorResolutionCommand,
     SponsorResolutionOutcome,
 )
 from leonaid.domain.policies import AcquisitionAccessLevel, AuthorizedPartyScope
@@ -47,6 +51,135 @@ from leonaid.domain.acquisition import (
 )
 
 
+SPONSOR_RESOLUTION_COMMAND_TYPE = "resolve_sponsor_match_v1"
+
+
+def _resolution_receipt(result: SponsorResolution) -> dict[str, object]:
+    return {
+        "assignmentCreated": result.assignment_created,
+        "assignmentId": str(result.assignment_id),
+        "contactTwentyId": (
+            str(result.contact_twenty_id)
+            if result.contact_twenty_id is not None
+            else None
+        ),
+        "displayName": result.display_name,
+        "normalizedKey": result.normalized_key,
+        "outcome": result.outcome.value,
+        "partyKind": result.party_kind.value,
+        "priorAssignees": [
+            {
+                "displayName": assignee.display_name,
+                "userId": str(assignee.user_id),
+            }
+            for assignee in result.prior_assignees
+        ],
+        "twentyId": str(result.twenty_id),
+    }
+
+
+def _replayed_resolution(value: object) -> SponsorResolution:
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise RuntimeError("Sponsor-Befehlsnachweis besitzt kein Ergebnis.")
+    assignee_values = value.get("priorAssignees")
+    if not isinstance(assignee_values, list):
+        raise RuntimeError("Sponsor-Befehlsnachweis besitzt keine Zuordnungen.")
+    try:
+        prior_assignees = tuple(
+            AssignedAcquirer(
+                user_id=UUID(str(item["userId"])),
+                display_name=str(item["displayName"]),
+            )
+            for item in assignee_values
+            if isinstance(item, dict)
+        )
+        if len(prior_assignees) != len(assignee_values):
+            raise ValueError("Ungültige Akquisiteur-Zuordnung")
+        contact_value = value.get("contactTwentyId")
+        return SponsorResolution(
+            outcome=SponsorResolutionOutcome(str(value["outcome"])),
+            party_kind=CrmPartyKind(str(value["partyKind"])),
+            twenty_id=UUID(str(value["twentyId"])),
+            display_name=str(value["displayName"]),
+            normalized_key=str(value["normalizedKey"]),
+            assignment_id=UUID(str(value["assignmentId"])),
+            assignment_created=bool(value["assignmentCreated"]),
+            prior_assignees=prior_assignees,
+            contact_twenty_id=(
+                UUID(str(contact_value)) if contact_value is not None else None
+            ),
+            replayed=True,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(
+            "Sponsor-Befehlsnachweis ist unvollständig oder ungültig."
+        ) from error
+
+
+class AsyncpgSponsorResolutionCommand:
+    def __init__(
+        self,
+        repository: AsyncpgAcquisitionPolicyRepository,
+        connection: asyncpg.Connection[Any],
+        existing_result: SponsorResolution | None,
+        idempotency_key: str,
+    ) -> None:
+        self._repository = repository
+        self._connection = connection
+        self._existing_result = existing_result
+        self._idempotency_key = idempotency_key
+
+    @property
+    def existing_result(self) -> SponsorResolution | None:
+        return self._existing_result
+
+    async def record_resolution(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        party_kind: CrmPartyKind,
+        twenty_id: UUID,
+        outcome: SponsorResolutionOutcome,
+        normalized_key: str,
+        prior_assignee_ids: tuple[UUID, ...],
+        request_id: str,
+        occurred_at: datetime,
+    ) -> RecordedAssignment | None:
+        return await self._repository.record_resolution(
+            action_id=action_id,
+            actor_user_id=actor_user_id,
+            party_kind=party_kind,
+            twenty_id=twenty_id,
+            outcome=outcome,
+            normalized_key=normalized_key,
+            prior_assignee_ids=prior_assignee_ids,
+            request_id=request_id,
+            occurred_at=occurred_at,
+        )
+
+    async def complete(self, result: SponsorResolution) -> None:
+        status = await self._connection.execute(
+            """
+            UPDATE command_receipt
+            SET result = $2::jsonb,
+                completed_at = CURRENT_TIMESTAMP
+            WHERE idempotency_key = $1
+              AND command_type = $3
+              AND result IS NULL
+            """,
+            self._idempotency_key,
+            json.dumps(_resolution_receipt(result), separators=(",", ":")),
+            SPONSOR_RESOLUTION_COMMAND_TYPE,
+        )
+        if status != "UPDATE 1":
+            raise RuntimeError(
+                "Sponsor-Befehlsnachweis konnte nicht abgeschlossen werden."
+            )
+
+
 class AsyncpgAcquisitionPolicyRepository(
     AcquisitionPolicyRepository,
     SponsorMatchingRepository,
@@ -55,6 +188,72 @@ class AsyncpgAcquisitionPolicyRepository(
 ):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
+
+    @asynccontextmanager
+    async def resolution_command(
+        self,
+        *,
+        lock_key: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> AsyncIterator[SponsorResolutionCommand]:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    lock_key,
+                )
+                inserted = await connection.fetchval(
+                    """
+                    INSERT INTO command_receipt (
+                        idempotency_key, command_type, request_hash
+                    )
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (idempotency_key) DO NOTHING
+                    RETURNING true
+                    """,
+                    idempotency_key,
+                    SPONSOR_RESOLUTION_COMMAND_TYPE,
+                    request_hash,
+                )
+                existing_result: SponsorResolution | None = None
+                if not inserted:
+                    receipt = await connection.fetchrow(
+                        """
+                        SELECT command_type, request_hash, result
+                        FROM command_receipt
+                        WHERE idempotency_key = $1
+                        FOR UPDATE
+                        """,
+                        idempotency_key,
+                    )
+                    if receipt is None:
+                        raise RuntimeError(
+                            "Sponsor-Befehlsnachweis verschwand während der Auflösung."
+                        )
+                    if (
+                        str(receipt["command_type"]) != SPONSOR_RESOLUTION_COMMAND_TYPE
+                        or str(receipt["request_hash"]) != request_hash
+                    ):
+                        raise Conflict(
+                            "idempotency_conflict",
+                            "Diese Vorgangs-ID wurde bereits für andere "
+                            "Eingaben verwendet.",
+                        )
+                    if receipt["result"] is None:
+                        raise Conflict(
+                            "idempotency_incomplete",
+                            "Die vorherige Verarbeitung ist noch nicht "
+                            "abgeschlossen. Bitte versuche es erneut.",
+                        )
+                    existing_result = _replayed_resolution(receipt["result"])
+
+                yield AsyncpgSponsorResolutionCommand(
+                    self,
+                    connection,
+                    existing_result,
+                    idempotency_key,
+                )
 
     async def authorized_scope(
         self,
