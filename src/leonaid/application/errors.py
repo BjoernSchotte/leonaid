@@ -30,3 +30,7 @@ class Conflict(ApplicationError):
 
 class DependencyUnavailable(ApplicationError):
     """A required external dependency is not configured or available."""
+
+
+class RateLimited(ApplicationError):
+    """A public or authenticated operation exceeded its safe request budget."""

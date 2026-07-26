@@ -16,6 +16,7 @@ from leonaid.domain.commitments import (
     CommitmentPartyKind,
     CommitmentSource,
     CommitmentStatus,
+    DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
     Money,
     Offering,
@@ -60,6 +61,15 @@ def recipient() -> InvoiceRecipientSnapshot:
         postal_code="86150",
         city="Augsburg",
         email="rechnung@musterwerk.invalid",
+    )
+
+
+def delivery() -> DeliveryRecipientSnapshot:
+    return DeliveryRecipientSnapshot(
+        recipient_name="Musterwerk Wareneingang",
+        street_line_1="Lieferweg 4",
+        postal_code="86150",
+        city="Augsburg",
     )
 
 
@@ -146,6 +156,14 @@ def test_commitment_sources_keep_buyer_recipient_and_lines_separate(
         invoice_recipient=recipient(),
         lines=(line,),
         total=Money(10_800, "EUR"),
+        delivery_recipient=(
+            delivery() if source is CommitmentSource.PUBLIC_FORM else None
+        ),
+        public_reference=(
+            "LA-80000000000040008000000000000099"
+            if source is CommitmentSource.PUBLIC_FORM
+            else None
+        ),
     )
 
     assert commitment.buyer.display_name == "Musterwerk GmbH"

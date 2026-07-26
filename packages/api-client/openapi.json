@@ -2397,6 +2397,90 @@
         "title": "CreateInvitationRequest",
         "type": "object"
       },
+      "CreatePublicOrderRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "maxLength": 2000,
+            "minLength": 40,
+            "title": "Accesstoken",
+            "type": "string"
+          },
+          "bindingOrderConfirmed": {
+            "title": "Bindingorderconfirmed",
+            "type": "boolean"
+          },
+          "commandId": {
+            "format": "uuid",
+            "title": "Commandid",
+            "type": "string"
+          },
+          "deliveryRecipient": {
+            "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+          },
+          "invoiceRecipient": {
+            "$ref": "#/components/schemas/PublicOrderInvoiceRecipientRequest"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderLineRequest"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "party": {
+            "$ref": "#/components/schemas/PublicOrderPartyRequest"
+          },
+          "privacyAcknowledged": {
+            "title": "Privacyacknowledged",
+            "type": "boolean"
+          },
+          "privacyNoticeVersion": {
+            "const": "public-order-poc-2026-07",
+            "title": "Privacynoticeversion",
+            "type": "string"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "accessToken",
+          "commandId",
+          "party",
+          "deliveryRecipient",
+          "invoiceRecipient",
+          "lines",
+          "privacyAcknowledged",
+          "bindingOrderConfirmed",
+          "privacyNoticeVersion"
+        ],
+        "title": "CreatePublicOrderRequest",
+        "type": "object"
+      },
       "CrmPartyKind": {
         "enum": [
           "company",
@@ -3046,6 +3130,16 @@
             "title": "Offerings",
             "type": "array"
           },
+          "orderForm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderFormResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "purpose": {
             "title": "Purpose",
             "type": "string"
@@ -3066,7 +3160,8 @@
           "archiveSlug",
           "beneficiaries",
           "goal",
-          "offerings"
+          "offerings",
+          "orderForm"
         ],
         "title": "PublicCharityActionResponse",
         "type": "object"
@@ -3080,6 +3175,11 @@
           },
           "currency": {
             "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
             "type": "string"
           },
           "name": {
@@ -3114,6 +3214,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "name",
           "unit",
@@ -3122,6 +3223,324 @@
           "currency"
         ],
         "title": "PublicOfferingResponse",
+        "type": "object"
+      },
+      "PublicOrderDeliveryRecipientRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "recipientName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientName",
+          "streetLine1",
+          "postalCode",
+          "city"
+        ],
+        "title": "PublicOrderDeliveryRecipientRequest",
+        "type": "object"
+      },
+      "PublicOrderFormResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "title": "Accesstoken",
+            "type": "string"
+          },
+          "allowMessage": {
+            "title": "Allowmessage",
+            "type": "boolean"
+          },
+          "formKey": {
+            "title": "Formkey",
+            "type": "string"
+          },
+          "introduction": {
+            "title": "Introduction",
+            "type": "string"
+          },
+          "requireBillingAddress": {
+            "title": "Requirebillingaddress",
+            "type": "boolean"
+          },
+          "requireCompanyName": {
+            "title": "Requirecompanyname",
+            "type": "boolean"
+          },
+          "requireContactName": {
+            "title": "Requirecontactname",
+            "type": "boolean"
+          },
+          "requireDeliveryAddress": {
+            "title": "Requiredeliveryaddress",
+            "type": "boolean"
+          },
+          "requireEmail": {
+            "title": "Requireemail",
+            "type": "boolean"
+          },
+          "requirePhone": {
+            "title": "Requirephone",
+            "type": "boolean"
+          },
+          "submitLabel": {
+            "title": "Submitlabel",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formKey",
+          "title",
+          "introduction",
+          "submitLabel",
+          "requireCompanyName",
+          "requireContactName",
+          "requireEmail",
+          "requirePhone",
+          "requireDeliveryAddress",
+          "requireBillingAddress",
+          "allowMessage",
+          "accessToken"
+        ],
+        "title": "PublicOrderFormResponse",
+        "type": "object"
+      },
+      "PublicOrderInvoiceRecipientRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "recipientName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "email"
+        ],
+        "title": "PublicOrderInvoiceRecipientRequest",
+        "type": "object"
+      },
+      "PublicOrderLineRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "offeringId": {
+            "format": "uuid",
+            "title": "Offeringid",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "quotedUnitPriceMinor": {
+            "minimum": 0.0,
+            "title": "Quotedunitpriceminor",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offeringId",
+          "quantity",
+          "unit",
+          "quotedUnitPriceMinor"
+        ],
+        "title": "PublicOrderLineRequest",
+        "type": "object"
+      },
+      "PublicOrderPartyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "companyName": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companyname"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "familyName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Familyname",
+            "type": "string"
+          },
+          "givenName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Givenname",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "givenName",
+          "familyName",
+          "email"
+        ],
+        "title": "PublicOrderPartyRequest",
+        "type": "object"
+      },
+      "PublicOrderResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commitmentId": {
+            "format": "uuid",
+            "title": "Commitmentid",
+            "type": "string"
+          },
+          "crmOutcome": {
+            "enum": [
+              "created",
+              "reused"
+            ],
+            "title": "Crmoutcome",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "publicReference": {
+            "title": "Publicreference",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "status": {
+            "const": "review_ready",
+            "title": "Status",
+            "type": "string"
+          },
+          "totalBoxes": {
+            "minimum": 0.0,
+            "title": "Totalboxes",
+            "type": "integer"
+          },
+          "totalMinor": {
+            "minimum": 0.0,
+            "title": "Totalminor",
+            "type": "integer"
+          },
+          "totalPieces": {
+            "minimum": 0.0,
+            "title": "Totalpieces",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commitmentId",
+          "publicReference",
+          "status",
+          "totalMinor",
+          "currency",
+          "totalBoxes",
+          "totalPieces",
+          "crmOutcome",
+          "replayed"
+        ],
+        "title": "PublicOrderResultResponse",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -8760,6 +9179,118 @@
           }
         },
         "summary": "Resolve Public Action Archive",
+        "tags": [
+          "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/actions/{public_alias}/orders": {
+      "post": {
+        "operationId": "createPublicOrder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_alias",
+            "required": true,
+            "schema": {
+              "title": "Public Alias",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublicOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Das signierte Formular ist ungültig oder abgelaufen."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Aktionsstand, Preis oder Idempotenz kollidieren."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Zu viele öffentliche Übermittlungsversuche."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Create Public Order",
         "tags": [
           "public-actions"
         ]

@@ -24,6 +24,7 @@ from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
 from leonaid.adapters.twenty.gateway import (
@@ -41,11 +42,16 @@ from leonaid.application.errors import (
     Conflict,
     DependencyUnavailable,
     PermissionDenied,
+    RateLimited,
     ResourceNotFound,
 )
 from leonaid.application.identity import IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
+from leonaid.application.public_orders import (
+    PublicOrderService,
+    PublicOrderTokenCodec,
+)
 from leonaid.application.sessions import SessionService
 from leonaid.application.sponsor_matching import SponsorMatchingService
 from leonaid.configuration import Settings, load_settings
@@ -115,6 +121,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
         )
+        public_order_tokens = PublicOrderTokenCodec(
+            settings.invitation_hmac_secret.get_secret_value()
+        )
+        application.state.public_order_tokens = public_order_tokens
+        application.state.public_order_fingerprint_secret = (
+            settings.invitation_hmac_secret.get_secret_value()
+        )
         mail_payload = SecureMailPayload(
             settings.mail_payload_secret.get_secret_value()
         )
@@ -159,11 +172,17 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 acquisition_repository,
                 crm_gateway,
             )
+            application.state.public_order_service = PublicOrderService(
+                AsyncpgPublicOrderRepository(pool),
+                crm_gateway,
+                public_order_tokens,
+            )
         else:
             application.state.acquisition_service = None
             application.state.sponsor_matching_service = None
             application.state.assignment_management_service = None
             application.state.activity_management_service = None
+            application.state.public_order_service = None
         try:
             yield
         finally:
@@ -206,6 +225,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             status_code = 409
         elif isinstance(error, DependencyUnavailable):
             status_code = 503
+        elif isinstance(error, RateLimited):
+            status_code = 429
         return error_response(
             request,
             status_code=status_code,

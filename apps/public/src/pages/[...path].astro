@@ -6,6 +6,7 @@ import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 
 const rawPath = Astro.params.path ?? "";
+const publicOrderResult = Astro.getActionResult(actions.createPublicOrder);
 const segments = rawPath.split("/").filter(Boolean);
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -21,7 +22,11 @@ if (segments.length > 0) {
         ? "alias"
         : null;
   const routeValue =
-    routeKind === "archive" ? segments[1] : routeKind === "alias" ? segments[0] : null;
+    routeKind === "archive"
+      ? segments[1]
+      : routeKind === "alias"
+        ? segments[0]
+        : null;
 
   if (!routeKind || !routeValue || !slugPattern.test(routeValue)) {
     state = "not-found";
@@ -51,13 +56,15 @@ if (state === "not-found") {
 
 Astro.response.headers.set(
   "Cache-Control",
-  state === "action" && route?.availability === "archive"
-    ? "public, max-age=300, stale-while-revalidate=3600"
-    : state === "action" || state === "inactive"
-      ? "public, max-age=15, stale-while-revalidate=30"
-      : state === "unavailable"
-        ? "no-store"
-        : "public, max-age=60",
+  state === "action" && route?.submissionsAllowed
+    ? "private, no-store"
+    : state === "action" && route?.availability === "archive"
+      ? "public, max-age=300, stale-while-revalidate=3600"
+      : state === "action" || state === "inactive"
+        ? "public, max-age=15, stale-while-revalidate=30"
+        : state === "unavailable"
+          ? "no-store"
+          : "public, max-age=60",
 );
 Astro.response.headers.set(
   "X-LeonAid-Public-State",
@@ -92,7 +99,8 @@ if (forwardedProtocol === "http" || forwardedProtocol === "https") {
 }
 const canonicalUrl = new URL(canonicalPath || "/", publicOrigin).href;
 const imageUrl = new URL("/community-routes.png", publicOrigin).href;
-const robots = state === "action" || state === "home" ? "index,follow" : "noindex,follow";
+const robots =
+  state === "action" || state === "home" ? "index,follow" : "noindex,follow";
 ---
 
 <PublicLayout
@@ -104,7 +112,7 @@ const robots = state === "action" || state === "home" ? "index,follow" : "noinde
 >
   {
     state === "action" && route ? (
-      <PublicAction route={route} />
+      <PublicAction orderResult={publicOrderResult} route={route} />
     ) : state === "inactive" ? (
       <PublicState
         eyebrow="Zwischen zwei Aktionen"

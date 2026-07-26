@@ -23,6 +23,7 @@ from leonaid.domain.commitments import (
     CommitmentLine,
     CommitmentSource,
     CommitmentStatus,
+    DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
     Money,
     Offering,
@@ -120,6 +121,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.status,
                     commitment.customer_snapshot,
                     commitment.invoice_recipient_snapshot,
+                    commitment.delivery_recipient_snapshot,
+                    commitment.message_snapshot,
+                    commitment.public_reference,
                     commitment.currency,
                     commitment.total_minor,
                     commitment.idempotency_key,
@@ -299,6 +303,8 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             invoice_recipient=draft.invoice_recipient,
             lines=priced_lines,
             total=total,
+            delivery_recipient=draft.delivery_recipient,
+            message=draft.message,
             idempotency_key=idempotency_key,
         )
         await self._insert(
@@ -452,6 +458,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
     ) -> CommitmentRecord:
         currency = str(header["currency"])
         recipient_value = header["invoice_recipient_snapshot"]
+        delivery_value = header["delivery_recipient_snapshot"]
         commitment = Commitment(
             id=header["id"],
             action_id=header["action_id"],
@@ -491,6 +498,26 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 for row in lines
             ),
             total=Money(int(header["total_minor"]), currency),
+            delivery_recipient=(
+                DeliveryRecipientSnapshot.from_payload(
+                    _json_object(
+                        delivery_value,
+                        label="Lieferempfänger-Snapshot",
+                    )
+                )
+                if delivery_value is not None
+                else None
+            ),
+            message=(
+                str(header["message_snapshot"])
+                if header["message_snapshot"] is not None
+                else None
+            ),
+            public_reference=(
+                str(header["public_reference"])
+                if header["public_reference"] is not None
+                else None
+            ),
             idempotency_key=(
                 str(header["idempotency_key"])
                 if header["idempotency_key"] is not None
@@ -522,14 +549,16 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             INSERT INTO commitment (
                 id, action_id, twenty_company_id, twenty_person_id,
                 source, status, customer_snapshot,
-                invoice_recipient_snapshot, currency, total_minor,
+                invoice_recipient_snapshot, delivery_recipient_snapshot,
+                message_snapshot, public_reference, currency, total_minor,
                 idempotency_key, created_at, updated_at
             )
             VALUES (
                 $1, $2, $3, $4,
                 $5, $6, $7::jsonb,
-                $8::jsonb, $9, $10,
-                $11, $12, $12
+                $8::jsonb, $9::jsonb,
+                $10, $11, $12, $13,
+                $14, $15, $15
             )
             """,
             commitment.id,
@@ -547,6 +576,16 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if commitment.invoice_recipient is not None
                 else None
             ),
+            (
+                json.dumps(
+                    commitment.delivery_recipient.payload(),
+                    separators=(",", ":"),
+                )
+                if commitment.delivery_recipient is not None
+                else None
+            ),
+            commitment.message,
+            commitment.public_reference,
             commitment.total.currency,
             commitment.total.amount_minor,
             commitment.idempotency_key,
@@ -640,6 +679,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             SELECT
                 id, action_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
+                delivery_recipient_snapshot, message_snapshot, public_reference,
                 currency, total_minor, idempotency_key
             FROM commitment
             WHERE id = $1
@@ -662,6 +702,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         )
         currency = str(row["currency"])
         recipient_value = row["invoice_recipient_snapshot"]
+        delivery_value = row["delivery_recipient_snapshot"]
         return Commitment(
             id=row["id"],
             action_id=row["action_id"],
@@ -695,6 +736,26 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 for item in line_rows
             ),
             total=Money(int(row["total_minor"]), currency),
+            delivery_recipient=(
+                DeliveryRecipientSnapshot.from_payload(
+                    _json_object(
+                        delivery_value,
+                        label="Lieferempfänger-Snapshot",
+                    )
+                )
+                if delivery_value is not None
+                else None
+            ),
+            message=(
+                str(row["message_snapshot"])
+                if row["message_snapshot"] is not None
+                else None
+            ),
+            public_reference=(
+                str(row["public_reference"])
+                if row["public_reference"] is not None
+                else None
+            ),
             idempotency_key=(
                 str(row["idempotency_key"])
                 if row["idempotency_key"] is not None

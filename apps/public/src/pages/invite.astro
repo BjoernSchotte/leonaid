@@ -84,11 +84,9 @@ Astro.response.headers.set("Cache-Control", "no-store");
   }
 
   if (token) {
-    document
-      .querySelectorAll<HTMLElement>(".code-field")
-      .forEach((field) => {
-        field.hidden = true;
-      });
+    document.querySelectorAll<HTMLElement>(".code-field").forEach((field) => {
+      field.hidden = true;
+    });
     const email = control("email");
     const code = control("code");
     if (email) email.required = false;
@@ -121,11 +119,9 @@ Astro.response.headers.set("Cache-Control", "no-store");
       workspaceLink.textContent = "Zum Arbeitsbereich";
       status.append(workspaceLink);
       submit.hidden = true;
-      document
-        .querySelectorAll<HTMLElement>(".auth-field")
-        .forEach((field) => {
-          field.hidden = true;
-        });
+      document.querySelectorAll<HTMLElement>(".auth-field").forEach((field) => {
+        field.hidden = true;
+      });
     } catch {
       status.dataset.state = "error";
       status.textContent =

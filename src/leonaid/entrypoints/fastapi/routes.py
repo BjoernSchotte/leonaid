@@ -43,6 +43,14 @@ from leonaid.application.errors import DependencyUnavailable
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
+from leonaid.application.public_orders import (
+    PublicOrderDraft,
+    PublicOrderPartyDraft,
+    PublicOrderResult,
+    PublicOrderService,
+    PublicOrderTokenCodec,
+    public_order_fingerprint,
+)
 from leonaid.application.sessions import SessionGrant, SessionService
 from leonaid.application.crm import CrmPartyKind
 from leonaid.application.sponsor_matching import (
@@ -79,6 +87,7 @@ from leonaid.domain.commitments import (
     Commitment,
     CommitmentPartyKind,
     CommitmentSource,
+    DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.identity import ActionRole
@@ -109,6 +118,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcquisitionPartyResponse,
     AcquisitionSearchQuery,
     AdministratorOptionResponse,
+    ApiErrorResponse,
     AssignedAcquirerResponse,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
@@ -126,6 +136,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
     CreateCommitmentRequest,
+    CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
     CreateInvitationRequest,
@@ -146,6 +157,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PublicActionRouteResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
+    PublicOrderFormResponse,
+    PublicOrderResultResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
     RecordAcquisitionActivityResponse,
@@ -176,6 +189,23 @@ router = APIRouter()
 
 def platform_service(request: Request) -> PlatformApplicationService:
     return cast(PlatformApplicationService, request.app.state.platform_service)
+
+
+def public_order_tokens(request: Request) -> PublicOrderTokenCodec:
+    return cast(PublicOrderTokenCodec, request.app.state.public_order_tokens)
+
+
+def public_order_service(request: Request) -> PublicOrderService:
+    service = cast(
+        PublicOrderService | None,
+        request.app.state.public_order_service,
+    )
+    if service is None:
+        raise DependencyUnavailable(
+            "public_order_crm_unavailable",
+            "Das Bestellformular ist vorübergehend nicht verfügbar.",
+        )
+    return service
 
 
 def identity_service(request: Request) -> IdentityQueryService:
@@ -480,6 +510,8 @@ def action_management_response(
 
 def public_action_route_response(
     route: PublicActionRoute,
+    *,
+    access_token: str | None = None,
 ) -> PublicActionRouteResponse:
     action = route.action
     return PublicActionRouteResponse(
@@ -519,15 +551,42 @@ def public_action_route_response(
                 ),
                 offerings=[
                     PublicOfferingResponse(
-                        code=item.code,
-                        name=item.name,
-                        unit=item.unit.value,
-                        pieces_per_unit=item.pieces_per_unit,
-                        unit_price_minor=item.unit_price_minor,
-                        currency=item.currency,
+                        id=item.id,
+                        code=item.definition.code,
+                        name=item.definition.name,
+                        unit=item.definition.unit.value,
+                        pieces_per_unit=item.definition.pieces_per_unit,
+                        unit_price_minor=item.definition.unit_price_minor,
+                        currency=item.definition.currency,
                     )
                     for item in route.offerings
                 ],
+                order_form=(
+                    PublicOrderFormResponse(
+                        form_key=route.order_form.configuration.form_key,
+                        title=route.order_form.configuration.title,
+                        introduction=route.order_form.configuration.introduction,
+                        submit_label=route.order_form.configuration.submit_label,
+                        require_company_name=(
+                            route.order_form.configuration.require_company_name
+                        ),
+                        require_contact_name=(
+                            route.order_form.configuration.require_contact_name
+                        ),
+                        require_email=route.order_form.configuration.require_email,
+                        require_phone=route.order_form.configuration.require_phone,
+                        require_delivery_address=(
+                            route.order_form.configuration.require_delivery_address
+                        ),
+                        require_billing_address=(
+                            route.order_form.configuration.require_billing_address
+                        ),
+                        allow_message=route.order_form.configuration.allow_message,
+                        access_token=access_token,
+                    )
+                    if route.order_form is not None and access_token is not None
+                    else None
+                ),
             )
             if action is not None
             else None
@@ -816,8 +875,17 @@ async def resolve_public_action_alias(
     response: Response,
 ) -> PublicActionRouteResponse:
     route = await action_service(request).resolve_public_alias(public_alias)
-    response.headers["Cache-Control"] = "public, max-age=15, stale-while-revalidate=30"
-    return public_action_route_response(route)
+    response.headers["Cache-Control"] = (
+        "private, no-store"
+        if route.submissions_allowed
+        else "public, max-age=15, stale-while-revalidate=30"
+    )
+    access_token = (
+        public_order_tokens(request).issue(route.action.id, route.route_value)
+        if route.submissions_allowed and route.action is not None
+        else None
+    )
+    return public_action_route_response(route, access_token=access_token)
 
 
 @router.get(
@@ -837,6 +905,114 @@ async def resolve_public_action_archive(
         "public, max-age=300, stale-while-revalidate=3600"
     )
     return public_action_route_response(route)
+
+
+def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
+    return PublicOrderDraft(
+        party=PublicOrderPartyDraft(
+            company_name=body.party.company_name,
+            given_name=body.party.given_name,
+            family_name=body.party.family_name,
+            email=body.party.email,
+            phone=body.party.phone,
+        ),
+        delivery_recipient=DeliveryRecipientSnapshot(
+            recipient_name=body.delivery_recipient.recipient_name,
+            street_line_1=body.delivery_recipient.street_line_1,
+            postal_code=body.delivery_recipient.postal_code,
+            city=body.delivery_recipient.city,
+            country_code=body.delivery_recipient.country_code,
+        ),
+        invoice_recipient=InvoiceRecipientSnapshot(
+            recipient_name=body.invoice_recipient.recipient_name,
+            street_line_1=body.invoice_recipient.street_line_1,
+            postal_code=body.invoice_recipient.postal_code,
+            city=body.invoice_recipient.city,
+            country_code=body.invoice_recipient.country_code,
+            email=body.invoice_recipient.email.casefold(),
+        ),
+        lines=tuple(
+            CommitmentLineDraft(
+                offering_id=line.offering_id,
+                quantity=line.quantity,
+                unit=OfferingUnit(line.unit),
+                quoted_unit_price_minor=line.quoted_unit_price_minor,
+            )
+            for line in body.lines
+        ),
+        message=body.message,
+        privacy_acknowledged=body.privacy_acknowledged,
+        binding_order_confirmed=body.binding_order_confirmed,
+        privacy_notice_version=body.privacy_notice_version,
+        website=body.website,
+    )
+
+
+def public_order_result_response(
+    result: PublicOrderResult,
+) -> PublicOrderResultResponse:
+    reference = result.commitment.public_reference
+    if reference is None:
+        raise RuntimeError("Öffentliche Bestellung besitzt keine Referenz.")
+    return PublicOrderResultResponse(
+        commitment_id=result.commitment.id,
+        public_reference=reference,
+        status="review_ready",
+        total_minor=result.commitment.total.amount_minor,
+        currency=result.commitment.total.currency,
+        total_boxes=result.commitment.total_boxes,
+        total_pieces=result.commitment.total_pieces,
+        crm_outcome=result.crm_outcome.value,
+        replayed=result.replayed,
+    )
+
+
+@router.post(
+    "/api/v1/public/actions/{public_alias}/orders",
+    operation_id="createPublicOrder",
+    response_model=PublicOrderResultResponse,
+    responses={
+        **ERROR_RESPONSES,
+        403: {
+            "model": ApiErrorResponse,
+            "description": "Das signierte Formular ist ungültig oder abgelaufen.",
+        },
+        409: {
+            "model": ApiErrorResponse,
+            "description": "Aktionsstand, Preis oder Idempotenz kollidieren.",
+        },
+        429: {
+            "model": ApiErrorResponse,
+            "description": "Zu viele öffentliche Übermittlungsversuche.",
+        },
+    },
+    status_code=status.HTTP_201_CREATED,
+    tags=["public-actions"],
+)
+async def create_public_order(
+    public_alias: str,
+    body: CreatePublicOrderRequest,
+    request: Request,
+    response: Response,
+) -> PublicOrderResultResponse:
+    secret = cast(str, request.app.state.public_order_fingerprint_secret)
+    result = await public_order_service(request).submit(
+        public_alias,
+        access_token=body.access_token,
+        command_id=body.command_id,
+        draft=public_order_draft(body),
+        fingerprint_hash=public_order_fingerprint(
+            secret,
+            forwarded_for=request.headers.get("x-forwarded-for"),
+            client_host=request.client.host if request.client is not None else None,
+            user_agent=request.headers.get("user-agent"),
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    if result.replayed:
+        response.status_code = status.HTTP_200_OK
+    return public_order_result_response(result)
 
 
 @router.get(

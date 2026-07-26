@@ -973,28 +973,28 @@ Tests/Nachweise:
       Browser-Engines.
 - [x] Accessibility- und Performance-Bericht werden archiviert.
 
-### [ ] POC-072 Öffentliches Bestellformular implementieren
+### [x] POC-072 Öffentliches Bestellformular implementieren
 
 Abhängigkeiten: POC-032, POC-071, POC-080
 
 Akzeptanzkriterien:
 
-- [ ] Formular erhebt minimale Firmen-/Kontaktdaten, Liefer-/Rechnungsdaten,
+- [x] Formular erhebt minimale Firmen-/Kontaktdaten, Liefer-/Rechnungsdaten,
       Positionen, Mengen und erforderliche Einwilligungen.
-- [ ] Core prüft Publikations-/Bestellfenster, Angebot, Preis,
+- [x] Core prüft Publikations-/Bestellfenster, Angebot, Preis,
       Verfügbarkeit, Idempotenz und Spam-/Rate-Limit-Signale erneut.
-- [ ] Bestehende CRM-Partei wird wiederverwendet; sonst kontrolliert angelegt.
-- [ ] Vorhandene Assignments bleiben unverändert.
-- [ ] Erfolg zeigt eindeutige Bestellreferenz und weiteres Vorgehen.
-- [ ] Validierungsfehler erhalten Eingaben und fokussieren das erste Problem.
+- [x] Bestehende CRM-Partei wird wiederverwendet; sonst kontrolliert angelegt.
+- [x] Vorhandene Assignments bleiben unverändert.
+- [x] Erfolg zeigt eindeutige Bestellreferenz und weiteres Vorgehen.
+- [x] Validierungsfehler erhalten Eingaben und fokussieren das erste Problem.
 
 Tests/Nachweise:
 
-- [ ] E2E bestellt als neue Firma, bestehende Firma und Person ohne Firma.
-- [ ] Doppelter Submit erzeugt genau ein Commitment.
-- [ ] Manipulierter Preis, inaktives Angebot und archivierte Aktion werden
+- [x] E2E bestellt als neue Firma, bestehende Firma und Person ohne Firma.
+- [x] Doppelter Submit erzeugt genau ein Commitment.
+- [x] Manipulierter Preis, inaktives Angebot und archivierte Aktion werden
       serverseitig abgewiesen.
-- [ ] Zugeordnete Akquisiteure erhalten reale ActivityEvents.
+- [x] Zugeordnete Akquisiteure erhalten reale ActivityEvents.
 
 ---
 

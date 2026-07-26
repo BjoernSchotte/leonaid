@@ -86,6 +86,8 @@
         "invoicing"
       ],
       "publicAlias": "krapfentaxi",
+      "publicationStartsAt": "2026-07-01T00:00:00+02:00",
+      "publicationEndsAt": "2026-11-16T00:00:00+01:00",
       "archiveSlug": "krapfentaxi-2026"
     },
     {
@@ -106,6 +108,8 @@
         "invoicing"
       ],
       "publicAlias": null,
+      "publicationStartsAt": null,
+      "publicationEndsAt": null,
       "archiveSlug": "krapfentaxi-2025"
     },
     {
@@ -126,6 +130,8 @@
         "invoicing"
       ],
       "publicAlias": null,
+      "publicationStartsAt": null,
+      "publicationEndsAt": null,
       "archiveSlug": "krapfentaxi-nord-2026"
     }
   ],
@@ -392,6 +398,13 @@
       "personId": null,
       "source": "PUBLIC_FORM",
       "status": "PUBLIC_RECEIVED",
+      "deliveryAddress": {
+        "recipient": "Kulturkontor Beispielstadt",
+        "street": "Kulturweg 3",
+        "postalCode": "86150",
+        "city": "Augsburg",
+        "country": "DE"
+      },
       "lines": [
         {
           "offerId": "70000000-0000-4000-8000-000000000001",
@@ -420,6 +433,13 @@
       "personId": null,
       "source": "PUBLIC_FORM",
       "status": "INVOICED",
+      "deliveryAddress": {
+        "recipient": "Musterwerk GmbH",
+        "street": "Werkstraße 1",
+        "postalCode": "86150",
+        "city": "Augsburg",
+        "country": "DE"
+      },
       "lines": [
         {
           "offerId": "70000000-0000-4000-8000-000000000001",

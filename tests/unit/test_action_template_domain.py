@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import fields, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -144,8 +145,20 @@ def test_only_active_configured_offerings_are_public() -> None:
     )
     effective = replace(configured, offerings=(active, inactive))
 
-    assert CharityActionService._public_offerings(effective) == (active.definition,)
-    assert CharityActionService._public_offerings(None) == ()
+    evaluated_at = datetime(2026, 7, 26, tzinfo=timezone.utc)
+    assert CharityActionService._public_offerings(
+        effective,
+        evaluated_at=evaluated_at,
+        require_current_availability=True,
+    ) == (active,)
+    assert (
+        CharityActionService._public_offerings(
+            None,
+            evaluated_at=evaluated_at,
+            require_current_availability=True,
+        )
+        == ()
+    )
 
 
 def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:

@@ -131,9 +131,15 @@ async def assert_astro_matches(
             f"Astro-Route {path} und Core entscheiden unterschiedlich"
         )
     source = response.text
-    if "<script" in source.casefold():
+    has_client_script = "<script" in source.casefold()
+    submissions_allowed = direct.get("submissionsAllowed") is True
+    if submissions_allowed and not has_client_script:
         raise ContractFailure(
-            f"Astro-Route {path} liefert unnötiges Client-JavaScript aus"
+            f"Astro-Route {path} verbessert das aktive Formular nicht im Browser"
+        )
+    if not submissions_allowed and has_client_script:
+        raise ContractFailure(
+            f"Astro-Route {path} liefert ohne Formular unnötiges Client-JavaScript aus"
         )
     action = direct.get("action")
     if isinstance(action, dict):
@@ -146,6 +152,22 @@ async def assert_astro_matches(
             if html.escape(str(offering["name"])) not in source:
                 raise ContractFailure(
                     f"Astro-Route {path} verliert ein öffentliches Angebot"
+                )
+        if submissions_allowed:
+            order_form = action.get("orderForm")
+            expected_submit_label = (
+                html.escape(str(order_form.get("submitLabel")))
+                if isinstance(order_form, dict)
+                else ""
+            )
+            if (
+                "data-order-form" not in source
+                or 'name="accessToken"' not in source
+                or not expected_submit_label
+                or expected_submit_label not in source
+            ):
+                raise ContractFailure(
+                    f"Astro-Route {path} rendert kein vollständiges Bestellformular"
                 )
     elif "Krapfentaxi" in source:
         raise ContractFailure(
@@ -320,20 +342,19 @@ async def exercise(
             for item in [before, *observations, after]
             if isinstance(item.get("action"), dict)
         }
+        after_offerings = after.get("action", {}).get("offerings")
         if (
             after.get("action", {}).get("id") != str(follow_up_id)
             or after.get("canonicalPath") != "/archive/krapfentaxi-2027"
-            or after.get("action", {}).get("offerings")
-            != [
-                {
-                    "code": "krapfenbox-24",
-                    "name": "Krapfenbox",
-                    "unit": "box",
-                    "piecesPerUnit": 24,
-                    "unitPriceMinor": 3600,
-                    "currency": "EUR",
-                }
-            ]
+            or not isinstance(after_offerings, list)
+            or len(after_offerings) != 1
+            or after_offerings[0].get("code") != "krapfenbox-24"
+            or after_offerings[0].get("name") != "Krapfenbox"
+            or after_offerings[0].get("unit") != "box"
+            or after_offerings[0].get("piecesPerUnit") != 24
+            or after_offerings[0].get("unitPriceMinor") != 3600
+            or after_offerings[0].get("currency") != "EUR"
+            or not after_offerings[0].get("id")
             or any(item.get("availability") != "published" for item in observations)
             or not observed_ids.issubset({str(CURRENT_ACTION_ID), str(follow_up_id)})
         ):

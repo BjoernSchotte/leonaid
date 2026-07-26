@@ -10,9 +10,7 @@ const title = fresh ? "Anmeldung bestätigen" : "Bei LeonAid anmelden";
 const introduction = fresh
   ? "Bestätige deine Anmeldung erneut, bevor du eine sensible Änderung ausführst."
   : "Fordere einen einmaligen Magic Link oder sechsstelligen Code für deine Login-E-Mail an.";
-const requestLabel = fresh
-  ? "Code per E-Mail senden"
-  : "Login-Code anfordern";
+const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
 ---
 
 <section class="auth-page" data-auth-fresh={String(fresh)}>
@@ -81,7 +79,13 @@ const requestLabel = fresh
         {fresh ? "Anmeldung bestätigen" : "Anmelden"}
       </button>
     </form>
-    <p id="auth-status" class="auth-panel__status" role="status" aria-live="polite"></p>
+    <p
+      id="auth-status"
+      class="auth-panel__status"
+      role="status"
+      aria-live="polite"
+    >
+    </p>
   </main>
 </section>
 
@@ -97,10 +101,8 @@ const requestLabel = fresh
   }
 
   const page = requiredElement<HTMLElement>(".auth-page");
-  const requestForm =
-    requiredElement<HTMLFormElement>("#request-login-form");
-  const completeForm =
-    requiredElement<HTMLFormElement>("#complete-login-form");
+  const requestForm = requiredElement<HTMLFormElement>("#request-login-form");
+  const completeForm = requiredElement<HTMLFormElement>("#complete-login-form");
   const status = requiredElement<HTMLElement>("#auth-status");
   const api = new LeonAidApiClient(window.location.origin);
 
@@ -163,7 +165,9 @@ const requestLabel = fresh
     button.disabled = true;
     status.dataset.state = "";
     status.textContent = "Sicherer Zugang wird vorbereitet …";
-    const email = fresh ? null : formControl(requestForm, "email")?.value ?? "";
+    const email = fresh
+      ? null
+      : (formControl(requestForm, "email")?.value ?? "");
     try {
       if (fresh) {
         await api.requestFreshLogin();

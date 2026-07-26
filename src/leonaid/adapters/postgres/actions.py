@@ -809,7 +809,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         form_row = await connection.fetchrow(
             """
             SELECT
-                id, action_id, form_key, title, introduction, submit_label,
+                id, action_id, form_key, status, title, introduction, submit_label,
                 require_company_name, require_contact_name, require_email,
                 require_phone, require_delivery_address,
                 require_billing_address, allow_message
@@ -865,6 +865,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     configuration=AsyncpgCharityActionRepository._order_form_from_row(
                         form_row
                     ),
+                    status=OfferingStatus(str(form_row["status"])),
                 )
                 if form_row is not None
                 else None

@@ -14,6 +14,7 @@ from leonaid.domain.errors import DomainInvariantError
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
+PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
 
 
 class CommitmentSource(StrEnum):
@@ -198,6 +199,59 @@ class InvoiceRecipientSnapshot:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class DeliveryRecipientSnapshot:
+    recipient_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str = "DE"
+
+    def __post_init__(self) -> None:
+        for value, code, label in (
+            (self.recipient_name, "delivery_recipient_name_empty", "Name"),
+            (self.street_line_1, "delivery_recipient_street_empty", "Straße"),
+            (
+                self.postal_code,
+                "delivery_recipient_postal_code_empty",
+                "Postleitzahl",
+            ),
+            (self.city, "delivery_recipient_city_empty", "Ort"),
+        ):
+            if not value.strip():
+                raise DomainInvariantError(
+                    code,
+                    f"{label} des Lieferempfängers darf nicht leer sein.",
+                )
+        if not COUNTRY_CODE.fullmatch(self.country_code):
+            raise DomainInvariantError(
+                "delivery_recipient_country_invalid",
+                "Der Ländercode muss aus zwei Großbuchstaben bestehen.",
+            )
+
+    def payload(self) -> dict[str, object]:
+        return {
+            "recipientName": self.recipient_name,
+            "streetLine1": self.street_line_1,
+            "postalCode": self.postal_code,
+            "city": self.city,
+            "countryCode": self.country_code,
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: dict[str, object],
+    ) -> DeliveryRecipientSnapshot:
+        return cls(
+            recipient_name=str(payload["recipientName"]),
+            street_line_1=str(payload["streetLine1"]),
+            postal_code=str(payload["postalCode"]),
+            city=str(payload["city"]),
+            country_code=str(payload["countryCode"]),
+        )
+
+
 def _aware(value: datetime, field: str) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise DomainInvariantError(
@@ -356,6 +410,9 @@ class Commitment:
     invoice_recipient: InvoiceRecipientSnapshot | None
     lines: tuple[CommitmentLine, ...]
     total: Money
+    delivery_recipient: DeliveryRecipientSnapshot | None = None
+    message: str | None = None
+    public_reference: str | None = None
     idempotency_key: str | None = None
     replayed: bool = False
 
@@ -378,6 +435,32 @@ class Commitment:
             raise DomainInvariantError(
                 "commitment_total_invalid",
                 "Der Gesamtbetrag muss der Summe der Serverpositionen entsprechen.",
+            )
+        if self.message is not None:
+            normalized_message = " ".join(self.message.split())
+            if len(normalized_message) > 1000:
+                raise DomainInvariantError(
+                    "commitment_message_too_long",
+                    "Die Nachricht darf höchstens 1000 Zeichen enthalten.",
+                )
+            object.__setattr__(self, "message", normalized_message or None)
+        if self.source is CommitmentSource.PUBLIC_FORM:
+            if self.public_reference is None or not PUBLIC_REFERENCE.fullmatch(
+                self.public_reference
+            ):
+                raise DomainInvariantError(
+                    "commitment_public_reference_invalid",
+                    "Eine öffentliche Bestellung benötigt eine gültige Referenz.",
+                )
+            if self.delivery_recipient is None:
+                raise DomainInvariantError(
+                    "commitment_delivery_recipient_required",
+                    "Eine öffentliche Bestellung benötigt eine Lieferanschrift.",
+                )
+        elif self.public_reference is not None:
+            raise DomainInvariantError(
+                "commitment_public_reference_forbidden",
+                "Nur öffentliche Bestellungen besitzen eine öffentliche Referenz.",
             )
 
     @property

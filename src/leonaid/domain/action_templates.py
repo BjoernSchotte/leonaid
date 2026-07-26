@@ -218,12 +218,27 @@ class ConfiguredOffering:
                     "Der Angebotsbeginn muss vor dem Angebotsende liegen.",
                 )
 
+    def available_at(self, moment: datetime) -> bool:
+        if self.definition.status is not OfferingStatus.ACTIVE:
+            return False
+        if moment.utcoffset() is None:
+            raise DomainInvariantError(
+                "configured_offering_evaluation_timezone_required",
+                "Die Angebotsprüfung benötigt eine eindeutige Zeitzone.",
+            )
+        return (
+            self.available_from is None
+            or self.available_until is None
+            or self.available_from <= moment < self.available_until
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class ConfiguredOrderForm:
     id: UUID
     action_id: UUID
     configuration: OrderFormConfiguration
+    status: OfferingStatus = OfferingStatus.DRAFT
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,6 +362,7 @@ class ActionConfiguration:
                 id=uuid4(),
                 action_id=action_id,
                 configuration=self.order_form.configuration,
+                status=OfferingStatus.DRAFT,
             )
             if self.order_form is not None
             else None

@@ -18,6 +18,7 @@ from leonaid.domain.commitments import (
     Commitment,
     CommitmentSource,
     CommitmentStatus,
+    DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
     Money,
     Offering,
@@ -57,6 +58,8 @@ class CommitmentDraft:
     buyer: BuyerSnapshot
     invoice_recipient: InvoiceRecipientSnapshot | None
     lines: tuple[CommitmentLineDraft, ...]
+    delivery_recipient: DeliveryRecipientSnapshot | None = None
+    message: str | None = None
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -88,6 +91,12 @@ class CommitmentDraft:
                 if self.invoice_recipient is not None
                 else None
             ),
+            "deliveryRecipient": (
+                self.delivery_recipient.payload()
+                if self.delivery_recipient is not None
+                else None
+            ),
+            "message": self.message,
             # An unverbindlicher Clientpreis ist absichtlich kein Bestandteil
             # des fachlichen Befehls. Ausschließlich Offering-ID, Menge und
             # Einheit bestimmen die Serverberechnung.

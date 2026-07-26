@@ -50,6 +50,7 @@ export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; re
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type CreateCommitmentRequest = { readonly buyer: CommitmentBuyerRequest; readonly invoiceRecipient?: CommitmentInvoiceRecipientRequest | null; readonly lines: Array<CommitmentLineRequest>; readonly readyForReview?: boolean; readonly source: "acquisition" | "admin"; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
+export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: "public-order-poc-2026-07"; readonly website?: string | null; };
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
@@ -69,8 +70,14 @@ export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; r
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
-export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly purpose: string; readonly startsOn: string; };
-export type PublicOfferingResponse = { readonly code: string; readonly currency: string; readonly name: string; readonly piecesPerUnit: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
+export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly purpose: string; readonly startsOn: string; };
+export type PublicOfferingResponse = { readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
+export type PublicOrderDeliveryRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
+export type PublicOrderFormResponse = { readonly accessToken: string; readonly allowMessage: boolean; readonly formKey: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
+export type PublicOrderInvoiceRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly email: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
+export type PublicOrderLineRequest = { readonly offeringId: string; readonly quantity: number; readonly quotedUnitPriceMinor: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; };
+export type PublicOrderPartyRequest = { readonly companyName?: string | null; readonly email: string; readonly familyName: string; readonly givenName: string; readonly phone?: string | null; };
+export type PublicOrderResultResponse = { readonly commitmentId: string; readonly crmOutcome: "created" | "reused"; readonly currency: string; readonly publicReference: string; readonly replayed: boolean; readonly status: "review_ready"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
 export type RecordAcquisitionActivityRequest = { readonly channel: "phone" | "email" | "in_person"; readonly dueOn?: string | null; readonly nextAction?: string | null; readonly note?: string | null; readonly outcome: "reached" | "no_answer" | "interested" | "follow_up" | "committed" | "declined"; readonly partyId: string; readonly partyKind: "company" | "person"; readonly revision: number; };
 export type RecordAcquisitionActivityResponse = { readonly activity: RecordedAcquisitionActivityResponse; readonly assignment: AcquisitionAssignmentResponse; };
@@ -796,6 +803,22 @@ export class LeonAidApiClient {
     return this.request<PublicActionRouteResponse>(
       `/api/v1/public/actions/archive/${encodeURIComponent(String(archiveSlug))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async createPublicOrder(
+    publicAlias: string,
+    body: CreatePublicOrderRequest,
+    options: RequestOptions = {},
+  ): Promise<PublicOrderResultResponse> {
+    return this.request<PublicOrderResultResponse>(
+      `/api/v1/public/actions/${encodeURIComponent(String(publicAlias))}/orders`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

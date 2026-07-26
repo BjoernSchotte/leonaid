@@ -1,0 +1,205 @@
+<script>
+  import { actions, isInputError } from "astro:actions";
+
+  const orderForms =
+    document.querySelectorAll<HTMLFormElement>("[data-order-form]");
+
+  for (const form of orderForms) {
+    const billingSame = form.querySelector<HTMLInputElement>(
+      "[data-billing-same]",
+    );
+    const billingFields = form.querySelector<HTMLElement>(
+      "[data-billing-fields]",
+    );
+    const billingInputs = billingFields?.querySelectorAll<HTMLInputElement>(
+      "input:not([type='hidden'])",
+    );
+    const quantityInputs =
+      form.querySelectorAll<HTMLInputElement>("[data-quantity]");
+    const previewTotal = form.querySelector<HTMLElement>(
+      "[data-order-preview-total]",
+    );
+    const previewQuantity = form.querySelector<HTMLElement>(
+      "[data-order-preview-quantity]",
+    );
+    const submitButton = form.querySelector<HTMLButtonElement>(
+      "[data-order-submit]",
+    );
+    const submitLabel = form.querySelector<HTMLElement>("[data-submit-label]");
+    const message = form.querySelector<HTMLElement>("[data-form-message]");
+    const success = form.parentElement?.querySelector<HTMLElement>(
+      "[data-order-success]",
+    );
+
+    const syncBillingFields = () => {
+      if (!billingSame || !billingFields || !billingInputs) return;
+      const separateBilling = !billingSame.checked;
+      billingFields.hidden = !separateBilling;
+      billingFields.setAttribute(
+        "aria-hidden",
+        separateBilling ? "false" : "true",
+      );
+      for (const input of billingInputs) {
+        input.required = separateBilling;
+        input.disabled = !separateBilling;
+      }
+    };
+
+    const syncOrderPreview = () => {
+      let totalMinor = 0;
+      let totalPieces = 0;
+      let totalBoxes = 0;
+      let currency = "EUR";
+      for (const input of quantityInputs) {
+        const quantity = Math.max(0, Number.parseInt(input.value || "0", 10));
+        const unitPrice = Number.parseInt(input.dataset.unitPrice || "0", 10);
+        const piecesPerUnit = Number.parseInt(
+          input.dataset.piecesPerUnit || "0",
+          10,
+        );
+        totalMinor += quantity * unitPrice;
+        totalPieces += quantity * piecesPerUnit;
+        totalBoxes += input.dataset.unit === "box" ? quantity : 0;
+        currency = input.dataset.currency || currency;
+      }
+      if (previewTotal) {
+        previewTotal.textContent = new Intl.NumberFormat("de-DE", {
+          style: "currency",
+          currency,
+        }).format(totalMinor / 100);
+      }
+      if (previewQuantity) {
+        previewQuantity.textContent =
+          totalBoxes > 0
+            ? `${totalBoxes} ${totalBoxes === 1 ? "Box" : "Boxen"} · ${totalPieces} Stück`
+            : `${totalPieces} Stück`;
+      }
+    };
+
+    const clearErrors = () => {
+      for (const input of form.querySelectorAll<HTMLElement>(
+        "[aria-invalid]",
+      )) {
+        input.removeAttribute("aria-invalid");
+      }
+      for (const error of form.querySelectorAll<HTMLElement>(
+        "[data-error-for]",
+      )) {
+        error.textContent = "";
+      }
+      if (message) {
+        message.hidden = true;
+        message.textContent = "";
+        message.dataset.state = "idle";
+        message.removeAttribute("role");
+      }
+    };
+
+    const showFailure = (
+      text: string,
+      fields?: Readonly<Record<string, readonly string[] | undefined>>,
+    ) => {
+      if (message) {
+        message.textContent = text;
+        message.dataset.state = "error";
+        message.setAttribute("role", "alert");
+        message.hidden = false;
+      }
+      let firstInvalid: HTMLElement | null = null;
+      if (fields) {
+        for (const [name, errors] of Object.entries(fields)) {
+          const controls = form.querySelectorAll<HTMLElement>(
+            `[name="${CSS.escape(name)}"]`,
+          );
+          for (const control of controls) {
+            control.setAttribute("aria-invalid", "true");
+            firstInvalid ??= control;
+          }
+          const error = form.querySelector<HTMLElement>(
+            `[data-error-for="${CSS.escape(name)}"]`,
+          );
+          if (error) error.textContent = errors?.join(" ") ?? "";
+        }
+      }
+      (firstInvalid ?? message)?.focus();
+    };
+
+    billingSame?.addEventListener("change", syncBillingFields);
+    for (const input of quantityInputs) {
+      input.addEventListener("input", syncOrderPreview);
+    }
+    form.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.getAttribute("name")) {
+        return;
+      }
+      target.removeAttribute("aria-invalid");
+      const error = form.querySelector<HTMLElement>(
+        `[data-error-for="${CSS.escape(target.getAttribute("name") ?? "")}"]`,
+      );
+      if (error) error.textContent = "";
+    });
+
+    syncBillingFields();
+    syncOrderPreview();
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearErrors();
+      if (!form.reportValidity()) return;
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute("aria-busy", "true");
+      }
+      if (submitLabel) submitLabel.textContent = "Wird sicher übermittelt …";
+
+      try {
+        const result = await actions.createPublicOrder(new FormData(form));
+        if (result.error) {
+          showFailure(
+            isInputError(result.error)
+              ? "Bitte prüfe die markierten Angaben."
+              : result.error.message,
+            isInputError(result.error) ? result.error.fields : undefined,
+          );
+          return;
+        }
+        if (!success) return;
+        const reference = success.querySelector<HTMLElement>(
+          "[data-order-reference]",
+        );
+        const total = success.querySelector<HTMLElement>("[data-order-total]");
+        const quantity = success.querySelector<HTMLElement>(
+          "[data-order-quantity]",
+        );
+        if (reference) reference.textContent = result.data.publicReference;
+        if (total) {
+          total.textContent = new Intl.NumberFormat("de-DE", {
+            style: "currency",
+            currency: result.data.currency,
+          }).format(result.data.totalMinor / 100);
+        }
+        if (quantity) {
+          quantity.textContent =
+            result.data.totalBoxes > 0
+              ? `${result.data.totalBoxes} ${result.data.totalBoxes === 1 ? "Box" : "Boxen"} · ${result.data.totalPieces} Stück`
+              : `${result.data.totalPieces} Stück`;
+        }
+        form.hidden = true;
+        success.hidden = false;
+        success.focus();
+        success.scrollIntoView({ behavior: "smooth", block: "center" });
+      } catch {
+        showFailure(
+          "Die Bestellung konnte gerade nicht übermittelt werden. Deine Eingaben bleiben erhalten.",
+        );
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.removeAttribute("aria-busy");
+        }
+        if (submitLabel) submitLabel.textContent = "Verbindlich bestellen";
+      }
+    });
+  }
+</script>

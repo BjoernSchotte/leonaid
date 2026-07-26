@@ -330,12 +330,28 @@ class CharityActionResponse(TransportModel):
 
 
 class PublicOfferingResponse(TransportModel):
+    id: UUID
     code: str
     name: str
     unit: Literal["box", "piece", "package", "sponsoring"]
     pieces_per_unit: int | None
     unit_price_minor: int = Field(ge=0)
     currency: str
+
+
+class PublicOrderFormResponse(TransportModel):
+    form_key: str
+    title: str
+    introduction: str
+    submit_label: str
+    require_company_name: bool
+    require_contact_name: bool
+    require_email: bool
+    require_phone: bool
+    require_delivery_address: bool
+    require_billing_address: bool
+    allow_message: bool
+    access_token: str
 
 
 class PublicCharityActionResponse(TransportModel):
@@ -349,6 +365,7 @@ class PublicCharityActionResponse(TransportModel):
     beneficiaries: list[BeneficiaryResponse]
     goal: ActionGoalResponse
     offerings: list[PublicOfferingResponse]
+    order_form: PublicOrderFormResponse | None
 
 
 class PublicActionRouteResponse(TransportModel):
@@ -359,6 +376,59 @@ class PublicActionRouteResponse(TransportModel):
     availability: Literal["published", "inactive", "archive"]
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
+
+
+class PublicOrderPartyRequest(TransportModel):
+    company_name: str | None = Field(default=None, max_length=300)
+    given_name: str = Field(min_length=1, max_length=200)
+    family_name: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    phone: str | None = Field(default=None, max_length=40)
+
+
+class PublicOrderDeliveryRecipientRequest(TransportModel):
+    recipient_name: str = Field(min_length=1, max_length=200)
+    street_line_1: str = Field(min_length=1, max_length=200)
+    postal_code: str = Field(min_length=1, max_length=20)
+    city: str = Field(min_length=1, max_length=120)
+    country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
+
+
+class PublicOrderInvoiceRecipientRequest(PublicOrderDeliveryRecipientRequest):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class PublicOrderLineRequest(TransportModel):
+    offering_id: UUID
+    quantity: int = Field(ge=1, le=1_000_000)
+    unit: OfferingUnitValue
+    quoted_unit_price_minor: int = Field(ge=0)
+
+
+class CreatePublicOrderRequest(TransportModel):
+    access_token: str = Field(min_length=40, max_length=2_000)
+    command_id: UUID
+    party: PublicOrderPartyRequest
+    delivery_recipient: PublicOrderDeliveryRecipientRequest
+    invoice_recipient: PublicOrderInvoiceRecipientRequest
+    lines: list[PublicOrderLineRequest] = Field(min_length=1, max_length=100)
+    message: str | None = Field(default=None, max_length=1_000)
+    privacy_acknowledged: bool
+    binding_order_confirmed: bool
+    privacy_notice_version: Literal["public-order-poc-2026-07"]
+    website: str | None = Field(default=None, max_length=300)
+
+
+class PublicOrderResultResponse(TransportModel):
+    commitment_id: UUID
+    public_reference: str
+    status: Literal["review_ready"]
+    total_minor: int = Field(ge=0)
+    currency: str
+    total_boxes: int = Field(ge=0)
+    total_pieces: int = Field(ge=0)
+    crm_outcome: Literal["created", "reused"]
+    replayed: bool
 
 
 class ActionTemplateSummaryResponse(TransportModel):

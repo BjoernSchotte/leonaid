@@ -26,6 +26,7 @@ from botocore.exceptions import ClientError
 DATASET_VERSION = "1.0.0"
 OBJECT_PREFIX = "golden/v1/invoices/"
 ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
+PUBLIC_ORDER_NAMESPACE = UUID("2cfebf83-5796-49d7-8c56-8dcb224f45ed")
 GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
     2026,
     7,
@@ -600,13 +601,18 @@ async def seed_identity(
                 status,
                 starts_on,
                 ends_on,
+                publication_starts_at,
+                publication_ends_at,
                 archive_slug,
                 goal_value,
                 actual_value,
                 goal_unit,
                 currency
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7,
+                $8, $9, $10, $11, $12, $13, $14
+            )
             ON CONFLICT (id) DO UPDATE
             SET carrier_name = EXCLUDED.carrier_name,
                 name = EXCLUDED.name,
@@ -614,6 +620,8 @@ async def seed_identity(
                 status = EXCLUDED.status,
                 starts_on = EXCLUDED.starts_on,
                 ends_on = EXCLUDED.ends_on,
+                publication_starts_at = EXCLUDED.publication_starts_at,
+                publication_ends_at = EXCLUDED.publication_ends_at,
                 archive_slug = EXCLUDED.archive_slug,
                 goal_value = EXCLUDED.goal_value,
                 actual_value = EXCLUDED.actual_value,
@@ -628,6 +636,16 @@ async def seed_identity(
             action_status[str(action["status"])],
             date.fromisoformat(str(action["startsOn"])),
             date.fromisoformat(str(action["endsOn"])),
+            (
+                datetime.fromisoformat(str(action["publicationStartsAt"]))
+                if action["publicationStartsAt"] is not None
+                else None
+            ),
+            (
+                datetime.fromisoformat(str(action["publicationEndsAt"]))
+                if action["publicationEndsAt"] is not None
+                else None
+            ),
             action["archiveSlug"],
             goal_value,
             actual_value,
@@ -745,6 +763,92 @@ async def seed_identity(
                 action["publicAlias"],
                 action["id"],
             )
+
+    current_action = next(
+        action
+        for action in dataset["actions"]
+        if action["publicAlias"] == "krapfentaxi"
+    )
+    current_action_id = str(current_action["id"])
+    form_id = uuid5(PUBLIC_ORDER_NAMESPACE, f"{current_action_id}:order-form")
+    await connection.execute(
+        "DELETE FROM order_form_configuration WHERE action_id = $1",
+        current_action_id,
+    )
+    await connection.execute(
+        "DELETE FROM action_template_snapshot WHERE action_id = $1",
+        current_action_id,
+    )
+    snapshot = {
+        "capabilities": current_action["capabilities"],
+        "offerings": [
+            {
+                "code": "krapfenbox-24",
+                "name": "Krapfenbox",
+                "status": "active",
+                "unit": "box",
+                "piecesPerUnit": 24,
+                "unitPriceMinor": 3600,
+                "currency": "EUR",
+            }
+        ],
+        "orderForm": {
+            "formKey": "sponsor-bestellung",
+            "title": "Krapfenboxen bestellen",
+            "introduction": (
+                "Bestellen Sie Krapfenboxen und unterstützen Sie die "
+                "Begünstigten dieser Charity-Aktion."
+            ),
+            "submitLabel": "Bestellung verbindlich absenden",
+            "requireCompanyName": False,
+            "requireContactName": True,
+            "requireEmail": True,
+            "requirePhone": False,
+            "requireDeliveryAddress": True,
+            "requireBillingAddress": True,
+            "allowMessage": True,
+        },
+    }
+    await connection.execute(
+        """
+        INSERT INTO action_template_snapshot (
+            action_id, template_key, template_version, display_name,
+            copied_from_action_id, configuration
+        )
+        VALUES ($1, 'krapfentaxi', 2, 'Krapfentaxi', NULL, $2::jsonb)
+        """,
+        current_action_id,
+        json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")),
+    )
+    form = snapshot["orderForm"]
+    assert isinstance(form, dict)
+    await connection.execute(
+        """
+        INSERT INTO order_form_configuration (
+            id, action_id, form_key, status, title, introduction,
+            submit_label, require_company_name, require_contact_name,
+            require_email, require_phone, require_delivery_address,
+            require_billing_address, allow_message
+        )
+        VALUES (
+            $1, $2, $3, 'active', $4, $5, $6,
+            $7, $8, $9, $10, $11, $12, $13
+        )
+        """,
+        form_id,
+        current_action_id,
+        form["formKey"],
+        form["title"],
+        form["introduction"],
+        form["submitLabel"],
+        form["requireCompanyName"],
+        form["requireContactName"],
+        form["requireEmail"],
+        form["requirePhone"],
+        form["requireDeliveryAddress"],
+        form["requireBillingAddress"],
+        form["allowMessage"],
+    )
 
 
 async def seed_operational_golden(
@@ -947,6 +1051,23 @@ async def seed_operational_golden(
             }
         else:
             recipient_snapshot = None
+        delivery = commitment.get("deliveryAddress")
+        delivery_snapshot = (
+            {
+                "recipientName": delivery["recipient"],
+                "streetLine1": delivery["street"],
+                "postalCode": delivery["postalCode"],
+                "city": delivery["city"],
+                "countryCode": delivery["country"],
+            }
+            if isinstance(delivery, dict)
+            else None
+        )
+        public_reference = (
+            f"LA-{str(commitment['id']).replace('-', '').upper()}"
+            if source[str(commitment["source"])] == "public_form"
+            else None
+        )
         created_at = GOLDEN_COMMITMENT_CREATED_AT + timedelta(minutes=commitment_index)
         await connection.execute(
             """
@@ -959,14 +1080,17 @@ async def seed_operational_golden(
                 status,
                 customer_snapshot,
                 invoice_recipient_snapshot,
+                delivery_recipient_snapshot,
+                message_snapshot,
+                public_reference,
                 currency,
                 total_minor,
                 created_at,
                 updated_at
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7::json, $8::json, 'EUR', $9,
-                $10, $10
+                $1, $2, $3, $4, $5, $6, $7::json, $8::json,
+                $9::json, NULL, $10, 'EUR', $11, $12, $12
             )
             """,
             commitment["id"],
@@ -981,6 +1105,12 @@ async def seed_operational_golden(
                 if recipient_snapshot is not None
                 else None
             ),
+            (
+                json.dumps(delivery_snapshot, separators=(",", ":"))
+                if delivery_snapshot is not None
+                else None
+            ),
+            public_reference,
             total_minor,
             created_at,
         )

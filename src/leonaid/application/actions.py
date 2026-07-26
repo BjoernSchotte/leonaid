@@ -19,8 +19,9 @@ from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
     ActionTemplateKey,
+    ConfiguredOffering,
+    ConfiguredOrderForm,
     OfferingStatus,
-    TemplateOffering,
 )
 from leonaid.domain.actions import (
     ActionManagementState,
@@ -106,20 +107,30 @@ class PublicActionRoute:
     availability: PublicActionAvailability
     submissions_allowed: bool
     action: CharityAction | None
-    offerings: tuple[TemplateOffering, ...] = ()
+    offerings: tuple[ConfiguredOffering, ...] = ()
+    order_form: ConfiguredOrderForm | None = None
 
     def __post_init__(self) -> None:
         if self.availability is PublicActionAvailability.INACTIVE:
-            if self.action is not None or self.offerings or self.submissions_allowed:
+            if (
+                self.action is not None
+                or self.offerings
+                or self.order_form is not None
+                or self.submissions_allowed
+            ):
                 raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
             return
         if self.action is None:
             raise ValueError("Eine öffentliche Aktionsroute benötigt eine Aktion.")
-        if self.submissions_allowed != (
-            self.route_kind is PublicActionRouteKind.ALIAS
-            and self.availability is PublicActionAvailability.PUBLISHED
+        if self.submissions_allowed and (
+            self.route_kind is not PublicActionRouteKind.ALIAS
+            or self.availability is not PublicActionAvailability.PUBLISHED
+            or self.order_form is None
+            or not self.offerings
         ):
             raise ValueError("Der Schreibstatus der öffentlichen Route ist ungültig.")
+        if self.order_form is not None and not self.submissions_allowed:
+            raise ValueError("Ein öffentliches Formular muss beschreibbar sein.")
 
 
 class CharityActionRepository(Protocol):
@@ -415,15 +426,29 @@ class CharityActionService:
                 action=None,
             )
         action, configuration = snapshot
+        offerings = self._public_offerings(
+            configuration,
+            evaluated_at=now,
+            require_current_availability=True,
+        )
+        order_form = (
+            configuration.order_form
+            if configuration is not None
+            and configuration.order_form is not None
+            and configuration.order_form.status is OfferingStatus.ACTIVE
+            and offerings
+            else None
+        )
         return PublicActionRoute(
             route_kind=PublicActionRouteKind.ALIAS,
             route_value=alias.value,
             route_path=route_path,
             canonical_path=f"/archive/{action.archive_slug}",
             availability=PublicActionAvailability.PUBLISHED,
-            submissions_allowed=True,
+            submissions_allowed=order_form is not None,
             action=action,
-            offerings=self._public_offerings(configuration),
+            offerings=offerings,
+            order_form=order_form,
         )
 
     async def resolve_public_archive(
@@ -452,19 +477,27 @@ class CharityActionService:
             availability=PublicActionAvailability.ARCHIVE,
             submissions_allowed=False,
             action=action,
-            offerings=self._public_offerings(configuration),
+            offerings=self._public_offerings(
+                configuration,
+                evaluated_at=datetime.now(timezone.utc),
+                require_current_availability=False,
+            ),
         )
 
     @staticmethod
     def _public_offerings(
         configuration: ActionConfiguration | None,
-    ) -> tuple[TemplateOffering, ...]:
+        *,
+        evaluated_at: datetime,
+        require_current_availability: bool,
+    ) -> tuple[ConfiguredOffering, ...]:
         if configuration is None:
             return ()
         return tuple(
-            item.definition
+            item
             for item in configuration.offerings
             if item.definition.status is OfferingStatus.ACTIVE
+            and (not require_current_availability or item.available_at(evaluated_at))
         )
 
     async def get_management(
