@@ -7,6 +7,7 @@ root=$(cd "$root" && pwd)
 
 project=leonaid-poc012-test
 port=18082
+https_port=18445
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
 fixture="$root/tests/fixtures/golden/v1"
@@ -19,6 +20,7 @@ fi
 
 export LEONAID_COMPOSE_PROJECT="$project"
 export LEONAID_HTTP_PORT="$port"
+export LEONAID_HTTPS_PORT="$https_port"
 
 compose() {
   docker compose \

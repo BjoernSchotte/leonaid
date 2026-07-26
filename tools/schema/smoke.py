@@ -92,7 +92,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0009_public_action_routes":
+    if revision != "0010_offering_commitments":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -261,12 +261,14 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         lambda: connection.execute(
             """
             INSERT INTO offering (
-                id, action_id, code, name, status, unit, pieces_per_unit,
+                id, action_id, code, name, status, unit,
+                allowed_quantity_units, pieces_per_unit,
                 unit_price_minor, currency
             )
             VALUES (
                 '70000000-0000-4000-8000-000000000099', $1,
-                'ungueltig', 'Ungültig', 'active', 'box', 24, -1, 'EUR'
+                'ungueltig', 'Ungültig', 'active', 'box',
+                ARRAY['box']::text[], 24, -1, 'EUR'
             )
             """,
             ACTION,

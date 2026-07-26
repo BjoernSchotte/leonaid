@@ -33,10 +33,12 @@ Sponsoren ab.
 
 ## Krapfentaxi-Fachwerte
 
-Das aktive Angebot enthält 24 Krapfen pro Box zu 36,00 EUR. Sechs
-Commitments decken Entwurf, prüfbereit, öffentlich eingegangen und fakturiert
-ab. Zusammen ergeben sie 25 Boxen, 600 Krapfen und 900,00 EUR. Bei einem
-manuellen Aktionsziel von 1.000,00 EUR sind das 90,00 Prozent.
+Das aktive Angebot enthält 24 Krapfen pro Box zu 36,00 EUR, einen vollständigen
+Bestellzeitraum und `box` als erlaubte Mengeneinheit. Sechs Commitments aus
+persönlicher Akquise, öffentlichem Formular und Admin-Erfassung decken Entwurf,
+prüfbereit, öffentlich eingegangen und fakturiert ab. Zusammen ergeben sie
+25 Boxen, 600 Krapfen und 900,00 EUR. Bei einem manuellen Aktionsziel von
+1.000,00 EUR sind das 90,00 Prozent.
 
 Die drei Rechnungen decken offen, bezahlt und storniert ab. Jede enthält einen
 eigenen Adress-Snapshot und verweist auf ein fakturiertes Commitment.

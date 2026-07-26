@@ -774,6 +774,46 @@ async def seed_operational_golden(
         assignment_ids,
     )
 
+    for offer in dataset["offers"]:
+        await connection.execute(
+            """
+            INSERT INTO offering (
+                id, action_id, code, name, status, unit,
+                allowed_quantity_units, pieces_per_unit,
+                unit_price_minor, currency,
+                available_from, available_until
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6,
+                $7::text[], $8, $9, $10, $11, $12
+            )
+            ON CONFLICT (id) DO UPDATE
+            SET code = EXCLUDED.code,
+                name = EXCLUDED.name,
+                status = EXCLUDED.status,
+                unit = EXCLUDED.unit,
+                allowed_quantity_units = EXCLUDED.allowed_quantity_units,
+                pieces_per_unit = EXCLUDED.pieces_per_unit,
+                unit_price_minor = EXCLUDED.unit_price_minor,
+                currency = EXCLUDED.currency,
+                available_from = EXCLUDED.available_from,
+                available_until = EXCLUDED.available_until,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            offer["id"],
+            offer["actionId"],
+            offer["code"],
+            offer["name"],
+            "active" if offer["active"] else "inactive",
+            str(offer["unit"]).casefold(),
+            [str(value).casefold() for value in offer["allowedQuantityUnits"]],
+            offer["piecesPerUnit"],
+            offer["unitPriceCents"],
+            offer["currency"],
+            datetime.fromisoformat(str(offer["availableFrom"])),
+            datetime.fromisoformat(str(offer["availableUntil"])),
+        )
+
     assignment_lookup: dict[tuple[str, str, str], str] = {}
     for assignment in dataset["assignments"]:
         party_id = str(assignment["companyId"] or assignment["personId"])
@@ -834,13 +874,15 @@ async def seed_operational_golden(
             GOLDEN_ASSIGNMENT_CHANGED_AT,
         )
 
-    offers = {
-        str(item["id"]): int(item["unitPriceCents"]) for item in dataset["offers"]
-    }
+    offers = {str(item["id"]): item for item in dataset["offers"]}
     invoices_by_commitment = {
         str(item["commitmentId"]): item for item in dataset["invoices"]
     }
-    source = {"INTERNAL": "acquisition", "PUBLIC": "public_form"}
+    source = {
+        "ACQUISITION": "acquisition",
+        "PUBLIC_FORM": "public_form",
+        "ADMIN": "admin",
+    }
     commitment_status = {
         "DRAFT": "draft",
         "REVIEW_READY": "review_ready",
@@ -851,7 +893,7 @@ async def seed_operational_golden(
     for commitment in dataset["commitments"]:
         commitments_by_id[str(commitment["id"])] = commitment
         total_minor = sum(
-            int(line["quantity"]) * offers[str(line["offerId"])]
+            int(line["quantity"]) * int(offers[str(line["offerId"])]["unitPriceCents"])
             for line in commitment["lines"]
         )
         invoice = invoices_by_commitment.get(str(commitment["id"]))
@@ -893,6 +935,32 @@ async def seed_operational_golden(
             ),
             total_minor,
         )
+        for line in commitment["lines"]:
+            offer = offers[str(line["offerId"])]
+            await connection.execute(
+                """
+                INSERT INTO commitment_line (
+                    id, commitment_id, offering_id, description_snapshot,
+                    quantity, unit_snapshot, pieces_per_unit_snapshot,
+                    unit_price_minor, line_total_minor
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9
+                )
+                """,
+                uuid5(
+                    ASSIGNMENT_HISTORY_NAMESPACE,
+                    f"golden-commitment-line:{commitment['id']}:{line['offerId']}",
+                ),
+                commitment["id"],
+                line["offerId"],
+                offer["name"],
+                line["quantity"],
+                str(offer["unit"]).casefold(),
+                offer["piecesPerUnit"],
+                offer["unitPriceCents"],
+                int(line["quantity"]) * int(offer["unitPriceCents"]),
+            )
 
     activity_origin = datetime(2026, 6, 1, 12, tzinfo=timezone.utc)
     for index, activity in enumerate(dataset["activities"]):

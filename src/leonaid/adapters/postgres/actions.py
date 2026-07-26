@@ -797,7 +797,9 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             """
             SELECT
                 id, action_id, code, name, status, unit,
-                pieces_per_unit, unit_price_minor, currency
+                allowed_quantity_units, pieces_per_unit,
+                unit_price_minor, currency,
+                available_from, available_until
             FROM offering
             WHERE action_id = $1
             ORDER BY code
@@ -847,6 +849,12 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         unit_price_minor=int(row["unit_price_minor"]),
                         currency=str(row["currency"]),
                     ),
+                    allowed_quantity_units=frozenset(
+                        OfferingUnit(str(value))
+                        for value in row["allowed_quantity_units"]
+                    ),
+                    available_from=row["available_from"],
+                    available_until=row["available_until"],
                 )
                 for row in offering_rows
             ),
@@ -1090,10 +1098,15 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 """
                 INSERT INTO offering (
                     id, action_id, code, name, status, unit,
-                    pieces_per_unit, unit_price_minor, currency,
+                    allowed_quantity_units, pieces_per_unit,
+                    unit_price_minor, currency,
+                    available_from, available_until,
                     created_at, updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                    $10, $11, $12, $13, $13
+                )
                 """,
                 [
                     (
@@ -1103,9 +1116,12 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         item.definition.name,
                         item.definition.status.value,
                         item.definition.unit.value,
+                        [value.value for value in item.allowed_quantity_units],
                         item.definition.pieces_per_unit,
                         item.definition.unit_price_minor,
                         item.definition.currency,
+                        item.available_from,
+                        item.available_until,
                         occurred_at,
                     )
                     for item in configuration.offerings

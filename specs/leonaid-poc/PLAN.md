@@ -1000,24 +1000,24 @@ Tests/Nachweise:
 
 ## M8 – Angebote, Bestellungen und Aktivitätsfeed
 
-### [ ] POC-080 Offering, Mengen und Commitment-Aggregat implementieren
+### [x] POC-080 Offering, Mengen und Commitment-Aggregat implementieren
 
 Abhängigkeiten: POC-021, POC-050
 
 Akzeptanzkriterien:
 
-- [ ] Offering besitzt Name, Zeitraum, Preis, Währung, Status und erlaubte
+- [x] Offering besitzt Name, Zeitraum, Preis, Währung, Status und erlaubte
       Mengeneinheiten.
-- [ ] Krapfenbox kann nachvollziehbar in Boxen und Stück ausgedrückt werden.
-- [ ] Commitment unterscheidet Quellen `acquisition`, `public_form`, `admin`.
-- [ ] Besteller, Rechnungsempfänger und Positionen werden fachlich getrennt.
-- [ ] Preise werden serverseitig aus dem aktiven Offering übernommen.
+- [x] Krapfenbox kann nachvollziehbar in Boxen und Stück ausgedrückt werden.
+- [x] Commitment unterscheidet Quellen `acquisition`, `public_form`, `admin`.
+- [x] Besteller, Rechnungsempfänger und Positionen werden fachlich getrennt.
+- [x] Preise werden serverseitig aus dem aktiven Offering übernommen.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Geld, Rundung, Box-/Stückumrechnung und Statusregeln.
-- [ ] Integrationstest persistiert alle Golden-Bestellquellen.
-- [ ] Manipulierte Clientbeträge verändern den berechneten Gesamtbetrag nicht.
+- [x] Unit-Tests prüfen Geld, Rundung, Box-/Stückumrechnung und Statusregeln.
+- [x] Integrationstest persistiert alle Golden-Bestellquellen.
+- [x] Manipulierte Clientbeträge verändern den berechneten Gesamtbetrag nicht.
 
 ### [ ] POC-081 Interne Bestell-/Zusagenerfassung bauen
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -184,6 +185,38 @@ class ConfiguredOffering:
     id: UUID
     action_id: UUID
     definition: TemplateOffering
+    allowed_quantity_units: frozenset[OfferingUnit]
+    available_from: datetime | None
+    available_until: datetime | None
+
+    def __post_init__(self) -> None:
+        if (
+            not self.allowed_quantity_units
+            or self.definition.unit not in self.allowed_quantity_units
+        ):
+            raise DomainInvariantError(
+                "configured_offering_units_invalid",
+                "Die Preiseinheit muss als erlaubte Mengeneinheit enthalten sein.",
+            )
+        if (self.available_from is None) != (self.available_until is None):
+            raise DomainInvariantError(
+                "configured_offering_period_incomplete",
+                "Der Angebotszeitraum benötigt Beginn und Ende.",
+            )
+        if self.available_from is not None and self.available_until is not None:
+            if (
+                self.available_from.utcoffset() is None
+                or self.available_until.utcoffset() is None
+            ):
+                raise DomainInvariantError(
+                    "configured_offering_timezone_required",
+                    "Der Angebotszeitraum benötigt eine eindeutige Zeitzone.",
+                )
+            if self.available_from >= self.available_until:
+                raise DomainInvariantError(
+                    "configured_offering_period_invalid",
+                    "Der Angebotsbeginn muss vor dem Angebotsende liegen.",
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,6 +336,9 @@ class ActionConfiguration:
                 id=uuid4(),
                 action_id=action_id,
                 definition=item.definition,
+                allowed_quantity_units=item.allowed_quantity_units,
+                available_from=None,
+                available_until=None,
             )
             for item in self.offerings
         )
@@ -393,6 +429,9 @@ class ActionTemplate:
                     id=uuid4(),
                     action_id=action_id,
                     definition=item,
+                    allowed_quantity_units=frozenset({item.unit}),
+                    available_from=None,
+                    available_until=None,
                 )
                 for item in effective_offerings
             ),

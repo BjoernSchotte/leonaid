@@ -1365,6 +1365,416 @@
         "title": "CharityActionResponse",
         "type": "object"
       },
+      "CommitmentBuyerRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "twentyId": {
+            "format": "uuid",
+            "title": "Twentyid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partyKind",
+          "twentyId",
+          "displayName"
+        ],
+        "title": "CommitmentBuyerRequest",
+        "type": "object"
+      },
+      "CommitmentBuyerResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "twentyId": {
+            "format": "uuid",
+            "title": "Twentyid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partyKind",
+          "twentyId",
+          "displayName",
+          "email"
+        ],
+        "title": "CommitmentBuyerResponse",
+        "type": "object"
+      },
+      "CommitmentInvoiceRecipientRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "recipientName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientName",
+          "streetLine1",
+          "postalCode",
+          "city"
+        ],
+        "title": "CommitmentInvoiceRecipientRequest",
+        "type": "object"
+      },
+      "CommitmentInvoiceRecipientResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "recipientName": {
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipientName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "email"
+        ],
+        "title": "CommitmentInvoiceRecipientResponse",
+        "type": "object"
+      },
+      "CommitmentLineRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "offeringId": {
+            "format": "uuid",
+            "title": "Offeringid",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "quotedUnitPriceMinor": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quotedunitpriceminor"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offeringId",
+          "quantity",
+          "unit"
+        ],
+        "title": "CommitmentLineRequest",
+        "type": "object"
+      },
+      "CommitmentLineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "boxCount": {
+            "minimum": 0.0,
+            "title": "Boxcount",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lineTotalMinor": {
+            "minimum": 0.0,
+            "title": "Linetotalminor",
+            "type": "integer"
+          },
+          "offeringId": {
+            "format": "uuid",
+            "title": "Offeringid",
+            "type": "string"
+          },
+          "pieceCount": {
+            "minimum": 0.0,
+            "title": "Piececount",
+            "type": "integer"
+          },
+          "piecesPerUnit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Piecesperunit"
+          },
+          "quantity": {
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unitPriceMinor": {
+            "minimum": 0.0,
+            "title": "Unitpriceminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "offeringId",
+          "description",
+          "quantity",
+          "unit",
+          "piecesPerUnit",
+          "pieceCount",
+          "boxCount",
+          "unitPriceMinor",
+          "lineTotalMinor",
+          "currency"
+        ],
+        "title": "CommitmentLineResponse",
+        "type": "object"
+      },
+      "CommitmentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "buyer": {
+            "$ref": "#/components/schemas/CommitmentBuyerResponse"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoiceRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitmentInvoiceRecipientResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CommitmentLineResponse"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "acquisition",
+              "public_form",
+              "admin"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "review_ready",
+              "confirmed",
+              "invoiced",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "totalBoxes": {
+            "minimum": 0.0,
+            "title": "Totalboxes",
+            "type": "integer"
+          },
+          "totalMinor": {
+            "minimum": 0.0,
+            "title": "Totalminor",
+            "type": "integer"
+          },
+          "totalPieces": {
+            "minimum": 0.0,
+            "title": "Totalpieces",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "source",
+          "status",
+          "buyer",
+          "invoiceRecipient",
+          "lines",
+          "totalMinor",
+          "currency",
+          "totalPieces",
+          "totalBoxes",
+          "replayed"
+        ],
+        "title": "CommitmentResponse",
+        "type": "object"
+      },
       "CompleteFreshLoginRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1445,6 +1855,43 @@
       "ConfiguredOfferingResponse": {
         "additionalProperties": false,
         "properties": {
+          "allowedQuantityUnits": {
+            "items": {
+              "enum": [
+                "box",
+                "piece",
+                "package",
+                "sponsoring"
+              ],
+              "type": "string"
+            },
+            "title": "Allowedquantityunits",
+            "type": "array"
+          },
+          "availableFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availablefrom"
+          },
+          "availableUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availableuntil"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -1504,9 +1951,12 @@
           "name",
           "status",
           "unit",
+          "allowedQuantityUnits",
           "piecesPerUnit",
           "unitPriceMinor",
-          "currency"
+          "currency",
+          "availableFrom",
+          "availableUntil"
         ],
         "title": "ConfiguredOfferingResponse",
         "type": "object"
@@ -1736,6 +2186,53 @@
           "goal"
         ],
         "title": "CreateCharityActionRequest",
+        "type": "object"
+      },
+      "CreateCommitmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "buyer": {
+            "$ref": "#/components/schemas/CommitmentBuyerRequest"
+          },
+          "invoiceRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitmentInvoiceRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CommitmentLineRequest"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "readyForReview": {
+            "default": false,
+            "title": "Readyforreview",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "acquisition",
+              "admin"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "buyer",
+          "lines"
+        ],
+        "title": "CreateCommitmentRequest",
         "type": "object"
       },
       "CreateInvitationRequest": {
@@ -5781,6 +6278,119 @@
         "summary": "Set Charity Action Capabilities",
         "tags": [
           "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments": {
+      "post": {
+        "operationId": "createCommitment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommitmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Create Commitment",
+        "tags": [
+          "commitments"
         ]
       }
     },

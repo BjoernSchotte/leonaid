@@ -36,6 +36,7 @@ Commands:
   test-action-admin Prove Charity-Admin action management and conflict handling
   test-public-actions
                     Prove public alias switching and immutable archive routes
+  test-commitments  Prove offerings, quantities and server-priced commitments
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -206,14 +207,14 @@ check_all() {
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
-    migrations src tests tools/action_admin tools/actions \
+    migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/assignments \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/schema tools/seed tools/sessions \
     tools/pwa tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
-    migrations src tests tools/action_admin tools/actions \
+    migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/assignments tools/matching \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
@@ -222,6 +223,7 @@ check_all() {
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/assignments \
+    tools/commitments \
     tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
     tools/public_actions tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
@@ -427,6 +429,7 @@ case "$command" in
     /bin/sh "$root/tools/templates/test.sh" "$root"
     /bin/sh "$root/tools/action_admin/test.sh" "$root"
     /bin/sh "$root/tools/public_actions/test.sh" "$root"
+    /bin/sh "$root/tools/commitments/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
@@ -454,6 +457,7 @@ case "$command" in
   test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
   test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;
   test-public-actions) /bin/sh "$root/tools/public_actions/test.sh" "$root" ;;
+  test-commitments) /bin/sh "$root/tools/commitments/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

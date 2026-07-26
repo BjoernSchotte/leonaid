@@ -125,6 +125,9 @@ def test_only_active_configured_offerings_are_public() -> None:
         id=draft.id,
         action_id=draft.action_id,
         definition=replace(draft.definition, status=OfferingStatus.ACTIVE),
+        allowed_quantity_units=draft.allowed_quantity_units,
+        available_from=draft.available_from,
+        available_until=draft.available_until,
     )
     inactive = ConfiguredOffering(
         id=UUID("50000000-0000-4000-8000-000000000052"),
@@ -135,6 +138,9 @@ def test_only_active_configured_offerings_are_public() -> None:
             name="Familienbox",
             status=OfferingStatus.INACTIVE,
         ),
+        allowed_quantity_units=draft.allowed_quantity_units,
+        available_from=draft.available_from,
+        available_until=draft.available_until,
     )
     effective = replace(configured, offerings=(active, inactive))
 

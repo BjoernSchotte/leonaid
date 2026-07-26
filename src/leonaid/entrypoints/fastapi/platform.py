@@ -20,6 +20,7 @@ from leonaid.adapters.postgres.acquisition import (
     AsyncpgAcquisitionPolicyRepository,
 )
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
+from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
@@ -33,6 +34,7 @@ from leonaid.application.acquisition import AcquisitionPolicyService
 from leonaid.application.activities import AcquisitionActivityService
 from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
+from leonaid.application.commitments import CommitmentService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -109,6 +111,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.action_service = CharityActionService(
             AsyncpgCharityActionRepository(pool)
+        )
+        application.state.commitment_service = CommitmentService(
+            AsyncpgCommitmentRepository(pool)
         )
         mail_payload = SecureMailPayload(
             settings.mail_payload_secret.get_secret_value()

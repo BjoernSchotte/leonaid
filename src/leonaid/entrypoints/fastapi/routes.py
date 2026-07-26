@@ -22,6 +22,11 @@ from leonaid.application.assignments import (
     AssignmentHandoverResult,
     AssignmentManagementService,
 )
+from leonaid.application.commitments import (
+    CommitmentDraft,
+    CommitmentLineDraft,
+    CommitmentService,
+)
 from leonaid.application.actions import (
     BeneficiaryDraft,
     CharityActionService,
@@ -64,6 +69,14 @@ from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
     ActionTemplateKey,
+    OfferingUnit,
+)
+from leonaid.domain.commitments import (
+    BuyerSnapshot,
+    Commitment,
+    CommitmentPartyKind,
+    CommitmentSource,
+    InvoiceRecipientSnapshot,
 )
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.errors import DomainInvariantError
@@ -99,8 +112,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
+    CommitmentBuyerResponse,
+    CommitmentInvoiceRecipientResponse,
+    CommitmentLineResponse,
+    CommitmentResponse,
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
+    CreateCommitmentRequest,
     CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
     CreateInvitationRequest,
@@ -207,6 +225,10 @@ def activity_management_service(request: Request) -> AcquisitionActivityService:
 
 def action_service(request: Request) -> CharityActionService:
     return cast(CharityActionService, request.app.state.action_service)
+
+
+def commitment_service(request: Request) -> CommitmentService:
+    return cast(CommitmentService, request.app.state.commitment_service)
 
 
 def session_token(request: Request) -> str | None:
@@ -540,9 +562,14 @@ def charity_action_configuration_response(
                 name=item.definition.name,
                 status=item.definition.status.value,
                 unit=item.definition.unit.value,
+                allowed_quantity_units=sorted(
+                    value.value for value in item.allowed_quantity_units
+                ),
                 pieces_per_unit=item.definition.pieces_per_unit,
                 unit_price_minor=item.definition.unit_price_minor,
                 currency=item.definition.currency,
+                available_from=item.available_from,
+                available_until=item.available_until,
             )
             for item in configuration.offerings
         ],
@@ -571,6 +598,88 @@ def charity_action_configuration_response(
             )
             if configuration.order_form is not None
             else None
+        ),
+    )
+
+
+def commitment_response(commitment: Commitment) -> CommitmentResponse:
+    recipient = commitment.invoice_recipient
+    return CommitmentResponse(
+        id=commitment.id,
+        action_id=commitment.action_id,
+        source=commitment.source.value,
+        status=commitment.status.value,
+        buyer=CommitmentBuyerResponse(
+            party_kind=commitment.buyer.party_kind.value,
+            twenty_id=commitment.buyer.twenty_id,
+            display_name=commitment.buyer.display_name,
+            email=commitment.buyer.email,
+        ),
+        invoice_recipient=(
+            CommitmentInvoiceRecipientResponse(
+                recipient_name=recipient.recipient_name,
+                street_line_1=recipient.street_line_1,
+                postal_code=recipient.postal_code,
+                city=recipient.city,
+                country_code=recipient.country_code,
+                email=recipient.email,
+            )
+            if recipient is not None
+            else None
+        ),
+        lines=[
+            CommitmentLineResponse(
+                id=line.id,
+                offering_id=line.offering_id,
+                description=line.description_snapshot,
+                quantity=line.quantity,
+                unit=line.unit_snapshot.value,
+                pieces_per_unit=line.pieces_per_unit_snapshot,
+                piece_count=line.piece_count,
+                box_count=line.box_count,
+                unit_price_minor=line.unit_price.amount_minor,
+                line_total_minor=line.line_total.amount_minor,
+                currency=line.line_total.currency,
+            )
+            for line in commitment.lines
+        ],
+        total_minor=commitment.total.amount_minor,
+        currency=commitment.total.currency,
+        total_pieces=commitment.total_pieces,
+        total_boxes=commitment.total_boxes,
+        replayed=commitment.replayed,
+    )
+
+
+def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
+    recipient = body.invoice_recipient
+    return CommitmentDraft(
+        buyer=BuyerSnapshot(
+            party_kind=CommitmentPartyKind(body.buyer.party_kind),
+            twenty_id=body.buyer.twenty_id,
+            display_name=body.buyer.display_name,
+            email=body.buyer.email,
+        ),
+        invoice_recipient=(
+            InvoiceRecipientSnapshot(
+                recipient_name=recipient.recipient_name,
+                street_line_1=recipient.street_line_1,
+                postal_code=recipient.postal_code,
+                city=recipient.city,
+                country_code=recipient.country_code,
+                email=recipient.email,
+            )
+            if recipient is not None
+            else None
+        ),
+        lines=tuple(
+            CommitmentLineDraft(
+                offering_id=line.offering_id,
+                quantity=line.quantity,
+                unit=OfferingUnit(line.unit),
+                quoted_unit_price_minor=line.quoted_unit_price_minor,
+            )
+            for line in body.lines
         ),
     )
 
@@ -1094,6 +1203,37 @@ async def get_charity_action_configuration(
     )
     response.headers["Cache-Control"] = "no-store"
     return charity_action_configuration_response(action, configuration)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments",
+    operation_id="createCommitment",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["commitments"],
+)
+async def create_commitment(
+    action_id: UUID,
+    request: Request,
+    body: CreateCommitmentRequest,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    commitment = await commitment_service(request).create_internal(
+        actor,
+        action_id,
+        source=CommitmentSource(body.source),
+        ready_for_review=body.ready_for_review,
+        draft=commitment_draft(body),
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/commitments/{commitment.id}"
+    )
+    return commitment_response(commitment)
 
 
 @router.post(

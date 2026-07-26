@@ -326,22 +326,34 @@
     {
       "id": "70000000-0000-4000-8000-000000000001",
       "actionId": "20000000-0000-4000-8000-000000000001",
+      "code": "krapfenbox-24",
       "name": "Krapfenbox",
       "active": true,
       "unit": "BOX",
+      "allowedQuantityUnits": [
+        "BOX"
+      ],
       "piecesPerUnit": 24,
       "unitPriceCents": 3600,
-      "currency": "EUR"
+      "currency": "EUR",
+      "availableFrom": "2026-07-01T00:00:00+02:00",
+      "availableUntil": "2026-11-16T00:00:00+01:00"
     },
     {
       "id": "70000000-0000-4000-8000-000000000002",
       "actionId": "20000000-0000-4000-8000-000000000001",
+      "code": "krapfenbox-12",
       "name": "Kleine Krapfenbox",
       "active": false,
       "unit": "BOX",
+      "allowedQuantityUnits": [
+        "BOX"
+      ],
       "piecesPerUnit": 12,
       "unitPriceCents": 1800,
-      "currency": "EUR"
+      "currency": "EUR",
+      "availableFrom": "2026-07-01T00:00:00+02:00",
+      "availableUntil": "2026-11-16T00:00:00+01:00"
     }
   ],
   "commitments": [
@@ -350,7 +362,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": "40000000-0000-4000-8000-000000000001",
       "personId": null,
-      "source": "INTERNAL",
+      "source": "ACQUISITION",
       "status": "DRAFT",
       "lines": [
         {
@@ -364,7 +376,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": "40000000-0000-4000-8000-000000000002",
       "personId": null,
-      "source": "INTERNAL",
+      "source": "ACQUISITION",
       "status": "REVIEW_READY",
       "lines": [
         {
@@ -378,7 +390,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": "40000000-0000-4000-8000-000000000003",
       "personId": null,
-      "source": "PUBLIC",
+      "source": "PUBLIC_FORM",
       "status": "PUBLIC_RECEIVED",
       "lines": [
         {
@@ -392,7 +404,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": null,
       "personId": "50000000-0000-4000-8000-000000000005",
-      "source": "INTERNAL",
+      "source": "ACQUISITION",
       "status": "INVOICED",
       "lines": [
         {
@@ -406,7 +418,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": "40000000-0000-4000-8000-000000000001",
       "personId": null,
-      "source": "PUBLIC",
+      "source": "PUBLIC_FORM",
       "status": "INVOICED",
       "lines": [
         {
@@ -420,7 +432,7 @@
       "actionId": "20000000-0000-4000-8000-000000000001",
       "companyId": "40000000-0000-4000-8000-000000000002",
       "personId": null,
-      "source": "INTERNAL",
+      "source": "ADMIN",
       "status": "INVOICED",
       "lines": [
         {

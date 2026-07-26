@@ -9,6 +9,7 @@ import sys
 import unicodedata
 import uuid
 from collections import Counter, defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -307,6 +308,14 @@ def main() -> int:
 
     for offer in offers.values():
         problems.require(offer.get("actionId") in actions, "offers: unknown action")
+        allowed_units = offer.get("allowedQuantityUnits")
+        problems.require(
+            isinstance(allowed_units, list)
+            and bool(allowed_units)
+            and offer.get("unit") in allowed_units
+            and all(value in enums.get("offeringUnit", []) for value in allowed_units),
+            f"offers: invalid quantity units for {offer['id']}",
+        )
         problems.require(
             isinstance(offer.get("piecesPerUnit"), int) and offer["piecesPerUnit"] > 0,
             f"offers: invalid pieces for {offer['id']}",
@@ -315,6 +324,20 @@ def main() -> int:
             isinstance(offer.get("unitPriceCents"), int)
             and offer["unitPriceCents"] > 0,
             f"offers: invalid price for {offer['id']}",
+        )
+        try:
+            available_from = datetime.fromisoformat(str(offer["availableFrom"]))
+            available_until = datetime.fromisoformat(str(offer["availableUntil"]))
+            valid_period = (
+                available_from.utcoffset() is not None
+                and available_until.utcoffset() is not None
+                and available_from < available_until
+            )
+        except (KeyError, ValueError):
+            valid_period = False
+        problems.require(
+            valid_period,
+            f"offers: invalid availability for {offer['id']}",
         )
 
     calculations: dict[str, dict[str, int]] = {}
@@ -325,6 +348,10 @@ def main() -> int:
     )
     totals = {"boxes": 0, "pieces": 0, "amountCents": 0}
     for commitment in commitments.values():
+        problems.require(
+            commitment.get("source") in enums.get("commitmentSource", []),
+            f"commitments: unknown source for {commitment['id']}",
+        )
         problems.require(
             commitment.get("status") in enums.get("commitmentStatus", []),
             f"commitments: unknown status for {commitment['id']}",

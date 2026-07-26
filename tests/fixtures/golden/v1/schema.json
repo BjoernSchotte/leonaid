@@ -45,6 +45,17 @@
       "ACQUIRER",
       "FINANCE"
     ],
+    "offeringUnit": [
+      "BOX",
+      "PIECE",
+      "PACKAGE",
+      "SPONSORING"
+    ],
+    "commitmentSource": [
+      "ACQUISITION",
+      "PUBLIC_FORM",
+      "ADMIN"
+    ],
     "commitmentStatus": [
       "DRAFT",
       "REVIEW_READY",

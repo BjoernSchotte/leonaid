@@ -416,9 +416,12 @@ class ConfiguredOfferingResponse(TransportModel):
     name: str
     status: OfferingStatusValue
     unit: OfferingUnitValue
+    allowed_quantity_units: list[OfferingUnitValue]
     pieces_per_unit: int | None
     unit_price_minor: int = Field(ge=0)
     currency: str
+    available_from: datetime | None
+    available_until: datetime | None
 
 
 class OrderFormConfigurationResponse(TransportModel):
@@ -441,6 +444,98 @@ class CharityActionConfigurationResponse(TransportModel):
     template: ActionTemplateSnapshotResponse
     offerings: list[ConfiguredOfferingResponse]
     order_form: OrderFormConfigurationResponse | None
+
+
+class CommitmentBuyerRequest(TransportModel):
+    party_kind: Literal["company", "person"]
+    twenty_id: UUID
+    display_name: str = Field(min_length=1, max_length=200)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalized_invitation_email(value) if value is not None else None
+
+
+class CommitmentInvoiceRecipientRequest(TransportModel):
+    recipient_name: str = Field(min_length=1, max_length=200)
+    street_line_1: str = Field(min_length=1, max_length=200)
+    postal_code: str = Field(min_length=1, max_length=20)
+    city: str = Field(min_length=1, max_length=120)
+    country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalized_invitation_email(value) if value is not None else None
+
+
+class CommitmentLineRequest(TransportModel):
+    offering_id: UUID
+    quantity: int = Field(ge=1, le=1_000_000)
+    unit: OfferingUnitValue
+    quoted_unit_price_minor: int | None = Field(default=None, ge=0)
+
+
+class CreateCommitmentRequest(TransportModel):
+    source: Literal["acquisition", "admin"]
+    ready_for_review: bool = False
+    buyer: CommitmentBuyerRequest
+    invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
+    lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
+
+
+class CommitmentBuyerResponse(TransportModel):
+    party_kind: Literal["company", "person"]
+    twenty_id: UUID
+    display_name: str
+    email: str | None
+
+
+class CommitmentInvoiceRecipientResponse(TransportModel):
+    recipient_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    email: str | None
+
+
+class CommitmentLineResponse(TransportModel):
+    id: UUID
+    offering_id: UUID
+    description: str
+    quantity: int = Field(ge=1)
+    unit: OfferingUnitValue
+    pieces_per_unit: int | None
+    piece_count: int = Field(ge=0)
+    box_count: int = Field(ge=0)
+    unit_price_minor: int = Field(ge=0)
+    line_total_minor: int = Field(ge=0)
+    currency: str
+
+
+class CommitmentResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    source: Literal["acquisition", "public_form", "admin"]
+    status: Literal[
+        "draft",
+        "review_ready",
+        "confirmed",
+        "invoiced",
+        "cancelled",
+    ]
+    buyer: CommitmentBuyerResponse
+    invoice_recipient: CommitmentInvoiceRecipientResponse | None
+    lines: list[CommitmentLineResponse]
+    total_minor: int = Field(ge=0)
+    currency: str
+    total_pieces: int = Field(ge=0)
+    total_boxes: int = Field(ge=0)
+    replayed: bool
 
 
 class UpdateActionDetailsRequest(TransportModel):
