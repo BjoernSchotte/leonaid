@@ -392,6 +392,13 @@
   line-height: 1.45;
 }
 
+.action-page--form
+  .action-form-grid
+  > .action-field:not(.action-field--wide)
+  > small {
+  min-height: 2.2rem;
+}
+
 .action-field input,
 .action-field textarea,
 .action-field select,
@@ -405,6 +412,12 @@
   color: var(--foreground);
   background: var(--surface);
   font-weight: 480;
+}
+
+.action-field input::placeholder,
+.action-field textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.72;
 }
 
 .action-field output {
@@ -782,6 +795,13 @@
 
   .action-field--wide {
     grid-column: auto;
+  }
+
+  .action-page--form
+    .action-form-grid
+    > .action-field:not(.action-field--wide)
+    > small {
+    min-height: 0;
   }
 
   .action-inline-actions,

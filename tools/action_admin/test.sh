@@ -93,6 +93,7 @@ docker run --rm \
   --reporter=line
 
 for screenshot in \
+  action-create-guidance.png \
   action-admin-desktop.png \
   action-admin-public.png \
   action-admin-dark.png \

@@ -72,6 +72,23 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     }
     await expect(page.getByTestId("desktop-sidebar")).toBeVisible();
     await expect(page.getByTestId("mobile-menu")).toBeHidden();
+    await expect(page.locator("#action-name-help")).toContainText(
+      "öffentliche Titel",
+    );
+    await expect(page.locator("#action-carrier-help")).toContainText(
+      "Organisation",
+    );
+    await expect(page.locator("#archive-slug-help")).toContainText(
+      "ohne Leerzeichen",
+    );
+    await expect(page.getByTestId("action-name")).toHaveAttribute(
+      "aria-describedby",
+      "action-name-help",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/action-create-guidance.png`,
+      fullPage: true,
+    });
 
     await page.getByTestId("theme-trigger").click();
     await page.getByTestId("theme-dark").click();

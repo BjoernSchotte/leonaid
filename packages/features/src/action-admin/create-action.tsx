@@ -163,49 +163,70 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <div className="action-form-grid">
             <label className="action-field action-field--wide">
               <span>Name der Aktion</span>
+              <small id="action-name-help">
+                Der öffentliche Titel mit Jahr, zum Beispiel „Krapfentaxi 2026“.
+              </small>
               <input
+                aria-describedby="action-name-help"
                 data-testid="action-name"
                 maxLength={200}
                 name="name"
+                placeholder="Krapfentaxi 2026"
                 required
               />
             </label>
             <label className="action-field">
               <span>Träger</span>
+              <small id="action-carrier-help">
+                Verein oder Organisation, die diese Aktion durchführt.
+              </small>
               <input
+                aria-describedby="action-carrier-help"
                 data-testid="action-carrier"
                 maxLength={200}
                 name="carrierName"
+                placeholder="Lions Hilfswerk Musterstadt e. V."
                 required
               />
             </label>
             <label className="action-field">
               <span>Archiv-Adresse</span>
+              <small id="archive-slug-help">
+                Kurzer URL-Teil ohne Leerzeichen, zum Beispiel
+                „krapfentaxi-2026“.
+              </small>
               <input
                 aria-describedby="archive-slug-help"
                 data-testid="action-slug"
                 maxLength={160}
                 name="archiveSlug"
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                placeholder="krapfentaxi-2026"
                 required
               />
-              <small id="archive-slug-help">
-                Dauerhafte URL: /archive/dein-slug
-              </small>
             </label>
             <label className="action-field action-field--wide">
               <span>Zweck</span>
+              <small id="action-purpose-help">
+                Wofür die Aktion Spenden oder Erlöse sammelt.
+              </small>
               <textarea
+                aria-describedby="action-purpose-help"
                 data-testid="action-purpose"
                 maxLength={2000}
                 name="purpose"
+                placeholder="Wir unterstützen lokale Projekte für Kinder und Jugendliche."
                 required
                 rows={4}
               />
             </label>
             <label className="action-field">
               <span>Beginn</span>
+              <small id="action-start-help">
+                Erster Tag des fachlichen Aktionszeitraums.
+              </small>
               <input
+                aria-describedby="action-start-help"
                 data-testid="action-start"
                 name="startsOn"
                 required
@@ -214,7 +235,11 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
             </label>
             <label className="action-field">
               <span>Ende</span>
+              <small id="action-end-help">
+                Letzter Tag; danach kann die Aktion abgeschlossen werden.
+              </small>
               <input
+                aria-describedby="action-end-help"
                 data-testid="action-end"
                 name="endsOn"
                 required
@@ -250,25 +275,39 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <div className="action-form-grid action-form-grid--spaced">
             <label className="action-field">
               <span>Ziel</span>
+              <small id="action-goal-help">
+                Messbarer Wert, den die Aktion erreichen soll.
+              </small>
               <input
+                aria-describedby="action-goal-help"
                 data-testid="action-goal"
                 inputMode="decimal"
                 name="goalValue"
+                placeholder="1000"
                 required
               />
             </label>
             <label className="action-field">
               <span>Einheit</span>
+              <small id="action-unit-help">
+                Was gezählt wird, zum Beispiel Boxen, Bestellungen oder Euro.
+              </small>
               <input
+                aria-describedby="action-unit-help"
                 data-testid="action-unit"
                 maxLength={40}
                 name="unit"
+                placeholder="Boxen"
                 required
               />
             </label>
             <label className="action-field">
               <span>Aktueller Stand</span>
+              <small id="action-actual-help">
+                Bereits erreichter Wert; eine neue Aktion startet meist bei 0.
+              </small>
               <input
+                aria-describedby="action-actual-help"
                 data-testid="action-actual"
                 defaultValue="0"
                 inputMode="decimal"
@@ -278,11 +317,16 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
             </label>
             <label className="action-field">
               <span>Währung (optional)</span>
+              <small id="action-currency-help">
+                Nur bei Geldzielen: dreistelliger Code, zum Beispiel EUR.
+              </small>
               <input
+                aria-describedby="action-currency-help"
                 data-testid="action-currency"
                 maxLength={3}
                 name="currency"
                 pattern="[A-Z]{3}"
+                placeholder="EUR"
               />
             </label>
           </div>
@@ -303,7 +347,11 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
               <div className="action-beneficiary" key={beneficiary.key}>
                 <label className="action-field">
                   <span>Name der Organisation</span>
+                  <small id={`beneficiary-name-help-${beneficiary.key}`}>
+                    Organisation, die von den Erlösen der Aktion profitiert.
+                  </small>
                   <input
+                    aria-describedby={`beneficiary-name-help-${beneficiary.key}`}
                     data-testid={`beneficiary-name-${index}`}
                     maxLength={200}
                     name={`beneficiaryName-${beneficiary.key}`}
@@ -320,7 +368,11 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
                 </label>
                 <label className="action-field action-field--grow">
                   <span>Öffentliche Beschreibung</span>
+                  <small id={`beneficiary-description-help-${beneficiary.key}`}>
+                    Kurzer Text für die öffentliche Aktionsseite.
+                  </small>
                   <textarea
+                    aria-describedby={`beneficiary-description-help-${beneficiary.key}`}
                     data-testid={`beneficiary-description-${index}`}
                     maxLength={2000}
                     name={`beneficiaryDescription-${beneficiary.key}`}
