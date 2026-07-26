@@ -21,6 +21,68 @@ Der produktive Data-API-Vertrag ist separat im
 [`Twenty CRM Gateway`](../../src/leonaid/adapters/twenty/README.md)
 dokumentiert und wird durch `./leonaid test-twenty-gateway` real geprüft.
 
+## Einmaliger Kontaktimport
+
+Twenty 2.24.0 kann über seine Oberfläche CSV-, XLSX- und XLS-Dateien
+importieren, allerdings jeweils nur für ein Objekt. LeonAid verwendet für den
+PoC bewusst den eigenen API-Importpfad, weil er die fachlichen
+Primärschlüssel, einen prüfbaren Dry Run und einen gemeinsamen zeilenbezogenen
+Report für Companies und People benötigt. Der Weg bleibt auf Twentys
+unterstützter Data API und greift nicht auf interne Tabellen zu.
+
+Die versionierte
+[Golden-Arbeitsmappe](../../tests/fixtures/golden/v1/outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx)
+und [`import-mapping.json`](./import-mapping.json) bilden die Vorlage für eine
+echte Bestandsdatei. Die erste Zeile muss exakt diese Spalten enthalten:
+
+```text
+source_id, record_type, company_name, given_name, family_name, email,
+street_line_1, postal_code, city, country
+```
+
+- `source_id` ist pro Zeile eine stabile UUIDv4 und macht Berichte über
+  Wiederholungen vergleichbar.
+- `record_type` ist `COMPANY` oder `PERSON`.
+- Firmen benötigen `company_name`; Personen benötigen `given_name` und
+  `family_name`.
+- Leere Zellen löschen keine vorhandenen CRM-Werte.
+- Firmennamen werden Unicode-, Groß-/Kleinschreibungs-, Whitespace- und
+  Interpunktions-unabhängig verglichen. Ohne Firma gilt Vor- plus Nachname als
+  Match-Schlüssel.
+- Kein Treffer wird als `new`, genau ein Treffer als `update` oder
+  `unchanged`, mehrere Treffer als `conflict` und ungültige Zeilen als
+  `rejected` berichtet.
+- Konflikte und verworfene Zeilen werden niemals automatisch geschrieben.
+
+Die Arbeitsdatei wird in das Repository oder in das ignorierte Verzeichnis
+`.local/` gelegt. Vor dem ersten Lauf:
+
+```sh
+./leonaid provision-twenty
+./leonaid import-crm dry-run .local/kontakte.xlsx \
+  --report .local/import-dry-run.json
+```
+
+Der JSON-Report besitzt Dateimodus `0600` und nennt für jede Excel-/CSV-Zeile
+Status, Begründung, Trefferkandidaten und die betroffene Twenty-ID. Erst nach
+fachlicher Prüfung wird derselbe Stand angewendet:
+
+```sh
+./leonaid import-crm apply .local/kontakte.xlsx \
+  --report .local/import-apply.json
+```
+
+Ein erneuter Dry Run muss nur noch `unchanged`, weiterhin bewusst ungelöste
+`conflict`-Fälle oder `rejected`-Zeilen zeigen. Vorhandene Firmen werden nicht
+umbenannt; nichtleere Adressfelder und bei Personen E-Mail/Firmenrelation
+werden kontrolliert ergänzt oder aktualisiert.
+
+Referenzen zum nativen Twenty-Import:
+
+- [Import overview](https://docs.twenty.com/user-guide/data-migration/overview)
+- [Supported file formats](https://docs.twenty.com/user-guide/data-migration/capabilities/file-formats)
+- [Update existing records](https://docs.twenty.com/user-guide/data-migration/how-tos/update-existing-records-via-import)
+
 ## Fachliche Grenze
 
 Twenty bleibt führend für Companies, People, Kontaktwege und allgemeine
@@ -134,9 +196,16 @@ Referenzen:
 
 ```sh
 ./tools/twenty/test.sh
+./leonaid test-twenty-gateway
+./leonaid test-crm-import
 ```
 
-Der Test startet Twenty aus leeren Volumes, provisioniert zweimal, vergleicht
+Der Schematest startet Twenty aus leeren Volumes, provisioniert zweimal, vergleicht
 kanonische Snapshots bytegenau, prüft den echten Integrations-Key und verändert
 anschließend ein Feld über `updateOneField`. `check` muss den konkreten
 Feldpfad samt Ist-Wert melden.
+
+Der Importtest startet ein eigenes leeres Twenty, provisioniert und befüllt es
+über die öffentlichen APIs, führt Dry Run, initialen Import, gezieltes Update
+und identische Wiederholung aus und verifiziert Reports sowie Records erneut
+über den produktiven CRM-Gateway.

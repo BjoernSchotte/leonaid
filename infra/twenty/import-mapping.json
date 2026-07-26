@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "defaultSheet": "Kontakte",
+  "supportedRecordTypes": [
+    "COMPANY",
+    "PERSON"
+  ],
+  "columns": {
+    "sourceId": "source_id",
+    "recordType": "record_type",
+    "companyName": "company_name",
+    "givenName": "given_name",
+    "familyName": "family_name",
+    "email": "email",
+    "streetLine1": "street_line_1",
+    "postalCode": "postal_code",
+    "city": "city",
+    "country": "country"
+  },
+  "required": {
+    "COMPANY": [
+      "source_id",
+      "record_type",
+      "company_name"
+    ],
+    "PERSON": [
+      "source_id",
+      "record_type",
+      "given_name",
+      "family_name"
+    ]
+  },
+  "blankCellPolicy": "preserve_existing",
+  "companyMatchKey": "normalized_company_name",
+  "personMatchKeyWithoutCompany": "normalized_given_name_and_family_name"
+}

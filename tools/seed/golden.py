@@ -802,7 +802,15 @@ def write_snapshot(value: JsonObject, output: Path | None) -> None:
 
 async def run(arguments: argparse.Namespace) -> None:
     fixture = arguments.fixture.resolve()
-    if arguments.command == "seed":
+    if arguments.command == "seed-twenty":
+        dataset, _expected, _dataset_digest = load_fixture(fixture)
+        twenty = TwentyClient()
+        try:
+            seed_twenty(twenty, dataset)
+        finally:
+            twenty.close()
+        print("golden-seed-twenty: OK: Companies und People über Data API gesetzt")
+    elif arguments.command == "seed":
         value = await seed(fixture, arguments.pdf_directory.resolve())
         print(
             "golden-seed: OK: "
@@ -818,7 +826,7 @@ async def run(arguments: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("seed", "snapshot", "mutate"):
+    for name in ("seed", "seed-twenty", "snapshot", "mutate"):
         command = subparsers.add_parser(name)
         command.add_argument("fixture", type=Path)
         if name == "seed":

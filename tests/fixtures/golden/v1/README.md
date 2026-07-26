@@ -55,6 +55,12 @@ besitzt zusätzlich den stabilen kanonischen Pfad
 - `dataset.json` enthält ausschließlich Eingabedaten.
 - `expected.json` enthält Counts, Sichtbarkeiten, Match-Ergebnisse,
   Mengen-/Geldberechnungen, Feed-Sichten und Public-Auflösung.
+- `outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx`
+  ist eine echte, visuell geprüfte Arbeitsmappe mit Anleitung, initialem
+  Kontaktimport und einem kontrollierten zweiten Stand. Sie beweist neuen,
+  aktualisierten, mehrdeutigen und verworfenen CRM-Input.
+- `import/leonaid-crm-import.csv` enthält denselben initialen Stand als
+  semikolongetrennte UTF-8-Datei und beweist den alternativen Parserpfad.
 - `documents/*.typ` sind die deterministischen Quellen der drei synthetischen
   Golden-Rechnungen. `./leonaid seed` rendert sie mit dem gepinnten Typst-Image,
   legt die PDFs in RustFS ab und speichert SHA-256 plus Rechnungszuordnung.

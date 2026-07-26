@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023 und POC-030 bis POC-031 vollständig bewiesen
+POC-023, POC-030 bis POC-031 sowie POC-033 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -592,27 +592,30 @@ Tests/Nachweise:
 - [ ] E2E zeigt vor Mitzuordnung die Namen vorhandener Akquisiteure und
       verlangt explizite Bestätigung.
 
-### [ ] POC-033 Einmaligen Excel-/CSV-Importpfad nachweisen
+### [x] POC-033 Einmaligen Excel-/CSV-Importpfad nachweisen
 
 Abhängigkeiten: POC-030, POC-031
 
 Akzeptanzkriterien:
 
-- [ ] Mappingvorlage, Pflichtfelder, Normalisierung und Fehlerreport sind
+- [x] Mappingvorlage, Pflichtfelder, Normalisierung und Fehlerreport sind
       dokumentiert.
-- [ ] Import kann durch Coding-Agent/Script reproduzierbar vorbereitet und
+- [x] Import kann durch Coding-Agent/Script reproduzierbar vorbereitet und
       über unterstützte Twenty-Import- oder API-Wege ausgeführt werden.
-- [ ] Dry Run zeigt neue, aktualisierte, konfliktbehaftete und verworfene
+- [x] Dry Run zeigt neue, aktualisierte, konfliktbehaftete und verworfene
       Zeilen.
-- [ ] Wiederholung erzeugt keine Duplikate.
+- [x] Wiederholung erzeugt keine Duplikate.
 
 Tests/Nachweise:
 
-- [ ] Golden-Arbeitsmappe wird real importiert.
-- [ ] Zweiter Import aktualisiert einen vorgesehenen Datensatz und dupliziert
+- [x] Golden-Arbeitsmappe wird real importiert.
+- [x] Zweiter Import aktualisiert einen vorgesehenen Datensatz und dupliziert
       keinen anderen.
-- [ ] Fehlerhafte Zeilen erzeugen einen verständlichen, zeilenbezogenen
+- [x] Fehlerhafte Zeilen erzeugen einen verständlichen, zeilenbezogenen
       Bericht.
+
+Nachweis:
+[POC-033 – Excel-/CSV-Importpfad](proofs/POC-033.md).
 
 ---
 

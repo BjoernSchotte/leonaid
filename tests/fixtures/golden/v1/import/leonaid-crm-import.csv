@@ -1,0 +1,5 @@
+source_id;record_type;company_name;given_name;family_name;email;street_line_1;postal_code;city;country
+c1000000-0000-4000-8000-000000000001;COMPANY;Nordstern Handel GmbH;;;;Hafenweg 7;48155;Münster;Deutschland
+c1000000-0000-4000-8000-000000000002;COMPANY;Musterwerk GmbH;;;;Beispielstraße 12;10117;Beispielstadt;Deutschland
+c1000000-0000-4000-8000-000000000003;PERSON;;Max;Mustermann;max.mustermann@leonaid.invalid;;;;
+c1000000-0000-4000-8000-000000000004;PERSON;;Unvollständig;;unvollstaendig@leonaid.invalid;;;;

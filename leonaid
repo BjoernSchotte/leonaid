@@ -18,8 +18,11 @@ Commands:
   generate-api-client
                     Regenerate canonical OpenAPI and TypeScript client
   provision-twenty  Provision and verify Twenty schema, roles and API key
+  import-crm <dry-run|apply> SOURCE [OPTIONS]
+                    Analyze or import an XLSX/CSV file through the Twenty API
   test-twenty-gateway
                     Run the real Twenty CRM gateway contract
+  test-crm-import   Prove the Golden XLSX import against an empty real Twenty
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
@@ -290,6 +293,40 @@ provision_twenty() {
   echo "provision-twenty: OK: lokaler Key liegt geschützt unter .local/twenty/integration.env"
 }
 
+import_crm() {
+  require_docker
+  if [ "$#" -lt 2 ]; then
+    echo "leonaid: ERROR: Nutzung: ./leonaid import-crm <dry-run|apply> SOURCE --report .local/DATEI.json [--sheet NAME]" >&2
+    exit 64
+  fi
+  case "$1" in
+    dry-run|apply) ;;
+    *)
+      echo "leonaid: ERROR: Importmodus muss 'dry-run' oder 'apply' sein." >&2
+      exit 64
+      ;;
+  esac
+  if [ ! -f "$root/.local/twenty/integration.env" ]; then
+    echo "leonaid: ERROR: Twenty-Key fehlt. Führe zuerst './leonaid provision-twenty' aus." >&2
+    exit 1
+  fi
+  mkdir -p "$root/.local"
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  compose build api
+  compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+  compose run --rm --no-deps \
+    --user "$host_user_id:$host_group_id" \
+    --env-from-file "$root/.env.local" \
+    --env-from-file "$root/.local/twenty/integration.env" \
+    --env PYTHONPATH=/repo/src:/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$root/.local:/repo/.local" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/twenty/import_contacts.py "$@"
+}
+
 seed_systems() {
   require_docker
   compose --profile dev-mail up --detach --wait --wait-timeout 420
@@ -345,15 +382,21 @@ case "$command" in
     /bin/sh "$root/tools/openapi/test.sh" "$root"
     /bin/sh "$root/tools/twenty/test.sh" "$root"
     /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
+    /bin/sh "$root/tools/twenty/import_test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
+  test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \
       python tools/openapi/generate.py --root /workspace
     ;;
   provision-twenty) provision_twenty ;;
+  import-crm)
+    shift
+    import_crm "$@"
+    ;;
   seed) seed_systems ;;
   snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
   reset) reset_systems ;;
