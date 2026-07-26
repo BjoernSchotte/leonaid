@@ -5,14 +5,16 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_ASSIGNMENT_TEST_PROJECT:-leonaid-poc060-test}
-http_port=${LEONAID_ASSIGNMENT_TEST_PORT:-18093}
-https_port=${LEONAID_ASSIGNMENT_TEST_HTTPS_PORT:-18453}
+project=${LEONAID_PWA_TEST_PROJECT:-leonaid-poc062-test}
+http_port=${LEONAID_PWA_TEST_PORT:-18095}
+https_port=${LEONAID_PWA_TEST_HTTPS_PORT:-18455}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 fixture="$root/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
 integration_key=""
+anna_session="poc062-10000000-0000-4000-8000-000000000004-server-session-token-value"
+gesa_session="poc062-10000000-0000-4000-8000-000000000008-server-session-token-value"
 
 compose() {
   LEONAID_HTTP_PORT="$http_port" \
@@ -28,9 +30,9 @@ compose() {
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "assignment-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+    echo "pwa-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
-    compose logs --no-color --tail=120 \
+    compose logs --no-color --tail=160 \
       api core-postgres twenty-server twenty-worker pwa proxy >&2 || true
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -40,7 +42,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [ ! -f "$env_file" ]; then
-  echo "assignment-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
+  echo "pwa-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
   exit 1
 fi
 
@@ -62,7 +64,7 @@ compose run --rm --no-deps \
 integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
   "$proof/integration.env")
 if [ "${#integration_key}" -lt 32 ]; then
-  echo "assignment-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
+  echo "pwa-test: ERROR: eingeschränkter Twenty-Key fehlt" >&2
   exit 1
 fi
 
@@ -95,12 +97,11 @@ compose run --rm --no-deps \
   --env-from-file "$env_file" \
   --env-from-file "$proof/integration.env" \
   --env API_BASE_URL=http://api:8000 \
-  --env TWENTY_BASE_URL=http://twenty-server:3000 \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
   --workdir /repo \
   --entrypoint python \
-  api tools/assignments/contract.py
+  api tools/pwa/contract.py
 
 compose up --detach --wait --wait-timeout 420 pwa proxy
 
@@ -109,25 +110,74 @@ docker run --rm \
   --env CI=1 \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
-  --env ANNA_SESSION=poc060-10000000-0000-4000-8000-000000000004-server-session-token-value \
+  --env ANNA_SESSION="$anna_session" \
+  --env GESA_SESSION="$gesa_session" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
-  tests/e2e/matching.spec.mjs \
-  --browser=chromium \
-  --output=/proof/test-results \
+  --config=tests/e2e/pwa.config.mjs \
+  pwa.spec.mjs \
+  --output=/proof/test-results-matrix \
   --reporter=line
 
-for screenshot in matching-warning-mobile.png matching-success-mobile.png; do
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env ANNA_SESSION="$anna_session" \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  tests/e2e/pwa-audit.spec.mjs \
+  --browser=chromium \
+  --output=/proof/test-results-audit \
+  --reporter=line
+
+compose stop twenty-server
+
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --env ANNA_SESSION="$anna_session" \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  tests/e2e/pwa-error.spec.mjs \
+  --browser=chromium \
+  --output=/proof/test-results-error \
+  --reporter=line
+
+for browser in chromium firefox webkit; do
+  for width in 390 768 1440; do
+    screenshot="$proof/pwa-list-$browser-$width.png"
+    if [ ! -s "$screenshot" ]; then
+      echo "pwa-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+      exit 1
+    fi
+  done
+done
+for screenshot in \
+  pwa-empty-chromium-390.png \
+  pwa-update-chromium.png \
+  pwa-offline-chromium.png \
+  pwa-error-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
-    echo "assignment-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
+    echo "pwa-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
     exit 1
   fi
 done
-mkdir -p "$root/.artifacts/poc060"
-cp "$proof/matching-warning-mobile.png" "$root/.artifacts/poc060/"
-cp "$proof/matching-success-mobile.png" "$root/.artifacts/poc060/"
 
-echo "assignment-test: OK: realer Konkurrenz-, Historien- und Mitzuordnungsvertrag bewiesen"
+mkdir -p "$root/.artifacts/poc062"
+cp "$proof"/pwa-*.png "$root/.artifacts/poc062/"
+
+echo "pwa-test: OK: PWA, reale Sichtgrenzen, Kontakte, 9 Browser/Viewports,"
+echo "pwa-test:     A11y, Textskalierung, Touch, Offline, Update, Leer- und Ausfallzustand bewiesen"

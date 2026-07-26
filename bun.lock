@@ -21,6 +21,20 @@
         "vitest": "4.1.10",
       },
     },
+    "apps/pwa": {
+      "name": "@leonaid/pwa",
+      "version": "0.0.0",
+      "dependencies": {
+        "@hugeicons/core-free-icons": "4.2.3",
+        "@hugeicons/react": "1.1.9",
+        "@leonaid/api-client": "workspace:*",
+        "@leonaid/features": "workspace:*",
+        "@leonaid/ui": "workspace:*",
+        "@tanstack/react-query": "5.101.4",
+        "react": "19.2.8",
+        "react-dom": "19.2.8",
+      },
+    },
     "apps/web": {
       "name": "@leonaid/web",
       "version": "0.0.0",
@@ -41,6 +55,8 @@
       "name": "@leonaid/features",
       "version": "0.0.0",
       "dependencies": {
+        "@hugeicons/core-free-icons": "4.2.3",
+        "@hugeicons/react": "1.1.9",
         "@leonaid/api-client": "workspace:*",
         "@leonaid/ui": "workspace:*",
         "@tanstack/react-query": "5.101.4",
@@ -134,6 +150,8 @@
     "@leonaid/api-client": ["@leonaid/api-client@workspace:packages/api-client"],
 
     "@leonaid/features": ["@leonaid/features@workspace:packages/features"],
+
+    "@leonaid/pwa": ["@leonaid/pwa@workspace:apps/pwa"],
 
     "@leonaid/ui": ["@leonaid/ui@workspace:packages/ui"],
 

@@ -6,6 +6,7 @@ const appName = process.env.APP_NAME ?? "LeonAid";
 const appKind = process.env.APP_KIND ?? "service";
 const port = Number(process.env.PORT ?? "3000");
 const webAssetDirectory = process.env.WEB_ASSET_DIR;
+const pwaAssetDirectory = process.env.PWA_ASSET_DIR;
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -14,22 +15,41 @@ const contentTypes = new Map([
   [".json", "application/json; charset=utf-8"],
   [".map", "application/json; charset=utf-8"],
   [".svg", "image/svg+xml"],
+  [".webmanifest", "application/manifest+json; charset=utf-8"],
 ]);
 
-function webFile(requestUrl) {
-  if (!webAssetDirectory || appKind !== "web") return undefined;
+function assetFile(requestUrl, assetDirectory, kind) {
+  if (!assetDirectory || appKind !== kind) return undefined;
   const pathname = new URL(requestUrl, "http://localhost").pathname;
-  const relative =
-    pathname.startsWith("/assets/") || pathname === "/favicon.svg"
-      ? pathname.slice(1)
-      : pathname === "/" ||
-          pathname === "/members" ||
-          pathname === "/actions" ||
-          pathname.startsWith("/actions/")
-        ? "index.html"
-        : undefined;
+  let relative;
+  if (kind === "web") {
+    relative =
+      pathname.startsWith("/assets/") || pathname === "/favicon.svg"
+        ? pathname.slice(1)
+        : pathname === "/" ||
+            pathname === "/members" ||
+            pathname === "/actions" ||
+            pathname.startsWith("/actions/")
+          ? "index.html"
+          : undefined;
+  } else {
+    relative =
+      pathname.startsWith("/assets/") ||
+      pathname.startsWith("/icons/") ||
+      pathname === "/manifest.webmanifest" ||
+      pathname === "/sw.js" ||
+      pathname === "/offline.html"
+        ? pathname.slice(1)
+        : pathname === "/offline"
+          ? "offline.html"
+          : pathname === "/" ||
+              pathname === "/sponsors" ||
+              pathname === "/activities"
+            ? "index.html"
+            : undefined;
+  }
   if (!relative) return undefined;
-  const root = path.resolve(webAssetDirectory);
+  const root = path.resolve(assetDirectory);
   const candidate = path.resolve(root, relative);
   if (
     !candidate.startsWith(`${root}${path.sep}`) ||
@@ -38,6 +58,14 @@ function webFile(requestUrl) {
     return undefined;
   }
   return candidate;
+}
+
+function webFile(requestUrl) {
+  return assetFile(requestUrl, webAssetDirectory, "web");
+}
+
+function pwaFile(requestUrl) {
+  return assetFile(requestUrl, pwaAssetDirectory, "pwa");
 }
 
 function escapeHtml(value) {
@@ -1919,16 +1947,19 @@ http
       response.end(JSON.stringify({ service: appKind, status: "ready" }));
       return;
     }
-    const staticFile = webFile(request.url ?? "/");
+    const staticFile =
+      webFile(request.url ?? "/") ?? pwaFile(request.url ?? "/");
     if (staticFile) {
       const extension = path.extname(staticFile);
+      const serviceWorker = path.basename(staticFile) === "sw.js";
       response.writeHead(200, {
         "content-type":
           contentTypes.get(extension) ?? "application/octet-stream",
         "cache-control":
-          extension === ".html"
+          extension === ".html" || serviceWorker
             ? "no-store"
             : "public, max-age=31536000, immutable",
+        ...(serviceWorker ? { "service-worker-allowed": "/app/" } : {}),
       });
       fs.createReadStream(staticFile).pipe(response);
       return;

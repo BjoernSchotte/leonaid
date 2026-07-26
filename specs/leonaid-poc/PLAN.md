@@ -1,8 +1,8 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-043 vollständig
-bewiesen; POC-050 bis POC-051 vollständig bewiesen
+POC-023, POC-030 bis POC-033, POC-040 bis POC-043, POC-050 bis POC-052 sowie
+POC-060 bis POC-062 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -877,28 +877,31 @@ Tests/Nachweise:
 Nachweis:
 [POC-061 – AcquisitionActivity und Wiedervorlage](proofs/POC-061.md).
 
-### [ ] POC-062 PWA-Shell, Aktionen und Sponsorlisten umsetzen
+### [x] POC-062 PWA-Shell, Aktionen und Sponsorlisten umsetzen
 
 Abhängigkeiten: POC-023, POC-043, POC-060
 
 Akzeptanzkriterien:
 
-- [ ] Installierbare PWA besitzt Manifest, Icons, Offline-Hinweisseite und
+- [x] Installierbare PWA besitzt Manifest, Icons, Offline-Hinweisseite und
       Update-Hinweis; Offline-Schreibsync bleibt ausgeschlossen.
-- [ ] Nutzer sieht eigene aktive Aktionen und je Aktion erlaubte Sponsoren.
-- [ ] Sponsorzeile zeigt Status, nächste Aktion, Kontaktmöglichkeiten und
+- [x] Nutzer sieht eigene aktive Aktionen und je Aktion erlaubte Sponsoren.
+- [x] Sponsorzeile zeigt Status, nächste Aktion, Kontaktmöglichkeiten und
       Mitzuordnung ohne visuelle Überladung.
-- [ ] Touch-Ziele, Fokus, Kontrast und Textskalierung erfüllen die
+- [x] Touch-Ziele, Fokus, Kontrast und Textskalierung erfüllen die
       festgelegten Qualitätsbudgets.
-- [ ] `tel:` und E-Mail-Aktion funktionieren auf geeigneten Geräten.
+- [x] `tel:` und E-Mail-Aktion funktionieren auf geeigneten Geräten.
 
 Tests/Nachweise:
 
-- [ ] E2E läuft bei 390 px, 768 px und 1440 px sowie in drei Browser-Engines.
-- [ ] PWA-Audit prüft Manifest und Installierbarkeit.
-- [ ] Golden-Persona A sieht nicht die exklusiven Datensätze von B.
-- [ ] Visuelle Regression deckt Liste, Leerzustand, Fehler und geteilte
+- [x] E2E läuft bei 390 px, 768 px und 1440 px sowie in drei Browser-Engines.
+- [x] PWA-Audit prüft Manifest und Installierbarkeit.
+- [x] Golden-Persona A sieht nicht die exklusiven Datensätze von B.
+- [x] Visuelle Regression deckt Liste, Leerzustand, Fehler und geteilte
       Zuordnung ab.
+
+Nachweis:
+[POC-062 – PWA-Shell, Aktionen und Sponsorlisten](proofs/POC-062.md).
 
 ### [ ] POC-063 Sponsor-Neuanlage und Konflikt-UX bauen
 

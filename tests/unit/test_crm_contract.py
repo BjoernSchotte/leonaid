@@ -22,13 +22,19 @@ def test_semantic_crm_values_normalize_and_reject_uncontrolled_updates() -> None
         "  Löwen Apotheke  ",
         PostalAddress(postal_code=" 48143 ", city=" Münster "),
     )
-    person = PersonData("  Sophie ", " Sponsor ", " sophie@example.invalid ")
+    person = PersonData(
+        "  Sophie ",
+        " Sponsor ",
+        " sophie@example.invalid ",
+        phone=" +49 89 123 45 67 ",
+    )
 
     assert company.name == "Löwen Apotheke"
     assert company.address.postal_code == "48143"
     assert company.address.city == "Münster"
     assert person.given_name == "Sophie"
     assert person.email == "sophie@example.invalid"
+    assert person.phone == "+49891234567"
 
     with pytest.raises(ValueError, match="mindestens ein Feld"):
         CompanyUpdate()
@@ -36,6 +42,8 @@ def test_semantic_crm_values_normalize_and_reject_uncontrolled_updates() -> None
         PersonUpdate()
     with pytest.raises(ValueError, match="ungültig"):
         PersonData("Sophie", "Sponsor", "kein-at")
+    with pytest.raises(ValueError, match="international"):
+        PersonData("Sophie", "Sponsor", phone="089 1234567")
 
 
 def test_twenty_configuration_enforces_pinned_operational_limits() -> None:

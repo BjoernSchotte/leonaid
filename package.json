@@ -13,11 +13,13 @@
   },
   "scripts": {
     "build:web": "bun run --filter @leonaid/web build",
+    "build:pwa": "bun run --filter @leonaid/pwa build",
     "check:locks": "bun install --frozen-lockfile --ignore-scripts",
     "test:components": "bun run --filter @leonaid/web test:components",
-    "typecheck": "bun run typecheck:api-client && bun run typecheck:ui && bun run typecheck:features && bun run typecheck:web",
+    "typecheck": "bun run typecheck:api-client && bun run typecheck:ui && bun run typecheck:features && bun run typecheck:web && bun run typecheck:pwa",
     "typecheck:api-client": "tsc --noEmit -p packages/api-client/tsconfig.json",
     "typecheck:features": "tsc --noEmit -p packages/features/tsconfig.json",
+    "typecheck:pwa": "tsc --noEmit -p apps/pwa/tsconfig.json",
     "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json",
     "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json"
   },

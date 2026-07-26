@@ -92,6 +92,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcquisitionPartyResponse,
     AcquisitionSearchQuery,
     AdministratorOptionResponse,
+    AssignedAcquirerResponse,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
@@ -323,7 +324,16 @@ def acquisition_activity_work_item_response(
         party_display_name=item.party_display_name,
         postal_code=item.postal_code,
         city=item.city,
+        contact_name=item.contact_name,
         email=item.email,
+        phone=item.phone,
+        assigned_acquirers=[
+            AssignedAcquirerResponse(
+                user_id=assignee.user_id,
+                display_name=assignee.display_name,
+            )
+            for assignee in item.assigned_acquirers
+        ],
         status=item.assignment.state.status.value,
         priority=item.assignment.state.priority,
         next_action=item.assignment.state.next_action,

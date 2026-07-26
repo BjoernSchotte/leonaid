@@ -20,6 +20,7 @@
   --surface: #ffffff;
   --surface-muted: color-mix(in oklch, white 94%, var(--lions-light-blue));
   --border: color-mix(in oklch, white 58%, var(--lions-cool-gray-5));
+  --input: color-mix(in oklch, white 46%, var(--lions-cool-gray-5));
   --muted: var(--lions-cool-gray-11);
   --primary: var(--lions-blue);
   --primary-foreground: #ffffff;
@@ -32,6 +33,8 @@
   --success-text: color-mix(in oklch, var(--lions-green) 72%, #064e3b);
   --warning: var(--lions-yellow);
   --warning-foreground: var(--lions-navy);
+  --warning-text: color-mix(in oklch, var(--lions-yellow) 58%, #604100);
+  --info: var(--lions-light-blue);
   --focus: var(--lions-light-blue);
   --sidebar: var(--lions-navy);
   --sidebar-foreground: #ffffff;
@@ -51,6 +54,7 @@
   --surface: color-mix(in oklch, var(--lions-navy) 86%, #1c3557);
   --surface-muted: color-mix(in oklch, var(--lions-navy) 72%, #31547b);
   --border: color-mix(in oklch, var(--lions-light-blue) 27%, var(--lions-navy));
+  --input: color-mix(in oklch, var(--lions-light-blue) 38%, var(--lions-navy));
   --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
   --primary: var(--lions-blue);
   --primary-foreground: #ffffff;
@@ -63,6 +67,8 @@
   --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
   --warning: var(--lions-yellow);
   --warning-foreground: var(--lions-navy);
+  --warning-text: color-mix(in oklch, var(--lions-yellow) 74%, white);
+  --info: var(--lions-light-blue);
   --focus: var(--lions-yellow);
   --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
   --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));
@@ -86,6 +92,11 @@
       var(--lions-light-blue) 27%,
       var(--lions-navy)
     );
+    --input: color-mix(
+      in oklch,
+      var(--lions-light-blue) 38%,
+      var(--lions-navy)
+    );
     --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
     --primary: var(--lions-blue);
     --primary-foreground: #ffffff;
@@ -102,6 +113,8 @@
     --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
     --warning: var(--lions-yellow);
     --warning-foreground: var(--lions-navy);
+    --warning-text: color-mix(in oklch, var(--lions-yellow) 74%, white);
+    --info: var(--lions-light-blue);
     --focus: var(--lions-yellow);
     --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
     --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));

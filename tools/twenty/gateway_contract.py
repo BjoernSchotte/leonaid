@@ -80,6 +80,7 @@ def person(number: int, company_twenty_id: UUID) -> PersonData:
         family_name=PERSON_FAMILY_NAME,
         email=f"poc031-{number:03d}@example.invalid",
         company_twenty_id=company_twenty_id,
+        phone=f"+49151100{number:05d}",
     )
 
 
@@ -255,6 +256,7 @@ async def exercise(state_path: Path) -> None:
             PersonUpdate(
                 given_name="ProbeAktualisiert",
                 email="poc031-updated@example.invalid",
+                phone="+4915110099999",
             ),
             correlation_id="poc031:contract:update-person",
         )
@@ -263,6 +265,7 @@ async def exercise(state_path: Path) -> None:
             or updated_person.data.family_name != PERSON_FAMILY_NAME
             or updated_person.data.email != "poc031-updated@example.invalid"
             or updated_person.data.company_twenty_id != first_record.twenty_id
+            or updated_person.data.phone != "+4915110099999"
         ):
             raise ContractFailure("kontrolliertes Person-Update ist nicht sichtbar")
         assert_receipt(
@@ -286,6 +289,7 @@ async def exercise(state_path: Path) -> None:
                 family_name="POC031-Sponsor",
                 email="poc031-einzel@example.invalid",
                 company_twenty_id=single_company.twenty_id,
+                phone="+4915110088888",
             ),
             correlation_id="poc031:contract:create-person",
         )

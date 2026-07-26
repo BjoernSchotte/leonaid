@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="LeonAid">
+  <rect width="512" height="512" rx="112" fill="#0d2240"/>
+  <path d="M144 112h83v205h147v83H144z" fill="#ebb700"/>
+  <path d="M336 112h35v131h-35z" fill="#fff"/>
+  <circle cx="353.5" cy="303.5" r="20.5" fill="#fff"/>
+</svg>

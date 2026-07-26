@@ -680,7 +680,10 @@ class AcquisitionActivityWorkItemResponse(TransportModel):
     party_display_name: str
     postal_code: str | None
     city: str | None
+    contact_name: str | None
     email: str | None
+    phone: str | None
+    assigned_acquirers: list[AssignedAcquirerResponse]
     status: AssignmentStatusValue
     priority: int = Field(ge=0, le=3)
     next_action: str | None

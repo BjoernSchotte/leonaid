@@ -1,5 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import {
+  Activity01Icon,
+  AddressBookIcon,
   Cancel01Icon,
   CharityIcon,
   DashboardSquare01Icon,
@@ -27,17 +29,26 @@ export interface AppShellProps {
   readonly currentActionName: string;
   readonly identity: CurrentIdentityResponse;
   readonly onLogout: () => void;
+  readonly surface?: "pwa" | "web";
 }
 
 const navigationIcons = {
   actions: CharityIcon,
+  activities: Activity01Icon,
   invoices: Invoice03Icon,
   members: UserGroupIcon,
+  "overview-pwa": DashboardSquare01Icon,
   "overview-web": DashboardSquare01Icon,
+  sponsors: AddressBookIcon,
   system: Settings02Icon,
 } as const;
 
 const implementedWebNavigation = new Set(["actions", "members"]);
+const implementedPwaNavigation = new Set([
+  "activities",
+  "overview-pwa",
+  "sponsors",
+]);
 
 function iconFor(item: NavigationItemResponse) {
   return (
@@ -55,17 +66,19 @@ function isCurrent(item: NavigationItemResponse): boolean {
 
 function Navigation({
   collapsed = false,
+  implemented,
   items,
   onNavigate,
 }: {
   readonly collapsed?: boolean;
+  readonly implemented: ReadonlySet<string>;
   readonly items: ReadonlyArray<NavigationItemResponse>;
   readonly onNavigate?: () => void;
 }) {
   return (
     <nav aria-label="Hauptnavigation" className="ui-nav">
       {items.map((item) =>
-        implementedWebNavigation.has(item.key) ? (
+        implemented.has(item.key) ? (
           <a
             aria-current={isCurrent(item) ? "page" : undefined}
             className="ui-nav__item"
@@ -111,14 +124,19 @@ export function AppShell({
   currentActionName,
   identity,
   onLogout,
+  surface = "web",
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem("leonaid.sidebar-collapsed") === "true",
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigation = identity.navigation.filter(
-    (item) => item.surface === "web" && item.key !== "overview-web",
+    (item) =>
+      item.surface === surface &&
+      (surface === "pwa" || item.key !== "overview-web"),
   );
+  const implemented =
+    surface === "pwa" ? implementedPwaNavigation : implementedWebNavigation;
 
   function toggleSidebar() {
     const next = !collapsed;
@@ -131,6 +149,7 @@ export function AppShell({
       <p className="ui-sidebar__label">Arbeitsbereich</p>
       <Navigation
         collapsed={collapsed}
+        implemented={implemented}
         items={navigation}
         onNavigate={() => setMobileOpen(false)}
       />
@@ -145,6 +164,7 @@ export function AppShell({
     <div
       className={cn("ui-shell", collapsed && "ui-shell--collapsed")}
       data-sidebar-collapsed={collapsed}
+      data-surface={surface}
     >
       <aside className="ui-sidebar" data-testid="desktop-sidebar">
         <div className="ui-sidebar__header">
@@ -175,10 +195,16 @@ export function AppShell({
 
       <div className="ui-shell__body">
         <header className="ui-topbar">
-          <Dialog.Root onOpenChange={setMobileOpen} open={mobileOpen}>
+          <Dialog.Root
+            onOpenChange={setMobileOpen}
+            open={surface === "web" && mobileOpen}
+          >
             <Dialog.Trigger
               aria-label="Navigation öffnen"
-              className="ui-icon-button ui-mobile-menu"
+              className={cn(
+                "ui-icon-button ui-mobile-menu",
+                surface === "pwa" && "ui-mobile-menu--hidden",
+              )}
               data-testid="mobile-menu"
             >
               <HugeiconsIcon
@@ -257,6 +283,11 @@ export function AppShell({
           {children}
         </main>
       </div>
+      {surface === "pwa" ? (
+        <div className="ui-pwa-tabbar">
+          <Navigation implemented={implemented} items={navigation} />
+        </div>
+      ) : null}
     </div>
   );
 }

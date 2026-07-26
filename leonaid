@@ -30,6 +30,7 @@ Commands:
   test-matching     Prove deterministic sponsor matching and confirmation
   test-assignments  Prove assignment concurrency, history and handover
   test-activities   Prove activity history and prioritized reminders
+  test-pwa          Prove installable PWA, sponsor lists and responsive UX
   test-actions      Prove neutral CharityAction lifecycle and browser creation
   test-templates    Prove versioned action templates and previous-year copies
   test-action-admin Prove Charity-Admin action management and conflict handling
@@ -208,19 +209,20 @@ check_all() {
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/matching tools/policy tools/schema tools/seed tools/sessions \
-    tools/templates tools/twenty
+    tools/pwa tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions \
     tools/activities tools/assignments tools/matching \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
+    tools/policy tools/pwa tools/schema tools/seed tools/sessions \
+    tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/assignments \
     tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
-    tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
+    tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -228,7 +230,7 @@ check_all() {
     python tools/openapi/check_frontend.py --root /workspace
   run_bun bun run typecheck
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    apps/web packages/api-client packages/features packages/ui \
+    apps/pwa apps/web packages/api-client packages/features packages/ui \
     tests/contract tests/e2e package.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -418,6 +420,7 @@ case "$command" in
     /bin/sh "$root/tools/matching/test.sh" "$root"
     /bin/sh "$root/tools/assignments/test.sh" "$root"
     /bin/sh "$root/tools/activities/test.sh" "$root"
+    /bin/sh "$root/tools/pwa/test.sh" "$root"
     /bin/sh "$root/tools/actions/test.sh" "$root"
     /bin/sh "$root/tools/templates/test.sh" "$root"
     /bin/sh "$root/tools/action_admin/test.sh" "$root"
@@ -431,6 +434,7 @@ case "$command" in
     /bin/sh "$root/tools/matching/test.sh" "$root"
     /bin/sh "$root/tools/assignments/test.sh" "$root"
     /bin/sh "$root/tools/activities/test.sh" "$root"
+    /bin/sh "$root/tools/pwa/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
@@ -441,6 +445,7 @@ case "$command" in
   test-matching) /bin/sh "$root/tools/matching/test.sh" "$root" ;;
   test-assignments) /bin/sh "$root/tools/assignments/test.sh" "$root" ;;
   test-activities) /bin/sh "$root/tools/activities/test.sh" "$root" ;;
+  test-pwa) /bin/sh "$root/tools/pwa/test.sh" "$root" ;;
   test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
   test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
   test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;

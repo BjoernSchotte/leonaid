@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+@source "../../../../apps/pwa/src";
 @source "../../../../apps/web/src";
 @source "../../../../packages/features/src";
 @source "../../../../packages/ui/src";
@@ -270,7 +271,12 @@ a {
 
 .ui-topbar__identity {
   display: grid;
+  min-width: 0;
   gap: 0.12rem;
+}
+
+.ui-topbar__identity strong {
+  overflow-wrap: anywhere;
 }
 
 .ui-topbar__identity span {
@@ -307,6 +313,10 @@ a {
 }
 
 .ui-icon-button.ui-mobile-menu {
+  display: none;
+}
+
+.ui-pwa-tabbar {
   display: none;
 }
 
@@ -531,6 +541,63 @@ a {
     display: inline-flex;
   }
 
+  .ui-icon-button.ui-mobile-menu--hidden {
+    display: none;
+  }
+
+  .ui-shell[data-surface="pwa"] .ui-shell__body {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .ui-pwa-tabbar {
+    position: fixed;
+    z-index: 30;
+    right: max(0.65rem, env(safe-area-inset-right));
+    bottom: max(0.65rem, env(safe-area-inset-bottom));
+    left: max(0.65rem, env(safe-area-inset-left));
+    display: block;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius-lg) + 0.15rem);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .ui-pwa-tabbar .ui-nav {
+    display: grid;
+    grid-auto-columns: minmax(4.5rem, 1fr);
+    grid-auto-flow: column;
+    gap: 0.2rem;
+    overflow-x: auto;
+  }
+
+  .ui-pwa-tabbar .ui-nav__item {
+    min-height: 3.4rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.18rem;
+    padding: 0.4rem 0.25rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .ui-pwa-tabbar .ui-nav__item[aria-current="page"] {
+    color: var(--foreground);
+    background: var(--accent);
+    box-shadow: none;
+  }
+
+  .ui-pwa-tabbar .ui-nav__status {
+    display: none;
+  }
+
+  .ui-pwa-tabbar .ui-nav__item--disabled {
+    display: none;
+  }
+
   .ui-topbar {
     align-items: flex-start;
   }
@@ -559,6 +626,7 @@ a {
   }
 
   .ui-topbar {
+    flex-wrap: wrap;
     gap: 0.6rem;
     padding-inline: 0.85rem;
   }

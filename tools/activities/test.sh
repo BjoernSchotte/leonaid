@@ -45,7 +45,7 @@ if [ ! -f "$env_file" ]; then
 fi
 
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose build api
+compose build api pwa
 compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 

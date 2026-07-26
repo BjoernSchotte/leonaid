@@ -13,6 +13,7 @@ if (!baseUrl || !artifactDirectory || !annaSession) {
 test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", async ({
   browser,
 }) => {
+  test.setTimeout(60_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,
@@ -33,6 +34,7 @@ test("Akquisiteurin sieht Zuständigkeit und bestätigt Mehrfachzuordnung", asyn
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",
     );
+    await page.getByRole("tab", { name: "Sponsor erfassen" }).click();
     await expect(
       page.getByRole("heading", { name: "Sponsor erfassen" }),
     ).toBeVisible();

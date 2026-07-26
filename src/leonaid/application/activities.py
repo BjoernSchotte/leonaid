@@ -9,9 +9,10 @@ from typing import Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from leonaid.application.crm import CrmGateway
+from leonaid.application.crm import CrmGateway, CrmPartyKind, PersonRecord
 from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.policies import concealed_resource
+from leonaid.application.sponsor_matching import AssignedAcquirer
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
     ActivityCapture,
@@ -43,12 +44,25 @@ class RecordedAcquisitionActivity:
 
 
 @dataclass(frozen=True, slots=True)
+class PartyDetails:
+    display_name: str
+    postal_code: str | None
+    city: str | None
+    contact_name: str | None
+    email: str | None
+    phone: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class AcquisitionWorkItem:
     assignment: AcquisitionAssignment
     party_display_name: str
     postal_code: str | None
     city: str | None
+    contact_name: str | None
     email: str | None
+    phone: str | None
+    assigned_acquirers: tuple[AssignedAcquirer, ...]
     urgency: ReminderUrgency
 
 
@@ -73,6 +87,15 @@ class ActivityRecordingResult:
 
 
 class AcquisitionActivityRepository(Protocol):
+    async def assigned_acquirers(
+        self,
+        action_id: UUID,
+        party_kind: CrmPartyKind,
+        party_ids: tuple[UUID, ...],
+        *,
+        evaluated_at: datetime,
+    ) -> dict[UUID, tuple[AssignedAcquirer, ...]]: ...
+
     async def active_assignments_for_actor(
         self,
         *,
@@ -155,6 +178,11 @@ class AcquisitionActivityService:
             party_keys,
             correlation_prefix=f"activity-board:{action_id}",
         )
+        assigned_acquirers = await self._assigned_acquirers(
+            action_id,
+            party_keys,
+            evaluated_at=generated_at,
+        )
         work_items = tuple(
             sorted(
                 (
@@ -162,16 +190,26 @@ class AcquisitionActivityService:
                         assignment=assignment,
                         party_display_name=party_details[
                             (assignment.party_kind, assignment.party_id)
-                        ][0],
+                        ].display_name,
                         postal_code=party_details[
                             (assignment.party_kind, assignment.party_id)
-                        ][1],
+                        ].postal_code,
                         city=party_details[
                             (assignment.party_kind, assignment.party_id)
-                        ][2],
+                        ].city,
+                        contact_name=party_details[
+                            (assignment.party_kind, assignment.party_id)
+                        ].contact_name,
                         email=party_details[
                             (assignment.party_kind, assignment.party_id)
-                        ][3],
+                        ].email,
+                        phone=party_details[
+                            (assignment.party_kind, assignment.party_id)
+                        ].phone,
+                        assigned_acquirers=assigned_acquirers.get(
+                            (assignment.party_kind, assignment.party_id),
+                            (),
+                        ),
                         urgency=reminder_urgency(
                             assignment.state.due_at,
                             evaluated_at=generated_at,
@@ -188,7 +226,7 @@ class AcquisitionActivityService:
                 activity=activity,
                 party_display_name=party_details[
                     (activity.party_kind, activity.party_id)
-                ][0],
+                ].display_name,
             )
             for activity in activities
         )
@@ -263,9 +301,51 @@ class AcquisitionActivityService:
         )
         item = AcquisitionActivityItem(
             activity=result.activity,
-            party_display_name=details[(party_kind, party_id)][0],
+            party_display_name=details[(party_kind, party_id)].display_name,
         )
         return result, item
+
+    async def _assigned_acquirers(
+        self,
+        action_id: UUID,
+        keys: set[tuple[AssignmentPartyKind, UUID]],
+        *,
+        evaluated_at: datetime,
+    ) -> dict[tuple[AssignmentPartyKind, UUID], tuple[AssignedAcquirer, ...]]:
+        by_kind = {
+            kind: tuple(
+                sorted(
+                    (party_id for party_kind, party_id in keys if party_kind is kind),
+                    key=str,
+                )
+            )
+            for kind in AssignmentPartyKind
+        }
+        results = await asyncio.gather(
+            *(
+                self._repository.assigned_acquirers(
+                    action_id,
+                    CrmPartyKind(kind.value),
+                    party_ids,
+                    evaluated_at=evaluated_at,
+                )
+                for kind, party_ids in by_kind.items()
+                if party_ids
+            )
+        )
+        assigned: dict[
+            tuple[AssignmentPartyKind, UUID], tuple[AssignedAcquirer, ...]
+        ] = {}
+        result_index = 0
+        for kind, party_ids in by_kind.items():
+            if not party_ids:
+                continue
+            values = results[result_index]
+            result_index += 1
+            assigned.update(
+                ((kind, party_id), values.get(party_id, ())) for party_id in party_ids
+            )
+        return assigned
 
     async def _party_details(
         self,
@@ -274,16 +354,31 @@ class AcquisitionActivityService:
         correlation_prefix: str,
     ) -> dict[
         tuple[AssignmentPartyKind, UUID],
-        tuple[str, str | None, str | None, str | None],
+        PartyDetails,
     ]:
         ordered = sorted(keys, key=lambda item: (item[0].value, str(item[1])))
+        people = (
+            await self._crm.list_people(
+                correlation_id=f"{correlation_prefix}:company-contacts",
+            )
+            if any(kind is AssignmentPartyKind.COMPANY for kind, _ in ordered)
+            else ()
+        )
+        company_contacts: dict[UUID, tuple[PersonRecord, ...]] = {}
+        for person in people:
+            company_id = person.data.company_twenty_id
+            if company_id is not None:
+                company_contacts[company_id] = (
+                    *company_contacts.get(company_id, ()),
+                    person,
+                )
 
         async def load(
             party_kind: AssignmentPartyKind,
             party_id: UUID,
         ) -> tuple[
             tuple[AssignmentPartyKind, UUID],
-            tuple[str, str | None, str | None, str | None],
+            PartyDetails,
         ]:
             if party_kind is AssignmentPartyKind.COMPANY:
                 company = await self._crm.get_company(
@@ -292,13 +387,36 @@ class AcquisitionActivityService:
                 )
                 if company is None:
                     raise concealed_resource()
+                contacts = sorted(
+                    company_contacts.get(party_id, ()),
+                    key=lambda person: (
+                        person.data.family_name.casefold(),
+                        person.data.given_name.casefold(),
+                        str(person.twenty_id),
+                    ),
+                )
+                contact = next(
+                    (
+                        person
+                        for person in contacts
+                        if person.data.email is not None
+                        or person.data.phone is not None
+                    ),
+                    None,
+                )
                 return (
                     (party_kind, party_id),
-                    (
-                        company.data.name,
-                        company.data.address.postal_code,
-                        company.data.address.city,
-                        None,
+                    PartyDetails(
+                        display_name=company.data.name,
+                        postal_code=company.data.address.postal_code,
+                        city=company.data.address.city,
+                        contact_name=(
+                            f"{contact.data.given_name} {contact.data.family_name}"
+                            if contact is not None
+                            else None
+                        ),
+                        email=contact.data.email if contact is not None else None,
+                        phone=contact.data.phone if contact is not None else None,
                     ),
                 )
             person = await self._crm.get_person(
@@ -309,11 +427,13 @@ class AcquisitionActivityService:
                 raise concealed_resource()
             return (
                 (party_kind, party_id),
-                (
-                    f"{person.data.given_name} {person.data.family_name}",
-                    None,
-                    None,
-                    person.data.email,
+                PartyDetails(
+                    display_name=f"{person.data.given_name} {person.data.family_name}",
+                    postal_code=None,
+                    city=None,
+                    contact_name=None,
+                    email=person.data.email,
+                    phone=person.data.phone,
                 ),
             )
 

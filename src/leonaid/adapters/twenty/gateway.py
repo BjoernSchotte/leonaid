@@ -840,6 +840,11 @@ def _person_to_wire(person: PersonData) -> JsonObject:
     }
     if person.company_twenty_id is not None:
         result["companyId"] = str(person.company_twenty_id)
+    if person.phone is not None:
+        result["phones"] = {
+            "primaryPhoneNumber": person.phone,
+            "additionalPhones": [],
+        }
     return result
 
 
@@ -859,6 +864,11 @@ def _person_update_to_wire(update: PersonUpdate) -> JsonObject:
         }
     if update.company_twenty_id is not None:
         result["companyId"] = str(update.company_twenty_id)
+    if update.phone is not None:
+        result["phones"] = {
+            "primaryPhoneNumber": update.phone,
+            "additionalPhones": [],
+        }
     return result
 
 
@@ -886,6 +896,8 @@ def _person_from_wire(value: Mapping[str, Any]) -> PersonRecord:
     name = name_value if isinstance(name_value, Mapping) else {}
     emails_value = value.get("emails")
     emails = emails_value if isinstance(emails_value, Mapping) else {}
+    phones_value = value.get("phones")
+    phones = phones_value if isinstance(phones_value, Mapping) else {}
     company_id = value.get("companyId")
     if company_id is None:
         company_value = value.get("company")
@@ -902,8 +914,21 @@ def _person_from_wire(value: Mapping[str, Any]) -> PersonRecord:
                 if company_id in {None, ""}
                 else _uuid(company_id, "person.company")
             ),
+            phone=_phone_from_wire(phones),
         ),
     )
+
+
+def _phone_from_wire(value: Mapping[str, Any]) -> str | None:
+    number = _wire_optional(value.get("primaryPhoneNumber"))
+    if number is None:
+        return None
+    if number.startswith("+"):
+        return number
+    calling_code = _wire_optional(value.get("primaryPhoneCallingCode"))
+    if calling_code is None or not calling_code.startswith("+"):
+        return None
+    return f"{calling_code}{number.lstrip('0')}"
 
 
 def _wire_optional(value: object) -> str | None:

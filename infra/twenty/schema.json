@@ -470,6 +470,7 @@
             "id",
             "name",
             "emails",
+            "phones",
             "company",
             "leonaidAkquiseZuweisungen",
             "position",
@@ -481,6 +482,7 @@
           "updateFields": [
             "name",
             "emails",
+            "phones",
             "company",
             "leonaidAkquiseZuweisungen",
             "position",

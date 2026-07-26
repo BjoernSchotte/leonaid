@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
@@ -37,6 +38,18 @@ def _optional_text(value: str | None, label: str, *, maximum: int = 300) -> str 
     if len(normalized) > maximum:
         raise ValueError(f"{label} darf höchstens {maximum} Zeichen enthalten.")
     return normalized or None
+
+
+def _optional_phone(value: str | None) -> str | None:
+    normalized = _optional_text(value, "Telefonnummer", maximum=40)
+    if normalized is None:
+        return None
+    canonical = re.sub(r"[\s()./-]", "", normalized)
+    if not re.fullmatch(r"\+[1-9][0-9]{5,14}", canonical):
+        raise ValueError(
+            "Telefonnummer muss international angegeben werden, zum Beispiel +49891234567."
+        )
+    return canonical
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +109,7 @@ class PersonData:
     family_name: str
     email: str | None = None
     company_twenty_id: UUID | None = None
+    phone: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -116,6 +130,7 @@ class PersonData:
         ):
             raise ValueError("E-Mail-Adresse ist ungültig.")
         object.__setattr__(self, "email", normalized_email)
+        object.__setattr__(self, "phone", _optional_phone(self.phone))
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +165,7 @@ class PersonUpdate:
     family_name: str | None = None
     email: str | None = None
     company_twenty_id: UUID | None = None
+    phone: str | None = None
 
     def __post_init__(self) -> None:
         given_name = (
@@ -170,11 +186,14 @@ class PersonUpdate:
         object.__setattr__(self, "given_name", given_name)
         object.__setattr__(self, "family_name", family_name)
         object.__setattr__(self, "email", email)
+        phone = _optional_phone(self.phone)
+        object.__setattr__(self, "phone", phone)
         if (
             given_name is None
             and family_name is None
             and email is None
             and self.company_twenty_id is None
+            and phone is None
         ):
             raise ValueError("Person-Update muss mindestens ein Feld ändern.")
 
