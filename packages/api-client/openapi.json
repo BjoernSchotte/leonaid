@@ -46,6 +46,43 @@
         "title": "AcceptInvitationRequest",
         "type": "object"
       },
+      "AcquisitionActivityBoardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/RecordedAcquisitionActivityResponse"
+            },
+            "title": "Activities",
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "workItems": {
+            "items": {
+              "$ref": "#/components/schemas/AcquisitionActivityWorkItemResponse"
+            },
+            "title": "Workitems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionId",
+          "generatedAt",
+          "workItems",
+          "activities"
+        ],
+        "title": "AcquisitionActivityBoardResponse",
+        "type": "object"
+      },
       "AcquisitionActivityListResponse": {
         "additionalProperties": false,
         "properties": {
@@ -157,6 +194,138 @@
           "occurredAt"
         ],
         "title": "AcquisitionActivityResponse",
+        "type": "object"
+      },
+      "AcquisitionActivityWorkItemResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "title": "Assignmentid",
+            "type": "string"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "dueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dueat"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "nextAction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextaction"
+          },
+          "partyDisplayName": {
+            "title": "Partydisplayname",
+            "type": "string"
+          },
+          "partyId": {
+            "format": "uuid",
+            "title": "Partyid",
+            "type": "string"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postalcode"
+          },
+          "priority": {
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "contacted",
+              "committed",
+              "declined",
+              "handed_over"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "urgency": {
+            "enum": [
+              "overdue",
+              "today",
+              "upcoming",
+              "none"
+            ],
+            "title": "Urgency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignmentId",
+          "partyKind",
+          "partyId",
+          "partyDisplayName",
+          "postalCode",
+          "city",
+          "email",
+          "status",
+          "priority",
+          "nextAction",
+          "dueAt",
+          "urgency",
+          "revision"
+        ],
+        "title": "AcquisitionActivityWorkItemResponse",
         "type": "object"
       },
       "AcquisitionAssignmentDetailsResponse": {
@@ -2159,6 +2328,242 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecordAcquisitionActivityRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "phone",
+              "email",
+              "in_person"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "dueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dueon"
+          },
+          "nextAction": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextaction"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "outcome": {
+            "enum": [
+              "reached",
+              "no_answer",
+              "interested",
+              "follow_up",
+              "committed",
+              "declined"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "partyId": {
+            "format": "uuid",
+            "title": "Partyid",
+            "type": "string"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partyKind",
+          "partyId",
+          "revision",
+          "channel",
+          "outcome"
+        ],
+        "title": "RecordAcquisitionActivityRequest",
+        "type": "object"
+      },
+      "RecordAcquisitionActivityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activity": {
+            "$ref": "#/components/schemas/RecordedAcquisitionActivityResponse"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/AcquisitionAssignmentResponse"
+          }
+        },
+        "required": [
+          "assignment",
+          "activity"
+        ],
+        "title": "RecordAcquisitionActivityResponse",
+        "type": "object"
+      },
+      "RecordedAcquisitionActivityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actorDisplayName": {
+            "title": "Actordisplayname",
+            "type": "string"
+          },
+          "actorUserId": {
+            "format": "uuid",
+            "title": "Actoruserid",
+            "type": "string"
+          },
+          "assignmentId": {
+            "format": "uuid",
+            "title": "Assignmentid",
+            "type": "string"
+          },
+          "assignmentRevision": {
+            "minimum": 1.0,
+            "title": "Assignmentrevision",
+            "type": "integer"
+          },
+          "channel": {
+            "enum": [
+              "phone",
+              "email",
+              "in_person"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "dueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dueat"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "nextAction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextaction"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "title": "Occurredat",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "reached",
+              "no_answer",
+              "interested",
+              "follow_up",
+              "committed",
+              "declined"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "partyDisplayName": {
+            "title": "Partydisplayname",
+            "type": "string"
+          },
+          "partyId": {
+            "format": "uuid",
+            "title": "Partyid",
+            "type": "string"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "assignmentId",
+          "partyKind",
+          "partyId",
+          "partyDisplayName",
+          "actorUserId",
+          "actorDisplayName",
+          "channel",
+          "outcome",
+          "note",
+          "nextAction",
+          "dueAt",
+          "assignmentRevision",
+          "occurredAt"
+        ],
+        "title": "RecordedAcquisitionActivityResponse",
+        "type": "object"
+      },
       "RequestLoginRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3451,6 +3856,222 @@
           }
         },
         "summary": "List Acquisition Activities",
+        "tags": [
+          "acquisition"
+        ]
+      },
+      "post": {
+        "operationId": "recordAcquisitionActivity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordAcquisitionActivityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordAcquisitionActivityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Record Acquisition Activity",
+        "tags": [
+          "acquisition"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/acquisition/activity-board": {
+      "get": {
+        "operationId": "getAcquisitionActivityBoard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquisitionActivityBoardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Acquisition Activity Board",
         "tags": [
           "acquisition"
         ]

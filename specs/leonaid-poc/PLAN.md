@@ -856,23 +856,26 @@ Tests/Nachweise:
 Nachweis:
 [POC-060 – AcquisitionAssignment und Historie](proofs/POC-060.md).
 
-### [ ] POC-061 AcquisitionActivity und Wiedervorlage implementieren
+### [x] POC-061 AcquisitionActivity und Wiedervorlage implementieren
 
 Abhängigkeiten: POC-060
 
 Akzeptanzkriterien:
 
-- [ ] Akquisiteur erfasst Kanal, Ergebnis, Notiz und nächste Aktion.
-- [ ] Historie wird ergänzt und nicht frei überschrieben.
-- [ ] Überfällige und heutige Wiedervorlagen sind verständlich priorisiert.
-- [ ] Datenschutzgerechte Längen- und Inhaltsgrenzen sind definiert.
+- [x] Akquisiteur erfasst Kanal, Ergebnis, Notiz und nächste Aktion.
+- [x] Historie wird ergänzt und nicht frei überschrieben.
+- [x] Überfällige und heutige Wiedervorlagen sind verständlich priorisiert.
+- [x] Datenschutzgerechte Längen- und Inhaltsgrenzen sind definiert.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Status-/Fälligkeitsableitung mit Golden-Zeitpunkten.
-- [ ] Integrationstest persistiert Aktivität und AuditEvent atomar.
-- [ ] E2E erfasst eine Aktivität und findet sie nach Reload in richtiger
+- [x] Unit-Tests prüfen Status-/Fälligkeitsableitung mit Golden-Zeitpunkten.
+- [x] Integrationstest persistiert Aktivität und AuditEvent atomar.
+- [x] E2E erfasst eine Aktivität und findet sie nach Reload in richtiger
       Reihenfolge.
+
+Nachweis:
+[POC-061 – AcquisitionActivity und Wiedervorlage](proofs/POC-061.md).
 
 ### [ ] POC-062 PWA-Shell, Aktionen und Sponsorlisten umsetzen
 

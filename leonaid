@@ -29,6 +29,7 @@ Commands:
   test-policy       Prove central row-level policies against PostgreSQL/Twenty
   test-matching     Prove deterministic sponsor matching and confirmation
   test-assignments  Prove assignment concurrency, history and handover
+  test-activities   Prove activity history and prioritized reminders
   test-actions      Prove neutral CharityAction lifecycle and browser creation
   test-templates    Prove versioned action templates and previous-year copies
   test-action-admin Prove Charity-Admin action management and conflict handling
@@ -203,19 +204,20 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions \
-    tools/assignments \
+    tools/activities tools/assignments \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/matching tools/policy tools/schema tools/seed tools/sessions \
     tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions \
-    tools/assignments tools/matching \
+    tools/activities tools/assignments tools/matching \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
-    migrations src tools/action_admin tools/actions tools/assignments \
+    migrations src tools/action_admin tools/actions tools/activities \
+    tools/assignments \
     tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
     tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
@@ -415,6 +417,7 @@ case "$command" in
     /bin/sh "$root/tools/policy/test.sh" "$root"
     /bin/sh "$root/tools/matching/test.sh" "$root"
     /bin/sh "$root/tools/assignments/test.sh" "$root"
+    /bin/sh "$root/tools/activities/test.sh" "$root"
     /bin/sh "$root/tools/actions/test.sh" "$root"
     /bin/sh "$root/tools/templates/test.sh" "$root"
     /bin/sh "$root/tools/action_admin/test.sh" "$root"
@@ -427,6 +430,7 @@ case "$command" in
     /bin/sh "$root/tools/action_admin/test.sh" "$root"
     /bin/sh "$root/tools/matching/test.sh" "$root"
     /bin/sh "$root/tools/assignments/test.sh" "$root"
+    /bin/sh "$root/tools/activities/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
@@ -436,6 +440,7 @@ case "$command" in
   test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
   test-matching) /bin/sh "$root/tools/matching/test.sh" "$root" ;;
   test-assignments) /bin/sh "$root/tools/assignments/test.sh" "$root" ;;
+  test-activities) /bin/sh "$root/tools/activities/test.sh" "$root" ;;
   test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
   test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
   test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;

@@ -390,6 +390,142 @@ function applicationPage() {
         background: #effaf5;
       }
       .success-card strong { display: block; margin-bottom: .3rem; }
+      .activity-layout {
+        display: grid;
+        grid-template-columns: minmax(20rem, .88fr) minmax(24rem, 1.12fr);
+        gap: 1.1rem;
+        align-items: start;
+        margin-top: 2rem;
+      }
+      .activity-layout .panel { max-width: none; margin-top: 0; }
+      .field-description {
+        margin: -.15rem 0 .1rem;
+        color: #7a879b;
+        font-size: .78rem;
+        font-weight: 500;
+        line-height: 1.45;
+      }
+      .field-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+      }
+      .character-count { color: #8793a5; font-size: .74rem; font-weight: 600; }
+      .reminder-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .55rem;
+        margin-bottom: 1rem;
+      }
+      .summary-tile {
+        padding: .75rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .72rem;
+        background: #f8fafc;
+      }
+      .summary-tile strong {
+        display: block;
+        color: #13233f;
+        font-size: 1.35rem;
+        letter-spacing: -.03em;
+      }
+      .summary-tile span { color: #697890; font-size: .76rem; }
+      .summary-tile[data-urgency="overdue"] {
+        border-color: #efc2b9;
+        background: #fff5f2;
+      }
+      .summary-tile[data-urgency="overdue"] strong { color: #9c392c; }
+      .summary-tile[data-urgency="today"] {
+        border-color: #ebd28f;
+        background: #fff9e9;
+      }
+      .summary-tile[data-urgency="today"] strong { color: #725611; }
+      .reminder-list, .activity-timeline { display: grid; gap: .65rem; }
+      .reminder-card {
+        display: grid;
+        width: 100%;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: .7rem;
+        align-items: start;
+        padding: .8rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .78rem;
+        color: #31415c;
+        background: #fff;
+        text-align: left;
+        cursor: pointer;
+      }
+      .reminder-card:hover, .reminder-card:focus-visible {
+        border-color: #b78a1f;
+        outline: 3px solid rgba(230, 189, 79, .22);
+      }
+      .urgency-dot {
+        width: .65rem;
+        height: .65rem;
+        margin-top: .28rem;
+        border-radius: 999px;
+        background: #9aa7b9;
+      }
+      .urgency-dot[data-urgency="overdue"] { background: #c14a38; }
+      .urgency-dot[data-urgency="today"] { background: #d3a72f; }
+      .urgency-dot[data-urgency="upcoming"] { background: #407cca; }
+      .reminder-copy strong, .timeline-card strong { display: block; color: #13233f; }
+      .reminder-copy span {
+        display: block;
+        margin-top: .2rem;
+        color: #697890;
+        font-size: .8rem;
+        line-height: 1.4;
+      }
+      .reminder-date {
+        padding: .25rem .45rem;
+        border-radius: 999px;
+        color: #52627a;
+        background: #eef2f7;
+        font-size: .7rem;
+        font-weight: 760;
+        white-space: nowrap;
+      }
+      .timeline-section { margin-top: 1.35rem; }
+      .timeline-card {
+        position: relative;
+        padding: .85rem .9rem .85rem 1rem;
+        border-left: 3px solid #d9b443;
+        border-radius: 0 .72rem .72rem 0;
+        background: #f8fafc;
+      }
+      .timeline-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem .75rem;
+        margin-top: .28rem;
+        color: #697890;
+        font-size: .76rem;
+      }
+      .timeline-note {
+        margin: .55rem 0 0;
+        color: #40506a;
+        font-size: .84rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .timeline-next {
+        margin-top: .55rem;
+        padding-top: .55rem;
+        border-top: 1px solid #dfe5ee;
+        color: #52627a;
+        font-size: .78rem;
+      }
+      .empty-state {
+        padding: 1.1rem;
+        border: 1px dashed #cbd5e3;
+        border-radius: .78rem;
+        color: #697890;
+        background: #fafbfd;
+        font-size: .84rem;
+        line-height: 1.5;
+        text-align: center;
+      }
       [hidden] { display: none !important; }
       fieldset {
         min-width: 0;
@@ -431,6 +567,8 @@ function applicationPage() {
         .field-wide { grid-column: auto; }
         .choice-grid, .beneficiary-row { grid-template-columns: 1fr; }
         .sponsor-layout { grid-template-columns: 1fr; }
+        .activity-layout { grid-template-columns: 1fr; }
+        .reminder-summary { grid-template-columns: repeat(3, minmax(4.5rem, 1fr)); }
         .result-empty { min-height: 10rem; }
         .mobile-nav {
           position: fixed;
@@ -640,6 +778,80 @@ function applicationPage() {
               '<div id="sponsor-result" class="result-empty">' +
                 '<div><strong id="sponsor-result-heading">Noch keine Prüfung</strong>' +
                 '<span>Nach der CRM-Prüfung siehst du hier Treffer, Zusatzdaten und vorhandene Akquisiteure.</span></div>' +
+              '</div>' +
+            '</section>' +
+          '</div>';
+      }
+
+      function activityMarkup(identity) {
+        const memberships = identity.actionMemberships.filter(
+          (membership) => membership.role === "acquirer",
+        );
+        const options = memberships.map((membership) =>
+          '<option value="' + escapeHtml(membership.actionId) + '">' +
+          escapeHtml(membership.actionName) + '</option>'
+        ).join("");
+        return '<p class="eyebrow">Akquise-Verlauf</p>' +
+          '<h1>Aktivitäten & Wiedervorlagen</h1>' +
+          '<p class="lead">Halte ein Gespräch in einem Schritt fest. LeonAid aktualisiert den Sponsorstatus und bringt fällige nächste Schritte nach vorn.</p>' +
+          '<div class="activity-layout">' +
+            '<section class="panel" aria-labelledby="activity-form-heading">' +
+              '<div class="result-heading"><div>' +
+                '<h2 id="activity-form-heading">Was ist passiert?</h2>' +
+                '<p class="form-help">Wähle einen deiner Sponsoren und dokumentiere nur die Information, die für die weitere Akquise nötig ist.</p>' +
+              '</div></div>' +
+              '<form id="activity-form" class="form-grid">' +
+                '<div class="field field-wide"><label for="activity-action">Charity-Aktion</label>' +
+                  '<p id="activity-action-help" class="field-description">Die Aktion bestimmt, welche eigenen Sponsoren zur Auswahl stehen.</p>' +
+                  '<select id="activity-action" name="actionId" aria-describedby="activity-action-help" required>' +
+                    options + '</select></div>' +
+                '<div class="field field-wide"><label for="activity-party">Sponsor</label>' +
+                  '<p id="activity-party-help" class="field-description">Nur aktuell dir zugeordnete Firmen und Kontakte werden angezeigt.</p>' +
+                  '<select id="activity-party" name="party" aria-describedby="activity-party-help" data-testid="activity-party" required disabled>' +
+                    '<option value="">Sponsoren werden geladen …</option></select></div>' +
+                '<div class="field"><label for="activity-channel">Kontaktweg</label>' +
+                  '<p id="activity-channel-help" class="field-description">Wie der Kontakt stattgefunden hat.</p>' +
+                  '<select id="activity-channel" name="channel" aria-describedby="activity-channel-help" required>' +
+                    '<option value="phone">Telefon</option>' +
+                    '<option value="email">E-Mail</option>' +
+                    '<option value="in_person">Persönlich</option>' +
+                  '</select></div>' +
+                '<div class="field"><label for="activity-outcome">Ergebnis</label>' +
+                  '<p id="activity-outcome-help" class="field-description">Der aktuelle Stand nach diesem Kontakt.</p>' +
+                  '<select id="activity-outcome" name="outcome" aria-describedby="activity-outcome-help" required>' +
+                    '<option value="reached">Erreicht</option>' +
+                    '<option value="no_answer">Nicht erreicht</option>' +
+                    '<option value="interested">Interesse</option>' +
+                    '<option value="follow_up">Später nachfassen</option>' +
+                    '<option value="committed">Zusage</option>' +
+                    '<option value="declined">Absage</option>' +
+                  '</select></div>' +
+                '<div class="field field-wide"><div class="field-meta">' +
+                    '<label for="activity-note">Kurze Notiz <span class="form-help">(optional)</span></label>' +
+                    '<span id="activity-note-count" class="character-count">0 / 2.000</span></div>' +
+                  '<p id="activity-note-help" class="field-description">Sachlich und knapp; keine privaten oder besonders sensiblen Angaben notieren.</p>' +
+                  '<textarea id="activity-note" name="note" maxlength="2000" aria-describedby="activity-note-help activity-note-count" placeholder="Zum Beispiel: Angebot per E-Mail gewünscht."></textarea></div>' +
+                '<fieldset class="field-wide"><legend>Nächster Schritt <span class="form-help">(optional)</span></legend>' +
+                  '<p class="field-description">Aktion und Datum gehören zusammen. Ohne beide Angaben wird keine Wiedervorlage angelegt.</p>' +
+                  '<div class="form-grid">' +
+                    '<div class="field"><label for="activity-next-action">Nächste Aktion</label>' +
+                      '<input id="activity-next-action" name="nextAction" maxlength="300" placeholder="Angebot nachfassen"></div>' +
+                    '<div class="field"><label for="activity-due-on">Fällig am</label>' +
+                      '<input id="activity-due-on" name="dueOn" type="date"></div>' +
+                  '</div></fieldset>' +
+                '<div class="form-actions field-wide">' +
+                  '<button class="button" data-testid="activity-submit" type="submit" disabled>Aktivität speichern</button>' +
+                '</div>' +
+                '<p id="activity-status" class="form-status field-wide" role="status" aria-live="polite"></p>' +
+              '</form>' +
+            '</section>' +
+            '<section class="panel" aria-labelledby="reminder-heading">' +
+              '<div class="result-heading"><div>' +
+                '<h2 id="reminder-heading">Heute im Blick</h2>' +
+                '<p class="form-help">Überfälliges und heute Fälliges steht immer zuerst.</p>' +
+              '</div></div>' +
+              '<div id="activity-board" aria-live="polite">' +
+                '<div class="empty-state">Wiedervorlagen und Verlauf werden geladen …</div>' +
               '</div>' +
             '</section>' +
           '</div>';
@@ -926,6 +1138,269 @@ function applicationPage() {
         });
       }
 
+      function setupActivityBoard() {
+        const form = document.querySelector("#activity-form");
+        if (!form) return;
+        const actionSelect = form.elements.actionId;
+        const partySelect = form.elements.party;
+        const note = form.elements.note;
+        const nextAction = form.elements.nextAction;
+        const dueOn = form.elements.dueOn;
+        const submit = form.querySelector('[data-testid="activity-submit"]');
+        const status = document.querySelector("#activity-status");
+        const boardRoot = document.querySelector("#activity-board");
+        const noteCount = document.querySelector("#activity-note-count");
+        const workItems = new Map();
+        let loading = false;
+
+        const channelLabels = {
+          phone: "Telefon",
+          email: "E-Mail",
+          in_person: "Persönlich",
+        };
+        const outcomeLabels = {
+          reached: "Erreicht",
+          no_answer: "Nicht erreicht",
+          interested: "Interesse",
+          follow_up: "Später nachfassen",
+          committed: "Zusage",
+          declined: "Absage",
+        };
+        const localDate = (value, options = {}) =>
+          new Intl.DateTimeFormat("de-DE", {
+            timeZone: "Europe/Berlin",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            ...options,
+          }).format(new Date(value));
+        const localDateTime = (value) =>
+          new Intl.DateTimeFormat("de-DE", {
+            timeZone: "Europe/Berlin",
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }).format(new Date(value));
+        dueOn.min = new Intl.DateTimeFormat("sv-SE", {
+          timeZone: "Europe/Berlin",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+
+        const syncReminderPair = () => {
+          const hasAction = nextAction.value.trim().length > 0;
+          const hasDate = dueOn.value.length > 0;
+          nextAction.required = hasDate;
+          dueOn.required = hasAction;
+        };
+        nextAction.addEventListener("input", syncReminderPair);
+        dueOn.addEventListener("input", syncReminderPair);
+        note.addEventListener("input", () => {
+          noteCount.textContent =
+            new Intl.NumberFormat("de-DE").format(note.value.length) + " / 2.000";
+        });
+
+        const reminderLabel = (item) => {
+          if (item.urgency === "overdue") return "Überfällig";
+          if (item.urgency === "today") return "Heute";
+          return item.dueAt ? localDate(item.dueAt, { year: undefined }) : "";
+        };
+
+        const renderBoard = (payload) => {
+          const reminders = payload.workItems.filter(
+            (item) => item.nextAction && item.dueAt,
+          );
+          const counts = {
+            overdue: reminders.filter((item) => item.urgency === "overdue").length,
+            today: reminders.filter((item) => item.urgency === "today").length,
+            upcoming: reminders.filter((item) => item.urgency === "upcoming").length,
+          };
+          const reminderMarkup = reminders.length
+            ? '<div class="reminder-list" data-testid="reminder-list">' +
+              reminders.map((item) =>
+                '<button class="reminder-card" type="button" data-select-assignment="' +
+                  escapeHtml(item.assignmentId) + '">' +
+                  '<span class="urgency-dot" data-urgency="' +
+                    escapeHtml(item.urgency) + '" aria-hidden="true"></span>' +
+                  '<span class="reminder-copy"><strong>' +
+                    escapeHtml(item.partyDisplayName) + '</strong><span>' +
+                    escapeHtml(item.nextAction) + '</span></span>' +
+                  '<span class="reminder-date">' +
+                    escapeHtml(reminderLabel(item)) + '</span>' +
+                '</button>'
+              ).join("") + '</div>'
+            : '<div class="empty-state">Keine Wiedervorlage fällig. Du kannst beim Erfassen einer Aktivität direkt den nächsten Schritt planen.</div>';
+          const timelineMarkup = payload.activities.length
+            ? '<div class="activity-timeline" data-testid="activity-timeline">' +
+              payload.activities.map((item) =>
+                '<article class="timeline-card" data-testid="activity-entry" data-activity-id="' +
+                  escapeHtml(item.id) + '">' +
+                  '<strong>' + escapeHtml(item.partyDisplayName) + '</strong>' +
+                  '<div class="timeline-meta"><span>' +
+                    escapeHtml(outcomeLabels[item.outcome] ?? item.outcome) +
+                  '</span><span>' +
+                    escapeHtml(channelLabels[item.channel] ?? item.channel) +
+                  '</span><span>' + escapeHtml(item.actorDisplayName) +
+                  '</span><time datetime="' + escapeHtml(item.occurredAt) + '">' +
+                    escapeHtml(localDateTime(item.occurredAt)) + '</time></div>' +
+                  (item.note
+                    ? '<p class="timeline-note">' + escapeHtml(item.note) + '</p>'
+                    : '') +
+                  (item.nextAction && item.dueAt
+                    ? '<div class="timeline-next"><strong>Nächster Schritt</strong>' +
+                      escapeHtml(item.nextAction) + ' · ' +
+                      escapeHtml(localDate(item.dueAt)) + '</div>'
+                    : '') +
+                '</article>'
+              ).join("") + '</div>'
+            : '<div class="empty-state">Noch keine manuelle Aktivität erfasst.</div>';
+          boardRoot.innerHTML =
+            '<div class="reminder-summary" aria-label="Wiedervorlagen-Übersicht">' +
+              '<div class="summary-tile" data-urgency="overdue"><strong data-testid="overdue-count">' +
+                counts.overdue + '</strong><span>Überfällig</span></div>' +
+              '<div class="summary-tile" data-urgency="today"><strong data-testid="today-count">' +
+                counts.today + '</strong><span>Heute</span></div>' +
+              '<div class="summary-tile"><strong>' + counts.upcoming +
+                '</strong><span>Demnächst</span></div>' +
+            '</div>' +
+            reminderMarkup +
+            '<div class="timeline-section"><div class="result-heading"><div>' +
+              '<h2>Letzte Aktivitäten</h2>' +
+              '<p class="form-help">Neueste Einträge zuerst; bestehende Einträge werden nicht überschrieben.</p>' +
+            '</div></div>' + timelineMarkup + '</div>';
+          boardRoot.querySelectorAll("[data-select-assignment]").forEach((button) => {
+            button.addEventListener("click", () => {
+              partySelect.value = button.dataset.selectAssignment;
+              form.querySelector("#activity-channel").focus();
+              form.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          });
+        };
+
+        const loadBoard = async () => {
+          if (!actionSelect.value) return;
+          loading = true;
+          submit.disabled = true;
+          boardRoot.innerHTML =
+            '<div class="empty-state">Wiedervorlagen und Verlauf werden geladen …</div>';
+          try {
+            const response = await fetch(
+              "/api/v1/actions/" + encodeURIComponent(actionSelect.value) +
+                "/acquisition/activity-board?limit=50",
+              {
+                credentials: "include",
+                headers: { Accept: "application/json" },
+              },
+            );
+            if (!response.ok) throw new Error("board");
+            const payload = await response.json();
+            const previousSelection = partySelect.value;
+            workItems.clear();
+            partySelect.replaceChildren();
+            for (const item of payload.workItems) {
+              workItems.set(item.assignmentId, item);
+              const option = document.createElement("option");
+              option.value = item.assignmentId;
+              option.textContent = item.partyDisplayName +
+                (item.city ? " · " + item.city : "");
+              partySelect.append(option);
+            }
+            if (workItems.has(previousSelection)) {
+              partySelect.value = previousSelection;
+            }
+            partySelect.disabled = payload.workItems.length === 0;
+            submit.disabled = payload.workItems.length === 0;
+            if (payload.workItems.length === 0) {
+              const option = document.createElement("option");
+              option.value = "";
+              option.textContent = "Noch kein Sponsor zugeordnet";
+              partySelect.append(option);
+            }
+            renderBoard(payload);
+          } catch {
+            partySelect.disabled = true;
+            submit.disabled = true;
+            boardRoot.innerHTML =
+              '<div class="empty-state">Wiedervorlagen konnten nicht geladen werden. Bitte versuche es erneut.</div>';
+          } finally {
+            loading = false;
+          }
+        };
+
+        actionSelect.addEventListener("change", loadBoard);
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (loading) return;
+          const selected = workItems.get(partySelect.value);
+          if (!selected) return;
+          const nextActionValue = nextAction.value.trim() || null;
+          const dueOnValue = dueOn.value || null;
+          if ((nextActionValue === null) !== (dueOnValue === null)) {
+            status.dataset.state = "error";
+            status.textContent =
+              "Ergänze für die Wiedervorlage sowohl nächste Aktion als auch Datum.";
+            syncReminderPair();
+            return;
+          }
+          submit.disabled = true;
+          status.dataset.state = "";
+          status.textContent = "Aktivität und Wiedervorlage werden gespeichert …";
+          const values = new FormData(form);
+          try {
+            const response = await fetch(
+              "/api/v1/actions/" + encodeURIComponent(actionSelect.value) +
+                "/acquisition/activities",
+              {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                },
+                body: JSON.stringify({
+                  partyKind: selected.partyKind,
+                  partyId: selected.partyId,
+                  revision: selected.revision,
+                  channel: values.get("channel"),
+                  outcome: values.get("outcome"),
+                  note: note.value.trim() || null,
+                  nextAction: nextActionValue,
+                  dueOn: dueOnValue,
+                }),
+              },
+            );
+            if (!response.ok) {
+              const failure = await response.json().catch(() => ({}));
+              if (failure.error?.code === "assignment_revision_conflict") {
+                throw new Error("changed");
+              }
+              throw new Error("record");
+            }
+            const recorded = await response.json();
+            status.dataset.state = "success";
+            status.textContent = "Aktivität für " +
+              recorded.activity.partyDisplayName + " wurde gespeichert.";
+            note.value = "";
+            nextAction.value = "";
+            dueOn.value = "";
+            note.dispatchEvent(new Event("input"));
+            syncReminderPair();
+            await loadBoard();
+          } catch (error) {
+            status.dataset.state = "error";
+            status.textContent = error.message === "changed"
+              ? "Die Zuordnung wurde gerade geändert. Die Ansicht wurde aktualisiert; bitte prüfe den Eintrag noch einmal."
+              : "Die Aktivität konnte nicht gespeichert werden. Versuche es erneut.";
+            await loadBoard();
+          } finally {
+            submit.disabled = partySelect.disabled;
+          }
+        });
+        loadBoard();
+      }
+
       function beneficiaryRow(index) {
         const row = document.createElement("div");
         row.className = "beneficiary-row";
@@ -1131,6 +1606,8 @@ function applicationPage() {
                   ? invitationMarkup()
                   : surface === "pwa" && window.location.pathname.startsWith("/app/sponsors")
                     ? sponsorMarkup(identity)
+                  : surface === "pwa" && window.location.pathname.startsWith("/app/activities")
+                    ? activityMarkup(identity)
                   : dashboardMarkup(identity, surface)) +
             '</div>' +
           '</main>' +
@@ -1139,6 +1616,7 @@ function applicationPage() {
         setupInvitationForm();
         setupActionCreationForm();
         setupSponsorForm(identity);
+        setupActivityBoard();
         setupLogout();
       }
 

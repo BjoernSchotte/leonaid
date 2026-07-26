@@ -16,6 +16,11 @@ from leonaid.application.acquisition import (
     AcquisitionPolicyRepository,
     PartyAssignmentRoster,
 )
+from leonaid.application.activities import (
+    AcquisitionActivityRepository,
+    ActivityRecordingResult,
+    RecordedAcquisitionActivity,
+)
 from leonaid.application.assignments import (
     AssignmentCreateResult,
     AssignmentHandoverResult,
@@ -32,6 +37,9 @@ from leonaid.application.sponsor_matching import (
 from leonaid.domain.policies import AcquisitionAccessLevel, AuthorizedPartyScope
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
+    ActivityCapture,
+    ActivityChannel,
+    ActivityOutcome,
     AssignmentHistoryEntry,
     AssignmentPartyKind,
     AssignmentState,
@@ -43,6 +51,7 @@ class AsyncpgAcquisitionPolicyRepository(
     AcquisitionPolicyRepository,
     SponsorMatchingRepository,
     AssignmentManagementRepository,
+    AcquisitionActivityRepository,
 ):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
@@ -1106,6 +1115,385 @@ class AsyncpgAcquisitionPolicyRepository(
             target_created=target_created,
         )
 
+    async def active_assignments_for_actor(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        evaluated_at: datetime,
+    ) -> tuple[AcquisitionAssignment, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    assignment.id,
+                    assignment.action_id,
+                    assignment.twenty_company_id,
+                    assignment.twenty_person_id,
+                    assignment.acquirer_user_id,
+                    account.display_name AS acquirer_display_name,
+                    assignment.status,
+                    assignment.priority,
+                    assignment.next_action,
+                    assignment.due_at,
+                    assignment.revision,
+                    assignment.created_at,
+                    assignment.updated_at
+                FROM acquisition_assignment AS assignment
+                JOIN user_account AS account
+                  ON account.id = assignment.acquirer_user_id
+                 AND account.status = 'active'
+                JOIN action_membership AS membership
+                  ON membership.action_id = assignment.action_id
+                 AND membership.user_id = assignment.acquirer_user_id
+                 AND membership.role = 'acquirer'
+                 AND membership.active_from <= $3
+                 AND (
+                    membership.active_until IS NULL
+                    OR membership.active_until > $3
+                 )
+                JOIN charity_action_capability AS capability
+                  ON capability.action_id = assignment.action_id
+                 AND capability.capability = 'acquisition'
+                WHERE assignment.action_id = $1
+                  AND assignment.acquirer_user_id = $2
+                  AND assignment.status <> 'handed_over'
+                ORDER BY
+                    assignment.due_at NULLS LAST,
+                    assignment.priority DESC,
+                    assignment.id
+                """,
+                action_id,
+                actor_user_id,
+                evaluated_at,
+            )
+        return tuple(self._assignment(row) for row in rows)
+
+    async def active_assignment_for_actor(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        party_kind: AssignmentPartyKind,
+        party_id: UUID,
+        evaluated_at: datetime,
+    ) -> AcquisitionAssignment | None:
+        party_column = (
+            "assignment.twenty_company_id"
+            if party_kind is AssignmentPartyKind.COMPANY
+            else "assignment.twenty_person_id"
+        )
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                f"""
+                SELECT
+                    assignment.id,
+                    assignment.action_id,
+                    assignment.twenty_company_id,
+                    assignment.twenty_person_id,
+                    assignment.acquirer_user_id,
+                    account.display_name AS acquirer_display_name,
+                    assignment.status,
+                    assignment.priority,
+                    assignment.next_action,
+                    assignment.due_at,
+                    assignment.revision,
+                    assignment.created_at,
+                    assignment.updated_at
+                FROM acquisition_assignment AS assignment
+                JOIN user_account AS account
+                  ON account.id = assignment.acquirer_user_id
+                 AND account.status = 'active'
+                JOIN action_membership AS membership
+                  ON membership.action_id = assignment.action_id
+                 AND membership.user_id = assignment.acquirer_user_id
+                 AND membership.role = 'acquirer'
+                 AND membership.active_from <= $4
+                 AND (
+                    membership.active_until IS NULL
+                    OR membership.active_until > $4
+                 )
+                JOIN charity_action_capability AS capability
+                  ON capability.action_id = assignment.action_id
+                 AND capability.capability = 'acquisition'
+                WHERE assignment.action_id = $1
+                  AND assignment.acquirer_user_id = $2
+                  AND {party_column} = $3
+                  AND assignment.status <> 'handed_over'
+                """,
+                action_id,
+                actor_user_id,
+                party_id,
+                evaluated_at,
+            )
+        return self._assignment(row) if row is not None else None
+
+    async def activity_timeline_for_actor(
+        self,
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        evaluated_at: datetime,
+        limit: int,
+    ) -> tuple[RecordedAcquisitionActivity, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    activity.id,
+                    activity.action_id,
+                    activity.assignment_id,
+                    activity.twenty_company_id,
+                    activity.twenty_person_id,
+                    activity.actor_user_id,
+                    actor.display_name AS actor_display_name,
+                    activity.channel,
+                    activity.outcome,
+                    activity.note,
+                    activity.next_action_snapshot,
+                    activity.due_at_snapshot,
+                    activity.assignment_revision,
+                    activity.occurred_at
+                FROM acquisition_activity AS activity
+                JOIN user_account AS actor
+                  ON actor.id = activity.actor_user_id
+                WHERE activity.action_id = $1
+                  AND activity.channel IN (
+                    'phone', 'email', 'in_person'
+                  )
+                  AND activity.outcome IN (
+                    'reached', 'no_answer', 'interested', 'follow_up',
+                    'committed', 'declined'
+                  )
+                  AND EXISTS (
+                    SELECT 1
+                    FROM acquisition_assignment AS own_assignment
+                    JOIN user_account AS own_account
+                      ON own_account.id = own_assignment.acquirer_user_id
+                     AND own_account.status = 'active'
+                    JOIN action_membership AS membership
+                      ON membership.action_id = own_assignment.action_id
+                     AND membership.user_id = own_assignment.acquirer_user_id
+                     AND membership.role = 'acquirer'
+                     AND membership.active_from <= $3
+                     AND (
+                        membership.active_until IS NULL
+                        OR membership.active_until > $3
+                     )
+                    WHERE own_assignment.action_id = activity.action_id
+                      AND own_assignment.acquirer_user_id = $2
+                      AND own_assignment.status <> 'handed_over'
+                      AND (
+                        (
+                            activity.twenty_company_id IS NOT NULL
+                            AND own_assignment.twenty_company_id =
+                                activity.twenty_company_id
+                        )
+                        OR (
+                            activity.twenty_person_id IS NOT NULL
+                            AND own_assignment.twenty_person_id =
+                                activity.twenty_person_id
+                        )
+                      )
+                  )
+                ORDER BY activity.occurred_at DESC, activity.id DESC
+                LIMIT $4
+                """,
+                action_id,
+                actor_user_id,
+                evaluated_at,
+                limit,
+            )
+        return tuple(self._recorded_activity(row) for row in rows)
+
+    async def record_activity(
+        self,
+        previous: AcquisitionAssignment,
+        changed: AcquisitionAssignment,
+        capture: ActivityCapture,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> ActivityRecordingResult | None:
+        activity_id = uuid4()
+        company_id = (
+            previous.party_id
+            if previous.party_kind is AssignmentPartyKind.COMPANY
+            else None
+        )
+        person_id = (
+            previous.party_id
+            if previous.party_kind is AssignmentPartyKind.PERSON
+            else None
+        )
+        persisted_row: asyncpg.Record | None = None
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                persisted_revision = await connection.fetchval(
+                    """
+                    UPDATE acquisition_assignment AS assignment
+                    SET status = $6,
+                        priority = $7,
+                        next_action = $8,
+                        due_at = $9,
+                        revision = revision + 1,
+                        updated_at = $10
+                    WHERE assignment.id = $1
+                      AND assignment.action_id = $2
+                      AND assignment.acquirer_user_id = $3
+                      AND assignment.revision = $4
+                      AND assignment.status <> 'handed_over'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM action_membership AS membership
+                        JOIN user_account AS account
+                          ON account.id = membership.user_id
+                         AND account.status = 'active'
+                        JOIN charity_action_capability AS capability
+                          ON capability.action_id = membership.action_id
+                         AND capability.capability = 'acquisition'
+                        WHERE membership.action_id = assignment.action_id
+                          AND membership.user_id = assignment.acquirer_user_id
+                          AND membership.role = 'acquirer'
+                          AND membership.active_from <= $5
+                          AND (
+                            membership.active_until IS NULL
+                            OR membership.active_until > $5
+                          )
+                      )
+                    RETURNING revision
+                    """,
+                    previous.id,
+                    previous.action_id,
+                    actor_user_id,
+                    previous.revision,
+                    occurred_at,
+                    changed.state.status.value,
+                    changed.state.priority,
+                    changed.state.next_action,
+                    changed.state.due_at,
+                    occurred_at,
+                )
+                if persisted_revision is None:
+                    await self._raise_revision_if_changed(
+                        connection,
+                        previous.id,
+                        previous.revision,
+                    )
+                    return None
+                if int(persisted_revision) != changed.revision:
+                    raise RuntimeError("Aktivitätsrevision ist inkonsistent.")
+                await connection.execute(
+                    """
+                    INSERT INTO acquisition_activity (
+                        id,
+                        action_id,
+                        assignment_id,
+                        actor_user_id,
+                        twenty_company_id,
+                        twenty_person_id,
+                        occurred_at,
+                        channel,
+                        outcome,
+                        note,
+                        next_action_snapshot,
+                        due_at_snapshot,
+                        assignment_revision,
+                        created_at
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                        $11, $12, $13, $7
+                    )
+                    """,
+                    activity_id,
+                    previous.action_id,
+                    previous.id,
+                    actor_user_id,
+                    company_id,
+                    person_id,
+                    occurred_at,
+                    capture.channel.value,
+                    capture.outcome.value,
+                    capture.note,
+                    capture.next_action,
+                    capture.due_at,
+                    changed.revision,
+                )
+                await self._append_history(
+                    connection,
+                    assignment=changed,
+                    actor_user_id=actor_user_id,
+                    previous_state=previous.state.snapshot(
+                        acquirer_user_id=previous.acquirer_user_id,
+                    ),
+                    occurred_at=occurred_at,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO audit_event (
+                        id,
+                        action_id,
+                        actor_user_id,
+                        event_type,
+                        entity_type,
+                        entity_id,
+                        request_id,
+                        payload,
+                        occurred_at
+                    )
+                    VALUES (
+                        $1, $2, $3, 'acquisition_activity_recorded',
+                        'acquisition_activity', $4, $5, $6::jsonb, $7
+                    )
+                    """,
+                    uuid4(),
+                    previous.action_id,
+                    actor_user_id,
+                    activity_id,
+                    request_id,
+                    json.dumps(
+                        {
+                            "assignmentId": str(previous.id),
+                            "assignmentRevision": changed.revision,
+                            "channel": capture.channel.value,
+                            "outcome": capture.outcome.value,
+                            "hasReminder": capture.due_at is not None,
+                            "noteLength": len(capture.note or ""),
+                        },
+                        separators=(",", ":"),
+                    ),
+                    occurred_at,
+                )
+                persisted_row = await self._assignment_record(
+                    connection,
+                    action_id=previous.action_id,
+                    assignment_id=previous.id,
+                )
+        if persisted_row is None:
+            raise RuntimeError("Aktualisierte Akquise-Zuordnung fehlt.")
+        persisted = self._assignment(persisted_row)
+        return ActivityRecordingResult(
+            assignment=persisted,
+            activity=RecordedAcquisitionActivity(
+                id=activity_id,
+                action_id=previous.action_id,
+                assignment_id=previous.id,
+                party_kind=previous.party_kind,
+                party_id=previous.party_id,
+                actor_user_id=actor_user_id,
+                actor_display_name=previous.acquirer_display_name,
+                channel=capture.channel,
+                outcome=capture.outcome,
+                note=capture.note,
+                next_action=capture.next_action,
+                due_at=capture.due_at,
+                assignment_revision=persisted.revision,
+                occurred_at=occurred_at,
+            ),
+        )
+
     async def activities(
         self,
         scope: AuthorizedPartyScope,
@@ -1412,6 +1800,46 @@ class AsyncpgAcquisitionPolicyRepository(
                 list(scope.company_ids),
                 list(scope.person_ids),
             ),
+        )
+
+    @staticmethod
+    def _recorded_activity(
+        row: asyncpg.Record,
+    ) -> RecordedAcquisitionActivity:
+        company_id = row["twenty_company_id"]
+        person_id = row["twenty_person_id"]
+        if company_id is not None:
+            party_kind = AssignmentPartyKind.COMPANY
+            party_id = company_id
+        elif person_id is not None:
+            party_kind = AssignmentPartyKind.PERSON
+            party_id = person_id
+        else:
+            raise RuntimeError("Eine Akquiseaktivität besitzt keinen Partnerbezug.")
+        assignment_id = row["assignment_id"]
+        actor_user_id = row["actor_user_id"]
+        assignment_revision = row["assignment_revision"]
+        if (
+            assignment_id is None
+            or actor_user_id is None
+            or assignment_revision is None
+        ):
+            raise RuntimeError("Eine manuelle Aktivität besitzt keinen Verlauf.")
+        return RecordedAcquisitionActivity(
+            id=row["id"],
+            action_id=row["action_id"],
+            assignment_id=assignment_id,
+            party_kind=party_kind,
+            party_id=party_id,
+            actor_user_id=actor_user_id,
+            actor_display_name=str(row["actor_display_name"]),
+            channel=ActivityChannel(str(row["channel"])),
+            outcome=ActivityOutcome(str(row["outcome"])),
+            note=row["note"],
+            next_action=row["next_action_snapshot"],
+            due_at=row["due_at_snapshot"],
+            assignment_revision=int(assignment_revision),
+            occurred_at=row["occurred_at"],
         )
 
     @staticmethod

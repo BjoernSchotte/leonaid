@@ -1,15 +1,21 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
+    ActivityCapture,
+    ActivityChannel,
+    ActivityOutcome,
     AssignmentPartyKind,
     AssignmentState,
     AssignmentStatus,
+    ReminderUrgency,
+    reminder_urgency,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -146,3 +152,134 @@ def test_state_rejects_invalid_priority_naive_due_date_and_long_next_action() ->
         AssignmentState(due_at=datetime(2026, 8, 3, 8, 30))
     with pytest.raises(DomainInvariantError, match="300 Zeichen"):
         AssignmentState(next_action="x" * 301)
+
+
+def test_activity_capture_normalizes_content_and_advances_history_revision() -> None:
+    current = assignment(
+        assignment_id="60000000-0000-4000-8000-000000000031",
+        acquirer_id=ANNA_ID,
+        name="Anna Akquise",
+    )
+    due_at = datetime(2026, 7, 27, 7, 0, tzinfo=timezone.utc)
+    capture = ActivityCapture.create(
+        channel=ActivityChannel.PHONE,
+        outcome=ActivityOutcome.INTERESTED,
+        note="  Gespräch mit   Einkauf.\r\n\n Angebot gewünscht.  ",
+        next_action="  Angebot   per E-Mail senden ",
+        due_at=due_at,
+    )
+
+    changed = current.record_activity(
+        capture,
+        occurred_at=CREATED_AT + timedelta(minutes=15),
+    )
+
+    assert capture.note == "Gespräch mit Einkauf.\n\nAngebot gewünscht."
+    assert changed.revision == 2
+    assert changed.state == AssignmentState(
+        status=AssignmentStatus.CONTACTED,
+        priority=0,
+        next_action="Angebot per E-Mail senden",
+        due_at=due_at,
+    )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected_status"),
+    [
+        (ActivityOutcome.REACHED, AssignmentStatus.CONTACTED),
+        (ActivityOutcome.NO_ANSWER, AssignmentStatus.CONTACTED),
+        (ActivityOutcome.FOLLOW_UP, AssignmentStatus.CONTACTED),
+        (ActivityOutcome.COMMITTED, AssignmentStatus.COMMITTED),
+        (ActivityOutcome.DECLINED, AssignmentStatus.DECLINED),
+    ],
+)
+def test_activity_outcome_derives_assignment_status(
+    outcome: ActivityOutcome,
+    expected_status: AssignmentStatus,
+) -> None:
+    current = assignment(
+        assignment_id="60000000-0000-4000-8000-000000000031",
+        acquirer_id=ANNA_ID,
+        name="Anna Akquise",
+    )
+    capture = ActivityCapture.create(
+        channel=ActivityChannel.EMAIL,
+        outcome=outcome,
+        note=None,
+        next_action=None,
+        due_at=None,
+    )
+
+    changed = current.record_activity(
+        capture,
+        occurred_at=CREATED_AT + timedelta(minutes=15),
+    )
+
+    assert changed.state.status is expected_status
+    assert changed.revision == 2
+
+
+def test_activity_rejects_incomplete_reminder_and_unsafe_note_content() -> None:
+    with pytest.raises(DomainInvariantError, match="sowohl"):
+        ActivityCapture.create(
+            channel=ActivityChannel.PHONE,
+            outcome=ActivityOutcome.REACHED,
+            note=None,
+            next_action="Noch einmal anrufen",
+            due_at=None,
+        )
+    with pytest.raises(DomainInvariantError, match="Steuerzeichen"):
+        ActivityCapture.create(
+            channel=ActivityChannel.PHONE,
+            outcome=ActivityOutcome.REACHED,
+            note="Nicht erlaubtes \x00 Zeichen",
+            next_action=None,
+            due_at=None,
+        )
+    with pytest.raises(DomainInvariantError, match="2.000"):
+        ActivityCapture.create(
+            channel=ActivityChannel.PHONE,
+            outcome=ActivityOutcome.REACHED,
+            note="x" * 2001,
+            next_action=None,
+            due_at=None,
+        )
+
+
+def test_reminders_are_prioritized_by_golden_local_date() -> None:
+    berlin = ZoneInfo("Europe/Berlin")
+    evaluated_at = datetime(2026, 7, 26, 10, 0, tzinfo=timezone.utc)
+
+    assert (
+        reminder_urgency(
+            datetime(2026, 7, 25, 7, 0, tzinfo=timezone.utc),
+            evaluated_at=evaluated_at,
+            local_timezone=berlin,
+        )
+        is ReminderUrgency.OVERDUE
+    )
+    assert (
+        reminder_urgency(
+            datetime(2026, 7, 26, 20, 0, tzinfo=timezone.utc),
+            evaluated_at=evaluated_at,
+            local_timezone=berlin,
+        )
+        is ReminderUrgency.TODAY
+    )
+    assert (
+        reminder_urgency(
+            datetime(2026, 7, 27, 7, 0, tzinfo=timezone.utc),
+            evaluated_at=evaluated_at,
+            local_timezone=berlin,
+        )
+        is ReminderUrgency.UPCOMING
+    )
+    assert (
+        reminder_urgency(
+            None,
+            evaluated_at=evaluated_at,
+            local_timezone=berlin,
+        )
+        is ReminderUrgency.NONE
+    )

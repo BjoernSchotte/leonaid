@@ -13,6 +13,11 @@ from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
 )
+from leonaid.application.activities import (
+    AcquisitionActivityItem,
+    AcquisitionActivityService,
+    AcquisitionWorkItem,
+)
 from leonaid.application.assignments import (
     AssignmentHandoverResult,
     AssignmentManagementService,
@@ -48,6 +53,8 @@ from leonaid.domain.actions import (
 )
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
+    ActivityChannel,
+    ActivityOutcome,
     AssignmentHistoryEntry,
     AssignmentPartyKind,
     AssignmentStatus,
@@ -69,7 +76,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateSnapshotResponse,
     ActionTemplateSummaryResponse,
     AcquisitionActivityListResponse,
+    AcquisitionActivityBoardResponse,
     AcquisitionActivityResponse,
+    AcquisitionActivityWorkItemResponse,
     AcquisitionAssignmentDetailsResponse,
     AcquisitionAssignmentHandoverResponse,
     AcquisitionAssignmentHistoryResponse,
@@ -108,6 +117,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     PlatformInformationResponse,
     PlatformStatusResponse,
     ReadinessResponse,
+    RecordAcquisitionActivityRequest,
+    RecordAcquisitionActivityResponse,
+    RecordedAcquisitionActivityResponse,
     RequestLoginRequest,
     SessionAuthenticationResponse,
     SessionRevocationResponse,
@@ -171,6 +183,16 @@ def sponsor_matching_service(request: Request) -> SponsorMatchingService:
 def assignment_management_service(request: Request) -> AssignmentManagementService:
     service = request.app.state.assignment_management_service
     if not isinstance(service, AssignmentManagementService):
+        raise DependencyUnavailable(
+            "crm_integration_not_configured",
+            "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
+        )
+    return service
+
+
+def activity_management_service(request: Request) -> AcquisitionActivityService:
+    service = request.app.state.activity_management_service
+    if not isinstance(service, AcquisitionActivityService):
         raise DependencyUnavailable(
             "crm_integration_not_configured",
             "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
@@ -288,6 +310,49 @@ def acquisition_assignment_handover_response(
         source=acquisition_assignment_response(result.source),
         target=acquisition_assignment_response(result.target),
         target_created=result.target_created,
+    )
+
+
+def acquisition_activity_work_item_response(
+    item: AcquisitionWorkItem,
+) -> AcquisitionActivityWorkItemResponse:
+    return AcquisitionActivityWorkItemResponse(
+        assignment_id=item.assignment.id,
+        party_kind=item.assignment.party_kind.value,
+        party_id=item.assignment.party_id,
+        party_display_name=item.party_display_name,
+        postal_code=item.postal_code,
+        city=item.city,
+        email=item.email,
+        status=item.assignment.state.status.value,
+        priority=item.assignment.state.priority,
+        next_action=item.assignment.state.next_action,
+        due_at=item.assignment.state.due_at,
+        urgency=item.urgency.value,
+        revision=item.assignment.revision,
+    )
+
+
+def recorded_acquisition_activity_response(
+    item: AcquisitionActivityItem,
+) -> RecordedAcquisitionActivityResponse:
+    activity = item.activity
+    return RecordedAcquisitionActivityResponse(
+        id=activity.id,
+        action_id=activity.action_id,
+        assignment_id=activity.assignment_id,
+        party_kind=activity.party_kind.value,
+        party_id=activity.party_id,
+        party_display_name=item.party_display_name,
+        actor_user_id=activity.actor_user_id,
+        actor_display_name=activity.actor_display_name,
+        channel=activity.channel.value,
+        outcome=activity.outcome.value,
+        note=activity.note,
+        next_action=activity.next_action,
+        due_at=activity.due_at,
+        assignment_revision=activity.assignment_revision,
+        occurred_at=activity.occurred_at,
     )
 
 
@@ -1332,6 +1397,73 @@ async def get_acquisition_party(
     )
     response.headers["Cache-Control"] = "no-store"
     return acquisition_party_response(party)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/activity-board",
+    operation_id="getAcquisitionActivityBoard",
+    response_model=AcquisitionActivityBoardResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def get_acquisition_activity_board(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> AcquisitionActivityBoardResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    board = await activity_management_service(request).board(
+        actor,
+        action_id,
+        limit=limit,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionActivityBoardResponse(
+        action_id=board.action_id,
+        generated_at=board.generated_at,
+        work_items=[
+            acquisition_activity_work_item_response(item) for item in board.work_items
+        ],
+        activities=[
+            recorded_acquisition_activity_response(item) for item in board.activities
+        ],
+    )
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/acquisition/activities",
+    operation_id="recordAcquisitionActivity",
+    response_model=RecordAcquisitionActivityResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def record_acquisition_activity(
+    action_id: UUID,
+    request: Request,
+    body: RecordAcquisitionActivityRequest,
+    response: Response,
+) -> RecordAcquisitionActivityResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    result, item = await activity_management_service(request).record(
+        actor,
+        action_id,
+        party_kind=AssignmentPartyKind(body.party_kind),
+        party_id=body.party_id,
+        expected_revision=body.revision,
+        channel=ActivityChannel(body.channel),
+        outcome=ActivityOutcome(body.outcome),
+        note=body.note,
+        next_action=body.next_action,
+        due_on=body.due_on,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return RecordAcquisitionActivityResponse(
+        assignment=acquisition_assignment_response(result.assignment),
+        activity=recorded_acquisition_activity_response(item),
+    )
 
 
 @router.get(

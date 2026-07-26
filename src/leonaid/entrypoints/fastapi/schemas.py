@@ -638,6 +638,87 @@ class AcquisitionAssignmentHandoverResponse(TransportModel):
     target_created: bool
 
 
+ActivityChannelValue = Literal[
+    "phone",
+    "email",
+    "in_person",
+]
+ActivityOutcomeValue = Literal[
+    "reached",
+    "no_answer",
+    "interested",
+    "follow_up",
+    "committed",
+    "declined",
+]
+ReminderUrgencyValue = Literal["overdue", "today", "upcoming", "none"]
+
+
+class RecordAcquisitionActivityRequest(TransportModel):
+    party_kind: AssignmentPartyKindValue
+    party_id: UUID
+    revision: int = Field(ge=1)
+    channel: ActivityChannelValue
+    outcome: ActivityOutcomeValue
+    note: str | None = Field(default=None, max_length=2000)
+    next_action: str | None = Field(default=None, max_length=300)
+    due_on: date | None = None
+
+    @model_validator(mode="after")
+    def validate_reminder_pair(self) -> RecordAcquisitionActivityRequest:
+        if (self.next_action is None) != (self.due_on is None):
+            raise ValueError(
+                "Wiedervorlage benötigt nächste Aktion und Fälligkeitsdatum."
+            )
+        return self
+
+
+class AcquisitionActivityWorkItemResponse(TransportModel):
+    assignment_id: UUID
+    party_kind: AssignmentPartyKindValue
+    party_id: UUID
+    party_display_name: str
+    postal_code: str | None
+    city: str | None
+    email: str | None
+    status: AssignmentStatusValue
+    priority: int = Field(ge=0, le=3)
+    next_action: str | None
+    due_at: datetime | None
+    urgency: ReminderUrgencyValue
+    revision: int = Field(ge=1)
+
+
+class RecordedAcquisitionActivityResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    assignment_id: UUID
+    party_kind: AssignmentPartyKindValue
+    party_id: UUID
+    party_display_name: str
+    actor_user_id: UUID
+    actor_display_name: str
+    channel: ActivityChannelValue
+    outcome: ActivityOutcomeValue
+    note: str | None
+    next_action: str | None
+    due_at: datetime | None
+    assignment_revision: int = Field(ge=1)
+    occurred_at: datetime
+
+
+class AcquisitionActivityBoardResponse(TransportModel):
+    action_id: UUID
+    generated_at: datetime
+    work_items: list[AcquisitionActivityWorkItemResponse]
+    activities: list[RecordedAcquisitionActivityResponse]
+
+
+class RecordAcquisitionActivityResponse(TransportModel):
+    assignment: AcquisitionAssignmentResponse
+    activity: RecordedAcquisitionActivityResponse
+
+
 class AcquisitionPartyResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID
