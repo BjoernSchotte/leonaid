@@ -571,27 +571,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-031 – Twenty Gateway und CRM-Port](proofs/POC-031.md).
 
-### [ ] POC-032 Matching für Company und Person implementieren
+### [x] POC-032 Matching für Company und Person implementieren
 
 Abhängigkeiten: POC-031
 
 Akzeptanzkriterien:
 
-- [ ] Firma wird primär über normalisierten Firmennamen gematcht.
-- [ ] Ohne Firma wird über normalisierten Vor- und Nachnamen gematcht.
-- [ ] Ergebnis unterscheidet `no_match`, `single_match` und
+- [x] Firma wird primär über normalisierten Firmennamen gematcht.
+- [x] Ohne Firma wird über normalisierten Vor- und Nachnamen gematcht.
+- [x] Ergebnis unterscheidet `no_match`, `single_match` und
       `ambiguous_match`.
-- [ ] Zusatzdaten werden angezeigt, überschreiben aber nicht stillschweigend
+- [x] Zusatzdaten werden angezeigt, überschreiben aber nicht stillschweigend
       den PoC-Matchschlüssel.
-- [ ] Neuanlage und Wiederverwendung werden auditiert.
+- [x] Neuanlage und Wiederverwendung werden auditiert.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests decken Unicode, Whitespace, Groß-/Kleinschreibung und
+- [x] Unit-Tests decken Unicode, Whitespace, Groß-/Kleinschreibung und
       Golden-Konflikte ab.
-- [ ] Integrationstest sucht und erzeugt reale Twenty-Companies/People.
-- [ ] E2E zeigt vor Mitzuordnung die Namen vorhandener Akquisiteure und
+- [x] Integrationstest sucht und erzeugt reale Twenty-Companies/People.
+- [x] E2E zeigt vor Mitzuordnung die Namen vorhandener Akquisiteure und
       verlangt explizite Bestätigung.
+
+Nachweis:
+[POC-032 – Company-/Person-Matching und transparente Mitzuordnung](proofs/POC-032.md).
 
 ### [x] POC-033 Einmaligen Excel-/CSV-Importpfad nachweisen
 

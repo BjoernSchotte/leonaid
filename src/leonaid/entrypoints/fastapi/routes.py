@@ -27,6 +27,13 @@ from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.sessions import SessionGrant, SessionService
 from leonaid.application.crm import CrmPartyKind
+from leonaid.application.sponsor_matching import (
+    SponsorDraft,
+    SponsorMatchingService,
+    SponsorMatchResult,
+    SponsorMatchStatus,
+    SponsorResolution,
+)
 from leonaid.domain.actions import (
     ALLOWED_ACTION_TRANSITIONS,
     ActionManagementState,
@@ -41,6 +48,7 @@ from leonaid.domain.action_templates import (
     ActionTemplateKey,
 )
 from leonaid.domain.identity import ActionRole
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
@@ -95,6 +103,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetActionGoalRequest,
     SetActionPublicationRequest,
     SetResponsibleAdministratorsRequest,
+    ResolveSponsorMatchRequest,
+    SponsorDraftRequest,
+    SponsorMatchResponse,
+    SponsorResolutionResponse,
     TransitionCharityActionRequest,
     UpdateActionDetailsRequest,
 )
@@ -121,6 +133,16 @@ def authentication_service(request: Request) -> SessionService:
 def acquisition_service(request: Request) -> AcquisitionPolicyService:
     service = request.app.state.acquisition_service
     if not isinstance(service, AcquisitionPolicyService):
+        raise DependencyUnavailable(
+            "crm_integration_not_configured",
+            "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
+        )
+    return service
+
+
+def sponsor_matching_service(request: Request) -> SponsorMatchingService:
+    service = request.app.state.sponsor_matching_service
+    if not isinstance(service, SponsorMatchingService):
         raise DependencyUnavailable(
             "crm_integration_not_configured",
             "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
@@ -175,6 +197,34 @@ def acquisition_party_response(
     party: AcquisitionParty,
 ) -> AcquisitionPartyResponse:
     return AcquisitionPartyResponse.model_validate(party)
+
+
+def sponsor_draft(body: SponsorDraftRequest) -> SponsorDraft:
+    try:
+        return SponsorDraft(
+            company_name=body.company_name,
+            given_name=body.given_name,
+            family_name=body.family_name,
+            email=body.email,
+            street_line_1=body.street_line_1,
+            postal_code=body.postal_code,
+            city=body.city,
+        )
+    except ValueError as error:
+        raise DomainInvariantError(
+            "sponsor_draft_invalid",
+            str(error),
+        ) from error
+
+
+def sponsor_match_response(result: SponsorMatchResult) -> SponsorMatchResponse:
+    return SponsorMatchResponse.model_validate(result)
+
+
+def sponsor_resolution_response(
+    resolution: SponsorResolution,
+) -> SponsorResolutionResponse:
+    return SponsorResolutionResponse.model_validate(resolution)
 
 
 def decimal_text(value: Decimal) -> str:
@@ -969,6 +1019,58 @@ async def list_acquisition_parties(
         offset=page.offset,
         limit=page.limit,
     )
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/acquisition/sponsor-match",
+    operation_id="previewSponsorMatch",
+    response_model=SponsorMatchResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def preview_sponsor_match(
+    action_id: UUID,
+    request: Request,
+    body: SponsorDraftRequest,
+    response: Response,
+) -> SponsorMatchResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    result = await sponsor_matching_service(request).preview(
+        actor,
+        action_id,
+        sponsor_draft(body),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return sponsor_match_response(result)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/acquisition/sponsor-match/resolve",
+    operation_id="resolveSponsorMatch",
+    response_model=SponsorResolutionResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def resolve_sponsor_match(
+    action_id: UUID,
+    request: Request,
+    body: ResolveSponsorMatchRequest,
+    response: Response,
+) -> SponsorResolutionResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    resolution = await sponsor_matching_service(request).resolve(
+        actor,
+        action_id,
+        sponsor_draft(body.sponsor),
+        expected_status=SponsorMatchStatus(body.expected_status),
+        selected_twenty_id=body.selected_twenty_id,
+        confirm_existing_assignments=body.confirm_existing_assignments,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return sponsor_resolution_response(resolution)
 
 
 @router.get(

@@ -8,9 +8,7 @@ import asyncio
 import csv
 import json
 import os
-import re
 import sys
-import unicodedata
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
@@ -31,6 +29,10 @@ from leonaid.application.crm import (
     PersonRecord,
     PersonUpdate,
     PostalAddress,
+)
+from leonaid.application.sponsor_matching import (
+    candidate_company_query as sponsor_candidate_company_query,
+    normalize_match_name,
 )
 
 JsonObject = dict[str, Any]
@@ -88,33 +90,11 @@ def require_env(name: str) -> str:
 
 
 def normalize_name(value: str) -> str:
-    normalized = unicodedata.normalize("NFC", value.casefold())
-    normalized = normalized.replace("k.g.", "kg").replace("e.k.", "ek")
-    normalized = (
-        normalized.replace("ä", "ae")
-        .replace("ö", "oe")
-        .replace("ü", "ue")
-        .replace("ß", "ss")
-    )
-    normalized = unicodedata.normalize("NFKD", normalized)
-    without_marks = "".join(
-        character for character in normalized if not unicodedata.combining(character)
-    )
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
+    return normalize_match_name(value)
 
 
 def candidate_company_query(value: str) -> str:
-    ignored = {"ag", "ek", "gbr", "gmbh", "kg", "mbh", "ohg", "ug"}
-    tokens = [
-        token
-        for token in normalize_name(value).split()
-        if token not in ignored and len(token) >= 2
-    ]
-    if not tokens:
-        tokens = normalize_name(value).split()
-    if not tokens:
-        raise ValueError("Firmenname enthält keinen suchbaren Bestandteil.")
-    return max(tokens, key=len)
+    return sponsor_candidate_company_query(value)
 
 
 def optional_cell(value: object) -> str | None:

@@ -717,6 +717,26 @@
         "title": "ApiErrorResponse",
         "type": "object"
       },
+      "AssignedAcquirerResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName"
+        ],
+        "title": "AssignedAcquirerResponse",
+        "type": "object"
+      },
       "BeneficiaryDraftRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1884,6 +1904,46 @@
         "title": "RequestLoginRequest",
         "type": "object"
       },
+      "ResolveSponsorMatchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmExistingAssignments": {
+            "default": false,
+            "title": "Confirmexistingassignments",
+            "type": "boolean"
+          },
+          "expectedStatus": {
+            "enum": [
+              "no_match",
+              "single_match",
+              "ambiguous_match"
+            ],
+            "title": "Expectedstatus",
+            "type": "string"
+          },
+          "selectedTwentyId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selectedtwentyid"
+          },
+          "sponsor": {
+            "$ref": "#/components/schemas/SponsorDraftRequest"
+          }
+        },
+        "required": [
+          "sponsor",
+          "expectedStatus"
+        ],
+        "title": "ResolveSponsorMatchRequest",
+        "type": "object"
+      },
       "SessionAuthenticationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2127,6 +2187,370 @@
           "userIds"
         ],
         "title": "SetResponsibleAdministratorsRequest",
+        "type": "object"
+      },
+      "SponsorDraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companyname"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "familyName": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Familyname"
+          },
+          "givenName": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Givenname"
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postalcode"
+          },
+          "streetLine1": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streetline1"
+          }
+        },
+        "title": "SponsorDraftRequest",
+        "type": "object"
+      },
+      "SponsorDraftResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companyname"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "familyName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Familyname"
+          },
+          "givenName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Givenname"
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postalcode"
+          },
+          "streetLine1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Streetline1"
+          }
+        },
+        "required": [
+          "companyName",
+          "givenName",
+          "familyName",
+          "email",
+          "streetLine1",
+          "postalCode",
+          "city"
+        ],
+        "title": "SponsorDraftResponse",
+        "type": "object"
+      },
+      "SponsorMatchCandidateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assignedAcquirers": {
+            "items": {
+              "$ref": "#/components/schemas/AssignedAcquirerResponse"
+            },
+            "title": "Assignedacquirers",
+            "type": "array"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postalcode"
+          },
+          "twentyId": {
+            "format": "uuid",
+            "title": "Twentyid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partyKind",
+          "twentyId",
+          "displayName",
+          "postalCode",
+          "city",
+          "email",
+          "assignedAcquirers"
+        ],
+        "title": "SponsorMatchCandidateResponse",
+        "type": "object"
+      },
+      "SponsorMatchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorMatchCandidateResponse"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "input": {
+            "$ref": "#/components/schemas/SponsorDraftResponse"
+          },
+          "normalizedKey": {
+            "title": "Normalizedkey",
+            "type": "string"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "no_match",
+              "single_match",
+              "ambiguous_match"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "partyKind",
+          "normalizedKey",
+          "input",
+          "candidates"
+        ],
+        "title": "SponsorMatchResponse",
+        "type": "object"
+      },
+      "SponsorResolutionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assignmentCreated": {
+            "title": "Assignmentcreated",
+            "type": "boolean"
+          },
+          "assignmentId": {
+            "format": "uuid",
+            "title": "Assignmentid",
+            "type": "string"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "normalizedKey": {
+            "title": "Normalizedkey",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "created",
+              "reused"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "partyKind": {
+            "enum": [
+              "company",
+              "person"
+            ],
+            "title": "Partykind",
+            "type": "string"
+          },
+          "priorAssignees": {
+            "items": {
+              "$ref": "#/components/schemas/AssignedAcquirerResponse"
+            },
+            "title": "Priorassignees",
+            "type": "array"
+          },
+          "twentyId": {
+            "format": "uuid",
+            "title": "Twentyid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "partyKind",
+          "twentyId",
+          "displayName",
+          "normalizedKey",
+          "assignmentId",
+          "assignmentCreated",
+          "priorAssignees"
+        ],
+        "title": "SponsorResolutionResponse",
         "type": "object"
       },
       "TransitionCharityActionRequest": {
@@ -3269,6 +3693,222 @@
           }
         },
         "summary": "Get Acquisition Party",
+        "tags": [
+          "acquisition"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/acquisition/sponsor-match": {
+      "post": {
+        "operationId": "previewSponsorMatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorMatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Preview Sponsor Match",
+        "tags": [
+          "acquisition"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/acquisition/sponsor-match/resolve": {
+      "post": {
+        "operationId": "resolveSponsorMatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSponsorMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorResolutionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Resolve Sponsor Match",
         "tags": [
           "acquisition"
         ]

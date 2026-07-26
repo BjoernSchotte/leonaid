@@ -126,6 +126,19 @@ class TwentyCrmGateway:
     async def close(self) -> None:
         await self._client.aclose()
 
+    async def list_companies(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]:
+        records = await self._list_collection(
+            "companies",
+            filter_expression=None,
+            correlation_id=correlation_id,
+            operation="list_companies",
+        )
+        return tuple(_company_from_wire(record) for record in records)
+
     async def search_companies(
         self,
         name_query: str,
@@ -256,6 +269,19 @@ class TwentyCrmGateway:
             CrmPartyKind.COMPANY,
             correlation_id,
         )
+
+    async def list_people(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]:
+        records = await self._list_collection(
+            "people",
+            filter_expression=None,
+            correlation_id=correlation_id,
+            operation="list_people",
+        )
+        return tuple(_person_from_wire(record) for record in records)
 
     async def search_people(
         self,
@@ -400,7 +426,7 @@ class TwentyCrmGateway:
         self,
         collection: Literal["companies", "people"],
         *,
-        filter_expression: str,
+        filter_expression: str | None,
         correlation_id: str,
         operation: str,
     ) -> tuple[JsonObject, ...]:
@@ -420,10 +446,9 @@ class TwentyCrmGateway:
                     retryable=False,
                     outcome_unknown=False,
                 )
-            params: dict[str, str | int] = {
-                "limit": self._settings.page_size,
-                "filter": filter_expression,
-            }
+            params: dict[str, str | int] = {"limit": self._settings.page_size}
+            if filter_expression is not None:
+                params["filter"] = filter_expression
             if cursor is not None:
                 params["starting_after"] = cursor
             response = await self._request(

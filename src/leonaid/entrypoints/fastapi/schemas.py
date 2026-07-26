@@ -490,6 +490,83 @@ class AcquisitionPageQuery(QueryModel):
     limit: int = Field(default=20, ge=1, le=100)
 
 
+class SponsorDraftRequest(TransportModel):
+    company_name: str | None = Field(default=None, max_length=300)
+    given_name: str | None = Field(default=None, max_length=200)
+    family_name: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=320)
+    street_line_1: str | None = Field(default=None, max_length=300)
+    postal_code: str | None = Field(default=None, max_length=40)
+    city: str | None = Field(default=None, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def validate_optional_email(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return normalized_invitation_email(value)
+
+    @model_validator(mode="after")
+    def validate_match_key(self) -> SponsorDraftRequest:
+        company_name = (self.company_name or "").strip()
+        given_name = (self.given_name or "").strip()
+        family_name = (self.family_name or "").strip()
+        if not company_name and (not given_name or not family_name):
+            raise ValueError("Gib einen Firmennamen oder Vorname und Nachname an.")
+        return self
+
+
+class AssignedAcquirerResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+
+
+class SponsorMatchCandidateResponse(TransportModel):
+    party_kind: Literal["company", "person"]
+    twenty_id: UUID
+    display_name: str
+    postal_code: str | None
+    city: str | None
+    email: str | None
+    assigned_acquirers: list[AssignedAcquirerResponse]
+
+
+class SponsorDraftResponse(TransportModel):
+    company_name: str | None
+    given_name: str | None
+    family_name: str | None
+    email: str | None
+    street_line_1: str | None
+    postal_code: str | None
+    city: str | None
+
+
+class SponsorMatchResponse(TransportModel):
+    status: Literal["no_match", "single_match", "ambiguous_match"]
+    party_kind: Literal["company", "person"]
+    normalized_key: str
+    input: SponsorDraftResponse
+    candidates: list[SponsorMatchCandidateResponse]
+
+
+class ResolveSponsorMatchRequest(TransportModel):
+    sponsor: SponsorDraftRequest
+    expected_status: Literal["no_match", "single_match", "ambiguous_match"]
+    selected_twenty_id: UUID | None = None
+    confirm_existing_assignments: bool = False
+
+
+class SponsorResolutionResponse(TransportModel):
+    outcome: Literal["created", "reused"]
+    party_kind: Literal["company", "person"]
+    twenty_id: UUID
+    display_name: str
+    normalized_key: str
+    assignment_id: UUID
+    assignment_created: bool
+    prior_assignees: list[AssignedAcquirerResponse]
+
+
 class AcquisitionPartyResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID

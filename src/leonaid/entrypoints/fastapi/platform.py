@@ -43,6 +43,7 @@ from leonaid.application.identity import IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.sessions import SessionService
+from leonaid.application.sponsor_matching import SponsorMatchingService
 from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
@@ -136,8 +137,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 AsyncpgAcquisitionPolicyRepository(pool),
                 crm_gateway,
             )
+            application.state.sponsor_matching_service = SponsorMatchingService(
+                AsyncpgAcquisitionPolicyRepository(pool),
+                crm_gateway,
+            )
         else:
             application.state.acquisition_service = None
+            application.state.sponsor_matching_service = None
         try:
             yield
         finally:

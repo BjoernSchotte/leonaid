@@ -18,6 +18,7 @@ export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acqu
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
+export type AssignedAcquirerResponse = { readonly displayName: string; readonly userId: string; };
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
@@ -48,6 +49,7 @@ export type PlatformInformationResponse = { readonly apiVersion: string; readonl
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
 export type RequestLoginRequest = { readonly email: string; };
+export type ResolveSponsorMatchRequest = { readonly confirmExistingAssignments?: boolean; readonly expectedStatus: "no_match" | "single_match" | "ambiguous_match"; readonly selectedTwentyId?: string | null; readonly sponsor: SponsorDraftRequest; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly revision: number; };
@@ -55,6 +57,11 @@ export type SetActionCapabilitiesRequest = { readonly capabilities: Array<"acqui
 export type SetActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly revision: number; readonly unit?: string | null; };
 export type SetActionPublicationRequest = { readonly publicAlias?: string | null; readonly publicationEndsAt?: string | null; readonly publicationStartsAt?: string | null; readonly revision: number; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
+export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
+export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
+export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
+export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCandidateResponse>; readonly input: SponsorDraftResponse; readonly normalizedKey: string; readonly partyKind: "company" | "person"; readonly status: "no_match" | "single_match" | "ambiguous_match"; };
+export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly twentyId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
 
@@ -266,6 +273,38 @@ export class LeonAidApiClient {
     return this.request<AcquisitionPartyResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/parties/${encodeURIComponent(String(partyKind))}/${encodeURIComponent(String(partyId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async previewSponsorMatch(
+    actionId: string,
+    body: SponsorDraftRequest,
+    options: RequestOptions = {},
+  ): Promise<SponsorMatchResponse> {
+    return this.request<SponsorMatchResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/sponsor-match`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async resolveSponsorMatch(
+    actionId: string,
+    body: ResolveSponsorMatchRequest,
+    options: RequestOptions = {},
+  ): Promise<SponsorResolutionResponse> {
+    return this.request<SponsorResolutionResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/acquisition/sponsor-match/resolve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

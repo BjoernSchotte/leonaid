@@ -268,6 +268,129 @@ function applicationPage() {
       }
       .form-status[data-state="success"] { color: #167044; }
       .form-status[data-state="error"] { color: #a33a2c; }
+      .sponsor-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(18rem, .95fr);
+        gap: 1.1rem;
+        align-items: start;
+        margin-top: 2rem;
+      }
+      .sponsor-layout .panel { max-width: none; margin-top: 0; }
+      .segment {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .3rem;
+        padding: .3rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .78rem;
+        background: #f3f5f9;
+      }
+      .segment button {
+        min-height: 2.55rem;
+        border: 0;
+        border-radius: .56rem;
+        color: #617089;
+        background: transparent;
+        font: inherit;
+        font-weight: 740;
+        cursor: pointer;
+      }
+      .segment button[aria-pressed="true"] {
+        color: #13233f;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(19, 35, 63, .1);
+      }
+      .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .6rem;
+        align-items: center;
+      }
+      .result-empty {
+        display: grid;
+        min-height: 18rem;
+        place-items: center;
+        padding: 2rem;
+        color: #697890;
+        text-align: center;
+      }
+      .result-empty strong {
+        display: block;
+        margin-bottom: .35rem;
+        color: #31415c;
+      }
+      .result-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: .8rem;
+        margin-bottom: 1rem;
+      }
+      .result-heading h2 { margin: 0; font-size: 1.1rem; }
+      .match-badge {
+        flex: none;
+        padding: .3rem .55rem;
+        border-radius: 999px;
+        color: #166044;
+        background: #e7f5ee;
+        font-size: .72rem;
+        font-weight: 780;
+      }
+      .candidate-list { display: grid; gap: .7rem; }
+      .candidate {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: .75rem;
+        padding: .9rem;
+        border: 1px solid #dfe5ee;
+        border-radius: .78rem;
+        background: #fafbfd;
+      }
+      .candidate[data-selected="true"] {
+        border-color: #b78a1f;
+        background: #fffaf0;
+        box-shadow: 0 0 0 2px rgba(230, 189, 79, .18);
+      }
+      .candidate input {
+        width: 1.05rem;
+        min-height: auto;
+        margin-top: .18rem;
+      }
+      .candidate strong { display: block; }
+      .candidate-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem .8rem;
+        margin-top: .32rem;
+        color: #697890;
+        font-size: .82rem;
+      }
+      .assignment-warning {
+        grid-column: 2;
+        margin-top: .55rem;
+        padding: .65rem .72rem;
+        border: 1px solid #ebd28f;
+        border-radius: .6rem;
+        color: #725611;
+        background: #fff8e5;
+        font-size: .82rem;
+        line-height: 1.45;
+      }
+      .preserve-note {
+        margin: .8rem 0 0;
+        color: #697890;
+        font-size: .8rem;
+        line-height: 1.5;
+      }
+      .success-card {
+        padding: 1rem;
+        border: 1px solid #a9dbc3;
+        border-radius: .8rem;
+        color: #145a3d;
+        background: #effaf5;
+      }
+      .success-card strong { display: block; margin-bottom: .3rem; }
+      [hidden] { display: none !important; }
       fieldset {
         min-width: 0;
         margin: 0;
@@ -307,6 +430,8 @@ function applicationPage() {
         .form-grid { grid-template-columns: 1fr; }
         .field-wide { grid-column: auto; }
         .choice-grid, .beneficiary-row { grid-template-columns: 1fr; }
+        .sponsor-layout { grid-template-columns: 1fr; }
+        .result-empty { min-height: 10rem; }
         .mobile-nav {
           position: fixed;
           z-index: 2;
@@ -466,6 +591,317 @@ function applicationPage() {
               '<p id="action-status" class="form-status field-wide" role="status" aria-live="polite"></p>' +
             '</form>' +
           '</section>';
+      }
+
+      function sponsorMarkup(identity) {
+        const memberships = identity.actionMemberships.filter(
+          (membership) => membership.role === "acquirer",
+        );
+        const options = memberships.map((membership) =>
+          '<option value="' + escapeHtml(membership.actionId) + '">' +
+          escapeHtml(membership.actionName) + '</option>'
+        ).join("");
+        return '<p class="eyebrow">Sponsor-Akquise</p>' +
+          '<h1>Sponsor erfassen</h1>' +
+          '<p class="lead">Prüfe zuerst den CRM-Bestand. LeonAid zeigt dir vorhandene Zuständigkeiten, bevor du einen Sponsor zusätzlich übernimmst.</p>' +
+          '<div class="sponsor-layout">' +
+            '<section class="panel" aria-labelledby="sponsor-form-heading">' +
+              '<div class="result-heading"><div><h2 id="sponsor-form-heading">Wen möchtest du ansprechen?</h2>' +
+                '<p class="form-help">Firma ist der führende Matchschlüssel. Ohne Firma werden Vor- und Nachname verwendet.</p></div></div>' +
+              '<form id="sponsor-form" class="form-grid">' +
+                '<div class="field field-wide"><label for="sponsor-action">Charity-Aktion</label>' +
+                  '<select id="sponsor-action" name="actionId" data-testid="sponsor-action" required>' +
+                    options + '</select></div>' +
+                '<div class="segment field-wide" role="group" aria-label="Sponsorart">' +
+                  '<button type="button" data-sponsor-mode="company" aria-pressed="true">Firma</button>' +
+                  '<button type="button" data-sponsor-mode="person" aria-pressed="false">Privatperson</button>' +
+                '</div>' +
+                '<div class="field field-wide" data-company-field><label for="sponsor-company">Firmenname</label>' +
+                  '<input id="sponsor-company" data-testid="sponsor-company" name="companyName" autocomplete="organization" maxlength="300" required></div>' +
+                '<div class="field" data-person-field><label for="sponsor-given-name">Vorname</label>' +
+                  '<input id="sponsor-given-name" name="givenName" autocomplete="given-name" maxlength="200"></div>' +
+                '<div class="field" data-person-field><label for="sponsor-family-name">Nachname</label>' +
+                  '<input id="sponsor-family-name" name="familyName" autocomplete="family-name" maxlength="200"></div>' +
+                '<div class="field field-wide"><label for="sponsor-email">E-Mail <span class="form-help">(optional)</span></label>' +
+                  '<input id="sponsor-email" name="email" type="email" autocomplete="email" maxlength="320"></div>' +
+                '<div class="field field-wide" data-company-field><label for="sponsor-street">Straße <span class="form-help">(optional)</span></label>' +
+                  '<input id="sponsor-street" name="streetLine1" autocomplete="street-address" maxlength="300"></div>' +
+                '<div class="field" data-company-field><label for="sponsor-postal-code">PLZ <span class="form-help">(optional)</span></label>' +
+                  '<input id="sponsor-postal-code" name="postalCode" autocomplete="postal-code" maxlength="40"></div>' +
+                '<div class="field" data-company-field><label for="sponsor-city">Ort <span class="form-help">(optional)</span></label>' +
+                  '<input id="sponsor-city" name="city" autocomplete="address-level2" maxlength="200"></div>' +
+                '<div class="form-actions field-wide">' +
+                  '<button class="button" data-testid="sponsor-preview" type="submit">Im CRM prüfen</button>' +
+                '</div>' +
+                '<p id="sponsor-status" class="form-status field-wide" role="status" aria-live="polite"></p>' +
+              '</form>' +
+            '</section>' +
+            '<section class="panel" aria-labelledby="sponsor-result-heading">' +
+              '<div id="sponsor-result" class="result-empty">' +
+                '<div><strong id="sponsor-result-heading">Noch keine Prüfung</strong>' +
+                '<span>Nach der CRM-Prüfung siehst du hier Treffer, Zusatzdaten und vorhandene Akquisiteure.</span></div>' +
+              '</div>' +
+            '</section>' +
+          '</div>';
+      }
+
+      function setupSponsorForm(identity) {
+        const form = document.querySelector("#sponsor-form");
+        if (!form) return;
+        const status = document.querySelector("#sponsor-status");
+        const result = document.querySelector("#sponsor-result");
+        const previewButton = form.querySelector('[data-testid="sponsor-preview"]');
+        const companyInput = form.elements.companyName;
+        const givenInput = form.elements.givenName;
+        const familyInput = form.elements.familyName;
+        let mode = "company";
+        let currentMatch = null;
+        let currentDraft = null;
+        let selectedId = null;
+
+        const setMode = (nextMode) => {
+          mode = nextMode;
+          form.querySelectorAll("[data-sponsor-mode]").forEach((button) => {
+            button.setAttribute(
+              "aria-pressed",
+              String(button.dataset.sponsorMode === mode),
+            );
+          });
+          form.querySelectorAll("[data-company-field]").forEach((field) => {
+            field.hidden = mode !== "company";
+          });
+          form.querySelectorAll("[data-person-field]").forEach((field) => {
+            field.hidden = mode !== "person";
+          });
+          companyInput.required = mode === "company";
+          givenInput.required = mode === "person";
+          familyInput.required = mode === "person";
+          currentMatch = null;
+          result.className = "result-empty";
+          result.innerHTML = '<div><strong id="sponsor-result-heading">Bereit zur Prüfung</strong>' +
+            '<span>LeonAid gleicht nur den führenden Namen ab und zeigt weitere Angaben getrennt.</span></div>';
+        };
+
+        form.querySelectorAll("[data-sponsor-mode]").forEach((button) => {
+          button.addEventListener("click", () => setMode(button.dataset.sponsorMode));
+        });
+        setMode("company");
+
+        const draft = () => {
+          const values = new FormData(form);
+          const optional = (name) => values.get(name)?.toString().trim() || null;
+          return {
+            companyName: mode === "company" ? optional("companyName") : null,
+            givenName: mode === "person" ? optional("givenName") : null,
+            familyName: mode === "person" ? optional("familyName") : null,
+            email: optional("email"),
+            streetLine1: mode === "company" ? optional("streetLine1") : null,
+            postalCode: mode === "company" ? optional("postalCode") : null,
+            city: mode === "company" ? optional("city") : null,
+          };
+        };
+
+        const candidateMarkup = (candidate, index, selectable) => {
+          const names = candidate.assignedAcquirers.map((item) => item.displayName);
+          const meta = [
+            candidate.postalCode,
+            candidate.city,
+            candidate.email,
+          ].filter(Boolean);
+          const selection = selectable
+            ? '<input type="radio" name="matchCandidate" value="' +
+              escapeHtml(candidate.twentyId) + '" aria-label="' +
+              escapeHtml(candidate.displayName) + ' auswählen">'
+            : '<span aria-hidden="true">◆</span>';
+          return '<label class="candidate" data-candidate-id="' +
+            escapeHtml(candidate.twentyId) + '" data-selected="' +
+            String(!selectable && index === 0) + '">' +
+              selection + '<span><strong>' + escapeHtml(candidate.displayName) + '</strong>' +
+              (meta.length
+                ? '<span class="candidate-meta">' +
+                  meta.map((item) => '<span>' + escapeHtml(item) + '</span>').join("") +
+                  '</span>'
+                : '<span class="candidate-meta"><span>Keine weiteren CRM-Angaben</span></span>') +
+              (names.length
+                ? '<span class="assignment-warning"><strong>Bereits zugeordnet</strong> ' +
+                  escapeHtml(names.join(", ")) + ' bearbeitet diesen Sponsor bereits.</span>'
+                : '') +
+              '</span></label>';
+        };
+
+        const selectedCandidate = () =>
+          currentMatch?.candidates.find((candidate) => candidate.twentyId === selectedId);
+
+        const updateResolveButton = () => {
+          const button = result.querySelector('[data-testid="sponsor-resolve"]');
+          if (!button || currentMatch.status === "no_match") return;
+          const candidate = selectedCandidate();
+          button.disabled = !candidate;
+          const hasOtherAssignees = candidate?.assignedAcquirers.some(
+            (item) => item.userId !== identity.userId,
+          );
+          button.textContent = hasOtherAssignees
+            ? "Trotzdem ebenfalls zuordnen"
+            : "Diesen Sponsor mir zuordnen";
+        };
+
+        const renderMatch = (match) => {
+          currentMatch = match;
+          selectedId =
+            match.status === "single_match" ? match.candidates[0].twentyId : null;
+          const selectable = match.status === "ambiguous_match";
+          const heading =
+            match.status === "no_match"
+              ? "Noch nicht im CRM"
+              : match.status === "single_match"
+                ? "Ein eindeutiger Treffer"
+                : "Mehrere mögliche Treffer";
+          const badge =
+            match.status === "no_match"
+              ? "Neu"
+              : match.status === "single_match"
+                ? "1 Treffer"
+                : match.candidates.length + " Treffer";
+          const candidates = match.candidates.length
+            ? '<div class="candidate-list">' +
+              match.candidates.map((item, index) =>
+                candidateMarkup(item, index, selectable)
+              ).join("") + '</div>'
+            : '<div class="success-card"><strong>Kein gleichnamiger Sponsor gefunden</strong>' +
+              'Die eingegebenen Daten können als neuer CRM-Datensatz angelegt werden.</div>';
+          result.className = "";
+          result.innerHTML =
+            '<div class="result-heading"><div><h2 id="sponsor-result-heading">' +
+              heading + '</h2><p class="form-help">Matchschlüssel: ' +
+              escapeHtml(match.normalizedKey) + '</p></div>' +
+              '<span class="match-badge">' + escapeHtml(badge) + '</span></div>' +
+            candidates +
+            (match.status !== "no_match"
+              ? '<p class="preserve-note">PLZ, Ort und E-Mail helfen dir bei der Auswahl. Sie ändern einen vorhandenen CRM-Datensatz nicht automatisch.</p>'
+              : '') +
+            '<div class="form-actions" style="margin-top: 1rem">' +
+              '<button class="button" data-testid="sponsor-resolve" type="button">' +
+                (match.status === "no_match"
+                  ? "Neu anlegen und mir zuordnen"
+                  : "Diesen Sponsor mir zuordnen") +
+              '</button>' +
+              '<button class="button-secondary" data-testid="sponsor-cancel" type="button">Abbrechen</button>' +
+            '</div>';
+          result.querySelectorAll('[name="matchCandidate"]').forEach((input) => {
+            input.addEventListener("change", () => {
+              selectedId = input.value;
+              result.querySelectorAll("[data-candidate-id]").forEach((candidate) => {
+                candidate.dataset.selected =
+                  String(candidate.dataset.candidateId === selectedId);
+              });
+              updateResolveButton();
+            });
+          });
+          result.querySelector('[data-testid="sponsor-cancel"]').addEventListener(
+            "click",
+            () => {
+              currentMatch = null;
+              result.className = "result-empty";
+              result.innerHTML = '<div><strong id="sponsor-result-heading">Prüfung abgebrochen</strong>' +
+                '<span>Du kannst die Eingaben anpassen und erneut prüfen.</span></div>';
+            },
+          );
+          result.querySelector('[data-testid="sponsor-resolve"]').addEventListener(
+            "click",
+            resolve,
+          );
+          updateResolveButton();
+        };
+
+        const resolve = async () => {
+          if (!currentMatch || !currentDraft) return;
+          const button = result.querySelector('[data-testid="sponsor-resolve"]');
+          const candidate = selectedCandidate();
+          const hasOtherAssignees = candidate?.assignedAcquirers.some(
+            (item) => item.userId !== identity.userId,
+          ) ?? false;
+          button.disabled = true;
+          status.dataset.state = "";
+          status.textContent = "Zuordnung wird sicher gespeichert …";
+          try {
+            const response = await fetch(
+              "/api/v1/actions/" + encodeURIComponent(form.elements.actionId.value) +
+                "/acquisition/sponsor-match/resolve",
+              {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({
+                  sponsor: currentDraft,
+                  expectedStatus: currentMatch.status,
+                  selectedTwentyId: selectedId,
+                  confirmExistingAssignments: hasOtherAssignees,
+                }),
+              },
+            );
+            if (!response.ok) {
+              const failure = await response.json().catch(() => ({}));
+              if (failure.error?.code === "sponsor_match_changed") {
+                throw new Error("changed");
+              }
+              throw new Error("resolve");
+            }
+            const resolution = await response.json();
+            status.dataset.state = "success";
+            status.textContent = resolution.displayName + " ist jetzt dir zugeordnet.";
+            result.innerHTML = '<div class="success-card" data-testid="sponsor-success">' +
+              '<strong>Zuordnung gespeichert</strong>' +
+              escapeHtml(resolution.displayName) +
+              (resolution.outcome === "created"
+                ? " wurde neu im CRM angelegt."
+                : " wurde aus dem CRM übernommen.") +
+              '</div><div class="form-actions" style="margin-top: 1rem">' +
+              '<button class="button-secondary" data-testid="sponsor-next" type="button">Weiteren Sponsor erfassen</button></div>';
+            result.querySelector('[data-testid="sponsor-next"]').addEventListener(
+              "click",
+              () => {
+                form.reset();
+                setMode("company");
+                status.textContent = "";
+                companyInput.focus();
+              },
+            );
+          } catch (error) {
+            status.dataset.state = "error";
+            status.textContent = error.message === "changed"
+              ? "Der CRM-Bestand hat sich geändert. Bitte prüfe erneut."
+              : "Die Zuordnung konnte nicht gespeichert werden. Versuche es erneut.";
+            button.disabled = false;
+          }
+        };
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          previewButton.disabled = true;
+          status.dataset.state = "";
+          status.textContent = "CRM-Bestand wird geprüft …";
+          currentDraft = draft();
+          try {
+            const response = await fetch(
+              "/api/v1/actions/" + encodeURIComponent(form.elements.actionId.value) +
+                "/acquisition/sponsor-match",
+              {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(currentDraft),
+              },
+            );
+            if (!response.ok) throw new Error("preview");
+            renderMatch(await response.json());
+            status.textContent = "";
+          } catch {
+            status.dataset.state = "error";
+            status.textContent = "Der CRM-Bestand konnte nicht geprüft werden. Versuche es erneut.";
+          } finally {
+            previewButton.disabled = false;
+          }
+        });
       }
 
       function beneficiaryRow(index) {
@@ -671,6 +1107,8 @@ function applicationPage() {
                 ? actionCreationMarkup()
                 : surface === "web" && window.location.pathname.startsWith("/admin/members")
                   ? invitationMarkup()
+                  : surface === "pwa" && window.location.pathname.startsWith("/app/sponsors")
+                    ? sponsorMarkup(identity)
                   : dashboardMarkup(identity, surface)) +
             '</div>' +
           '</main>' +
@@ -678,6 +1116,7 @@ function applicationPage() {
         '</div>';
         setupInvitationForm();
         setupActionCreationForm();
+        setupSponsorForm(identity);
         setupLogout();
       }
 

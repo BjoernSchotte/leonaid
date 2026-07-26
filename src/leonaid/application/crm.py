@@ -220,6 +220,12 @@ class CrmGatewayError(ApplicationError):
 
 
 class CrmGateway(Protocol):
+    async def list_companies(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[CompanyRecord, ...]: ...
+
     async def search_companies(
         self,
         name_query: str,
@@ -257,6 +263,12 @@ class CrmGateway(Protocol):
         *,
         correlation_id: str,
     ) -> tuple[CompanyRecord, CrmSyncReceipt]: ...
+
+    async def list_people(
+        self,
+        *,
+        correlation_id: str,
+    ) -> tuple[PersonRecord, ...]: ...
 
     async def search_people(
         self,
