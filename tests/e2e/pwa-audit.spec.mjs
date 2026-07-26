@@ -81,12 +81,24 @@ test("POC-062 Manifest, Installation, Update und Offline-Hinweis sind echt", asy
 
   await expect
     .poll(
-      () =>
-        page.evaluate(async () =>
-          (await navigator.serviceWorker.getRegistrations()).map(
-            (registration) => registration.scope,
-          ),
-        ),
+      async () => {
+        try {
+          return await page.evaluate(async () =>
+            (await navigator.serviceWorker.getRegistrations()).map(
+              (registration) => registration.scope,
+            ),
+          );
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes("Execution context was destroyed")
+          ) {
+            await page.waitForLoadState("domcontentloaded");
+            return [];
+          }
+          throw error;
+        }
+      },
       { timeout: 20_000 },
     )
     .toContain(`${baseUrl}/app/`);
