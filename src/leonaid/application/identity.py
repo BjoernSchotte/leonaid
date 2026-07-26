@@ -153,6 +153,7 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
                 NavigationItem("orders", "Bestellungen", "/admin/orders", "web"),
                 NavigationItem("invoices", "Rechnungen", "/admin/invoices", "web"),
                 NavigationItem("members", "Mitglieder", "/admin/members", "web"),
+                NavigationItem("activities", "Neues", "/admin/activities", "web"),
                 NavigationItem("acquisition-pwa", "Akquise", "/app/acquisition", "pwa"),
             )
         )
@@ -173,7 +174,7 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
                 ),
                 NavigationItem(
                     "activities",
-                    "Aktivitäten",
+                    "Neues",
                     "/app/activities",
                     "pwa",
                 ),

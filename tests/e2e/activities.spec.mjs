@@ -47,7 +47,7 @@ test("Akquisiteurin dokumentiert Kontakt und findet ihn nach Reload", async ({
   ]);
   const page = await context.newPage();
   try {
-    await page.goto(`${baseUrl}/app/activities`);
+    await page.goto(`${baseUrl}/app/activities?view=contacts`);
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",
     );

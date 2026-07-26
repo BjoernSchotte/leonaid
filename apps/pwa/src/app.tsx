@@ -9,8 +9,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
+  ApiError,
+  type CurrentIdentityResponse,
+  type LeonAidApiClient,
+} from "@leonaid/api-client";
+import {
+  ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
   SponsorWorkspace,
@@ -254,6 +259,65 @@ function Overview({
   );
 }
 
+function ActivityHub({
+  client,
+  identity,
+}: {
+  readonly client: LeonAidApiClient;
+  readonly identity: CurrentIdentityResponse;
+}) {
+  const [view, setView] = useState<"news" | "contacts">(() =>
+    new URLSearchParams(window.location.search).get("view") === "contacts"
+      ? "contacts"
+      : "news",
+  );
+
+  function select(next: "news" | "contacts") {
+    setView(next);
+    const nextUrl =
+      next === "contacts" ? "/app/activities?view=contacts" : "/app/activities";
+    window.history.replaceState({}, "", nextUrl);
+  }
+
+  return (
+    <div className="activity-hub">
+      <div
+        aria-label="Aktivitätsbereich"
+        className="activity-hub-tabs"
+        role="tablist"
+      >
+        <button
+          aria-controls="activity-news-panel"
+          aria-selected={view === "news"}
+          onClick={() => select("news")}
+          role="tab"
+          type="button"
+        >
+          Neues
+        </button>
+        <button
+          aria-controls="activity-contacts-panel"
+          aria-selected={view === "contacts"}
+          onClick={() => select("contacts")}
+          role="tab"
+          type="button"
+        >
+          Kontakt dokumentieren
+        </button>
+      </div>
+      {view === "news" ? (
+        <div id="activity-news-panel" role="tabpanel">
+          <ActivityFeedPage client={client} surface="pwa" />
+        </div>
+      ) : (
+        <div id="activity-contacts-panel" role="tabpanel">
+          <ActivityWorkspace client={client} identity={identity} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function App({ client }: AppProps) {
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
@@ -333,7 +397,7 @@ export function App({ client }: AppProps) {
         ) : route === "commitment" ? (
           <CommitmentCapturePage client={client} identity={identity.data} />
         ) : route === "activities" ? (
-          <ActivityWorkspace client={client} identity={identity.data} />
+          <ActivityHub client={client} identity={identity.data} />
         ) : (
           <Overview
             displayName={identity.data.displayName}

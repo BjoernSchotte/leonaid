@@ -13,6 +13,11 @@ from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
 )
+from leonaid.application.activity_feed import (
+    ActivityFeedItem,
+    ActivityFeedService,
+    ActivityFeedStatus,
+)
 from leonaid.application.activities import (
     AcquisitionActivityItem,
     AcquisitionActivityService,
@@ -101,6 +106,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     ActionTemplateListResponse,
     ActionTemplateSnapshotResponse,
     ActionTemplateSummaryResponse,
+    ActivityFeedItemResponse,
+    ActivityFeedQuery,
+    ActivityFeedResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityBoardResponse,
     AcquisitionActivityResponse,
@@ -181,6 +189,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SponsorResolutionResponse,
     TransitionCharityActionRequest,
     UpdateAcquisitionAssignmentRequest,
+    UpdateActivityFeedItemRequest,
     UpdateActionDetailsRequest,
 )
 
@@ -260,6 +269,10 @@ def activity_management_service(request: Request) -> AcquisitionActivityService:
     return service
 
 
+def activity_feed_service(request: Request) -> ActivityFeedService:
+    return cast(ActivityFeedService, request.app.state.activity_feed_service)
+
+
 def action_service(request: Request) -> CharityActionService:
     return cast(CharityActionService, request.app.state.action_service)
 
@@ -311,6 +324,31 @@ def acquisition_party_response(
     party: AcquisitionParty,
 ) -> AcquisitionPartyResponse:
     return AcquisitionPartyResponse.model_validate(party)
+
+
+def activity_feed_item_response(
+    item: ActivityFeedItem,
+) -> ActivityFeedItemResponse:
+    return ActivityFeedItemResponse(
+        id=item.id,
+        action_id=item.action_id,
+        action_name=item.action_name,
+        event_type="public_order_received",
+        party_kind=item.party_kind,
+        party_id=item.party_id,
+        party_display_name=item.party_display_name,
+        commitment_id=item.commitment_id,
+        public_reference=item.public_reference,
+        total_minor=item.total_minor,
+        currency=item.currency,
+        total_boxes=item.total_boxes,
+        total_pieces=item.total_pieces,
+        next_action_label=item.next_action_label,
+        next_action_href=item.next_action_href,
+        occurred_at=item.occurred_at,
+        read_at=item.read_at,
+        is_read=item.is_read,
+    )
 
 
 def sponsor_draft(body: SponsorDraftRequest) -> SponsorDraft:
@@ -1917,6 +1955,58 @@ async def get_acquisition_party(
     )
     response.headers["Cache-Control"] = "no-store"
     return acquisition_party_response(party)
+
+
+@router.get(
+    "/api/v1/activity-feed",
+    operation_id="getActivityFeed",
+    response_model=ActivityFeedResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["activity-feed"],
+)
+async def get_activity_feed(
+    request: Request,
+    response: Response,
+    filters: Annotated[ActivityFeedQuery, Query()],
+) -> ActivityFeedResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    page = await activity_feed_service(request).list(
+        actor,
+        status=ActivityFeedStatus(filters.status),
+        offset=filters.offset,
+        limit=filters.limit,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return ActivityFeedResponse(
+        items=[activity_feed_item_response(item) for item in page.items],
+        total=page.total,
+        unread_count=page.unread_count,
+        offset=page.offset,
+        limit=page.limit,
+    )
+
+
+@router.patch(
+    "/api/v1/activity-feed/{event_id}",
+    operation_id="updateActivityFeedItem",
+    response_model=ActivityFeedItemResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["activity-feed"],
+)
+async def update_activity_feed_item(
+    event_id: UUID,
+    request: Request,
+    body: UpdateActivityFeedItemRequest,
+    response: Response,
+) -> ActivityFeedItemResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    item = await activity_feed_service(request).set_read_state(
+        actor,
+        event_id,
+        read=body.read,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return activity_feed_item_response(item)
 
 
 @router.get(

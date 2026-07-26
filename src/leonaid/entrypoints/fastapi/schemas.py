@@ -1001,6 +1001,48 @@ class AcquisitionActivityListResponse(TransportModel):
     limit: int = Field(ge=1, le=100)
 
 
+ActivityFeedStatusValue = Literal["all", "unread"]
+
+
+class ActivityFeedQuery(TransportModel):
+    status: ActivityFeedStatusValue = "all"
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class ActivityFeedItemResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    action_name: str
+    event_type: Literal["public_order_received"]
+    party_kind: Literal["company", "person"]
+    party_id: UUID
+    party_display_name: str
+    commitment_id: UUID
+    public_reference: str
+    total_minor: int = Field(ge=0)
+    currency: str = Field(min_length=3, max_length=3)
+    total_boxes: int = Field(ge=0)
+    total_pieces: int = Field(ge=0)
+    next_action_label: str
+    next_action_href: str
+    occurred_at: datetime
+    read_at: datetime | None
+    is_read: bool
+
+
+class ActivityFeedResponse(TransportModel):
+    items: list[ActivityFeedItemResponse]
+    total: int = Field(ge=0)
+    unread_count: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+
+
+class UpdateActivityFeedItemRequest(TransportModel):
+    read: bool
+
+
 class AcquisitionDocumentResponse(TransportModel):
     id: UUID
     action_id: UUID

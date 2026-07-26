@@ -46,7 +46,12 @@ const navigationIcons = {
   system: Settings02Icon,
 } as const;
 
-const implementedWebNavigation = new Set(["actions", "members", "orders"]);
+const implementedWebNavigation = new Set([
+  "actions",
+  "activities",
+  "members",
+  "orders",
+]);
 const implementedPwaNavigation = new Set([
   "activities",
   "commitment",

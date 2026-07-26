@@ -1038,25 +1038,25 @@ Tests/Nachweise:
 - [x] Integrationstest erzeugt bei parallelem Submit genau ein Commitment.
 - [x] Golden-Gesamtsummen stimmen in API, UI und Datenbank überein.
 
-### [ ] POC-082 ActivityEvent und „Neues/Aktivitäten“ umsetzen
+### [x] POC-082 ActivityEvent und „Neues/Aktivitäten“ umsetzen
 
 Abhängigkeiten: POC-060, POC-072, POC-081
 
 Akzeptanzkriterien:
 
-- [ ] Öffentliche Bestellung erzeugt Ereignis für alle bereits zugeordneten
+- [x] Öffentliche Bestellung erzeugt Ereignis für alle bereits zugeordneten
       Akquisiteure.
-- [ ] Unzugeordnete Bestellung erscheint für Charity-Admins.
-- [ ] Feed unterstützt gelesen/ungelesen ohne Ereignisse zu löschen.
-- [ ] Ereignisse referenzieren Aktion und CRM-Partei und erklären die
+- [x] Unzugeordnete Bestellung erscheint für Charity-Admins.
+- [x] Feed unterstützt gelesen/ungelesen ohne Ereignisse zu löschen.
+- [x] Ereignisse referenzieren Aktion und CRM-Partei und erklären die
       nächste sinnvolle Aktion.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest erzeugt Events für exklusiv, gemeinsam und
+- [x] Integrationstest erzeugt Events für exklusiv, gemeinsam und
       unzugeordnet.
-- [ ] E2E prüft Feed für beide Akquisiteure und Charity-Admin.
-- [ ] Row-Level-Negativtest verhindert fremde Feed-Einträge.
+- [x] E2E prüft Feed für beide Akquisiteure und Charity-Admin.
+- [x] Row-Level-Negativtest verhindert fremde Feed-Einträge.
 
 ---
 

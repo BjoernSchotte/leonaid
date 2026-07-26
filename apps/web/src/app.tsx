@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
   ActionListPage,
+  ActivityFeedPage,
   CommitmentAdminPage,
   CreateActionPage,
   ManageActionPage,
@@ -15,9 +16,11 @@ export interface AppProps {
 }
 
 function route() {
-  const pathname = window.location.pathname.replace(/^\/admin/, "");
+  const pathname =
+    window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
   if (pathname === "/members") return { kind: "members" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
+  if (pathname === "/activities") return { kind: "activities" } as const;
   if (pathname === "/actions/new") return { kind: "new" } as const;
   const match = pathname.match(
     /^\/actions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
@@ -84,11 +87,13 @@ export function App({ client }: AppProps) {
         )?.actionName ?? "Aktion verwalten")
       : currentRoute.kind === "new"
         ? "Neue Aktion"
-        : currentRoute.kind === "orders"
-          ? "Bestellungen"
-          : currentRoute.kind === "members"
-            ? "Mitglieder"
-            : "Alle Aktionen";
+        : currentRoute.kind === "activities"
+          ? "Neues"
+          : currentRoute.kind === "orders"
+            ? "Bestellungen"
+            : currentRoute.kind === "members"
+              ? "Mitglieder"
+              : "Alle Aktionen";
 
   return (
     <AppShell
@@ -112,6 +117,8 @@ export function App({ client }: AppProps) {
         <MemberInvitationPage client={client} />
       ) : currentRoute.kind === "orders" ? (
         <CommitmentAdminPage client={client} identity={identity.data} />
+      ) : currentRoute.kind === "activities" ? (
+        <ActivityFeedPage client={client} surface="web" />
       ) : (
         <ActionListPage identity={identity.data} />
       )}

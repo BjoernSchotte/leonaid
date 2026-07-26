@@ -22,6 +22,8 @@ export type ActionManagementResponse = { readonly action: CharityActionResponse;
 export type ActionTemplateListResponse = { readonly items: Array<ActionTemplateSummaryResponse>; };
 export type ActionTemplateSnapshotResponse = { readonly copiedFromActionId: string | null; readonly displayName: string; readonly key: "blank" | "krapfentaxi"; readonly version: number; };
 export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly description: string; readonly displayName: string; readonly hasOrderForm: boolean; readonly key: "blank" | "krapfentaxi"; readonly offeringCount: number; readonly version: number; };
+export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
@@ -99,6 +101,7 @@ export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; r
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
+export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
 
 export type FetchLike = (
   input: RequestInfo | URL,
@@ -621,6 +624,45 @@ export class LeonAidApiClient {
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/transitions`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getActivityFeed(
+    queryParameters: { readonly status?: "all" | "unread"; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<ActivityFeedResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.status !== undefined && queryParameters.status !== null) {
+      searchParameters.set("status", String(queryParameters.status));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/activity-feed" + (queryString ? `?${queryString}` : "");
+    return this.request<ActivityFeedResponse>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateActivityFeedItem(
+    eventId: string,
+    body: UpdateActivityFeedItemRequest,
+    options: RequestOptions = {},
+  ): Promise<ActivityFeedItemResponse> {
+    return this.request<ActivityFeedItemResponse>(
+      `/api/v1/activity-feed/${encodeURIComponent(String(eventId))}`,
+      {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

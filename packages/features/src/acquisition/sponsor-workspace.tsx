@@ -181,7 +181,7 @@ function SponsorRow({
         ) : null}
         <a
           className="acq-contact-action"
-          href={`/app/activities?assignment=${encodeURIComponent(item.assignmentId)}`}
+          href={`/app/activities?view=contacts&assignment=${encodeURIComponent(item.assignmentId)}`}
         >
           <span>Aktivität</span>
           <HugeiconsIcon

@@ -38,6 +38,8 @@ Commands:
                     Prove public alias switching and immutable archive routes
   test-public-orders
                     Prove public form, real Twenty reuse/create and ActivityEvents
+  test-activity-feed
+                    Prove recipient feed, read state and role-scoped browser UX
   test-commitments  Prove offerings, quantities and server-priced commitments
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
@@ -210,21 +212,21 @@ check_all() {
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/assignments \
+    tools/activities tools/activity_feed tools/assignments \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions \
     tools/pwa tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/assignments tools/matching \
+    tools/activities tools/activity_feed tools/assignments tools/matching \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions \
     tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
-    tools/assignments \
+    tools/activity_feed tools/assignments \
     tools/commitments \
     tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
@@ -437,6 +439,7 @@ case "$command" in
     /bin/sh "$root/tools/public_actions/test.sh" "$root"
     /bin/sh "$root/tools/commitments/test.sh" "$root"
     /bin/sh "$root/tools/public_orders/test.sh" "$root"
+    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
@@ -450,6 +453,7 @@ case "$command" in
     /bin/sh "$root/tools/pwa/test.sh" "$root"
     /bin/sh "$root/tools/public_actions/test.sh" "$root"
     /bin/sh "$root/tools/public_orders/test.sh" "$root"
+    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
@@ -466,6 +470,7 @@ case "$command" in
   test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;
   test-public-actions) /bin/sh "$root/tools/public_actions/test.sh" "$root" ;;
   test-public-orders) /bin/sh "$root/tools/public_orders/test.sh" "$root" ;;
+  test-activity-feed) /bin/sh "$root/tools/activity_feed/test.sh" "$root" ;;
   test-commitments) /bin/sh "$root/tools/commitments/test.sh" "$root" ;;
   generate-api-client)
     require_docker

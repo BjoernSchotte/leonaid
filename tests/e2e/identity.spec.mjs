@@ -93,7 +93,7 @@ test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async 
     { width: 390, height: 844 },
   );
   try {
-    const mobileNavigation = page.locator(".mobile-nav");
+    const mobileNavigation = page.locator(".ui-pwa-tabbar");
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Anna Akquise",
     );
