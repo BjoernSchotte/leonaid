@@ -2,7 +2,7 @@
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
 POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-043 vollständig
-bewiesen; POC-050 vollständig bewiesen
+bewiesen; POC-050 bis POC-051 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -771,29 +771,34 @@ und
 Nachweis:
 [POC-050 – neutraler CharityAction-Kern](proofs/POC-050.md).
 
-### [ ] POC-051 Versionierte Aktionstemplates implementieren
+### [x] POC-051 Versionierte Aktionstemplates implementieren
 
 Abhängigkeiten: POC-050
 
 Akzeptanzkriterien:
 
-- [ ] Templates für Krapfentaxi und eine technisch neutrale leere Aktion
+- [x] Templates für Krapfentaxi und eine technisch neutrale leere Aktion
       existieren.
-- [ ] Krapfentaxi setzt PoC-Capabilities, Angebote und Formularkonfiguration.
-- [ ] Aktion erhält einen Snapshot; spätere Templateänderung verändert sie
+- [x] Krapfentaxi setzt PoC-Capabilities, Angebote und Formularkonfiguration.
+- [x] Aktion erhält einen Snapshot; spätere Templateänderung verändert sie
       nicht rückwirkend.
-- [ ] Vorjahreskopie übernimmt Konfiguration, aber keine operativen
+- [x] Vorjahreskopie übernimmt Konfiguration, aber keine operativen
       Bestellungen, Teilnehmer, Rechnungen oder Nummern.
-- [ ] Lions-Open- und Weihnachtsmarkt-Templates bleiben ausdrücklich
+- [x] Lions-Open- und Weihnachtsmarkt-Templates bleiben ausdrücklich
       nachgelagert und erzeugen keine spekulativen PoC-Felder oder Module.
 
 Tests/Nachweise:
 
-- [ ] Unit-Test prüft Snapshot- und Kopierregeln.
-- [ ] Integrationstest ändert eine Template-Version und beweist unveränderte
+- [x] Unit-Test prüft Snapshot- und Kopierregeln.
+- [x] Integrationstest ändert eine Template-Version und beweist unveränderte
       historische Aktionen.
-- [ ] Architekturtest stellt sicher, dass Krapfentaxi-spezifische Daten in
+- [x] Architekturtest stellt sicher, dass Krapfentaxi-spezifische Daten in
       typisierten Capability-Modulen und nicht in `CharityAction` liegen.
+
+Die Umsetzung folgt
+[Kapitel 4.4](../produkt-und-architekturvorschlag.md#44-konfigurierbare-aktionstypen-statt-fest-verdrahteter-sonderfälle).
+Nachweis:
+[POC-051 – versionierte Aktionstemplates](proofs/POC-051.md).
 
 ### [ ] POC-052 Charity-Admin-Aktionsverwaltung als hochwertige UI bauen
 

@@ -422,10 +422,13 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
             await connection.execute(
                 """
                 INSERT INTO offering (
-                    id, action_id, name, status, unit, pieces_per_unit,
+                    id, action_id, code, name, status, unit, pieces_per_unit,
                     unit_price_minor, currency
                 )
-                VALUES ($1, $2, 'Krapfenbox', 'active', 'box', 24, 3600, 'EUR')
+                VALUES (
+                    $1, $2, 'krapfenbox-24', 'Krapfenbox',
+                    'active', 'box', 24, 3600, 'EUR'
+                )
                 ON CONFLICT (id) DO NOTHING
                 """,
                 OFFERING,

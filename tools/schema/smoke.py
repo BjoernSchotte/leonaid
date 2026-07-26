@@ -19,6 +19,11 @@ EXPECTED_TABLES = {
     "acquisition_assignment_history",
     "action_invitation",
     "action_membership",
+    "action_template_capability",
+    "action_template_offering",
+    "action_template_order_form",
+    "action_template_snapshot",
+    "action_template_version",
     "activity_event",
     "activity_event_recipient",
     "alembic_version",
@@ -35,6 +40,7 @@ EXPECTED_TABLES = {
     "login_challenge",
     "mail_delivery",
     "offering",
+    "order_form_configuration",
     "outbox_event",
     "payment_record",
     "public_action_alias",
@@ -85,7 +91,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0004_passwordless_sessions":
+    if revision != "0005_action_templates":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -130,16 +136,38 @@ async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
 
 
 async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
+    templates = await connection.fetch(
+        """
+        SELECT template_key, version
+        FROM action_template_version
+        ORDER BY template_key
+        """
+    )
+    if [tuple(row.values()) for row in templates] != [
+        ("blank", 1),
+        ("krapfentaxi", 1),
+    ]:
+        raise SchemaError("eingebaute PoC-Templates fehlen oder sind unerwartet")
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE action_template_version
+            SET display_name = 'Manipuliert'
+            WHERE template_key = 'krapfentaxi' AND version = 1
+            """
+        ),
+        "Mutation einer veröffentlichten Template-Version",
+    )
     await expect_database_error(
         lambda: connection.execute(
             """
             INSERT INTO offering (
-                id, action_id, name, status, unit, pieces_per_unit,
+                id, action_id, code, name, status, unit, pieces_per_unit,
                 unit_price_minor, currency
             )
             VALUES (
-                '70000000-0000-4000-8000-000000000099', $1, 'Ungültig',
-                'active', 'box', 24, -1, 'EUR'
+                '70000000-0000-4000-8000-000000000099', $1,
+                'ungueltig', 'Ungültig', 'active', 'box', 24, -1, 'EUR'
             )
             """,
             ACTION,

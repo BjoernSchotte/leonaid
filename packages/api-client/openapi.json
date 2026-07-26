@@ -468,6 +468,124 @@
         "title": "ActionGoalResponse",
         "type": "object"
       },
+      "ActionTemplateListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionTemplateSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ActionTemplateListResponse",
+        "type": "object"
+      },
+      "ActionTemplateSnapshotResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "copiedFromActionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copiedfromactionid"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "blank",
+              "krapfentaxi"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "displayName",
+          "copiedFromActionId"
+        ],
+        "title": "ActionTemplateSnapshotResponse",
+        "type": "object"
+      },
+      "ActionTemplateSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "enum": [
+                "acquisition",
+                "offerings",
+                "ordering",
+                "invoicing"
+              ],
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "hasOrderForm": {
+            "title": "Hasorderform",
+            "type": "boolean"
+          },
+          "key": {
+            "enum": [
+              "blank",
+              "krapfentaxi"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "offeringCount": {
+            "minimum": 0.0,
+            "title": "Offeringcount",
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "displayName",
+          "description",
+          "capabilities",
+          "offeringCount",
+          "hasOrderForm"
+        ],
+        "title": "ActionTemplateSummaryResponse",
+        "type": "object"
+      },
       "ApiErrorDetail": {
         "additionalProperties": false,
         "properties": {
@@ -568,6 +686,42 @@
           "sortOrder"
         ],
         "title": "BeneficiaryResponse",
+        "type": "object"
+      },
+      "CharityActionConfigurationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/CharityActionResponse"
+          },
+          "offerings": {
+            "items": {
+              "$ref": "#/components/schemas/ConfiguredOfferingResponse"
+            },
+            "title": "Offerings",
+            "type": "array"
+          },
+          "orderForm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderFormConfigurationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template": {
+            "$ref": "#/components/schemas/ActionTemplateSnapshotResponse"
+          }
+        },
+        "required": [
+          "action",
+          "template",
+          "offerings",
+          "orderForm"
+        ],
+        "title": "CharityActionConfigurationResponse",
         "type": "object"
       },
       "CharityActionResponse": {
@@ -730,6 +884,195 @@
           }
         },
         "title": "CompleteLoginRequest",
+        "type": "object"
+      },
+      "ConfiguredOfferingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "piecesPerUnit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Piecesperunit"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "active",
+              "inactive"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unitPriceMinor": {
+            "minimum": 0.0,
+            "title": "Unitpriceminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status",
+          "unit",
+          "piecesPerUnit",
+          "unitPriceMinor",
+          "currency"
+        ],
+        "title": "ConfiguredOfferingResponse",
+        "type": "object"
+      },
+      "CopyCharityActionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "startsOn",
+          "endsOn",
+          "archiveSlug"
+        ],
+        "title": "CopyCharityActionRequest",
+        "type": "object"
+      },
+      "CreateActionFromTemplateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "beneficiaries": {
+            "items": {
+              "$ref": "#/components/schemas/BeneficiaryDraftRequest"
+            },
+            "minItems": 1,
+            "title": "Beneficiaries",
+            "type": "array"
+          },
+          "carrierName": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Carriername",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/ActionGoalRequest"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "templateKey": {
+            "enum": [
+              "blank",
+              "krapfentaxi"
+            ],
+            "title": "Templatekey",
+            "type": "string"
+          },
+          "templateVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Templateversion"
+          }
+        },
+        "required": [
+          "templateKey",
+          "carrierName",
+          "name",
+          "purpose",
+          "startsOn",
+          "endsOn",
+          "archiveSlug",
+          "beneficiaries",
+          "goal"
+        ],
+        "title": "CreateActionFromTemplateRequest",
         "type": "object"
       },
       "CreateCharityActionRequest": {
@@ -1247,6 +1590,76 @@
         "title": "NavigationItemResponse",
         "type": "object"
       },
+      "OrderFormConfigurationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "allowMessage": {
+            "title": "Allowmessage",
+            "type": "boolean"
+          },
+          "formKey": {
+            "title": "Formkey",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "introduction": {
+            "title": "Introduction",
+            "type": "string"
+          },
+          "requireBillingAddress": {
+            "title": "Requirebillingaddress",
+            "type": "boolean"
+          },
+          "requireCompanyName": {
+            "title": "Requirecompanyname",
+            "type": "boolean"
+          },
+          "requireContactName": {
+            "title": "Requirecontactname",
+            "type": "boolean"
+          },
+          "requireDeliveryAddress": {
+            "title": "Requiredeliveryaddress",
+            "type": "boolean"
+          },
+          "requireEmail": {
+            "title": "Requireemail",
+            "type": "boolean"
+          },
+          "requirePhone": {
+            "title": "Requirephone",
+            "type": "boolean"
+          },
+          "submitLabel": {
+            "title": "Submitlabel",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "formKey",
+          "title",
+          "introduction",
+          "submitLabel",
+          "requireCompanyName",
+          "requireContactName",
+          "requireEmail",
+          "requirePhone",
+          "requireDeliveryAddress",
+          "requireBillingAddress",
+          "allowMessage"
+        ],
+        "title": "OrderFormConfigurationResponse",
+        "type": "object"
+      },
       "PlatformInformationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1532,6 +1945,87 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/action-templates": {
+      "get": {
+        "operationId": "listActionTemplates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionTemplateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Action Templates",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/api/v1/actions": {
       "post": {
         "operationId": "createCharityAction",
@@ -1628,6 +2122,107 @@
           }
         },
         "summary": "Create Charity Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/from-template": {
+      "post": {
+        "operationId": "createCharityActionFromTemplate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateActionFromTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Create Charity Action From Template",
         "tags": [
           "actions"
         ]
@@ -2633,6 +3228,212 @@
           }
         },
         "summary": "Set Charity Action Capabilities",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/configuration": {
+      "get": {
+        "operationId": "getCharityActionConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Charity Action Configuration",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/copies": {
+      "post": {
+        "operationId": "copyCharityAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyCharityActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharityActionConfigurationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Copy Charity Action",
         "tags": [
           "actions"
         ]

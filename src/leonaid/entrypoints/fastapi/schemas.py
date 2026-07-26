@@ -249,6 +249,9 @@ CharityActionStatusValue = Literal[
     "completed",
     "archived",
 ]
+ActionTemplateKeyValue = Literal["blank", "krapfentaxi"]
+OfferingStatusValue = Literal["draft", "active", "inactive"]
+OfferingUnitValue = Literal["box", "piece", "package", "sponsoring"]
 
 
 def decimal_text(value: str) -> str:
@@ -321,6 +324,88 @@ class CharityActionResponse(TransportModel):
     capabilities: list[ActionCapabilityValue]
     beneficiaries: list[BeneficiaryResponse]
     goal: ActionGoalResponse
+
+
+class ActionTemplateSummaryResponse(TransportModel):
+    key: ActionTemplateKeyValue
+    version: int = Field(ge=1)
+    display_name: str
+    description: str
+    capabilities: list[ActionCapabilityValue]
+    offering_count: int = Field(ge=0)
+    has_order_form: bool
+
+
+class ActionTemplateListResponse(TransportModel):
+    items: list[ActionTemplateSummaryResponse]
+
+
+class CreateActionFromTemplateRequest(TransportModel):
+    template_key: ActionTemplateKeyValue
+    template_version: int | None = Field(default=None, ge=1)
+    carrier_name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200)
+    purpose: str = Field(min_length=1, max_length=2_000)
+    starts_on: date
+    ends_on: date
+    archive_slug: str = Field(
+        min_length=1,
+        max_length=160,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+    beneficiaries: list[BeneficiaryDraftRequest] = Field(min_length=1)
+    goal: ActionGoalRequest
+
+
+class CopyCharityActionRequest(TransportModel):
+    name: str = Field(min_length=1, max_length=200)
+    starts_on: date
+    ends_on: date
+    archive_slug: str = Field(
+        min_length=1,
+        max_length=160,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+
+
+class ActionTemplateSnapshotResponse(TransportModel):
+    key: ActionTemplateKeyValue
+    version: int = Field(ge=1)
+    display_name: str
+    copied_from_action_id: UUID | None
+
+
+class ConfiguredOfferingResponse(TransportModel):
+    id: UUID
+    code: str
+    name: str
+    status: OfferingStatusValue
+    unit: OfferingUnitValue
+    pieces_per_unit: int | None
+    unit_price_minor: int = Field(ge=0)
+    currency: str
+
+
+class OrderFormConfigurationResponse(TransportModel):
+    id: UUID
+    form_key: str
+    title: str
+    introduction: str
+    submit_label: str
+    require_company_name: bool
+    require_contact_name: bool
+    require_email: bool
+    require_phone: bool
+    require_delivery_address: bool
+    require_billing_address: bool
+    allow_message: bool
+
+
+class CharityActionConfigurationResponse(TransportModel):
+    action: CharityActionResponse
+    template: ActionTemplateSnapshotResponse
+    offerings: list[ConfiguredOfferingResponse]
+    order_form: OrderFormConfigurationResponse | None
 
 
 class SetActionGoalRequest(ActionGoalRequest):

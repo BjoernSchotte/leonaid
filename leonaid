@@ -28,6 +28,7 @@ Commands:
   test-sessions     Prove 90-day sessions, fresh login and immediate revocation
   test-policy       Prove central row-level policies against PostgreSQL/Twenty
   test-actions      Prove neutral CharityAction lifecycle and browser creation
+  test-templates    Prove versioned action templates and previous-year copies
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -200,15 +201,15 @@ check_all() {
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/actions tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/policy tools/schema tools/seed tools/sessions tools/twenty
+    tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/actions tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/policy tools/schema tools/seed tools/sessions tools/twenty
+    tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/actions tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/openapi tools/outbox tools/schema \
-    tools/policy tools/seed tools/sessions tools/twenty
+    tools/policy tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -403,6 +404,7 @@ case "$command" in
     /bin/sh "$root/tools/sessions/test.sh" "$root"
     /bin/sh "$root/tools/policy/test.sh" "$root"
     /bin/sh "$root/tools/actions/test.sh" "$root"
+    /bin/sh "$root/tools/templates/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
@@ -417,6 +419,7 @@ case "$command" in
   test-sessions) /bin/sh "$root/tools/sessions/test.sh" "$root" ;;
   test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
   test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
+  test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

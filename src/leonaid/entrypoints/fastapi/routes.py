@@ -16,7 +16,9 @@ from leonaid.application.acquisition import (
 from leonaid.application.actions import (
     BeneficiaryDraft,
     CharityActionService,
+    CopyActionDraft,
     CreateActionDraft,
+    CreateActionFromTemplateDraft,
 )
 from leonaid.application.errors import DependencyUnavailable
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
@@ -30,12 +32,20 @@ from leonaid.domain.actions import (
     CharityAction,
     CharityActionStatus,
 )
+from leonaid.domain.action_templates import (
+    ActionConfiguration,
+    ActionTemplate,
+    ActionTemplateKey,
+)
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
     ActionGoalRequest,
     ActionGoalResponse,
+    ActionTemplateListResponse,
+    ActionTemplateSnapshotResponse,
+    ActionTemplateSummaryResponse,
     AcquisitionActivityListResponse,
     AcquisitionActivityResponse,
     AcquisitionDocumentResponse,
@@ -50,6 +60,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
+    ConfiguredOfferingResponse,
+    CopyCharityActionRequest,
+    CreateActionFromTemplateRequest,
     CreateInvitationRequest,
     CreateCharityActionRequest,
     CurrentIdentityResponse,
@@ -70,6 +83,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     SessionRevocationResponse,
     BeneficiaryResponse,
     CharityActionResponse,
+    CharityActionConfigurationResponse,
+    OrderFormConfigurationResponse,
     SetActionBeneficiariesRequest,
     SetActionCapabilitiesRequest,
     SetActionGoalRequest,
@@ -190,6 +205,75 @@ def charity_action_response(action: CharityAction) -> CharityActionResponse:
             actual_value=decimal_text(action.goal.actual_value),
             unit=action.goal.unit,
             currency=action.goal.currency,
+        ),
+    )
+
+
+def action_template_summary_response(
+    template: ActionTemplate,
+) -> ActionTemplateSummaryResponse:
+    return ActionTemplateSummaryResponse(
+        key=template.key.value,
+        version=template.version,
+        display_name=template.display_name,
+        description=template.description,
+        capabilities=sorted(item.value for item in template.capabilities),
+        offering_count=len(template.offerings),
+        has_order_form=template.order_form is not None,
+    )
+
+
+def charity_action_configuration_response(
+    action: CharityAction,
+    configuration: ActionConfiguration,
+) -> CharityActionConfigurationResponse:
+    snapshot = configuration.snapshot
+    return CharityActionConfigurationResponse(
+        action=charity_action_response(action),
+        template=ActionTemplateSnapshotResponse(
+            key=snapshot.template_key.value,
+            version=snapshot.template_version,
+            display_name=snapshot.display_name,
+            copied_from_action_id=snapshot.copied_from_action_id,
+        ),
+        offerings=[
+            ConfiguredOfferingResponse(
+                id=item.id,
+                code=item.definition.code,
+                name=item.definition.name,
+                status=item.definition.status.value,
+                unit=item.definition.unit.value,
+                pieces_per_unit=item.definition.pieces_per_unit,
+                unit_price_minor=item.definition.unit_price_minor,
+                currency=item.definition.currency,
+            )
+            for item in configuration.offerings
+        ],
+        order_form=(
+            OrderFormConfigurationResponse(
+                id=configuration.order_form.id,
+                form_key=configuration.order_form.configuration.form_key,
+                title=configuration.order_form.configuration.title,
+                introduction=(configuration.order_form.configuration.introduction),
+                submit_label=configuration.order_form.configuration.submit_label,
+                require_company_name=(
+                    configuration.order_form.configuration.require_company_name
+                ),
+                require_contact_name=(
+                    configuration.order_form.configuration.require_contact_name
+                ),
+                require_email=(configuration.order_form.configuration.require_email),
+                require_phone=(configuration.order_form.configuration.require_phone),
+                require_delivery_address=(
+                    configuration.order_form.configuration.require_delivery_address
+                ),
+                require_billing_address=(
+                    configuration.order_form.configuration.require_billing_address
+                ),
+                allow_message=(configuration.order_form.configuration.allow_message),
+            )
+            if configuration.order_form is not None
+            else None
         ),
     )
 
@@ -451,6 +535,60 @@ async def revoke_user_sessions(
     )
 
 
+@router.get(
+    "/api/v1/action-templates",
+    operation_id="listActionTemplates",
+    response_model=ActionTemplateListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def list_action_templates(
+    request: Request,
+    response: Response,
+) -> ActionTemplateListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    templates = await action_service(request).list_templates(actor)
+    response.headers["Cache-Control"] = "no-store"
+    return ActionTemplateListResponse(
+        items=[action_template_summary_response(item) for item in templates]
+    )
+
+
+@router.post(
+    "/api/v1/actions/from-template",
+    operation_id="createCharityActionFromTemplate",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["actions"],
+)
+async def create_charity_action_from_template(
+    request: Request,
+    body: CreateActionFromTemplateRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action, configuration = await action_service(request).create_from_template(
+        actor,
+        CreateActionFromTemplateDraft(
+            template_key=ActionTemplateKey(body.template_key),
+            template_version=body.template_version,
+            carrier_name=body.carrier_name,
+            name=body.name,
+            purpose=body.purpose,
+            starts_on=body.starts_on,
+            ends_on=body.ends_on,
+            archive_slug=body.archive_slug,
+            beneficiaries=beneficiary_drafts(body.beneficiaries),
+            goal=goal_from_request(body.goal),
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = f"/api/v1/actions/{action.id}/configuration"
+    return charity_action_configuration_response(action, configuration)
+
+
 @router.post(
     "/api/v1/actions",
     operation_id="createCharityAction",
@@ -501,6 +639,58 @@ async def get_charity_action(
     action = await action_service(request).get(actor, action_id)
     response.headers["Cache-Control"] = "no-store"
     return charity_action_response(action)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/configuration",
+    operation_id="getCharityActionConfiguration",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_charity_action_configuration(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    action, configuration = await action_service(request).get_configuration(
+        actor,
+        action_id,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_configuration_response(action, configuration)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/copies",
+    operation_id="copyCharityAction",
+    response_model=CharityActionConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["actions"],
+)
+async def copy_charity_action(
+    action_id: UUID,
+    request: Request,
+    body: CopyCharityActionRequest,
+    response: Response,
+) -> CharityActionConfigurationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action, configuration = await action_service(request).copy(
+        actor,
+        action_id,
+        CopyActionDraft(
+            name=body.name,
+            starts_on=body.starts_on,
+            ends_on=body.ends_on,
+            archive_slug=body.archive_slug,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = f"/api/v1/actions/{action.id}/configuration"
+    return charity_action_configuration_response(action, configuration)
 
 
 @router.put(

@@ -105,6 +105,18 @@ Chromium eine vollständige Aktion unter `/admin/actions/new`. Der Browser
 verifiziert das Ergebnis ausschließlich über die Core-API. Der
 geheimnisfreie Screenshot bleibt unter `.artifacts/poc050/`.
 
+Der gezielte Nachweis der versionierten Aktionstemplates läuft mit:
+
+```sh
+./leonaid test-templates
+```
+
+Er startet Twenty, Core-PostgreSQL, FastAPI und RustFS aus leeren isolierten
+Volumes. Ein echter API-/PostgreSQL-Vertrag beweist die neutrale und die
+Krapfentaxi-Vorlage, unveränderliche publizierte Versionen, historisch stabile
+Konfigurations-Snapshots sowie eine Vorjahreskopie ohne Bestellungen,
+Rechnungen, Dokumente, laufende Nummern oder fremde Aktionszuordnungen.
+
 `./leonaid provision-twenty` legt den lokalen Integrations-Key mit restriktiven
 Dateirechten unter `.local/twenty/integration.env` ab. Alle folgenden
 `./leonaid`-Compose-Kommandos lesen ihn automatisch ein, ohne ihn in
