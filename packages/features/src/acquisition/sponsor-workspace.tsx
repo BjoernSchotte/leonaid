@@ -121,7 +121,12 @@ function SponsorRow({
   const due = dueLabel(item);
 
   return (
-    <article className="acq-sponsor-row" data-testid="sponsor-row">
+    <article
+      className="acq-sponsor-row"
+      data-party-id={item.partyId}
+      data-party-kind={item.partyKind}
+      data-testid="sponsor-row"
+    >
       <div className="acq-sponsor-row__main">
         <div className="acq-sponsor-row__title">
           <strong>{item.partyDisplayName}</strong>

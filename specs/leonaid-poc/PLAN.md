@@ -395,27 +395,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-012 – Reset, Seed und Snapshot](proofs/POC-012.md).
 
-### [ ] POC-013 Testkit für echte Systeme bereitstellen
+### [x] POC-013 Testkit für echte Systeme bereitstellen
 
 Abhängigkeiten: POC-010, POC-012
 
 Akzeptanzkriterien:
 
-- [ ] Testkit besitzt echte Clients für LeonAid API, Twenty, RustFS und
+- [x] Testkit besitzt echte Clients für LeonAid API, Twenty, RustFS und
       Mailpit sowie read-only SQL-Prüfhelfer.
-- [ ] Persona-Sitzungen werden über den echten Login erzeugt.
-- [ ] Polling verwendet fachliche Readiness-/Jobzustände mit Deadline statt
+- [x] Persona-Sitzungen werden über den echten Login erzeugt.
+- [x] Polling verwendet fachliche Readiness-/Jobzustände mit Deadline statt
       pauschaler Sleeps.
-- [ ] Fehlerausgaben nennen Request-ID, Persona, Aktion und betroffenen
+- [x] Fehlerausgaben nennen Request-ID, Persona, Aktion und betroffenen
       Golden-Datensatz.
 
 Tests/Nachweise:
 
-- [ ] Smoke-Test liest denselben Golden-Sponsor über UI/API und verifiziert
+- [x] Smoke-Test liest denselben Golden-Sponsor über UI/API und verifiziert
       dessen Twenty-ID.
-- [ ] Smoke-Test versendet eine reale Mail an Mailpit und liest sie über
+- [x] Smoke-Test versendet eine reale Mail an Mailpit und liest sie über
       dessen API zurück.
-- [ ] Smoke-Test schreibt und liest ein echtes RustFS-Objekt mit Hashprüfung.
+- [x] Smoke-Test schreibt und liest ein echtes RustFS-Objekt mit Hashprüfung.
+
+Nachweis:
+[POC-013 – Testkit für echte Systeme](proofs/POC-013.md).
 
 ---
 
