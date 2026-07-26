@@ -51,7 +51,7 @@ async function assertNoSeriousAxeFindings(page) {
   ).toEqual([]);
 }
 
-async function openMusterwerkCapture(context, page, { direct = false } = {}) {
+async function openMusterwerkCapture(context, page) {
   await authenticate(context, annaSession);
   await page.goto(`${baseUrl}/app/sponsors`);
   await expect(page.locator('[data-testid="display-name"]')).toHaveText(
@@ -64,11 +64,7 @@ async function openMusterwerkCapture(context, page, { direct = false } = {}) {
   const captureLink = sponsor.getByRole("link", { name: "Bestellung" });
   const href = await captureLink.getAttribute("href");
   expect(href).toMatch(/^\/app\/commitments\/new\?/);
-  if (direct) {
-    await page.goto(`${baseUrl}${href}`);
-  } else {
-    await captureLink.click();
-  }
+  await captureLink.click();
   await expect(
     page.getByRole("heading", {
       name: "Vom Gespräch zur klaren Bestellung.",
@@ -166,7 +162,7 @@ test("Bestellerfassung bleibt in allen Zielbrowsern responsiv und barrierearm", 
   context,
   page,
 }, testInfo) => {
-  await openMusterwerkCapture(context, page, { direct: true });
+  await openMusterwerkCapture(context, page);
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,

@@ -141,15 +141,15 @@ def require_template_response(
     return UUID(str(action["id"]))
 
 
-async def publish_version_two(connection: asyncpg.Connection[Any]) -> None:
+async def publish_version_three(connection: asyncpg.Connection[Any]) -> None:
     await connection.execute(
         """
         INSERT INTO action_template_version (
             template_key, version, display_name, description
         )
         VALUES (
-            'krapfentaxi', 2, 'Krapfentaxi',
-            'Zweite reale Testversion mit angepasstem Preis.'
+            'krapfentaxi', 3, 'Krapfentaxi',
+            'Dritte reale Testversion mit angepasstem Preis.'
         )
         """
     )
@@ -158,7 +158,7 @@ async def publish_version_two(connection: asyncpg.Connection[Any]) -> None:
         INSERT INTO action_template_capability (
             template_key, template_version, capability
         )
-        VALUES ('krapfentaxi', 2, $1)
+        VALUES ('krapfentaxi', 3, $1)
         """,
         [
             (capability,)
@@ -172,7 +172,7 @@ async def publish_version_two(connection: asyncpg.Connection[Any]) -> None:
             pieces_per_unit, unit_price_minor, currency, sort_order
         )
         VALUES (
-            'krapfentaxi', 2, 'krapfenbox-24', 'Krapfenbox',
+            'krapfentaxi', 3, 'krapfenbox-24', 'Krapfenbox',
             'draft', 'box', 24, 4200, 'EUR', 0
         )
         """
@@ -186,7 +186,7 @@ async def publish_version_two(connection: asyncpg.Connection[Any]) -> None:
             require_billing_address, allow_message
         )
         VALUES (
-            'krapfentaxi', 2, 'sponsor-bestellung',
+            'krapfentaxi', 3, 'sponsor-bestellung',
             'Krapfenboxen 2028 bestellen',
             'Unterstützen Sie die nächste Krapfentaxi-Aktion.',
             'Bestellung absenden',
@@ -277,7 +277,7 @@ async def exercise(
         items = initial_list.json()["items"]
         if [(item["key"], item["version"]) for item in items] != [
             ("blank", 1),
-            ("krapfentaxi", 1),
+            ("krapfentaxi", 2),
         ]:
             raise ContractFailure(
                 "PoC-Liste enthält nicht exakt leere Aktion und Krapfentaxi"
@@ -292,6 +292,7 @@ async def exercise(
                 key="krapfentaxi",
                 slug="krapfentaxi-template-2027",
                 name="Krapfentaxi Template 2027",
+                version=1,
             ),
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("create-v1"),
@@ -339,7 +340,7 @@ async def exercise(
         else:
             raise ContractFailure("Veröffentlichte Template-Version war veränderbar")
 
-        await publish_version_two(connection)
+        await publish_version_three(connection)
         current_list = await client.get(
             "/api/v1/action-templates",
             cookies=cookies(tokens[KLARA_ID]),
@@ -349,7 +350,7 @@ async def exercise(
         current_items = current_list.json()["items"]
         if [(item["key"], item["version"]) for item in current_items] != [
             ("blank", 1),
-            ("krapfentaxi", 2),
+            ("krapfentaxi", 3),
         ]:
             raise ContractFailure("Neueste veröffentlichte Template-Version fehlt")
 
@@ -366,7 +367,7 @@ async def exercise(
             title="Krapfenboxen bestellen",
         )
 
-        v2_response = await client.post(
+        v3_response = await client.post(
             "/api/v1/actions/from-template",
             json=template_payload(
                 key="krapfentaxi",
@@ -374,12 +375,12 @@ async def exercise(
                 name="Krapfentaxi Template 2028",
             ),
             cookies=cookies(tokens[KLARA_ID]),
-            headers=request_headers("create-v2"),
+            headers=request_headers("create-v3"),
         )
-        v2_response.raise_for_status()
+        v3_response.raise_for_status()
         require_template_response(
-            v2_response.json(),
-            version=2,
+            v3_response.json(),
+            version=3,
             price=4200,
             title="Krapfenboxen 2028 bestellen",
         )

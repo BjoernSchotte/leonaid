@@ -72,7 +72,12 @@ run_python tools/seed/golden.py seed-core "$fixture"
 run_python tools/identity/contract.py \
   --session-output /proof/sessions.env
 
-if [ "$(stat -f '%Lp' "$proof/sessions.env" 2>/dev/null || stat -c '%a' "$proof/sessions.env")" != "600" ]; then
+if stat -c '%a' "$proof/sessions.env" >/dev/null 2>&1; then
+  session_mode=$(stat -c '%a' "$proof/sessions.env")
+else
+  session_mode=$(stat -f '%Lp' "$proof/sessions.env")
+fi
+if [ "$session_mode" != "600" ]; then
   echo "identity-test: ERROR: Sitzungsdatei besitzt nicht Dateimodus 0600" >&2
   exit 1
 fi
