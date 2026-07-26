@@ -320,7 +320,10 @@ class CharityActionResponse(TransportModel):
     status: CharityActionStatusValue
     starts_on: date
     ends_on: date
+    publication_starts_at: datetime | None
+    publication_ends_at: datetime | None
     archive_slug: str
+    revision: int = Field(ge=1)
     capabilities: list[ActionCapabilityValue]
     beneficiaries: list[BeneficiaryResponse]
     goal: ActionGoalResponse
@@ -408,19 +411,63 @@ class CharityActionConfigurationResponse(TransportModel):
     order_form: OrderFormConfigurationResponse | None
 
 
+class UpdateActionDetailsRequest(TransportModel):
+    revision: int = Field(ge=1)
+    carrier_name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200)
+    purpose: str = Field(min_length=1, max_length=2_000)
+    starts_on: date
+    ends_on: date
+
+
+class SetActionPublicationRequest(TransportModel):
+    revision: int = Field(ge=1)
+    publication_starts_at: datetime | None = None
+    publication_ends_at: datetime | None = None
+    public_alias: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=160,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+
+
+class AdministratorOptionResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+    email: str
+    is_available: bool
+    is_responsible: bool
+
+
+class ActionManagementResponse(TransportModel):
+    action: CharityActionResponse
+    public_alias: str | None
+    administrator_options: list[AdministratorOptionResponse]
+    allowed_transitions: list[CharityActionStatusValue]
+
+
+class SetResponsibleAdministratorsRequest(TransportModel):
+    revision: int = Field(ge=1)
+    user_ids: list[UUID] = Field(min_length=1)
+
+
 class SetActionGoalRequest(ActionGoalRequest):
-    pass
+    revision: int = Field(ge=1)
 
 
 class SetActionCapabilitiesRequest(TransportModel):
+    revision: int = Field(ge=1)
     capabilities: list[ActionCapabilityValue]
 
 
 class SetActionBeneficiariesRequest(TransportModel):
+    revision: int = Field(ge=1)
     beneficiaries: list[BeneficiaryDraftRequest] = Field(min_length=1)
 
 
 class TransitionCharityActionRequest(TransportModel):
+    revision: int = Field(ge=1)
     target_status: CharityActionStatusValue
 
 

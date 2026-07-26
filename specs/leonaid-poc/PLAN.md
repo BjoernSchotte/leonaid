@@ -800,27 +800,30 @@ Die Umsetzung folgt
 Nachweis:
 [POC-051 – versionierte Aktionstemplates](proofs/POC-051.md).
 
-### [ ] POC-052 Charity-Admin-Aktionsverwaltung als hochwertige UI bauen
+### [x] POC-052 Charity-Admin-Aktionsverwaltung als hochwertige UI bauen
 
 Abhängigkeiten: POC-050, POC-051, POC-023
 
 Akzeptanzkriterien:
 
-- [ ] Admin kann Aktion, Zeitraum, Ziel, Begünstigte, Verantwortliche,
+- [x] Admin kann Aktion, Zeitraum, Ziel, Begünstigte, Verantwortliche,
       Publikationsdaten und Capabilities bedienen.
-- [ ] Formular ist in verständliche Schritte gegliedert und bewahrt Eingaben
+- [x] Formular ist in verständliche Schritte gegliedert und bewahrt Eingaben
       bei behebbaren Fehlern.
-- [ ] Konflikte und irreversible Übergänge werden vor Bestätigung erklärt.
-- [ ] Lade-, Leer-, Fehler- und Erfolgsmeldungen sind barrierearm.
-- [ ] Responsive Sidebar und mobile Navigation entsprechen Kapitel 6.6.
+- [x] Konflikte und irreversible Übergänge werden vor Bestätigung erklärt.
+- [x] Lade-, Leer-, Fehler- und Erfolgsmeldungen sind barrierearm.
+- [x] Responsive Sidebar und mobile Navigation entsprechen Kapitel 6.6.
 
 Tests/Nachweise:
 
-- [ ] Componenttests verwenden den real generierten API-Client gegen den
+- [x] Componenttests verwenden den real generierten API-Client gegen den
       laufenden Core, keinen Request-Mock.
-- [ ] E2E erstellt, plant, aktiviert und archiviert eine Golden-Aktion.
-- [ ] Accessibility-Scan und manueller Tastaturpfad sind ohne kritische
+- [x] E2E erstellt, plant, aktiviert und archiviert eine Golden-Aktion.
+- [x] Accessibility-Scan und manueller Tastaturpfad sind ohne kritische
       Befunde.
+
+Nachweis:
+[POC-052 – Charity-Admin-Aktionsverwaltung](proofs/POC-052.md).
 
 ---
 

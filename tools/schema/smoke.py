@@ -91,7 +91,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0005_action_templates":
+    if revision != "0006_action_administration":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -136,6 +136,42 @@ async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
 
 
 async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE charity_action
+            SET publication_starts_at = CURRENT_TIMESTAMP,
+                publication_ends_at = NULL
+            WHERE id = $1
+            """,
+            ACTION,
+        ),
+        "unvollständiges Publikationsfenster",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            "UPDATE charity_action SET revision = 0 WHERE id = $1",
+            ACTION,
+        ),
+        "nicht positive Aktionsrevision",
+    )
+    await connection.execute(
+        """
+        INSERT INTO public_action_alias (alias, action_id)
+        VALUES ('krapfentaxi', $1)
+        """,
+        ACTION,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO public_action_alias (alias, action_id)
+            VALUES ('krapfentaxi-zwei', $1)
+            """,
+            ACTION,
+        ),
+        "mehr als ein öffentlicher Alias je Aktion",
+    )
     templates = await connection.fetch(
         """
         SELECT template_key, version

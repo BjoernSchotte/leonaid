@@ -1,8 +1,41 @@
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 
 const appName = process.env.APP_NAME ?? "LeonAid";
 const appKind = process.env.APP_KIND ?? "service";
 const port = Number(process.env.PORT ?? "3000");
+const webAssetDirectory = process.env.WEB_ASSET_DIR;
+
+const contentTypes = new Map([
+  [".css", "text/css; charset=utf-8"],
+  [".html", "text/html; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".map", "application/json; charset=utf-8"],
+  [".svg", "image/svg+xml"],
+]);
+
+function webFile(requestUrl) {
+  if (!webAssetDirectory || appKind !== "web") return undefined;
+  const pathname = new URL(requestUrl, "http://localhost").pathname;
+  const relative =
+    pathname.startsWith("/assets/") || pathname === "/favicon.svg"
+      ? pathname.slice(1)
+      : pathname === "/actions" || pathname.startsWith("/actions/")
+        ? "index.html"
+        : undefined;
+  if (!relative) return undefined;
+  const root = path.resolve(webAssetDirectory);
+  const candidate = path.resolve(root, relative);
+  if (
+    !candidate.startsWith(`${root}${path.sep}`) ||
+    !fs.existsSync(candidate)
+  ) {
+    return undefined;
+  }
+  return candidate;
+}
 
 function escapeHtml(value) {
   return value
@@ -942,6 +975,20 @@ http
     if (request.url === "/health/live" || request.url === "/health/ready") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ service: appKind, status: "ready" }));
+      return;
+    }
+    const staticFile = webFile(request.url ?? "/");
+    if (staticFile) {
+      const extension = path.extname(staticFile);
+      response.writeHead(200, {
+        "content-type":
+          contentTypes.get(extension) ?? "application/octet-stream",
+        "cache-control":
+          extension === ".html"
+            ? "no-store"
+            : "public, max-age=31536000, immutable",
+      });
+      fs.createReadStream(staticFile).pipe(response);
       return;
     }
     response.writeHead(200, {

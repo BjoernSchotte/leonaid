@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
 from leonaid.domain.errors import DomainInvariantError
+
+ACTION_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class CharityActionStatus(StrEnum):
@@ -38,6 +41,52 @@ class ActionCapability(StrEnum):
     OFFERINGS = "offerings"
     ORDERING = "ordering"
     INVOICING = "invoicing"
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationWindow:
+    starts_at: datetime
+    ends_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.starts_at.utcoffset() is None or self.ends_at.utcoffset() is None:
+            raise DomainInvariantError(
+                "action_publication_timezone_required",
+                "Das Publikationsfenster benötigt eine eindeutige Zeitzone.",
+            )
+        if self.starts_at > self.ends_at:
+            raise DomainInvariantError(
+                "action_publication_period_invalid",
+                "Der Publikationsbeginn darf nicht nach dem Publikationsende liegen.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class PublicActionAlias:
+    value: str
+
+    def __post_init__(self) -> None:
+        if not ACTION_SLUG.fullmatch(self.value):
+            raise DomainInvariantError(
+                "action_public_alias_invalid",
+                "Der öffentliche Alias muss ein URL-tauglicher Slug sein.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class AdministratorOption:
+    user_id: UUID
+    display_name: str
+    email: str
+    is_available: bool
+    is_responsible: bool
+
+    def __post_init__(self) -> None:
+        if not self.display_name.strip() or not self.email.strip():
+            raise DomainInvariantError(
+                "action_administrator_identity_incomplete",
+                "Ein verantwortliches Mitglied benötigt Name und Login-E-Mail.",
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +182,8 @@ class CharityAction:
     capabilities: frozenset[ActionCapability]
     beneficiaries: tuple[Beneficiary, ...]
     goal: ActionGoal
+    publication_window: PublicationWindow | None = None
+    revision: int = 1
 
     def __post_init__(self) -> None:
         for value, code, message in (
@@ -159,6 +210,11 @@ class CharityAction:
             raise DomainInvariantError(
                 "action_period_invalid",
                 "Der Aktionsbeginn darf nicht nach dem Aktionsende liegen.",
+            )
+        if self.revision <= 0:
+            raise DomainInvariantError(
+                "action_revision_invalid",
+                "Die Aktionsrevision muss positiv sein.",
             )
         if not self.beneficiaries:
             raise DomainInvariantError(
@@ -199,12 +255,34 @@ class CharityAction:
             )
         return replace(self, status=target)
 
+    def with_details(
+        self,
+        *,
+        carrier_name: str,
+        name: str,
+        purpose: str,
+        starts_on: date,
+        ends_on: date,
+    ) -> CharityAction:
+        self._require_mutable()
+        return replace(
+            self,
+            carrier_name=carrier_name,
+            name=name,
+            purpose=purpose,
+            starts_on=starts_on,
+            ends_on=ends_on,
+        )
+
+    def with_publication_window(
+        self,
+        publication_window: PublicationWindow | None,
+    ) -> CharityAction:
+        self._require_mutable()
+        return replace(self, publication_window=publication_window)
+
     def with_goal(self, goal: ActionGoal) -> CharityAction:
-        if self.status is CharityActionStatus.ARCHIVED:
-            raise DomainInvariantError(
-                "action_archived_immutable",
-                "Eine archivierte Charity-Aktion kann nicht mehr geändert werden.",
-            )
+        self._require_mutable()
         return replace(self, goal=goal)
 
     def with_capabilities(
@@ -225,9 +303,35 @@ class CharityAction:
         self,
         beneficiaries: tuple[Beneficiary, ...],
     ) -> CharityAction:
+        self._require_mutable()
+        return replace(self, beneficiaries=beneficiaries)
+
+    def next_revision(self) -> CharityAction:
+        return replace(self, revision=self.revision + 1)
+
+    def _require_mutable(self) -> None:
         if self.status is CharityActionStatus.ARCHIVED:
             raise DomainInvariantError(
                 "action_archived_immutable",
                 "Eine archivierte Charity-Aktion kann nicht mehr geändert werden.",
             )
-        return replace(self, beneficiaries=beneficiaries)
+
+
+@dataclass(frozen=True, slots=True)
+class ActionManagementState:
+    action: CharityAction
+    public_alias: PublicActionAlias | None
+    administrator_options: tuple[AdministratorOption, ...]
+
+    def __post_init__(self) -> None:
+        identifiers = [item.user_id for item in self.administrator_options]
+        if len(identifiers) != len(set(identifiers)):
+            raise DomainInvariantError(
+                "action_administrator_duplicate",
+                "Ein Mitglied darf in der Verantwortlichen-Auswahl nur einmal vorkommen.",
+            )
+        if not any(item.is_responsible for item in self.administrator_options):
+            raise DomainInvariantError(
+                "action_responsible_administrator_required",
+                "Eine Charity-Aktion benötigt mindestens einen verantwortlichen Admin.",
+            )

@@ -1,0 +1,106 @@
+import { useQuery } from "@tanstack/react-query";
+
+import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
+import {
+  ActionListPage,
+  CreateActionPage,
+  ManageActionPage,
+} from "@leonaid/features";
+import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+
+export interface AppProps {
+  readonly client: LeonAidApiClient;
+}
+
+function route() {
+  const pathname = window.location.pathname.replace(/^\/admin/, "");
+  if (pathname === "/actions/new") return { kind: "new" } as const;
+  const match = pathname.match(
+    /^\/actions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
+  );
+  if (match) return { actionId: match[1], kind: "manage" } as const;
+  return { kind: "list" } as const;
+}
+
+export function App({ client }: AppProps) {
+  const identity = useQuery({
+    queryFn: () => client.getCurrentIdentity(),
+    queryKey: ["identity"],
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError) && failureCount < 2,
+    retryDelay: (attempt) => 150 * (attempt + 1),
+    staleTime: 30_000,
+  });
+
+  if (identity.isPending) {
+    return (
+      <div aria-live="polite" className="action-loading" role="status">
+        <span aria-hidden="true" />
+        <h1>Arbeitsbereich wird geladen</h1>
+        <p>Deine Rollen und Charity-Aktionen werden sicher abgerufen.</p>
+      </div>
+    );
+  }
+
+  if (identity.isError) {
+    const signedOut =
+      identity.error instanceof ApiError && identity.error.status === 401;
+    return (
+      <main className="ui-main">
+        <StatusMessage tone="error">
+          <h1>
+            {signedOut
+              ? "Bitte erneut anmelden"
+              : "Arbeitsbereich nicht erreichbar"}
+          </h1>
+          <p>
+            {signedOut
+              ? "Deine Sitzung ist abgelaufen oder dein Zugang wurde gesperrt."
+              : "LeonAid konnte deine Rollen gerade nicht laden. Versuche es bitte noch einmal."}
+          </p>
+          {signedOut ? (
+            <a className="ui-button ui-button--primary" href="/login">
+              Zur Anmeldung
+            </a>
+          ) : (
+            <Button onClick={() => void identity.refetch()} variant="secondary">
+              Erneut versuchen
+            </Button>
+          )}
+        </StatusMessage>
+      </main>
+    );
+  }
+
+  const currentRoute = route();
+  const currentAction =
+    currentRoute.kind === "manage"
+      ? identity.data.actionMemberships.find(
+          (item) => item.actionId === currentRoute.actionId,
+        )?.actionName
+      : identity.data.actionMemberships[0]?.actionName;
+
+  return (
+    <AppShell
+      currentActionName={currentAction ?? "Keine aktive Aktion"}
+      identity={identity.data}
+      onLogout={() => {
+        void client.logout().finally(() => {
+          window.location.assign("/login");
+        });
+      }}
+    >
+      {currentRoute.kind === "new" ? (
+        <CreateActionPage client={client} />
+      ) : currentRoute.kind === "manage" ? (
+        <ManageActionPage
+          actionId={currentRoute.actionId}
+          client={client}
+          key={currentRoute.actionId}
+        />
+      ) : (
+        <ActionListPage identity={identity.data} />
+      )}
+    </AppShell>
+  );
+}

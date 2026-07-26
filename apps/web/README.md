@@ -1,29 +1,8 @@
-# Web
+# `@leonaid/web`
 
-React-Backoffice für Charity-Administration und Finanzen.
+React-Einstieg für das Charity-Admin-Backoffice. Der PoC bindet den Build
+zunächst gezielt unter `/admin/actions…` ein; bestehende Identitätsrouten
+bleiben bis zu ihrer eigenen Migration im schlanken Server.
 
-Der POC-040-Zwischenstand liefert bereits eine responsive, serverseitig
-berechtigte Persona-Shell über den gemeinsamen Compose-Frontend-Host. Die
-endgültige React-/shadcn-Komponentenarchitektur und der vollständige
-Komponentenkatalog folgen gebündelt in POC-100.
-
-Seit POC-041 enthält `/admin/members` zusätzlich den realen
-Einladungsablauf. Die auswählbaren Aktionen und Rollen kommen ausschließlich
-vom berechtigten Core-Endpunkt; ein Charity-Admin sieht dabei nur die eigenen
-verwalteten Aktionen. Erfolg, Validierungsfehler, leere Auswahl und Ladezustand
-sind bedienbar. Die Oberfläche bleibt eine bewusst kleine Zwischenstufe bis
-zur gemeinsamen React-/shadcn-Umsetzung in POC-100.
-
-POC-042 schützt die Shell mit einer serverseitigen, absolut 90 Tage gültigen
-Sitzung. Die Oberfläche bietet einen echten Logout. Sensible Admin-Aufrufe
-fordern bei abgelaufener Frische gezielt zur erneuten Anmeldung auf und führen
-anschließend zum beabsichtigten internen Ziel zurück; normale Arbeit bleibt
-innerhalb der gültigen Sitzung ohne erneuten Login möglich.
-
-POC-050 ergänzt unter `/admin/actions/new` den ersten vollständigen
-Charity-Admin-Workflow. Eine neutrale Aktion kann mit Träger, Zweck, Zeitraum,
-Archiv-Slug, typisierten Capabilities, Zielwert und mehreren dynamischen
-Begünstigten angelegt werden. Validierung und Berechtigung liegen im
-FastAPI-Core; die Oberfläche enthält keine eigene Fachlogik und ist weiterhin
-die bewusst kleine Vorstufe zur gemeinsamen React-/shadcn-Umsetzung in
-POC-100.
+Fachliche Mutationen laufen ausschließlich über den generierten
+`@leonaid/api-client` und den FastAPI-Core.

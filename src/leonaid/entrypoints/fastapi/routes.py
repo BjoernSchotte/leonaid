@@ -19,6 +19,7 @@ from leonaid.application.actions import (
     CopyActionDraft,
     CreateActionDraft,
     CreateActionFromTemplateDraft,
+    UpdateActionDetailsDraft,
 )
 from leonaid.application.errors import DependencyUnavailable
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
@@ -27,6 +28,8 @@ from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.sessions import SessionGrant, SessionService
 from leonaid.application.crm import CrmPartyKind
 from leonaid.domain.actions import (
+    ALLOWED_ACTION_TRANSITIONS,
+    ActionManagementState,
     ActionCapability,
     ActionGoal,
     CharityAction,
@@ -43,6 +46,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
     ActionGoalRequest,
     ActionGoalResponse,
+    ActionManagementResponse,
     ActionTemplateListResponse,
     ActionTemplateSnapshotResponse,
     ActionTemplateSummaryResponse,
@@ -55,6 +59,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcquisitionPartyListResponse,
     AcquisitionPartyResponse,
     AcquisitionSearchQuery,
+    AdministratorOptionResponse,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
@@ -88,7 +93,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetActionBeneficiariesRequest,
     SetActionCapabilitiesRequest,
     SetActionGoalRequest,
+    SetActionPublicationRequest,
+    SetResponsibleAdministratorsRequest,
     TransitionCharityActionRequest,
+    UpdateActionDetailsRequest,
 )
 
 router = APIRouter()
@@ -183,7 +191,18 @@ def charity_action_response(action: CharityAction) -> CharityActionResponse:
         status=action.status.value,
         starts_on=action.starts_on,
         ends_on=action.ends_on,
+        publication_starts_at=(
+            action.publication_window.starts_at
+            if action.publication_window is not None
+            else None
+        ),
+        publication_ends_at=(
+            action.publication_window.ends_at
+            if action.publication_window is not None
+            else None
+        ),
         archive_slug=action.archive_slug,
+        revision=action.revision,
         capabilities=sorted(
             (item.value for item in action.capabilities),
         ),
@@ -206,6 +225,34 @@ def charity_action_response(action: CharityAction) -> CharityActionResponse:
             unit=action.goal.unit,
             currency=action.goal.currency,
         ),
+    )
+
+
+def action_management_response(
+    state: ActionManagementState,
+) -> ActionManagementResponse:
+    return ActionManagementResponse(
+        action=charity_action_response(state.action),
+        public_alias=(
+            state.public_alias.value if state.public_alias is not None else None
+        ),
+        administrator_options=[
+            AdministratorOptionResponse(
+                user_id=item.user_id,
+                display_name=item.display_name,
+                email=item.email,
+                is_available=item.is_available,
+                is_responsible=item.is_responsible,
+            )
+            for item in state.administrator_options
+        ],
+        allowed_transitions=[
+            item.value
+            for item in sorted(
+                ALLOWED_ACTION_TRANSITIONS[state.action.status],
+                key=lambda value: value.value,
+            )
+        ],
     )
 
 
@@ -642,6 +689,107 @@ async def get_charity_action(
 
 
 @router.get(
+    "/api/v1/actions/{action_id}/management",
+    operation_id="getCharityActionManagement",
+    response_model=ActionManagementResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_charity_action_management(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> ActionManagementResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    state = await action_service(request).get_management(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return action_management_response(state)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/details",
+    operation_id="setCharityActionDetails",
+    response_model=CharityActionResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_details(
+    action_id: UUID,
+    request: Request,
+    body: UpdateActionDetailsRequest,
+    response: Response,
+) -> CharityActionResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    action = await action_service(request).set_details(
+        actor,
+        action_id,
+        UpdateActionDetailsDraft(
+            carrier_name=body.carrier_name,
+            name=body.name,
+            purpose=body.purpose,
+            starts_on=body.starts_on,
+            ends_on=body.ends_on,
+        ),
+        expected_revision=body.revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return charity_action_response(action)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/publication",
+    operation_id="setCharityActionPublication",
+    response_model=ActionManagementResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_publication(
+    action_id: UUID,
+    request: Request,
+    body: SetActionPublicationRequest,
+    response: Response,
+) -> ActionManagementResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    state = await action_service(request).set_publication(
+        actor,
+        action_id,
+        publication_starts_at=body.publication_starts_at,
+        publication_ends_at=body.publication_ends_at,
+        public_alias=body.public_alias,
+        expected_revision=body.revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return action_management_response(state)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/responsible-administrators",
+    operation_id="setCharityActionResponsibleAdministrators",
+    response_model=ActionManagementResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def set_charity_action_responsible_administrators(
+    action_id: UUID,
+    request: Request,
+    body: SetResponsibleAdministratorsRequest,
+    response: Response,
+) -> ActionManagementResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    state = await action_service(request).set_responsible_administrators(
+        actor,
+        action_id,
+        body.user_ids,
+        expected_revision=body.revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return action_management_response(state)
+
+
+@router.get(
     "/api/v1/actions/{action_id}/configuration",
     operation_id="getCharityActionConfiguration",
     response_model=CharityActionConfigurationResponse,
@@ -711,6 +859,7 @@ async def set_charity_action_goal(
         actor,
         action_id,
         goal_from_request(body),
+        expected_revision=body.revision,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"
@@ -735,6 +884,7 @@ async def set_charity_action_capabilities(
         actor,
         action_id,
         tuple(ActionCapability(item) for item in body.capabilities),
+        expected_revision=body.revision,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"
@@ -759,6 +909,7 @@ async def set_charity_action_beneficiaries(
         actor,
         action_id,
         beneficiary_drafts(body.beneficiaries),
+        expected_revision=body.revision,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"
@@ -783,6 +934,7 @@ async def transition_charity_action(
         actor,
         action_id,
         CharityActionStatus(body.target_status),
+        expected_revision=body.revision,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"

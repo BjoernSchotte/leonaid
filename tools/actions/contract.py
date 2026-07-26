@@ -167,6 +167,7 @@ async def exercise(
         created.raise_for_status()
         body = created.json()
         action_id = UUID(str(body["id"]))
+        revision = int(body["revision"])
         if (
             created.status_code != 201
             or created.headers.get("location") != f"/api/v1/actions/{action_id}"
@@ -232,6 +233,7 @@ async def exercise(
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("goal-1"),
             json={
+                "revision": revision,
                 "goalValue": "15000",
                 "actualValue": "1000",
                 "unit": "EUR",
@@ -239,17 +241,24 @@ async def exercise(
             },
         )
         goal_changed.raise_for_status()
-        if goal_changed.json()["goal"]["actualValue"] != "1000":
+        goal_body = goal_changed.json()
+        revision = int(goal_body["revision"])
+        if goal_body["goal"]["actualValue"] != "1000":
             raise ContractFailure("Ist-Wert wurde nicht manuell gespeichert")
 
         capabilities_changed = await client.put(
             f"/api/v1/actions/{action_id}/capabilities",
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("capabilities"),
-            json={"capabilities": ["acquisition", "invoicing"]},
+            json={
+                "revision": revision,
+                "capabilities": ["acquisition", "invoicing"],
+            },
         )
         capabilities_changed.raise_for_status()
-        if capabilities_changed.json()["capabilities"] != [
+        capabilities_body = capabilities_changed.json()
+        revision = int(capabilities_body["revision"])
+        if capabilities_body["capabilities"] != [
             "acquisition",
             "invoicing",
         ]:
@@ -260,6 +269,7 @@ async def exercise(
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("beneficiaries"),
             json={
+                "revision": revision,
                 "beneficiaries": [
                     {
                         "organizationName": "Bildungshafen Beispielstadt",
@@ -273,18 +283,20 @@ async def exercise(
                         "organizationName": "Kulturanker Nord",
                         "publicDescription": "Niedrigschwellige Kulturprojekte.",
                     },
-                ]
+                ],
             },
         )
         beneficiaries_changed.raise_for_status()
-        if len(beneficiaries_changed.json()["beneficiaries"]) != 3:
+        beneficiaries_body = beneficiaries_changed.json()
+        revision = int(beneficiaries_body["revision"])
+        if len(beneficiaries_body["beneficiaries"]) != 3:
             raise ContractFailure("Mehrere Begünstigte wurden nicht gespeichert")
 
         invalid_transition = await client.post(
             f"/api/v1/actions/{action_id}/transitions",
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("invalid-transition"),
-            json={"targetStatus": "active"},
+            json={"revision": revision, "targetStatus": "active"},
         )
         if error_signature(invalid_transition)[:2] != (
             422,
@@ -299,17 +311,19 @@ async def exercise(
                 f"/api/v1/actions/{action_id}/transitions",
                 cookies=cookies(tokens[KLARA_ID]),
                 headers=request_headers(f"transition-{index}-{target}"),
-                json={"targetStatus": target},
+                json={"revision": revision, "targetStatus": target},
             )
             transitioned.raise_for_status()
-            if transitioned.json()["status"] != target:
+            transition_body = transitioned.json()
+            revision = int(transition_body["revision"])
+            if transition_body["status"] != target:
                 raise ContractFailure(f"Lifecycle-Ziel {target} wurde nicht erreicht")
 
         locked_capabilities = await client.put(
             f"/api/v1/actions/{action_id}/capabilities",
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("locked-capabilities"),
-            json={"capabilities": ["acquisition"]},
+            json={"revision": revision, "capabilities": ["acquisition"]},
         )
         if error_signature(locked_capabilities)[:2] != (
             422,
@@ -322,6 +336,7 @@ async def exercise(
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("goal-active"),
             json={
+                "revision": revision,
                 "goalValue": "15000",
                 "actualValue": "1500",
                 "unit": "EUR",
@@ -329,21 +344,24 @@ async def exercise(
             },
         )
         active_goal.raise_for_status()
+        revision = int(active_goal.json()["revision"])
 
         for target in ("completed", "archived"):
             transitioned = await client.post(
                 f"/api/v1/actions/{action_id}/transitions",
                 cookies=cookies(tokens[KLARA_ID]),
                 headers=request_headers(f"transition-{target}"),
-                json={"targetStatus": target},
+                json={"revision": revision, "targetStatus": target},
             )
             transitioned.raise_for_status()
+            revision = int(transitioned.json()["revision"])
 
         archived_goal = await client.put(
             f"/api/v1/actions/{action_id}/goal",
             cookies=cookies(tokens[KLARA_ID]),
             headers=request_headers("archived-goal"),
             json={
+                "revision": revision,
                 "goalValue": "15000",
                 "actualValue": "1600",
                 "unit": "EUR",

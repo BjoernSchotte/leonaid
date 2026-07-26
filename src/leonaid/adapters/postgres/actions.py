@@ -25,11 +25,15 @@ from leonaid.domain.action_templates import (
     TemplateOffering,
 )
 from leonaid.domain.actions import (
+    ActionManagementState,
     ActionCapability,
     ActionGoal,
+    AdministratorOption,
     Beneficiary,
     CharityAction,
     CharityActionStatus,
+    PublicationWindow,
+    PublicActionAlias,
 )
 
 
@@ -57,15 +61,19 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         """
                         INSERT INTO charity_action (
                             id, carrier_name, name, purpose, status,
-                            starts_on, ends_on, archive_slug,
+                            starts_on, ends_on,
+                            publication_starts_at, publication_ends_at,
+                            archive_slug,
                             goal_value, actual_value, goal_unit, currency,
-                            created_at, updated_at
+                            revision, created_at, updated_at
                         )
                         VALUES (
                             $1, $2, $3, $4, $5,
-                            $6, $7, $8,
-                            $9, $10, $11, $12,
-                            $13, $13
+                            $6, $7,
+                            $8, $9,
+                            $10,
+                            $11, $12, $13, $14,
+                            $15, $16, $16
                         )
                         """,
                         action.id,
@@ -75,11 +83,22 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         action.status.value,
                         action.starts_on,
                         action.ends_on,
+                        (
+                            action.publication_window.starts_at
+                            if action.publication_window is not None
+                            else None
+                        ),
+                        (
+                            action.publication_window.ends_at
+                            if action.publication_window is not None
+                            else None
+                        ),
                         action.archive_slug,
                         action.goal.goal_value,
                         action.goal.actual_value,
                         action.goal.unit,
                         action.goal.currency,
+                        action.revision,
                         occurred_at,
                     )
                     await self._insert_capabilities(connection, action)
@@ -252,6 +271,297 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 ),
             )
 
+    async def get_management(
+        self,
+        action_id: UUID,
+    ) -> ActionManagementState | None:
+        async with self._pool.acquire() as connection:
+            return await self._get_management(connection, action_id)
+
+    async def get_alias_target(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> UUID | None:
+        async with self._pool.acquire() as connection:
+            target = await connection.fetchval(
+                "SELECT action_id FROM public_action_alias WHERE alias = $1",
+                public_alias.value,
+            )
+            return UUID(str(target)) if target is not None else None
+
+    async def update_details(
+        self,
+        action: CharityAction,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> CharityAction:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    """
+                    carrier_name = $3,
+                    name = $4,
+                    purpose = $5,
+                    starts_on = $6,
+                    ends_on = $7,
+                    """,
+                    action.carrier_name,
+                    action.name,
+                    action.purpose,
+                    action.starts_on,
+                    action.ends_on,
+                    occurred_at=occurred_at,
+                )
+                await self._audit(
+                    connection,
+                    action=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="charity_action.details_changed",
+                    request_id=request_id,
+                    payload={
+                        "carrierName": changed.carrier_name,
+                        "name": changed.name,
+                        "startsOn": changed.starts_on.isoformat(),
+                        "endsOn": changed.ends_on.isoformat(),
+                        "revision": changed.revision,
+                    },
+                    occurred_at=occurred_at,
+                )
+        return changed
+
+    async def replace_publication(
+        self,
+        action: CharityAction,
+        *,
+        public_alias: PublicActionAlias | None,
+        allowed_previous_target_id: UUID | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> ActionManagementState:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute("SELECT pg_advisory_xact_lock(527052)")
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    """
+                    publication_starts_at = $3,
+                    publication_ends_at = $4,
+                    """,
+                    (
+                        action.publication_window.starts_at
+                        if action.publication_window is not None
+                        else None
+                    ),
+                    (
+                        action.publication_window.ends_at
+                        if action.publication_window is not None
+                        else None
+                    ),
+                    occurred_at=occurred_at,
+                )
+                current_alias_row = await connection.fetchrow(
+                    """
+                    SELECT alias
+                    FROM public_action_alias
+                    WHERE action_id = $1
+                    FOR UPDATE
+                    """,
+                    action.id,
+                )
+                current_alias = (
+                    str(current_alias_row["alias"])
+                    if current_alias_row is not None
+                    else None
+                )
+                desired_alias = public_alias.value if public_alias is not None else None
+                if current_alias != desired_alias:
+                    previous_target_id: UUID | None = None
+                    if desired_alias is not None:
+                        previous_target_id = await connection.fetchval(
+                            """
+                            SELECT action_id
+                            FROM public_action_alias
+                            WHERE alias = $1
+                            FOR UPDATE
+                            """,
+                            desired_alias,
+                        )
+                        if (
+                            previous_target_id is not None
+                            and previous_target_id != action.id
+                            and previous_target_id != allowed_previous_target_id
+                        ):
+                            raise Conflict(
+                                "action_public_alias_unavailable",
+                                "Dieser öffentliche Alias ist nicht verfügbar.",
+                            )
+                    await connection.execute(
+                        "DELETE FROM public_action_alias WHERE action_id = $1",
+                        action.id,
+                    )
+                    if (
+                        previous_target_id is not None
+                        and previous_target_id != action.id
+                    ):
+                        await connection.execute(
+                            "DELETE FROM public_action_alias WHERE alias = $1",
+                            desired_alias,
+                        )
+                        await connection.execute(
+                            """
+                            UPDATE charity_action
+                            SET revision = revision + 1, updated_at = $2
+                            WHERE id = $1
+                            """,
+                            previous_target_id,
+                            occurred_at,
+                        )
+                        await self._audit_by_id(
+                            connection,
+                            action_id=previous_target_id,
+                            actor_user_id=actor_user_id,
+                            event_type="charity_action.public_alias_released",
+                            request_id=request_id,
+                            payload={"publicAlias": desired_alias},
+                            occurred_at=occurred_at,
+                        )
+                    if desired_alias is not None:
+                        await connection.execute(
+                            """
+                            INSERT INTO public_action_alias (
+                                alias, action_id, switched_at
+                            )
+                            VALUES ($1, $2, $3)
+                            """,
+                            desired_alias,
+                            action.id,
+                            occurred_at,
+                        )
+                await self._audit(
+                    connection,
+                    action=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="charity_action.publication_changed",
+                    request_id=request_id,
+                    payload={
+                        "publicationStartsAt": (
+                            changed.publication_window.starts_at.isoformat()
+                            if changed.publication_window is not None
+                            else None
+                        ),
+                        "publicationEndsAt": (
+                            changed.publication_window.ends_at.isoformat()
+                            if changed.publication_window is not None
+                            else None
+                        ),
+                        "publicAlias": desired_alias,
+                        "revision": changed.revision,
+                    },
+                    occurred_at=occurred_at,
+                )
+                state = await self._get_management(connection, action.id)
+                if state is None:
+                    raise RuntimeError("Aktionsverwaltung ging nach Update verloren")
+        return state
+
+    async def replace_responsible_administrators(
+        self,
+        action: CharityAction,
+        *,
+        responsible_user_ids: frozenset[UUID],
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> ActionManagementState:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                available_rows = await connection.fetch(
+                    """
+                    SELECT id
+                    FROM user_account
+                    WHERE id = ANY($1::uuid[]) AND status = 'active'
+                    FOR SHARE
+                    """,
+                    list(responsible_user_ids),
+                )
+                normalized_available_ids = frozenset(
+                    row["id"] for row in available_rows
+                )
+                if normalized_available_ids != responsible_user_ids:
+                    raise Conflict(
+                        "action_responsible_administrator_unavailable",
+                        "Mindestens ein ausgewähltes Mitglied ist nicht mehr verfügbar.",
+                    )
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    "",
+                    occurred_at=occurred_at,
+                )
+                await connection.execute(
+                    """
+                    UPDATE action_membership
+                    SET active_until = $2, updated_at = $2
+                    WHERE action_id = $1
+                      AND role = 'charity_admin'
+                      AND active_until IS NULL
+                      AND NOT (user_id = ANY($3::uuid[]))
+                    """,
+                    action.id,
+                    occurred_at,
+                    list(responsible_user_ids),
+                )
+                for user_id in sorted(responsible_user_ids, key=str):
+                    await connection.execute(
+                        """
+                        INSERT INTO action_membership (
+                            id, action_id, user_id, role,
+                            active_from, active_until, created_at, updated_at
+                        )
+                        VALUES (
+                            $1, $2, $3, 'charity_admin',
+                            $4, NULL, $4, $4
+                        )
+                        ON CONFLICT (action_id, user_id, role)
+                        DO UPDATE SET
+                            active_from = CASE
+                                WHEN action_membership.active_until IS NULL
+                                THEN action_membership.active_from
+                                ELSE EXCLUDED.active_from
+                            END,
+                            active_until = NULL,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        uuid4(),
+                        action.id,
+                        user_id,
+                        occurred_at,
+                    )
+                await self._audit(
+                    connection,
+                    action=changed,
+                    actor_user_id=actor_user_id,
+                    event_type="charity_action.responsibles_changed",
+                    request_id=request_id,
+                    payload={
+                        "responsibleUserIds": [
+                            str(item) for item in sorted(responsible_user_ids, key=str)
+                        ],
+                        "revision": changed.revision,
+                    },
+                    occurred_at=occurred_at,
+                )
+                state = await self._get_management(connection, action.id)
+                if state is None:
+                    raise RuntimeError("Aktionsverwaltung ging nach Update verloren")
+        return state
+
     async def update_goal(
         self,
         action: CharityAction,
@@ -262,35 +572,34 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> CharityAction:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await self._lock_expected_status(connection, action)
-                status = await connection.execute(
+                changed = await self._advance_revision(
+                    connection,
+                    action,
                     """
-                    UPDATE charity_action
-                    SET goal_value = $2,
-                        actual_value = $3,
-                        goal_unit = $4,
-                        currency = $5,
-                        updated_at = $6
-                    WHERE id = $1
+                    goal_value = $3,
+                    actual_value = $4,
+                    goal_unit = $5,
+                    currency = $6,
                     """,
-                    action.id,
                     action.goal.goal_value,
                     action.goal.actual_value,
                     action.goal.unit,
                     action.goal.currency,
-                    occurred_at,
+                    occurred_at=occurred_at,
                 )
-                self._require_update(status)
                 await self._audit(
                     connection,
-                    action=action,
+                    action=changed,
                     actor_user_id=actor_user_id,
                     event_type="charity_action.goal_changed",
                     request_id=request_id,
-                    payload=self._goal_payload(action.goal),
+                    payload={
+                        **self._goal_payload(changed.goal),
+                        "revision": changed.revision,
+                    },
                     occurred_at=occurred_at,
                 )
-        return action
+        return changed
 
     async def replace_capabilities(
         self,
@@ -302,27 +611,30 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> CharityAction:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await self._lock_expected_status(connection, action)
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    "",
+                    occurred_at=occurred_at,
+                )
                 await connection.execute(
                     "DELETE FROM charity_action_capability WHERE action_id = $1",
                     action.id,
                 )
                 await self._insert_capabilities(connection, action)
-                await connection.execute(
-                    "UPDATE charity_action SET updated_at = $2 WHERE id = $1",
-                    action.id,
-                    occurred_at,
-                )
                 await self._audit(
                     connection,
-                    action=action,
+                    action=changed,
                     actor_user_id=actor_user_id,
                     event_type="charity_action.capabilities_changed",
                     request_id=request_id,
-                    payload={"capabilities": self._capability_values(action)},
+                    payload={
+                        "capabilities": self._capability_values(changed),
+                        "revision": changed.revision,
+                    },
                     occurred_at=occurred_at,
                 )
-        return action
+        return changed
 
     async def replace_beneficiaries(
         self,
@@ -334,27 +646,30 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> CharityAction:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                await self._lock_expected_status(connection, action)
+                changed = await self._advance_revision(
+                    connection,
+                    action,
+                    "",
+                    occurred_at=occurred_at,
+                )
                 await connection.execute(
                     "DELETE FROM beneficiary WHERE action_id = $1",
                     action.id,
                 )
                 await self._insert_beneficiaries(connection, action, occurred_at)
-                await connection.execute(
-                    "UPDATE charity_action SET updated_at = $2 WHERE id = $1",
-                    action.id,
-                    occurred_at,
-                )
                 await self._audit(
                     connection,
-                    action=action,
+                    action=changed,
                     actor_user_id=actor_user_id,
                     event_type="charity_action.beneficiaries_changed",
                     request_id=request_id,
-                    payload={"beneficiaryCount": len(action.beneficiaries)},
+                    payload={
+                        "beneficiaryCount": len(changed.beneficiaries),
+                        "revision": changed.revision,
+                    },
                     occurred_at=occurred_at,
                 )
-        return action
+        return changed
 
     async def transition(
         self,
@@ -367,35 +682,43 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> CharityAction:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                status = await connection.execute(
+                changed = await self._advance_revision(
+                    connection,
+                    action,
                     """
-                    UPDATE charity_action
-                    SET status = $3, updated_at = $4
-                    WHERE id = $1 AND status = $2
+                    status = $3,
                     """,
-                    action.id,
-                    previous_status.value,
                     action.status.value,
-                    occurred_at,
+                    occurred_at=occurred_at,
                 )
-                if status != "UPDATE 1":
-                    raise Conflict(
-                        "action_concurrent_change",
-                        "Die Charity-Aktion wurde zwischenzeitlich geändert.",
+                released_alias: str | None = None
+                if action.status in {
+                    CharityActionStatus.COMPLETED,
+                    CharityActionStatus.ARCHIVED,
+                }:
+                    released_alias = await connection.fetchval(
+                        """
+                        DELETE FROM public_action_alias
+                        WHERE action_id = $1
+                        RETURNING alias
+                        """,
+                        action.id,
                     )
                 await self._audit(
                     connection,
-                    action=action,
+                    action=changed,
                     actor_user_id=actor_user_id,
                     event_type="charity_action.status_changed",
                     request_id=request_id,
                     payload={
                         "previousStatus": previous_status.value,
-                        "newStatus": action.status.value,
+                        "newStatus": changed.status.value,
+                        "releasedPublicAlias": released_alias,
+                        "revision": changed.revision,
                     },
                     occurred_at=occurred_at,
                 )
-        return action
+        return changed
 
     @staticmethod
     async def _get(
@@ -406,8 +729,10 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             """
             SELECT
                 id, carrier_name, name, purpose, status,
-                starts_on, ends_on, archive_slug,
-                goal_value, actual_value, goal_unit, currency
+                starts_on, ends_on,
+                publication_starts_at, publication_ends_at,
+                archive_slug, goal_value, actual_value, goal_unit, currency,
+                revision
             FROM charity_action
             WHERE id = $1
             """,
@@ -466,6 +791,80 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 actual_value=Decimal(row["actual_value"]),
                 unit=str(row["goal_unit"]) if row["goal_unit"] is not None else None,
                 currency=str(row["currency"]) if row["currency"] is not None else None,
+            ),
+            publication_window=(
+                PublicationWindow(
+                    starts_at=row["publication_starts_at"],
+                    ends_at=row["publication_ends_at"],
+                )
+                if row["publication_starts_at"] is not None
+                and row["publication_ends_at"] is not None
+                else None
+            ),
+            revision=int(row["revision"]),
+        )
+
+    @staticmethod
+    async def _get_management(
+        connection: asyncpg.Connection[Any],
+        action_id: UUID,
+    ) -> ActionManagementState | None:
+        action = await AsyncpgCharityActionRepository._get(connection, action_id)
+        if action is None:
+            return None
+        alias = await connection.fetchval(
+            "SELECT alias FROM public_action_alias WHERE action_id = $1",
+            action_id,
+        )
+        administrator_rows = await connection.fetch(
+            """
+            SELECT
+                account.id,
+                account.display_name,
+                account.email,
+                account.status = 'active' AS is_available,
+                EXISTS (
+                    SELECT 1
+                    FROM action_membership AS membership
+                    WHERE membership.action_id = $1
+                      AND membership.user_id = account.id
+                      AND membership.role = 'charity_admin'
+                      AND membership.active_from <= CURRENT_TIMESTAMP
+                      AND (
+                        membership.active_until IS NULL
+                        OR membership.active_until > CURRENT_TIMESTAMP
+                      )
+                ) AS is_responsible
+            FROM user_account AS account
+            WHERE account.status = 'active'
+               OR EXISTS (
+                    SELECT 1
+                    FROM action_membership AS membership
+                    WHERE membership.action_id = $1
+                      AND membership.user_id = account.id
+                      AND membership.role = 'charity_admin'
+                      AND membership.active_from <= CURRENT_TIMESTAMP
+                      AND (
+                        membership.active_until IS NULL
+                        OR membership.active_until > CURRENT_TIMESTAMP
+                      )
+               )
+            ORDER BY lower(account.display_name), account.id
+            """,
+            action_id,
+        )
+        return ActionManagementState(
+            action=action,
+            public_alias=(PublicActionAlias(str(alias)) if alias is not None else None),
+            administrator_options=tuple(
+                AdministratorOption(
+                    user_id=row["id"],
+                    display_name=str(row["display_name"]),
+                    email=str(row["email"]),
+                    is_available=bool(row["is_available"]),
+                    is_responsible=bool(row["is_responsible"]),
+                )
+                for row in administrator_rows
             ),
         )
 
@@ -698,6 +1097,27 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         payload: dict[str, object],
         occurred_at: datetime,
     ) -> None:
+        await AsyncpgCharityActionRepository._audit_by_id(
+            connection,
+            action_id=action.id,
+            actor_user_id=actor_user_id,
+            event_type=event_type,
+            request_id=request_id,
+            payload=payload,
+            occurred_at=occurred_at,
+        )
+
+    @staticmethod
+    async def _audit_by_id(
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        actor_user_id: UUID,
+        event_type: str,
+        request_id: str,
+        payload: dict[str, object],
+        occurred_at: datetime,
+    ) -> None:
         await connection.execute(
             """
             INSERT INTO audit_event (
@@ -710,13 +1130,47 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             )
             """,
             uuid4(),
-            action.id,
+            action_id,
             actor_user_id,
             event_type,
             request_id,
             json.dumps(payload, separators=(",", ":")),
             occurred_at,
         )
+
+    @staticmethod
+    async def _advance_revision(
+        connection: asyncpg.Connection[Any],
+        action: CharityAction,
+        assignments: str,
+        *values: object,
+        occurred_at: datetime,
+    ) -> CharityAction:
+        occurred_at_parameter = len(values) + 3
+        revision = await connection.fetchval(
+            f"""
+            UPDATE charity_action
+            SET {assignments}
+                revision = revision + 1,
+                updated_at = ${occurred_at_parameter}
+            WHERE id = $1 AND revision = $2
+            RETURNING revision
+            """,
+            action.id,
+            action.revision,
+            *values,
+            occurred_at,
+        )
+        if revision is None:
+            raise Conflict(
+                "action_revision_conflict",
+                "Die Charity-Aktion wurde zwischenzeitlich geändert. "
+                "Lade den aktuellen Stand und prüfe deine Eingaben erneut.",
+            )
+        changed = action.next_revision()
+        if int(revision) != changed.revision:
+            raise RuntimeError("PostgreSQL lieferte eine unerwartete Aktionsrevision")
+        return changed
 
     @staticmethod
     def _capability_values(action: CharityAction) -> list[str]:
@@ -763,31 +1217,3 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             require_billing_address=bool(row["require_billing_address"]),
             allow_message=bool(row["allow_message"]),
         )
-
-    @staticmethod
-    def _require_update(status: str) -> None:
-        if status != "UPDATE 1":
-            raise Conflict(
-                "action_concurrent_change",
-                "Die Charity-Aktion wurde zwischenzeitlich geändert.",
-            )
-
-    @staticmethod
-    async def _lock_expected_status(
-        connection: asyncpg.Connection[Any],
-        action: CharityAction,
-    ) -> None:
-        current_status = await connection.fetchval(
-            """
-            SELECT status
-            FROM charity_action
-            WHERE id = $1
-            FOR UPDATE
-            """,
-            action.id,
-        )
-        if current_status != action.status.value:
-            raise Conflict(
-                "action_concurrent_change",
-                "Die Charity-Aktion wurde zwischenzeitlich geändert.",
-            )

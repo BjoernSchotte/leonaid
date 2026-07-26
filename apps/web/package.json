@@ -1,0 +1,19 @@
+{
+  "name": "@leonaid/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test:components": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@leonaid/api-client": "workspace:*",
+    "@leonaid/features": "workspace:*",
+    "@leonaid/ui": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

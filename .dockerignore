@@ -1,0 +1,11 @@
+.artifacts
+.cache
+.env
+.env.*
+!.env.example
+.git
+.local
+.venv
+node_modules
+__pycache__
+*.pyc

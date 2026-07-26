@@ -142,7 +142,7 @@ services:
   web:
     build:
       context: ../..
-      dockerfile: infra/compose/Dockerfile.frontend
+      dockerfile: infra/compose/Dockerfile.web
     restart: unless-stopped
     environment:
       APP_NAME: "LeonAid Verwaltung"

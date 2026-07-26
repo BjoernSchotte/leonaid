@@ -29,6 +29,7 @@ Commands:
   test-policy       Prove central row-level policies against PostgreSQL/Twenty
   test-actions      Prove neutral CharityAction lifecycle and browser creation
   test-templates    Prove versioned action templates and previous-year copies
+  test-action-admin Prove Charity-Admin action management and conflict handling
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -199,15 +200,18 @@ check_all() {
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
   run_python uv run --frozen --no-sync ruff check \
-    migrations src tests tools/actions tools/compose/persistence_probe.py tools/core \
+    migrations src tests tools/action_admin tools/actions \
+    tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
-    migrations src tests tools/actions tools/compose/persistence_probe.py tools/core \
+    migrations src tests tools/action_admin tools/actions \
+    tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/policy tools/schema tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
-    migrations src tools/actions tools/compose/persistence_probe.py tools/core tools/dx \
+    migrations src tools/action_admin tools/actions \
+    tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/openapi tools/outbox tools/schema \
     tools/policy tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -215,9 +219,10 @@ check_all() {
     python tools/openapi/generate.py --root /workspace --check
   run_python uv run --frozen --no-sync \
     python tools/openapi/check_frontend.py --root /workspace
-  run_bun bun run typecheck:api-client
+  run_bun bun run typecheck
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    packages/api-client tests/contract package.json
+    apps/web packages/api-client packages/features packages/ui \
+    tests/contract tests/e2e/action-admin.spec.mjs package.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ "$before" != "$after" ] || [ -n "$after" ]; then
@@ -405,12 +410,14 @@ case "$command" in
     /bin/sh "$root/tools/policy/test.sh" "$root"
     /bin/sh "$root/tools/actions/test.sh" "$root"
     /bin/sh "$root/tools/templates/test.sh" "$root"
+    /bin/sh "$root/tools/action_admin/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
     /bin/sh "$root/tools/invitations/test.sh" "$root"
     /bin/sh "$root/tools/sessions/test.sh" "$root"
     /bin/sh "$root/tools/actions/test.sh" "$root"
+    /bin/sh "$root/tools/action_admin/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
@@ -420,6 +427,7 @@ case "$command" in
   test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
   test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
   test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
+  test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

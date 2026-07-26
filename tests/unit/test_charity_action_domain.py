@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import fields, replace
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -9,11 +9,15 @@ import pytest
 
 from leonaid.domain.actions import (
     ALLOWED_ACTION_TRANSITIONS,
+    ActionManagementState,
     ActionCapability,
     ActionGoal,
+    AdministratorOption,
     Beneficiary,
     CharityAction,
     CharityActionStatus,
+    PublicationWindow,
+    PublicActionAlias,
 )
 from leonaid.domain.errors import DomainInvariantError
 
@@ -118,6 +122,8 @@ def test_capability_and_beneficiary_invariants_stay_action_neutral() -> None:
         "capabilities",
         "beneficiaries",
         "goal",
+        "publication_window",
+        "revision",
     }
 
 
@@ -145,3 +151,84 @@ def test_goal_requires_nonnegative_values_and_a_paired_unit() -> None:
             unit="EUR",
         )
     assert excess_precision.value.code == "action_goal_precision"
+
+
+def test_publication_details_and_revision_are_server_side_invariants() -> None:
+    starts_at = datetime(2027, 1, 10, 8, tzinfo=timezone.utc)
+    window = PublicationWindow(
+        starts_at=starts_at,
+        ends_at=starts_at + timedelta(days=90),
+    )
+    published = neutral_action().with_publication_window(window)
+    changed = published.with_details(
+        carrier_name="Lions Hilfswerk Beispielstadt e. V.",
+        name="Quartalsaktion Frühjahr 2027",
+        purpose="Förderung lokaler Lernorte.",
+        starts_on=date(2027, 2, 2),
+        ends_on=date(2027, 4, 1),
+    )
+
+    assert changed.publication_window == window
+    assert changed.next_revision().revision == 2
+    assert PublicActionAlias("quartalsaktion").value == "quartalsaktion"
+
+    with pytest.raises(DomainInvariantError) as naive:
+        PublicationWindow(
+            starts_at=datetime(2027, 1, 1),
+            ends_at=datetime(2027, 2, 1),
+        )
+    assert naive.value.code == "action_publication_timezone_required"
+
+    with pytest.raises(DomainInvariantError) as backwards:
+        PublicationWindow(
+            starts_at=starts_at,
+            ends_at=starts_at - timedelta(seconds=1),
+        )
+    assert backwards.value.code == "action_publication_period_invalid"
+
+    with pytest.raises(DomainInvariantError) as alias:
+        PublicActionAlias("Quartals Aktion")
+    assert alias.value.code == "action_public_alias_invalid"
+
+    archived = neutral_action(status=CharityActionStatus.ARCHIVED)
+    with pytest.raises(DomainInvariantError) as immutable:
+        archived.with_details(
+            carrier_name=archived.carrier_name,
+            name="Nachträgliche Änderung",
+            purpose=archived.purpose,
+            starts_on=archived.starts_on,
+            ends_on=archived.ends_on,
+        )
+    assert immutable.value.code == "action_archived_immutable"
+
+
+def test_management_state_requires_one_unique_responsible_admin() -> None:
+    option = AdministratorOption(
+        user_id=UUID("10000000-0000-4000-8000-000000000002"),
+        display_name="Klara Koordination",
+        email="klara@leonaid.invalid",
+        is_available=True,
+        is_responsible=True,
+    )
+    state = ActionManagementState(
+        action=neutral_action(),
+        public_alias=PublicActionAlias("quartalsaktion"),
+        administrator_options=(option,),
+    )
+    assert state.administrator_options == (option,)
+
+    with pytest.raises(DomainInvariantError) as duplicate:
+        ActionManagementState(
+            action=neutral_action(),
+            public_alias=None,
+            administrator_options=(option, option),
+        )
+    assert duplicate.value.code == "action_administrator_duplicate"
+
+    with pytest.raises(DomainInvariantError) as missing:
+        ActionManagementState(
+            action=neutral_action(),
+            public_alias=None,
+            administrator_options=(replace(option, is_responsible=False),),
+        )
+    assert missing.value.code == "action_responsible_administrator_required"

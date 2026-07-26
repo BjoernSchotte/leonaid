@@ -1,0 +1,116 @@
+/*
+ * Lions International brand primitives follow the official V4.0 brand
+ * guidelines. Semantic LeonAid tokens deliberately remain separate so the
+ * product UI can evolve without coupling components to raw brand colors.
+ * https://www.lionsclubs.org/en/resources-for-members/brand-guidelines
+ */
+:root {
+  --lions-blue: #00338d;
+  --lions-yellow: #ebb700;
+  --lions-purple: #7a2582;
+  --lions-cool-gray-11: #55565a;
+  --lions-light-blue: #407cca;
+  --lions-green: #00ab68;
+  --lions-navy: #0d2240;
+  --lions-coral: #ff5b35;
+  --lions-cool-gray-5: #b3b2b1;
+
+  --background: color-mix(in oklch, white 97%, var(--lions-blue));
+  --foreground: var(--lions-navy);
+  --surface: #ffffff;
+  --surface-muted: color-mix(in oklch, white 94%, var(--lions-light-blue));
+  --border: color-mix(in oklch, white 58%, var(--lions-cool-gray-5));
+  --muted: var(--lions-cool-gray-11);
+  --primary: var(--lions-blue);
+  --primary-foreground: #ffffff;
+  --accent: color-mix(in oklch, white 88%, var(--lions-light-blue));
+  --accent-foreground: var(--lions-blue);
+  --danger: color-mix(in oklch, var(--lions-coral) 72%, #7a1f1f);
+  --danger-foreground: #ffffff;
+  --danger-text: color-mix(in oklch, var(--lions-coral) 64%, #641414);
+  --success: var(--lions-green);
+  --success-text: color-mix(in oklch, var(--lions-green) 72%, #064e3b);
+  --warning: var(--lions-yellow);
+  --warning-foreground: var(--lions-navy);
+  --focus: var(--lions-light-blue);
+  --sidebar: var(--lions-navy);
+  --sidebar-foreground: #ffffff;
+  --sidebar-muted: color-mix(in oklch, white 62%, var(--lions-navy));
+  --sidebar-active: color-mix(in oklch, white 16%, var(--lions-navy));
+  --sidebar-accent: var(--lions-yellow);
+  --radius-sm: 0.45rem;
+  --radius-md: 0.7rem;
+  --radius-lg: 1rem;
+  --shadow-sm: 0 1px 2px rgb(13 34 64 / 0.07);
+  --shadow-md: 0 14px 35px rgb(13 34 64 / 0.12);
+}
+
+:root[data-theme="dark"] {
+  --background: color-mix(in oklch, var(--lions-navy) 76%, #05080f);
+  --foreground: #f7f9fc;
+  --surface: color-mix(in oklch, var(--lions-navy) 86%, #1c3557);
+  --surface-muted: color-mix(in oklch, var(--lions-navy) 72%, #31547b);
+  --border: color-mix(in oklch, var(--lions-light-blue) 27%, var(--lions-navy));
+  --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
+  --primary: var(--lions-blue);
+  --primary-foreground: #ffffff;
+  --accent: color-mix(in oklch, var(--lions-light-blue) 22%, var(--lions-navy));
+  --accent-foreground: #ffffff;
+  --danger: var(--lions-coral);
+  --danger-foreground: var(--lions-navy);
+  --danger-text: color-mix(in oklch, var(--lions-coral) 72%, white);
+  --success: var(--lions-green);
+  --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
+  --warning: var(--lions-yellow);
+  --warning-foreground: var(--lions-navy);
+  --focus: var(--lions-yellow);
+  --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
+  --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));
+  --sidebar-active: color-mix(
+    in oklch,
+    var(--lions-blue) 38%,
+    var(--lions-navy)
+  );
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-md: 0 18px 45px rgb(0 0 0 / 0.32);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --background: color-mix(in oklch, var(--lions-navy) 76%, #05080f);
+    --foreground: #f7f9fc;
+    --surface: color-mix(in oklch, var(--lions-navy) 86%, #1c3557);
+    --surface-muted: color-mix(in oklch, var(--lions-navy) 72%, #31547b);
+    --border: color-mix(
+      in oklch,
+      var(--lions-light-blue) 27%,
+      var(--lions-navy)
+    );
+    --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
+    --primary: var(--lions-blue);
+    --primary-foreground: #ffffff;
+    --accent: color-mix(
+      in oklch,
+      var(--lions-light-blue) 22%,
+      var(--lions-navy)
+    );
+    --accent-foreground: #ffffff;
+    --danger: var(--lions-coral);
+    --danger-foreground: var(--lions-navy);
+    --danger-text: color-mix(in oklch, var(--lions-coral) 72%, white);
+    --success: var(--lions-green);
+    --success-text: color-mix(in oklch, var(--lions-green) 68%, white);
+    --warning: var(--lions-yellow);
+    --warning-foreground: var(--lions-navy);
+    --focus: var(--lions-yellow);
+    --sidebar: color-mix(in oklch, var(--lions-navy) 82%, #05080f);
+    --sidebar-muted: color-mix(in oklch, white 68%, var(--lions-navy));
+    --sidebar-active: color-mix(
+      in oklch,
+      var(--lions-blue) 38%,
+      var(--lions-navy)
+    );
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
+    --shadow-md: 0 18px 45px rgb(0 0 0 / 0.32);
+  }
+}

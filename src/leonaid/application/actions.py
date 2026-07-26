@@ -20,11 +20,14 @@ from leonaid.domain.action_templates import (
     ActionTemplateKey,
 )
 from leonaid.domain.actions import (
+    ActionManagementState,
     ActionCapability,
     ActionGoal,
     Beneficiary,
     CharityAction,
     CharityActionStatus,
+    PublicationWindow,
+    PublicActionAlias,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
@@ -71,6 +74,15 @@ class CopyActionDraft:
     archive_slug: str
 
 
+@dataclass(frozen=True, slots=True)
+class UpdateActionDetailsDraft:
+    carrier_name: str
+    name: str
+    purpose: str
+    starts_on: date
+    ends_on: date
+
+
 class CharityActionRepository(Protocol):
     async def get(self, action_id: UUID) -> CharityAction | None: ...
 
@@ -96,6 +108,46 @@ class CharityActionRepository(Protocol):
         self,
         action_id: UUID,
     ) -> ActionConfiguration | None: ...
+
+    async def get_management(
+        self,
+        action_id: UUID,
+    ) -> ActionManagementState | None: ...
+
+    async def get_alias_target(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> UUID | None: ...
+
+    async def update_details(
+        self,
+        action: CharityAction,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> CharityAction: ...
+
+    async def replace_publication(
+        self,
+        action: CharityAction,
+        *,
+        public_alias: PublicActionAlias | None,
+        allowed_previous_target_id: UUID | None,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> ActionManagementState: ...
+
+    async def replace_responsible_administrators(
+        self,
+        action: CharityAction,
+        *,
+        responsible_user_ids: frozenset[UUID],
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> ActionManagementState: ...
 
     async def update_goal(
         self,
@@ -293,15 +345,152 @@ class CharityActionService:
     ) -> CharityAction:
         return await self._managed_action(actor, action_id)
 
+    async def get_management(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+    ) -> ActionManagementState:
+        try:
+            require_action_manager(actor, action_id)
+        except PermissionDenied:
+            raise concealed_resource() from None
+        state = await self._repository.get_management(action_id)
+        if state is None:
+            raise concealed_resource()
+        return state
+
+    async def set_details(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        draft: UpdateActionDetailsDraft,
+        *,
+        expected_revision: int,
+        request_id: str,
+    ) -> CharityAction:
+        current = await self._managed_action(actor, action_id)
+        changed = current.with_details(
+            carrier_name=self._required_text(draft.carrier_name),
+            name=self._required_text(draft.name),
+            purpose=self._required_text(draft.purpose),
+            starts_on=draft.starts_on,
+            ends_on=draft.ends_on,
+        )
+        if self._same_details(current, changed):
+            return current
+        self._require_revision(current, expected_revision)
+        return await self._repository.update_details(
+            changed,
+            actor_user_id=actor.account.id,
+            request_id=request_id,
+            occurred_at=datetime.now(timezone.utc),
+        )
+
+    async def set_publication(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        publication_starts_at: datetime | None,
+        publication_ends_at: datetime | None,
+        public_alias: str | None,
+        expected_revision: int,
+        request_id: str,
+    ) -> ActionManagementState:
+        current = await self.get_management(actor, action_id)
+        window = self._publication_window(
+            publication_starts_at,
+            publication_ends_at,
+        )
+        normalized_alias = (
+            PublicActionAlias(public_alias.strip())
+            if public_alias is not None
+            else None
+        )
+        if normalized_alias is not None and window is None:
+            raise DomainInvariantError(
+                "action_public_alias_window_required",
+                "Ein öffentlicher Alias benötigt ein vollständiges Publikationsfenster.",
+            )
+        changed = current.action.with_publication_window(window)
+        if (
+            changed.publication_window == current.action.publication_window
+            and normalized_alias == current.public_alias
+        ):
+            return current
+        self._require_revision(current.action, expected_revision)
+        allowed_previous_target_id: UUID | None = None
+        if normalized_alias is not None:
+            target = await self._repository.get_alias_target(normalized_alias)
+            if target is not None and target != action_id:
+                try:
+                    require_action_manager(actor, target)
+                except PermissionDenied:
+                    raise Conflict(
+                        "action_public_alias_unavailable",
+                        "Dieser öffentliche Alias ist nicht verfügbar.",
+                    ) from None
+                allowed_previous_target_id = target
+        return await self._repository.replace_publication(
+            changed,
+            public_alias=normalized_alias,
+            allowed_previous_target_id=allowed_previous_target_id,
+            actor_user_id=actor.account.id,
+            request_id=request_id,
+            occurred_at=datetime.now(timezone.utc),
+        )
+
+    async def set_responsible_administrators(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        responsible_user_ids: Sequence[UUID],
+        *,
+        expected_revision: int,
+        request_id: str,
+    ) -> ActionManagementState:
+        current = await self.get_management(actor, action_id)
+        selected = frozenset(responsible_user_ids)
+        if not selected:
+            raise DomainInvariantError(
+                "action_responsible_administrator_required",
+                "Eine Charity-Aktion benötigt mindestens einen verantwortlichen Admin.",
+            )
+        if len(selected) != len(responsible_user_ids):
+            raise DomainInvariantError(
+                "action_responsible_administrator_duplicate",
+                "Ein verantwortlicher Admin darf nur einmal ausgewählt werden.",
+            )
+        existing = frozenset(
+            item.user_id
+            for item in current.administrator_options
+            if item.is_responsible
+        )
+        if selected == existing:
+            return current
+        self._require_revision(current.action, expected_revision)
+        return await self._repository.replace_responsible_administrators(
+            current.action,
+            responsible_user_ids=selected,
+            actor_user_id=actor.account.id,
+            request_id=request_id,
+            occurred_at=datetime.now(timezone.utc),
+        )
+
     async def set_goal(
         self,
         actor: IdentityPrincipal,
         action_id: UUID,
         goal: ActionGoal,
         *,
+        expected_revision: int,
         request_id: str,
     ) -> CharityAction:
-        action = (await self._managed_action(actor, action_id)).with_goal(goal)
+        current = await self._managed_action(actor, action_id)
+        action = current.with_goal(goal)
+        if action.goal == current.goal:
+            return current
+        self._require_revision(current, expected_revision)
         return await self._repository.update_goal(
             action,
             actor_user_id=actor.account.id,
@@ -315,10 +504,14 @@ class CharityActionService:
         action_id: UUID,
         capabilities: Sequence[ActionCapability],
         *,
+        expected_revision: int,
         request_id: str,
     ) -> CharityAction:
         current = await self._managed_action(actor, action_id)
         selected = self._capabilities(capabilities)
+        if selected == current.capabilities:
+            return current
+        self._require_revision(current, expected_revision)
         configuration = await self._repository.get_configuration(action_id)
         if configuration is not None:
             configuration.require_compatible_capabilities(selected)
@@ -336,9 +529,14 @@ class CharityActionService:
         action_id: UUID,
         beneficiaries: Sequence[BeneficiaryDraft],
         *,
+        expected_revision: int,
         request_id: str,
     ) -> CharityAction:
-        action = (await self._managed_action(actor, action_id)).with_beneficiaries(
+        current = await self._managed_action(actor, action_id)
+        if self._same_beneficiaries(current, beneficiaries):
+            return current
+        self._require_revision(current, expected_revision)
+        action = current.with_beneficiaries(
             self._beneficiaries(action_id, beneficiaries)
         )
         return await self._repository.replace_beneficiaries(
@@ -354,12 +552,14 @@ class CharityActionService:
         action_id: UUID,
         target: CharityActionStatus,
         *,
+        expected_revision: int,
         request_id: str,
     ) -> CharityAction:
         current = await self._managed_action(actor, action_id)
         changed = current.transition_to(target)
         if changed is current:
             return current
+        self._require_revision(current, expected_revision)
         return await self._repository.transition(
             changed,
             previous_status=current.status,
@@ -394,6 +594,61 @@ class CharityActionService:
         if template is None:
             raise concealed_resource()
         return template
+
+    @staticmethod
+    def _publication_window(
+        starts_at: datetime | None,
+        ends_at: datetime | None,
+    ) -> PublicationWindow | None:
+        if starts_at is None and ends_at is None:
+            return None
+        if starts_at is None or ends_at is None:
+            raise DomainInvariantError(
+                "action_publication_window_incomplete",
+                "Publikationsbeginn und Publikationsende müssen gemeinsam gepflegt werden.",
+            )
+        return PublicationWindow(starts_at=starts_at, ends_at=ends_at)
+
+    @staticmethod
+    def _require_revision(action: CharityAction, expected_revision: int) -> None:
+        if expected_revision != action.revision:
+            raise Conflict(
+                "action_revision_conflict",
+                "Die Charity-Aktion wurde zwischenzeitlich geändert. "
+                "Lade den aktuellen Stand und prüfe deine Eingaben erneut.",
+            )
+
+    @staticmethod
+    def _same_details(first: CharityAction, second: CharityAction) -> bool:
+        return (
+            first.carrier_name,
+            first.name,
+            first.purpose,
+            first.starts_on,
+            first.ends_on,
+        ) == (
+            second.carrier_name,
+            second.name,
+            second.purpose,
+            second.starts_on,
+            second.ends_on,
+        )
+
+    @staticmethod
+    def _same_beneficiaries(
+        action: CharityAction,
+        drafts: Sequence[BeneficiaryDraft],
+    ) -> bool:
+        return tuple(
+            (item.organization_name, item.public_description)
+            for item in action.beneficiaries
+        ) == tuple(
+            (
+                CharityActionService._required_text(item.organization_name),
+                CharityActionService._required_text(item.public_description),
+            )
+            for item in drafts
+        )
 
     @staticmethod
     def _capabilities(

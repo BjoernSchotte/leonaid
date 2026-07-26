@@ -139,4 +139,6 @@ def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:
         "capabilities",
         "beneficiaries",
         "goal",
+        "publication_window",
+        "revision",
     }

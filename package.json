@@ -12,12 +12,30 @@
     "node": "22.17.1"
   },
   "scripts": {
+    "build:web": "bun run --filter @leonaid/web build",
     "check:locks": "bun install --frozen-lockfile --ignore-scripts",
-    "typecheck:api-client": "tsc --noEmit -p packages/api-client/tsconfig.json"
+    "test:components": "bun run --filter @leonaid/web test:components",
+    "typecheck": "bun run typecheck:api-client && bun run typecheck:ui && bun run typecheck:features && bun run typecheck:web",
+    "typecheck:api-client": "tsc --noEmit -p packages/api-client/tsconfig.json",
+    "typecheck:features": "tsc --noEmit -p packages/features/tsconfig.json",
+    "typecheck:ui": "tsc --noEmit -p packages/ui/tsconfig.json",
+    "typecheck:web": "tsc --noEmit -p apps/web/tsconfig.json"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@playwright/test": "1.54.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.4",
+    "jsdom": "29.1.1",
     "prettier": "3.6.2",
-    "typescript": "5.8.3"
+    "tailwindcss": "4.3.3",
+    "typescript": "5.8.3",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
   }
 }
