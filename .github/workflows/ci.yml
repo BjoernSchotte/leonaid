@@ -36,7 +36,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/lint-types
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -46,7 +46,7 @@ jobs:
         run: bash tools/ci/run-job.sh lint-types bash tools/ci/lint-types.sh
       - name: Publish lint and type evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-lint-types
           path: .artifacts/ci/lint-types
@@ -62,7 +62,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/unit
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -72,7 +72,7 @@ jobs:
         run: bash tools/ci/run-job.sh unit ./leonaid test-unit
       - name: Publish unit evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-unit
           path: .artifacts/ci/unit
@@ -88,7 +88,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -98,7 +98,7 @@ jobs:
         run: bash tools/ci/run-job.sh integration bash tools/ci/integration.sh
       - name: Publish integration evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-integration
           path: .artifacts/ci/integration
@@ -114,7 +114,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/contract
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -124,7 +124,7 @@ jobs:
         run: bash tools/ci/run-job.sh contract bash tools/ci/contract.sh
       - name: Publish contract evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-contract
           path: .artifacts/ci/contract
@@ -148,7 +148,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.shard }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -161,7 +161,7 @@ jobs:
           bash tools/ci/e2e.sh ${{ matrix.shard }}
       - name: Publish browser evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-e2e-${{ matrix.shard }}
           path: .artifacts/ci/e2e-${{ matrix.shard }}
@@ -177,7 +177,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/security
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -187,7 +187,7 @@ jobs:
         run: bash tools/ci/run-job.sh security bash tools/ci/security.sh
       - name: Publish security evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-security
           path: .artifacts/ci/security
@@ -203,7 +203,7 @@ jobs:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/build
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
@@ -213,7 +213,7 @@ jobs:
         run: bash tools/ci/run-job.sh build bash tools/ci/build.sh
       - name: Publish build evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-build
           path: .artifacts/ci/build
@@ -230,14 +230,14 @@ jobs:
       LEONAID_TESTKIT_E2E_SPEC: ci-artifact-probe.spec.mjs
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run intentionally failing real-stack browser probe
         run: bash tools/ci/run-job.sh artifact-probe ./leonaid test-testkit
       - name: Publish failure evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ci-artifact-probe
           path: .artifacts/ci/artifact-probe
