@@ -16,14 +16,23 @@ from starlette.responses import Response
 
 from leonaid.adapters.http_readiness import HttpReadinessProbe
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.adapters.postgres.acquisition import (
+    AsyncpgAcquisitionPolicyRepository,
+)
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
+from leonaid.adapters.twenty.gateway import (
+    TwentyCrmGateway,
+    TwentyGatewaySettings,
+)
+from leonaid.application.acquisition import AcquisitionPolicyService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
+    DependencyUnavailable,
     PermissionDenied,
     ResourceNotFound,
 )
@@ -109,9 +118,25 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             public_base_url=str(settings.public_base_url),
             challenge_ttl=timedelta(minutes=settings.login_challenge_ttl_minutes),
         )
+        crm_gateway: TwentyCrmGateway | None = None
+        if settings.twenty_integration_api_key is not None:
+            crm_gateway = TwentyCrmGateway(
+                TwentyGatewaySettings(
+                    base_url=str(settings.twenty_base_url),
+                    api_key=settings.twenty_integration_api_key,
+                )
+            )
+            application.state.acquisition_service = AcquisitionPolicyService(
+                AsyncpgAcquisitionPolicyRepository(pool),
+                crm_gateway,
+            )
+        else:
+            application.state.acquisition_service = None
         try:
             yield
         finally:
+            if crm_gateway is not None:
+                await crm_gateway.close()
             await pool.close()
 
     application = FastAPI(
@@ -145,6 +170,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             status_code = 403
         elif isinstance(error, ResourceNotFound):
             status_code = 404
+        elif isinstance(error, DependencyUnavailable):
+            status_code = 503
         return error_response(
             request,
             status_code=status_code,

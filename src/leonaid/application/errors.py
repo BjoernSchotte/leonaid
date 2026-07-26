@@ -22,3 +22,7 @@ class PermissionDenied(ApplicationError):
 
 class ResourceNotFound(ApplicationError):
     """A requested domain resource does not exist."""
+
+
+class DependencyUnavailable(ApplicationError):
+    """A required external dependency is not configured or available."""

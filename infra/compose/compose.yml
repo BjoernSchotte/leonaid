@@ -47,6 +47,7 @@ services:
       LEONAID_FRESH_LOGIN_SECONDS: ${LEONAID_FRESH_LOGIN_SECONDS:-900}
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
       TWENTY_BASE_URL: http://twenty-server:3000
+      TWENTY_INTEGRATION_API_KEY: ${TWENTY_INTEGRATION_API_KEY:-}
       TWENTY_ORIGIN: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
       TWENTY_HEALTH_URL: http://twenty-server:3000/healthz
       RUSTFS_HEALTH_URL: http://rustfs:9000/health

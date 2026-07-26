@@ -119,6 +119,36 @@ def test_client_generator_supports_json_body_and_encoded_path_parameter() -> Non
                     },
                 }
             },
+            "/api/v1/examples/search": {
+                "get": {
+                    "operationId": "searchExamples",
+                    "parameters": [
+                        {
+                            "in": "query",
+                            "name": "q",
+                            "required": False,
+                            "schema": {"type": "string"},
+                        },
+                        {
+                            "in": "query",
+                            "name": "limit",
+                            "required": False,
+                            "schema": {"type": "integer"},
+                        },
+                    ],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ExampleResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            },
         },
         "components": {
             "schemas": {
@@ -159,3 +189,6 @@ def test_client_generator_supports_json_body_and_encoded_path_parameter() -> Non
     assert "body: JSON.stringify(body)" in generated
     assert "exampleId: string" in generated
     assert "encodeURIComponent(String(exampleId))" in generated
+    assert "queryParameters:" in generated
+    assert "readonly q?: string" in generated
+    assert 'searchParameters.set("q", String(queryParameters.q))' in generated

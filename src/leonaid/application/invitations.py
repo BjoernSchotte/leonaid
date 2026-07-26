@@ -11,6 +11,7 @@ from uuid import UUID, uuid4, uuid5
 
 from leonaid.application.errors import ApplicationError
 from leonaid.application.identity import ROLE_LABELS
+from leonaid.application.policies import require_action_manager
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invitations import (
@@ -23,6 +24,7 @@ from leonaid.domain.invitations import (
     normalize_email,
 )
 from leonaid.domain.outbox import JsonValue, PendingOutboxEvent
+from leonaid.domain.policies import PolicySurface
 
 INVITATION_MAIL_NAMESPACE = UUID("cd8925bf-7111-4cce-b12d-e217f76ec68d")
 
@@ -157,6 +159,13 @@ class InvitationService:
         request_id: str,
     ) -> InvitationDispatch:
         now = self._clock()
+        require_action_manager(
+            actor,
+            action_id,
+            PolicySurface.WRITE,
+            code="invitation_action_forbidden",
+            message="Du darfst für diese Charity-Aktion keine Mitglieder einladen.",
+        )
         normalized_email = normalize_email(email)
         normalized_name = " ".join(display_name.split())
         if not normalized_name:

@@ -19,6 +19,9 @@ Der Gateway implementiert den fachlichen Port aus
   des zusammengesetzten Namens; ein Vorname-Update leert nicht stillschweigend
   den Nachnamen.
 - Löschen, Merge und freie Metadata-Operationen gehören nicht zum Gateway.
+- Browser und Akquisiteure sprechen ausschließlich mit der LeonAid-Core-API.
+  Sie erhalten weder einen Twenty-Login noch einen Twenty-API-Key. Der
+  eingeschränkte Integrations-Key wird nur serverseitig injiziert.
 
 ## Transportvertrag für Twenty 2.24.0
 
@@ -68,3 +71,9 @@ Der Test startet eine leere, isolierte gepinnte Twenty-Instanz, provisioniert
 die Least-Privilege-Rolle und prüft reale Batches, CRUD, Suche, Pagination,
 Korrelation, Ausfall und Neustart. Es werden keine Mocks, HTTP-Fixtures,
 direkten Datenbankzugriffe oder festen Sleeps verwendet.
+
+`./leonaid test-policy` ergänzt diesen Transportnachweis um die
+fachdatensatzgenauen Core-Policies gegen dasselbe echte Twenty und echtes
+PostgreSQL. Twenty stellt dabei ausschließlich die bereits autorisierten
+Firmen und Kontakte bereit; der Core leitet diese IDs bei jedem Request aus
+Membership und Assignment ab.

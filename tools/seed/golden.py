@@ -11,7 +11,7 @@ import os
 import smtplib
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
@@ -683,6 +683,260 @@ async def seed_identity(
             )
 
 
+async def seed_operational_golden(
+    connection: asyncpg.Connection[Any],
+    dataset: JsonObject,
+    documents: list[JsonObject],
+) -> None:
+    assignment_ids = [item["id"] for item in dataset["assignments"]]
+    activity_ids = [item["id"] for item in dataset["activities"]]
+    commitment_ids = [item["id"] for item in dataset["commitments"]]
+    invoice_ids = [item["id"] for item in dataset["invoices"]]
+
+    await connection.execute(
+        "DELETE FROM payment_record WHERE invoice_id = ANY($1::uuid[])",
+        invoice_ids,
+    )
+    await connection.execute(
+        "DELETE FROM generated_document WHERE invoice_id = ANY($1::uuid[])",
+        invoice_ids,
+    )
+    await connection.execute(
+        "DELETE FROM invoice WHERE id = ANY($1::uuid[])",
+        invoice_ids,
+    )
+    await connection.execute(
+        "DELETE FROM acquisition_activity WHERE id = ANY($1::uuid[])",
+        activity_ids,
+    )
+    await connection.execute(
+        "DELETE FROM commitment WHERE id = ANY($1::uuid[])",
+        commitment_ids,
+    )
+    await connection.execute(
+        "DELETE FROM acquisition_assignment WHERE id = ANY($1::uuid[])",
+        assignment_ids,
+    )
+
+    assignment_lookup: dict[tuple[str, str, str], str] = {}
+    for assignment in dataset["assignments"]:
+        party_id = str(assignment["companyId"] or assignment["personId"])
+        assignment_lookup[
+            (
+                str(assignment["actionId"]),
+                party_id,
+                str(assignment["acquirerId"]),
+            )
+        ] = str(assignment["id"])
+        await connection.execute(
+            """
+            INSERT INTO acquisition_assignment (
+                id,
+                action_id,
+                twenty_company_id,
+                twenty_person_id,
+                acquirer_user_id,
+                status,
+                priority
+            )
+            VALUES ($1, $2, $3, $4, $5, 'open', 0)
+            """,
+            assignment["id"],
+            assignment["actionId"],
+            assignment["companyId"],
+            assignment["personId"],
+            assignment["acquirerId"],
+        )
+
+    offers = {
+        str(item["id"]): int(item["unitPriceCents"]) for item in dataset["offers"]
+    }
+    invoices_by_commitment = {
+        str(item["commitmentId"]): item for item in dataset["invoices"]
+    }
+    source = {"INTERNAL": "acquisition", "PUBLIC": "public_form"}
+    commitment_status = {
+        "DRAFT": "draft",
+        "REVIEW_READY": "review_ready",
+        "PUBLIC_RECEIVED": "review_ready",
+        "INVOICED": "invoiced",
+    }
+    commitments_by_id: dict[str, JsonObject] = {}
+    for commitment in dataset["commitments"]:
+        commitments_by_id[str(commitment["id"])] = commitment
+        total_minor = sum(
+            int(line["quantity"]) * offers[str(line["offerId"])]
+            for line in commitment["lines"]
+        )
+        invoice = invoices_by_commitment.get(str(commitment["id"]))
+        customer_snapshot = {
+            "companyId": commitment["companyId"],
+            "personId": commitment["personId"],
+            "datasetVersion": DATASET_VERSION,
+        }
+        recipient_snapshot = invoice["addressSnapshot"] if invoice is not None else None
+        await connection.execute(
+            """
+            INSERT INTO commitment (
+                id,
+                action_id,
+                twenty_company_id,
+                twenty_person_id,
+                source,
+                status,
+                customer_snapshot,
+                invoice_recipient_snapshot,
+                currency,
+                total_minor
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7::json, $8::json, 'EUR', $9
+            )
+            """,
+            commitment["id"],
+            commitment["actionId"],
+            commitment["companyId"],
+            commitment["personId"],
+            source[str(commitment["source"])],
+            commitment_status[str(commitment["status"])],
+            json.dumps(customer_snapshot, separators=(",", ":")),
+            (
+                json.dumps(recipient_snapshot, separators=(",", ":"))
+                if recipient_snapshot is not None
+                else None
+            ),
+            total_minor,
+        )
+
+    activity_origin = datetime(2026, 6, 1, 12, tzinfo=timezone.utc)
+    for index, activity in enumerate(dataset["activities"]):
+        party_id = str(activity["companyId"] or activity.get("personId"))
+        actor_id = activity["actorId"]
+        assignment_id = (
+            assignment_lookup.get(
+                (
+                    str(activity["actionId"]),
+                    party_id,
+                    str(actor_id),
+                )
+            )
+            if actor_id is not None
+            else None
+        )
+        await connection.execute(
+            """
+            INSERT INTO acquisition_activity (
+                id,
+                action_id,
+                assignment_id,
+                actor_user_id,
+                commitment_id,
+                twenty_company_id,
+                twenty_person_id,
+                occurred_at,
+                channel,
+                outcome,
+                note
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
+            """,
+            activity["id"],
+            activity["actionId"],
+            assignment_id,
+            actor_id,
+            activity["commitmentId"],
+            activity["companyId"],
+            activity.get("personId"),
+            activity_origin + timedelta(minutes=index),
+            (
+                "public_form"
+                if str(activity["kind"]).startswith("PUBLIC_")
+                else "system"
+            ),
+            str(activity["kind"]).casefold(),
+        )
+
+    invoice_status = {
+        "OPEN": "open",
+        "PAID": "paid",
+        "CANCELLED": "cancelled",
+    }
+    issued_at = datetime(2026, 6, 30, 12, tzinfo=timezone.utc)
+    for invoice in dataset["invoices"]:
+        commitment = commitments_by_id[str(invoice["commitmentId"])]
+        amount = int(invoice["amountCents"])
+        await connection.execute(
+            """
+            INSERT INTO invoice (
+                id,
+                commitment_id,
+                number,
+                status,
+                issued_at,
+                due_on,
+                currency,
+                net_minor,
+                tax_minor,
+                gross_minor,
+                recipient_snapshot,
+                line_snapshot,
+                tax_note,
+                document_version
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, 0, $8,
+                $9::json, $10::json, $11, 1
+            )
+            """,
+            invoice["id"],
+            invoice["commitmentId"],
+            invoice["number"],
+            invoice_status[str(invoice["status"])],
+            issued_at,
+            issued_at.date() + timedelta(days=14),
+            invoice["currency"],
+            amount,
+            json.dumps(invoice["addressSnapshot"], separators=(",", ":")),
+            json.dumps(commitment["lines"], separators=(",", ":")),
+            "Synthetischer Golden-Datensatz; keine steuerliche Fachentscheidung.",
+        )
+
+    document_by_invoice = {str(item["invoiceId"]): item for item in documents}
+    for invoice in dataset["invoices"]:
+        commitment = commitments_by_id[str(invoice["commitmentId"])]
+        document = document_by_invoice.get(str(invoice["id"]))
+        if document is None:
+            continue
+        await connection.execute(
+            """
+            INSERT INTO generated_document (
+                id,
+                action_id,
+                commitment_id,
+                invoice_id,
+                twenty_company_id,
+                twenty_person_id,
+                document_type,
+                media_type,
+                object_key,
+                sha256,
+                version
+            )
+            VALUES (
+                $1, $2, $3, $1, $4, $5,
+                'invoice_pdf', 'application/pdf', $6, $7, 1
+            )
+            """,
+            invoice["id"],
+            commitment["actionId"],
+            commitment["id"],
+            commitment["companyId"],
+            commitment["personId"],
+            document["objectKey"],
+            document["sha256"],
+        )
+
+
 async def seed_core(
     dataset: JsonObject,
     expected: JsonObject,
@@ -693,6 +947,7 @@ async def seed_core(
     try:
         async with connection.transaction():
             await seed_identity(connection, dataset)
+            await seed_operational_golden(connection, dataset, documents)
             await connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS golden_seed_snapshot (

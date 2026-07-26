@@ -3,19 +3,34 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import cast
+from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
+from leonaid.application.acquisition import (
+    AcquisitionParty,
+    AcquisitionPolicyService,
+)
+from leonaid.application.errors import DependencyUnavailable
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.sessions import SessionGrant, SessionService
+from leonaid.application.crm import CrmPartyKind
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
+    AcquisitionActivityListResponse,
+    AcquisitionActivityResponse,
+    AcquisitionDocumentResponse,
+    AcquisitionPageQuery,
+    AcquisitionPartyCountResponse,
+    AcquisitionPartyExportResponse,
+    AcquisitionPartyListResponse,
+    AcquisitionPartyResponse,
+    AcquisitionSearchQuery,
     AUTHENTICATED_ERROR_RESPONSES,
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
@@ -29,6 +44,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvitationRevocationResponse,
     LoginDispatchResponse,
     LogoutResponse,
+    PaginationQuery,
     PlatformInformationResponse,
     PlatformStatusResponse,
     ReadinessResponse,
@@ -54,6 +70,16 @@ def invitation_service(request: Request) -> InvitationService:
 
 def authentication_service(request: Request) -> SessionService:
     return cast(SessionService, request.app.state.session_service)
+
+
+def acquisition_service(request: Request) -> AcquisitionPolicyService:
+    service = request.app.state.acquisition_service
+    if not isinstance(service, AcquisitionPolicyService):
+        raise DependencyUnavailable(
+            "crm_integration_not_configured",
+            "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
+        )
+    return service
 
 
 def session_token(request: Request) -> str | None:
@@ -93,6 +119,12 @@ def clear_session_cookie(response: Response) -> None:
         samesite="lax",
     )
     response.headers["Cache-Control"] = "no-store"
+
+
+def acquisition_party_response(
+    party: AcquisitionParty,
+) -> AcquisitionPartyResponse:
+    return AcquisitionPartyResponse.model_validate(party)
 
 
 @router.get(
@@ -329,6 +361,162 @@ async def revoke_user_sessions(
         status="revoked",
         revoked_count=revoked_count,
     )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/parties",
+    operation_id="listAcquisitionParties",
+    response_model=AcquisitionPartyListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def list_acquisition_parties(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    filters: Annotated[AcquisitionPageQuery, Query()],
+) -> AcquisitionPartyListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    page = await acquisition_service(request).list_parties(
+        actor,
+        action_id,
+        query=filters.q,
+        offset=filters.offset,
+        limit=filters.limit,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionPartyListResponse(
+        items=[acquisition_party_response(item) for item in page.items],
+        total=page.total,
+        offset=page.offset,
+        limit=page.limit,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/parties/count",
+    operation_id="countAcquisitionParties",
+    response_model=AcquisitionPartyCountResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def count_acquisition_parties(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    filters: Annotated[AcquisitionSearchQuery, Query()],
+) -> AcquisitionPartyCountResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    total = await acquisition_service(request).count_parties(
+        actor,
+        action_id,
+        query=filters.q,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionPartyCountResponse(total=total)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/parties/export",
+    operation_id="exportAcquisitionParties",
+    response_model=AcquisitionPartyExportResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def export_acquisition_parties(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    filters: Annotated[AcquisitionSearchQuery, Query()],
+) -> AcquisitionPartyExportResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    parties = await acquisition_service(request).export_parties(
+        actor,
+        action_id,
+        query=filters.q,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionPartyExportResponse(
+        action_id=action_id,
+        items=[acquisition_party_response(item) for item in parties],
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/parties/{party_kind}/{party_id}",
+    operation_id="getAcquisitionParty",
+    response_model=AcquisitionPartyResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def get_acquisition_party(
+    action_id: UUID,
+    party_kind: CrmPartyKind,
+    party_id: UUID,
+    request: Request,
+    response: Response,
+) -> AcquisitionPartyResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    party = await acquisition_service(request).party(
+        actor,
+        action_id,
+        party_kind,
+        party_id,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return acquisition_party_response(party)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/activities",
+    operation_id="listAcquisitionActivities",
+    response_model=AcquisitionActivityListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def list_acquisition_activities(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+    filters: Annotated[PaginationQuery, Query()],
+) -> AcquisitionActivityListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    page = await acquisition_service(request).activities(
+        actor,
+        action_id,
+        offset=filters.offset,
+        limit=filters.limit,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionActivityListResponse(
+        items=[AcquisitionActivityResponse.model_validate(item) for item in page.items],
+        total=page.total,
+        offset=page.offset,
+        limit=page.limit,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/acquisition/documents/{document_id}",
+    operation_id="getAcquisitionDocument",
+    response_model=AcquisitionDocumentResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["acquisition"],
+)
+async def get_acquisition_document(
+    action_id: UUID,
+    document_id: UUID,
+    request: Request,
+    response: Response,
+) -> AcquisitionDocumentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    document = await acquisition_service(request).document(
+        actor,
+        action_id,
+        document_id,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return AcquisitionDocumentResponse.model_validate(document)
 
 
 @router.get(

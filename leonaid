@@ -26,6 +26,7 @@ Commands:
   test-identity     Prove accounts, roles, sessions and persona navigation
   test-invitations  Prove invitation permissions, link/code and real delivery
   test-sessions     Prove 90-day sessions, fresh login and immediate revocation
+  test-policy       Prove central row-level policies against PostgreSQL/Twenty
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -68,7 +69,12 @@ run_bun() {
 }
 
 compose() {
-  docker compose \
+  integration_key=${TWENTY_INTEGRATION_API_KEY:-}
+  if [ -z "$integration_key" ] && [ -f "$root/.local/twenty/integration.env" ]; then
+    integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
+      "$root/.local/twenty/integration.env")
+  fi
+  TWENTY_INTEGRATION_API_KEY="$integration_key" docker compose \
     --project-name "${LEONAID_COMPOSE_PROJECT:-leonaid}" \
     --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
@@ -193,15 +199,15 @@ check_all() {
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/schema tools/seed tools/sessions tools/twenty
+    tools/policy tools/schema tools/seed tools/sessions tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/schema tools/seed tools/sessions tools/twenty
+    tools/policy tools/schema tools/seed tools/sessions tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/openapi tools/outbox tools/schema \
-    tools/seed tools/sessions tools/twenty
+    tools/policy tools/seed tools/sessions tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -298,7 +304,7 @@ provision_twenty() {
     api tools/twenty/provision.py apply \
     --token-output /repo/.local/twenty/integration.env \
     --snapshot-output /repo/.local/twenty/schema-snapshot.json
-  echo "provision-twenty: OK: lokaler Key liegt geschützt unter .local/twenty/integration.env"
+  echo "provision-twenty: OK: lokaler Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
 }
 
 import_crm() {
@@ -394,6 +400,7 @@ case "$command" in
     /bin/sh "$root/tools/identity/test.sh" "$root"
     /bin/sh "$root/tools/invitations/test.sh" "$root"
     /bin/sh "$root/tools/sessions/test.sh" "$root"
+    /bin/sh "$root/tools/policy/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
@@ -405,6 +412,7 @@ case "$command" in
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
   test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;
   test-sessions) /bin/sh "$root/tools/sessions/test.sh" "$root" ;;
+  test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

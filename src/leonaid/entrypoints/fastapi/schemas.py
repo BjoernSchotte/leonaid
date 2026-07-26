@@ -235,6 +235,82 @@ class SessionRevocationResponse(TransportModel):
     revoked_count: int = Field(ge=0)
 
 
+class QueryModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AcquisitionSearchQuery(QueryModel):
+    q: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class PaginationQuery(QueryModel):
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class AcquisitionPageQuery(QueryModel):
+    q: str | None = Field(default=None, min_length=1, max_length=100)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class AcquisitionPartyResponse(TransportModel):
+    party_kind: Literal["company", "person"]
+    twenty_id: UUID
+    display_name: str
+    postal_code: str | None
+    city: str | None
+    email: str | None
+    assigned_acquirer_ids: list[UUID]
+
+
+class AcquisitionPartyListResponse(TransportModel):
+    items: list[AcquisitionPartyResponse]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+
+
+class AcquisitionPartyCountResponse(TransportModel):
+    total: int = Field(ge=0)
+
+
+class AcquisitionPartyExportResponse(TransportModel):
+    action_id: UUID
+    items: list[AcquisitionPartyResponse]
+
+
+class AcquisitionActivityResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    party_kind: Literal["company", "person"]
+    party_id: UUID
+    actor_user_id: UUID | None
+    outcome: str
+    channel: str
+    note: str | None
+    occurred_at: datetime
+
+
+class AcquisitionActivityListResponse(TransportModel):
+    items: list[AcquisitionActivityResponse]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+
+
+class AcquisitionDocumentResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    party_kind: Literal["company", "person"]
+    party_id: UUID
+    document_type: str
+    media_type: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    version: int = Field(ge=1)
+    created_at: datetime
+
+
 class ApiErrorDetail(TransportModel):
     code: str = Field(examples=["endpoint_not_found"])
     message: str = Field(
@@ -263,6 +339,10 @@ ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     500: {
         "model": ApiErrorResponse,
         "description": "Unerwarteter interner Fehler.",
+    },
+    503: {
+        "model": ApiErrorResponse,
+        "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert.",
     },
 }
 

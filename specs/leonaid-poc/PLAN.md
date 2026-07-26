@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-042 vollständig
+POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-043 vollständig
 bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
@@ -706,32 +706,37 @@ Die Umsetzung folgt
 Nachweis:
 [POC-042 – 90-Tage-Sitzung, Widerruf und Fresh Login](proofs/POC-042.md).
 
-### [ ] POC-043 Zentralen Policy Layer und Row-Level-Regeln umsetzen
+### [x] POC-043 Zentralen Policy Layer und Row-Level-Regeln umsetzen
 
 Abhängigkeiten: POC-040, POC-031
 
 Akzeptanzkriterien:
 
-- [ ] Jede lesende und schreibende Operation prüft globale Rolle,
+- [x] Jede lesende und schreibende Operation prüft globale Rolle,
       ActionMembership und gegebenenfalls AcquisitionAssignment.
-- [ ] Akquisiteure erhalten keinen direkten Twenty-Login oder API-Key.
-- [ ] Listen, Suche, Counts, Exporte, Aktivitäten und Dokumente verwenden
+- [x] Akquisiteure erhalten keinen direkten Twenty-Login oder API-Key.
+- [x] Listen, Suche, Counts, Exporte, Aktivitäten und Dokumente verwenden
       dieselben Policies.
-- [ ] Clientseitige User-, Rollen- oder Assignee-IDs erweitern niemals
+- [x] Clientseitige User-, Rollen- oder Assignee-IDs erweitern niemals
       Rechte.
-- [ ] Verborgene Datensätze werden nicht durch Fehlertexte oder Counts
+- [x] Verborgene Datensätze werden nicht durch Fehlertexte oder Counts
       offengelegt.
 
 Tests/Nachweise:
 
-- [ ] Vollständige Negativsuite aus
+- [x] Vollständige Negativsuite aus
       [Kapitel 15.5](../produkt-und-architekturvorschlag.md#155-poc-nachweise)
       läuft gegen PostgreSQL und Twenty.
-- [ ] A sieht exklusive Daten von B weder per ID noch Suche, Liste,
+- [x] A sieht exklusive Daten von B weder per ID noch Suche, Liste,
       Aktivität oder Export.
-- [ ] Gemeinsame Zuweisung ist für A und B sichtbar.
-- [ ] Entfernen einer Membership/Assignment entzieht Zugriff ohne
+- [x] Gemeinsame Zuweisung ist für A und B sichtbar.
+- [x] Entfernen einer Membership/Assignment entzieht Zugriff ohne
       Neuanmeldung.
+
+Die Umsetzung folgt
+[Kapitel 15](../produkt-und-architekturvorschlag.md#15-addendum-berechtigungen-als-erweiterung-zu-twenty).
+Nachweis:
+[POC-043 – zentraler Policy Layer und Row-Level-Regeln](proofs/POC-043.md).
 
 ---
 

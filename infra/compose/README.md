@@ -77,3 +77,24 @@ generischen passwortlosen Login, das geschützte `__Host-`-Cookie, das absolute
 Code-Anmeldung für eine sensible Admin-Aktion, Tokenrotation, Logout und
 administrativen Sofortwiderruf. Geheimnisfreie Screenshots bleiben unter
 `.artifacts/poc042/`.
+
+Der gezielte Row-Level-Policy-Nachweis läuft mit:
+
+```sh
+./leonaid test-policy
+```
+
+Er provisioniert eine neue gepinnte Twenty-Instanz samt eingeschränktem
+Integrations-Key, sät das vollständige Golden Dataset mit echten
+Typst-Dokumenten und prüft den gemeinsamen serverseitigen Scope für Listen,
+Suche, Counts, Export, Aktivität und Dokumente. Akquisiteure authentifizieren
+sich ausschließlich am LeonAid Core; der Twenty-Key wird nur in den
+Core-Container injiziert. Entfernte Memberships und Assignments wirken im
+nächsten Request ohne neue Anmeldung.
+
+`./leonaid provision-twenty` legt den lokalen Integrations-Key mit restriktiven
+Dateirechten unter `.local/twenty/integration.env` ab. Alle folgenden
+`./leonaid`-Compose-Kommandos lesen ihn automatisch ein, ohne ihn in
+`.env.local`, Prozessargumente oder Browserkonfiguration zu kopieren. Eine
+explizite Prozessvariable `TWENTY_INTEGRATION_API_KEY` hat für CI weiterhin
+Vorrang.

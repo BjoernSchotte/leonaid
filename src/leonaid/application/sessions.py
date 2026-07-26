@@ -11,9 +11,9 @@ from uuid import UUID, uuid4, uuid5
 
 from leonaid.application.errors import (
     AuthenticationRequired,
-    PermissionDenied,
     ResourceNotFound,
 )
+from leonaid.application.policies import require_system_admin
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.invitations import normalize_email
@@ -342,11 +342,7 @@ class SessionService:
         *,
         request_id: str,
     ) -> int:
-        if not actor.account.can_authenticate or not actor.is_system_admin:
-            raise PermissionDenied(
-                "system_admin_required",
-                "Diese Änderung ist ausschließlich für System-Admins erlaubt.",
-            )
+        require_system_admin(actor)
         revoked = await self._repository.revoke_user_sessions(
             target_user_id=target_user_id,
             actor_user_id=actor.account.id,

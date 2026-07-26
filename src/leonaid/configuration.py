@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, HttpUrl, SecretStr, ValidationError, field_validator
+from pydantic import (
+    Field,
+    HttpUrl,
+    SecretStr,
+    ValidationError,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,8 +52,20 @@ class Settings(BaseSettings):
         le=7200,
         alias="LEONAID_FRESH_LOGIN_SECONDS",
     )
+    twenty_base_url: HttpUrl = Field(alias="TWENTY_BASE_URL")
+    twenty_integration_api_key: SecretStr | None = Field(
+        default=None,
+        alias="TWENTY_INTEGRATION_API_KEY",
+    )
     twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
     rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
+
+    @field_validator("twenty_integration_api_key", mode="before")
+    @classmethod
+    def empty_twenty_key_is_unconfigured(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @field_validator("core_database_url")
     @classmethod
@@ -76,6 +94,12 @@ class Settings(BaseSettings):
                 self.core_database_url.get_secret_value()
             ).hostname
             or "invalid",
+            "twentyBaseHost": self.twenty_base_url.host or "invalid",
+            "twentyIntegration": (
+                "configured"
+                if self.twenty_integration_api_key is not None
+                else "unconfigured"
+            ),
             "twentyHealthHost": self.twenty_health_url.host or "invalid",
             "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
         }

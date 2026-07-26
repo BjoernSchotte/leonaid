@@ -11,9 +11,9 @@ from uuid import UUID
 
 from leonaid.application.errors import (
     AuthenticationRequired,
-    PermissionDenied,
     ResourceNotFound,
 )
+from leonaid.application.policies import require_system_admin
 from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
@@ -299,11 +299,7 @@ class IdentityAdministrationService:
 
     @staticmethod
     def require_system_admin(actor: IdentityPrincipal) -> None:
-        if not actor.account.can_authenticate or not actor.is_system_admin:
-            raise PermissionDenied(
-                "system_admin_required",
-                "Diese Änderung ist ausschließlich für System-Admins erlaubt.",
-            )
+        require_system_admin(actor)
 
     async def change_status(
         self,

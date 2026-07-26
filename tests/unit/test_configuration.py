@@ -18,6 +18,7 @@ def valid_settings(**overrides: str) -> Settings:
             "mail-payload-secret-with-at-least-32-characters"
         ),
         "LEONAID_PUBLIC_BASE_URL": "http://localhost:8080",
+        "TWENTY_BASE_URL": "http://twenty-server:3000",
         "TWENTY_HEALTH_URL": "http://twenty-server:3000/healthz",
         "RUSTFS_HEALTH_URL": "http://rustfs:9000/health",
     }
@@ -39,6 +40,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "loginChallengeTtlMinutes": "10",
         "freshLoginSeconds": "900",
         "coreDatabaseHost": "core-postgres",
+        "twentyBaseHost": "twenty-server",
+        "twentyIntegration": "unconfigured",
         "twentyHealthHost": "twenty-server",
         "rustfsHealthHost": "rustfs",
     }

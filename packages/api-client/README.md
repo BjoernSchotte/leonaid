@@ -11,11 +11,17 @@ Beide generierten Dateien werden committed. Manuelle Änderungen sind
 unzulässig; `tools/openapi/generate.py --check` erkennt Drift.
 
 Der Generator unterstützt die im PoC verwendeten erforderlichen
-JSON-Request-Bodies und erforderlichen Pfadparameter. Pfadwerte werden
-URL-kodiert, Content-Type-Header mit Aufrufoptionen zusammengeführt und nicht
-unterstützte OpenAPI-Formen weiterhin explizit abgewiesen.
+JSON-Request-Bodies, erforderlichen Pfadparameter sowie typisierte skalare
+Query-Parameter. Pfad- und Query-Werte werden URL-kodiert,
+Content-Type-Header mit Aufrufoptionen zusammengeführt und nicht unterstützte
+OpenAPI-Formen weiterhin explizit abgewiesen.
 
 Seit POC-042 enthält der Vertrag außerdem Login-Anforderung und -Abschluss,
 Fresh-Login-Status und -Abschluss, Logout sowie administrativen
 Sitzungswiderruf. Das eigentliche Sitzungstoken bleibt ausschließlich im
 `HttpOnly`-Cookie und ist deshalb kein Wert des TypeScript-Clients.
+
+Seit POC-043 umfasst der Vertrag die serverseitig zugeschnittenen
+Akquise-Endpunkte für Liste, Count, CSV-Export, Detail, Aktivitäten und
+Dokumentmetadaten. Der Client übermittelt keine Actor-, Rollen- oder
+Assignee-ID; die Core-Sitzung ist die einzige Identitätsquelle.

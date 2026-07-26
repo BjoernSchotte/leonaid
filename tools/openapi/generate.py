@@ -139,6 +139,8 @@ def path_parameters(
         if not isinstance(parameter, dict):
             raise GenerationError("Ungültiger OpenAPI-Parameter.")
         location = parameter.get("in")
+        if location == "query":
+            continue
         name = parameter.get("name")
         schema = parameter.get("schema")
         if (
@@ -158,6 +160,61 @@ def path_parameters(
             f"Pfadparameter stimmen nicht mit dem Pfad überein: {path}"
         )
     return result
+
+
+def query_parameters(
+    path_item: dict[str, Any],
+    operation: dict[str, Any],
+) -> list[tuple[str, str, str, bool]]:
+    combined: list[Any] = []
+    for source in (path_item.get("parameters", []), operation.get("parameters", [])):
+        if not isinstance(source, list):
+            raise GenerationError("parameters muss eine Liste sein.")
+        combined.extend(source)
+    result: list[tuple[str, str, str, bool]] = []
+    seen: set[str] = set()
+    for parameter in combined:
+        if not isinstance(parameter, dict):
+            raise GenerationError("Ungültiger OpenAPI-Parameter.")
+        location = parameter.get("in")
+        if location == "path":
+            continue
+        name = parameter.get("name")
+        schema = parameter.get("schema")
+        if (
+            location != "query"
+            or not isinstance(name, str)
+            or not isinstance(schema, dict)
+        ):
+            raise GenerationError(
+                "Nur Pfad- und skalare Query-Parameter werden unterstützt."
+            )
+        if name in seen:
+            raise GenerationError(f"Doppelter Query-Parameter: {name}")
+        seen.add(name)
+        parameter_type = ts_type(schema)
+        if parameter_type.startswith(("Array<", "{ ", "Record<")):
+            raise GenerationError(f"Query-Parameter ist nicht skalar: {name}")
+        result.append(
+            (
+                name,
+                camel_identifier(name),
+                parameter_type,
+                parameter.get("required") is True,
+            )
+        )
+    return result
+
+
+def query_parameter_type(
+    parameters: list[tuple[str, str, str, bool]],
+) -> str:
+    fields = []
+    for original, _identifier, parameter_type, required in parameters:
+        key = original if IDENTIFIER.fullmatch(original) else json.dumps(original)
+        optional = "" if required else "?"
+        fields.append(f"readonly {key}{optional}: {parameter_type};")
+    return "{ " + " ".join(fields) + " }"
 
 
 def request_body_type(operation: dict[str, Any]) -> str | None:
@@ -229,6 +286,11 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                 raise GenerationError(f"Doppelte operationId: {operation_id}")
             seen.add(operation_id)
             parameters = path_parameters(path, path_item, operation)
+            query = query_parameters(path_item, operation)
+            if any(identifier == "queryParameters" for _, identifier, _ in parameters):
+                raise GenerationError(
+                    "Pfadparameter kollidiert mit generiertem Query-Objekt."
+                )
             body_type = request_body_type(operation)
             result_type = response_type(operation)
             arguments = [
@@ -237,6 +299,12 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
             ]
             if body_type is not None:
                 arguments.append(f"    body: {body_type},")
+            if query:
+                required_query = any(required for *_rest, required in query)
+                default = "" if required_query else " = {}"
+                arguments.append(
+                    f"    queryParameters: {query_parameter_type(query)}{default},"
+                )
             arguments.append("    options: RequestOptions = {},")
             init_lines = [f"      {{ method: {json.dumps(method.upper())} }},"]
             if body_type is not None:
@@ -247,14 +315,37 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                     "        body: JSON.stringify(body),",
                     "      },",
                 ]
+            request_path = path_expression(path, parameters)
+            query_lines: list[str] = []
+            if query:
+                query_lines = [
+                    "    const searchParameters = new URLSearchParams();",
+                    *(
+                        line
+                        for original, identifier, _parameter_type, _required in query
+                        for line in (
+                            f"    if (queryParameters.{identifier} !== undefined "
+                            f"&& queryParameters.{identifier} !== null) {{",
+                            "      searchParameters.set("
+                            f"{json.dumps(original)}, "
+                            f"String(queryParameters.{identifier}));",
+                            "    }",
+                        )
+                    ),
+                    "    const queryString = searchParameters.toString();",
+                    f"    const requestPath = {request_path} "
+                    '+ (queryString ? `?${queryString}` : "");',
+                ]
+                request_path = "requestPath"
             lines.extend(
                 [
                     "",
                     f"  async {operation_id}(",
                     *arguments,
                     f"  ): Promise<{result_type}> {{",
+                    *query_lines,
                     f"    return this.request<{result_type}>(",
-                    f"      {path_expression(path, parameters)},",
+                    f"      {request_path},",
                     *init_lines,
                     "      options,",
                     "    );",
