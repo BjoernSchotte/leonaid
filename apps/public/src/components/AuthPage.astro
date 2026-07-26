@@ -1,0 +1,219 @@
+---
+import PublicMark from "./PublicMark.astro";
+
+interface Props {
+  fresh?: boolean;
+}
+
+const { fresh = false } = Astro.props;
+const title = fresh ? "Anmeldung bestätigen" : "Bei LeonAid anmelden";
+const introduction = fresh
+  ? "Bestätige deine Anmeldung erneut, bevor du eine sensible Änderung ausführst."
+  : "Fordere einen einmaligen Magic Link oder sechsstelligen Code für deine Login-E-Mail an.";
+const requestLabel = fresh
+  ? "Code per E-Mail senden"
+  : "Login-Code anfordern";
+---
+
+<section class="auth-page" data-auth-fresh={String(fresh)}>
+  <main class="auth-panel">
+    <PublicMark />
+    <p class="eyebrow">Sicherer Zugang</p>
+    <h1>{title}</h1>
+    <p class="auth-panel__lead" id="auth-intro">{introduction}</p>
+    <form id="request-login-form">
+      {
+        !fresh && (
+          <div class="auth-field">
+            <label for="login-email">Login-E-Mail</label>
+            <small id="login-email-help">
+              Verwende die Adresse, mit der du zu LeonAid eingeladen wurdest.
+            </small>
+            <input
+              id="login-email"
+              aria-describedby="login-email-help"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </div>
+        )
+      }
+      <button data-testid="request-login" type="submit">{requestLabel}</button>
+      <p class="auth-panel__help">
+        Aus Sicherheitsgründen ist die Antwort immer gleich – auch wenn die
+        Adresse nicht registriert ist.
+      </p>
+    </form>
+    <form id="complete-login-form" hidden>
+      {
+        !fresh && (
+          <div class="auth-field code-email">
+            <label for="complete-email">Login-E-Mail</label>
+            <input
+              id="complete-email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+            />
+          </div>
+        )
+      }
+      <div class="auth-field code-field">
+        <label for="login-code">Sechsstelliger Code</label>
+        <small id="login-code-help">
+          Der Code aus der zuletzt versendeten LeonAid-E-Mail.
+        </small>
+        <input
+          id="login-code"
+          aria-describedby="login-code-help"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          required
+        />
+      </div>
+      <button data-testid="complete-login" type="submit">
+        {fresh ? "Anmeldung bestätigen" : "Anmelden"}
+      </button>
+    </form>
+    <p id="auth-status" class="auth-panel__status" role="status" aria-live="polite"></p>
+  </main>
+</section>
+
+<script>
+  import { LeonAidApiClient } from "@leonaid/api-client";
+
+  function requiredElement<T extends Element>(selector: string): T {
+    const element = document.querySelector<T>(selector);
+    if (!element) {
+      throw new Error(`LeonAid Login-Element fehlt: ${selector}`);
+    }
+    return element;
+  }
+
+  const page = requiredElement<HTMLElement>(".auth-page");
+  const requestForm =
+    requiredElement<HTMLFormElement>("#request-login-form");
+  const completeForm =
+    requiredElement<HTMLFormElement>("#complete-login-form");
+  const status = requiredElement<HTMLElement>("#auth-status");
+  const api = new LeonAidApiClient(window.location.origin);
+
+  const fresh = page.dataset.authFresh === "true";
+  const parameters = new URLSearchParams(window.location.search);
+  const token = parameters.get("token");
+  const requestedReturnTo =
+    parameters.get("returnTo") ?? (fresh ? "/admin/" : "/app/");
+  const returnTo =
+    requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : fresh
+        ? "/admin/"
+        : "/app/";
+
+  function formControl(
+    form: HTMLFormElement,
+    name: string,
+  ): HTMLInputElement | null {
+    const control = form.elements.namedItem(name);
+    return control instanceof HTMLInputElement ? control : null;
+  }
+
+  function showCode(email: string | null): void {
+    requestForm.hidden = true;
+    completeForm.hidden = false;
+    const completeEmail = formControl(completeForm, "email");
+    if (!fresh && email && completeEmail) completeEmail.value = email;
+    formControl(completeForm, "code")?.focus();
+  }
+
+  if (token) {
+    requestForm.hidden = true;
+    completeForm.hidden = false;
+    document
+      .querySelectorAll<HTMLElement>(".code-field, .code-email")
+      .forEach((field) => {
+        field.hidden = true;
+      });
+    const code = formControl(completeForm, "code");
+    const email = formControl(completeForm, "email");
+    if (code) code.required = false;
+    if (email) email.required = false;
+    const introduction = document.querySelector("#auth-intro");
+    if (introduction) {
+      introduction.textContent =
+        "Der Magic Link ist bereit. Bestätige die einmalige Anmeldung.";
+    }
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?returnTo=${encodeURIComponent(returnTo)}`,
+    );
+  }
+
+  requestForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = requestForm.querySelector<HTMLButtonElement>("button");
+    if (!button) return;
+    button.disabled = true;
+    status.dataset.state = "";
+    status.textContent = "Sicherer Zugang wird vorbereitet …";
+    const email = fresh ? null : formControl(requestForm, "email")?.value ?? "";
+    try {
+      if (fresh) {
+        await api.requestFreshLogin();
+      } else {
+        await api.requestLogin({ email: email ?? "" });
+      }
+      status.dataset.state = "success";
+      status.textContent =
+        "Wenn der Zugang berechtigt ist, wurde eine E-Mail versendet. Gib den Code hier ein.";
+      showCode(email);
+    } catch {
+      status.dataset.state = "error";
+      status.textContent = fresh
+        ? "Deine Sitzung ist nicht mehr gültig. Bitte melde dich vollständig neu an."
+        : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
+      button.disabled = false;
+    }
+  });
+
+  completeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = completeForm.querySelector<HTMLButtonElement>("button");
+    if (!button) return;
+    button.disabled = true;
+    status.dataset.state = "";
+    status.textContent = "Anmeldung wird sicher bestätigt …";
+    const body = token
+      ? { magicToken: token }
+      : fresh
+        ? { code: formControl(completeForm, "code")?.value ?? "" }
+        : {
+            email: formControl(completeForm, "email")?.value ?? "",
+            code: formControl(completeForm, "code")?.value ?? "",
+          };
+    try {
+      if (fresh) {
+        await api.completeFreshLogin(body);
+      } else {
+        await api.completeLogin(body);
+      }
+      status.dataset.state = "success";
+      status.textContent = fresh
+        ? "Bestätigt. Du kannst fortfahren."
+        : "Erfolgreich angemeldet.";
+      window.location.replace(returnTo);
+    } catch {
+      status.dataset.state = "error";
+      status.textContent =
+        "Link oder Code ist ungültig oder abgelaufen. Fordere einen neuen Zugang an.";
+      button.disabled = false;
+    }
+  });
+</script>

@@ -19,6 +19,8 @@ from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
     ActionTemplateKey,
+    OfferingStatus,
+    TemplateOffering,
 )
 from leonaid.domain.actions import (
     ActionManagementState,
@@ -104,10 +106,11 @@ class PublicActionRoute:
     availability: PublicActionAvailability
     submissions_allowed: bool
     action: CharityAction | None
+    offerings: tuple[TemplateOffering, ...] = ()
 
     def __post_init__(self) -> None:
         if self.availability is PublicActionAvailability.INACTIVE:
-            if self.action is not None or self.submissions_allowed:
+            if self.action is not None or self.offerings or self.submissions_allowed:
                 raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
             return
         if self.action is None:
@@ -158,12 +161,12 @@ class CharityActionRepository(Protocol):
     async def get_by_public_alias(
         self,
         public_alias: PublicActionAlias,
-    ) -> CharityAction | None: ...
+    ) -> tuple[CharityAction, ActionConfiguration | None] | None: ...
 
     async def get_by_archive_slug(
         self,
         archive_slug: str,
-    ) -> CharityAction | None: ...
+    ) -> tuple[CharityAction, ActionConfiguration | None] | None: ...
 
     async def update_details(
         self,
@@ -398,10 +401,10 @@ class CharityActionService:
         evaluated_at: datetime | None = None,
     ) -> PublicActionRoute:
         alias = PublicActionAlias(public_alias.strip())
-        action = await self._repository.get_by_public_alias(alias)
+        snapshot = await self._repository.get_by_public_alias(alias)
         now = evaluated_at or datetime.now(timezone.utc)
         route_path = f"/{alias.value}"
-        if action is None or not action.is_published_at(now):
+        if snapshot is None or not snapshot[0].is_published_at(now):
             return PublicActionRoute(
                 route_kind=PublicActionRouteKind.ALIAS,
                 route_value=alias.value,
@@ -411,6 +414,7 @@ class CharityActionService:
                 submissions_allowed=False,
                 action=None,
             )
+        action, configuration = snapshot
         return PublicActionRoute(
             route_kind=PublicActionRouteKind.ALIAS,
             route_value=alias.value,
@@ -419,6 +423,7 @@ class CharityActionService:
             availability=PublicActionAvailability.PUBLISHED,
             submissions_allowed=True,
             action=action,
+            offerings=self._public_offerings(configuration),
         )
 
     async def resolve_public_archive(
@@ -431,12 +436,13 @@ class CharityActionService:
                 "public_action_not_found",
                 "Diese öffentliche Aktionsseite wurde nicht gefunden.",
             )
-        action = await self._repository.get_by_archive_slug(normalized_slug)
-        if action is None:
+        snapshot = await self._repository.get_by_archive_slug(normalized_slug)
+        if snapshot is None:
             raise ResourceNotFound(
                 "public_action_not_found",
                 "Diese öffentliche Aktionsseite wurde nicht gefunden.",
             )
+        action, configuration = snapshot
         path = f"/archive/{action.archive_slug}"
         return PublicActionRoute(
             route_kind=PublicActionRouteKind.ARCHIVE,
@@ -446,6 +452,19 @@ class CharityActionService:
             availability=PublicActionAvailability.ARCHIVE,
             submissions_allowed=False,
             action=action,
+            offerings=self._public_offerings(configuration),
+        )
+
+    @staticmethod
+    def _public_offerings(
+        configuration: ActionConfiguration | None,
+    ) -> tuple[TemplateOffering, ...]:
+        if configuration is None:
+            return ()
+        return tuple(
+            item.definition
+            for item in configuration.offerings
+            if item.definition.status is OfferingStatus.ACTIVE
         )
 
     async def get_management(

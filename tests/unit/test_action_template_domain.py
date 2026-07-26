@@ -6,10 +6,12 @@ from uuid import UUID
 
 import pytest
 
+from leonaid.application.actions import CharityActionService
 from leonaid.domain.action_templates import (
     ActionConfiguration,
     ActionTemplate,
     ActionTemplateKey,
+    ConfiguredOffering,
     OfferingStatus,
     OfferingUnit,
     OrderFormConfiguration,
@@ -114,6 +116,30 @@ def test_template_capability_modules_are_typed_and_consistent() -> None:
     with pytest.raises(DomainInvariantError) as missing_pieces:
         replace(template.offerings[0], pieces_per_unit=None)
     assert missing_pieces.value.code == "template_box_pieces_required"
+
+
+def test_only_active_configured_offerings_are_public() -> None:
+    configured = krapfentaxi_template().configure(ACTION_ID)
+    draft = configured.offerings[0]
+    active = ConfiguredOffering(
+        id=draft.id,
+        action_id=draft.action_id,
+        definition=replace(draft.definition, status=OfferingStatus.ACTIVE),
+    )
+    inactive = ConfiguredOffering(
+        id=UUID("50000000-0000-4000-8000-000000000052"),
+        action_id=ACTION_ID,
+        definition=replace(
+            draft.definition,
+            code="krapfenbox-familie",
+            name="Familienbox",
+            status=OfferingStatus.INACTIVE,
+        ),
+    )
+    effective = replace(configured, offerings=(active, inactive))
+
+    assert CharityActionService._public_offerings(effective) == (active.definition,)
+    assert CharityActionService._public_offerings(None) == ()
 
 
 def test_krapfentaxi_configuration_does_not_leak_into_charity_action() -> None:

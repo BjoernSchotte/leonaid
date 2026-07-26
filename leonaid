@@ -232,7 +232,7 @@ check_all() {
     python tools/openapi/check_frontend.py --root /workspace
   run_bun bun run typecheck
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    apps/pwa apps/web packages/api-client packages/features packages/ui \
+    apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
     tests/contract tests/e2e package.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)

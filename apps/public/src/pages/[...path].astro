@@ -1,0 +1,142 @@
+---
+import { actions } from "astro:actions";
+
+import PublicAction from "../components/PublicAction.astro";
+import PublicState from "../components/PublicState.astro";
+import PublicLayout from "../layouts/PublicLayout.astro";
+
+const rawPath = Astro.params.path ?? "";
+const segments = rawPath.split("/").filter(Boolean);
+const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+let state: "home" | "inactive" | "not-found" | "unavailable" | "action" =
+  "home";
+let route = null;
+
+if (segments.length > 0) {
+  const routeKind =
+    segments.length === 2 && segments[0] === "archive"
+      ? "archive"
+      : segments.length === 1
+        ? "alias"
+        : null;
+  const routeValue =
+    routeKind === "archive" ? segments[1] : routeKind === "alias" ? segments[0] : null;
+
+  if (!routeKind || !routeValue || !slugPattern.test(routeValue)) {
+    state = "not-found";
+  } else {
+    const result = await Astro.callAction(actions.resolvePublicAction, {
+      routeKind,
+      routeValue,
+    });
+    if (result.error) {
+      state = result.error.code === "NOT_FOUND" ? "not-found" : "unavailable";
+    } else if (result.data.availability === "inactive") {
+      state = "inactive";
+    } else {
+      state = "action";
+      route = result.data;
+    }
+  }
+}
+
+if (state === "not-found") {
+  Astro.response.status = 404;
+} else if (state === "unavailable") {
+  Astro.response.status = 503;
+} else {
+  Astro.response.status = 200;
+}
+
+Astro.response.headers.set(
+  "Cache-Control",
+  state === "action" && route?.availability === "archive"
+    ? "public, max-age=300, stale-while-revalidate=3600"
+    : state === "action" || state === "inactive"
+      ? "public, max-age=15, stale-while-revalidate=30"
+      : state === "unavailable"
+        ? "no-store"
+        : "public, max-age=60",
+);
+Astro.response.headers.set(
+  "X-LeonAid-Public-State",
+  state === "action" && route ? route.availability : state,
+);
+
+const title =
+  state === "action" && route?.action
+    ? `${route.action.name} · LeonAid`
+    : state === "inactive"
+      ? "Derzeit keine aktive Aktion · LeonAid"
+      : state === "not-found"
+        ? "Aktionsseite nicht gefunden · LeonAid"
+        : state === "unavailable"
+          ? "Aktionsseite vorübergehend nicht erreichbar · LeonAid"
+          : "Engagement, das ankommt · LeonAid";
+const description =
+  state === "action" && route?.action
+    ? route.action.purpose
+    : state === "inactive"
+      ? "Unter dieser Adresse ist derzeit keine Charity-Aktion veröffentlicht."
+      : "LeonAid verbindet lokale Charity-Aktionen mit Menschen, die vor Ort helfen.";
+const canonicalPath =
+  state === "action" && route ? route.canonicalPath : `/${rawPath}`;
+const forwardedProtocol = Astro.request.headers
+  .get("x-forwarded-proto")
+  ?.split(",", 1)[0]
+  ?.trim();
+const publicOrigin = new URL(Astro.url.origin);
+if (forwardedProtocol === "http" || forwardedProtocol === "https") {
+  publicOrigin.protocol = `${forwardedProtocol}:`;
+}
+const canonicalUrl = new URL(canonicalPath || "/", publicOrigin).href;
+const imageUrl = new URL("/community-routes.png", publicOrigin).href;
+const robots = state === "action" || state === "home" ? "index,follow" : "noindex,follow";
+---
+
+<PublicLayout
+  canonicalUrl={canonicalUrl}
+  description={description}
+  imageUrl={imageUrl}
+  robots={robots}
+  title={title}
+>
+  {
+    state === "action" && route ? (
+      <PublicAction route={route} />
+    ) : state === "inactive" ? (
+      <PublicState
+        eyebrow="Zwischen zwei Aktionen"
+        message="Sobald der nächste Jahrgang veröffentlicht ist, führt diese Adresse automatisch dorthin. Abgeschlossene Aktionen bleiben unter ihrer dauerhaften Archiv-Adresse erhalten."
+        state="inactive"
+        title="Derzeit keine aktive Aktion"
+      />
+    ) : state === "not-found" ? (
+      <PublicState
+        actionHref="/"
+        actionLabel="Zur Startseite"
+        eyebrow="Adresse nicht gefunden"
+        message="Prüfe den Aktionslink oder verwende die Adresse, die dein Lions Club veröffentlicht hat."
+        state="not-found"
+        title="Diese Aktionsseite gibt es nicht."
+      />
+    ) : state === "unavailable" ? (
+      <PublicState
+        actionHref={Astro.url.pathname}
+        actionLabel="Erneut versuchen"
+        eyebrow="Kurze Unterbrechung"
+        message="Die Aktionsdaten sind gerade nicht erreichbar. Es wurden keine Eingaben gespeichert oder verloren."
+        state="unavailable"
+        title="Bitte versuche es gleich noch einmal."
+      />
+    ) : (
+      <PublicState
+        eyebrow="Lions helfen vor Ort"
+        message="Über die Aktionsadresse deines Lions Clubs gelangst du direkt zur aktuell veröffentlichten Charity-Aktion."
+        state="home"
+        title="Engagement, das ankommt."
+      />
+    )
+  }
+</PublicLayout>

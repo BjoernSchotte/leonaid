@@ -120,6 +120,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PlatformStatusResponse,
     PublicActionRouteResponse,
     PublicCharityActionResponse,
+    PublicOfferingResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
     RecordAcquisitionActivityResponse,
@@ -487,6 +488,17 @@ def public_action_route_response(
                     unit=action.goal.unit,
                     currency=action.goal.currency,
                 ),
+                offerings=[
+                    PublicOfferingResponse(
+                        code=item.code,
+                        name=item.name,
+                        unit=item.unit.value,
+                        pieces_per_unit=item.pieces_per_unit,
+                        unit_price_minor=item.unit_price_minor,
+                        currency=item.currency,
+                    )
+                    for item in route.offerings
+                ],
             )
             if action is not None
             else None

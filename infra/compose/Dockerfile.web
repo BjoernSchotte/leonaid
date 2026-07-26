@@ -2,6 +2,7 @@ FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66
 
 WORKDIR /workspace
 COPY package.json bun.lock ./
+COPY apps/public/package.json ./apps/public/package.json
 COPY apps/pwa/package.json ./apps/pwa/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/api-client/package.json ./packages/api-client/package.json

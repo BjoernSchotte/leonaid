@@ -2420,6 +2420,13 @@
             "title": "Name",
             "type": "string"
           },
+          "offerings": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOfferingResponse"
+            },
+            "title": "Offerings",
+            "type": "array"
+          },
           "purpose": {
             "title": "Purpose",
             "type": "string"
@@ -2439,9 +2446,63 @@
           "endsOn",
           "archiveSlug",
           "beneficiaries",
-          "goal"
+          "goal",
+          "offerings"
         ],
         "title": "PublicCharityActionResponse",
+        "type": "object"
+      },
+      "PublicOfferingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "piecesPerUnit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Piecesperunit"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unitPriceMinor": {
+            "minimum": 0.0,
+            "title": "Unitpriceminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "unit",
+          "piecesPerUnit",
+          "unitPriceMinor",
+          "currency"
+        ],
+        "title": "PublicOfferingResponse",
         "type": "object"
       },
       "ReadinessResponse": {

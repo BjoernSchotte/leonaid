@@ -1,0 +1,44 @@
+---
+interface Props {
+  actionHref?: string;
+  actionLabel?: string;
+  eyebrow: string;
+  message: string;
+  state: "home" | "inactive" | "not-found" | "unavailable";
+  title: string;
+}
+
+const {
+  actionHref,
+  actionLabel,
+  eyebrow,
+  message,
+  state,
+  title,
+} = Astro.props;
+---
+
+<section class="state-page" data-testid={`public-${state}`} data-public-state={state}>
+  <div class="site-shell state-page__grid">
+    <div class="state-page__copy">
+      <p class="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p>{message}</p>
+      {
+        actionHref && actionLabel && (
+          <a class="primary-link" href={actionHref}>{actionLabel}</a>
+        )
+      }
+    </div>
+    <figure class="state-page__visual" aria-hidden="true">
+      <img
+        src="/community-routes.webp"
+        alt=""
+        width="1440"
+        height="758"
+        fetchpriority="high"
+        decoding="async"
+      />
+    </figure>
+  </div>
+</section>

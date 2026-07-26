@@ -10,7 +10,7 @@ https_port=${LEONAID_PUBLIC_ACTIONS_TEST_HTTPS_PORT:-18453}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 proof=$(mktemp -d)
-artifact_directory="$root/.artifacts/poc070"
+artifact_directory="$root/.artifacts/poc071"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
 
@@ -60,6 +60,7 @@ compose run --rm --no-deps \
   --user "$host_user_id:$host_group_id" \
   --env-from-file "$env_file" \
   --env API_BASE_URL=http://api:8000 \
+  --env PUBLIC_BASE_URL=http://public:3000 \
   --env PYTHONPATH=/repo/src:/repo:/workspace/src \
   --volume "$root:/repo:ro" \
   --workdir /repo \
@@ -76,21 +77,46 @@ docker run --rm \
   --workdir /workspace \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
-  tests/e2e/public-actions.spec.mjs \
-  --browser=chromium \
+  --config=tests/e2e/public.config.mjs \
+  public-actions.spec.mjs \
   --output=/proof/test-results \
   --reporter=line
 
+docker run --rm \
+  --network "${project}_edge" \
+  --env CI=1 \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+  --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" \
+  --workdir /workspace \
+  "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test \
+  tests/e2e/public-audit.spec.mjs \
+  --browser=chromium \
+  --output=/proof/test-results-audit \
+  --reporter=line
+
 for screenshot in \
-  public-alias-2027.png \
-  public-archive-2026.png \
-  public-inactive.png; do
+  public-active-chromium-390.png \
+  public-active-firefox-390.png \
+  public-active-webkit-390.png \
+  public-active-chromium-1440.png \
+  public-archive-chromium-1440.png \
+  public-inactive-chromium-390.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "public-actions-test: ERROR: Browsernachweis $screenshot fehlt" >&2
     exit 1
   fi
 done
+for report in accessibility-report.json performance-report.json; do
+  if [ ! -s "$proof/$report" ]; then
+    echo "public-actions-test: ERROR: Qualitätsbericht $report fehlt" >&2
+    exit 1
+  fi
+done
 mkdir -p "$artifact_directory"
-cp "$proof/"*.png "$artifact_directory/"
+cp "$proof/"*.png "$proof/"*.json "$artifact_directory/"
 
-echo "public-actions-test: OK: Aliaswechsel, Archiv und neutrale Public UX real bewiesen"
+echo "public-actions-test: OK: Astro/Core-Parität, drei Browser, responsive Public UX,"
+echo "public-actions-test:     Alias/Archiv, WCAG 2.2 AA und Web-Vitals real bewiesen"

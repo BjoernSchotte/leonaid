@@ -1,0 +1,33 @@
+import {
+  ApiError,
+  LeonAidApiClient,
+  type PublicActionRouteResponse,
+} from "@leonaid/api-client";
+
+const routeTimeoutMilliseconds = 5_000;
+
+function client(): LeonAidApiClient {
+  const baseUrl = process.env.CORE_API_URL?.trim() || "http://api:8000";
+  return new LeonAidApiClient(baseUrl);
+}
+
+export async function resolvePublicAction(
+  routeKind: "alias" | "archive",
+  routeValue: string,
+): Promise<PublicActionRouteResponse> {
+  const options = {
+    headers: { "X-Request-ID": `public:${crypto.randomUUID()}` },
+    signal: AbortSignal.timeout(routeTimeoutMilliseconds),
+  };
+  return routeKind === "alias"
+    ? client().resolvePublicActionAlias(routeValue, options)
+    : client().resolvePublicActionArchive(routeValue, options);
+}
+
+export function isMissingPublicAction(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.detail.code === "public_action_not_found"
+  );
+}

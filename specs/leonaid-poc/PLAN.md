@@ -949,29 +949,29 @@ Tests/Nachweise:
 - [x] E2E beweist unveränderte Archiv-URL und deaktivierte Formulare.
 - [x] Direkter API-Request gegen Archiv-Aktion wird abgewiesen.
 
-### [ ] POC-071 Astro-Aktionsseite mit hochwertiger Public UX bauen
+### [x] POC-071 Astro-Aktionsseite mit hochwertiger Public UX bauen
 
 Abhängigkeiten: POC-023, POC-070
 
 Akzeptanzkriterien:
 
-- [ ] Seite zeigt Zweck, Zeitraum, Begünstigte, Ziel, Angebote und
+- [x] Seite zeigt Zweck, Zeitraum, Begünstigte, Ziel, Angebote und
       Datenschutzinformation.
-- [ ] Inhalt funktioniert ohne unnötiges Client-JavaScript.
-- [ ] Astro Actions übernehmen nur Transportvalidierung, Spam-Schutz und
+- [x] Inhalt funktioniert ohne unnötiges Client-JavaScript.
+- [x] Astro Actions übernehmen nur Transportvalidierung, Spam-Schutz und
       Core-Weiterleitung; keine Fachlogik.
-- [ ] Metadaten, Canonical URL, Social Preview, Fehler- und Archivzustand
+- [x] Metadaten, Canonical URL, Social Preview, Fehler- und Archivzustand
       sind gepflegt.
-- [ ] Mobile Performance und Barrierefreiheit erfüllen die Budgets.
+- [x] Mobile Performance und Barrierefreiheit erfüllen die Budgets.
 
 Tests/Nachweise:
 
-- [ ] Unit-Test der Domain-Regeln läuft unabhängig von Astro.
-- [ ] Integrationstest ruft Core einmal direkt und einmal über Astro auf und
+- [x] Unit-Test der Domain-Regeln läuft unabhängig von Astro.
+- [x] Integrationstest ruft Core einmal direkt und einmal über Astro auf und
       erhält dieselbe fachliche Entscheidung.
-- [ ] E2E prüft aktive, inaktive und archivierte Golden-Seite in drei
+- [x] E2E prüft aktive, inaktive und archivierte Golden-Seite in drei
       Browser-Engines.
-- [ ] Accessibility- und Performance-Bericht werden archiviert.
+- [x] Accessibility- und Performance-Bericht werden archiviert.
 
 ### [ ] POC-072 Öffentliches Bestellformular implementieren
 

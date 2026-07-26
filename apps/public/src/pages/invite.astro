@@ -1,0 +1,136 @@
+---
+import PublicMark from "../components/PublicMark.astro";
+import AuthLayout from "../layouts/AuthLayout.astro";
+
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<AuthLayout title="Einladung annehmen">
+  <section class="auth-page">
+    <main class="auth-panel">
+      <PublicMark />
+      <p class="eyebrow">Sicherer Zugang</p>
+      <h1>Einladung annehmen</h1>
+      <p class="auth-panel__lead" id="invite-intro">
+        Bestätige deine Einladung per Magic Link oder mit dem sechsstelligen
+        Code aus deiner E-Mail.
+      </p>
+      <form id="accept-form">
+        <div class="auth-field code-field">
+          <label for="accept-email">E-Mail</label>
+          <small id="accept-email-help">
+            Die Adresse, an die deine Einladung gesendet wurde.
+          </small>
+          <input
+            id="accept-email"
+            aria-describedby="accept-email-help"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          />
+        </div>
+        <div class="auth-field code-field">
+          <label for="accept-code">Sechsstelliger Code</label>
+          <small id="accept-code-help">
+            Der Code aus der zuletzt versendeten Einladung.
+          </small>
+          <input
+            id="accept-code"
+            aria-describedby="accept-code-help"
+            name="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+          />
+        </div>
+        <button data-testid="accept-submit" type="submit">
+          Einladung bestätigen
+        </button>
+        <p
+          id="accept-status"
+          class="auth-panel__status"
+          role="status"
+          aria-live="polite"
+        >
+        </p>
+      </form>
+    </main>
+  </section>
+</AuthLayout>
+
+<script>
+  import { LeonAidApiClient } from "@leonaid/api-client";
+
+  function requiredElement<T extends Element>(selector: string): T {
+    const element = document.querySelector<T>(selector);
+    if (!element) {
+      throw new Error(`LeonAid Einladungs-Element fehlt: ${selector}`);
+    }
+    return element;
+  }
+
+  const form = requiredElement<HTMLFormElement>("#accept-form");
+  const status = requiredElement<HTMLElement>("#accept-status");
+  const submit = requiredElement<HTMLButtonElement>("#accept-form button");
+  const token = new URLSearchParams(window.location.search).get("token");
+  const api = new LeonAidApiClient(window.location.origin);
+
+  function control(name: string): HTMLInputElement | null {
+    const item = form.elements.namedItem(name);
+    return item instanceof HTMLInputElement ? item : null;
+  }
+
+  if (token) {
+    document
+      .querySelectorAll<HTMLElement>(".code-field")
+      .forEach((field) => {
+        field.hidden = true;
+      });
+    const email = control("email");
+    const code = control("code");
+    if (email) email.required = false;
+    if (code) code.required = false;
+    const introduction = document.querySelector("#invite-intro");
+    if (introduction) {
+      introduction.textContent =
+        "Der Magic Link ist bereit. Bestätige einmalig deine Mitgliedschaft und Aktionsrolle.";
+    }
+    window.history.replaceState({}, "", "/invite");
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    status.dataset.state = "";
+    status.textContent = "Einladung wird geprüft …";
+    const body = token
+      ? { magicToken: token }
+      : {
+          email: control("email")?.value ?? "",
+          code: control("code")?.value ?? "",
+        };
+    try {
+      const accepted = await api.acceptInvitation(body);
+      status.dataset.state = "success";
+      status.textContent = `Einladung für „${accepted.actionName}“ angenommen. Dein Zugang ist aktiviert. `;
+      const workspaceLink = document.createElement("a");
+      workspaceLink.href = "/app/";
+      workspaceLink.textContent = "Zum Arbeitsbereich";
+      status.append(workspaceLink);
+      submit.hidden = true;
+      document
+        .querySelectorAll<HTMLElement>(".auth-field")
+        .forEach((field) => {
+          field.hidden = true;
+        });
+    } catch {
+      status.dataset.state = "error";
+      status.textContent =
+        "Diese Einladung ist ungültig oder nicht mehr gültig. Bitte fordere eine neue Einladung an.";
+      submit.disabled = false;
+    }
+  });
+</script>

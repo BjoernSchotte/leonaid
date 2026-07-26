@@ -10,6 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 SOURCE_SUFFIXES = {".astro", ".js", ".jsx", ".ts", ".tsx"}
+IGNORED_DIRECTORIES = {".astro", "dist", "node_modules"}
 DIRECT_API_FETCH = re.compile(
     r"\bfetch\s*\(\s*[`'\"][^`'\"]*/api/(?:v\d+/)?",
     re.MULTILINE,
@@ -26,6 +27,8 @@ def violations(paths: Iterable[Path]) -> list[str]:
         if not root.exists():
             continue
         for path in sorted(root.rglob("*")):
+            if any(part in IGNORED_DIRECTORIES for part in path.parts):
+                continue
             if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
                 continue
             text = path.read_text(encoding="utf-8")

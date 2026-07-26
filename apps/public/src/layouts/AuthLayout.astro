@@ -1,0 +1,31 @@
+---
+import "@fontsource-variable/instrument-sans/wght.css";
+import "@fontsource-variable/newsreader/wght.css";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#00338d" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title} · LeonAid</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

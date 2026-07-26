@@ -1,6 +1,7 @@
 # Public Web
 
-Öffentliche Astro-Aktionsseiten und Standardformulare.
+Serverseitig gerenderte öffentliche Astro-Aktionsseiten sowie die
+passwortlosen Einstiege für Mitglieder.
 
 POC-041 stellt unter `/invite` eine responsive Aktivierungsseite für
 Magic Link und sechsstelligen Code bereit. Ein Link führt aus Schutz vor
@@ -15,5 +16,14 @@ registriert ist. `/fresh-login` bestätigt sensible Aktionen erneut, entfernt
 Magic-Link-Tokens vor der Bestätigung aus der sichtbaren URL und führt danach
 nur zu einem geprüften internen Rücksprungziel.
 
-Die öffentliche Aktionsdarstellung, Alias-/Archivlogik und Bestellformulare
-werden als Astro-Anwendung in POC-070 bis POC-072 umgesetzt.
+POC-071 liefert die öffentliche Aktionsdarstellung für Alias- und
+Archiv-Adressen. Astro fragt ausschließlich den FastAPI-Core über den
+generierten Client ab. Die fachliche Entscheidung über Veröffentlichung,
+Archiv und öffentliche Angebote bleibt vollständig im Core. Aktionsseiten
+enthalten kein Client-JavaScript; Schriften und Bildmotive werden lokal
+ausgeliefert.
+
+Das öffentliche Bestellformular folgt in POC-072. Seine Astro Action darf
+Transportdaten validieren, Spam-Signale erfassen und an den Core
+weiterleiten. Preise, Verfügbarkeit, Bestellfenster und alle weiteren
+Fachregeln werden dort erneut entschieden.

@@ -1,0 +1,10 @@
+---
+import AuthPage from "../components/AuthPage.astro";
+import AuthLayout from "../layouts/AuthLayout.astro";
+
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<AuthLayout title="Anmeldung bestätigen">
+  <AuthPage fresh />
+</AuthLayout>

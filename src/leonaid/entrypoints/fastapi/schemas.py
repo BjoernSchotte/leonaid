@@ -329,6 +329,15 @@ class CharityActionResponse(TransportModel):
     goal: ActionGoalResponse
 
 
+class PublicOfferingResponse(TransportModel):
+    code: str
+    name: str
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    pieces_per_unit: int | None
+    unit_price_minor: int = Field(ge=0)
+    currency: str
+
+
 class PublicCharityActionResponse(TransportModel):
     id: UUID
     carrier_name: str
@@ -339,6 +348,7 @@ class PublicCharityActionResponse(TransportModel):
     archive_slug: str
     beneficiaries: list[BeneficiaryResponse]
     goal: ActionGoalResponse
+    offerings: list[PublicOfferingResponse]
 
 
 class PublicActionRouteResponse(TransportModel):

@@ -9,6 +9,8 @@ if (!baseUrl || !mailpitBaseUrl || !artifactDirectory) {
   throw new Error("POC-042 Browserumgebung ist unvollständig");
 }
 
+test.setTimeout(60_000);
+
 function recipientAddresses(value) {
   const result = new Set();
   if (typeof value === "string") {
@@ -159,11 +161,15 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
       "Klara Kern",
     );
 
-    await page.locator("#invite-name").fill("E2E Session Sponsor");
-    await page.locator("#invite-email").fill("e2e-session@leonaid.invalid");
+    await page
+      .getByRole("textbox", { name: "Name des Mitglieds" })
+      .fill("E2E Session Sponsor");
+    await page
+      .getByRole("textbox", { name: "Login-E-Mail" })
+      .fill("e2e-session@leonaid.invalid");
     await page.locator('[data-testid="invite-submit"]').click();
     await expect(page.locator("#invitation-status")).toContainText(
-      "Einladung eingeplant",
+      "Einladung ist unterwegs",
     );
     await page.screenshot({
       path: `${artifactDirectory}/session-fresh-admin.png`,

@@ -1,0 +1,39 @@
+FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS build
+
+WORKDIR /workspace
+ENV ASTRO_TELEMETRY_DISABLED=1
+COPY package.json bun.lock ./
+COPY apps/public/package.json ./apps/public/package.json
+COPY apps/pwa/package.json ./apps/pwa/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/api-client/package.json ./packages/api-client/package.json
+COPY packages/features/package.json ./packages/features/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+RUN bun install --frozen-lockfile --ignore-scripts
+COPY apps/public ./apps/public
+COPY packages/api-client ./packages/api-client
+RUN bun run typecheck:public
+RUN bun run build:public
+
+FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS runtime-dependencies
+
+WORKDIR /workspace
+COPY package.json bun.lock ./
+COPY apps/public/package.json ./apps/public/package.json
+COPY apps/pwa/package.json ./apps/pwa/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/api-client/package.json ./packages/api-client/package.json
+COPY packages/features/package.json ./packages/features/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+RUN bun install --frozen-lockfile --production --ignore-scripts
+
+FROM docker.io/library/node:22.17.1-alpine3.22@sha256:5539840ce9d013fa13e3b9814c9353024be7ac75aca5db6d039504a56c04ea59
+
+WORKDIR /app
+COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
+COPY --from=build /workspace/apps/public/dist ./dist
+ENV HOST=0.0.0.0
+ENV PORT=3000
+USER node
+EXPOSE 3000
+CMD ["node", "./dist/server/entry.mjs"]

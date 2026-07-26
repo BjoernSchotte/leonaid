@@ -191,85 +191,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         action_id: UUID,
     ) -> ActionConfiguration | None:
         async with self._pool.acquire() as connection:
-            snapshot_row = await connection.fetchrow(
-                """
-                SELECT
-                    template_key, template_version, display_name,
-                    copied_from_action_id, configuration
-                FROM action_template_snapshot
-                WHERE action_id = $1
-                """,
-                action_id,
-            )
-            if snapshot_row is None:
-                return None
-            offering_rows = await connection.fetch(
-                """
-                SELECT
-                    id, action_id, code, name, status, unit,
-                    pieces_per_unit, unit_price_minor, currency
-                FROM offering
-                WHERE action_id = $1
-                ORDER BY code
-                """,
-                action_id,
-            )
-            form_row = await connection.fetchrow(
-                """
-                SELECT
-                    id, action_id, form_key, title, introduction, submit_label,
-                    require_company_name, require_contact_name, require_email,
-                    require_phone, require_delivery_address,
-                    require_billing_address, allow_message
-                FROM order_form_configuration
-                WHERE action_id = $1
-                """,
-                action_id,
-            )
-            snapshot_payload = snapshot_row["configuration"]
-            if isinstance(snapshot_payload, str):
-                snapshot_payload = json.loads(snapshot_payload)
-            if not isinstance(snapshot_payload, dict):
-                raise RuntimeError("Ungültiger ActionTemplate-Snapshot in PostgreSQL")
-            return ActionConfiguration(
-                action_id=action_id,
-                snapshot=ActionTemplateSnapshot.from_payload(
-                    template_key=str(snapshot_row["template_key"]),
-                    template_version=int(snapshot_row["template_version"]),
-                    display_name=str(snapshot_row["display_name"]),
-                    copied_from_action_id=snapshot_row["copied_from_action_id"],
-                    payload=snapshot_payload,
-                ),
-                offerings=tuple(
-                    ConfiguredOffering(
-                        id=row["id"],
-                        action_id=row["action_id"],
-                        definition=TemplateOffering(
-                            code=str(row["code"]),
-                            name=str(row["name"]),
-                            status=OfferingStatus(str(row["status"])),
-                            unit=OfferingUnit(str(row["unit"])),
-                            pieces_per_unit=(
-                                int(row["pieces_per_unit"])
-                                if row["pieces_per_unit"] is not None
-                                else None
-                            ),
-                            unit_price_minor=int(row["unit_price_minor"]),
-                            currency=str(row["currency"]),
-                        ),
-                    )
-                    for row in offering_rows
-                ),
-                order_form=(
-                    ConfiguredOrderForm(
-                        id=form_row["id"],
-                        action_id=form_row["action_id"],
-                        configuration=self._order_form_from_row(form_row),
-                    )
-                    if form_row is not None
-                    else None
-                ),
-            )
+            return await self._get_configuration(connection, action_id)
 
     async def get_management(
         self,
@@ -292,7 +214,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     async def get_by_public_alias(
         self,
         public_alias: PublicActionAlias,
-    ) -> CharityAction | None:
+    ) -> tuple[CharityAction, ActionConfiguration | None] | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction(
                 isolation="repeatable_read",
@@ -308,12 +230,16 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 )
                 if action_id is None:
                     return None
-                return await self._get(connection, action_id)
+                action = await self._get(connection, action_id)
+                if action is None:
+                    return None
+                configuration = await self._get_configuration(connection, action_id)
+                return action, configuration
 
     async def get_by_archive_slug(
         self,
         archive_slug: str,
-    ) -> CharityAction | None:
+    ) -> tuple[CharityAction, ActionConfiguration | None] | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction(
                 isolation="repeatable_read",
@@ -329,7 +255,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 )
                 if action_id is None:
                     return None
-                return await self._get(connection, action_id)
+                action = await self._get(connection, action_id)
+                if action is None:
+                    return None
+                configuration = await self._get_configuration(connection, action_id)
+                return action, configuration
 
     async def update_details(
         self,
@@ -844,6 +774,93 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 else None
             ),
             revision=int(row["revision"]),
+        )
+
+    @staticmethod
+    async def _get_configuration(
+        connection: asyncpg.Connection[Any],
+        action_id: UUID,
+    ) -> ActionConfiguration | None:
+        snapshot_row = await connection.fetchrow(
+            """
+            SELECT
+                template_key, template_version, display_name,
+                copied_from_action_id, configuration
+            FROM action_template_snapshot
+            WHERE action_id = $1
+            """,
+            action_id,
+        )
+        if snapshot_row is None:
+            return None
+        offering_rows = await connection.fetch(
+            """
+            SELECT
+                id, action_id, code, name, status, unit,
+                pieces_per_unit, unit_price_minor, currency
+            FROM offering
+            WHERE action_id = $1
+            ORDER BY code
+            """,
+            action_id,
+        )
+        form_row = await connection.fetchrow(
+            """
+            SELECT
+                id, action_id, form_key, title, introduction, submit_label,
+                require_company_name, require_contact_name, require_email,
+                require_phone, require_delivery_address,
+                require_billing_address, allow_message
+            FROM order_form_configuration
+            WHERE action_id = $1
+            """,
+            action_id,
+        )
+        snapshot_payload = snapshot_row["configuration"]
+        if isinstance(snapshot_payload, str):
+            snapshot_payload = json.loads(snapshot_payload)
+        if not isinstance(snapshot_payload, dict):
+            raise RuntimeError("Ungültiger ActionTemplate-Snapshot in PostgreSQL")
+        return ActionConfiguration(
+            action_id=action_id,
+            snapshot=ActionTemplateSnapshot.from_payload(
+                template_key=str(snapshot_row["template_key"]),
+                template_version=int(snapshot_row["template_version"]),
+                display_name=str(snapshot_row["display_name"]),
+                copied_from_action_id=snapshot_row["copied_from_action_id"],
+                payload=snapshot_payload,
+            ),
+            offerings=tuple(
+                ConfiguredOffering(
+                    id=row["id"],
+                    action_id=row["action_id"],
+                    definition=TemplateOffering(
+                        code=str(row["code"]),
+                        name=str(row["name"]),
+                        status=OfferingStatus(str(row["status"])),
+                        unit=OfferingUnit(str(row["unit"])),
+                        pieces_per_unit=(
+                            int(row["pieces_per_unit"])
+                            if row["pieces_per_unit"] is not None
+                            else None
+                        ),
+                        unit_price_minor=int(row["unit_price_minor"]),
+                        currency=str(row["currency"]),
+                    ),
+                )
+                for row in offering_rows
+            ),
+            order_form=(
+                ConfiguredOrderForm(
+                    id=form_row["id"],
+                    action_id=form_row["action_id"],
+                    configuration=AsyncpgCharityActionRepository._order_form_from_row(
+                        form_row
+                    ),
+                )
+                if form_row is not None
+                else None
+            ),
         )
 
     @staticmethod

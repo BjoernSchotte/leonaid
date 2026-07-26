@@ -170,12 +170,12 @@ services:
   public:
     build:
       context: ../..
-      dockerfile: infra/compose/Dockerfile.frontend
+      dockerfile: infra/compose/Dockerfile.public
     restart: unless-stopped
     environment:
-      APP_NAME: "LeonAid Aktionen"
-      APP_KIND: public
       CORE_API_URL: http://api:8000
+      HOST: 0.0.0.0
+      PORT: "3000"
     networks:
       - edge
     depends_on:

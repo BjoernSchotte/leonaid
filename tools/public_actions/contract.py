@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -114,6 +115,50 @@ async def public_alias(
     return payload
 
 
+async def assert_astro_matches(
+    client: httpx.AsyncClient,
+    path: str,
+    direct: dict[str, Any],
+) -> None:
+    response = await client.get(path, follow_redirects=False)
+    if response.status_code != 200:
+        raise ContractFailure(
+            f"Astro-Route {path} antwortet mit HTTP {response.status_code}"
+        )
+    expected_state = str(direct["availability"])
+    if response.headers.get("X-LeonAid-Public-State") != expected_state:
+        raise ContractFailure(
+            f"Astro-Route {path} und Core entscheiden unterschiedlich"
+        )
+    source = response.text
+    if "<script" in source.casefold():
+        raise ContractFailure(
+            f"Astro-Route {path} liefert unnötiges Client-JavaScript aus"
+        )
+    action = direct.get("action")
+    if isinstance(action, dict):
+        name = html.escape(str(action["name"]))
+        if name not in source:
+            raise ContractFailure(
+                f"Astro-Route {path} zeigt nicht die vom Core gelieferte Aktion"
+            )
+        for offering in action.get("offerings", []):
+            if html.escape(str(offering["name"])) not in source:
+                raise ContractFailure(
+                    f"Astro-Route {path} verliert ein öffentliches Angebot"
+                )
+    elif "Krapfentaxi" in source:
+        raise ContractFailure(
+            f"Astro-Route {path} gibt bei inaktiver Aktion alte Daten preis"
+        )
+    canonical_path = str(direct["canonicalPath"])
+    canonical_url = response.url.join(canonical_path)
+    if f'rel="canonical" href="{canonical_url}"' not in source:
+        raise ContractFailure(
+            f"Astro-Route {path} besitzt keine passende Canonical URL"
+        )
+
+
 async def exercise(
     connection: asyncpg.Connection[Any],
     token: str,
@@ -139,10 +184,16 @@ async def exercise(
     )
 
     cookies = {SESSION_COOKIE_NAME: token}
-    async with httpx.AsyncClient(
-        base_url=require_env("API_BASE_URL").rstrip("/"),
-        timeout=30,
-    ) as client:
+    async with (
+        httpx.AsyncClient(
+            base_url=require_env("API_BASE_URL").rstrip("/"),
+            timeout=30,
+        ) as client,
+        httpx.AsyncClient(
+            base_url=require_env("PUBLIC_BASE_URL").rstrip("/"),
+            timeout=30,
+        ) as public_client,
+    ):
         before = await public_alias(client)
         if (
             before.get("availability") != "published"
@@ -151,6 +202,7 @@ async def exercise(
             or before.get("action", {}).get("id") != str(CURRENT_ACTION_ID)
         ):
             raise ContractFailure("Aktiver Alias löst nicht exakt auf 2026 auf")
+        await assert_astro_matches(public_client, "/krapfentaxi", before)
 
         neutral = await client.get(
             "/api/v1/public/actions/alias/winterpause",
@@ -167,6 +219,7 @@ async def exercise(
             "action": None,
         }:
             raise ContractFailure("Inaktiver Alias liefert keine neutrale Sicht")
+        await assert_astro_matches(public_client, "/winterpause", neutral.json())
 
         archive = await client.get(
             "/api/v1/public/actions/archive/krapfentaxi-2025",
@@ -181,6 +234,11 @@ async def exercise(
             or archive_payload.get("action", {}).get("id") != str(ARCHIVED_ACTION_ID)
         ):
             raise ContractFailure("Archivroute ist nicht dauerhaft lesbar")
+        await assert_astro_matches(
+            public_client,
+            "/archive/krapfentaxi-2025",
+            archive_payload,
+        )
 
         archived_write = await client.put(
             f"/api/v1/actions/{ARCHIVED_ACTION_ID}/goal",
@@ -210,6 +268,18 @@ async def exercise(
         follow_up = created.json()["action"]
         follow_up_id = UUID(str(follow_up["id"]))
         revision = int(follow_up["revision"])
+        updated = await connection.execute(
+            """
+            UPDATE offering
+            SET status = 'active',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE action_id = $1
+              AND code = 'krapfenbox-24'
+            """,
+            follow_up_id,
+        )
+        if updated != "UPDATE 1":
+            raise ContractFailure("Golden-Folgejahr besitzt kein aktivierbares Angebot")
 
         for target_status in ("scheduled", "active"):
             transition = await client.post(
@@ -253,12 +323,34 @@ async def exercise(
         if (
             after.get("action", {}).get("id") != str(follow_up_id)
             or after.get("canonicalPath") != "/archive/krapfentaxi-2027"
+            or after.get("action", {}).get("offerings")
+            != [
+                {
+                    "code": "krapfenbox-24",
+                    "name": "Krapfenbox",
+                    "unit": "box",
+                    "piecesPerUnit": 24,
+                    "unitPriceMinor": 3600,
+                    "currency": "EUR",
+                }
+            ]
             or any(item.get("availability") != "published" for item in observations)
             or not observed_ids.issubset({str(CURRENT_ACTION_ID), str(follow_up_id)})
         ):
             raise ContractFailure(
                 "Aliaswechsel zeigte einen Zwischenzustand oder falsches Ziel"
             )
+        await assert_astro_matches(public_client, "/krapfentaxi", after)
+        follow_up_archive = await client.get(
+            "/api/v1/public/actions/archive/krapfentaxi-2027",
+            headers=request_headers("follow-up-archive"),
+        )
+        follow_up_archive.raise_for_status()
+        await assert_astro_matches(
+            public_client,
+            "/archive/krapfentaxi-2027",
+            follow_up_archive.json(),
+        )
 
         old_archive = await client.get(
             "/api/v1/public/actions/archive/krapfentaxi-2026",
@@ -271,6 +363,11 @@ async def exercise(
             or old_archive.json().get("submissionsAllowed") is not False
         ):
             raise ContractFailure("Aliaswechsel veränderte die alte Archivroute")
+        await assert_astro_matches(
+            public_client,
+            "/archive/krapfentaxi-2026",
+            old_archive.json(),
+        )
 
         target_rows = await connection.fetch(
             """
@@ -317,7 +414,8 @@ async def run() -> None:
         await connection.close()
     print(
         "public-actions-contract: atomarer Folgejahrwechsel, neutrale Alias-Sicht, "
-        "dauerhafte Archive und Schreibschutz real bewiesen"
+        "dauerhafte Archive, Astro/Core-Parität, Angebote und Schreibschutz real "
+        "bewiesen"
     )
 
 
