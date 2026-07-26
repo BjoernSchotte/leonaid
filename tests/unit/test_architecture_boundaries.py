@@ -66,3 +66,32 @@ def test_fastapi_routes_only_depend_on_application_and_domain_layers() -> None:
         or module.split(".", 1)[0] in FORBIDDEN_INFRASTRUCTURE - {"fastapi"}
     }
     assert forbidden == set()
+
+
+def test_twenty_wire_fields_stay_inside_the_twenty_adapter() -> None:
+    wire_fields = {
+        "addressPostcode",
+        "addressStreet1",
+        "companyId",
+        "firstName",
+        "lastName",
+        "primaryEmail",
+        "starting_after",
+    }
+    violations: list[str] = []
+    roots = (
+        ROOT / "src/leonaid/domain",
+        ROOT / "src/leonaid/application",
+        ROOT / "apps",
+        ROOT / "packages/features",
+        ROOT / "packages/ui",
+    )
+    for root in roots:
+        for path in sorted(root.rglob("*")):
+            if path.suffix not in {".py", ".ts", ".tsx", ".astro"}:
+                continue
+            content = path.read_text(encoding="utf-8")
+            found = sorted(field for field in wire_fields if field in content)
+            if found:
+                violations.append(f"{path.relative_to(ROOT)}: {found}")
+    assert violations == []

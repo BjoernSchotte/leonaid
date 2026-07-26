@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023 und POC-030 vollständig bewiesen
+POC-023 und POC-030 bis POC-031 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -545,27 +545,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-030 – deklaratives Twenty-Schema und Least Privilege](proofs/POC-030.md).
 
-### [ ] POC-031 Twenty Gateway und fachliche CRM-Ports implementieren
+### [x] POC-031 Twenty Gateway und fachliche CRM-Ports implementieren
 
 Abhängigkeiten: POC-023, POC-030
 
 Akzeptanzkriterien:
 
-- [ ] Gateway kapselt Suche, Lesen, Anlegen und kontrolliertes Aktualisieren
+- [x] Gateway kapselt Suche, Lesen, Anlegen und kontrolliertes Aktualisieren
       von Company/Person.
-- [ ] Kein UI- oder Domain-Modul kennt Twenty-Feld-IDs.
-- [ ] Timeouts, Rate Limits, Pagination, Batches und Fehler werden explizit
+- [x] Kein UI- oder Domain-Modul kennt Twenty-Feld-IDs.
+- [x] Timeouts, Rate Limits, Pagination, Batches und Fehler werden explizit
       behandelt.
-- [ ] LeonAid-/Twenty-IDs und Sync-Status sind nachvollziehbar.
-- [ ] Requests besitzen Korrelation und geben keine Secrets aus.
+- [x] LeonAid-/Twenty-IDs und Sync-Status sind nachvollziehbar.
+- [x] Requests besitzen Korrelation und geben keine Secrets aus.
 
 Tests/Nachweise:
 
-- [ ] Contracttests laufen gegen die echte gepinnte Twenty-Instanz.
-- [ ] Paginationstest legt mehr Datensätze als eine Seite real an und findet
+- [x] Contracttests laufen gegen die echte gepinnte Twenty-Instanz.
+- [x] Paginationstest legt mehr Datensätze als eine Seite real an und findet
       alle genau einmal.
-- [ ] Reales Stoppen von Twenty erzeugt einen sichtbaren, wiederholbaren
+- [x] Reales Stoppen von Twenty erzeugt einen sichtbaren, wiederholbaren
       Fehler statt Datenverlust.
+
+Nachweis:
+[POC-031 – Twenty Gateway und CRM-Port](proofs/POC-031.md).
 
 ### [ ] POC-032 Matching für Company und Person implementieren
 

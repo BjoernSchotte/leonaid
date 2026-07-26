@@ -18,6 +18,8 @@ Commands:
   generate-api-client
                     Regenerate canonical OpenAPI and TypeScript client
   provision-twenty  Provision and verify Twenty schema, roles and API key
+  test-twenty-gateway
+                    Run the real Twenty CRM gateway contract
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run browser journeys (available with POC-041)
@@ -342,8 +344,10 @@ case "$command" in
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/openapi/test.sh" "$root"
     /bin/sh "$root/tools/twenty/test.sh" "$root"
+    /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
     ;;
   test-e2e) future_command test-e2e POC-041 ;;
+  test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

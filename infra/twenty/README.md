@@ -17,6 +17,10 @@ Ein Upgrade von Twenty ist eine bewusste Vertragsänderung. Vor dem Merge müsse
 der Pin, das Manifest und `tools/twenty/test.sh` gemeinsam aktualisiert und
 gegen eine leere Instanz bewiesen werden.
 
+Der produktive Data-API-Vertrag ist separat im
+[`Twenty CRM Gateway`](../../src/leonaid/adapters/twenty/README.md)
+dokumentiert und wird durch `./leonaid test-twenty-gateway` real geprüft.
+
 ## Fachliche Grenze
 
 Twenty bleibt führend für Companies, People, Kontaktwege und allgemeine
