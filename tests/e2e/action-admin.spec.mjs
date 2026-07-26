@@ -165,6 +165,23 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     await expect(
       page.locator('[data-nav-key="invoices"][aria-disabled="true"]').first(),
     ).toContainText("In Aufbau");
+    await expect(page.locator("#manage-name-help")).toContainText(
+      "öffentliche Titel",
+    );
+    await expect(page.locator("#manage-carrier-help")).toContainText(
+      "Organisation",
+    );
+    await expect(page.locator("#manage-archive-slug-help")).toContainText(
+      "nicht geändert",
+    );
+    await expect(page.getByTestId("manage-name")).toHaveAttribute(
+      "aria-describedby",
+      "manage-name-help",
+    );
+    await expect(page.getByTestId("manage-archive-slug")).toHaveAttribute(
+      "aria-describedby",
+      "manage-archive-slug-help",
+    );
 
     await page.getByTestId("manage-name").fill("Krapfentaxi Golden 2028");
     await page.getByTestId("manage-name").focus();

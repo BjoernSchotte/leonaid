@@ -123,7 +123,11 @@ export function DetailsSection({
           <div className="action-form-grid">
             <label className="action-field action-field--wide">
               <span>Name der Aktion</span>
+              <small id="manage-name-help">
+                Der öffentliche Titel mit Jahr, zum Beispiel „Krapfentaxi 2026“.
+              </small>
               <input
+                aria-describedby="manage-name-help"
                 data-testid="manage-name"
                 maxLength={200}
                 onChange={(event) =>
@@ -135,7 +139,11 @@ export function DetailsSection({
             </label>
             <label className="action-field">
               <span>Träger</span>
+              <small id="manage-carrier-help">
+                Verein oder Organisation, die diese Aktion durchführt.
+              </small>
               <input
+                aria-describedby="manage-carrier-help"
                 data-testid="manage-carrier"
                 maxLength={200}
                 onChange={(event) =>
@@ -147,16 +155,24 @@ export function DetailsSection({
             </label>
             <div className="action-field">
               <span>Archiv-Adresse</span>
-              <output data-testid="manage-archive-slug">
+              <small id="manage-archive-slug-help">
+                Dauerhafte Adresse dieser Ausgabe; sie kann nicht geändert oder
+                erneut vergeben werden.
+              </small>
+              <output
+                aria-describedby="manage-archive-slug-help"
+                data-testid="manage-archive-slug"
+              >
                 /archive/{action.archiveSlug}
               </output>
-              <small>
-                Bleibt dauerhaft erreichbar und kann nicht geändert werden.
-              </small>
             </div>
             <label className="action-field action-field--wide">
               <span>Zweck</span>
+              <small id="manage-purpose-help">
+                Wofür die Aktion Spenden oder Erlöse sammelt.
+              </small>
               <textarea
+                aria-describedby="manage-purpose-help"
                 data-testid="manage-purpose"
                 maxLength={2000}
                 onChange={(event) =>
@@ -169,7 +185,11 @@ export function DetailsSection({
             </label>
             <label className="action-field">
               <span>Beginn</span>
+              <small id="manage-start-help">
+                Erster Tag des fachlichen Aktionszeitraums.
+              </small>
               <input
+                aria-describedby="manage-start-help"
                 data-testid="manage-start"
                 onChange={(event) =>
                   setDraft({ ...draft, startsOn: event.currentTarget.value })
@@ -181,7 +201,11 @@ export function DetailsSection({
             </label>
             <label className="action-field">
               <span>Ende</span>
+              <small id="manage-end-help">
+                Letzter Tag; danach kann die Aktion abgeschlossen werden.
+              </small>
               <input
+                aria-describedby="manage-end-help"
                 data-testid="manage-end"
                 onChange={(event) =>
                   setDraft({ ...draft, endsOn: event.currentTarget.value })
@@ -269,7 +293,11 @@ export function GoalSection({
           <div className="action-form-grid">
             <label className="action-field">
               <span>Ziel</span>
+              <small id="manage-goal-help">
+                Messbarer Wert, den die Aktion erreichen soll.
+              </small>
               <input
+                aria-describedby="manage-goal-help"
                 data-testid="manage-goal"
                 inputMode="decimal"
                 onChange={(event) =>
@@ -280,7 +308,11 @@ export function GoalSection({
             </label>
             <label className="action-field">
               <span>Einheit</span>
+              <small id="manage-unit-help">
+                Was gezählt wird, zum Beispiel Boxen, Bestellungen oder Euro.
+              </small>
               <input
+                aria-describedby="manage-unit-help"
                 data-testid="manage-unit"
                 maxLength={40}
                 onChange={(event) =>
@@ -291,7 +323,11 @@ export function GoalSection({
             </label>
             <label className="action-field">
               <span>Aktueller Stand</span>
+              <small id="manage-actual-help">
+                Bereits erreichter Wert; er ist für Beteiligte sichtbar.
+              </small>
               <input
+                aria-describedby="manage-actual-help"
                 data-testid="manage-actual"
                 inputMode="decimal"
                 onChange={(event) =>
@@ -303,7 +339,11 @@ export function GoalSection({
             </label>
             <label className="action-field">
               <span>Währung (optional)</span>
+              <small id="manage-currency-help">
+                Nur bei Geldzielen: dreistelliger Code, zum Beispiel EUR.
+              </small>
               <input
+                aria-describedby="manage-currency-help"
                 data-testid="manage-currency"
                 maxLength={3}
                 onChange={(event) =>
@@ -415,7 +455,11 @@ export function BeneficiariesSection({
               <div className="action-beneficiary" key={beneficiary.key}>
                 <label className="action-field">
                   <span>Name der Organisation</span>
+                  <small id={`manage-beneficiary-name-help-${beneficiary.key}`}>
+                    Organisation, die von den Erlösen der Aktion profitiert.
+                  </small>
                   <input
+                    aria-describedby={`manage-beneficiary-name-help-${beneficiary.key}`}
                     data-testid={`manage-beneficiary-name-${index}`}
                     maxLength={200}
                     onChange={(event) =>
@@ -431,7 +475,13 @@ export function BeneficiariesSection({
                 </label>
                 <label className="action-field action-field--grow">
                   <span>Öffentliche Beschreibung</span>
+                  <small
+                    id={`manage-beneficiary-description-help-${beneficiary.key}`}
+                  >
+                    Kurzer Text für die öffentliche Aktionsseite.
+                  </small>
                   <textarea
+                    aria-describedby={`manage-beneficiary-description-help-${beneficiary.key}`}
                     data-testid={`manage-beneficiary-description-${index}`}
                     maxLength={2000}
                     onChange={(event) =>
@@ -836,7 +886,11 @@ export function PublicationSection({
           <div className="action-form-grid">
             <label className="action-field">
               <span>Online ab</span>
+              <small id="publication-start-help">
+                Ab diesem Zeitpunkt ist die Aktion öffentlich erreichbar.
+              </small>
               <input
+                aria-describedby="publication-start-help"
                 data-testid="publication-start"
                 onChange={(event) =>
                   setDraft({ ...draft, startsAt: event.currentTarget.value })
@@ -847,7 +901,11 @@ export function PublicationSection({
             </label>
             <label className="action-field">
               <span>Online bis</span>
+              <small id="publication-end-help">
+                Danach bleibt nur noch die Archiv-Adresse erreichbar.
+              </small>
               <input
+                aria-describedby="publication-end-help"
                 data-testid="publication-end"
                 onChange={(event) =>
                   setDraft({ ...draft, endsAt: event.currentTarget.value })
@@ -858,9 +916,13 @@ export function PublicationSection({
             </label>
             <label className="action-field action-field--wide">
               <span>Kurzadresse</span>
+              <small id="publication-alias-help">
+                Leicht merkbarer URL-Teil, zum Beispiel „krapfentaxi“.
+              </small>
               <div className="action-prefixed-input">
                 <span aria-hidden="true">/</span>
                 <input
+                  aria-describedby="publication-alias-help"
                   data-testid="publication-alias"
                   maxLength={160}
                   onChange={(event) =>
@@ -870,10 +932,6 @@ export function PublicationSection({
                   value={draft.alias}
                 />
               </div>
-              <small>
-                Beispiel: /krapfentaxi. Beim Wechsel verweist die Kurzadresse
-                ohne Unterbrechung auf diese Aktion.
-              </small>
             </label>
           </div>
           <Button
