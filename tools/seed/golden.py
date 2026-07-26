@@ -11,6 +11,8 @@ import os
 import smtplib
 import sys
 import time
+from datetime import date
+from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -543,6 +545,144 @@ def snapshot_rustfs(dataset: JsonObject) -> JsonObject:
     return {"objects": sorted(objects, key=lambda item: str(item["objectKey"]))}
 
 
+async def seed_identity(
+    connection: asyncpg.Connection[Any],
+    dataset: JsonObject,
+) -> None:
+    action_status = {
+        "DRAFT": "draft",
+        "SCHEDULED": "scheduled",
+        "ACTIVE": "active",
+        "COMPLETED": "completed",
+        "ARCHIVED": "archived",
+    }
+    account_status = {
+        "INVITED": "invited",
+        "ACTIVE": "active",
+        "LOCKED": "suspended",
+        "ARCHIVED": "archived",
+    }
+    membership_role = {
+        "CHARITY_ADMIN": "charity_admin",
+        "ACQUIRER": "acquirer",
+        "FINANCE": "finance_reader",
+        "DRIVER": "driver",
+    }
+
+    for action in dataset["actions"]:
+        goal_value = Decimal(int(action["goalAmountCents"])) / Decimal(100)
+        await connection.execute(
+            """
+            INSERT INTO charity_action (
+                id,
+                carrier_name,
+                name,
+                purpose,
+                status,
+                starts_on,
+                ends_on,
+                archive_slug,
+                goal_value,
+                actual_value,
+                goal_unit,
+                currency
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 'EUR', $10)
+            ON CONFLICT (id) DO UPDATE
+            SET carrier_name = EXCLUDED.carrier_name,
+                name = EXCLUDED.name,
+                purpose = EXCLUDED.purpose,
+                status = EXCLUDED.status,
+                starts_on = EXCLUDED.starts_on,
+                ends_on = EXCLUDED.ends_on,
+                archive_slug = EXCLUDED.archive_slug,
+                goal_value = EXCLUDED.goal_value,
+                goal_unit = EXCLUDED.goal_unit,
+                currency = EXCLUDED.currency,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            action["id"],
+            "Lions Club LeonAid Golden",
+            action["name"],
+            f"Synthetische Golden-Data-Aktion {action['kind']}",
+            action_status[str(action["status"])],
+            date.fromisoformat(str(action["startsOn"])),
+            date.fromisoformat(str(action["endsOn"])),
+            action["archiveSlug"],
+            goal_value,
+            action["currency"],
+        )
+
+    for user in dataset["users"]:
+        await connection.execute(
+            """
+            INSERT INTO user_account (id, email, display_name, status)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE
+            SET display_name = EXCLUDED.display_name,
+                status = EXCLUDED.status,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            user["id"],
+            str(user["email"]).casefold(),
+            f"{user['givenName']} {user['familyName']}",
+            account_status[str(user["status"])],
+        )
+
+    golden_user_ids = [user["id"] for user in dataset["users"]]
+    await connection.execute(
+        "DELETE FROM user_global_role WHERE user_id = ANY($1::uuid[])",
+        golden_user_ids,
+    )
+    for user in dataset["users"]:
+        if user["role"] == "SYSTEM_ADMIN":
+            await connection.execute(
+                """
+                INSERT INTO user_global_role (user_id, role)
+                VALUES ($1, 'system_admin')
+                """,
+                user["id"],
+            )
+
+    golden_membership_ids = [
+        membership["id"] for membership in dataset["actionMemberships"]
+    ]
+    await connection.execute(
+        "DELETE FROM action_membership WHERE id = ANY($1::uuid[])",
+        golden_membership_ids,
+    )
+    for membership in dataset["actionMemberships"]:
+        await connection.execute(
+            """
+            INSERT INTO action_membership (id, action_id, user_id, role)
+            VALUES ($1, $2, $3, $4)
+            """,
+            membership["id"],
+            membership["actionId"],
+            membership["userId"],
+            membership_role[str(membership["role"])],
+        )
+
+    golden_action_ids = [action["id"] for action in dataset["actions"]]
+    await connection.execute(
+        "DELETE FROM public_action_alias WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
+    )
+    for action in dataset["actions"]:
+        if action["publicAlias"] is not None:
+            await connection.execute(
+                """
+                INSERT INTO public_action_alias (alias, action_id)
+                VALUES ($1, $2)
+                ON CONFLICT (alias) DO UPDATE
+                SET action_id = EXCLUDED.action_id,
+                    switched_at = CURRENT_TIMESTAMP
+                """,
+                action["publicAlias"],
+                action["id"],
+            )
+
+
 async def seed_core(
     dataset: JsonObject,
     expected: JsonObject,
@@ -551,47 +691,49 @@ async def seed_core(
 ) -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
-        await connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS golden_seed_snapshot (
-                dataset_version text PRIMARY KEY,
-                schema_version integer NOT NULL,
-                dataset_sha256 char(64) NOT NULL,
-                dataset_payload jsonb NOT NULL,
-                expected_payload jsonb NOT NULL,
-                document_manifest jsonb NOT NULL
+        async with connection.transaction():
+            await seed_identity(connection, dataset)
+            await connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS golden_seed_snapshot (
+                    dataset_version text PRIMARY KEY,
+                    schema_version integer NOT NULL,
+                    dataset_sha256 char(64) NOT NULL,
+                    dataset_payload jsonb NOT NULL,
+                    expected_payload jsonb NOT NULL,
+                    document_manifest jsonb NOT NULL
+                )
+                """
             )
-            """
-        )
-        await connection.execute(
-            "DELETE FROM golden_seed_snapshot WHERE dataset_version <> $1",
-            DATASET_VERSION,
-        )
-        await connection.execute(
-            """
-            INSERT INTO golden_seed_snapshot (
-                dataset_version,
-                schema_version,
-                dataset_sha256,
-                dataset_payload,
-                expected_payload,
-                document_manifest
+            await connection.execute(
+                "DELETE FROM golden_seed_snapshot WHERE dataset_version <> $1",
+                DATASET_VERSION,
             )
-            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb)
-            ON CONFLICT (dataset_version) DO UPDATE
-            SET schema_version = EXCLUDED.schema_version,
-                dataset_sha256 = EXCLUDED.dataset_sha256,
-                dataset_payload = EXCLUDED.dataset_payload,
-                expected_payload = EXCLUDED.expected_payload,
-                document_manifest = EXCLUDED.document_manifest
-            """,
-            DATASET_VERSION,
-            int(dataset["schemaVersion"]),
-            dataset_digest,
-            json.dumps(dataset, ensure_ascii=False, separators=(",", ":")),
-            json.dumps(expected, ensure_ascii=False, separators=(",", ":")),
-            json.dumps(documents, ensure_ascii=False, separators=(",", ":")),
-        )
+            await connection.execute(
+                """
+                INSERT INTO golden_seed_snapshot (
+                    dataset_version,
+                    schema_version,
+                    dataset_sha256,
+                    dataset_payload,
+                    expected_payload,
+                    document_manifest
+                )
+                VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb)
+                ON CONFLICT (dataset_version) DO UPDATE
+                SET schema_version = EXCLUDED.schema_version,
+                    dataset_sha256 = EXCLUDED.dataset_sha256,
+                    dataset_payload = EXCLUDED.dataset_payload,
+                    expected_payload = EXCLUDED.expected_payload,
+                    document_manifest = EXCLUDED.document_manifest
+                """,
+                DATASET_VERSION,
+                int(dataset["schemaVersion"]),
+                dataset_digest,
+                json.dumps(dataset, ensure_ascii=False, separators=(",", ":")),
+                json.dumps(expected, ensure_ascii=False, separators=(",", ":")),
+                json.dumps(documents, ensure_ascii=False, separators=(",", ":")),
+            )
     finally:
         await connection.close()
 
@@ -802,7 +944,11 @@ def write_snapshot(value: JsonObject, output: Path | None) -> None:
 
 async def run(arguments: argparse.Namespace) -> None:
     fixture = arguments.fixture.resolve()
-    if arguments.command == "seed-twenty":
+    if arguments.command == "seed-core":
+        dataset, expected, dataset_digest = load_fixture(fixture)
+        await seed_core(dataset, expected, dataset_digest, [])
+        print("golden-seed-core: OK: Identitäten und Aktionen in PostgreSQL gesetzt")
+    elif arguments.command == "seed-twenty":
         dataset, _expected, _dataset_digest = load_fixture(fixture)
         twenty = TwentyClient()
         try:
@@ -826,7 +972,7 @@ async def run(arguments: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("seed", "seed-twenty", "snapshot", "mutate"):
+    for name in ("seed", "seed-core", "seed-twenty", "snapshot", "mutate"):
         command = subparsers.add_parser(name)
         command.add_argument("fixture", type=Path)
         if name == "seed":

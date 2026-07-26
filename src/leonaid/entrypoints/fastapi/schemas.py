@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +42,29 @@ class ReadinessResponse(TransportModel):
     checks: dict[str, DependencyStatusResponse]
 
 
+class IdentityMembershipResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    role: Literal["charity_admin", "acquirer", "finance_reader", "driver"]
+    role_label: str
+
+
+class NavigationItemResponse(TransportModel):
+    key: str
+    label: str
+    href: str
+    surface: Literal["web", "pwa"]
+
+
+class CurrentIdentityResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+    global_roles: list[Literal["system_admin", "finance_reader", "finance_manager"]]
+    action_memberships: list[IdentityMembershipResponse]
+    role_labels: list[str]
+    navigation: list[NavigationItemResponse]
+
+
 class ApiErrorDetail(TransportModel):
     code: str = Field(examples=["endpoint_not_found"])
     message: str = Field(
@@ -70,6 +94,18 @@ ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
         "model": ApiErrorResponse,
         "description": "Unerwarteter interner Fehler.",
     },
+}
+
+AUTHENTICATED_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
+    401: {
+        "model": ApiErrorResponse,
+        "description": "Keine gültige serverseitige Sitzung.",
+    },
+    403: {
+        "model": ApiErrorResponse,
+        "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte.",
+    },
+    **ERROR_RESPONSES,
 }
 
 RequestIdHeader = Annotated[

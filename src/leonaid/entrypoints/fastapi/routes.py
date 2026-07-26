@@ -6,8 +6,11 @@ from typing import cast
 
 from fastapi import APIRouter, Request, Response, status
 
+from leonaid.application.identity import IdentityQueryService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.entrypoints.fastapi.schemas import (
+    AUTHENTICATED_ERROR_RESPONSES,
+    CurrentIdentityResponse,
     ERROR_RESPONSES,
     PlatformInformationResponse,
     PlatformStatusResponse,
@@ -19,6 +22,10 @@ router = APIRouter()
 
 def platform_service(request: Request) -> PlatformApplicationService:
     return cast(PlatformApplicationService, request.app.state.platform_service)
+
+
+def identity_service(request: Request) -> IdentityQueryService:
+    return cast(IdentityQueryService, request.app.state.identity_service)
 
 
 @router.get(
@@ -57,3 +64,21 @@ async def information(request: Request) -> PlatformInformationResponse:
     return PlatformInformationResponse.model_validate(
         platform_service(request).information()
     )
+
+
+@router.get(
+    "/api/v1/identity/me",
+    operation_id="getCurrentIdentity",
+    response_model=CurrentIdentityResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def current_identity(
+    request: Request,
+    response: Response,
+) -> CurrentIdentityResponse:
+    result = await identity_service(request).current_identity(
+        request.cookies.get("leonaid_session")
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CurrentIdentityResponse.model_validate(result)

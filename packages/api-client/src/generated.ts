@@ -3,7 +3,10 @@
 
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
+export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
+export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
+export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
@@ -57,6 +60,16 @@ export class LeonAidApiClient {
       throw new Error(`LeonAid API returned HTTP ${response.status}`);
     }
     return body as T;
+  }
+
+  async getCurrentIdentity(
+    options: RequestOptions = {},
+  ): Promise<CurrentIdentityResponse> {
+    return this.request<CurrentIdentityResponse>(
+      "/api/v1/identity/me",
+      { method: "GET" },
+      options,
+    );
   }
 
   async getPlatformInformation(

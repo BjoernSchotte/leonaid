@@ -49,6 +49,63 @@
         "title": "ApiErrorResponse",
         "type": "object"
       },
+      "CurrentIdentityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionMemberships": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityMembershipResponse"
+            },
+            "title": "Actionmemberships",
+            "type": "array"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "globalRoles": {
+            "items": {
+              "enum": [
+                "system_admin",
+                "finance_reader",
+                "finance_manager"
+              ],
+              "type": "string"
+            },
+            "title": "Globalroles",
+            "type": "array"
+          },
+          "navigation": {
+            "items": {
+              "$ref": "#/components/schemas/NavigationItemResponse"
+            },
+            "title": "Navigation",
+            "type": "array"
+          },
+          "roleLabels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rolelabels",
+            "type": "array"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "globalRoles",
+          "actionMemberships",
+          "roleLabels",
+          "navigation"
+        ],
+        "title": "CurrentIdentityResponse",
+        "type": "object"
+      },
       "DependencyStatusResponse": {
         "additionalProperties": false,
         "properties": {
@@ -83,6 +140,75 @@
           "details"
         ],
         "title": "DependencyStatusResponse",
+        "type": "object"
+      },
+      "IdentityMembershipResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "charity_admin",
+              "acquirer",
+              "finance_reader",
+              "driver"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "roleLabel": {
+            "title": "Rolelabel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "role",
+          "roleLabel"
+        ],
+        "title": "IdentityMembershipResponse",
+        "type": "object"
+      },
+      "NavigationItemResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "surface": {
+            "enum": [
+              "web",
+              "pwa"
+            ],
+            "title": "Surface",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "href",
+          "surface"
+        ],
+        "title": "NavigationItemResponse",
         "type": "object"
       },
       "PlatformInformationResponse": {
@@ -186,6 +312,77 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/identity/me": {
+      "get": {
+        "operationId": "getCurrentIdentity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentIdentityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          }
+        },
+        "summary": "Current Identity",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/api/v1/platform": {
       "get": {
         "operationId": "getPlatformInformation",

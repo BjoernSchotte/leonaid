@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-031 sowie POC-033 vollständig bewiesen
+POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 
@@ -621,25 +621,28 @@ Nachweis:
 
 ## M4 – Identität, Einladungen, Sitzungen und Autorisierung
 
-### [ ] POC-040 UserAccount, Rollen und ActionMembership implementieren
+### [x] POC-040 UserAccount, Rollen und ActionMembership implementieren
 
 Abhängigkeiten: POC-021
 
 Akzeptanzkriterien:
 
-- [ ] Globale Rollen und aktionsbezogene Rollen sind getrennt.
-- [ ] Ein Account kann in mehreren Aktionen unterschiedliche Rollen besitzen.
-- [ ] Statuswechsel `invited`, `active`, `suspended`, `archived` sind
+- [x] Globale Rollen und aktionsbezogene Rollen sind getrennt.
+- [x] Ein Account kann in mehreren Aktionen unterschiedliche Rollen besitzen.
+- [x] Statuswechsel `invited`, `active`, `suspended`, `archived` sind
       serverseitig validiert.
-- [ ] Benutzer kann seine Login-E-Mail im PoC nicht selbst ändern.
-- [ ] Rollen-/Statusänderungen erzeugen AuditEvents.
+- [x] Benutzer kann seine Login-E-Mail im PoC nicht selbst ändern.
+- [x] Rollen-/Statusänderungen erzeugen AuditEvents.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen erlaubte und verbotene Statuswechsel.
-- [ ] Integrationstest entzieht einer realen Sitzung nach Suspendierung
+- [x] Unit-Tests prüfen erlaubte und verbotene Statuswechsel.
+- [x] Integrationstest entzieht einer realen Sitzung nach Suspendierung
       unmittelbar den Zugriff.
-- [ ] E2E zeigt nur für die Persona erlaubte Navigation und Aktionen.
+- [x] E2E zeigt nur für die Persona erlaubte Navigation und Aktionen.
+
+Nachweis:
+[POC-040 – Benutzerkonten, Rollen und ActionMembership](proofs/POC-040.md).
 
 ### [ ] POC-041 Einladung mit Magic Link und sechsstelligen Code bauen
 

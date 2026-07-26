@@ -10,3 +10,15 @@ class ApplicationError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+class AuthenticationRequired(ApplicationError):
+    """No currently valid server-side identity is available."""
+
+
+class PermissionDenied(ApplicationError):
+    """The authenticated identity is not allowed to perform the operation."""
+
+
+class ResourceNotFound(ApplicationError):
+    """A requested domain resource does not exist."""

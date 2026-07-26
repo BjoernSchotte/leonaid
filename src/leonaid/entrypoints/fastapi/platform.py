@@ -14,8 +14,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from leonaid.adapters.http_readiness import HttpReadinessProbe
+from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
+from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
-from leonaid.application.errors import ApplicationError
+from leonaid.application.errors import (
+    ApplicationError,
+    AuthenticationRequired,
+    PermissionDenied,
+    ResourceNotFound,
+)
+from leonaid.application.identity import IdentityQueryService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
@@ -73,7 +81,14 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         settings = configured_settings or load_settings()
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
-        yield
+        pool = await create_pool(settings.core_database_url.get_secret_value())
+        application.state.identity_service = IdentityQueryService(
+            AsyncpgIdentityRepository(pool)
+        )
+        try:
+            yield
+        finally:
+            await pool.close()
 
     application = FastAPI(
         title="LeonAid Core",
@@ -99,9 +114,16 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         request: Request,
         error: ApplicationError,
     ) -> JSONResponse:
+        status_code = 400
+        if isinstance(error, AuthenticationRequired):
+            status_code = 401
+        elif isinstance(error, PermissionDenied):
+            status_code = 403
+        elif isinstance(error, ResourceNotFound):
+            status_code = 404
         return error_response(
             request,
-            status_code=400,
+            status_code=status_code,
             code=error.code,
             message=error.message,
         )
