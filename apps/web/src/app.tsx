@@ -5,6 +5,7 @@ import {
   ActionListPage,
   CreateActionPage,
   ManageActionPage,
+  MemberInvitationPage,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -14,6 +15,7 @@ export interface AppProps {
 
 function route() {
   const pathname = window.location.pathname.replace(/^\/admin/, "");
+  if (pathname === "/members") return { kind: "members" } as const;
   if (pathname === "/actions/new") return { kind: "new" } as const;
   const match = pathname.match(
     /^\/actions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
@@ -75,14 +77,18 @@ export function App({ client }: AppProps) {
   const currentRoute = route();
   const currentAction =
     currentRoute.kind === "manage"
-      ? identity.data.actionMemberships.find(
+      ? (identity.data.actionMemberships.find(
           (item) => item.actionId === currentRoute.actionId,
-        )?.actionName
-      : identity.data.actionMemberships[0]?.actionName;
+        )?.actionName ?? "Aktion verwalten")
+      : currentRoute.kind === "new"
+        ? "Neue Aktion"
+        : currentRoute.kind === "members"
+          ? "Mitglieder"
+          : "Alle Aktionen";
 
   return (
     <AppShell
-      currentActionName={currentAction ?? "Keine aktive Aktion"}
+      currentActionName={currentAction}
       identity={identity.data}
       onLogout={() => {
         void client.logout().finally(() => {
@@ -98,6 +104,8 @@ export function App({ client }: AppProps) {
           client={client}
           key={currentRoute.actionId}
         />
+      ) : currentRoute.kind === "members" ? (
+        <MemberInvitationPage client={client} />
       ) : (
         <ActionListPage identity={identity.data} />
       )}

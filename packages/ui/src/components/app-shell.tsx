@@ -37,6 +37,8 @@ const navigationIcons = {
   system: Settings02Icon,
 } as const;
 
+const implementedWebNavigation = new Set(["actions", "members"]);
+
 function iconFor(item: NavigationItemResponse) {
   return (
     navigationIcons[item.key as keyof typeof navigationIcons] ??
@@ -62,25 +64,44 @@ function Navigation({
 }) {
   return (
     <nav aria-label="Hauptnavigation" className="ui-nav">
-      {items.map((item) => (
-        <a
-          aria-current={isCurrent(item) ? "page" : undefined}
-          className="ui-nav__item"
-          data-nav-key={item.key}
-          href={item.href}
-          key={`${item.surface}-${item.key}`}
-          onClick={onNavigate}
-          title={collapsed ? item.label : undefined}
-        >
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={iconFor(item)}
-            size={20}
-            strokeWidth={1.7}
-          />
-          <span>{item.label}</span>
-        </a>
-      ))}
+      {items.map((item) =>
+        implementedWebNavigation.has(item.key) ? (
+          <a
+            aria-current={isCurrent(item) ? "page" : undefined}
+            className="ui-nav__item"
+            data-nav-key={item.key}
+            href={item.href}
+            key={`${item.surface}-${item.key}`}
+            onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
+          >
+            <HugeiconsIcon
+              aria-hidden="true"
+              icon={iconFor(item)}
+              size={20}
+              strokeWidth={1.7}
+            />
+            <span>{item.label}</span>
+          </a>
+        ) : (
+          <span
+            aria-disabled="true"
+            className="ui-nav__item ui-nav__item--disabled"
+            data-nav-key={item.key}
+            key={`${item.surface}-${item.key}`}
+            title={collapsed ? `${item.label} – in Aufbau` : undefined}
+          >
+            <HugeiconsIcon
+              aria-hidden="true"
+              icon={iconFor(item)}
+              size={20}
+              strokeWidth={1.7}
+            />
+            <span>{item.label}</span>
+            <small className="ui-nav__status">In Aufbau</small>
+          </span>
+        ),
+      )}
     </nav>
   );
 }
@@ -96,7 +117,7 @@ export function AppShell({
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigation = identity.navigation.filter(
-    (item) => item.surface === "web",
+    (item) => item.surface === "web" && item.key !== "overview-web",
   );
 
   function toggleSidebar() {
@@ -214,6 +235,7 @@ export function AppShell({
               ))}
             </div>
             <Button
+              aria-label="Abmelden"
               data-testid="logout"
               icon={
                 <HugeiconsIcon
@@ -224,6 +246,7 @@ export function AppShell({
                 />
               }
               onClick={onLogout}
+              title="Abmelden"
               variant="ghost"
             >
               Abmelden

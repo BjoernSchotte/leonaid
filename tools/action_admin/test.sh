@@ -92,14 +92,18 @@ docker run --rm \
   --output=/proof/test-results \
   --reporter=line
 
-for screenshot in action-admin-desktop.png action-admin-mobile.png; do
+for screenshot in \
+  action-admin-desktop.png \
+  action-admin-public.png \
+  action-admin-dark.png \
+  action-admin-mobile.png \
+  action-overview-desktop.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "action-admin-test: ERROR: Browsernachweis $screenshot fehlt" >&2
     exit 1
   fi
 done
 mkdir -p "$artifact_directory"
-cp "$proof/action-admin-desktop.png" "$artifact_directory/"
-cp "$proof/action-admin-mobile.png" "$artifact_directory/"
+cp "$proof/"*.png "$artifact_directory/"
 
 echo "action-admin-test: OK: Server, React-Komponente und Browser-Lebenszyklus gegen echte Dienste bewiesen"

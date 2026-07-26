@@ -166,6 +166,19 @@ a {
   flex: 0 0 auto;
 }
 
+.ui-nav__item--disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-nav__status {
+  margin-inline-start: auto;
+  font-size: 0.61rem;
+  font-weight: 720;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .ui-nav__item:hover,
 .ui-nav__item:focus-visible {
   color: var(--sidebar-foreground);
@@ -176,6 +189,11 @@ a {
   color: var(--sidebar-foreground);
   background: var(--sidebar-active);
   box-shadow: inset 3px 0 var(--sidebar-accent);
+}
+
+.ui-nav__item--disabled:hover {
+  color: var(--sidebar-muted);
+  background: transparent;
 }
 
 .ui-sidebar__context {
@@ -216,6 +234,7 @@ a {
 
 .ui-shell--collapsed .ui-brand__name,
 .ui-shell--collapsed .ui-nav__item span,
+.ui-shell--collapsed .ui-nav__status,
 .ui-shell--collapsed .ui-sidebar__label,
 .ui-shell--collapsed .ui-sidebar__context {
   opacity: 0;
@@ -526,6 +545,11 @@ a {
 
   .ui-topbar__actions .ui-button span:last-child {
     display: none;
+  }
+
+  .ui-topbar__actions .ui-button {
+    width: 2.75rem;
+    padding-inline: 0;
   }
 }
 

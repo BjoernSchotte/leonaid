@@ -131,8 +131,8 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           <p className="action-page__eyebrow">Neue Charity-Aktion</p>
           <h1>Neue Aktion anlegen</h1>
           <p>
-            Starte mit dem neutralen Aktionskern. Alle Angaben lassen sich vor
-            der Archivierung wieder bearbeiten.
+            Lege die gemeinsamen Eckdaten fest. Bis zur Archivierung kannst du
+            alle Angaben wieder bearbeiten.
           </p>
         </div>
       </header>
@@ -180,7 +180,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
               />
             </label>
             <label className="action-field">
-              <span>Archiv-Slug</span>
+              <span>Archiv-Adresse</span>
               <input
                 aria-describedby="archive-slug-help"
                 data-testid="action-slug"
@@ -249,7 +249,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           </div>
           <div className="action-form-grid action-form-grid--spaced">
             <label className="action-field">
-              <span>Zielwert</span>
+              <span>Ziel</span>
               <input
                 data-testid="action-goal"
                 inputMode="decimal"
@@ -267,7 +267,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
               />
             </label>
             <label className="action-field">
-              <span>Ist-Wert</span>
+              <span>Aktueller Stand</span>
               <input
                 data-testid="action-actual"
                 defaultValue="0"

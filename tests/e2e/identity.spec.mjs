@@ -146,7 +146,7 @@ test("System-Admin erkennt seinen globalen, aktionsunabhängigen Bereich", async
     );
     await expect(page.locator('[data-nav-key="system"]').first()).toBeVisible();
     await expect(page.locator('[data-testid="action-list"]')).toContainText(
-      "Noch keine Aktion",
+      "Noch keine verwaltete Aktion",
     );
   } finally {
     await context.close();

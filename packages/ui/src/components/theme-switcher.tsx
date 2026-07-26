@@ -44,6 +44,7 @@ function applyTheme(mode: ThemeMode) {
 
 export function ThemeSwitcher() {
   const [theme, setTheme] = useState<ThemeMode>(storedTheme);
+  const [open, setOpen] = useState(false);
   const activeOption =
     themeOptions.find((option) => option.value === theme) ?? themeOptions[0];
 
@@ -66,7 +67,7 @@ export function ThemeSwitcher() {
   }, [theme]);
 
   return (
-    <Menu.Root>
+    <Menu.Root onOpenChange={setOpen} open={open}>
       <Menu.Trigger
         aria-label={`Farbschema: ${activeOption.label}`}
         className="ui-icon-button ui-theme-trigger"
@@ -88,7 +89,10 @@ export function ThemeSwitcher() {
         >
           <Menu.Popup aria-label="Farbschema wählen" className="ui-theme-menu">
             <Menu.RadioGroup
-              onValueChange={(value) => setTheme(value as ThemeMode)}
+              onValueChange={(value) => {
+                setTheme(value as ThemeMode);
+                setOpen(false);
+              }}
               value={theme}
             >
               <Menu.GroupLabel className="ui-theme-menu__label">

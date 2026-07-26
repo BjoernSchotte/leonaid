@@ -75,6 +75,7 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
 
     await page.getByTestId("theme-trigger").click();
     await page.getByTestId("theme-dark").click();
+    await expect(page.getByTestId("theme-dark")).toBeHidden();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute(
@@ -83,11 +84,11 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     );
     await page.getByTestId("theme-trigger").click();
     await page.getByTestId("theme-system").click();
+    await expect(page.getByTestId("theme-system")).toBeHidden();
     await expect(page.locator("html")).toHaveAttribute(
       "data-theme-preference",
       "system",
     );
-    await page.getByTestId("theme-trigger").click();
 
     await page.getByTestId("sidebar-toggle").click();
     await expect(page.locator(".ui-shell")).toHaveAttribute(
@@ -137,6 +138,16 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       "Krapfentaxi Golden UI 2028",
     );
     await expect(page.getByTestId("management-status")).toHaveText("Entwurf");
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Krapfentaxi Golden UI 2028",
+    );
+    await expect(page.getByTestId("management-tab-basics")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      page.locator('[data-nav-key="invoices"][aria-disabled="true"]').first(),
+    ).toContainText("In Aufbau");
 
     await page.getByTestId("manage-name").fill("Krapfentaxi Golden 2028");
     await page.getByTestId("manage-name").focus();
@@ -151,38 +162,6 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     await page.getByTestId("save-goal").click();
     await expect(
       page.getByText("Aktionsziel und Fortschritt wurden gespeichert."),
-    ).toBeVisible();
-
-    await page
-      .getByTestId("manage-beneficiary-name-0")
-      .fill("Bildungshafen und Lerninsel Beispielstadt");
-    await page.getByTestId("save-beneficiaries").click();
-    await expect(
-      page.getByText("Die Begünstigten wurden gespeichert."),
-    ).toBeVisible();
-
-    await page.locator('#capabilities input[value="invoicing"]').uncheck();
-    await page.getByTestId("save-capabilities").click();
-    await expect(
-      page.getByText("Die Funktionen der Aktion wurden gespeichert."),
-    ).toBeVisible();
-
-    await page
-      .getByTestId("administrator-10000000-0000-4000-8000-000000000007")
-      .check();
-    await page.getByTestId("save-administrators").click();
-    await expect(
-      page.getByText("Die verantwortlichen Admins wurden gespeichert."),
-    ).toBeVisible();
-
-    await page.getByTestId("publication-start").fill("2028-08-01T08:00");
-    await page.getByTestId("publication-end").fill("2028-11-15T23:00");
-    await page.getByTestId("publication-alias").fill("krapfentaxi-golden-ui");
-    await page.getByTestId("save-publication").click();
-    await expect(
-      page.getByText(
-        "Publikationsfenster und öffentlicher Alias wurden gespeichert.",
-      ),
     ).toBeVisible();
 
     await page.evaluate(() => {
@@ -200,6 +179,67 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       ),
     ).toEqual([]);
 
+    await page.getByTestId("management-tab-basics").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(
+      page.getByTestId("management-tab-beneficiaries"),
+    ).toBeFocused();
+    await expect(
+      page.getByTestId("management-tab-beneficiaries"),
+    ).toHaveAttribute("aria-selected", "true");
+
+    await page
+      .getByTestId("manage-beneficiary-name-0")
+      .fill("Bildungshafen und Lerninsel Beispielstadt");
+    await page.getByTestId("save-beneficiaries").click();
+    await expect(
+      page.getByText("Die Begünstigten wurden gespeichert."),
+    ).toBeVisible();
+
+    await page.getByTestId("management-tab-team").click();
+    await page.locator('#capabilities input[value="invoicing"]').uncheck();
+    await page.getByTestId("save-capabilities").click();
+    await expect(
+      page.getByText("Die Funktionen der Aktion wurden gespeichert."),
+    ).toBeVisible();
+
+    await page
+      .getByTestId("administrator-10000000-0000-4000-8000-000000000007")
+      .check();
+    await page.getByTestId("save-administrators").click();
+    await expect(
+      page.getByText("Die verantwortlichen Admins wurden gespeichert."),
+    ).toBeVisible();
+
+    await page.getByTestId("management-tab-public").click();
+    await page.getByTestId("publication-start").fill("2028-08-01T08:00");
+    await page.getByTestId("publication-end").fill("2028-11-15T23:00");
+    await page.getByTestId("publication-alias").fill("krapfentaxi-golden-ui");
+    await page.getByTestId("save-publication").click();
+    await expect(
+      page.getByText(
+        "Die Einstellungen der öffentlichen Seite wurden gespeichert.",
+      ),
+    ).toBeVisible();
+
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, 0);
+    });
+    await page.screenshot({
+      path: `${artifactDirectory}/action-admin-public.png`,
+      fullPage: false,
+    });
+    await page.getByTestId("theme-trigger").click();
+    await page.getByTestId("theme-dark").click();
+    await page.screenshot({
+      path: `${artifactDirectory}/action-admin-dark.png`,
+      fullPage: false,
+    });
+    await page.getByTestId("theme-trigger").click();
+    await page.getByTestId("theme-system").click();
+
+    await page.getByTestId("management-tab-status").click();
     await confirmTransition(page, "transition-scheduled", "Aktion einplanen");
     await expect(page.getByTestId("management-status")).toHaveText("Geplant");
     await expect(page.getByTestId("transition-active")).toBeVisible();
@@ -262,6 +302,19 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
         (violation) => violation.impact === "critical",
       ),
     ).toEqual([]);
+
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto(`${baseUrl}/admin/actions`);
+    await expect(
+      page.getByRole("heading", { name: "Aktionen verwalten" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("current-action")).toHaveText(
+      "Alle Aktionen",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/action-overview-desktop.png`,
+      fullPage: false,
+    });
   } finally {
     await context.close();
   }

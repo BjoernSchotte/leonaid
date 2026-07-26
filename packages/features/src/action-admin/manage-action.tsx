@@ -2,12 +2,13 @@ import {
   ArrowLeft01Icon,
   Calendar03Icon,
   CharityIcon,
-  Settings02Icon,
+  Megaphone02Icon,
   Target01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -36,15 +37,64 @@ const statusLabels: Record<CharityActionResponse["status"], string> = {
   scheduled: "Geplant",
 };
 
-const steps = [
-  { href: "#details", icon: CharityIcon, label: "Grunddaten" },
-  { href: "#goal", icon: Target01Icon, label: "Ziel" },
-  { href: "#beneficiaries", icon: CharityIcon, label: "Begünstigte" },
-  { href: "#capabilities", icon: Settings02Icon, label: "Funktionen" },
-  { href: "#administrators", icon: UserGroupIcon, label: "Verantwortliche" },
-  { href: "#publication", icon: Calendar03Icon, label: "Publikation" },
-  { href: "#lifecycle", icon: Settings02Icon, label: "Status" },
+const panels = [
+  {
+    description: "Name, Zeitraum und Aktionsziel",
+    icon: Target01Icon,
+    id: "basics",
+    label: "Grundlagen",
+    legacyHashes: ["details", "goal"],
+  },
+  {
+    description: "Organisationen, denen die Aktion hilft",
+    icon: CharityIcon,
+    id: "beneficiaries",
+    label: "Begünstigte",
+    legacyHashes: ["beneficiaries"],
+  },
+  {
+    description: "Aktive Bereiche und verantwortliche Mitglieder",
+    icon: UserGroupIcon,
+    id: "team",
+    label: "Funktionen & Team",
+    legacyHashes: ["capabilities", "administrators"],
+  },
+  {
+    description: "Zeitraum und Kurzadresse der öffentlichen Seite",
+    icon: Megaphone02Icon,
+    id: "public",
+    label: "Öffentliche Seite",
+    legacyHashes: ["publication"],
+  },
+  {
+    description: "Aktion planen, starten und abschließen",
+    icon: Calendar03Icon,
+    id: "status",
+    label: "Status",
+    legacyHashes: ["lifecycle"],
+  },
 ] as const;
+
+type PanelId = (typeof panels)[number]["id"];
+
+function initialPanel(): PanelId {
+  const hash = window.location.hash.slice(1);
+  return (
+    panels.find(
+      (panel) =>
+        panel.id === hash ||
+        (panel.legacyHashes as readonly string[]).includes(hash),
+    )?.id ?? "basics"
+  );
+}
+
+function displayDate(value: string): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00Z`));
+}
 
 export interface ManageActionPageProps {
   readonly actionId: string;
@@ -52,6 +102,8 @@ export interface ManageActionPageProps {
 }
 
 export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
+  const [activePanel, setActivePanel] = useState<PanelId>(initialPanel);
+  const tabRefs = useRef(new Map<PanelId, HTMLButtonElement>());
   const queryClient = useQueryClient();
   const queryKey = ["action-management", actionId] as const;
   const query = useQuery({
@@ -73,6 +125,38 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
 
   function updateState(state: ActionManagementResponse) {
     queryClient.setQueryData<ActionManagementResponse>(queryKey, state);
+  }
+
+  useEffect(() => {
+    function useLocationHash() {
+      setActivePanel(initialPanel());
+    }
+
+    window.addEventListener("hashchange", useLocationHash);
+    return () => window.removeEventListener("hashchange", useLocationHash);
+  }, []);
+
+  function selectPanel(panelId: PanelId, focus = false) {
+    setActivePanel(panelId);
+    window.history.replaceState(null, "", `#${panelId}`);
+    if (focus) tabRefs.current.get(panelId)?.focus();
+  }
+
+  function movePanel(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    panelId: PanelId,
+  ) {
+    const current = panels.findIndex((panel) => panel.id === panelId);
+    let next = current;
+    if (event.key === "ArrowRight") next = (current + 1) % panels.length;
+    if (event.key === "ArrowLeft") {
+      next = (current - 1 + panels.length) % panels.length;
+    }
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = panels.length - 1;
+    if (next === current) return;
+    event.preventDefault();
+    selectPanel(panels[next].id, true);
   }
 
   if (query.isPending) {
@@ -127,7 +211,8 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           <p className="action-page__eyebrow">Charity-Aktion verwalten</p>
           <h1 data-testid="management-title">{action.name}</h1>
           <p>
-            {action.carrierName} · {action.startsOn} bis {action.endsOn}
+            {action.carrierName} · {displayDate(action.startsOn)} bis{" "}
+            {displayDate(action.endsOn)}
           </p>
         </div>
         <span
@@ -146,29 +231,93 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         </StatusMessage>
       ) : null}
 
-      <nav aria-label="Bearbeitungsschritte" className="action-step-nav">
-        {steps.map((step, index) => (
-          <a href={step.href} key={step.href}>
-            <span>{index + 1}</span>
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={step.icon}
-              size={18}
-              strokeWidth={1.7}
-            />
-            {step.label}
-          </a>
-        ))}
-      </nav>
+      <div className="action-workspace-nav">
+        <div
+          aria-label="Bereich der Aktion wählen"
+          className="action-workspace-tabs"
+          role="tablist"
+        >
+          {panels.map((panel) => (
+            <button
+              aria-controls={`panel-${panel.id}`}
+              aria-selected={activePanel === panel.id}
+              className="action-workspace-tab"
+              data-testid={`management-tab-${panel.id}`}
+              id={`tab-${panel.id}`}
+              key={panel.id}
+              onClick={() => selectPanel(panel.id)}
+              onKeyDown={(event) => movePanel(event, panel.id)}
+              ref={(element) => {
+                if (element) tabRefs.current.set(panel.id, element);
+                else tabRefs.current.delete(panel.id);
+              }}
+              role="tab"
+              tabIndex={activePanel === panel.id ? 0 : -1}
+              type="button"
+            >
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={panel.icon}
+                size={18}
+                strokeWidth={1.7}
+              />
+              <span>
+                <strong>{panel.label}</strong>
+                <small>{panel.description}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="action-edit-stack">
-        <DetailsSection {...shared} />
-        <GoalSection {...shared} />
-        <BeneficiariesSection {...shared} />
-        <CapabilitiesSection {...shared} />
-        <AdministratorsSection {...shared} />
-        <PublicationSection {...shared} />
-        <LifecycleSection {...shared} />
+        <div
+          aria-labelledby="tab-basics"
+          className="action-edit-panel"
+          hidden={activePanel !== "basics"}
+          id="panel-basics"
+          role="tabpanel"
+        >
+          <DetailsSection {...shared} />
+          <GoalSection {...shared} />
+        </div>
+        <div
+          aria-labelledby="tab-beneficiaries"
+          className="action-edit-panel"
+          hidden={activePanel !== "beneficiaries"}
+          id="panel-beneficiaries"
+          role="tabpanel"
+        >
+          <BeneficiariesSection {...shared} />
+        </div>
+        <div
+          aria-labelledby="tab-team"
+          className="action-edit-panel"
+          hidden={activePanel !== "team"}
+          id="panel-team"
+          role="tabpanel"
+        >
+          <CapabilitiesSection {...shared} />
+          <AdministratorsSection {...shared} />
+        </div>
+        <div
+          aria-labelledby="tab-public"
+          className="action-edit-panel"
+          hidden={activePanel !== "public"}
+          id="panel-public"
+          role="tabpanel"
+        >
+          <PublicationSection {...shared} />
+        </div>
+        <div
+          aria-labelledby="tab-status"
+          className="action-edit-panel"
+          hidden={activePanel !== "status"}
+          id="panel-status"
+          role="tabpanel"
+        >
+          <LifecycleSection {...shared} />
+        </div>
       </div>
     </div>
   );

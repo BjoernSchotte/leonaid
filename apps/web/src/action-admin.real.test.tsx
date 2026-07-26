@@ -51,8 +51,15 @@ describe("Charity-Admin-Aktionsverwaltung mit echtem Core", () => {
     expect((screen.getByTestId("manage-goal") as HTMLInputElement).value).toBe(
       initial.action.goal.goalValue ?? "",
     );
-    expect(screen.getByText("Verantwortliche Admins")).toBeTruthy();
-    expect(screen.getByText("Veröffentlichung")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("tab", { name: /Grundlagen/ })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(screen.getByRole("tab", { name: /Begünstigte/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Funktionen & Team/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Öffentliche Seite/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Status/ })).toBeTruthy();
 
     const actual = screen.getByTestId("manage-actual");
     await user.clear(actual);

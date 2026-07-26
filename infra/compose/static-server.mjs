@@ -22,7 +22,10 @@ function webFile(requestUrl) {
   const relative =
     pathname.startsWith("/assets/") || pathname === "/favicon.svg"
       ? pathname.slice(1)
-      : pathname === "/actions" || pathname.startsWith("/actions/")
+      : pathname === "/" ||
+          pathname === "/members" ||
+          pathname === "/actions" ||
+          pathname.startsWith("/actions/")
         ? "index.html"
         : undefined;
   if (!relative) return undefined;

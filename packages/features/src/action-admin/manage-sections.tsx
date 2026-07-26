@@ -107,10 +107,9 @@ export function DetailsSection({
       id="details"
     >
       <header>
-        <span className="action-edit-section__number">1</span>
         <div>
           <h2 id="details-heading">Grunddaten und Zeitraum</h2>
-          <p>Name, Zweck, Träger und der fachliche Aktionszeitraum.</p>
+          <p>Name, Zweck, Träger und Laufzeit der Aktion.</p>
         </div>
       </header>
       <form
@@ -147,11 +146,13 @@ export function DetailsSection({
               />
             </label>
             <div className="action-field">
-              <span>Archiv-Slug</span>
+              <span>Archiv-Adresse</span>
               <output data-testid="manage-archive-slug">
                 /archive/{action.archiveSlug}
               </output>
-              <small>Bleibt als dauerhafte Archivadresse unverändert.</small>
+              <small>
+                Bleibt dauerhaft erreichbar und kann nicht geändert werden.
+              </small>
             </div>
             <label className="action-field action-field--wide">
               <span>Zweck</span>
@@ -252,12 +253,9 @@ export function GoalSection({
       id="goal"
     >
       <header>
-        <span className="action-edit-section__number">2</span>
         <div>
           <h2 id="goal-heading">Ziel und Fortschritt</h2>
-          <p>
-            Der Ist-Wert kann als einfache Motivation in der App erscheinen.
-          </p>
+          <p>Der aktuelle Stand zeigt allen Beteiligten den Fortschritt.</p>
         </div>
       </header>
       <form
@@ -270,7 +268,7 @@ export function GoalSection({
         <fieldset disabled={disabled || mutation.isPending}>
           <div className="action-form-grid">
             <label className="action-field">
-              <span>Zielwert</span>
+              <span>Ziel</span>
               <input
                 data-testid="manage-goal"
                 inputMode="decimal"
@@ -292,7 +290,7 @@ export function GoalSection({
               />
             </label>
             <label className="action-field">
-              <span>Ist-Wert</span>
+              <span>Aktueller Stand</span>
               <input
                 data-testid="manage-actual"
                 inputMode="decimal"
@@ -399,7 +397,6 @@ export function BeneficiariesSection({
       id="beneficiaries"
     >
       <header>
-        <span className="action-edit-section__number">3</span>
         <div>
           <h2 id="beneficiaries-heading">Begünstigte</h2>
           <p>Eine Aktion unterstützt eine oder mehrere Organisationen.</p>
@@ -574,10 +571,9 @@ export function CapabilitiesSection({
       id="capabilities"
     >
       <header>
-        <span className="action-edit-section__number">4</span>
         <div>
           <h2 id="capabilities-heading">Funktionen</h2>
-          <p>Nur aktivierte Module werden für diese Aktion angeboten.</p>
+          <p>Wähle nur die Bereiche, die diese Aktion wirklich braucht.</p>
         </div>
       </header>
       <form
@@ -611,8 +607,8 @@ export function CapabilitiesSection({
             ))}
           </div>
           <p className="action-form-help">
-            Bestellungen benötigen Angebote. Diese Regel wird beim Speichern
-            nochmals serverseitig geprüft.
+            Bestellungen benötigen mindestens ein Angebot. LeonAid prüft diese
+            Abhängigkeit beim Speichern.
           </p>
           <Button
             data-testid="save-capabilities"
@@ -671,7 +667,6 @@ export function AdministratorsSection({
       id="administrators"
     >
       <header>
-        <span className="action-edit-section__number">5</span>
         <div>
           <h2 id="administrators-heading">Verantwortliche Admins</h2>
           <p>
@@ -798,9 +793,7 @@ export function PublicationSection({
     onSuccess(updated) {
       updateState(updated);
       setFeedback(
-        success(
-          "Publikationsfenster und öffentlicher Alias wurden gespeichert.",
-        ),
+        success("Die Einstellungen der öffentlichen Seite wurden gespeichert."),
       );
     },
     onError(error) {
@@ -816,12 +809,11 @@ export function PublicationSection({
       id="publication"
     >
       <header>
-        <span className="action-edit-section__number">6</span>
         <div>
-          <h2 id="publication-heading">Veröffentlichung</h2>
+          <h2 id="publication-heading">Öffentliche Seite</h2>
           <p>
-            Der kurze Alias zeigt auf die aktuell veröffentlichte Aktion; das
-            Archiv bleibt dauerhaft erreichbar.
+            Die Kurzadresse zeigt im gewählten Zeitraum auf diese Aktion. Die
+            Archiv-Adresse bleibt dauerhaft erreichbar.
           </p>
         </div>
       </header>
@@ -832,7 +824,7 @@ export function PublicationSection({
           if (partialWindow || (draft.alias && !draft.startsAt)) {
             setFeedback({
               message:
-                "Publikationsbeginn und -ende müssen gemeinsam ausgefüllt sein. Ein Alias benötigt ein vollständiges Fenster.",
+                "Trage „Online ab“ und „Online bis“ gemeinsam ein. Eine Kurzadresse benötigt einen vollständigen Zeitraum.",
               tone: "error",
             });
             return;
@@ -843,7 +835,7 @@ export function PublicationSection({
         <fieldset disabled={disabled || mutation.isPending}>
           <div className="action-form-grid">
             <label className="action-field">
-              <span>Publikationsbeginn</span>
+              <span>Online ab</span>
               <input
                 data-testid="publication-start"
                 onChange={(event) =>
@@ -854,7 +846,7 @@ export function PublicationSection({
               />
             </label>
             <label className="action-field">
-              <span>Publikationsende</span>
+              <span>Online bis</span>
               <input
                 data-testid="publication-end"
                 onChange={(event) =>
@@ -865,7 +857,7 @@ export function PublicationSection({
               />
             </label>
             <label className="action-field action-field--wide">
-              <span>Öffentlicher Alias</span>
+              <span>Kurzadresse</span>
               <div className="action-prefixed-input">
                 <span aria-hidden="true">/</span>
                 <input
@@ -879,8 +871,8 @@ export function PublicationSection({
                 />
               </div>
               <small>
-                Beispiel: /krapfentaxi. Ein Wechsel wird atomar durchgeführt;
-                der bisherige Alias zeigt danach nur noch auf diese Aktion.
+                Beispiel: /krapfentaxi. Beim Wechsel verweist die Kurzadresse
+                ohne Unterbrechung auf diese Aktion.
               </small>
             </label>
           </div>
@@ -899,7 +891,7 @@ export function PublicationSection({
           >
             {mutation.isPending
               ? "Wird gespeichert …"
-              : "Veröffentlichung speichern"}
+              : "Öffentliche Seite speichern"}
           </Button>
         </fieldset>
       </form>
@@ -933,7 +925,7 @@ const transitionCopy: Record<
   archived: {
     confirm: "Unwiderruflich archivieren",
     description:
-      "Die Aktion wird dauerhaft schreibgeschützt und ein öffentlicher Alias freigegeben. Dieser Schritt kann nicht rückgängig gemacht werden.",
+      "Die Aktion wird dauerhaft schreibgeschützt und ihre Kurzadresse für eine andere Aktion freigegeben. Dieser Schritt kann nicht rückgängig gemacht werden.",
     tone: "danger",
   },
   completed: {
@@ -991,9 +983,8 @@ export function LifecycleSection({
       id="lifecycle"
     >
       <header>
-        <span className="action-edit-section__number">7</span>
         <div>
-          <h2 id="lifecycle-heading">Status und Lebenszyklus</h2>
+          <h2 id="lifecycle-heading">Status der Aktion</h2>
           <p>
             Aktuell:{" "}
             <strong data-testid="action-status-label">
