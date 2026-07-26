@@ -17,6 +17,7 @@ EXPECTED_TABLES = {
     "acquisition_activity",
     "acquisition_assignment",
     "acquisition_assignment_history",
+    "action_archive_slug_reservation",
     "action_invitation",
     "action_membership",
     "action_template_capability",
@@ -91,7 +92,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0008_activity_capture":
+    if revision != "0009_public_action_routes":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -171,6 +172,68 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             ACTION,
         ),
         "mehr als ein öffentlicher Alias je Aktion",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE charity_action
+            SET archive_slug = 'krapfentaxi-neu'
+            WHERE id = $1
+            """,
+            ACTION,
+        ),
+        "veränderlicher Archiv-Slug",
+    )
+    disposable_action = "20000000-0000-4000-8000-000000000099"
+    reused_action = "20000000-0000-4000-8000-000000000098"
+    await connection.execute(
+        """
+        INSERT INTO charity_action (
+            id, carrier_name, name, purpose, status, starts_on, ends_on,
+            archive_slug, goal_value, actual_value, goal_unit, currency
+        )
+        VALUES (
+            $1, 'Lions Club Beispielstadt', 'Reservierungstest',
+            'Beweist dauerhafte öffentliche Adressen.', 'draft', $2, $3,
+            'dauerhaft-reserviert', NULL, 0, NULL, NULL
+        )
+        """,
+        disposable_action,
+        date(2027, 1, 1),
+        date(2027, 1, 31),
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO public_action_alias (alias, action_id)
+            VALUES ('archive', $1)
+            """,
+            disposable_action,
+        ),
+        "reservierter öffentlicher Alias",
+    )
+    await connection.execute(
+        "DELETE FROM charity_action WHERE id = $1",
+        disposable_action,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO charity_action (
+                id, carrier_name, name, purpose, status, starts_on, ends_on,
+                archive_slug, goal_value, actual_value, goal_unit, currency
+            )
+            VALUES (
+                $1, 'Lions Club Beispielstadt', 'Wiederverwendungstest',
+                'Darf die Adresse nicht übernehmen.', 'draft', $2, $3,
+                'dauerhaft-reserviert', NULL, 0, NULL, NULL
+            )
+            """,
+            reused_action,
+            date(2028, 1, 1),
+            date(2028, 1, 31),
+        ),
+        "Wiederverwendung eines gelöschten Archiv-Slugs",
     )
     templates = await connection.fetch(
         """

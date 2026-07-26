@@ -7,6 +7,7 @@ const appKind = process.env.APP_KIND ?? "service";
 const port = Number(process.env.PORT ?? "3000");
 const webAssetDirectory = process.env.WEB_ASSET_DIR;
 const pwaAssetDirectory = process.env.PWA_ASSET_DIR;
+const coreApiUrl = process.env.CORE_API_URL ?? "http://api:8000";
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -1945,8 +1946,243 @@ function publicPage(requestUrl) {
 </html>`;
 }
 
+function publicDate(value) {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function publicActionDocument(route) {
+  const action = route.action;
+  const archived = route.availability === "archive";
+  const beneficiaryItems = action.beneficiaries
+    .map(
+      (beneficiary) =>
+        `<li><strong>${escapeHtml(beneficiary.organizationName)}</strong>` +
+        `<span>${escapeHtml(beneficiary.publicDescription)}</span></li>`,
+    )
+    .join("");
+  const goalValue = Number(action.goal.goalValue);
+  const actualValue = Number(action.goal.actualValue);
+  const progress =
+    Number.isFinite(goalValue) && goalValue > 0 && Number.isFinite(actualValue)
+      ? Math.min(100, Math.max(0, (actualValue / goalValue) * 100))
+      : null;
+  const goalMarkup =
+    progress === null
+      ? ""
+      : `<section class="goal" aria-labelledby="goal-heading">` +
+        `<div><p class="section-kicker">Gemeinsames Ziel</p>` +
+        `<h2 id="goal-heading">${escapeHtml(action.goal.goalValue)} ${escapeHtml(action.goal.unit ?? "")}</h2>` +
+        `<p>${escapeHtml(action.goal.actualValue)} ${escapeHtml(action.goal.unit ?? "")} sind bereits erreicht.</p></div>` +
+        `<div class="progress" role="progressbar" aria-label="Aktionsfortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(progress)}">` +
+        `<span style="width:${progress.toFixed(2)}%"></span></div></section>`;
+  const archiveForm = archived
+    ? `<section class="order-card" aria-labelledby="order-heading">` +
+      `<p class="section-kicker">Archivansicht</p>` +
+      `<h2 id="order-heading">Diese Aktion ist abgeschlossen</h2>` +
+      `<p>Die Aktionsdaten bleiben dauerhaft lesbar. Neue Bestellungen oder Zusagen sind über diese Archiv-Adresse nicht möglich.</p>` +
+      `<form aria-label="Bestellformular" data-testid="public-order-form">` +
+      `<fieldset disabled><label>Firma<input name="companyName" placeholder="Firma"></label>` +
+      `<label>Anzahl<input inputmode="numeric" name="quantity" value="1"></label>` +
+      `<button data-testid="public-order-submit" type="submit">Bestellung nicht mehr möglich</button></fieldset></form></section>`
+    : `<section class="order-card order-card--active" aria-labelledby="order-heading">` +
+      `<p class="section-kicker">Aktuelle Aktion</p>` +
+      `<h2 id="order-heading">Gemeinsam mehr bewegen</h2>` +
+      `<p>Die öffentliche Aktionsseite ist geöffnet. Sobald Bestellungen möglich sind, wird die Bestellmöglichkeit hier freigeschaltet.</p></section>`;
+  return `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#00338d">
+    <link rel="canonical" href="${escapeHtml(route.canonicalPath)}">
+    <title>${escapeHtml(action.name)} · LeonAid</title>
+    <style>
+      :root { color: #0d2240; background: #f5f7fb; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 20rem; background: radial-gradient(circle at 88% 5%, rgba(235,183,0,.2), transparent 26rem), #f5f7fb; }
+      header, main, footer { width: min(72rem, calc(100% - 2rem)); margin-inline: auto; }
+      header { display: flex; align-items: center; justify-content: space-between; padding-block: 1.1rem; }
+      .brand { display: flex; gap: .7rem; align-items: center; color: #0d2240; font-weight: 850; letter-spacing: -.02em; }
+      .mark { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .72rem; color: white; background: #00338d; box-shadow: inset 0 -3px 0 rgba(13,34,64,.22); }
+      .route-state { padding: .42rem .72rem; border: 1px solid ${archived ? "#d8dce5" : "#a8c3ea"}; border-radius: 999px; color: ${archived ? "#55565a" : "#00338d"}; background: ${archived ? "#fff" : "#edf4ff"}; font-size: .78rem; font-weight: 780; }
+      main { padding-block: clamp(2.2rem, 8vw, 6rem); }
+      .hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(18rem, .7fr); gap: clamp(2rem, 6vw, 6rem); align-items: end; }
+      .eyebrow, .section-kicker { margin: 0 0 .65rem; color: #00338d; font-size: .76rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { max-width: 13ch; margin: 0; font-size: clamp(2.5rem, 8vw, 5.7rem); line-height: .96; letter-spacing: -.065em; text-wrap: balance; }
+      .lead { max-width: 42rem; margin: 1.35rem 0 0; color: #44546c; font-size: clamp(1.05rem, 2vw, 1.28rem); line-height: 1.65; }
+      .facts { display: grid; gap: .8rem; margin: 0; padding: 1.15rem; border: 1px solid #dce3ed; border-radius: 1.25rem; background: rgba(255,255,255,.82); box-shadow: 0 18px 55px rgba(13,34,64,.08); }
+      .facts div { display: grid; gap: .15rem; padding: .7rem .75rem; border-radius: .75rem; background: #f5f7fb; }
+      dt { color: #69778b; font-size: .76rem; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+      dd { margin: 0; font-weight: 720; line-height: 1.45; }
+      .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(18rem, .75fr); gap: 1.25rem; margin-top: clamp(3rem, 8vw, 6rem); }
+      .beneficiaries, .order-card, .goal { padding: clamp(1.35rem, 3vw, 2rem); border: 1px solid #dce3ed; border-radius: 1.35rem; background: white; box-shadow: 0 16px 48px rgba(13,34,64,.06); }
+      h2 { margin: 0; font-size: clamp(1.4rem, 3vw, 2rem); letter-spacing: -.035em; }
+      .beneficiaries ul { display: grid; gap: .8rem; margin: 1.3rem 0 0; padding: 0; list-style: none; }
+      .beneficiaries li { display: grid; gap: .3rem; padding: 1rem; border-radius: .85rem; background: #f5f7fb; }
+      .beneficiaries li span, .order-card p, .goal p { color: #5b687b; line-height: 1.6; }
+      .goal { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, .8fr); gap: 2rem; align-items: center; }
+      .progress { height: .7rem; overflow: hidden; border-radius: 999px; background: #e7ecf3; }
+      .progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #00338d, #407cca); }
+      fieldset { display: grid; gap: .8rem; margin: 1.15rem 0 0; padding: 0; border: 0; }
+      label { display: grid; gap: .35rem; color: #55565a; font-size: .8rem; font-weight: 720; }
+      input, button { min-height: 2.8rem; padding: .65rem .75rem; border-radius: .72rem; font: inherit; }
+      input { border: 1px solid #ccd5e2; background: #f3f5f8; }
+      button { border: 0; color: white; background: #667085; font-weight: 780; }
+      fieldset:disabled { opacity: .72; }
+      footer { padding-block: 2rem 3rem; color: #69778b; font-size: .85rem; }
+      @media (max-width: 48rem) {
+        .hero, .content-grid, .goal { grid-template-columns: 1fr; }
+        .goal { grid-column: auto; }
+        main { padding-top: 2.5rem; }
+      }
+    </style>
+  </head>
+  <body data-public-state="${escapeHtml(route.availability)}">
+    <header>
+      <div class="brand"><span aria-hidden="true" class="mark">L</span><span>LeonAid</span></div>
+      <span class="route-state" data-testid="public-route-state">${archived ? "Dauerhaftes Archiv" : "Aktuell veröffentlicht"}</span>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">${escapeHtml(action.carrierName)}</p>
+          <h1 data-testid="public-action-name">${escapeHtml(action.name)}</h1>
+          <p class="lead">${escapeHtml(action.purpose)}</p>
+        </div>
+        <dl class="facts">
+          <div><dt>Aktionszeitraum</dt><dd>${escapeHtml(publicDate(action.startsOn))} – ${escapeHtml(publicDate(action.endsOn))}</dd></div>
+          <div><dt>Dauerhafte Adresse</dt><dd data-testid="public-canonical-path">${escapeHtml(route.canonicalPath)}</dd></div>
+        </dl>
+      </section>
+      <div class="content-grid">
+        <section class="beneficiaries" aria-labelledby="beneficiary-heading">
+          <p class="section-kicker">Wem die Aktion hilft</p>
+          <h2 id="beneficiary-heading">Gemeinsam für unsere Begünstigten</h2>
+          <ul>${beneficiaryItems}</ul>
+        </section>
+        ${archiveForm}
+        ${goalMarkup}
+      </div>
+    </main>
+    <footer>LeonAid · Engagement transparent und nachvollziehbar</footer>
+  </body>
+</html>`;
+}
+
+function publicStateDocument({ title, message, state, statusCode = 200 }) {
+  return {
+    statusCode,
+    body: `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#00338d">
+    <title>${escapeHtml(title)} · LeonAid</title>
+    <style>
+      :root { color: #0d2240; background: #f5f7fb; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; display: grid; place-items: center; margin: 0; padding: 1rem; background: radial-gradient(circle at 80% 5%, rgba(235,183,0,.22), transparent 24rem), #f5f7fb; }
+      main { width: min(100%, 38rem); padding: clamp(1.6rem, 6vw, 3.2rem); border: 1px solid #dce3ed; border-radius: 1.5rem; background: rgba(255,255,255,.9); box-shadow: 0 24px 65px rgba(13,34,64,.1); }
+      .mark { display: grid; width: 2.7rem; height: 2.7rem; place-items: center; border-radius: .8rem; color: white; background: #00338d; font-weight: 850; }
+      .eyebrow { margin: 1.5rem 0 .55rem; color: #00338d; font-size: .76rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2rem, 8vw, 3.7rem); line-height: 1; letter-spacing: -.055em; text-wrap: balance; }
+      p:last-child { margin: 1.15rem 0 0; color: #5b687b; font-size: 1.05rem; line-height: 1.65; }
+    </style>
+  </head>
+  <body data-public-state="${escapeHtml(state)}">
+    <main data-testid="public-${escapeHtml(state)}">
+      <div aria-hidden="true" class="mark">L</div>
+      <p class="eyebrow">Lions helfen vor Ort</p>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(message)}</p>
+    </main>
+  </body>
+</html>`,
+  };
+}
+
+async function resolvedPublicPage(requestUrl) {
+  if (
+    requestUrl.startsWith("/fresh-login") ||
+    requestUrl.startsWith("/login") ||
+    requestUrl.startsWith("/invite")
+  ) {
+    return { body: publicPage(requestUrl), statusCode: 200 };
+  }
+  const pathname = new URL(requestUrl, "http://localhost").pathname;
+  if (pathname === "/") {
+    return publicStateDocument({
+      title: "Engagement, das ankommt",
+      message:
+        "Über die Aktionsadresse deines Lions Clubs gelangst du direkt zur aktuell veröffentlichten Charity-Aktion.",
+      state: "home",
+    });
+  }
+  const archiveMatch = pathname.match(
+    /^\/archive\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/,
+  );
+  const aliasMatch = pathname.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/);
+  const endpoint = archiveMatch
+    ? `/api/v1/public/actions/archive/${encodeURIComponent(archiveMatch[1])}`
+    : aliasMatch
+      ? `/api/v1/public/actions/alias/${encodeURIComponent(aliasMatch[1])}`
+      : null;
+  if (!endpoint) {
+    return publicStateDocument({
+      title: "Seite nicht gefunden",
+      message:
+        "Prüfe die Aktionsadresse oder verwende den Link, den dein Lions Club veröffentlicht hat.",
+      state: "not-found",
+      statusCode: 404,
+    });
+  }
+  try {
+    const response = await fetch(`${coreApiUrl}${endpoint}`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (response.status === 404) {
+      return publicStateDocument({
+        title: "Aktion nicht gefunden",
+        message:
+          "Diese Archiv-Adresse gehört zu keiner veröffentlichten Charity-Aktion.",
+        state: "not-found",
+        statusCode: 404,
+      });
+    }
+    if (!response.ok) throw new Error(`Core API answered ${response.status}`);
+    const route = await response.json();
+    if (route.availability === "inactive") {
+      return publicStateDocument({
+        title: "Derzeit keine aktive Aktion",
+        message:
+          "Unter dieser Adresse ist im Moment keine Charity-Aktion veröffentlicht. Schau gern später noch einmal vorbei.",
+        state: "inactive",
+      });
+    }
+    if (!route.action) throw new Error("Public action response is incomplete");
+    return { body: publicActionDocument(route), statusCode: 200 };
+  } catch {
+    return publicStateDocument({
+      title: "Aktionsseite gerade nicht erreichbar",
+      message:
+        "Die Verbindung konnte nicht hergestellt werden. Bitte versuche es in wenigen Augenblicken erneut.",
+      state: "unavailable",
+      statusCode: 503,
+    });
+  }
+}
+
 http
-  .createServer((request, response) => {
+  .createServer(async (request, response) => {
     if (request.url === "/health/live" || request.url === "/health/ready") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ service: appKind, status: "ready" }));
@@ -1969,12 +2205,14 @@ http
       fs.createReadStream(staticFile).pipe(response);
       return;
     }
-    response.writeHead(200, {
+    const page =
+      appKind === "public"
+        ? await resolvedPublicPage(request.url ?? "/")
+        : { body: applicationPage(), statusCode: 200 };
+    response.writeHead(page.statusCode, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
     });
-    response.end(
-      appKind === "public" ? publicPage(request.url ?? "/") : applicationPage(),
-    );
+    response.end(page.body);
   })
   .listen(port, "0.0.0.0");

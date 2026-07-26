@@ -173,10 +173,14 @@ services:
       dockerfile: infra/compose/Dockerfile.frontend
     restart: unless-stopped
     environment:
-      APP_NAME: "Krapfentaxi 2026"
+      APP_NAME: "LeonAid Aktionen"
       APP_KIND: public
+      CORE_API_URL: http://api:8000
     networks:
       - edge
+    depends_on:
+      api:
+        condition: service_healthy
     healthcheck: *frontend-health
 
   twenty-server:

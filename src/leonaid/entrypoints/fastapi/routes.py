@@ -28,6 +28,7 @@ from leonaid.application.actions import (
     CopyActionDraft,
     CreateActionDraft,
     CreateActionFromTemplateDraft,
+    PublicActionRoute,
     UpdateActionDetailsDraft,
 )
 from leonaid.application.errors import DependencyUnavailable
@@ -117,6 +118,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     PaginationQuery,
     PlatformInformationResponse,
     PlatformStatusResponse,
+    PublicActionRouteResponse,
+    PublicCharityActionResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
     RecordAcquisitionActivityResponse,
@@ -445,6 +448,52 @@ def action_management_response(
     )
 
 
+def public_action_route_response(
+    route: PublicActionRoute,
+) -> PublicActionRouteResponse:
+    action = route.action
+    return PublicActionRouteResponse(
+        route_kind=route.route_kind.value,
+        route_value=route.route_value,
+        route_path=route.route_path,
+        canonical_path=route.canonical_path,
+        availability=route.availability.value,
+        submissions_allowed=route.submissions_allowed,
+        action=(
+            PublicCharityActionResponse(
+                id=action.id,
+                carrier_name=action.carrier_name,
+                name=action.name,
+                purpose=action.purpose,
+                starts_on=action.starts_on,
+                ends_on=action.ends_on,
+                archive_slug=action.archive_slug,
+                beneficiaries=[
+                    BeneficiaryResponse(
+                        id=item.id,
+                        organization_name=item.organization_name,
+                        public_description=item.public_description,
+                        sort_order=item.sort_order,
+                    )
+                    for item in action.beneficiaries
+                ],
+                goal=ActionGoalResponse(
+                    goal_value=(
+                        decimal_text(action.goal.goal_value)
+                        if action.goal.goal_value is not None
+                        else None
+                    ),
+                    actual_value=decimal_text(action.goal.actual_value),
+                    unit=action.goal.unit,
+                    currency=action.goal.currency,
+                ),
+            )
+            if action is not None
+            else None
+        ),
+    )
+
+
 def action_template_summary_response(
     template: ActionTemplate,
 ) -> ActionTemplateSummaryResponse:
@@ -571,6 +620,42 @@ async def information(request: Request) -> PlatformInformationResponse:
     return PlatformInformationResponse.model_validate(
         platform_service(request).information()
     )
+
+
+@router.get(
+    "/api/v1/public/actions/alias/{public_alias}",
+    operation_id="resolvePublicActionAlias",
+    response_model=PublicActionRouteResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def resolve_public_action_alias(
+    public_alias: str,
+    request: Request,
+    response: Response,
+) -> PublicActionRouteResponse:
+    route = await action_service(request).resolve_public_alias(public_alias)
+    response.headers["Cache-Control"] = "public, max-age=15, stale-while-revalidate=30"
+    return public_action_route_response(route)
+
+
+@router.get(
+    "/api/v1/public/actions/archive/{archive_slug}",
+    operation_id="resolvePublicActionArchive",
+    response_model=PublicActionRouteResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def resolve_public_action_archive(
+    archive_slug: str,
+    request: Request,
+    response: Response,
+) -> PublicActionRouteResponse:
+    route = await action_service(request).resolve_public_archive(archive_slug)
+    response.headers["Cache-Control"] = (
+        "public, max-age=300, stale-while-revalidate=3600"
+    )
+    return public_action_route_response(route)
 
 
 @router.get(

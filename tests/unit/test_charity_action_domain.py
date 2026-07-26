@@ -30,6 +30,7 @@ def neutral_action(
     status: CharityActionStatus = CharityActionStatus.DRAFT,
     capabilities: frozenset[ActionCapability] = frozenset(),
     beneficiaries: tuple[Beneficiary, ...] | None = None,
+    archive_slug: str = "quartalsaktion-01-2027",
 ) -> CharityAction:
     return CharityAction(
         id=ACTION_ID,
@@ -39,7 +40,7 @@ def neutral_action(
         status=status,
         starts_on=date(2027, 2, 1),
         ends_on=date(2027, 3, 31),
-        archive_slug="quartalsaktion-01-2027",
+        archive_slug=archive_slug,
         capabilities=capabilities,
         beneficiaries=(
             beneficiaries
@@ -171,6 +172,12 @@ def test_publication_details_and_revision_are_server_side_invariants() -> None:
     assert changed.publication_window == window
     assert changed.next_revision().revision == 2
     assert PublicActionAlias("quartalsaktion").value == "quartalsaktion"
+    assert (
+        neutral_action(status=CharityActionStatus.ACTIVE)
+        .with_publication_window(window)
+        .is_published_at(starts_at + timedelta(days=1))
+    )
+    assert not published.is_published_at(starts_at + timedelta(days=1))
 
     with pytest.raises(DomainInvariantError) as naive:
         PublicationWindow(
@@ -189,6 +196,22 @@ def test_publication_details_and_revision_are_server_side_invariants() -> None:
     with pytest.raises(DomainInvariantError) as alias:
         PublicActionAlias("Quartals Aktion")
     assert alias.value.code == "action_public_alias_invalid"
+
+    with pytest.raises(DomainInvariantError) as reserved_alias:
+        PublicActionAlias("archive")
+    assert reserved_alias.value.code == "action_public_alias_reserved"
+
+    with pytest.raises(DomainInvariantError) as archive_slug:
+        neutral_action(archive_slug="Quartals Aktion")
+    assert archive_slug.value.code == "action_archive_slug_invalid"
+
+    with pytest.raises(DomainInvariantError) as naive_evaluation:
+        neutral_action(status=CharityActionStatus.ACTIVE).is_published_at(
+            datetime(2027, 1, 1)
+        )
+    assert (
+        naive_evaluation.value.code == "action_publication_evaluation_timezone_required"
+    )
 
     archived = neutral_action(status=CharityActionStatus.ARCHIVED)
     with pytest.raises(DomainInvariantError) as immutable:

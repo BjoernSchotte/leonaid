@@ -289,6 +289,48 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             )
             return UUID(str(target)) if target is not None else None
 
+    async def get_by_public_alias(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> CharityAction | None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read",
+                readonly=True,
+            ):
+                action_id = await connection.fetchval(
+                    """
+                    SELECT action_id
+                    FROM public_action_alias
+                    WHERE alias = $1
+                    """,
+                    public_alias.value,
+                )
+                if action_id is None:
+                    return None
+                return await self._get(connection, action_id)
+
+    async def get_by_archive_slug(
+        self,
+        archive_slug: str,
+    ) -> CharityAction | None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read",
+                readonly=True,
+            ):
+                action_id = await connection.fetchval(
+                    """
+                    SELECT id
+                    FROM charity_action
+                    WHERE archive_slug = $1
+                    """,
+                    archive_slug,
+                )
+                if action_id is None:
+                    return None
+                return await self._get(connection, action_id)
+
     async def update_details(
         self,
         action: CharityAction,

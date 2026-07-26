@@ -329,6 +329,28 @@ class CharityActionResponse(TransportModel):
     goal: ActionGoalResponse
 
 
+class PublicCharityActionResponse(TransportModel):
+    id: UUID
+    carrier_name: str
+    name: str
+    purpose: str
+    starts_on: date
+    ends_on: date
+    archive_slug: str
+    beneficiaries: list[BeneficiaryResponse]
+    goal: ActionGoalResponse
+
+
+class PublicActionRouteResponse(TransportModel):
+    route_kind: Literal["alias", "archive"]
+    route_value: str
+    route_path: str
+    canonical_path: str
+    availability: Literal["published", "inactive", "archive"]
+    submissions_allowed: bool
+    action: PublicCharityActionResponse | None
+
+
 class ActionTemplateSummaryResponse(TransportModel):
     key: ActionTemplateKeyValue
     version: int = Field(ge=1)

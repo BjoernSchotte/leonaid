@@ -56,6 +56,8 @@ export type NavigationItemResponse = { readonly href: string; readonly key: stri
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
+export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
+export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
 export type RecordAcquisitionActivityRequest = { readonly channel: "phone" | "email" | "in_person"; readonly dueOn?: string | null; readonly nextAction?: string | null; readonly note?: string | null; readonly outcome: "reached" | "no_answer" | "interested" | "follow_up" | "committed" | "declined"; readonly partyId: string; readonly partyKind: "company" | "person"; readonly revision: number; };
 export type RecordAcquisitionActivityResponse = { readonly activity: RecordedAcquisitionActivityResponse; readonly assignment: AcquisitionAssignmentResponse; };
@@ -720,6 +722,28 @@ export class LeonAidApiClient {
   ): Promise<PlatformInformationResponse> {
     return this.request<PlatformInformationResponse>(
       "/api/v1/platform",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async resolvePublicActionAlias(
+    publicAlias: string,
+    options: RequestOptions = {},
+  ): Promise<PublicActionRouteResponse> {
+    return this.request<PublicActionRouteResponse>(
+      `/api/v1/public/actions/alias/${encodeURIComponent(String(publicAlias))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async resolvePublicActionArchive(
+    archiveSlug: string,
+    options: RequestOptions = {},
+  ): Promise<PublicActionRouteResponse> {
+    return this.request<PublicActionRouteResponse>(
+      `/api/v1/public/actions/archive/${encodeURIComponent(String(archiveSlug))}`,
       { method: "GET" },
       options,
     );

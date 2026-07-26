@@ -12,6 +12,21 @@ from uuid import UUID
 from leonaid.domain.errors import DomainInvariantError
 
 ACTION_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RESERVED_PUBLIC_ALIASES = frozenset(
+    {
+        "_health",
+        "admin",
+        "api",
+        "app",
+        "archive",
+        "crm",
+        "fresh-login",
+        "invite",
+        "login",
+        "mail",
+        "mailing",
+    }
+)
 
 
 class CharityActionStatus(StrEnum):
@@ -70,6 +85,11 @@ class PublicActionAlias:
             raise DomainInvariantError(
                 "action_public_alias_invalid",
                 "Der öffentliche Alias muss ein URL-tauglicher Slug sein.",
+            )
+        if self.value in RESERVED_PUBLIC_ALIASES:
+            raise DomainInvariantError(
+                "action_public_alias_reserved",
+                "Dieser öffentliche Alias ist für LeonAid reserviert.",
             )
 
 
@@ -206,6 +226,11 @@ class CharityAction:
         ):
             if not value.strip():
                 raise DomainInvariantError(code, message)
+        if not ACTION_SLUG.fullmatch(self.archive_slug):
+            raise DomainInvariantError(
+                "action_archive_slug_invalid",
+                "Der Archiv-Slug muss ein URL-tauglicher Slug sein.",
+            )
         if self.starts_on > self.ends_on:
             raise DomainInvariantError(
                 "action_period_invalid",
@@ -280,6 +305,19 @@ class CharityAction:
     ) -> CharityAction:
         self._require_mutable()
         return replace(self, publication_window=publication_window)
+
+    def is_published_at(self, evaluated_at: datetime) -> bool:
+        if evaluated_at.utcoffset() is None:
+            raise DomainInvariantError(
+                "action_publication_evaluation_timezone_required",
+                "Die Publikationsprüfung benötigt eine eindeutige Zeitzone.",
+            )
+        window = self.publication_window
+        return (
+            self.status is CharityActionStatus.ACTIVE
+            and window is not None
+            and window.starts_at <= evaluated_at <= window.ends_at
+        )
 
     def with_goal(self, goal: ActionGoal) -> CharityAction:
         self._require_mutable()

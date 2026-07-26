@@ -2326,6 +2326,124 @@
         "title": "PlatformStatusResponse",
         "type": "object"
       },
+      "PublicActionRouteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicCharityActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availability": {
+            "enum": [
+              "published",
+              "inactive",
+              "archive"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "canonicalPath": {
+            "title": "Canonicalpath",
+            "type": "string"
+          },
+          "routeKind": {
+            "enum": [
+              "alias",
+              "archive"
+            ],
+            "title": "Routekind",
+            "type": "string"
+          },
+          "routePath": {
+            "title": "Routepath",
+            "type": "string"
+          },
+          "routeValue": {
+            "title": "Routevalue",
+            "type": "string"
+          },
+          "submissionsAllowed": {
+            "title": "Submissionsallowed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "routeKind",
+          "routeValue",
+          "routePath",
+          "canonicalPath",
+          "availability",
+          "submissionsAllowed",
+          "action"
+        ],
+        "title": "PublicActionRouteResponse",
+        "type": "object"
+      },
+      "PublicCharityActionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveSlug": {
+            "title": "Archiveslug",
+            "type": "string"
+          },
+          "beneficiaries": {
+            "items": {
+              "$ref": "#/components/schemas/BeneficiaryResponse"
+            },
+            "title": "Beneficiaries",
+            "type": "array"
+          },
+          "carrierName": {
+            "title": "Carriername",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/ActionGoalResponse"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "carrierName",
+          "name",
+          "purpose",
+          "startsOn",
+          "endsOn",
+          "archiveSlug",
+          "beneficiaries",
+          "goal"
+        ],
+        "title": "PublicCharityActionResponse",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7513,6 +7631,150 @@
         "summary": "Information",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/actions/alias/{public_alias}": {
+      "get": {
+        "operationId": "resolvePublicActionAlias",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_alias",
+            "required": true,
+            "schema": {
+              "title": "Public Alias",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicActionRouteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Resolve Public Action Alias",
+        "tags": [
+          "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/actions/archive/{archive_slug}": {
+      "get": {
+        "operationId": "resolvePublicActionArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archive_slug",
+            "required": true,
+            "schema": {
+              "title": "Archive Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicActionRouteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Resolve Public Action Archive",
+        "tags": [
+          "public-actions"
         ]
       }
     },

@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from enum import StrEnum
 from typing import Protocol, Sequence
 from uuid import UUID, uuid4
 
-from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.application.policies import (
     concealed_resource,
     require_action_creator,
@@ -83,6 +84,41 @@ class UpdateActionDetailsDraft:
     ends_on: date
 
 
+class PublicActionRouteKind(StrEnum):
+    ALIAS = "alias"
+    ARCHIVE = "archive"
+
+
+class PublicActionAvailability(StrEnum):
+    PUBLISHED = "published"
+    INACTIVE = "inactive"
+    ARCHIVE = "archive"
+
+
+@dataclass(frozen=True, slots=True)
+class PublicActionRoute:
+    route_kind: PublicActionRouteKind
+    route_value: str
+    route_path: str
+    canonical_path: str
+    availability: PublicActionAvailability
+    submissions_allowed: bool
+    action: CharityAction | None
+
+    def __post_init__(self) -> None:
+        if self.availability is PublicActionAvailability.INACTIVE:
+            if self.action is not None or self.submissions_allowed:
+                raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
+            return
+        if self.action is None:
+            raise ValueError("Eine öffentliche Aktionsroute benötigt eine Aktion.")
+        if self.submissions_allowed != (
+            self.route_kind is PublicActionRouteKind.ALIAS
+            and self.availability is PublicActionAvailability.PUBLISHED
+        ):
+            raise ValueError("Der Schreibstatus der öffentlichen Route ist ungültig.")
+
+
 class CharityActionRepository(Protocol):
     async def get(self, action_id: UUID) -> CharityAction | None: ...
 
@@ -118,6 +154,16 @@ class CharityActionRepository(Protocol):
         self,
         public_alias: PublicActionAlias,
     ) -> UUID | None: ...
+
+    async def get_by_public_alias(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> CharityAction | None: ...
+
+    async def get_by_archive_slug(
+        self,
+        archive_slug: str,
+    ) -> CharityAction | None: ...
 
     async def update_details(
         self,
@@ -344,6 +390,63 @@ class CharityActionService:
         action_id: UUID,
     ) -> CharityAction:
         return await self._managed_action(actor, action_id)
+
+    async def resolve_public_alias(
+        self,
+        public_alias: str,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> PublicActionRoute:
+        alias = PublicActionAlias(public_alias.strip())
+        action = await self._repository.get_by_public_alias(alias)
+        now = evaluated_at or datetime.now(timezone.utc)
+        route_path = f"/{alias.value}"
+        if action is None or not action.is_published_at(now):
+            return PublicActionRoute(
+                route_kind=PublicActionRouteKind.ALIAS,
+                route_value=alias.value,
+                route_path=route_path,
+                canonical_path=route_path,
+                availability=PublicActionAvailability.INACTIVE,
+                submissions_allowed=False,
+                action=None,
+            )
+        return PublicActionRoute(
+            route_kind=PublicActionRouteKind.ALIAS,
+            route_value=alias.value,
+            route_path=route_path,
+            canonical_path=f"/archive/{action.archive_slug}",
+            availability=PublicActionAvailability.PUBLISHED,
+            submissions_allowed=True,
+            action=action,
+        )
+
+    async def resolve_public_archive(
+        self,
+        archive_slug: str,
+    ) -> PublicActionRoute:
+        normalized_slug = archive_slug.strip()
+        if not normalized_slug:
+            raise ResourceNotFound(
+                "public_action_not_found",
+                "Diese öffentliche Aktionsseite wurde nicht gefunden.",
+            )
+        action = await self._repository.get_by_archive_slug(normalized_slug)
+        if action is None:
+            raise ResourceNotFound(
+                "public_action_not_found",
+                "Diese öffentliche Aktionsseite wurde nicht gefunden.",
+            )
+        path = f"/archive/{action.archive_slug}"
+        return PublicActionRoute(
+            route_kind=PublicActionRouteKind.ARCHIVE,
+            route_value=action.archive_slug,
+            route_path=path,
+            canonical_path=path,
+            availability=PublicActionAvailability.ARCHIVE,
+            submissions_allowed=False,
+            action=action,
+        )
 
     async def get_management(
         self,

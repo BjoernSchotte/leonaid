@@ -34,6 +34,8 @@ Commands:
   test-actions      Prove neutral CharityAction lifecycle and browser creation
   test-templates    Prove versioned action templates and previous-year copies
   test-action-admin Prove Charity-Admin action management and conflict handling
+  test-public-actions
+                    Prove public alias switching and immutable archive routes
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -208,21 +210,21 @@ check_all() {
     tools/activities tools/assignments \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/matching tools/policy tools/schema tools/seed tools/sessions \
+    tools/matching tools/policy tools/public_actions tools/schema tools/seed tools/sessions \
     tools/pwa tools/templates tools/twenty
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions \
     tools/activities tools/assignments tools/matching \
     tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
-    tools/policy tools/pwa tools/schema tools/seed tools/sessions \
+    tools/policy tools/public_actions tools/pwa tools/schema tools/seed tools/sessions \
     tools/templates tools/twenty
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/assignments \
     tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
-    tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
+    tools/public_actions tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/twenty
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -424,6 +426,7 @@ case "$command" in
     /bin/sh "$root/tools/actions/test.sh" "$root"
     /bin/sh "$root/tools/templates/test.sh" "$root"
     /bin/sh "$root/tools/action_admin/test.sh" "$root"
+    /bin/sh "$root/tools/public_actions/test.sh" "$root"
     ;;
   test-e2e)
     /bin/sh "$root/tools/identity/test.sh" "$root"
@@ -435,6 +438,7 @@ case "$command" in
     /bin/sh "$root/tools/assignments/test.sh" "$root"
     /bin/sh "$root/tools/activities/test.sh" "$root"
     /bin/sh "$root/tools/pwa/test.sh" "$root"
+    /bin/sh "$root/tools/public_actions/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
@@ -449,6 +453,7 @@ case "$command" in
   test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
   test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
   test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;
+  test-public-actions) /bin/sh "$root/tools/public_actions/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

@@ -929,25 +929,25 @@ Tests/Nachweise:
 
 ## M7 – Public Web, Alias und öffentliche Bestellung
 
-### [ ] POC-070 PublicActionAlias und Archivregeln implementieren
+### [x] POC-070 PublicActionAlias und Archivregeln implementieren
 
 Abhängigkeiten: POC-050
 
 Akzeptanzkriterien:
 
-- [ ] Alias ist installationsweit eindeutig und verweist auf höchstens eine
+- [x] Alias ist installationsweit eindeutig und verweist auf höchstens eine
       veröffentlichte Aktion.
-- [ ] Aliaswechsel ist atomar.
-- [ ] Archiv-Slug ist unveränderlich und wird nie wiederverwendet.
-- [ ] Ohne aktive Aktion liefert der Alias eine hilfreiche neutrale Seite.
-- [ ] Archivierte Aktion ist lesbar, aber nicht beschreibbar.
+- [x] Aliaswechsel ist atomar.
+- [x] Archiv-Slug ist unveränderlich und wird nie wiederverwendet.
+- [x] Ohne aktive Aktion liefert der Alias eine hilfreiche neutrale Seite.
+- [x] Archivierte Aktion ist lesbar, aber nicht beschreibbar.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Alias-/Slug-Invarianten.
-- [ ] Integrationstest schaltet `/krapfentaxi` atomar auf einen Folgejahrgang.
-- [ ] E2E beweist unveränderte Archiv-URL und deaktivierte Formulare.
-- [ ] Direkter API-Request gegen Archiv-Aktion wird abgewiesen.
+- [x] Unit-Tests prüfen Alias-/Slug-Invarianten.
+- [x] Integrationstest schaltet `/krapfentaxi` atomar auf einen Folgejahrgang.
+- [x] E2E beweist unveränderte Archiv-URL und deaktivierte Formulare.
+- [x] Direkter API-Request gegen Archiv-Aktion wird abgewiesen.
 
 ### [ ] POC-071 Astro-Aktionsseite mit hochwertiger Public UX bauen
 

@@ -98,8 +98,8 @@ test "$(curl --fail --silent "$base_url/_health")" = "ready"
 test "$(curl --fail --insecure --silent "https://localhost:$https_port/_health")" = "ready"
 curl --fail --silent "$base_url/api/health/ready" | grep -q '"status":"ready"'
 curl --fail --silent "$base_url/app/" | grep -q "LeonAid Akquise"
-curl --fail --silent "$base_url/admin/" | grep -q "LeonAid Verwaltung"
-curl --fail --silent "$base_url/" | grep -q "Krapfentaxi 2026"
+curl --fail --silent "$base_url/admin/" | grep -q "Charity-Aktionen"
+curl --fail --silent "$base_url/" | grep -q "Engagement, das ankommt"
 curl --fail --silent \
   --resolve "crm.localhost:$port:127.0.0.1" \
   "http://crm.localhost:$port/healthz" | grep -q '"status":"ok"'
