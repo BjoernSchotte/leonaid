@@ -5,6 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 project=${LEONAID_COMPOSE_TEST_PROJECT:-leonaid-poc010-test}
 port=${LEONAID_COMPOSE_TEST_PORT:-18080}
+https_port=${LEONAID_COMPOSE_TEST_HTTPS_PORT:-18443}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 fixture="/repo/tests/fixtures/golden/v1"
@@ -15,7 +16,7 @@ if [ ! -f "$env_file" ]; then
 fi
 
 compose() {
-  LEONAID_HTTP_PORT="$port" docker compose \
+  LEONAID_HTTP_PORT="$port" LEONAID_HTTPS_PORT="$https_port" docker compose \
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
@@ -77,19 +78,24 @@ for service in $expected_services; do
     '{{range $port, $items := .NetworkSettings.Ports}}{{range $items}}{{println .HostIp .HostPort}}{{end}}{{end}}' \
     "$container_id")
   if [ -n "$bindings" ]; then
-    published_services="${published_services}${service}:${bindings}
+    prefixed_bindings=$(printf '%s\n' "$bindings" | sed "/^$/d; s/^/${service}:/")
+    published_services="${published_services}${prefixed_bindings}
 "
   fi
 done
-expected_binding="proxy:127.0.0.1 $port"
-if [ "$(printf '%s' "$published_services" | sed '/^$/d')" != "$expected_binding" ]; then
-  echo "compose-test: ERROR: nur der Proxy darf auf 127.0.0.1:$port lauschen" >&2
+actual_bindings=$(printf '%s' "$published_services" | sed '/^$/d' | sort)
+expected_bindings=$(printf '%s\n' \
+  "proxy:127.0.0.1 $https_port" \
+  "proxy:127.0.0.1 $port" | sort)
+if [ "$actual_bindings" != "$expected_bindings" ]; then
+  echo "compose-test: ERROR: nur der Proxy darf HTTP/HTTPS lokal veröffentlichen" >&2
   printf '%s' "$published_services" >&2
   exit 1
 fi
 
 base_url="http://127.0.0.1:$port"
 test "$(curl --fail --silent "$base_url/_health")" = "ready"
+test "$(curl --fail --insecure --silent "https://localhost:$https_port/_health")" = "ready"
 curl --fail --silent "$base_url/api/health/ready" | grep -q '"status":"ready"'
 curl --fail --silent "$base_url/app/" | grep -q "LeonAid Akquise"
 curl --fail --silent "$base_url/admin/" | grep -q "LeonAid Verwaltung"

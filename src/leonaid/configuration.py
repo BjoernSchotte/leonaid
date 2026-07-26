@@ -34,6 +34,18 @@ class Settings(BaseSettings):
         le=1440,
         alias="LEONAID_INVITATION_TTL_MINUTES",
     )
+    login_challenge_ttl_minutes: int = Field(
+        default=10,
+        ge=5,
+        le=30,
+        alias="LEONAID_LOGIN_CHALLENGE_TTL_MINUTES",
+    )
+    fresh_login_seconds: int = Field(
+        default=900,
+        ge=1,
+        le=7200,
+        alias="LEONAID_FRESH_LOGIN_SECONDS",
+    )
     twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
     rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
 
@@ -58,6 +70,8 @@ class Settings(BaseSettings):
             "apiVersion": self.api_version,
             "publicBaseHost": self.public_base_url.host or "invalid",
             "invitationTtlMinutes": str(self.invitation_ttl_minutes),
+            "loginChallengeTtlMinutes": str(self.login_challenge_ttl_minutes),
+            "freshLoginSeconds": str(self.fresh_login_seconds),
             "coreDatabaseHost": urlparse(
                 self.core_database_url.get_secret_value()
             ).hostname

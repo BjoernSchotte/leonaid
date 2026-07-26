@@ -14,3 +14,8 @@ Der Generator unterstützt die im PoC verwendeten erforderlichen
 JSON-Request-Bodies und erforderlichen Pfadparameter. Pfadwerte werden
 URL-kodiert, Content-Type-Header mit Aufrufoptionen zusammengeführt und nicht
 unterstützte OpenAPI-Formen weiterhin explizit abgewiesen.
+
+Seit POC-042 enthält der Vertrag außerdem Login-Anforderung und -Abschluss,
+Fresh-Login-Status und -Abschluss, Logout sowie administrativen
+Sitzungswiderruf. Das eigentliche Sitzungstoken bleibt ausschließlich im
+`HttpOnly`-Cookie und ist deshalb kein Wert des TypeScript-Clients.

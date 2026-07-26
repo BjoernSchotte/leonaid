@@ -22,13 +22,17 @@ for (const [name, token] of Object.entries(personas)) {
 }
 
 async function sessionPage(browser, token, path, viewport) {
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({
+    viewport,
+    ignoreHTTPSErrors: true,
+  });
   await context.addCookies([
     {
-      name: "leonaid_session",
+      name: "__Host-leonaid_session",
       value: token,
       url: baseUrl,
       httpOnly: true,
+      secure: true,
       sameSite: "Lax",
     },
   ]);

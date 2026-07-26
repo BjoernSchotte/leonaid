@@ -10,6 +10,12 @@ Public Web, Twenty Server/Worker/PostgreSQL/Redis und RustFS:
 ./leonaid dev
 ```
 
+Die Mitgliederoberflächen sind anschließend unter
+`https://localhost:8443` erreichbar. Caddy erzeugt für die lokale Entwicklung
+ein internes Zertifikat; Diagnosezugriffe bleiben zusätzlich auf
+`http://localhost:8080` möglich. Ausschließlich der Proxy veröffentlicht diese
+beiden Ports am Loopback-Interface.
+
 Optionale Dienste werden explizit zugeschaltet:
 
 ```sh
@@ -57,3 +63,17 @@ Account-/Membership-Aktivierung und AuditEvents. Anschließend beweist Chromium
 bei Desktop- und Mobilbreite die serverseitig begrenzte Aktionsauswahl sowie
 die öffentliche Code-Eingabe. Geheimnisfreie Screenshots bleiben unter
 `.artifacts/poc041/`.
+
+Der gezielte Sitzungsnachweis läuft mit:
+
+```sh
+./leonaid test-sessions
+```
+
+Er startet PostgreSQL, FastAPI, Worker, Mailpit und die Oberflächen mit echtem
+HTTPS aus leeren, isolierten Volumes. Vertrag und Chromium beweisen den
+generischen passwortlosen Login, das geschützte `__Host-`-Cookie, das absolute
+90-Tage-Ende, normalen Zugriff nach abgelaufener Fresh-Frist, die erneute
+Code-Anmeldung für eine sensible Admin-Aktion, Tokenrotation, Logout und
+administrativen Sofortwiderruf. Geheimnisfreie Screenshots bleiben unter
+`.artifacts/poc042/`.

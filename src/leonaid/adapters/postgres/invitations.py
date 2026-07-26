@@ -464,6 +464,7 @@ class AsyncpgInvitationRepository:
                     occurred_at=occurred_at,
                 )
                 return InvitationAcceptance(
+                    user_id=user_id,
                     action_id=action_id,
                     action_name=str(row["action_name_snapshot"]),
                     role=ActionRole(str(row["role_snapshot"])),

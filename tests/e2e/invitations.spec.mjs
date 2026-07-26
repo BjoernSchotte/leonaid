@@ -12,13 +12,15 @@ if (!baseUrl || !artifactDirectory || !klaraSession || !systemSession) {
 async function sessionPage(browser, token) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
+    ignoreHTTPSErrors: true,
   });
   await context.addCookies([
     {
-      name: "leonaid_session",
+      name: "__Host-leonaid_session",
       value: token,
       url: baseUrl,
       httpOnly: true,
+      secure: true,
       sameSite: "Lax",
     },
   ]);
@@ -85,6 +87,7 @@ test("System-Admin erhält die global einladbaren Aktionen", async ({
 test("Öffentliche Code-Eingabe ist mobil bedienbar", async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
+    ignoreHTTPSErrors: true,
   });
   const page = await context.newPage();
   try {

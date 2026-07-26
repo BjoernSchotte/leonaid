@@ -7,6 +7,7 @@ root=$(cd "$root" && pwd)
 
 project=leonaid-poc041-test
 port=18087
+https_port=18447
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
 fixture="/repo/tests/fixtures/golden/v1"
@@ -21,6 +22,7 @@ if [ ! -f "$env_file" ]; then
 fi
 
 export LEONAID_HTTP_PORT="$port"
+export LEONAID_HTTPS_PORT="$https_port"
 
 compose() {
   docker compose \
@@ -79,7 +81,7 @@ docker run --rm \
   --network "${project}_edge" \
   --env-file "$proof/sessions.env" \
   --env CI=1 \
-  --env LEONAID_E2E_BASE_URL=http://proxy:8080 \
+  --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \

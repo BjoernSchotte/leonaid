@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 from uuid import UUID
 
@@ -22,6 +22,13 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
 )
+from leonaid.domain.sessions import UserSession
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedIdentity:
+    principal: IdentityPrincipal
+    session: UserSession
 
 
 class IdentityRepository(Protocol):
@@ -30,7 +37,7 @@ class IdentityRepository(Protocol):
         token_digest: str,
         *,
         now: datetime,
-    ) -> IdentityPrincipal | None: ...
+    ) -> AuthenticatedIdentity | None: ...
 
     async def transition_account_status(
         self,
@@ -105,6 +112,10 @@ class CurrentIdentity:
     action_memberships: tuple[IdentityMembershipView, ...]
     role_labels: tuple[str, ...]
     navigation: tuple[NavigationItem, ...]
+    session_expires_at: datetime
+    session_last_seen_at: datetime
+    fresh_login_at: datetime
+    fresh_until: datetime
 
 
 ROLE_LABELS: dict[GlobalRole | ActionRole, str] = {
@@ -192,31 +203,65 @@ class IdentityQueryService:
         self,
         repository: IdentityRepository,
         *,
+        fresh_login_window: timedelta = timedelta(minutes=15),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        if fresh_login_window <= timedelta(0):
+            raise ValueError("Das Fresh-Login-Fenster muss positiv sein.")
         self._repository = repository
+        self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
-    async def authenticate(self, session_token: str | None) -> IdentityPrincipal:
+    async def authenticate_session(
+        self,
+        session_token: str | None,
+    ) -> AuthenticatedIdentity:
         if session_token is None or not session_token.strip():
             raise AuthenticationRequired(
                 "authentication_required",
                 "Bitte melde dich an, um LeonAid zu verwenden.",
             )
         digest = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
-        principal = await self._repository.principal_for_session(
+        identity = await self._repository.principal_for_session(
             digest,
             now=self._clock(),
         )
-        if principal is None:
+        if identity is None:
             raise AuthenticationRequired(
                 "session_invalid",
                 "Deine Sitzung ist nicht mehr gültig. Bitte melde dich erneut an.",
             )
-        return principal
+        return identity
+
+    async def authenticate(self, session_token: str | None) -> IdentityPrincipal:
+        return (await self.authenticate_session(session_token)).principal
+
+    async def authenticate_fresh(
+        self,
+        session_token: str | None,
+    ) -> IdentityPrincipal:
+        return (await self.authenticate_fresh_session(session_token)).principal
+
+    async def authenticate_fresh_session(
+        self,
+        session_token: str | None,
+    ) -> AuthenticatedIdentity:
+        now = self._clock()
+        identity = await self.authenticate_session(session_token)
+        if not identity.session.fresh_at(now, self._fresh_login_window):
+            raise AuthenticationRequired(
+                "fresh_login_required",
+                "Bitte bestätige deine Anmeldung erneut, um diese Änderung auszuführen.",
+            )
+        return identity
+
+    async def fresh_until(self, session_token: str | None) -> datetime:
+        identity = await self.authenticate_fresh_session(session_token)
+        return identity.session.fresh_login_at + self._fresh_login_window
 
     async def current_identity(self, session_token: str | None) -> CurrentIdentity:
-        principal = await self.authenticate(session_token)
+        identity = await self.authenticate_session(session_token)
+        principal = identity.principal
         memberships = tuple(
             IdentityMembershipView(
                 action_id=membership.action_id,
@@ -235,6 +280,10 @@ class IdentityQueryService:
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),
             navigation=navigation_for(principal),
+            session_expires_at=identity.session.expires_at,
+            session_last_seen_at=identity.session.last_seen_at,
+            fresh_login_at=identity.session.fresh_login_at,
+            fresh_until=identity.session.fresh_login_at + self._fresh_login_window,
         )
 
 

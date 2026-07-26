@@ -36,6 +36,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "apiVersion": "v1",
         "publicBaseHost": "localhost",
         "invitationTtlMinutes": "30",
+        "loginChallengeTtlMinutes": "10",
+        "freshLoginSeconds": "900",
         "coreDatabaseHost": "core-postgres",
         "twentyHealthHost": "twenty-server",
         "rustfsHealthHost": "rustfs",

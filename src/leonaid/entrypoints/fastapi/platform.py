@@ -20,6 +20,7 @@ from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
+from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -29,6 +30,7 @@ from leonaid.application.errors import (
 from leonaid.application.identity import IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
+from leonaid.application.sessions import SessionService
 from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
@@ -87,14 +89,25 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
         application.state.identity_service = IdentityQueryService(
-            AsyncpgIdentityRepository(pool)
+            AsyncpgIdentityRepository(pool),
+            fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
+        )
+        mail_payload = SecureMailPayload(
+            settings.mail_payload_secret.get_secret_value()
         )
         application.state.invitation_service = InvitationService(
             AsyncpgInvitationRepository(pool),
-            SecureMailPayload(settings.mail_payload_secret.get_secret_value()),
+            mail_payload,
             hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
             public_base_url=str(settings.public_base_url),
             ttl=timedelta(minutes=settings.invitation_ttl_minutes),
+        )
+        application.state.session_service = SessionService(
+            AsyncpgSessionRepository(pool),
+            mail_payload,
+            hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
+            public_base_url=str(settings.public_base_url),
+            challenge_ttl=timedelta(minutes=settings.login_challenge_ttl_minutes),
         )
         try:
             yield

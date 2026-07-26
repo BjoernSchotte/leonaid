@@ -77,7 +77,7 @@ async def create_session(
 
 
 def cookies(token: str) -> dict[str, str]:
-    return {"leonaid_session": token}
+    return {"__Host-leonaid_session": token}
 
 
 async def create_invitation(

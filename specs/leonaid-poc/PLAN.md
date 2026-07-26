@@ -1,7 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
 Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-041 vollständig
+POC-023, POC-030 bis POC-031, POC-033 sowie POC-040 bis POC-042 vollständig
 bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
@@ -674,28 +674,37 @@ Tests/Nachweise:
 Nachweis:
 [POC-041 – Einladungen mit Magic Link und Code](proofs/POC-041.md).
 
-### [ ] POC-042 90-Tage-Sitzung, Widerruf und Fresh Login umsetzen
+### [x] POC-042 90-Tage-Sitzung, Widerruf und Fresh Login umsetzen
 
 Abhängigkeiten: POC-041
 
 Akzeptanzkriterien:
 
-- [ ] Serverseitige, widerrufbare Sitzung besitzt absolutes Ablaufdatum,
+- [x] Serverseitige, widerrufbare Sitzung besitzt absolutes Ablaufdatum,
       letzten Zugriff und Zeitpunkt frischer Anmeldung.
-- [ ] Browser erhält ausschließlich sichere `HttpOnly`-/`Secure`-Cookies mit
+- [x] Browser erhält ausschließlich sichere `HttpOnly`-/`Secure`-Cookies mit
       passender SameSite-Strategie.
-- [ ] Normale Akquise funktioniert innerhalb der 90-Tage-Sitzung.
-- [ ] Admin-, Rechnungsfreigabe- und andere sensible Aktionen verlangen eine
+- [x] Normale Akquise funktioniert innerhalb der 90-Tage-Sitzung.
+- [x] Admin-, Rechnungsfreigabe- und andere sensible Aktionen verlangen eine
       konfiguriert frische Anmeldung.
-- [ ] Logout und administrativer Widerruf wirken sofort.
+- [x] Logout und administrativer Widerruf wirken sofort.
 
 Tests/Nachweise:
 
-- [ ] Integrationstests verwenden reale Sitzungsdatensätze mit expliziten
+- [x] Integrationstests verwenden reale Sitzungsdatensätze mit expliziten
       Ablaufzeitpunkten.
-- [ ] E2E durchläuft Login, normalen Zugriff, Fresh-Login-Challenge und
-      erfolgreiche Rechnungsfreigabe.
-- [ ] Gestohlener alter Cookie-Wert ist nach Widerruf wirkungslos.
+- [x] E2E durchläuft Login, normalen Zugriff, Fresh-Login-Challenge und eine
+      erfolgreiche sensible Admin-Aktion.
+- [x] Gestohlener alter Cookie-Wert ist nach Widerruf wirkungslos.
+
+POC-042 stellt dafür den zentral wiederverwendbaren Fresh-Login-Guard bereit.
+Die Rechnungsfreigabe selbst gehört fachlich und technisch zu POC-090; dessen
+E2E-Nachweis muss denselben Guard vor einer echten Freigabe erneut beweisen.
+Die Umsetzung folgt
+[Kapitel 6.2](../produkt-und-architekturvorschlag.md#62-login--und-user-management-im-poc).
+
+Nachweis:
+[POC-042 – 90-Tage-Sitzung, Widerruf und Fresh Login](proofs/POC-042.md).
 
 ### [ ] POC-043 Zentralen Policy Layer und Row-Level-Regeln umsetzen
 

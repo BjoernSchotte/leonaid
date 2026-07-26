@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "consent_record",
     "generated_document",
     "invoice",
+    "login_challenge",
     "mail_delivery",
     "offering",
     "outbox_event",
@@ -52,6 +53,8 @@ ASSIGNMENT_B = "60000000-0000-4000-8000-000000000002"
 AUDIT = "d0000000-0000-4000-8000-000000000001"
 OUTBOX = "e0000000-0000-4000-8000-000000000001"
 INVITATION = "41000000-0000-4000-8000-000000000041"
+SESSION = "42000000-0000-4000-8000-000000000041"
+LOGIN_CHALLENGE = "43000000-0000-4000-8000-000000000041"
 
 
 class SchemaError(RuntimeError):
@@ -82,7 +85,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0003_invitation_credentials":
+    if revision != "0004_passwordless_sessions":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -257,6 +260,87 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             INVITATION,
         ),
         "unvollständige Einladungsannahme",
+    )
+    await connection.execute(
+        """
+        INSERT INTO user_session (
+            id,
+            user_id,
+            token_digest,
+            expires_at,
+            last_seen_at,
+            fresh_login_at,
+            device_hint,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            $1, $2, $3, CURRENT_TIMESTAMP + INTERVAL '90 days',
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'POC-042 schema proof',
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        """,
+        SESSION,
+        USER_A,
+        "c" * 64,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE user_session
+            SET fresh_login_at = created_at - INTERVAL '1 second'
+            WHERE id = $1
+            """,
+            SESSION,
+        ),
+        "Fresh Login vor Sitzungsbeginn",
+    )
+    await connection.execute(
+        """
+        INSERT INTO login_challenge (
+            id,
+            user_id,
+            purpose,
+            email_snapshot,
+            token_digest,
+            code_digest,
+            status,
+            expires_at,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            $1, $2, 'login', 'anna.akquise@leonaid.invalid',
+            $3, $4, 'pending', CURRENT_TIMESTAMP + INTERVAL '10 minutes',
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        """,
+        LOGIN_CHALLENGE,
+        USER_A,
+        "d" * 64,
+        "e" * 64,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE login_challenge
+            SET email_snapshot = 'changed@leonaid.invalid'
+            WHERE id = $1
+            """,
+            LOGIN_CHALLENGE,
+        ),
+        "veränderter Login-Snapshot",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE login_challenge
+            SET status = 'consumed'
+            WHERE id = $1
+            """,
+            LOGIN_CHALLENGE,
+        ),
+        "unvollständig konsumierte Login-Challenge",
     )
 
 

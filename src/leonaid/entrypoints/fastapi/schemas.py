@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -70,6 +71,10 @@ class CurrentIdentityResponse(TransportModel):
     action_memberships: list[IdentityMembershipResponse]
     role_labels: list[str]
     navigation: list[NavigationItemResponse]
+    session_expires_at: datetime
+    session_last_seen_at: datetime
+    fresh_login_at: datetime
+    fresh_until: datetime
 
 
 ActionRoleValue = Literal[
@@ -163,6 +168,71 @@ class InvitationAcceptanceResponse(TransportModel):
 
 class InvitationRevocationResponse(TransportModel):
     status: Literal["revoked"]
+
+
+class RequestLoginRequest(TransportModel):
+    email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalized_invitation_email(value)
+
+
+class LoginDispatchResponse(TransportModel):
+    status: Literal["queued"]
+
+
+class CompleteLoginRequest(TransportModel):
+    magic_token: str | None = Field(default=None, min_length=32, max_length=256)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    code: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalized_invitation_email(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def exactly_one_credential(self) -> CompleteLoginRequest:
+        magic = self.magic_token is not None
+        code = self.email is not None and self.code is not None
+        if magic == code or (self.email is None) != (self.code is None):
+            raise ValueError("Magic Token oder E-Mail mit Code ist erforderlich.")
+        return self
+
+
+class CompleteFreshLoginRequest(TransportModel):
+    magic_token: str | None = Field(default=None, min_length=32, max_length=256)
+    code: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
+
+    @model_validator(mode="after")
+    def exactly_one_credential(self) -> CompleteFreshLoginRequest:
+        if (self.magic_token is None) == (self.code is None):
+            raise ValueError("Magic Token oder Code ist erforderlich.")
+        return self
+
+
+class SessionAuthenticationResponse(TransportModel):
+    status: Literal["authenticated"]
+    user_id: UUID
+    display_name: str
+    expires_at: datetime
+    fresh_login_at: datetime
+
+
+class FreshLoginStatusResponse(TransportModel):
+    status: Literal["fresh"]
+    fresh_until: datetime
+
+
+class LogoutResponse(TransportModel):
+    status: Literal["signed_out"]
+
+
+class SessionRevocationResponse(TransportModel):
+    status: Literal["revoked"]
+    revoked_count: int = Field(ge=0)
 
 
 class ApiErrorDetail(TransportModel):

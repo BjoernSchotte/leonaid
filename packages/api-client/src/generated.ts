@@ -4,9 +4,12 @@
 export type AcceptInvitationRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
+export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
+export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
-export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly userId: string; };
+export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
+export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly status: "fresh"; };
 export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
 export type InvitationAcceptanceResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "accepted"; };
 export type InvitationDispatchResponse = { readonly invitationId: string; readonly status: "queued"; };
@@ -14,10 +17,15 @@ export type InvitationOptionsResponse = { readonly actions: Array<InviteableActi
 export type InvitationRevocationResponse = { readonly status: "revoked"; };
 export type InvitationRoleOptionResponse = { readonly label: string; readonly value: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type InviteableActionResponse = { readonly id: string; readonly name: string; readonly status: "draft" | "scheduled" | "active"; };
+export type LoginDispatchResponse = { readonly status: "queued"; };
+export type LogoutResponse = { readonly status: "signed_out"; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type ReadinessResponse = { readonly checks: Record<string, DependencyStatusResponse>; readonly service: string; readonly status: "ready" | "not-ready"; };
+export type RequestLoginRequest = { readonly email: string; };
+export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
+export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 
 export type FetchLike = (
   input: RequestInfo | URL,
@@ -72,6 +80,92 @@ export class LeonAidApiClient {
       throw new Error(`LeonAid API returned HTTP ${response.status}`);
     }
     return body as T;
+  }
+
+  async revokeUserSessions(
+    userId: string,
+    options: RequestOptions = {},
+  ): Promise<SessionRevocationResponse> {
+    return this.request<SessionRevocationResponse>(
+      `/api/v1/admin/users/${encodeURIComponent(String(userId))}/sessions`,
+      { method: "DELETE" },
+      options,
+    );
+  }
+
+  async requestFreshLogin(
+    options: RequestOptions = {},
+  ): Promise<LoginDispatchResponse> {
+    return this.request<LoginDispatchResponse>(
+      "/api/v1/auth/fresh",
+      { method: "POST" },
+      options,
+    );
+  }
+
+  async completeFreshLogin(
+    body: CompleteFreshLoginRequest,
+    options: RequestOptions = {},
+  ): Promise<SessionAuthenticationResponse> {
+    return this.request<SessionAuthenticationResponse>(
+      "/api/v1/auth/fresh/complete",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getFreshLoginStatus(
+    options: RequestOptions = {},
+  ): Promise<FreshLoginStatusResponse> {
+    return this.request<FreshLoginStatusResponse>(
+      "/api/v1/auth/fresh/status",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async requestLogin(
+    body: RequestLoginRequest,
+    options: RequestOptions = {},
+  ): Promise<LoginDispatchResponse> {
+    return this.request<LoginDispatchResponse>(
+      "/api/v1/auth/login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async completeLogin(
+    body: CompleteLoginRequest,
+    options: RequestOptions = {},
+  ): Promise<SessionAuthenticationResponse> {
+    return this.request<SessionAuthenticationResponse>(
+      "/api/v1/auth/login/complete",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async logout(
+    options: RequestOptions = {},
+  ): Promise<LogoutResponse> {
+    return this.request<LogoutResponse>(
+      "/api/v1/auth/logout",
+      { method: "POST" },
+      options,
+    );
   }
 
   async getCurrentIdentity(

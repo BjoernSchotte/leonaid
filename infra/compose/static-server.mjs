@@ -214,6 +214,16 @@ function applicationPage() {
         cursor: pointer;
       }
       .button:disabled { cursor: wait; opacity: .58; }
+      .button-secondary {
+        min-height: 2.45rem;
+        padding: .55rem .8rem;
+        border: 1px solid #cbd5e3;
+        border-radius: .65rem;
+        color: #31415c;
+        background: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
       .form-help, .form-status {
         color: #697890;
         font-size: .86rem;
@@ -396,7 +406,15 @@ function applicationPage() {
                 role: values.get("role"),
               }),
             });
-            if (!response.ok) throw new Error("dispatch");
+            if (!response.ok) {
+              const failure = await response.json().catch(() => ({}));
+              if (failure.error?.code === "fresh_login_required") {
+                const returnTo = encodeURIComponent(window.location.pathname);
+                window.location.assign("/fresh-login?returnTo=" + returnTo);
+                return;
+              }
+              throw new Error("dispatch");
+            }
             status.dataset.state = "success";
             status.textContent = "Einladung eingeplant. Magic Link und Code werden per E-Mail versendet.";
             form.elements.displayName.value = "";
@@ -407,6 +425,20 @@ function applicationPage() {
           } finally {
             submit.disabled = action.disabled;
           }
+        });
+      }
+
+      function setupLogout() {
+        const button = document.querySelector('[data-testid="logout"]');
+        if (!button) return;
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          await fetch("/api/v1/auth/logout", {
+            method: "POST",
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          }).catch(() => undefined);
+          window.location.assign("/login");
         });
       }
 
@@ -430,11 +462,11 @@ function applicationPage() {
             '<header class="topbar">' +
               '<div class="topbar-copy"><small>Angemeldet als</small>' +
                 '<strong data-testid="display-name">' + escapeHtml(identity.displayName) + '</strong></div>' +
-              '<div class="roles" data-testid="roles">' +
-                identity.roleLabels.map((label) =>
-                  '<span class="role">' + escapeHtml(label) + '</span>'
-                ).join("") +
-              '</div>' +
+              '<div><div class="roles" data-testid="roles">' +
+                  identity.roleLabels.map((label) =>
+                    '<span class="role">' + escapeHtml(label) + '</span>'
+                  ).join("") +
+                '</div><button class="button-secondary" data-testid="logout" type="button">Abmelden</button></div>' +
             '</header>' +
             '<div class="content">' +
               (surface === "web" && window.location.pathname.startsWith("/admin/members")
@@ -445,6 +477,7 @@ function applicationPage() {
           navMarkup(navigation, "mobile-nav") +
         '</div>';
         setupInvitationForm();
+        setupLogout();
       }
 
       function renderError(status) {
@@ -456,7 +489,7 @@ function applicationPage() {
           '<p>' + (signedOut
             ? "Deine Sitzung ist abgelaufen oder dein Zugang wurde gesperrt. Melde dich erneut an oder wende dich an einen Charity-Admin."
             : "LeonAid konnte deinen Arbeitsbereich gerade nicht laden. Versuche es bitte noch einmal.") +
-          '</p></main>';
+          '</p>' + (signedOut ? '<a class="button" href="/login">Zur Anmeldung</a>' : '') + '</main>';
       }
 
       fetch("/api/v1/identity/me", {
@@ -474,7 +507,173 @@ function applicationPage() {
 </html>`;
 }
 
+function authenticationPage(kind) {
+  const fresh = kind === "fresh";
+  const title = fresh ? "Anmeldung bestätigen" : "Bei LeonAid anmelden";
+  const introduction = fresh
+    ? "Bestätige deine Anmeldung erneut, bevor du eine sensible Änderung ausführst."
+    : "Fordere einen einmaligen Magic Link oder sechsstelligen Code für deine Login-E-Mail an.";
+  const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
+  const requestEndpoint = fresh ? "/api/v1/auth/fresh" : "/api/v1/auth/login";
+  const completeEndpoint = fresh
+    ? "/api/v1/auth/fresh/complete"
+    : "/api/v1/auth/login/complete";
+  return `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="light">
+    <title>${title} · LeonAid</title>
+    <style>
+      :root { color: #13233f; background: #f4f6fa; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+      main { width: min(100%, 31rem); padding: clamp(1.4rem, 5vw, 2.2rem); border: 1px solid #dfe5ee; border-radius: 1.1rem; background: #fff; box-shadow: 0 22px 55px rgba(19,35,63,.1); }
+      .mark { display: grid; width: 2.6rem; height: 2.6rem; place-items: center; border-radius: .8rem; color: #13233f; background: #e6bd4f; font-weight: 850; }
+      .eyebrow { margin-top: 1.5rem; color: #936f12; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      h1 { margin: .35rem 0 .6rem; font-size: clamp(1.75rem, 7vw, 2.5rem); letter-spacing: -.04em; }
+      .lead, .status, .help { color: #617089; line-height: 1.6; }
+      form { display: grid; gap: .9rem; margin-top: 1.4rem; }
+      .field { display: grid; gap: .4rem; }
+      label { font-size: .82rem; font-weight: 720; }
+      input { min-height: 2.9rem; padding: .68rem .75rem; border: 1px solid #cbd5e3; border-radius: .68rem; color: #13233f; font: inherit; }
+      input:focus { border-color: #8b6b19; outline: 3px solid rgba(230,189,79,.28); }
+      button { min-height: 2.9rem; padding: .7rem 1rem; border: 0; border-radius: .68rem; color: #13233f; background: #e6bd4f; font: inherit; font-weight: 780; cursor: pointer; }
+      button:disabled { cursor: wait; opacity: .6; }
+      .status[data-state="success"] { color: #167044; }
+      .status[data-state="error"] { color: #a33a2c; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">L</div>
+      <p class="eyebrow">Sicherer Zugang</p>
+      <h1>${title}</h1>
+      <p class="lead" id="auth-intro">${introduction}</p>
+      <form id="request-login-form">
+        ${
+          fresh
+            ? ""
+            : '<div class="field"><label for="login-email">Login-E-Mail</label><input id="login-email" name="email" type="email" autocomplete="email" required></div>'
+        }
+        <button data-testid="request-login" type="submit">${requestLabel}</button>
+        <p class="help">Aus Sicherheitsgründen ist die Antwort immer gleich – auch wenn die Adresse nicht registriert ist.</p>
+      </form>
+      <form id="complete-login-form" hidden>
+        ${
+          fresh
+            ? ""
+            : '<div class="field code-email"><label for="complete-email">Login-E-Mail</label><input id="complete-email" name="email" type="email" autocomplete="email" required></div>'
+        }
+        <div class="field code-field"><label for="login-code">Sechsstelliger Code</label><input id="login-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+        <button data-testid="complete-login" type="submit">${fresh ? "Anmeldung bestätigen" : "Anmelden"}</button>
+      </form>
+      <p id="auth-status" class="status" role="status" aria-live="polite"></p>
+    </main>
+    <script>
+      const fresh = ${JSON.stringify(fresh)};
+      const requestEndpoint = ${JSON.stringify(requestEndpoint)};
+      const completeEndpoint = ${JSON.stringify(completeEndpoint)};
+      const requestForm = document.querySelector("#request-login-form");
+      const completeForm = document.querySelector("#complete-login-form");
+      const status = document.querySelector("#auth-status");
+      const parameters = new URLSearchParams(window.location.search);
+      const token = parameters.get("token");
+      const requestedReturnTo = parameters.get("returnTo") ?? (fresh ? "/admin/" : "/app/");
+      const returnTo = requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : (fresh ? "/admin/" : "/app/");
+
+      function showCode(email) {
+        requestForm.hidden = true;
+        completeForm.hidden = false;
+        if (!fresh && email) completeForm.elements.email.value = email;
+        completeForm.elements.code.focus();
+      }
+
+      if (token) {
+        requestForm.hidden = true;
+        completeForm.hidden = false;
+        document.querySelectorAll(".code-field, .code-email").forEach((field) => field.hidden = true);
+        if (completeForm.elements.code) completeForm.elements.code.required = false;
+        if (completeForm.elements.email) completeForm.elements.email.required = false;
+        document.querySelector("#auth-intro").textContent = "Der Magic Link ist bereit. Bestätige die einmalige Anmeldung.";
+        window.history.replaceState({}, "", window.location.pathname + "?returnTo=" + encodeURIComponent(returnTo));
+      }
+
+      requestForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = requestForm.querySelector("button");
+        button.disabled = true;
+        status.dataset.state = "";
+        status.textContent = "Sicherer Zugang wird vorbereitet …";
+        const email = fresh ? null : requestForm.elements.email.value;
+        try {
+          const response = await fetch(requestEndpoint, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: fresh ? undefined : JSON.stringify({ email }),
+          });
+          if (!response.ok) throw new Error("request");
+          status.dataset.state = "success";
+          status.textContent = "Wenn der Zugang berechtigt ist, wurde eine E-Mail versendet. Gib den Code hier ein.";
+          showCode(email);
+        } catch {
+          status.dataset.state = "error";
+          status.textContent = fresh
+            ? "Deine Sitzung ist nicht mehr gültig. Bitte melde dich vollständig neu an."
+            : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
+          button.disabled = false;
+        }
+      });
+
+      completeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = completeForm.querySelector("button");
+        button.disabled = true;
+        status.dataset.state = "";
+        status.textContent = "Anmeldung wird sicher bestätigt …";
+        const body = token
+          ? { magicToken: token }
+          : fresh
+            ? { code: completeForm.elements.code.value }
+            : {
+                email: completeForm.elements.email.value,
+                code: completeForm.elements.code.value,
+              };
+        try {
+          const response = await fetch(completeEndpoint, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) throw new Error("complete");
+          status.dataset.state = "success";
+          status.textContent = fresh ? "Bestätigt. Du kannst fortfahren." : "Erfolgreich angemeldet.";
+          window.location.replace(returnTo);
+        } catch {
+          status.dataset.state = "error";
+          status.textContent = "Link oder Code ist ungültig oder abgelaufen. Fordere einen neuen Zugang an.";
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>`;
+}
+
 function publicPage(requestUrl) {
+  if (requestUrl.startsWith("/fresh-login")) {
+    return authenticationPage("fresh");
+  }
+  if (requestUrl.startsWith("/login")) {
+    return authenticationPage("login");
+  }
   if (!requestUrl.startsWith("/invite")) {
     return `<!doctype html>
 <html lang="de">
@@ -553,7 +752,11 @@ function publicPage(requestUrl) {
           if (!response.ok) throw new Error("invalid");
           const accepted = await response.json();
           status.dataset.state = "success";
-          status.textContent = "Einladung für „" + accepted.actionName + "“ angenommen. Dein Zugang ist aktiviert; du kannst dieses Fenster schließen.";
+          status.textContent = "Einladung für „" + accepted.actionName + "“ angenommen. Dein Zugang ist aktiviert. ";
+          const workspaceLink = document.createElement("a");
+          workspaceLink.href = "/app/";
+          workspaceLink.textContent = "Zum Arbeitsbereich";
+          status.append(workspaceLink);
           submit.hidden = true;
           document.querySelectorAll(".field").forEach((field) => field.hidden = true);
         } catch {

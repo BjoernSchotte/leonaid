@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.application.identity import AuthenticatedIdentity
 from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
@@ -17,6 +18,7 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
 )
+from leonaid.domain.sessions import UserSession
 
 
 def account_from_record(row: asyncpg.Record) -> UserAccount:
@@ -38,7 +40,7 @@ class AsyncpgIdentityRepository:
         token_digest: str,
         *,
         now: datetime,
-    ) -> IdentityPrincipal | None:
+    ) -> AuthenticatedIdentity | None:
         async with self._pool.acquire() as connection:
             account_row = await connection.fetchrow(
                 """
@@ -47,7 +49,13 @@ class AsyncpgIdentityRepository:
                     account.email,
                     account.display_name,
                     account.status,
-                    account.email_verified_at
+                    account.email_verified_at,
+                    session.id AS session_id,
+                    session.created_at AS session_created_at,
+                    session.expires_at AS session_expires_at,
+                    session.last_seen_at AS session_last_seen_at,
+                    session.fresh_login_at AS session_fresh_login_at,
+                    session.revoked_at AS session_revoked_at
                 FROM user_session AS session
                 JOIN user_account AS account ON account.id = session.user_id
                 WHERE session.token_digest = $1
@@ -106,7 +114,7 @@ class AsyncpgIdentityRepository:
                 now,
             )
         account = account_from_record(account_row)
-        return IdentityPrincipal(
+        principal = IdentityPrincipal(
             account=account,
             global_roles=frozenset(GlobalRole(str(row["role"])) for row in role_rows),
             action_memberships=tuple(
@@ -121,6 +129,18 @@ class AsyncpgIdentityRepository:
                     delegate_user_id=row["delegate_user_id"],
                 )
                 for row in membership_rows
+            ),
+        )
+        return AuthenticatedIdentity(
+            principal=principal,
+            session=UserSession(
+                id=account_row["session_id"],
+                user_id=account.id,
+                created_at=account_row["session_created_at"],
+                expires_at=account_row["session_expires_at"],
+                last_seen_at=max(account_row["session_last_seen_at"], now),
+                fresh_login_at=account_row["session_fresh_login_at"],
+                revoked_at=account_row["session_revoked_at"],
             ),
         )
 

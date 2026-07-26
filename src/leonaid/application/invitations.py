@@ -48,6 +48,7 @@ class InvitationDispatch:
 
 @dataclass(frozen=True, slots=True)
 class InvitationAcceptance:
+    user_id: UUID
     action_id: UUID
     action_name: str
     role: ActionRole

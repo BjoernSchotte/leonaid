@@ -85,7 +85,7 @@ async def identity_response(
 ) -> httpx.Response:
     return await client.get(
         "/api/v1/identity/me",
-        cookies={"leonaid_session": token},
+        cookies={"__Host-leonaid_session": token},
         headers={"X-Request-ID": f"poc040:http:{uuid4()}"},
     )
 
@@ -198,23 +198,25 @@ async def run(arguments: argparse.Namespace) -> None:
             email_attempt = await client.patch(
                 "/api/v1/identity/me",
                 json={"email": "andere@leonaid.invalid"},
-                cookies={"leonaid_session": tokens["ANNA_OLD_SESSION"]},
+                cookies={"__Host-leonaid_session": tokens["ANNA_OLD_SESSION"]},
             )
             if email_attempt.status_code != 405:
                 raise ContractFailure(
                     "Login-E-Mail besitzt unerwartet einen Self-Service"
                 )
 
-        system = await repository.principal_for_session(
+        system_identity = await repository.principal_for_session(
             hashlib.sha256(tokens["SYSTEM_SESSION"].encode()).hexdigest(),
             now=now,
         )
-        klara = await repository.principal_for_session(
+        klara_identity = await repository.principal_for_session(
             hashlib.sha256(tokens["KLARA_SESSION"].encode()).hexdigest(),
             now=now,
         )
-        if system is None or klara is None:
+        if system_identity is None or klara_identity is None:
             raise ContractFailure("reale Admin-Principals konnten nicht geladen werden")
+        system = system_identity.principal
+        klara = klara_identity.principal
 
         try:
             await administration.add_global_role(
@@ -264,13 +266,17 @@ async def run(arguments: argparse.Namespace) -> None:
         ):
             raise ContractFailure("doppelte Aktionsrolle wurde erneut angelegt")
 
-        klara_with_roles = await repository.principal_for_session(
+        klara_identity_with_roles = await repository.principal_for_session(
             hashlib.sha256(tokens["KLARA_SESSION"].encode()).hexdigest(),
             now=now,
         )
+        if klara_identity_with_roles is None:
+            raise ContractFailure(
+                "Klaras aktualisierte Rollen konnten nicht geladen werden"
+            )
+        klara_with_roles = klara_identity_with_roles.principal
         if (
-            klara_with_roles is None
-            or klara_with_roles.global_roles != frozenset({GlobalRole.FINANCE_READER})
+            klara_with_roles.global_roles != frozenset({GlobalRole.FINANCE_READER})
             or len(klara_with_roles.action_memberships) != 3
             or klara_with_roles.roles_for(FOREIGN_ACTION_ID)
             != frozenset({ActionRole.FINANCE_READER})

@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${LEONAID_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${LEONAID_HTTPS_PORT:-8443}:8443"
     volumes:
       - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
@@ -40,8 +41,10 @@ services:
       LEONAID_API_VERSION: v1
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
-      LEONAID_PUBLIC_BASE_URL: http://localhost:${LEONAID_HTTP_PORT:-8080}
+      LEONAID_PUBLIC_BASE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
       LEONAID_INVITATION_TTL_MINUTES: "30"
+      LEONAID_LOGIN_CHALLENGE_TTL_MINUTES: ${LEONAID_LOGIN_CHALLENGE_TTL_MINUTES:-10}
+      LEONAID_FRESH_LOGIN_SECONDS: ${LEONAID_FRESH_LOGIN_SECONDS:-900}
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
       TWENTY_BASE_URL: http://twenty-server:3000
       TWENTY_ORIGIN: http://crm.localhost:${LEONAID_HTTP_PORT:-8080}
