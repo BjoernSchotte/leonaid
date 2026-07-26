@@ -328,7 +328,10 @@ async def exercise(
             """
             DELETE FROM acquisition_assignment
             WHERE id = $1
-            RETURNING *
+            RETURNING
+                id, action_id, twenty_company_id, twenty_person_id,
+                acquirer_user_id, status, priority, next_action, due_at,
+                created_at, updated_at, revision
             """,
             ANNA_ASSIGNMENT,
         )
@@ -343,10 +346,10 @@ async def exercise(
             INSERT INTO acquisition_assignment (
                 id, action_id, twenty_company_id, twenty_person_id,
                 acquirer_user_id, status, priority, next_action, due_at,
-                created_at, updated_at
+                created_at, updated_at, revision
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
             )
             """,
             *tuple(removed_assignment.values()),

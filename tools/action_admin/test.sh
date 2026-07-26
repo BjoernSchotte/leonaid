@@ -30,6 +30,8 @@ cleanup() {
     echo "action-admin-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=160 core-postgres api web proxy >&2 || true
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -79,17 +81,20 @@ docker run --rm \
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env KLARA_SESSION=poc052-10000000-0000-4000-8000-000000000002-real-server-session-token \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/action-admin.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 for screenshot in \

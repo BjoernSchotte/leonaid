@@ -211,17 +211,29 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/golden/test.sh /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/no_test_doubles_test.py /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/workflow_contract_test.py /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments \
-    tools/compose/persistence_probe.py tools/core \
+    tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions \
     tools/pwa tools/templates tools/testkit tools/twenty packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/matching \
-    tools/compose/persistence_probe.py tools/core \
+    tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions \
     tools/templates tools/testkit tools/twenty packages/testkit
@@ -229,7 +241,7 @@ check_all() {
     migrations src tools/action_admin tools/actions tools/activities \
     tools/activity_feed tools/assignments \
     tools/commitments \
-    tools/compose/persistence_probe.py tools/core tools/dx \
+    tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/matching tools/openapi tools/outbox \
     tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/testkit tools/twenty packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -239,8 +251,8 @@ check_all() {
     python tools/openapi/check_frontend.py --root /workspace
   run_bun bun run typecheck
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
-    tests/contract tests/e2e package.json .prettierrc.json
+    .github apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
+    tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
   if [ "$before" != "$after" ] || [ -n "$after" ]; then

@@ -70,7 +70,7 @@ async def run() -> None:
             == {
                 "service": "leonaid-api",
                 "release": "0.0.0",
-                "api_version": "v1",
+                "apiVersion": "v1",
             },
             "versionierte Plattformantwort weicht ab",
         )
@@ -113,10 +113,12 @@ def main() -> int:
         asyncpg.PostgresError,
         httpx.HTTPError,
     ) as error:
+        detail = f" detail={error}" if isinstance(error, SmokeError) else ""
         print(
             "poc020-smoke: ERROR: "
             f"requestId={REQUEST_ID} persona=system-admin "
-            f"aktion=platform dataset=golden-v1 type={type(error).__name__}",
+            f"aktion=platform dataset=golden-v1 type={type(error).__name__}"
+            f"{detail}",
             file=sys.stderr,
         )
         return 1

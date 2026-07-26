@@ -45,6 +45,8 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     echo "session-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -74,17 +76,20 @@ run_python tools/sessions/contract.py
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/sessions.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 mkdir -p "$artifact_directory"

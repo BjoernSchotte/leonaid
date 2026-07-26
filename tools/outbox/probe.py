@@ -435,20 +435,32 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                 OFFERING,
                 ACTION,
             )
-            for candidate_commitment in (
-                COMMITMENT,
-                UUID("80000000-0000-4000-8000-000000000099"),
+            for candidate_commitment, public_reference in (
+                (COMMITMENT, "LA-POC022-001"),
+                (
+                    UUID("80000000-0000-4000-8000-000000000099"),
+                    "LA-POC022-099",
+                ),
             ):
                 returned_commitment = await connection.fetchval(
                     """
                     INSERT INTO commitment (
                         id, action_id, twenty_company_id, source, status,
                         customer_snapshot, currency, total_minor,
+                        delivery_recipient_snapshot, public_reference,
                         idempotency_key
                     )
                     VALUES (
                         $1, $2, $3, 'public_form', 'confirmed',
-                        '{"name":"Musterwerk GmbH"}'::jsonb, 'EUR', 3600, $4
+                        '{"name":"Musterwerk GmbH"}'::jsonb, 'EUR', 3600,
+                        '{
+                          "recipientName":"Musterwerk GmbH",
+                          "streetLine1":"Goldenweg 1",
+                          "postalCode":"12345",
+                          "city":"Musterstadt",
+                          "countryCode":"DE"
+                        }'::jsonb,
+                        $4, $5
                     )
                     ON CONFLICT (idempotency_key) DO UPDATE
                     SET idempotency_key = EXCLUDED.idempotency_key
@@ -457,6 +469,7 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     candidate_commitment,
                     ACTION,
                     COMPANY,
+                    public_reference,
                     "poc022:commitment:golden-v1",
                 )
                 if returned_commitment != COMMITMENT:

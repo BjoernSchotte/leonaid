@@ -13,6 +13,7 @@ env_file="$root/.env.local"
 fixture="$root/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
 integration_key=""
+e2e_spec=${LEONAID_TESTKIT_E2E_SPEC:-testkit.spec.mjs}
 
 compose() {
   LEONAID_HTTP_PORT="$http_port" \
@@ -33,6 +34,8 @@ cleanup() {
     compose logs --no-color --tail=180 \
       api worker core-postgres rustfs mailpit \
       twenty-server twenty-worker pwa proxy >&2 || true
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -51,6 +54,7 @@ compose up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 
 compose run --rm --no-deps \
+  --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
   --env PYTHONPATH=/repo:/workspace/src \
   --volume "$root:/repo:ro" \
@@ -95,6 +99,7 @@ compose --profile dev-mail run --rm --no-deps \
 compose up --detach --wait --wait-timeout 420 worker
 
 compose run --rm --no-deps \
+  --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
   --env-from-file "$proof/integration.env" \
   --env LEONAID_API_BASE_URL=http://api:8000 \
@@ -115,18 +120,21 @@ compose up --detach --wait --wait-timeout 420 public pwa web proxy
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --env ANNA_SESSION="$ANNA_SESSION" \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   --config=tests/e2e/pwa.config.mjs \
-  testkit.spec.mjs \
+  "$e2e_spec" \
   --project=chromium-1440 \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 compose run --rm --no-deps \

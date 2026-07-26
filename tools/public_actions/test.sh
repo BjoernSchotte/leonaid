@@ -30,6 +30,8 @@ cleanup() {
     echo "public-actions-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 core-postgres api public proxy >&2 || true
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -70,31 +72,37 @@ compose run --rm --no-deps \
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   --config=tests/e2e/public.config.mjs \
   public-actions.spec.mjs \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/public-audit.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results-audit \
+  --trace=retain-on-failure \
   --reporter=line
 
 for screenshot in \

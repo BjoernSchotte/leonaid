@@ -32,6 +32,8 @@ cleanup() {
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
       api core-postgres twenty-server twenty-worker public proxy >&2 || true
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -107,17 +109,20 @@ compose up --detach --wait --wait-timeout 420 public proxy
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   --config=tests/e2e/public.config.mjs \
   public-orders.spec.mjs \
   --project=chromium \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 compose run --rm --no-deps \

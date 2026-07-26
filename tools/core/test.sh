@@ -3,8 +3,9 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-project=leonaid-poc020-test
-port=18083
+project=${LEONAID_CORE_TEST_PROJECT:-leonaid-poc020-test}
+port=${LEONAID_CORE_TEST_PORT:-18083}
+https_port=${LEONAID_CORE_TEST_HTTPS_PORT:-18444}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 
@@ -14,7 +15,9 @@ if [ ! -f "$env_file" ]; then
 fi
 
 compose() {
-  LEONAID_HTTP_PORT="$port" docker compose \
+  LEONAID_HTTP_PORT="$port" \
+    LEONAID_HTTPS_PORT="$https_port" \
+    docker compose \
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \

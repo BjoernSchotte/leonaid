@@ -43,6 +43,8 @@ cleanup() {
   if [ "$status" -ne 0 ]; then
     echo "identity-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -78,17 +80,20 @@ fi
 docker run --rm \
   --network "${project}_edge" \
   --env-file "$proof/sessions.env" \
+  --env HOME=/tmp \
   --env CI=1 \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 for screenshot in charity-admin-desktop.png acquirer-mobile.png; do

@@ -30,6 +30,8 @@ cleanup() {
     echo "action-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 core-postgres api web proxy >&2 || true
+    /bin/sh "$root/tools/ci/capture-failure.sh" \
+      "$root" "$proof" "$project" || true
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$proof"
@@ -66,17 +68,20 @@ run_python tools/actions/contract.py \
 docker run --rm \
   --network "${project}_edge" \
   --env-file "$proof/sessions.env" \
+  --env HOME=/tmp \
   --env CI=1 \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
   --workdir /workspace \
+  --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/actions.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
+  --trace=retain-on-failure \
   --reporter=line
 
 if [ ! -s "$proof/action-created.png" ]; then
