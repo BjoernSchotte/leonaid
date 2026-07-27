@@ -17,6 +17,7 @@ from leonaid.application.crm import (
 )
 from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.policies import concealed_resource
+from leonaid.application.privacy import PrivacyService
 from leonaid.application.sponsor_matching import AssignedAcquirer
 from leonaid.domain.acquisition import (
     AcquisitionAssignment,
@@ -28,6 +29,11 @@ from leonaid.domain.acquisition import (
     reminder_urgency,
 )
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
+from leonaid.domain.privacy import (
+    ContactChannel,
+    PrivacyPurpose,
+    normalize_recipient,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +73,7 @@ class AcquisitionWorkItem:
     contact_name: str | None
     email: str | None
     phone: str | None
+    suppressed_channels: tuple[ContactChannel, ...]
     assigned_acquirers: tuple[AssignedAcquirer, ...]
     urgency: ReminderUrgency
 
@@ -158,11 +165,13 @@ class AcquisitionActivityService:
         self,
         repository: AcquisitionActivityRepository,
         crm: CrmGateway,
+        privacy: PrivacyService,
         *,
         local_timezone: ZoneInfo | None = None,
     ) -> None:
         self._repository = repository
         self._crm = crm
+        self._privacy = privacy
         self._local_timezone = local_timezone or ZoneInfo("Europe/Berlin")
 
     async def board(
@@ -216,6 +225,21 @@ class AcquisitionActivityService:
             party_keys,
             evaluated_at=generated_at,
         )
+        suppressed = await self._privacy.suppressed_channels(
+            tuple(
+                (
+                    value,
+                    channel,
+                )
+                for details in party_details.values()
+                for value, channel in (
+                    (details.email, ContactChannel.EMAIL),
+                    (details.phone, ContactChannel.PHONE),
+                )
+                if value is not None
+            ),
+            purpose=PrivacyPurpose.ACQUISITION,
+        )
         work_items = tuple(
             sorted(
                 (
@@ -239,6 +263,35 @@ class AcquisitionActivityService:
                         phone=party_details[
                             (assignment.party_kind, assignment.party_id)
                         ].phone,
+                        suppressed_channels=tuple(
+                            channel
+                            for value, channel in (
+                                (
+                                    party_details[
+                                        (
+                                            assignment.party_kind,
+                                            assignment.party_id,
+                                        )
+                                    ].email,
+                                    ContactChannel.EMAIL,
+                                ),
+                                (
+                                    party_details[
+                                        (
+                                            assignment.party_kind,
+                                            assignment.party_id,
+                                        )
+                                    ].phone,
+                                    ContactChannel.PHONE,
+                                ),
+                            )
+                            if value is not None
+                            and (
+                                normalize_recipient(value, channel),
+                                channel,
+                            )
+                            in suppressed
+                        ),
                         assigned_acquirers=assigned_acquirers.get(
                             (assignment.party_kind, assignment.party_id),
                             (),
@@ -301,6 +354,31 @@ class AcquisitionActivityService:
                 "assignment_revision_conflict",
                 "Die Zuordnung wurde zwischenzeitlich geändert. Bitte lade sie neu.",
             )
+        if channel in (ActivityChannel.EMAIL, ActivityChannel.PHONE):
+            details = await self._party_details(
+                {(party_kind, party_id)},
+                correlation_prefix=f"{request_id}:suppression-party",
+            )
+            contact_channel = (
+                ContactChannel.EMAIL
+                if channel is ActivityChannel.EMAIL
+                else ContactChannel.PHONE
+            )
+            contact_value = (
+                details[(party_kind, party_id)].email
+                if contact_channel is ContactChannel.EMAIL
+                else details[(party_kind, party_id)].phone
+            )
+            if contact_value is not None:
+                suppressed = await self._privacy.suppressed_channels(
+                    ((contact_value, contact_channel),),
+                    purpose=PrivacyPurpose.ACQUISITION,
+                )
+                if suppressed:
+                    raise Conflict(
+                        "contact_suppressed",
+                        "Dieser Kontakt ist für diesen Kommunikationskanal gesperrt.",
+                    )
         due_at = (
             datetime.combine(
                 due_on,

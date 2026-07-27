@@ -5,6 +5,7 @@ import "./commitments/commitments.css";
 import "./dashboard/dashboard.css";
 import "./invoices/invoices.css";
 import "./system-admin/feature-flags.css";
+import "./system-admin/privacy.css";
 import "./ui-system/ui-system.css";
 
 export * from "./acquisition/activity-workspace";
@@ -21,4 +22,5 @@ export * from "./dashboard/dashboard";
 export * from "./invoices/invoice-admin";
 export * from "./feature-flags/openfeature-provider";
 export * from "./system-admin/feature-flag-admin";
+export * from "./system-admin/privacy-admin";
 export * from "./ui-system/ui-system-catalog";

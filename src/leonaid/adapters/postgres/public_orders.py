@@ -423,6 +423,35 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             commitment=commitment,
             occurred_at=occurred_at,
         )
+        consent_person_id = party.contact_twenty_id or party.buyer.person_id
+        consent_company_id = (
+            party.buyer.company_id if consent_person_id is None else None
+        )
+        await connection.execute(
+            """
+            INSERT INTO consent_record (
+                id, action_id, commitment_id,
+                twenty_company_id, twenty_person_id,
+                normalized_recipient, purpose, channel,
+                text_version, source, evidence_kind, legal_basis_status,
+                granted_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6,
+                'public_order_fulfilment', 'email',
+                $7, 'public_order_form',
+                'notice_acknowledgement', 'legal_review_pending', $8
+            )
+            """,
+            uuid4(),
+            action_id,
+            commitment.id,
+            consent_company_id,
+            consent_person_id,
+            draft.party.email,
+            draft.privacy_notice_version,
+            occurred_at,
+        )
         recipient_ids = await self._activity_recipients(
             connection,
             action_id=action_id,

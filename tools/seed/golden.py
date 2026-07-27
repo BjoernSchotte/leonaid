@@ -924,6 +924,11 @@ async def seed_operational_golden(
         scoped_invoice_ids,
     )
     scoped_delivery_outbox_ids = [row["outbox_event_id"] for row in delivery_outbox_ids]
+    privacy_emails = [str(item["email"]) for item in dataset["privacyRecords"]]
+    privacy_hashes = [
+        hashlib.sha256(f"leonaid-privacy-subject:v1:{email}".encode()).hexdigest()
+        for email in privacy_emails
+    ]
 
     await connection.execute(
         "DELETE FROM mail_delivery WHERE outbox_event_id = ANY($1::uuid[])",
@@ -964,6 +969,18 @@ async def seed_operational_golden(
     await connection.execute(
         "DELETE FROM acquisition_activity WHERE id = ANY($1::uuid[])",
         activity_ids,
+    )
+    await connection.execute(
+        "DELETE FROM suppression_entry WHERE normalized_recipient = ANY($1::text[])",
+        privacy_emails,
+    )
+    await connection.execute(
+        "DELETE FROM privacy_erasure_case WHERE subject_hash = ANY($1::text[])",
+        privacy_hashes,
+    )
+    await connection.execute(
+        "DELETE FROM consent_record WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
     )
     await connection.execute(
         "DELETE FROM commitment WHERE id = ANY($1::uuid[])",
@@ -1243,6 +1260,35 @@ async def seed_operational_golden(
                 offer["unitPriceCents"],
                 int(line["quantity"]) * int(offer["unitPriceCents"]),
             )
+
+    for record in dataset["privacyRecords"]:
+        await connection.execute(
+            """
+            INSERT INTO consent_record (
+                id, action_id, commitment_id,
+                twenty_company_id, twenty_person_id,
+                normalized_recipient, purpose, channel,
+                text_version, source, evidence_kind, legal_basis_status,
+                granted_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8,
+                $9, $10, $11, 'legal_review_pending', $12
+            )
+            """,
+            record["id"],
+            record["actionId"],
+            record["commitmentId"],
+            record["companyId"],
+            record["personId"],
+            str(record["email"]).casefold(),
+            str(record["purpose"]).casefold(),
+            record["channel"],
+            record["textVersion"],
+            record["source"],
+            str(record["evidenceKind"]).casefold(),
+            datetime.fromisoformat(str(record["recordedAt"])),
+        )
 
     activity_origin = datetime(2026, 6, 1, 12, tzinfo=timezone.utc)
     for index, activity in enumerate(dataset["activities"]):

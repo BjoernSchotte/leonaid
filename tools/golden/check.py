@@ -139,9 +139,46 @@ def main() -> int:
     offers = collections["offers"]
     commitments = collections["commitments"]
     invoices = collections["invoices"]
+    privacy_records = collections["privacyRecords"]
     activities = collections["activities"]
     matches = collections["matchScenarios"]
     routes = collections["publicRoutes"]
+
+    for record in privacy_records.values():
+        problems.require(
+            record.get("actionId") in actions,
+            f"privacyRecords: unknown action for {record['id']}",
+        )
+        problems.require(
+            record.get("commitmentId") in commitments,
+            f"privacyRecords: unknown commitment for {record['id']}",
+        )
+        company_id = record.get("companyId")
+        person_id = record.get("personId")
+        problems.require(
+            (company_id is None) != (person_id is None),
+            f"privacyRecords: exactly one party required for {record['id']}",
+        )
+        problems.require(
+            company_id is None or company_id in companies,
+            f"privacyRecords: unknown company for {record['id']}",
+        )
+        problems.require(
+            person_id is None or person_id in persons,
+            f"privacyRecords: unknown person for {record['id']}",
+        )
+        problems.require(
+            record.get("purpose") in enums.get("privacyPurpose", []),
+            f"privacyRecords: unknown purpose for {record['id']}",
+        )
+        problems.require(
+            record.get("evidenceKind") in enums.get("privacyEvidenceKind", []),
+            f"privacyRecords: unknown evidence kind for {record['id']}",
+        )
+        problems.require(
+            str(record.get("email", "")).endswith(".leonaid.invalid"),
+            f"privacyRecords: non-reserved email for {record['id']}",
+        )
 
     feature_flag_states: dict[str, bool] = {}
     for flag in feature_flags.values():

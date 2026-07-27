@@ -6,7 +6,7 @@ export type AcquirerDashboardResponse = { readonly activityCount: number; readon
 export type AcquisitionActivityBoardResponse = { readonly actionId: string; readonly activities: Array<RecordedAcquisitionActivityResponse>; readonly generatedAt: string; readonly workItems: Array<AcquisitionActivityWorkItemResponse>; };
 export type AcquisitionActivityListResponse = { readonly items: Array<AcquisitionActivityResponse>; readonly limit: number; readonly offset: number; readonly total: number; };
 export type AcquisitionActivityResponse = { readonly actionId: string; readonly actorUserId: string | null; readonly channel: string; readonly id: string; readonly note: string | null; readonly occurredAt: string; readonly outcome: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
-export type AcquisitionActivityWorkItemResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly assignmentId: string; readonly city: string | null; readonly contactName: string | null; readonly dueAt: string | null; readonly email: string | null; readonly nextAction: string | null; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly phone: string | null; readonly postalCode: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined" | "handed_over"; readonly urgency: "overdue" | "today" | "upcoming" | "none"; };
+export type AcquisitionActivityWorkItemResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly assignmentId: string; readonly city: string | null; readonly contactName: string | null; readonly dueAt: string | null; readonly email: string | null; readonly nextAction: string | null; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly phone: string | null; readonly postalCode: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined" | "handed_over"; readonly suppressedChannels: Array<"email" | "phone" | "postal">; readonly urgency: "overdue" | "today" | "upcoming" | "none"; };
 export type AcquisitionAssignmentDetailsResponse = { readonly assignment: AcquisitionAssignmentResponse; readonly history: Array<AcquisitionAssignmentHistoryResponse>; };
 export type AcquisitionAssignmentHandoverResponse = { readonly source: AcquisitionAssignmentResponse; readonly target: AcquisitionAssignmentResponse; readonly targetCreated: boolean; };
 export type AcquisitionAssignmentHistoryResponse = { readonly assignmentId: string; readonly changedAt: string; readonly changedByDisplayName: string; readonly changedByUserId: string; readonly id: string; readonly newState: Record<string, unknown>; readonly previousState: Record<string, unknown>; };
@@ -102,6 +102,13 @@ export type NavigationItemResponse = { readonly href: string; readonly key: stri
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
+export type PrivacyConsentResponse = { readonly actionId: string | null; readonly channel: "email" | "phone" | "postal"; readonly commitmentId: string | null; readonly evidenceKind: "notice_acknowledgement" | "explicit_consent"; readonly grantedAt: string; readonly id: string; readonly legalBasisStatus: "legal_review_pending" | "confirmed"; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly revokedAt: string | null; readonly source: string; readonly textVersion: string; };
+export type PrivacyErasureRequest = { readonly confirmation: string; readonly email: string; };
+export type PrivacyErasureResponse = { readonly anonymizedCommitments: number; readonly caseId: string; readonly clearedActivityNotes: number; readonly clearedReminders: number; readonly completedAt: string; readonly openDecisions: Array<string>; readonly retainedDocumentIds: Array<string>; readonly retainedInvoiceIds: Array<string>; readonly retentionReasons: Array<string>; readonly revokedConsents: number; readonly status: "completed_with_retention"; readonly subjectHash: string; };
+export type PrivacyReferenceResponse = { readonly actionId: string | null; readonly id: string; readonly label: string; readonly referenceType: "commitment" | "invoice" | "document" | "assignment" | "activity"; readonly status: string | null; };
+export type PrivacySubjectReportResponse = { readonly consents: Array<PrivacyConsentResponse>; readonly crmDeletionStatus: "pending_manual_review"; readonly found: boolean; readonly generatedAt: string; readonly openLegalDecisions: Array<string>; readonly references: Array<PrivacyReferenceResponse>; readonly subjectEmail: string; readonly suppressions: Array<PrivacySuppressionResponse>; };
+export type PrivacySubjectRequest = { readonly email: string; };
+export type PrivacySuppressionResponse = { readonly channel: "email" | "phone" | "postal"; readonly id: string; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly reason: string; readonly suppressedAt: string; };
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly purpose: string; readonly startsOn: string; };
 export type PublicOfferingResponse = { readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
@@ -118,6 +125,7 @@ export type RecordInvoicePaymentRequest = { readonly amountMinor: number; readon
 export type RecordedAcquisitionActivityResponse = { readonly actionId: string; readonly actorDisplayName: string; readonly actorUserId: string; readonly assignmentId: string; readonly assignmentRevision: number; readonly channel: "phone" | "email" | "in_person"; readonly dueAt: string | null; readonly id: string; readonly nextAction: string | null; readonly note: string | null; readonly occurredAt: string; readonly outcome: "reached" | "no_answer" | "interested" | "follow_up" | "committed" | "declined"; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type RequestLoginRequest = { readonly email: string; };
 export type ResolveSponsorMatchRequest = { readonly commandId: string; readonly confirmExistingAssignments?: boolean; readonly expectedStatus: "no_match" | "single_match" | "ambiguous_match"; readonly selectedTwentyId?: string | null; readonly sponsor: SponsorDraftRequest; };
+export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly revision: number; };
@@ -939,6 +947,67 @@ export class LeonAidApiClient {
       `/api/v1/admin/feature-flags/${encodeURIComponent(String(key))}`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async revokePrivacyConsent(
+    consentId: string,
+    body: RevokePrivacyConsentRequest,
+    options: RequestOptions = {},
+  ): Promise<PrivacyConsentResponse> {
+    return this.request<PrivacyConsentResponse>(
+      `/api/v1/admin/privacy/consents/${encodeURIComponent(String(consentId))}/revoke`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async erasePrivacySubject(
+    body: PrivacyErasureRequest,
+    options: RequestOptions = {},
+  ): Promise<PrivacyErasureResponse> {
+    return this.request<PrivacyErasureResponse>(
+      "/api/v1/admin/privacy/erasures",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async exportPrivacySubject(
+    body: PrivacySubjectRequest,
+    options: RequestOptions = {},
+  ): Promise<PrivacySubjectReportResponse> {
+    return this.request<PrivacySubjectReportResponse>(
+      "/api/v1/admin/privacy/exports",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async lookupPrivacySubject(
+    body: PrivacySubjectRequest,
+    options: RequestOptions = {},
+  ): Promise<PrivacySubjectReportResponse> {
+    return this.request<PrivacySubjectReportResponse>(
+      "/api/v1/admin/privacy/lookup",
+      {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

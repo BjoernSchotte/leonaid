@@ -74,6 +74,7 @@ from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.policies import require_system_admin
+from leonaid.application.privacy import OPEN_LEGAL_DECISIONS, PrivacyService
 from leonaid.application.public_orders import (
     PublicOrderDraft,
     PublicOrderPartyDraft,
@@ -127,6 +128,7 @@ from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     PaymentRecord,
 )
+from leonaid.domain.privacy import ConsentRecord, PrivacySubjectReport
 from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
@@ -225,6 +227,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     PaginationQuery,
     PlatformInformationResponse,
     PlatformStatusResponse,
+    PrivacyConsentResponse,
+    PrivacyErasureRequest,
+    PrivacyErasureResponse,
+    PrivacyReferenceResponse,
+    PrivacySubjectReportResponse,
+    PrivacySubjectRequest,
+    PrivacySuppressionResponse,
     PublicActionRouteResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
@@ -248,6 +257,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetActionPublicationRequest,
     SetResponsibleAdministratorsRequest,
     ResolveSponsorMatchRequest,
+    RevokePrivacyConsentRequest,
     SponsorDraftRequest,
     SponsorMatchResponse,
     SponsorResolutionResponse,
@@ -370,6 +380,10 @@ def invoice_settlement_service(request: Request) -> InvoiceSettlementService:
 
 def feature_flag_service(request: Request) -> FeatureFlagService:
     return cast(FeatureFlagService, request.app.state.feature_flag_service)
+
+
+def privacy_service(request: Request) -> PrivacyService:
+    return cast(PrivacyService, request.app.state.privacy_service)
 
 
 def document_service(request: Request) -> GeneratedDocumentService:
@@ -523,6 +537,7 @@ def acquisition_activity_work_item_response(
         contact_name=item.contact_name,
         email=item.email,
         phone=item.phone,
+        suppressed_channels=[channel.value for channel in item.suppressed_channels],
         assigned_acquirers=[
             AssignedAcquirerResponse(
                 user_id=assignee.user_id,
@@ -536,6 +551,55 @@ def acquisition_activity_work_item_response(
         due_at=item.assignment.state.due_at,
         urgency=item.urgency.value,
         revision=item.assignment.revision,
+    )
+
+
+def privacy_consent_response(item: ConsentRecord) -> PrivacyConsentResponse:
+    return PrivacyConsentResponse(
+        id=item.id,
+        action_id=item.action_id,
+        commitment_id=item.commitment_id,
+        purpose=item.purpose.value,
+        channel=item.channel.value,
+        text_version=item.text_version,
+        source=item.source,
+        evidence_kind=item.evidence_kind.value,
+        legal_basis_status=item.legal_basis_status.value,
+        granted_at=item.granted_at,
+        revoked_at=item.revoked_at,
+    )
+
+
+def privacy_report_response(
+    report: PrivacySubjectReport,
+) -> PrivacySubjectReportResponse:
+    references = (
+        *report.commitments,
+        *report.invoices,
+        *report.documents,
+        *report.assignments,
+        *report.activities,
+    )
+    return PrivacySubjectReportResponse(
+        found=report.found,
+        subject_email=report.normalized_recipient,
+        crm_deletion_status="pending_manual_review",
+        consents=[privacy_consent_response(item) for item in report.consents],
+        suppressions=[
+            PrivacySuppressionResponse(
+                id=item.id,
+                channel=item.channel.value,
+                purpose=item.purpose.value,
+                reason=item.reason,
+                suppressed_at=item.suppressed_at,
+            )
+            for item in report.suppressions
+        ],
+        references=[
+            PrivacyReferenceResponse.model_validate(item) for item in references
+        ],
+        open_legal_decisions=list(OPEN_LEGAL_DECISIONS),
+        generated_at=datetime.now(timezone.utc),
     )
 
 
@@ -1669,6 +1733,105 @@ async def feature_flag_system_status(
         evaluated_by="openfeature",
         provider="leonaid-postgres-snapshot",
         checked_at=datetime.now(timezone.utc),
+    )
+
+
+@router.post(
+    "/api/v1/admin/privacy/lookup",
+    operation_id="lookupPrivacySubject",
+    response_model=PrivacySubjectReportResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["privacy"],
+)
+async def lookup_privacy_subject(
+    body: PrivacySubjectRequest,
+    request: Request,
+    response: Response,
+) -> PrivacySubjectReportResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    report = await privacy_service(request).lookup(actor, email=body.email)
+    response.headers["Cache-Control"] = "no-store"
+    return privacy_report_response(report)
+
+
+@router.post(
+    "/api/v1/admin/privacy/exports",
+    operation_id="exportPrivacySubject",
+    response_model=PrivacySubjectReportResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["privacy"],
+)
+async def export_privacy_subject(
+    body: PrivacySubjectRequest,
+    request: Request,
+    response: Response,
+) -> PrivacySubjectReportResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    report = await privacy_service(request).export(actor, email=body.email)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Disposition"] = (
+        'attachment; filename="leonaid-datenauskunft.json"'
+    )
+    return privacy_report_response(report)
+
+
+@router.post(
+    "/api/v1/admin/privacy/consents/{consent_id}/revoke",
+    operation_id="revokePrivacyConsent",
+    response_model=PrivacyConsentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["privacy"],
+)
+async def revoke_privacy_consent(
+    consent_id: UUID,
+    body: RevokePrivacyConsentRequest,
+    request: Request,
+    response: Response,
+) -> PrivacyConsentResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    item = await privacy_service(request).revoke(
+        actor,
+        consent_id=consent_id,
+        reason=body.reason,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return privacy_consent_response(item)
+
+
+@router.post(
+    "/api/v1/admin/privacy/erasures",
+    operation_id="erasePrivacySubject",
+    response_model=PrivacyErasureResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["privacy"],
+)
+async def erase_privacy_subject(
+    body: PrivacyErasureRequest,
+    request: Request,
+    response: Response,
+) -> PrivacyErasureResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await privacy_service(request).erase(
+        actor,
+        email=body.email,
+        confirmation=body.confirmation,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return PrivacyErasureResponse(
+        case_id=result.case_id,
+        subject_hash=result.subject_hash,
+        status=result.status.value,
+        anonymized_commitments=result.anonymized_commitments,
+        cleared_activity_notes=result.cleared_activity_notes,
+        cleared_reminders=result.cleared_reminders,
+        revoked_consents=result.revoked_consents,
+        retained_invoice_ids=list(result.retained_invoice_ids),
+        retained_document_ids=list(result.retained_document_ids),
+        retention_reasons=list(result.retention_reasons),
+        open_decisions=list(result.open_decisions),
+        completed_at=result.completed_at,
     )
 
 

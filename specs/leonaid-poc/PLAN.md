@@ -1365,27 +1365,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-110 – Security Baseline und sichere Defaults](proofs/POC-110.md).
 
-### [ ] POC-111 Datenschutz-, Consent-, Suppression- und Löschgrundlagen bauen
+### [x] POC-111 Datenschutz-, Consent-, Suppression- und Löschgrundlagen bauen
 
 Abhängigkeiten: POC-021, POC-072
 
 Akzeptanzkriterien:
 
-- [ ] Public Form speichert Textversion, Zweck, Quelle und Zeitpunkt
+- [x] Public Form speichert Textversion, Zweck, Quelle und Zeitpunkt
       erforderlicher Consent-Nachweise.
-- [ ] Kontaktsperre verhindert unzulässige weitere Kontaktaufnahme.
-- [ ] Export-/Auskunftspfad bündelt relevante LeonAid-Referenzen.
-- [ ] Lösch-/Anonymisierungsprozess respektiert Rechnungsaufbewahrung und
+- [x] Kontaktsperre verhindert unzulässige weitere Kontaktaufnahme.
+- [x] Export-/Auskunftspfad bündelt relevante LeonAid-Referenzen.
+- [x] Lösch-/Anonymisierungsprozess respektiert Rechnungsaufbewahrung und
       dokumentiert verbleibende Rechtsgrundlage.
-- [ ] Offene rechtliche Entscheidungen sind sichtbar und nicht durch Code
+- [x] Offene rechtliche Entscheidungen sind sichtbar und nicht durch Code
       erfunden.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest legt Consent an, widerruft ihn und prüft Suppression.
-- [ ] Golden-Export enthält erwartete Daten und keine fremden Datensätze.
-- [ ] Löschtest bewahrt erforderlichen Rechnungssnapshot, entfernt aber
+- [x] Integrationstest legt Consent an, widerruft ihn und prüft Suppression.
+- [x] Golden-Export enthält erwartete Daten und keine fremden Datensätze.
+- [x] Löschtest bewahrt erforderlichen Rechnungssnapshot, entfernt aber
       löschbare operative Daten.
+
+Nachweis:
+[POC-111 – Datenschutz-, Consent-, Suppression- und Löschgrundlagen](proofs/POC-111.md).
 
 ### [ ] POC-112 Backup, Restore und Disaster-Recovery automatisieren
 

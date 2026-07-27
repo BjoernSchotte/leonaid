@@ -1,0 +1,298 @@
+.privacy-admin-page {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0 auto;
+  max-width: 76rem;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.privacy-admin-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.privacy-admin-header__icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  border-radius: 0.9rem;
+  color: var(--primary);
+  display: flex;
+  flex: 0 0 2.75rem;
+  height: 2.75rem;
+  justify-content: center;
+}
+
+.privacy-admin-header h1 {
+  font-size: clamp(1.85rem, 4vw, 2.75rem);
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  margin: 0.15rem 0 0.6rem;
+}
+
+.privacy-admin-header p,
+.privacy-search-card p,
+.privacy-summary p,
+.privacy-panel p,
+.privacy-danger-zone p {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.privacy-eyebrow {
+  color: var(--primary) !important;
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.privacy-search-card,
+.privacy-panel,
+.privacy-summary,
+.privacy-danger-zone {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.privacy-search-card {
+  align-items: end;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(20rem, 1.2fr);
+  padding: clamp(1.15rem, 2.5vw, 1.6rem);
+}
+
+.privacy-search-card h2,
+.privacy-summary h2,
+.privacy-panel h2,
+.privacy-danger-zone h2,
+.privacy-open-decisions h2 {
+  font-size: 1.05rem;
+  line-height: 1.3;
+  margin: 0.25rem 0 0.45rem;
+}
+
+.privacy-search-form {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.privacy-search-form .ui-button {
+  min-height: 2.75rem;
+}
+
+.privacy-summary {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem;
+}
+
+.privacy-result-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.privacy-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.privacy-panel__heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.7rem;
+}
+
+.privacy-panel__heading > svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+}
+
+.privacy-evidence-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.privacy-evidence {
+  align-items: center;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0.9rem;
+}
+
+.privacy-evidence h3 {
+  font-size: 0.92rem;
+  margin: 0 0 0.25rem;
+}
+
+.privacy-evidence p,
+.privacy-evidence small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.privacy-evidence__status {
+  align-items: flex-start;
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
+}
+
+.privacy-evidence__status span {
+  background: color-mix(in srgb, var(--muted) 10%, var(--surface));
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+  padding: 0.25rem 0.5rem;
+}
+
+.privacy-evidence__status span[data-active="true"] {
+  background: color-mix(in srgb, var(--success-text) 10%, var(--surface));
+  color: var(--success-text);
+}
+
+.privacy-suppression {
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--border));
+  border-radius: 0.8rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.privacy-suppression strong {
+  font-size: 0.83rem;
+}
+
+.privacy-suppression p {
+  font-size: 0.76rem;
+  margin-top: 0.2rem;
+}
+
+.privacy-reference-list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.privacy-reference-list li {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.2rem 0.75rem;
+  grid-template-columns: minmax(7rem, 0.6fr) minmax(0, 1fr) auto;
+  padding: 0.75rem 0;
+}
+
+.privacy-reference-list li:first-child {
+  border-top: 0;
+}
+
+.privacy-reference-list span,
+.privacy-reference-list small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.privacy-reference-list strong {
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.privacy-open-decisions {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 1rem;
+  display: flex;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+}
+
+.privacy-open-decisions > svg {
+  color: var(--warning-text);
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+}
+
+.privacy-open-decisions ul {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.82rem;
+  gap: 0.35rem;
+  line-height: 1.45;
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.privacy-danger-zone {
+  align-items: end;
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 0.8fr);
+  padding: 1.25rem;
+}
+
+.privacy-erasure-control {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 58rem) {
+  .privacy-search-card,
+  .privacy-danger-zone,
+  .privacy-result-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .privacy-search-form,
+  .privacy-erasure-control {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .privacy-search-form .ui-button,
+  .privacy-erasure-control .ui-button {
+    width: 100%;
+  }
+
+  .privacy-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .privacy-evidence {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .privacy-reference-list li {
+    grid-template-columns: 1fr;
+  }
+}

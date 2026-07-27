@@ -33,6 +33,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
             pathname === "/invoices" ||
             pathname === "/members" ||
             pathname === "/orders" ||
+            pathname === "/privacy" ||
             pathname === "/system" ||
             pathname.startsWith("/system/") ||
             pathname === "/actions" ||

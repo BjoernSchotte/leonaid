@@ -26,7 +26,7 @@
   --primary-foreground: #ffffff;
   --accent: color-mix(in oklch, white 88%, var(--lions-light-blue));
   --accent-foreground: var(--lions-blue);
-  --danger: color-mix(in oklch, var(--lions-coral) 72%, #7a1f1f);
+  --danger: #cc452d;
   --danger-foreground: #ffffff;
   --danger-text: color-mix(in oklch, var(--lions-coral) 64%, #641414);
   --success: var(--lions-green);

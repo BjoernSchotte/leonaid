@@ -29,21 +29,21 @@ run_python uv run --frozen --no-sync ruff check \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
   tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
   tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
   tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
-  tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed \
+  tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check

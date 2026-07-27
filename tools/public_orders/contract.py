@@ -349,6 +349,35 @@ async def assert_commitment(
         or json_object(audit["payload"]).get("bindingOrderConfirmed") is not True
     ):
         raise ContractFailure("Einwilligung und Formularversion sind nicht auditiert")
+    evidence = await connection.fetchrow(
+        """
+        SELECT *
+        FROM consent_record
+        WHERE commitment_id = $1
+        """,
+        commitment_id,
+    )
+    customer = json_object(row["customer_snapshot"])
+    if (
+        evidence is None
+        or evidence["action_id"] != ACTION_ID
+        or str(evidence["normalized_recipient"])
+        != str(customer.get("email", "")).casefold()
+        or str(evidence["purpose"]) != "public_order_fulfilment"
+        or str(evidence["channel"]) != "email"
+        or str(evidence["text_version"]) != PRIVACY_NOTICE_VERSION
+        or str(evidence["source"]) != "public_order_form"
+        or str(evidence["evidence_kind"]) != "notice_acknowledgement"
+        or str(evidence["legal_basis_status"]) != "legal_review_pending"
+        or evidence["granted_at"] is None
+        or (
+            (evidence["twenty_company_id"] is None)
+            == (evidence["twenty_person_id"] is None)
+        )
+    ):
+        raise ContractFailure(
+            "Datenschutzhinweis wurde nicht als versionierter Nachweis gespeichert"
+        )
     return row
 
 

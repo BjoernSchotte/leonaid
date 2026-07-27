@@ -73,6 +73,9 @@ function errorCopy(error: unknown) {
   ) {
     return "Der Sponsor wurde parallel geändert. Die aktuelle Version wurde neu geladen; bitte prüfe das Ergebnis und speichere erneut.";
   }
+  if (error instanceof ApiError && error.detail.code === "contact_suppressed") {
+    return "Dieser Kontaktweg ist für den Sponsor gesperrt. Wähle nur einen erlaubten Kontaktweg.";
+  }
   if (error instanceof ApiError && error.status === 403) {
     return "Du bist dieser Aktion nicht als Akquisiteur zugeordnet. Öffne eine eigene Aktion oder wende dich an den Charity-Admin.";
   }
@@ -288,6 +291,8 @@ export function ActivityWorkspace({
   const [nextAction, setNextAction] = useState("");
   const [dueOn, setDueOn] = useState("");
   const [success, setSuccess] = useState("");
+  const [channel, setChannel] =
+    useState<RecordAcquisitionActivityRequest["channel"]>("phone");
   const channelRef = useRef<HTMLSelectElement>(null);
 
   const board = useQuery({
@@ -329,6 +334,14 @@ export function ActivityWorkspace({
   const selected = board.data?.workItems.find(
     (item) => item.assignmentId === assignmentId,
   );
+  const selectedChannelSuppressed =
+    selected?.suppressedChannels.includes(
+      channel as "email" | "phone" | "postal",
+    ) ?? false;
+  useEffect(() => {
+    if (!selectedChannelSuppressed) return;
+    setChannel("in_person");
+  }, [selectedChannelSuppressed]);
   const reminderPairComplete =
     (nextAction.trim().length === 0 && dueOn.length === 0) ||
     (nextAction.trim().length > 0 && dueOn.length > 0);
@@ -343,13 +356,11 @@ export function ActivityWorkspace({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !reminderPairComplete) return;
+    if (!selected || !reminderPairComplete || selectedChannelSuppressed) return;
     const values = new FormData(event.currentTarget);
     record.mutate({
       body: {
-        channel: values.get(
-          "channel",
-        ) as RecordAcquisitionActivityRequest["channel"],
+        channel,
         dueOn: dueOn || null,
         nextAction: nextAction.trim() || null,
         note: note.trim() || null,
@@ -463,12 +474,41 @@ export function ActivityWorkspace({
                 aria-describedby="activity-channel-help"
                 id="activity-channel"
                 name="channel"
+                onChange={(event) =>
+                  setChannel(
+                    event.target
+                      .value as RecordAcquisitionActivityRequest["channel"],
+                  )
+                }
                 ref={channelRef}
+                value={channel}
               >
-                <option value="phone">Telefon</option>
-                <option value="email">E-Mail</option>
+                <option
+                  disabled={selected?.suppressedChannels.includes("phone")}
+                  value="phone"
+                >
+                  Telefon
+                  {selected?.suppressedChannels.includes("phone")
+                    ? " · gesperrt"
+                    : ""}
+                </option>
+                <option
+                  disabled={selected?.suppressedChannels.includes("email")}
+                  value="email"
+                >
+                  E-Mail
+                  {selected?.suppressedChannels.includes("email")
+                    ? " · gesperrt"
+                    : ""}
+                </option>
                 <option value="in_person">Persönlich</option>
               </select>
+              {selected?.suppressedChannels.length ? (
+                <p className="acq-field__warning" role="status">
+                  Gesperrte Kontaktwege sind nicht auswählbar. Persönliche
+                  Gespräche bleiben separat dokumentierbar.
+                </p>
+              ) : null}
             </div>
 
             <div className="acq-field">
@@ -550,7 +590,10 @@ export function ActivityWorkspace({
               <Button
                 data-testid="activity-submit"
                 disabled={
-                  !selected || !reminderPairComplete || record.isPending
+                  !selected ||
+                  !reminderPairComplete ||
+                  selectedChannelSuppressed ||
+                  record.isPending
                 }
                 type="submit"
               >

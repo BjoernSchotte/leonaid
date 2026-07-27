@@ -14,6 +14,7 @@
     "commitments",
     "invoiceProfiles",
     "invoices",
+    "privacyRecords",
     "activities",
     "matchScenarios",
     "publicRoutes"
@@ -77,6 +78,15 @@
       "STANDARD_VAT",
       "SMALL_BUSINESS",
       "TAX_EXEMPT"
+    ],
+    "privacyPurpose": [
+      "PUBLIC_ORDER_FULFILMENT",
+      "ACQUISITION",
+      "MARKETING"
+    ],
+    "privacyEvidenceKind": [
+      "NOTICE_ACKNOWLEDGEMENT",
+      "EXPLICIT_CONSENT"
     ]
   }
 }

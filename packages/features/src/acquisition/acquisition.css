@@ -251,6 +251,13 @@
   gap: 1rem;
 }
 
+.acq-field__warning {
+  color: var(--warning-text) !important;
+  font-size: 0.78rem;
+  font-weight: 650;
+  margin-top: 0.4rem !important;
+}
+
 .acq-field__meta span {
   color: var(--muted);
   font-size: 0.72rem;

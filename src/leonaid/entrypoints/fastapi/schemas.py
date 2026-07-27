@@ -126,6 +126,81 @@ class FeatureFlagSystemStatusResponse(TransportModel):
     checked_at: datetime
 
 
+class PrivacySubjectRequest(TransportModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class PrivacyConsentResponse(TransportModel):
+    id: UUID
+    action_id: UUID | None
+    commitment_id: UUID | None
+    purpose: Literal["public_order_fulfilment", "acquisition", "marketing"]
+    channel: Literal["email", "phone", "postal"]
+    text_version: str
+    source: str
+    evidence_kind: Literal["notice_acknowledgement", "explicit_consent"]
+    legal_basis_status: Literal["legal_review_pending", "confirmed"]
+    granted_at: datetime
+    revoked_at: datetime | None
+
+
+class PrivacySuppressionResponse(TransportModel):
+    id: UUID
+    channel: Literal["email", "phone", "postal"]
+    purpose: Literal["public_order_fulfilment", "acquisition", "marketing"]
+    reason: str
+    suppressed_at: datetime
+
+
+class PrivacyReferenceResponse(TransportModel):
+    id: UUID
+    reference_type: Literal[
+        "commitment",
+        "invoice",
+        "document",
+        "assignment",
+        "activity",
+    ]
+    action_id: UUID | None
+    status: str | None
+    label: str
+
+
+class PrivacySubjectReportResponse(TransportModel):
+    found: bool
+    subject_email: str
+    crm_deletion_status: Literal["pending_manual_review"]
+    consents: list[PrivacyConsentResponse]
+    suppressions: list[PrivacySuppressionResponse]
+    references: list[PrivacyReferenceResponse]
+    open_legal_decisions: list[str]
+    generated_at: datetime
+
+
+class RevokePrivacyConsentRequest(TransportModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class PrivacyErasureRequest(TransportModel):
+    email: str = Field(min_length=3, max_length=320)
+    confirmation: str = Field(min_length=3, max_length=320)
+
+
+class PrivacyErasureResponse(TransportModel):
+    case_id: UUID
+    subject_hash: str
+    status: Literal["completed_with_retention"]
+    anonymized_commitments: int
+    cleared_activity_notes: int
+    cleared_reminders: int
+    revoked_consents: int
+    retained_invoice_ids: list[UUID]
+    retained_document_ids: list[UUID]
+    retention_reasons: list[str]
+    open_decisions: list[str]
+    completed_at: datetime
+
+
 ActionRoleValue = Literal[
     "charity_admin",
     "acquirer",
@@ -1236,6 +1311,7 @@ class AcquisitionActivityWorkItemResponse(TransportModel):
     contact_name: str | None
     email: str | None
     phone: str | None
+    suppressed_channels: list[Literal["email", "phone", "postal"]]
     assigned_acquirers: list[AssignedAcquirerResponse]
     status: AssignmentStatusValue
     priority: int = Field(ge=0, le=3)

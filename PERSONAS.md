@@ -151,6 +151,11 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 - Twenty, PostgreSQL, RustFS und Mail-Relay konfigurieren;
 - katalogisierte Feature-Flags für kontrollierte Rollouts ein- und
   ausschalten sowie deren Revision und Wirkung prüfen;
+- Datenschutz-Nachweise und Kontaktsperren zu einer exakten E-Mail-Adresse
+  prüfen, eine portable Datenauskunft erzeugen und einen kontrollierten
+  Anonymisierungsworkflow ausführen;
+- dabei unveränderliche Rechnungsbelege bewusst erhalten und die im PoC noch
+  offenen Rechts-, Fristen- und Twenty-Löschentscheidungen sichtbar lassen;
 - Updates, Healthchecks, Diagnose, Backup und Restore durchführen.
 
 **Zugriffsgrenze:** `system_admin` ist systemweit und darf deshalb nicht als
@@ -159,7 +164,8 @@ frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
 Rollout, niemals Rollen- oder Datensatzberechtigungen.
 
 **Oberfläche:** Systembereich der Web-App einschließlich geschütztem
-UI-Prüfkatalog plus versionierte Docker-/Runbook-Werkzeuge.
+Datenschutz-Arbeitsbereich und UI-Prüfkatalog plus versionierte
+Docker-/Runbook-Werkzeuge.
 
 ## Nachgelagerte oder externe Personas
 

@@ -351,6 +351,18 @@
             "title": "Status",
             "type": "string"
           },
+          "suppressedChannels": {
+            "items": {
+              "enum": [
+                "email",
+                "phone",
+                "postal"
+              ],
+              "type": "string"
+            },
+            "title": "Suppressedchannels",
+            "type": "array"
+          },
           "urgency": {
             "enum": [
               "overdue",
@@ -372,6 +384,7 @@
           "contactName",
           "email",
           "phone",
+          "suppressedChannels",
           "assignedAcquirers",
           "status",
           "priority",
@@ -4816,6 +4829,405 @@
         "title": "PlatformStatusResponse",
         "type": "object"
       },
+      "PrivacyConsentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actionid"
+          },
+          "channel": {
+            "enum": [
+              "email",
+              "phone",
+              "postal"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "commitmentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitmentid"
+          },
+          "evidenceKind": {
+            "enum": [
+              "notice_acknowledgement",
+              "explicit_consent"
+            ],
+            "title": "Evidencekind",
+            "type": "string"
+          },
+          "grantedAt": {
+            "format": "date-time",
+            "title": "Grantedat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "legalBasisStatus": {
+            "enum": [
+              "legal_review_pending",
+              "confirmed"
+            ],
+            "title": "Legalbasisstatus",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "public_order_fulfilment",
+              "acquisition",
+              "marketing"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revokedat"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "textVersion": {
+            "title": "Textversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "commitmentId",
+          "purpose",
+          "channel",
+          "textVersion",
+          "source",
+          "evidenceKind",
+          "legalBasisStatus",
+          "grantedAt",
+          "revokedAt"
+        ],
+        "title": "PrivacyConsentResponse",
+        "type": "object"
+      },
+      "PrivacyErasureRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Confirmation",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "confirmation"
+        ],
+        "title": "PrivacyErasureRequest",
+        "type": "object"
+      },
+      "PrivacyErasureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymizedCommitments": {
+            "title": "Anonymizedcommitments",
+            "type": "integer"
+          },
+          "caseId": {
+            "format": "uuid",
+            "title": "Caseid",
+            "type": "string"
+          },
+          "clearedActivityNotes": {
+            "title": "Clearedactivitynotes",
+            "type": "integer"
+          },
+          "clearedReminders": {
+            "title": "Clearedreminders",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "title": "Completedat",
+            "type": "string"
+          },
+          "openDecisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Opendecisions",
+            "type": "array"
+          },
+          "retainedDocumentIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Retaineddocumentids",
+            "type": "array"
+          },
+          "retainedInvoiceIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Retainedinvoiceids",
+            "type": "array"
+          },
+          "retentionReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Retentionreasons",
+            "type": "array"
+          },
+          "revokedConsents": {
+            "title": "Revokedconsents",
+            "type": "integer"
+          },
+          "status": {
+            "const": "completed_with_retention",
+            "title": "Status",
+            "type": "string"
+          },
+          "subjectHash": {
+            "title": "Subjecthash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseId",
+          "subjectHash",
+          "status",
+          "anonymizedCommitments",
+          "clearedActivityNotes",
+          "clearedReminders",
+          "revokedConsents",
+          "retainedInvoiceIds",
+          "retainedDocumentIds",
+          "retentionReasons",
+          "openDecisions",
+          "completedAt"
+        ],
+        "title": "PrivacyErasureResponse",
+        "type": "object"
+      },
+      "PrivacyReferenceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actionid"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "referenceType": {
+            "enum": [
+              "commitment",
+              "invoice",
+              "document",
+              "assignment",
+              "activity"
+            ],
+            "title": "Referencetype",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "id",
+          "referenceType",
+          "actionId",
+          "status",
+          "label"
+        ],
+        "title": "PrivacyReferenceResponse",
+        "type": "object"
+      },
+      "PrivacySubjectReportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "consents": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyConsentResponse"
+            },
+            "title": "Consents",
+            "type": "array"
+          },
+          "crmDeletionStatus": {
+            "const": "pending_manual_review",
+            "title": "Crmdeletionstatus",
+            "type": "string"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "openLegalDecisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Openlegaldecisions",
+            "type": "array"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyReferenceResponse"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "subjectEmail": {
+            "title": "Subjectemail",
+            "type": "string"
+          },
+          "suppressions": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacySuppressionResponse"
+            },
+            "title": "Suppressions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "found",
+          "subjectEmail",
+          "crmDeletionStatus",
+          "consents",
+          "suppressions",
+          "references",
+          "openLegalDecisions",
+          "generatedAt"
+        ],
+        "title": "PrivacySubjectReportResponse",
+        "type": "object"
+      },
+      "PrivacySubjectRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "PrivacySubjectRequest",
+        "type": "object"
+      },
+      "PrivacySuppressionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone",
+              "postal"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "public_order_fulfilment",
+              "acquisition",
+              "marketing"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "suppressedAt": {
+            "format": "date-time",
+            "title": "Suppressedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "purpose",
+          "reason",
+          "suppressedAt"
+        ],
+        "title": "PrivacySuppressionResponse",
+        "type": "object"
+      },
       "PublicActionRouteResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5694,6 +6106,22 @@
           "expectedStatus"
         ],
         "title": "ResolveSponsorMatchRequest",
+        "type": "object"
+      },
+      "RevokePrivacyConsentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RevokePrivacyConsentRequest",
         "type": "object"
       },
       "SessionAuthenticationResponse": {
@@ -11808,6 +12236,402 @@
         "summary": "Update Feature Flag",
         "tags": [
           "feature-flags"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/consents/{consent_id}/revoke": {
+      "post": {
+        "operationId": "revokePrivacyConsent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "consent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Consent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokePrivacyConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyConsentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Revoke Privacy Consent",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/erasures": {
+      "post": {
+        "operationId": "erasePrivacySubject",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyErasureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyErasureResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Erase Privacy Subject",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/exports": {
+      "post": {
+        "operationId": "exportPrivacySubject",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacySubjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySubjectReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Export Privacy Subject",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/lookup": {
+      "post": {
+        "operationId": "lookupPrivacySubject",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacySubjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySubjectReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Lookup Privacy Subject",
+        "tags": [
+          "privacy"
         ]
       }
     },

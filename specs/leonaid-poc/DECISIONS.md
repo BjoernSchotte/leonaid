@@ -28,7 +28,7 @@ unabhängige Implementierung.
 
 | ID | Offene Entscheidung | Owner | Fällig vor | Status |
 |---|---|---|---|---|
-| LEG-004 | Aufbewahrungs- und Löschfristen je Fachobjekt | Produktverantwortlicher plus Datenschutz/Recht | POC-111 | offen |
+| LEG-004 | Aufbewahrungs- und Löschfristen je Fachobjekt | Produktverantwortlicher plus Datenschutz/Recht | Produktivfreigabe | offen; POC-111 kennzeichnet Rechtsgrundlagen als `legal_review_pending` und bewahrt ausgestellte Rechnungen/PDFs unverändert |
 | LEG-005 | Produktive Trägerdaten, Steuerfall und E-Rechnungsbedarf der konkreten Installation | Rechtlicher Träger plus Steuerberatung | Produktivfreigabe | offen; der PoC verwendet nur synthetische Daten |
 | OPS-001 | Produktiver SMTP/API-Relay | Betrieb | POC-094 | offen; Mailpit ist nur Testsystem |
 

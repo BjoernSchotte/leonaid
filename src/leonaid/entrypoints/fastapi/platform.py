@@ -40,6 +40,7 @@ from leonaid.adapters.postgres.invoice_settlements import (
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
@@ -75,6 +76,7 @@ from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
+from leonaid.application.privacy import PrivacyService
 from leonaid.application.public_orders import (
     PublicOrderService,
     PublicOrderTokenCodec,
@@ -181,6 +183,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             AsyncpgFeatureFlagRepository(pool),
             feature_flag_evaluator,
         )
+        privacy_service = PrivacyService(
+            AsyncpgPrivacyRepository(
+                pool,
+                subject_hmac_secret=(
+                    settings.invitation_hmac_secret.get_secret_value()
+                ),
+            )
+        )
+        application.state.privacy_service = privacy_service
         document_repository = AsyncpgGeneratedDocumentRepository(pool)
         object_storage = S3ObjectStorage(
             endpoint_url=str(settings.object_storage_endpoint_url),
@@ -244,6 +255,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.activity_management_service = AcquisitionActivityService(
                 acquisition_repository,
                 crm_gateway,
+                privacy_service,
             )
             application.state.public_order_service = PublicOrderService(
                 AsyncpgPublicOrderRepository(pool),

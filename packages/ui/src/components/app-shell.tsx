@@ -9,6 +9,7 @@ import {
   Logout01Icon,
   Menu01Icon,
   PackageAdd01Icon,
+  SecurityLockIcon,
   Settings02Icon,
   SidebarLeftIcon,
   UserGroupIcon,
@@ -40,6 +41,7 @@ const navigationIcons = {
   invoices: Invoice03Icon,
   members: UserGroupIcon,
   orders: PackageAdd01Icon,
+  privacy: SecurityLockIcon,
   "overview-pwa": DashboardSquare01Icon,
   "overview-web": DashboardSquare01Icon,
   "acquisition-web": AddressBookIcon,
@@ -56,6 +58,7 @@ const implementedWebNavigation = new Set([
   "invoices",
   "members",
   "orders",
+  "privacy",
   "system",
 ]);
 const implementedPwaNavigation = new Set([

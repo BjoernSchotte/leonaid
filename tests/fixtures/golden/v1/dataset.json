@@ -547,6 +547,22 @@
       }
     }
   ],
+  "privacyRecords": [
+    {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "actionId": "20000000-0000-4000-8000-000000000001",
+      "commitmentId": "80000000-0000-4000-8000-000000000005",
+      "companyId": null,
+      "personId": "50000000-0000-4000-8000-000000000001",
+      "email": "mara.muster@musterwerk.leonaid.invalid",
+      "purpose": "PUBLIC_ORDER_FULFILMENT",
+      "channel": "email",
+      "textVersion": "public-order-poc-2026-07",
+      "source": "public_order_form",
+      "evidenceKind": "NOTICE_ACKNOWLEDGEMENT",
+      "recordedAt": "2026-07-02T08:04:00+00:00"
+    }
+  ],
   "activities": [
     {
       "id": "a0000000-0000-4000-8000-000000000001",
