@@ -1390,27 +1390,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-111 – Datenschutz-, Consent-, Suppression- und Löschgrundlagen](proofs/POC-111.md).
 
-### [ ] POC-112 Backup, Restore und Disaster-Recovery automatisieren
+### [x] POC-112 Backup, Restore und Disaster-Recovery automatisieren
 
 Abhängigkeiten: POC-010, POC-030, POC-092
 
 Akzeptanzkriterien:
 
-- [ ] Backup umfasst Core-PostgreSQL, Twenty-Datenbank/-Konfiguration und
+- [x] Backup umfasst Core-PostgreSQL, Twenty-Datenbank/-Konfiguration und
       RustFS-Objekte konsistent dokumentiert.
-- [ ] Backups sind verschlüsselt und liegen außerhalb desselben VPS.
-- [ ] Aufbewahrung, Rotation, Integritätsprüfung, RPO und RTO sind definiert.
-- [ ] Restore-Script verweigert unklare Zielumgebungen.
-- [ ] Runbook beschreibt vollständigen Wiederanlauf inklusive Secrets,
+- [x] Backups sind verschlüsselt und liegen außerhalb desselben VPS.
+- [x] Aufbewahrung, Rotation, Integritätsprüfung, RPO und RTO sind definiert.
+- [x] Restore-Script verweigert unklare Zielumgebungen.
+- [x] Runbook beschreibt vollständigen Wiederanlauf inklusive Secrets,
       DNS/Proxy und Verifikation.
 
 Tests/Nachweise:
 
-- [ ] Recovery-Test beginnt mit frischen Volumes und stellt Golden Data
+- [x] Recovery-Test beginnt mit frischen Volumes und stellt Golden Data
       vollständig wieder her.
-- [ ] Jede Rechnung stimmt nach Restore mit gespeicherter SHA-256 überein.
-- [ ] LeonAid-/Twenty-Referenzen, Sessions, Audit und Outbox sind konsistent.
-- [ ] Gemessenes RPO/RTO wird protokolliert und erfüllt das festgelegte Ziel.
+- [x] Jede Rechnung stimmt nach Restore mit gespeicherter SHA-256 überein.
+- [x] LeonAid-/Twenty-Referenzen, Sessions, Audit und Outbox sind konsistent.
+- [x] Gemessenes RPO/RTO wird protokolliert und erfüllt das festgelegte Ziel.
+
+Nachweis:
+[POC-112 – Backup, Restore und Disaster Recovery](proofs/POC-112.md).
 
 ### [ ] POC-113 Upgrade- und Rollback-Prozess beweisen
 

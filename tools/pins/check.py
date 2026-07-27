@@ -34,6 +34,7 @@ REQUIRED_SYSTEMS = {
     "postgres",
     "python",
     "redis",
+    "restic",
     "rustfs",
     "seaweedfs",
     "syft",

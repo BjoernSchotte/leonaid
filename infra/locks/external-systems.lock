@@ -139,6 +139,15 @@
       "roles": ["vulnerability-scanner", "secret-scanner"]
     },
     {
+      "id": "restic",
+      "version": "0.19.1",
+      "image": "docker.io/restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510",
+      "digest": "sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510",
+      "license": "BSD-2-Clause",
+      "upstream": "https://github.com/restic/restic/releases/tag/v0.19.1",
+      "roles": ["encrypted-backup", "integrity-check", "retention"]
+    },
+    {
       "id": "alpine",
       "version": "3.22.1",
       "image": "docker.io/library/alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1",

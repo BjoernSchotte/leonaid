@@ -20,20 +20,20 @@ vorhandenen Secrets.
 
 ## Einheitliche Befehle
 
-| Befehl | Zweck |
-|---|---|
-| `./leonaid bootstrap` | Secrets und gelockte lokale Dependency-Bäume anlegen |
-| `./leonaid doctor` | Docker, Compose, Locks, Secrets und Installationen diagnostizieren |
-| `./leonaid check` | nicht mutierende Policy-, Format-, Typ- und Unit-Gates |
-| `./leonaid generate-api-client` | OpenAPI-Dokument und TypeScript-Client deterministisch regenerieren |
-| `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
-| `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
-| `./leonaid test-integration` | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
-| `./leonaid test-e2e` | alle implementierten echten Browserjourneys ausführen |
-| `./leonaid test-typst` | Rechnungs-PDFs mit realem Typst, PostgreSQL und zwei PDF-Engines prüfen |
-| `./leonaid seed` | Golden Dataset v1 idempotent in reale Systeme einspielen |
-| `./leonaid snapshot [NAME]` | geheimnisfreien kanonischen Systemzustand schreiben |
-| `./leonaid reset` | markierte lokale Testumgebung sicher zurücksetzen |
+| Befehl                          | Zweck                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `./leonaid bootstrap`           | Secrets und gelockte lokale Dependency-Bäume anlegen                        |
+| `./leonaid doctor`              | Docker, Compose, Locks, Secrets und Installationen diagnostizieren          |
+| `./leonaid check`               | nicht mutierende Policy-, Format-, Typ- und Unit-Gates                      |
+| `./leonaid generate-api-client` | OpenAPI-Dokument und TypeScript-Client deterministisch regenerieren         |
+| `./leonaid test-unit`           | schnelle Tests reiner Domain-Logik                                          |
+| `./leonaid dev`                 | vollständigen Corestack bauen und bis zur Readiness starten                 |
+| `./leonaid test-integration`    | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
+| `./leonaid test-e2e`            | alle implementierten echten Browserjourneys ausführen                       |
+| `./leonaid test-typst`          | Rechnungs-PDFs mit realem Typst, PostgreSQL und zwei PDF-Engines prüfen     |
+| `./leonaid seed`                | Golden Dataset v1 idempotent in reale Systeme einspielen                    |
+| `./leonaid snapshot [NAME]`     | geheimnisfreien kanonischen Systemzustand schreiben                         |
+| `./leonaid reset`               | markierte lokale Testumgebung sicher zurücksetzen                           |
 
 Weitere fachlich geschnittene Nachweisbefehle zeigt `./leonaid help`.
 
@@ -169,6 +169,17 @@ Fremdsystempfade identisch zu Integration und E2E.
 - `.venv` oder `node_modules` fehlt: `./leonaid bootstrap` erneut ausführen.
 - Lock-Parität verletzt: den Update-PR vollständig aktualisieren; keine
   manuelle Installation mit ungebundenen Versionen.
+
+## Backup und Recovery
+
+`./leonaid backup` und `./leonaid restore` verwenden ausschließlich die
+gepinnten PostgreSQL-, Alpine-, Python- und Restic-Images. Die erforderlichen
+Remote- und Bestätigungsvariablen sowie das vollständige Notfallverfahren
+stehen in [`infra/backup/README.md`](../../infra/backup/README.md).
+
+`./leonaid test-backup` führt den destruktiven Ablauf nur in den isolierten
+Projekten `leonaid-poc112-source` und `leonaid-restore-poc112` aus. Er löscht
+die Quell-Volumes und beweist den Restore gegen echte Systeme und Golden Data.
 
 `check` startet standardmäßig nur in einem sauberen Arbeitsbaum und prüft
 danach erneut, dass kein Gate Dateien verändert hat. So ist eine vom Check
