@@ -36,7 +36,13 @@ from leonaid.application.commitments import (
     CommitmentRecord,
     CommitmentService,
 )
-from leonaid.application.documents import GeneratedDocumentService
+from leonaid.application.documents import (
+    GeneratedDocumentList,
+    GeneratedDocumentRecord,
+    GeneratedDocumentReference,
+    GeneratedDocumentReferenceKind,
+    GeneratedDocumentService,
+)
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceList,
@@ -161,6 +167,10 @@ from leonaid.entrypoints.fastapi.schemas import (
     CurrentIdentityResponse,
     ERROR_RESPONSES,
     FreshLoginStatusResponse,
+    GeneratedDocumentListResponse,
+    GeneratedDocumentRecordResponse,
+    GeneratedDocumentReferenceResponse,
+    GeneratedDocumentResponse,
     HandOverAcquisitionAssignmentRequest,
     InvitationAcceptanceResponse,
     InvitationDispatchResponse,
@@ -948,6 +958,47 @@ def invoice_list_response(value: InvoiceList) -> InvoiceListResponse:
             )
             for item in value.currency_totals
         ],
+    )
+
+
+def generated_document_record_response(
+    record: GeneratedDocumentRecord,
+) -> GeneratedDocumentRecordResponse:
+    document = record.document
+    return GeneratedDocumentRecordResponse(
+        document=GeneratedDocumentResponse(
+            id=document.id,
+            action_id=document.action_id,
+            commitment_id=document.commitment_id,
+            invoice_id=document.invoice_id,
+            twenty_company_id=document.twenty_company_id,
+            twenty_person_id=document.twenty_person_id,
+            document_type=document.document_type.value,
+            media_type=document.media_type,
+            filename=document.filename,
+            size_bytes=document.size_bytes,
+            render_version=document.render_version,
+            version=document.version,
+            status=document.status.value,
+            created_at=document.created_at,
+            available_at=document.available_at,
+            sent_at=document.sent_at,
+        ),
+        invoice_number=record.invoice_number,
+        buyer_display_name=record.buyer_display_name,
+    )
+
+
+def generated_document_list_response(
+    value: GeneratedDocumentList,
+) -> GeneratedDocumentListResponse:
+    return GeneratedDocumentListResponse(
+        action_id=value.action_id,
+        reference=GeneratedDocumentReferenceResponse(
+            kind=value.reference.kind.value,
+            id=value.reference.id,
+        ),
+        items=[generated_document_record_response(record) for record in value.records],
     )
 
 
@@ -1754,11 +1805,155 @@ async def issue_invoice(
     return invoice_response(invoice)
 
 
+async def _list_generated_documents(
+    *,
+    action_id: UUID,
+    reference: GeneratedDocumentReference,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    documents = await document_service(request).list_for_reference(
+        actor,
+        action_id,
+        reference,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return generated_document_list_response(documents)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/documents",
+    operation_id="listActionDocuments",
+    response_model=GeneratedDocumentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def list_action_documents(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    return await _list_generated_documents(
+        action_id=action_id,
+        reference=GeneratedDocumentReference(
+            kind=GeneratedDocumentReferenceKind.ACTION,
+            id=action_id,
+        ),
+        request=request,
+        response=response,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/documents",
+    operation_id="listCommitmentDocuments",
+    response_model=GeneratedDocumentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def list_commitment_documents(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    return await _list_generated_documents(
+        action_id=action_id,
+        reference=GeneratedDocumentReference(
+            kind=GeneratedDocumentReferenceKind.COMMITMENT,
+            id=commitment_id,
+        ),
+        request=request,
+        response=response,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/documents",
+    operation_id="listInvoiceDocuments",
+    response_model=GeneratedDocumentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def list_invoice_documents(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    return await _list_generated_documents(
+        action_id=action_id,
+        reference=GeneratedDocumentReference(
+            kind=GeneratedDocumentReferenceKind.INVOICE,
+            id=invoice_id,
+        ),
+        request=request,
+        response=response,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/crm/companies/{company_id}/documents",
+    operation_id="listCompanyDocuments",
+    response_model=GeneratedDocumentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def list_company_documents(
+    action_id: UUID,
+    company_id: UUID,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    return await _list_generated_documents(
+        action_id=action_id,
+        reference=GeneratedDocumentReference(
+            kind=GeneratedDocumentReferenceKind.TWENTY_COMPANY,
+            id=company_id,
+        ),
+        request=request,
+        response=response,
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/crm/people/{person_id}/documents",
+    operation_id="listPersonDocuments",
+    response_model=GeneratedDocumentListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def list_person_documents(
+    action_id: UUID,
+    person_id: UUID,
+    request: Request,
+    response: Response,
+) -> GeneratedDocumentListResponse:
+    return await _list_generated_documents(
+        action_id=action_id,
+        reference=GeneratedDocumentReference(
+            kind=GeneratedDocumentReferenceKind.TWENTY_PERSON,
+            id=person_id,
+        ),
+        request=request,
+        response=response,
+    )
+
+
 @router.get(
     "/api/v1/actions/{action_id}/documents/{document_id}/download",
     operation_id="downloadGeneratedDocument",
     response_class=Response,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    responses={
+        **AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+        200: {
+            "content": {
+                "application/pdf": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "description": "Autorisierte unveränderliche PDF-Version",
+        },
+    },
     tags=["documents"],
 )
 async def download_generated_document(

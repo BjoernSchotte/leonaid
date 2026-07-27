@@ -109,9 +109,18 @@ def response_type(operation: dict[str, Any]) -> str:
         if not isinstance(content, dict):
             return "void"
         media = content.get("application/json")
-        if not isinstance(media, dict) or not isinstance(media.get("schema"), dict):
-            raise GenerationError("Erfolgsantwort ohne JSON-Schema.")
-        return ts_type(media["schema"])
+        if isinstance(media, dict) and isinstance(media.get("schema"), dict):
+            return ts_type(media["schema"])
+        for media_type, media_contract in content.items():
+            if (
+                isinstance(media_type, str)
+                and isinstance(media_contract, dict)
+                and isinstance(media_contract.get("schema"), dict)
+                and media_contract["schema"].get("type") == "string"
+                and media_contract["schema"].get("format") == "binary"
+            ):
+                return "Blob"
+        raise GenerationError("Erfolgsantwort ohne JSON- oder Binärschema.")
     raise GenerationError("Operation ohne 2xx-Antwort.")
 
 
@@ -344,7 +353,11 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                     *arguments,
                     f"  ): Promise<{result_type}> {{",
                     *query_lines,
-                    f"    return this.request<{result_type}>(",
+                    (
+                        "    return this.requestBlob("
+                        if result_type == "Blob"
+                        else f"    return this.request<{result_type}>("
+                    ),
                     f"      {request_path},",
                     *init_lines,
                     "      options,",
@@ -417,6 +430,33 @@ def generate_typescript(document: dict[str, Any]) -> str:
         "      throw new Error(`LeonAid API returned HTTP ${response.status}`);",
         "    }",
         "    return body as T;",
+        "  }",
+        "",
+        "  async requestBlob(",
+        "    path: string,",
+        "    init: RequestInit,",
+        "    options: RequestOptions = {},",
+        "  ): Promise<Blob> {",
+        "    const response = await this.#fetch(`${this.#baseUrl}${path}`, {",
+        "      ...init,",
+        "      headers: {",
+        '        Accept: "application/pdf",',
+        "        ...(init.headers as Readonly<Record<string, string>> | undefined),",
+        "        ...options.headers,",
+        "      },",
+        "      signal: options.signal,",
+        "    });",
+        "    if (!response.ok) {",
+        '      const contentType = response.headers.get("content-type") ?? "";',
+        '      const body = contentType.includes("application/json")',
+        "        ? await response.json() as unknown",
+        "        : undefined;",
+        "      if (isApiErrorResponse(body)) {",
+        "        throw new ApiError(response.status, body.error);",
+        "      }",
+        "      throw new Error(`LeonAid API returned HTTP ${response.status}`);",
+        "    }",
+        "    return response.blob();",
         "  }",
         *operation_lines(document),
         "}",

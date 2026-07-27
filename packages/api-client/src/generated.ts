@@ -57,6 +57,10 @@ export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly status: "fresh"; };
+export type GeneratedDocumentListResponse = { readonly actionId: string; readonly items: Array<GeneratedDocumentRecordResponse>; readonly reference: GeneratedDocumentReferenceResponse; };
+export type GeneratedDocumentRecordResponse = { readonly buyerDisplayName: string; readonly document: GeneratedDocumentResponse; readonly invoiceNumber: string | null; };
+export type GeneratedDocumentReferenceResponse = { readonly id: string; readonly kind: "action" | "commitment" | "invoice" | "twenty_company" | "twenty_person"; };
+export type GeneratedDocumentResponse = { readonly actionId: string; readonly availableAt: string | null; readonly commitmentId: string | null; readonly createdAt: string; readonly documentType: "invoice_pdf"; readonly filename: string | null; readonly id: string; readonly invoiceId: string | null; readonly mediaType: string; readonly renderVersion: string | null; readonly sentAt: string | null; readonly sizeBytes: number | null; readonly status: "pending" | "available" | "deleted"; readonly twentyCompanyId: string | null; readonly twentyPersonId: string | null; readonly version: number; };
 export type HandOverAcquisitionAssignmentRequest = { readonly revision: number; readonly targetAcquirerUserId: string; };
 export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
 export type InvitationAcceptanceResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "accepted"; };
@@ -165,6 +169,33 @@ export class LeonAidApiClient {
       throw new Error(`LeonAid API returned HTTP ${response.status}`);
     }
     return body as T;
+  }
+
+  async requestBlob(
+    path: string,
+    init: RequestInit,
+    options: RequestOptions = {},
+  ): Promise<Blob> {
+    const response = await this.#fetch(`${this.#baseUrl}${path}`, {
+      ...init,
+      headers: {
+        Accept: "application/pdf",
+        ...(init.headers as Readonly<Record<string, string>> | undefined),
+        ...options.headers,
+      },
+      signal: options.signal,
+    });
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") ?? "";
+      const body = contentType.includes("application/json")
+        ? await response.json() as unknown
+        : undefined;
+      if (isApiErrorResponse(body)) {
+        throw new ApiError(response.status, body.error);
+      }
+      throw new Error(`LeonAid API returned HTTP ${response.status}`);
+    }
+    return response.blob();
   }
 
   async listActionTemplates(
@@ -522,6 +553,18 @@ export class LeonAidApiClient {
     );
   }
 
+  async listCommitmentDocuments(
+    actionId: string,
+    commitmentId: string,
+    options: RequestOptions = {},
+  ): Promise<GeneratedDocumentListResponse> {
+    return this.request<GeneratedDocumentListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/documents`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async issueInvoice(
     actionId: string,
     commitmentId: string,
@@ -566,6 +609,30 @@ export class LeonAidApiClient {
     );
   }
 
+  async listCompanyDocuments(
+    actionId: string,
+    companyId: string,
+    options: RequestOptions = {},
+  ): Promise<GeneratedDocumentListResponse> {
+    return this.request<GeneratedDocumentListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/crm/companies/${encodeURIComponent(String(companyId))}/documents`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listPersonDocuments(
+    actionId: string,
+    personId: string,
+    options: RequestOptions = {},
+  ): Promise<GeneratedDocumentListResponse> {
+    return this.request<GeneratedDocumentListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/crm/people/${encodeURIComponent(String(personId))}/documents`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async setCharityActionDetails(
     actionId: string,
     body: UpdateActionDetailsRequest,
@@ -582,19 +649,30 @@ export class LeonAidApiClient {
     );
   }
 
+  async listActionDocuments(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<GeneratedDocumentListResponse> {
+    return this.request<GeneratedDocumentListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/documents`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async downloadGeneratedDocument(
     actionId: string,
     documentId: string,
     queryParameters: { readonly inline?: boolean; } = {},
     options: RequestOptions = {},
-  ): Promise<void> {
+  ): Promise<Blob> {
     const searchParameters = new URLSearchParams();
     if (queryParameters.inline !== undefined && queryParameters.inline !== null) {
       searchParameters.set("inline", String(queryParameters.inline));
     }
     const queryString = searchParameters.toString();
     const requestPath = `/api/v1/actions/${encodeURIComponent(String(actionId))}/documents/${encodeURIComponent(String(documentId))}/download` + (queryString ? `?${queryString}` : "");
-    return this.request<void>(
+    return this.requestBlob(
       requestPath,
       { method: "GET" },
       options,
@@ -634,6 +712,18 @@ export class LeonAidApiClient {
   ): Promise<InvoiceListResponse> {
     return this.request<InvoiceListResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listInvoiceDocuments(
+    actionId: string,
+    invoiceId: string,
+    options: RequestOptions = {},
+  ): Promise<GeneratedDocumentListResponse> {
+    return this.request<GeneratedDocumentListResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices/${encodeURIComponent(String(invoiceId))}/documents`,
       { method: "GET" },
       options,
     );

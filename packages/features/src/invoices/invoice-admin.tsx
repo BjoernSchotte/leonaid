@@ -1,16 +1,21 @@
 import {
   Calendar03Icon,
+  Download04Icon,
+  FileViewIcon,
   Invoice03Icon,
+  Pdf02Icon,
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
-import type {
-  CurrentIdentityResponse,
-  InvoiceRecordResponse,
-  LeonAidApiClient,
+import {
+  ApiError,
+  type CurrentIdentityResponse,
+  type GeneratedDocumentRecordResponse,
+  type InvoiceRecordResponse,
+  type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
@@ -48,9 +53,215 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function InvoiceLedgerRow({
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"] as const;
+  let value = bytes / 1024;
+  let unit: (typeof units)[number] = units[0];
+  for (const candidate of units.slice(1)) {
+    if (value < 1024) break;
+    value /= 1024;
+    unit = candidate;
+  }
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value)} ${unit}`;
+}
+
+function InvoiceDocumentPanel({
+  actionId,
+  client,
   record,
 }: {
+  readonly actionId: string;
+  readonly client: LeonAidApiClient;
+  readonly record?: GeneratedDocumentRecordResponse;
+}) {
+  const [busy, setBusy] = useState<"download" | "preview">();
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const generated = record?.document;
+
+  if (!generated) {
+    return (
+      <section className="invoice-document" data-state="missing">
+        <span aria-hidden="true" className="invoice-document__mark">
+          <HugeiconsIcon icon={Pdf02Icon} size={22} strokeWidth={1.8} />
+        </span>
+        <div className="invoice-document__identity">
+          <small>Rechnungs-PDF</small>
+          <strong>Noch nicht angelegt</strong>
+          <p>
+            Die Rechnung ist gespeichert. Der Dokumentauftrag muss geprüft
+            werden.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (generated.status === "pending") {
+    return (
+      <section
+        aria-live="polite"
+        className="invoice-document"
+        data-state="pending"
+        data-testid="invoice-document"
+      >
+        <span aria-hidden="true" className="invoice-document__mark">
+          <HugeiconsIcon icon={Pdf02Icon} size={22} strokeWidth={1.8} />
+        </span>
+        <div className="invoice-document__identity">
+          <small>Rechnungs-PDF</small>
+          <strong>Wird gerade erzeugt</strong>
+          <p>
+            LeonAid rendert den freigegebenen Stand und speichert ihn
+            unveränderlich.
+          </p>
+        </div>
+        <span className="invoice-document__status">In Arbeit</span>
+      </section>
+    );
+  }
+
+  if (generated.status === "deleted") {
+    return (
+      <section
+        className="invoice-document"
+        data-state="deleted"
+        data-testid="invoice-document"
+      >
+        <span aria-hidden="true" className="invoice-document__mark">
+          <HugeiconsIcon icon={Pdf02Icon} size={22} strokeWidth={1.8} />
+        </span>
+        <div className="invoice-document__identity">
+          <small>Rechnungs-PDF</small>
+          <strong>{generated.filename ?? "Entferntes Dokument"}</strong>
+          <p>Diese Dokumentversion wurde kontrolliert entfernt.</p>
+        </div>
+        <span className="invoice-document__status">Entfernt</span>
+      </section>
+    );
+  }
+
+  const availableDocument = generated;
+  const filename = availableDocument.filename ?? "Rechnung.pdf";
+  const createdAt =
+    availableDocument.availableAt ?? availableDocument.createdAt;
+
+  async function provideDocument(mode: "download" | "preview") {
+    const previewWindow =
+      mode === "preview" ? window.open("about:blank", "_blank") : null;
+    if (mode === "preview" && !previewWindow) {
+      setErrorMessage(
+        "Die Vorschau wurde vom Browser blockiert. Erlaube Pop-ups für LeonAid und versuche es erneut.",
+      );
+      return;
+    }
+    if (previewWindow) {
+      previewWindow.opener = null;
+      previewWindow.document.title = "PDF wird geladen …";
+    }
+    setBusy(mode);
+    setErrorMessage(undefined);
+    try {
+      const blob = await client.downloadGeneratedDocument(
+        actionId,
+        availableDocument.id,
+        { inline: mode === "preview" },
+      );
+      const objectUrl = URL.createObjectURL(blob);
+      if (previewWindow) {
+        const previewDocument = previewWindow.document;
+        previewDocument.title = filename;
+        previewDocument.body.replaceChildren();
+        previewDocument.body.style.margin = "0";
+        previewDocument.body.style.background = "#171717";
+        const frame = previewDocument.createElement("iframe");
+        frame.src = objectUrl;
+        frame.title = `Vorschau ${filename}`;
+        frame.style.width = "100vw";
+        frame.style.height = "100vh";
+        frame.style.border = "0";
+        previewDocument.body.append(frame);
+      } else {
+        const anchor = globalThis.document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        anchor.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      previewWindow?.close();
+      setErrorMessage(
+        error instanceof ApiError &&
+          error.detail.code === "generated_document_storage_missing"
+          ? "Die gespeicherte PDF-Version fehlt. Der Vorgang ist diagnostizierbar und muss technisch geprüft werden."
+          : "Das PDF konnte gerade nicht sicher geladen werden. Versuche es erneut.",
+      );
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  return (
+    <section
+      aria-busy={busy !== undefined}
+      className="invoice-document"
+      data-state="available"
+      data-testid="invoice-document"
+    >
+      <span aria-hidden="true" className="invoice-document__mark">
+        <HugeiconsIcon icon={Pdf02Icon} size={22} strokeWidth={1.8} />
+      </span>
+      <div className="invoice-document__identity">
+        <small>Unveränderliches Rechnungs-PDF</small>
+        <strong>{filename}</strong>
+        <p data-testid="invoice-document-metadata">
+          PDF · {formatFileSize(availableDocument.sizeBytes ?? 0)} · Version{" "}
+          {availableDocument.version} · erzeugt {formatDateTime(createdAt)}
+        </p>
+      </div>
+      <span className="invoice-document__status">Bereit</span>
+      <div className="invoice-document__actions">
+        <Button
+          data-testid="preview-document"
+          disabled={busy !== undefined}
+          icon={
+            <HugeiconsIcon icon={FileViewIcon} size={18} strokeWidth={1.8} />
+          }
+          onClick={() => void provideDocument("preview")}
+          variant="primary"
+        >
+          {busy === "preview" ? "PDF wird geöffnet …" : "PDF öffnen"}
+        </Button>
+        <Button
+          data-testid="download-document"
+          disabled={busy !== undefined}
+          icon={
+            <HugeiconsIcon icon={Download04Icon} size={18} strokeWidth={1.8} />
+          }
+          onClick={() => void provideDocument("download")}
+          variant="secondary"
+        >
+          {busy === "download" ? "Download läuft …" : "Herunterladen"}
+        </Button>
+      </div>
+      {errorMessage ? (
+        <p className="invoice-document__error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function InvoiceLedgerRow({
+  client,
+  documentRecord,
+  record,
+}: {
+  readonly client: LeonAidApiClient;
+  readonly documentRecord?: GeneratedDocumentRecordResponse;
   readonly record: InvoiceRecordResponse;
 }) {
   const { invoice } = record;
@@ -80,6 +291,11 @@ function InvoiceLedgerRow({
         </strong>
       </summary>
       <div className="invoice-ledger-row__details">
+        <InvoiceDocumentPanel
+          actionId={invoice.actionId}
+          client={client}
+          record={documentRecord}
+        />
         <section>
           <span>Unveränderlicher Empfänger</span>
           <strong>{invoice.recipient.recipientName}</strong>
@@ -163,6 +379,25 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
     queryFn: () => client.listInvoices(actionId),
     queryKey: ["invoices", actionId],
   });
+  const documents = useQuery({
+    enabled: Boolean(actionId),
+    queryFn: () => client.listActionDocuments(actionId),
+    queryKey: ["documents", actionId],
+    refetchInterval: (query) =>
+      query.state.data?.items.some(
+        ({ document }) => document.status === "pending",
+      )
+        ? 750
+        : false,
+  });
+  const documentsByInvoice = useMemo(() => {
+    const result = new Map<string, GeneratedDocumentRecordResponse>();
+    for (const record of documents.data?.items ?? []) {
+      const invoiceId = record.document.invoiceId;
+      if (invoiceId && !result.has(invoiceId)) result.set(invoiceId, record);
+    }
+    return result;
+  }, [documents.data?.items]);
   const euroTotal = invoices.data?.currencyTotals.find(
     (item) => item.currency === "EUR",
   );
@@ -218,7 +453,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
         </div>
       </header>
 
-      {context.isPending || invoices.isPending ? (
+      {context.isPending || invoices.isPending || documents.isPending ? (
         <div
           aria-label="Rechnungen werden geladen"
           className="invoice-loading"
@@ -228,7 +463,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
           <span />
           <span />
         </div>
-      ) : context.isError || invoices.isError ? (
+      ) : context.isError || invoices.isError || documents.isError ? (
         <StatusMessage tone="error">
           <strong>Rechnungen nicht erreichbar</strong>
           <p>
@@ -237,7 +472,11 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
           </p>
           <Button
             onClick={() =>
-              void Promise.all([context.refetch(), invoices.refetch()])
+              void Promise.all([
+                context.refetch(),
+                invoices.refetch(),
+                documents.refetch(),
+              ])
             }
             variant="secondary"
           >
@@ -315,7 +554,12 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
                 <span>{invoices.data.items.length} Belege</span>
               </header>
               {invoices.data.items.map((record) => (
-                <InvoiceLedgerRow key={record.invoice.id} record={record} />
+                <InvoiceLedgerRow
+                  client={client}
+                  documentRecord={documentsByInvoice.get(record.invoice.id)}
+                  key={record.invoice.id}
+                  record={record}
+                />
               ))}
             </section>
           ) : (

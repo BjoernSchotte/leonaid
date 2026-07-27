@@ -149,6 +149,31 @@ def test_client_generator_supports_json_body_and_encoded_path_parameter() -> Non
                     },
                 }
             },
+            "/api/v1/examples/{example_id}/document": {
+                "get": {
+                    "operationId": "downloadExampleDocument",
+                    "parameters": [
+                        {
+                            "in": "path",
+                            "name": "example_id",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/pdf": {
+                                    "schema": {
+                                        "type": "string",
+                                        "format": "binary",
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            },
         },
         "components": {
             "schemas": {
@@ -192,3 +217,7 @@ def test_client_generator_supports_json_body_and_encoded_path_parameter() -> Non
     assert "queryParameters:" in generated
     assert "readonly q?: string" in generated
     assert 'searchParameters.set("q", String(queryParameters.q))' in generated
+    assert "async requestBlob(" in generated
+    assert "async downloadExampleDocument(" in generated
+    assert "): Promise<Blob>" in generated
+    assert "return this.requestBlob(" in generated

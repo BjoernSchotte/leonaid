@@ -1146,26 +1146,29 @@ Tests/Nachweise:
 Nachweis:
 [POC-092 – S3-Storage-Port und RustFS-Adapter](proofs/POC-092.md).
 
-### [ ] POC-093 Dokumentabruf in allen Fachkontexten umsetzen
+### [x] POC-093 Dokumentabruf in allen Fachkontexten umsetzen
 
 Abhängigkeiten: POC-043, POC-092
 
 Akzeptanzkriterien:
 
-- [ ] Dokument ist über Aktion, Commitment, Rechnung und CRM-Partei
+- [x] Dokument ist über Aktion, Commitment, Rechnung und CRM-Partei
       auffindbar.
-- [ ] Charity-Admin und Finanzrolle sehen erlaubte Dokumente.
-- [ ] Assignment allein gewährt Akquisiteur keinen Zugriff auf
+- [x] Charity-Admin und Finanzrolle sehen erlaubte Dokumente.
+- [x] Assignment allein gewährt Akquisiteur keinen Zugriff auf
       Finanzdokumente.
-- [ ] Downloadname, Dateityp, Größe, Version und Erzeugungszeit sind sichtbar.
-- [ ] Fehlende Storage-Datei erzeugt einen diagnostizierbaren Fehler und
+- [x] Downloadname, Dateityp, Größe, Version und Erzeugungszeit sind sichtbar.
+- [x] Fehlende Storage-Datei erzeugt einen diagnostizierbaren Fehler und
       keinen leeren Download.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest prüft jede Referenzrichtung gegen PostgreSQL/RustFS.
-- [ ] E2E lädt als erlaubte Rolle ein byteidentisches PDF herunter.
-- [ ] Negative E2E/API-Tests decken Akquisiteur und fremde Aktion ab.
+- [x] Integrationstest prüft jede Referenzrichtung gegen PostgreSQL/RustFS.
+- [x] E2E lädt als erlaubte Rolle ein byteidentisches PDF herunter.
+- [x] Negative E2E/API-Tests decken Akquisiteur und fremde Aktion ab.
+
+Nachweis:
+[POC-093 – Dokumentabruf in allen Fachkontexten](proofs/POC-093.md).
 
 ### [ ] POC-094 Rechnungsversand und Versandprotokoll implementieren
 

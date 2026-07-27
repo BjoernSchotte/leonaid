@@ -10,6 +10,9 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.application.documents import (
+    GeneratedDocumentRecord,
+    GeneratedDocumentReference,
+    GeneratedDocumentReferenceKind,
     GeneratedDocumentRenderJob,
     GeneratedDocumentRepository,
 )
@@ -196,6 +199,63 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                 action_id,
             )
         return None if row is None else self._document(row)
+
+    async def list_for_reference(
+        self,
+        *,
+        action_id: UUID,
+        reference: GeneratedDocumentReference,
+    ) -> tuple[GeneratedDocumentRecord, ...]:
+        reference_columns = {
+            GeneratedDocumentReferenceKind.ACTION: None,
+            GeneratedDocumentReferenceKind.COMMITMENT: "commitment_id",
+            GeneratedDocumentReferenceKind.INVOICE: "invoice_id",
+            GeneratedDocumentReferenceKind.TWENTY_COMPANY: "twenty_company_id",
+            GeneratedDocumentReferenceKind.TWENTY_PERSON: "twenty_person_id",
+        }
+        column = reference_columns[reference.kind]
+        predicate = "" if column is None else f"AND document.{column} = $2"
+        parameters: tuple[UUID, ...] = (
+            (action_id,) if column is None else (action_id, reference.id)
+        )
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                f"""
+                SELECT
+                    document.*,
+                    invoice.number AS invoice_number,
+                    commitment.customer_snapshot
+                FROM generated_document AS document
+                LEFT JOIN invoice ON invoice.id = document.invoice_id
+                LEFT JOIN commitment ON commitment.id = document.commitment_id
+                WHERE document.action_id = $1
+                  {predicate}
+                ORDER BY document.created_at DESC, document.id
+                """,
+                *parameters,
+            )
+        return tuple(self._record(row) for row in rows)
+
+    @classmethod
+    def _record(cls, row: asyncpg.Record) -> GeneratedDocumentRecord:
+        customer = _json_object(
+            row["customer_snapshot"] or {},
+            label="Dokument-Kundensnapshot",
+        )
+        buyer_display_name = str(
+            customer.get("displayName")
+            or row["invoice_number"]
+            or "Unbekannter Empfänger"
+        )
+        return GeneratedDocumentRecord(
+            document=cls._document(row),
+            invoice_number=(
+                str(row["invoice_number"])
+                if row["invoice_number"] is not None
+                else None
+            ),
+            buyer_display_name=buyer_display_name,
+        )
 
     @staticmethod
     def _document(row: asyncpg.Record) -> GeneratedDocument:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
@@ -21,6 +22,7 @@ from leonaid.application.object_storage import (
     ObjectLocation,
     ObjectStorage,
     ObjectStorageError,
+    ObjectStorageNotFound,
     ObjectWrite,
     StoredObject,
 )
@@ -46,6 +48,34 @@ class GeneratedDocumentDownload:
     content: bytes
 
 
+class GeneratedDocumentReferenceKind(StrEnum):
+    ACTION = "action"
+    COMMITMENT = "commitment"
+    INVOICE = "invoice"
+    TWENTY_COMPANY = "twenty_company"
+    TWENTY_PERSON = "twenty_person"
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedDocumentReference:
+    kind: GeneratedDocumentReferenceKind
+    id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedDocumentRecord:
+    document: GeneratedDocument
+    invoice_number: str | None
+    buyer_display_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedDocumentList:
+    action_id: UUID
+    reference: GeneratedDocumentReference
+    records: tuple[GeneratedDocumentRecord, ...]
+
+
 class GeneratedDocumentRepository(Protocol):
     async def render_job(
         self,
@@ -68,6 +98,13 @@ class GeneratedDocumentRepository(Protocol):
         action_id: UUID,
         document_id: UUID,
     ) -> GeneratedDocument | None: ...
+
+    async def list_for_reference(
+        self,
+        *,
+        action_id: UUID,
+        reference: GeneratedDocumentReference,
+    ) -> tuple[GeneratedDocumentRecord, ...]: ...
 
 
 class InvoiceDocumentStorageHandler:
@@ -164,17 +201,37 @@ class GeneratedDocumentService:
         self._repository = repository
         self._storage = storage
 
+    async def list_for_reference(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        reference: GeneratedDocumentReference,
+    ) -> GeneratedDocumentList:
+        self._require_read(actor, action_id)
+        if (
+            reference.kind is GeneratedDocumentReferenceKind.ACTION
+            and reference.id != action_id
+        ):
+            raise ResourceNotFound(
+                "generated_document_context_not_found",
+                "Der angeforderte Dokumentkontext wurde nicht gefunden.",
+            )
+        return GeneratedDocumentList(
+            action_id=action_id,
+            reference=reference,
+            records=await self._repository.list_for_reference(
+                action_id=action_id,
+                reference=reference,
+            ),
+        )
+
     async def download(
         self,
         actor: IdentityPrincipal,
         action_id: UUID,
         document_id: UUID,
     ) -> GeneratedDocumentDownload:
-        if not may_read_invoices(actor, action_id):
-            raise PermissionDenied(
-                "document_download_required",
-                "Du darfst Finanzdokumente dieser Charity-Aktion nicht herunterladen.",
-            )
+        self._require_read(actor, action_id)
         document = await self._repository.for_download(
             action_id=action_id,
             document_id=document_id,
@@ -186,6 +243,11 @@ class GeneratedDocumentService:
             )
         try:
             retrieved = await self._storage.get(_location(document))
+        except ObjectStorageNotFound as error:
+            raise DependencyUnavailable(
+                "generated_document_storage_missing",
+                "Die gespeicherte Dokumentversion fehlt. Der Vorgang wurde protokolliert.",
+            ) from error
         except ObjectStorageError as error:
             raise DependencyUnavailable(
                 "generated_document_storage_unavailable",
@@ -203,6 +265,15 @@ class GeneratedDocumentService:
         return GeneratedDocumentDownload(
             document=document,
             content=retrieved.content,
+        )
+
+    @staticmethod
+    def _require_read(actor: IdentityPrincipal, action_id: UUID) -> None:
+        if may_read_invoices(actor, action_id):
+            return
+        raise PermissionDenied(
+            "document_download_required",
+            "Du darfst Finanzdokumente dieser Charity-Aktion nicht einsehen.",
         )
 
 

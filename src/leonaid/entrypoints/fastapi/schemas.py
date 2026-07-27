@@ -718,6 +718,51 @@ class InvoiceListResponse(TransportModel):
     currency_totals: list[InvoiceCurrencyTotalResponse]
 
 
+GeneratedDocumentReferenceKindValue = Literal[
+    "action",
+    "commitment",
+    "invoice",
+    "twenty_company",
+    "twenty_person",
+]
+
+
+class GeneratedDocumentResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    commitment_id: UUID | None
+    invoice_id: UUID | None
+    twenty_company_id: UUID | None
+    twenty_person_id: UUID | None
+    document_type: Literal["invoice_pdf"]
+    media_type: str
+    filename: str | None
+    size_bytes: Annotated[int, Field(ge=1)] | None
+    render_version: str | None
+    version: int = Field(ge=1)
+    status: Literal["pending", "available", "deleted"]
+    created_at: datetime
+    available_at: datetime | None
+    sent_at: datetime | None
+
+
+class GeneratedDocumentRecordResponse(TransportModel):
+    document: GeneratedDocumentResponse
+    invoice_number: str | None
+    buyer_display_name: str
+
+
+class GeneratedDocumentReferenceResponse(TransportModel):
+    kind: GeneratedDocumentReferenceKindValue
+    id: UUID
+
+
+class GeneratedDocumentListResponse(TransportModel):
+    action_id: UUID
+    reference: GeneratedDocumentReferenceResponse
+    items: list[GeneratedDocumentRecordResponse]
+
+
 class UpdateActionDetailsRequest(TransportModel):
     revision: int = Field(ge=1)
     carrier_name: str = Field(min_length=1, max_length=200)

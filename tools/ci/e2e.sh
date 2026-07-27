@@ -29,6 +29,7 @@ case "$shard" in
     ;;
   invoices)
     /bin/sh "$root/tools/invoices/test.sh" "$root"
+    /bin/sh "$root/tools/documents/test.sh" "$root"
     ;;
   *)
     echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2
