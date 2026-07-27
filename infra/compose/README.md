@@ -117,6 +117,20 @@ Krapfentaxi-Vorlage, unveränderliche publizierte Versionen, historisch stabile
 Konfigurations-Snapshots sowie eine Vorjahreskopie ohne Bestellungen,
 Rechnungen, Dokumente, laufende Nummern oder fremde Aktionszuordnungen.
 
+Der reale Upgrade- und Recovery-Nachweis läuft mit:
+
+```sh
+./leonaid test-upgrade
+```
+
+Er aktualisiert gepinnte Twenty- und RustFS-Quellversionen hinter einer
+serverseitigen Wartungsgrenze, führt Twenty Instance- und
+Workspace-Migrationen fail-closed aus und verifiziert Golden-Contract sowie
+Chromium vor und nach dem Upgrade. Ein separater Upgrade-Klon wird
+absichtlich verändert und aus dem verschlüsselten Recovery Point auf leere
+Volumes zurückgesetzt. Das Betriebsverfahren steht in
+[`infra/upgrade/README.md`](../upgrade/README.md).
+
 `./leonaid provision-twenty` legt den lokalen Integrations-Key mit restriktiven
 Dateirechten unter `.local/twenty/integration.env` ab. Alle folgenden
 `./leonaid`-Compose-Kommandos lesen ihn automatisch ein, ohne ihn in

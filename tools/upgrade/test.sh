@@ -1,0 +1,461 @@
+#!/bin/sh
+set -eu
+
+root=${1:-$(pwd)}
+root=$(cd "$root" && pwd)
+. "$root/infra/locks/images.env"
+
+source_project=${LEONAID_UPGRADE_TEST_PROJECT:-leonaid-poc113-upgrade}
+rollback_project=${LEONAID_UPGRADE_ROLLBACK_PROJECT:-leonaid-restore-poc113-rollback}
+source_http_port=${LEONAID_UPGRADE_TEST_PORT:-18133}
+source_https_port=${LEONAID_UPGRADE_TEST_HTTPS_PORT:-18493}
+rollback_http_port=${LEONAID_UPGRADE_ROLLBACK_PORT:-18134}
+rollback_https_port=${LEONAID_UPGRADE_ROLLBACK_HTTPS_PORT:-18494}
+compose_file="$root/infra/compose/compose.yml"
+source_overlay="$root/infra/upgrade/compose.source.yml"
+rollback_network_overlay="$root/infra/upgrade/compose.rollback-network.yml"
+env_file="$root/.env.local"
+proof=$(mktemp -d)
+repository="$proof/repository"
+password_file="$proof/restic-password"
+artifact_directory="$root/.artifacts/poc113"
+integration_key=""
+
+source_old() {
+  LEONAID_HTTP_PORT="$source_http_port" \
+    LEONAID_HTTPS_PORT="$source_https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    docker compose \
+      --project-name "$source_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$source_overlay" \
+      "$@"
+}
+
+source_target() {
+  LEONAID_HTTP_PORT="$source_http_port" \
+    LEONAID_HTTPS_PORT="$source_https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    docker compose \
+      --project-name "$source_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      "$@"
+}
+
+rollback_old() {
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+    LEONAID_HTTPS_PORT="$rollback_https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    docker compose \
+      --project-name "$rollback_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$source_overlay" \
+      --file "$rollback_network_overlay" \
+      "$@"
+}
+
+rollback_target() {
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+    LEONAID_HTTPS_PORT="$rollback_https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    docker compose \
+      --project-name "$rollback_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$rollback_network_overlay" \
+      "$@"
+}
+
+cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    mkdir -p "$artifact_directory/failures"
+    cp "$proof"/twenty-*.log "$artifact_directory/failures/" \
+      >/dev/null 2>&1 || true
+    echo "upgrade-test: Diagnose der fehlgeschlagenen Services:" >&2
+    source_target ps --all >&2 || true
+    rollback_target ps --all >&2 || true
+    source_target logs --no-color --tail=260 \
+      api core-postgres rustfs twenty-postgres twenty-server \
+      twenty-worker proxy >&2 || true
+    rollback_target logs --no-color --tail=260 \
+      api core-postgres rustfs twenty-postgres twenty-server \
+      twenty-worker proxy >&2 || true
+  fi
+  rollback_target --profile dev-mail down \
+    --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
+    source_target --profile dev-mail down \
+      --volumes --remove-orphans >/dev/null 2>&1 || true
+  else
+    echo "upgrade-test: Zielversion bleibt sichtbar unter http://127.0.0.1:$source_http_port/admin/"
+  fi
+  rm -rf "$proof"
+  exit "$status"
+}
+trap cleanup EXIT HUP INT TERM
+
+fail() {
+  echo "upgrade-test: ERROR: $*" >&2
+  exit 1
+}
+
+[ -f "$env_file" ] || fail ".env.local fehlt; zuerst ./leonaid bootstrap"
+
+verify_image() {
+  container=$1
+  expected=$2
+  actual=$(docker inspect --format '{{ .Config.Image }}' "$container")
+  [ "$actual" = "$expected" ] ||
+    fail "$container läuft mit $actual statt $expected"
+}
+
+run_plan_gate() {
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/upgrade/validate_plan.py \
+    infra/upgrade/compatibility-matrix.json \
+    infra/locks/external-systems.lock
+  cp "$root/infra/upgrade/compatibility-matrix.json" "$proof/invalid-matrix.json"
+  docker run --rm \
+    -v "$proof:/proof" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json,pathlib
+p=pathlib.Path("/proof/invalid-matrix.json")
+v=json.loads(p.read_text())
+v["components"][0]["releaseNotes"]=[]
+p.write_text(json.dumps(v))'
+  if docker run --rm \
+    -v "$root:/workspace:ro" \
+    -v "$proof:/proof:ro" \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/upgrade/validate_plan.py \
+    /proof/invalid-matrix.json \
+    infra/locks/external-systems.lock >/dev/null 2>&1; then
+    fail "Upgradeplan ohne Release Notes wurde akzeptiert"
+  fi
+}
+
+run_dashboard_contract() {
+  mode=$1
+  case "$mode" in
+    source) runner=source_target ;;
+    rollback) runner=rollback_target ;;
+    *) fail "Unbekannter Contract-Modus: $mode" ;;
+  esac
+  $runner run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/dashboard/contract.py
+}
+
+run_maintenance_contract() {
+  mode=$1
+  state=$2
+  case "$mode" in
+    source) runner=source_target ;;
+    rollback) runner=rollback_target ;;
+    *) fail "Unbekannter Wartungsmodus: $mode" ;;
+  esac
+  $runner run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/upgrade/contract.py "$state"
+}
+
+run_twenty_upgrade() {
+  mode=$1
+  label=$2
+  case "$mode" in
+    source) runner=source_target ;;
+    rollback) runner=rollback_target ;;
+    *) fail "Unbekannter Twenty-Upgrade-Modus: $mode" ;;
+  esac
+  # Twenty's supported entrypoint establishes any instance-level schema
+  # prerequisites before it invokes the workspace upgrade. Let that bootstrap
+  # finish once, then repeat the documented upgrade command with a strict exit
+  # code instead of accepting the entrypoint's warning-and-continue behavior.
+  $runner up --detach --force-recreate --wait --wait-timeout 420 \
+    twenty-server
+  if $runner logs --no-color twenty-server \
+    | grep -F "Warning: Upgrade completed with errors" >/dev/null; then
+    fail "Twenty-Entrypoint meldet einen fehlgeschlagenen Upgrade-Lauf: $label"
+  fi
+  $runner stop twenty-server
+  if ! $runner run --rm --no-deps \
+    --entrypoint yarn \
+    twenty-server command:prod run-instance-commands \
+    >"$proof/twenty-instance-upgrade-$label.log" 2>&1; then
+    tail -n 120 "$proof/twenty-instance-upgrade-$label.log" >&2
+    fail "Twenty-Instance-Upgrade ist fehlgeschlagen: $label"
+  fi
+  if ! $runner run --rm --no-deps \
+    --entrypoint yarn \
+    twenty-server command:prod upgrade \
+    >"$proof/twenty-upgrade-$label.log" 2>&1; then
+    tail -n 120 "$proof/twenty-upgrade-$label.log" >&2
+    fail "Twenty-Upgrade-Command ist fehlgeschlagen: $label"
+  fi
+  $runner up --detach --force-recreate --wait --wait-timeout 420 \
+    twenty-server twenty-worker
+  $runner exec -T twenty-postgres psql \
+    --username "${TWENTY_POSTGRES_USER:-twenty}" \
+    --dbname "${TWENTY_POSTGRES_DB:-default}" \
+    --tuples-only \
+    --no-align \
+    --command "SELECT count(*) FROM information_schema.columns WHERE table_schema='core' AND table_name='keyValuePair' AND column_name='applicationId'" \
+    | grep -Fx "1" >/dev/null ||
+    fail "Twenty-Zielschema fehlt nach Upgrade-Command: $label"
+  echo "upgrade-test: Twenty-Upgrade-Command und Zielschema OK: $label"
+}
+
+snapshot_and_verify() {
+  mode=$1
+  name=$2
+  expectation=$3
+  case "$mode" in
+    source) runner=source_target ;;
+    rollback) runner=rollback_target ;;
+    *) fail "Unbekannter Snapshot-Modus: $mode" ;;
+  esac
+  $runner --profile dev-mail run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --entrypoint python \
+    api /repo/tools/seed/golden.py snapshot \
+    /repo/tests/fixtures/golden/v1 \
+    --output "/proof/$name.json"
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    -v "$proof:/proof:ro" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/seed/verify_snapshot.py "$expectation" \
+    "/proof/$name.json" \
+    /workspace/tests/fixtures/golden/v1
+}
+
+run_e2e() {
+  project=$1
+  phase=$2
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof \
+    --env "LEONAID_UPGRADE_PHASE=$phase" \
+    --env KLARA_SESSION=poc101-10000000-0000-4000-8000-000000000002-server-session-token-value \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test \
+    tests/e2e/upgrade.spec.mjs \
+    --browser=chromium \
+    --output="/proof/test-results-$phase" \
+    --trace=retain-on-failure \
+    --reporter=line
+  [ -s "$proof/upgrade-$phase.png" ] ||
+    fail "Browsernachweis fehlt: upgrade-$phase.png"
+}
+
+restore_source_version() {
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+    LEONAID_HTTPS_PORT="$rollback_https_port" \
+    TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
+    LEONAID_RESTORE_PROJECT="$rollback_project" \
+    LEONAID_RESTORE_CONFIRM="RESTORE:$rollback_project" \
+    LEONAID_BACKUP_REPOSITORY="$repository" \
+    LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
+    LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
+    LEONAID_RESTORE_START_APP=false \
+    LEONAID_RESTORE_COMPOSE_OVERLAY="$source_overlay" \
+    LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$rollback_network_overlay" \
+    /bin/sh "$root/tools/backup/restore.sh" "$root"
+}
+
+source_old --profile dev-mail down \
+  --volumes --remove-orphans >/dev/null 2>&1 || true
+rollback_old --profile dev-mail down \
+  --volumes --remove-orphans >/dev/null 2>&1 || true
+mkdir -p "$repository"
+docker run --rm \
+  -v "$proof:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import pathlib,secrets
+pathlib.Path("/proof/restic-password").write_text(secrets.token_urlsafe(48)+"\n")'
+chmod 600 "$password_file"
+
+run_plan_gate
+source_old build api public pwa web
+source_old --profile dev-mail up --detach --wait --wait-timeout 420 \
+  core-postgres rustfs mailpit twenty-server twenty-worker
+verify_image "${source_project}-twenty-server-1" "$TWENTY_UPGRADE_SOURCE_IMAGE"
+verify_image "${source_project}-rustfs-1" "$RUSTFS_UPGRADE_SOURCE_IMAGE"
+
+source_old run --rm --no-deps \
+  --user "$(id -u):$(id -g)" \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/twenty/provision.py apply \
+  --token-output /proof/integration.env
+integration_key=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' \
+  "$proof/integration.env")
+[ "${#integration_key}" -ge 32 ] || fail "eingeschränkter Twenty-Key fehlt"
+
+source_old up --detach --wait --wait-timeout 420 api
+/bin/sh "$root/tools/typst/render_golden.sh" \
+  "$root" "$proof/pdfs" "${source_project}-api"
+source_old --profile dev-mail run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --volume "$root:/repo:ro" \
+  --volume "$proof/pdfs:/proof/pdfs:ro" \
+  --entrypoint python \
+  api /repo/tools/seed/golden.py seed \
+  /repo/tests/fixtures/golden/v1 \
+  /proof/pdfs
+run_dashboard_contract source
+snapshot_and_verify source pre-upgrade golden
+source_old up --detach --wait --wait-timeout 420 public pwa web proxy
+run_e2e "$source_project" before
+
+LEONAID_COMPOSE_PROJECT="$source_project" \
+  LEONAID_HTTP_PORT="$source_http_port" \
+  LEONAID_HTTPS_PORT="$source_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_BACKUP_REPOSITORY="$repository" \
+  LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
+  LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
+  /bin/sh "$root/tools/backup/backup.sh" "$root"
+
+LEONAID_COMPOSE_PROJECT="$source_project" \
+  LEONAID_HTTP_PORT="$source_http_port" \
+  LEONAID_HTTPS_PORT="$source_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+run_maintenance_contract source maintenance
+running_writers=$(source_target ps --services --filter status=running)
+for writer in worker twenty-server twenty-worker; do
+  if echo "$running_writers" | grep -Fx "$writer" >/dev/null; then
+    fail "Writer läuft im Wartungsmodus weiter: $writer"
+  fi
+done
+
+source_target up --detach --force-recreate --wait --wait-timeout 420 \
+  rustfs
+run_twenty_upgrade source primary
+verify_image "${source_project}-twenty-server-1" "$TWENTY_IMAGE"
+verify_image "${source_project}-rustfs-1" "$RUSTFS_IMAGE"
+LEONAID_COMPOSE_PROJECT="$source_project" \
+  LEONAID_HTTP_PORT="$source_http_port" \
+  LEONAID_HTTPS_PORT="$source_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
+source_target --profile dev-mail up --detach --wait --wait-timeout 420
+run_maintenance_contract source available
+run_dashboard_contract source
+snapshot_and_verify source post-upgrade golden
+run_e2e "$source_project" after
+
+restore_source_version
+rollback_old build api public pwa web
+rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
+run_dashboard_contract rollback
+snapshot_and_verify rollback failure-clone-before golden
+
+LEONAID_COMPOSE_PROJECT="$rollback_project" \
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+  LEONAID_HTTPS_PORT="$rollback_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
+  /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+rollback_target up --detach --force-recreate --wait --wait-timeout 420 \
+  rustfs
+run_twenty_upgrade rollback failure-clone
+LEONAID_COMPOSE_PROJECT="$rollback_project" \
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+  LEONAID_HTTPS_PORT="$rollback_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
+  /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
+rollback_target --profile dev-mail run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/seed/golden.py mutate \
+  /repo/tests/fixtures/golden/v1
+snapshot_and_verify rollback failed-upgrade mutated
+if docker run --rm \
+  -v "$root:/workspace:ro" \
+  -v "$proof:/proof:ro" \
+  "$PYTHON_IMAGE" \
+  python /workspace/tools/seed/verify_snapshot.py golden \
+  /proof/failed-upgrade.json \
+  /workspace/tests/fixtures/golden/v1 >/dev/null 2>&1; then
+  fail "Absichtlich defektes Upgrade bestand den Golden-Contract"
+fi
+
+rollback_target --profile dev-mail down --volumes --remove-orphans
+restore_source_version
+rollback_old build api public pwa web
+rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
+run_dashboard_contract rollback
+snapshot_and_verify rollback rollback-restored golden
+run_e2e "$rollback_project" rollback
+
+mkdir -p "$artifact_directory"
+cp "$proof"/upgrade-before.png \
+  "$proof"/upgrade-after.png \
+  "$proof"/upgrade-rollback.png \
+  "$proof"/pre-upgrade.json \
+  "$proof"/post-upgrade.json \
+  "$proof"/failed-upgrade.json \
+    "$proof"/rollback-restored.json \
+    "$proof"/twenty-instance-upgrade-primary.log \
+    "$proof"/twenty-instance-upgrade-failure-clone.log \
+    "$proof"/twenty-upgrade-primary.log \
+  "$proof"/twenty-upgrade-failure-clone.log \
+  "$root/infra/upgrade/compatibility-matrix.json" \
+  "$artifact_directory/"
+docker run --rm \
+  -v "$artifact_directory:/artifacts" \
+  "$PYTHON_IMAGE" \
+  python -c 'import json,pathlib
+pathlib.Path("/artifacts/result.json").write_text(json.dumps({
+  "schemaVersion":1,
+  "result":"passed",
+  "source":{"twenty":"2.23.2","rustfs":"1.0.0-beta.10"},
+  "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11"},
+  "preContract":"passed",
+  "preE2e":"passed",
+  "maintenanceWriteBoundary":"passed",
+  "postContract":"passed",
+  "postE2e":"passed",
+  "failedUpgradeDetected":"passed",
+  "backupRollback":"passed"
+},sort_keys=True,indent=2)+"\n")'
+
+echo "upgrade-test: OK: reale Twenty- und RustFS-Upgrades,"
+echo "upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade"
+echo "upgrade-test:     sowie Recovery eines absichtlich defekten Upgrades bewiesen"

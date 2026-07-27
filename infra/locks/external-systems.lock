@@ -13,6 +13,15 @@
       "roles": ["crm-server", "crm-worker"]
     },
     {
+      "id": "twenty-upgrade-source",
+      "version": "2.23.2",
+      "image": "docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
+      "digest": "sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
+      "license": "AGPL-3.0-only",
+      "upstream": "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.23.2",
+      "roles": ["crm-upgrade-source"]
+    },
+    {
       "id": "postgres",
       "version": "16.9-alpine3.21",
       "image": "docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42",
@@ -38,6 +47,15 @@
       "license": "Apache-2.0",
       "upstream": "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.11",
       "roles": ["object-storage"]
+    },
+    {
+      "id": "rustfs-upgrade-source",
+      "version": "1.0.0-beta.10",
+      "image": "docker.io/rustfs/rustfs:1.0.0-beta.10@sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a",
+      "digest": "sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a",
+      "license": "Apache-2.0",
+      "upstream": "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.10",
+      "roles": ["object-storage-upgrade-source"]
     },
     {
       "id": "seaweedfs",

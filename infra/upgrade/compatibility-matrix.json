@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-07-27",
+  "changeWindow": {
+    "backupRequired": true,
+    "goldenCloneRequired": true,
+    "maintenanceModeRequired": true,
+    "releaseNotesReviewed": true,
+    "approver": "LeonAid system administrator"
+  },
+  "components": [
+    {
+      "id": "twenty",
+      "sourceVersion": "2.23.2",
+      "sourceImage": "docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52",
+      "targetVersion": "2.24.0",
+      "targetImage": "docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c",
+      "releaseNotes": [
+        "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.23.2",
+        "https://hub.docker.com/r/twentycrm/twenty/tags?name=v2.24.0",
+        "https://github.com/twentyhq/twenty/compare/twenty/v2.23.2...twenty/v2.24.0"
+      ],
+      "migration": {
+        "owner": "Twenty entrypoint bootstrap followed by fail-closed instance and workspace command runners",
+        "command": "Twenty target entrypoint, then yarn command:prod run-instance-commands, then yarn command:prod upgrade",
+        "reviewed": true,
+        "expectedDataChange": true
+      },
+      "rollback": {
+        "boundary": "Vor dem ersten Start des Zielservers darf das Quellimage erneut gestartet werden. Nach einer Zielmigration wird kein älteres Image gegen die vorwärts migrierte Datenbank gestartet.",
+        "strategy": "backup_restore",
+        "restoredComponents": ["twenty-postgres", "twenty-server-data"]
+      }
+    },
+    {
+      "id": "rustfs",
+      "sourceVersion": "1.0.0-beta.10",
+      "sourceImage": "docker.io/rustfs/rustfs:1.0.0-beta.10@sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a",
+      "targetVersion": "1.0.0-beta.11",
+      "targetImage": "docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c",
+      "releaseNotes": [
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.10",
+        "https://github.com/rustfs/rustfs/releases/tag/1.0.0-beta.11"
+      ],
+      "migration": {
+        "owner": "RustFS startup",
+        "command": "rustfs /data",
+        "reviewed": true,
+        "expectedDataChange": false
+      },
+      "rollback": {
+        "boundary": "Ein Binär-Rollback ist nur vor Zielschreibzugriffen zulässig. Nach Zielschreibzugriffen wird das vollständige RustFS-Volume aus dem Recovery Point restauriert.",
+        "strategy": "backup_restore",
+        "restoredComponents": ["rustfs-data"]
+      }
+    },
+    {
+      "id": "leonaid-core",
+      "sourceVersion": "alembic-head-before-release",
+      "sourceImage": "local-build-before-release",
+      "targetVersion": "alembic-head",
+      "targetImage": "local-build-from-reviewed-commit",
+      "releaseNotes": ["https://github.com/bjoern/leonaid/commits/main"],
+      "migration": {
+        "owner": "Alembic in start-api.sh",
+        "command": "uv run --frozen --no-sync alembic upgrade head",
+        "reviewed": true,
+        "expectedDataChange": true
+      },
+      "rollback": {
+        "boundary": "Nach einer vorwärts laufenden Core-Migration wird kein Code-Rollback gegen das neue Schema behauptet.",
+        "strategy": "backup_restore",
+        "restoredComponents": ["core-postgres"]
+      }
+    }
+  ],
+  "gates": [
+    "pins",
+    "release-notes",
+    "fresh-encrypted-backup",
+    "pre-upgrade-contract",
+    "pre-upgrade-e2e",
+    "maintenance-write-rejection",
+    "target-health",
+    "post-upgrade-contract",
+    "post-upgrade-e2e",
+    "rollback-recovery"
+  ]
+}

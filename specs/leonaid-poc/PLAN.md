@@ -1415,26 +1415,29 @@ Tests/Nachweise:
 Nachweis:
 [POC-112 – Backup, Restore und Disaster Recovery](proofs/POC-112.md).
 
-### [ ] POC-113 Upgrade- und Rollback-Prozess beweisen
+### [x] POC-113 Upgrade- und Rollback-Prozess beweisen
 
 Abhängigkeiten: POC-001, POC-112
 
 Akzeptanzkriterien:
 
-- [ ] Updateprozess prüft Release Notes, Migrationen, Backup und
+- [x] Updateprozess prüft Release Notes, Migrationen, Backup und
       Kompatibilitätsmatrix.
-- [ ] Twenty- und RustFS-Upgrades laufen zuerst gegen einen Golden-Data-Klon.
-- [ ] Rollbackgrenze ist pro Komponente dokumentiert; Datenmigrationen haben
+- [x] Twenty- und RustFS-Upgrades laufen zuerst gegen einen Golden-Data-Klon.
+- [x] Rollbackgrenze ist pro Komponente dokumentiert; Datenmigrationen haben
       eine Wiederherstellungsstrategie.
-- [ ] Wartungsmodus verhindert Schreibvorgänge während inkompatibler Phasen.
+- [x] Wartungsmodus verhindert Schreibvorgänge während inkompatibler Phasen.
 
 Tests/Nachweise:
 
-- [ ] Upgrade von der zuvor gepinnten auf die vorgesehene neue Testversion
+- [x] Upgrade von der zuvor gepinnten auf die vorgesehene neue Testversion
       wird real durchgeführt.
-- [ ] Contract- und E2E-Suite laufen vor und nach dem Upgrade.
-- [ ] Ein absichtlich gescheitertes Upgrade wird aus Backup sauber
+- [x] Contract- und E2E-Suite laufen vor und nach dem Upgrade.
+- [x] Ein absichtlich gescheitertes Upgrade wird aus Backup sauber
       zurückgesetzt.
+
+Nachweis:
+[POC-113 – Upgrade- und Rollback-Prozess](proofs/POC-113.md).
 
 ### [ ] POC-114 Observability und operatives Admin-Debugging ergänzen
 

@@ -1,0 +1,7 @@
+services:
+  twenty-server:
+    image: docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52
+  twenty-worker:
+    image: docker.io/twentycrm/twenty:v2.23.2@sha256:76330f4f302a734e8babb888deb9ce27442bbaea74850d5761b15471b07a3e52
+  rustfs:
+    image: docker.io/rustfs/rustfs:1.0.0-beta.10@sha256:60f4f2f41ce95216f8cac676e69f9d90c0bfec458a3bc7fd7fb9b7c2452ac57a

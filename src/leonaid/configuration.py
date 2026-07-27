@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -59,6 +60,10 @@ class Settings(BaseSettings):
         ge=1,
         le=7200,
         alias="LEONAID_FRESH_LOGIN_SECONDS",
+    )
+    maintenance_flag_path: Path = Field(
+        default=Path("/run/leonaid-maintenance/enabled"),
+        alias="LEONAID_MAINTENANCE_FLAG_PATH",
     )
     twenty_base_url: HttpUrl = Field(alias="TWENTY_BASE_URL")
     twenty_integration_api_key: SecretStr | None = Field(
@@ -118,6 +123,7 @@ class Settings(BaseSettings):
             "invitationTtlMinutes": str(self.invitation_ttl_minutes),
             "loginChallengeTtlMinutes": str(self.login_challenge_ttl_minutes),
             "freshLoginSeconds": str(self.fresh_login_seconds),
+            "maintenanceFlagPath": str(self.maintenance_flag_path),
             "coreDatabaseHost": urlparse(
                 self.core_database_url.get_secret_value()
             ).hostname

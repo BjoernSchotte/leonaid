@@ -1,0 +1,40 @@
+services:
+  proxy:
+    networks: !override
+      - edge
+  api:
+    networks: !override
+      - edge
+  worker:
+    networks: !override
+      - edge
+  core-postgres:
+    networks: !override
+      - edge
+  web:
+    networks: !override
+      - edge
+  pwa:
+    networks: !override
+      - edge
+  public:
+    networks: !override
+      - edge
+  twenty-server:
+    networks: !override
+      - edge
+  twenty-worker:
+    networks: !override
+      - edge
+  twenty-postgres:
+    networks: !override
+      - edge
+  twenty-redis:
+    networks: !override
+      - edge
+  rustfs:
+    networks: !override
+      - edge
+  mailpit:
+    networks: !override
+      - edge

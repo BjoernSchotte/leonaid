@@ -42,6 +42,8 @@ REQUIRED_SYSTEMS = {
     "trivy",
     "typst",
     "uv",
+    "rustfs-upgrade-source",
+    "twenty-upgrade-source",
 }
 TOOLCHAIN_KEYS = {"python", "nodejs", "bun", "uv", "typst", "playwright"}
 DEPENDENCY_SECTIONS = (

@@ -45,6 +45,7 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "invitationTtlMinutes": "30",
         "loginChallengeTtlMinutes": "10",
         "freshLoginSeconds": "900",
+        "maintenanceFlagPath": "/run/leonaid-maintenance/enabled",
         "coreDatabaseHost": "core-postgres",
         "twentyBaseHost": "twenty-server",
         "twentyIntegration": "unconfigured",

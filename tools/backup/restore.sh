@@ -12,6 +12,8 @@ repository=${LEONAID_BACKUP_REPOSITORY:-}
 password_file=${LEONAID_BACKUP_PASSWORD_FILE:-}
 credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
 compose_file="$root/infra/compose/compose.yml"
+compose_overlay=${LEONAID_RESTORE_COMPOSE_OVERLAY:-}
+compose_overlay_secondary=${LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY:-}
 env_file="$root/.env.local"
 stage=$(mktemp -d)
 
@@ -25,6 +27,28 @@ fail() {
 [ -n "$target_project" ] || fail "LEONAID_RESTORE_PROJECT fehlt"
 [ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
 [ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE fehlt"
+if [ -n "$compose_overlay" ]; then
+  compose_overlay=$(cd "$(dirname "$compose_overlay")" && pwd)/$(basename "$compose_overlay")
+  case "$compose_overlay" in
+    "$root"/*) ;;
+    *) fail "Restore-Compose-Overlay muss innerhalb des Repositories liegen" ;;
+  esac
+  [ -f "$compose_overlay" ] || fail "Restore-Compose-Overlay fehlt"
+fi
+if [ -n "$compose_overlay_secondary" ]; then
+  [ -n "$compose_overlay" ] ||
+    fail "Sekundäres Restore-Compose-Overlay benötigt ein primäres Overlay"
+  compose_overlay_secondary=$(
+    cd "$(dirname "$compose_overlay_secondary")" &&
+      pwd
+  )/$(basename "$compose_overlay_secondary")
+  case "$compose_overlay_secondary" in
+    "$root"/*) ;;
+    *) fail "Sekundäres Restore-Compose-Overlay muss im Repository liegen" ;;
+  esac
+  [ -f "$compose_overlay_secondary" ] ||
+    fail "Sekundäres Restore-Compose-Overlay fehlt"
+fi
 
 cleanup() {
   status=$?
@@ -148,11 +172,28 @@ docker run --rm \
   tar -C /target -xf /backup/rustfs-data.tar
 
 compose() {
-  docker compose \
-    --project-name "$target_project" \
-    --env-file "$env_file" \
-    --file "$compose_file" \
-    "$@"
+  if [ -n "$compose_overlay_secondary" ]; then
+    docker compose \
+      --project-name "$target_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$compose_overlay" \
+      --file "$compose_overlay_secondary" \
+      "$@"
+  elif [ -n "$compose_overlay" ]; then
+    docker compose \
+      --project-name "$target_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$compose_overlay" \
+      "$@"
+  else
+    docker compose \
+      --project-name "$target_project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      "$@"
+  fi
 }
 
 compose up --detach --wait --wait-timeout 420 \

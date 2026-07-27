@@ -55,6 +55,7 @@ services:
       LEONAID_INVITATION_TTL_MINUTES: "30"
       LEONAID_LOGIN_CHALLENGE_TTL_MINUTES: ${LEONAID_LOGIN_CHALLENGE_TTL_MINUTES:-10}
       LEONAID_FRESH_LOGIN_SECONDS: ${LEONAID_FRESH_LOGIN_SECONDS:-900}
+      LEONAID_MAINTENANCE_FLAG_PATH: /run/leonaid-maintenance/enabled
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
       TWENTY_BASE_URL: http://twenty-server:3000
       TWENTY_INTEGRATION_API_KEY: ${TWENTY_INTEGRATION_API_KEY:-}
@@ -74,6 +75,8 @@ services:
       MAILPIT_API_URL: http://mailpit:8025/mail
       MAILPIT_SMTP_HOST: mailpit
       MAILPIT_SMTP_PORT: "1025"
+    volumes:
+      - maintenance-state:/run/leonaid-maintenance:ro
     networks:
       - edge
       - core-data
@@ -443,6 +446,7 @@ volumes:
   seaweedfs-data:
   mailpit-data:
   listmonk-postgres-data:
+  maintenance-state:
 
 networks:
   edge:

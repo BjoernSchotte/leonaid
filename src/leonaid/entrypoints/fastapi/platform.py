@@ -87,6 +87,7 @@ from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
+from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
 from leonaid.entrypoints.fastapi.security import (
     csrf_violation,
     rate_limit_violation,
@@ -152,6 +153,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.allowed_origins = settings.allowed_origins
         application.state.trust_proxy_headers = settings.trust_proxy_headers
+        application.state.maintenance_flag_path = settings.maintenance_flag_path
         application.state.identity_service = IdentityQueryService(
             AsyncpgIdentityRepository(pool),
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
@@ -317,6 +319,21 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             preflight.headers["Access-Control-Max-Age"] = "600"
             preflight.headers["Vary"] = "Origin"
             return preflight
+        if writes_are_blocked(
+            request.method,
+            request.app.state.maintenance_flag_path,
+        ):
+            maintenance_response = error_response(
+                request,
+                status_code=503,
+                code="maintenance_mode",
+                message=(
+                    "LeonAid wird gerade aktualisiert. Lesen ist weiterhin "
+                    "möglich; Änderungen sind vorübergehend gesperrt."
+                ),
+            )
+            maintenance_response.headers["Retry-After"] = "60"
+            return maintenance_response
         csrf_reason = csrf_violation(
             request,
             allowed_origins=allowed_origins,

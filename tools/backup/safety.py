@@ -39,7 +39,7 @@ def validate_repository(
             if not parsed.hostname:
                 raise SafetyError("Remote-Repository enthält keinen Host")
         return
-    if allow_local_test and project.startswith("leonaid-poc112-"):
+    if allow_local_test and project.startswith(("leonaid-poc112-", "leonaid-poc113-")):
         candidate = Path(repository)
         if candidate.is_absolute() and candidate != Path("/"):
             return
