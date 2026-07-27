@@ -22,6 +22,7 @@ from leonaid.adapters.postgres.acquisition import (
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
@@ -29,6 +30,7 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
+from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import (
     TwentyCrmGateway,
     TwentyGatewaySettings,
@@ -39,6 +41,7 @@ from leonaid.application.activities import AcquisitionActivityService
 from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.commitments import CommitmentService
+from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -130,6 +133,19 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)
+        )
+        document_repository = AsyncpgGeneratedDocumentRepository(pool)
+        object_storage = S3ObjectStorage(
+            endpoint_url=str(settings.object_storage_endpoint_url),
+            access_key=settings.object_storage_access_key.get_secret_value(),
+            secret_key=settings.object_storage_secret_key.get_secret_value(),
+            bucket=settings.object_storage_bucket,
+            region=settings.object_storage_region,
+            path_style=settings.object_storage_path_style,
+        )
+        application.state.document_service = GeneratedDocumentService(
+            repository=document_repository,
+            storage=object_storage,
         )
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()

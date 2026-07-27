@@ -1120,28 +1120,31 @@ Tests/Nachweise:
 Nachweis:
 [POC-091 – Typst-Rechnungsvorlage und realer Renderer](proofs/POC-091.md).
 
-### [ ] POC-092 S3-Storage-Port und RustFS-Adapter implementieren
+### [x] POC-092 S3-Storage-Port und RustFS-Adapter implementieren
 
 Abhängigkeiten: POC-010, POC-022, POC-091
 
 Akzeptanzkriterien:
 
-- [ ] Providerneutraler Port kapselt Put, Head, geschützten Get/Download,
+- [x] Providerneutraler Port kapselt Put, Head, geschützten Get/Download,
       Version und kontrollierte Löschung.
-- [ ] `GeneratedDocument` speichert Bucket, Object Key, Version-ID, Größe,
+- [x] `GeneratedDocument` speichert Bucket, Object Key, Version-ID, Größe,
       SHA-256, Render-Version und Fachreferenzen.
-- [ ] RustFS-spezifische APIs gelangen nicht in Domain oder UI.
-- [ ] Bucket ist privat; Downloads folgen Core-Autorisierung.
-- [ ] Versandtes PDF wird nie überschrieben.
+- [x] RustFS-spezifische APIs gelangen nicht in Domain oder UI.
+- [x] Bucket ist privat; Downloads folgen Core-Autorisierung.
+- [x] Versandtes PDF wird nie überschrieben.
 
 Tests/Nachweise:
 
-- [ ] Contractsuite läuft gegen echtes RustFS und einen zweiten realen
+- [x] Contractsuite läuft gegen echtes RustFS und einen zweiten realen
       S3-kompatiblen Test-Endpunkt.
-- [ ] Upload/Download bewahrt Bytes und SHA-256.
-- [ ] Unberechtigte Persona erhält weder Objekt noch signierte URL.
-- [ ] Reales Stoppen von RustFS verhindert Erfolgsstatus und lässt Job
+- [x] Upload/Download bewahrt Bytes und SHA-256.
+- [x] Unberechtigte Persona erhält weder Objekt noch signierte URL.
+- [x] Reales Stoppen von RustFS verhindert Erfolgsstatus und lässt Job
       wiederholbar.
+
+Nachweis:
+[POC-092 – S3-Storage-Port und RustFS-Adapter](proofs/POC-092.md).
 
 ### [ ] POC-093 Dokumentabruf in allen Fachkontexten umsetzen
 

@@ -59,6 +59,24 @@ class Settings(BaseSettings):
     )
     twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
     rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
+    object_storage_endpoint_url: HttpUrl = Field(alias="OBJECT_STORAGE_ENDPOINT_URL")
+    object_storage_access_key: SecretStr = Field(alias="OBJECT_STORAGE_ACCESS_KEY")
+    object_storage_secret_key: SecretStr = Field(alias="OBJECT_STORAGE_SECRET_KEY")
+    object_storage_bucket: str = Field(
+        min_length=3,
+        max_length=63,
+        alias="OBJECT_STORAGE_BUCKET",
+    )
+    object_storage_region: str = Field(
+        default="us-east-1",
+        min_length=1,
+        max_length=64,
+        alias="OBJECT_STORAGE_REGION",
+    )
+    object_storage_path_style: bool = Field(
+        default=True,
+        alias="OBJECT_STORAGE_PATH_STYLE",
+    )
 
     @field_validator("twenty_integration_api_key", mode="before")
     @classmethod
@@ -102,6 +120,8 @@ class Settings(BaseSettings):
             ),
             "twentyHealthHost": self.twenty_health_url.host or "invalid",
             "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
+            "objectStorageHost": self.object_storage_endpoint_url.host or "invalid",
+            "objectStorageBucket": self.object_storage_bucket,
         }
 
 

@@ -34,6 +34,7 @@ from leonaid.domain.invoices import (
     InvoiceStatus,
     TaxTreatment,
 )
+from leonaid.domain.documents import INVOICE_DOCUMENT_RENDER_REQUESTED
 
 COMMAND_TYPE = "issue_invoice_v1"
 
@@ -284,6 +285,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         await self._insert(
             connection,
             invoice=invoice,
+            twenty_company_id=commitment_row["twenty_company_id"],
+            twenty_person_id=commitment_row["twenty_person_id"],
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             request_id=request_id,
@@ -399,6 +402,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         connection: asyncpg.Connection[Any],
         *,
         invoice: Invoice,
+        twenty_company_id: UUID | None,
+        twenty_person_id: UUID | None,
         idempotency_key: str,
         request_hash: str,
         request_id: str,
@@ -477,6 +482,48 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 },
                 separators=(",", ":"),
             ),
+            invoice.issued_at,
+        )
+        document_id = uuid4()
+        await connection.execute(
+            """
+            INSERT INTO generated_document (
+                id, action_id, commitment_id, invoice_id,
+                twenty_company_id, twenty_person_id,
+                document_type, media_type, version, status,
+                created_at, updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4,
+                $5, $6,
+                'invoice_pdf', 'application/pdf', 1, 'pending',
+                $7, $7
+            )
+            """,
+            document_id,
+            invoice.action_id,
+            invoice.commitment_id,
+            invoice.id,
+            twenty_company_id,
+            twenty_person_id,
+            invoice.issued_at,
+        )
+        await connection.execute(
+            """
+            INSERT INTO outbox_event (
+                id, aggregate_type, aggregate_id, event_type,
+                idempotency_key, payload, available_at, created_at
+            )
+            VALUES (
+                $1, 'generated_document', $2, $3,
+                $4, $5::jsonb, $6, $6
+            )
+            """,
+            uuid4(),
+            document_id,
+            INVOICE_DOCUMENT_RENDER_REQUESTED,
+            f"invoice-document:{document_id}:v1",
+            json.dumps({"documentId": str(document_id)}, separators=(",", ":")),
             invoice.issued_at,
         )
         await self._complete_command(

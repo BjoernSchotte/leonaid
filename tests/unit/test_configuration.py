@@ -21,6 +21,10 @@ def valid_settings(**overrides: str) -> Settings:
         "TWENTY_BASE_URL": "http://twenty-server:3000",
         "TWENTY_HEALTH_URL": "http://twenty-server:3000/healthz",
         "RUSTFS_HEALTH_URL": "http://rustfs:9000/health",
+        "OBJECT_STORAGE_ENDPOINT_URL": "http://rustfs:9000",
+        "OBJECT_STORAGE_ACCESS_KEY": "golden-storage-access",
+        "OBJECT_STORAGE_SECRET_KEY": "golden-storage-secret",
+        "OBJECT_STORAGE_BUCKET": "leonaid",
     }
     values.update(overrides)
     return Settings.model_validate(values)
@@ -44,6 +48,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "twentyIntegration": "unconfigured",
         "twentyHealthHost": "twenty-server",
         "rustfsHealthHost": "rustfs",
+        "objectStorageHost": "rustfs",
+        "objectStorageBucket": "leonaid",
     }
     assert "top-secret" not in repr(settings)
     assert "top-secret" not in repr(settings.safe_summary())

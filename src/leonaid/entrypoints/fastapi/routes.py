@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, cast
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response, status
@@ -35,6 +36,7 @@ from leonaid.application.commitments import (
     CommitmentRecord,
     CommitmentService,
 )
+from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceList,
@@ -299,6 +301,10 @@ def commitment_service(request: Request) -> CommitmentService:
 
 def invoice_service(request: Request) -> InvoiceService:
     return cast(InvoiceService, request.app.state.invoice_service)
+
+
+def document_service(request: Request) -> GeneratedDocumentService:
+    return cast(GeneratedDocumentService, request.app.state.document_service)
 
 
 def session_token(request: Request) -> str | None:
@@ -1746,6 +1752,42 @@ async def issue_invoice(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Location"] = f"/api/v1/actions/{action_id}/invoices/{invoice.id}"
     return invoice_response(invoice)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/documents/{document_id}/download",
+    operation_id="downloadGeneratedDocument",
+    response_class=Response,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["documents"],
+)
+async def download_generated_document(
+    action_id: UUID,
+    document_id: UUID,
+    request: Request,
+    inline: bool = False,
+) -> Response:
+    actor = await identity_service(request).authenticate(session_token(request))
+    download = await document_service(request).download(
+        actor,
+        action_id,
+        document_id,
+    )
+    filename = download.document.filename or f"Dokument-{document_id}.pdf"
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=download.content,
+        media_type=download.document.media_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": (
+                f"{disposition}; filename*=UTF-8''{quote(filename, safe='')}"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "X-Document-SHA256": download.document.sha256 or "",
+            "X-Document-Version": str(download.document.version),
+        },
+    )
 
 
 @router.post(

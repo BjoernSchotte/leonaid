@@ -8,6 +8,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 /bin/sh "$root/tools/core/test.sh" "$root"
 /bin/sh "$root/tools/schema/test.sh" "$root"
 /bin/sh "$root/tools/outbox/test.sh" "$root"
+/bin/sh "$root/tools/storage/test.sh" "$root"
 /bin/sh "$root/tools/twenty/test.sh" "$root"
 /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
 /bin/sh "$root/tools/twenty/import_test.sh" "$root"

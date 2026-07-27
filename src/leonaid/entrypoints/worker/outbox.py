@@ -19,8 +19,12 @@ from leonaid.adapters.mail.smtp import SmtpMailHandler
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
 )
+from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.storage import S3ObjectStorage
+from leonaid.adapters.typst import TypstInvoiceRenderer
+from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
 from leonaid.domain.outbox import OutboxState, RetryPolicy
 
@@ -40,6 +44,21 @@ async def build_worker(
     )
     handlers: dict[str, OutboxEventHandler] = {
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
+        "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
+            repository=AsyncpgGeneratedDocumentRepository(pool),
+            renderer=TypstInvoiceRenderer(),
+            storage=S3ObjectStorage(
+                endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
+                access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
+                secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
+                bucket=os.environ["OBJECT_STORAGE_BUCKET"],
+                region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
+                path_style=os.environ.get(
+                    "OBJECT_STORAGE_PATH_STYLE", "true"
+                ).casefold()
+                == "true",
+            ),
+        ),
         "mail.send.v1": SmtpMailHandler(
             pool,
             host=os.environ.get("MAILPIT_SMTP_HOST", "mailpit"),

@@ -23,6 +23,8 @@ import boto3
 import httpx
 from botocore.exceptions import ClientError
 
+from leonaid.adapters.typst import RENDER_VERSION
+
 DATASET_VERSION = "1.0.0"
 OBJECT_PREFIX = "golden/v1/invoices/"
 ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
@@ -474,6 +476,12 @@ def ensure_bucket(client: Any, bucket: str) -> None:
         if status != 404:
             raise
         client.create_bucket(Bucket=bucket)
+    client.put_bucket_versioning(
+        Bucket=bucket,
+        VersioningConfiguration={"Status": "Enabled"},
+    )
+    if client.get_bucket_versioning(Bucket=bucket).get("Status") != "Enabled":
+        raise SeedError("S3-Bucket bestätigt keine aktive Versionierung")
 
 
 def load_pdf(path: Path) -> tuple[bytes, str]:
@@ -518,7 +526,7 @@ def seed_rustfs(dataset: JsonObject, pdf_directory: Path) -> list[JsonObject]:
             client.delete_object(Bucket=bucket, Key=key)
     for item in manifest:
         content = (pdf_directory / f"{item['invoiceNumber']}.pdf").read_bytes()
-        client.put_object(
+        response = client.put_object(
             Bucket=bucket,
             Key=item["objectKey"],
             Body=content,
@@ -530,6 +538,10 @@ def seed_rustfs(dataset: JsonObject, pdf_directory: Path) -> list[JsonObject]:
                 "invoice-number": item["invoiceNumber"],
             },
         )
+        version_id = response.get("VersionId")
+        if not isinstance(version_id, str) or version_id in {"", "null"}:
+            raise SeedError("RustFS lieferte keine unveränderliche Version-ID")
+        item["storageVersionId"] = version_id
     return manifest
 
 
@@ -557,6 +569,7 @@ def snapshot_rustfs(dataset: JsonObject) -> JsonObject:
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "storedSha256": metadata.get("sha256"),
                 "contentType": response.get("ContentType"),
+                "storageVersionId": response.get("VersionId"),
                 "size": len(content),
                 "isPdf": content.startswith(b"%PDF-") and b"%%EOF" in content[-1_024:],
             }
@@ -865,10 +878,23 @@ async def seed_operational_golden(
         golden_action_ids,
     )
     scoped_invoice_ids = [row["id"] for row in invoice_ids]
+    document_ids = await connection.fetch(
+        "SELECT id FROM generated_document WHERE invoice_id = ANY($1::uuid[])",
+        scoped_invoice_ids,
+    )
+    scoped_document_ids = [row["id"] for row in document_ids]
 
     await connection.execute(
         "DELETE FROM payment_record WHERE invoice_id = ANY($1::uuid[])",
         scoped_invoice_ids,
+    )
+    await connection.execute(
+        """
+        DELETE FROM outbox_event
+        WHERE aggregate_type = 'generated_document'
+          AND aggregate_id = ANY($1::uuid[])
+        """,
+        scoped_document_ids,
     )
     await connection.execute(
         "DELETE FROM generated_document WHERE invoice_id = ANY($1::uuid[])",
@@ -1354,13 +1380,23 @@ async def seed_operational_golden(
                 twenty_person_id,
                 document_type,
                 media_type,
+                filename,
+                storage_bucket,
                 object_key,
+                storage_version_id,
+                size_bytes,
                 sha256,
-                version
+                render_version,
+                version,
+                status,
+                available_at,
+                updated_at
             )
             VALUES (
                 $1, $2, $3, $1, $4, $5,
-                'invoice_pdf', 'application/pdf', $6, $7, 1
+                'invoice_pdf', 'application/pdf', $6, $7,
+                $8, $9, $10, $11, $12, 1, 'available',
+                $13, $13
             )
             """,
             invoice["id"],
@@ -1368,8 +1404,14 @@ async def seed_operational_golden(
             commitment["id"],
             commitment["companyId"],
             commitment["personId"],
+            f"Rechnung-{invoice['number']}.pdf",
+            require_env("RUSTFS_BUCKET"),
             document["objectKey"],
+            document["storageVersionId"],
+            document["size"],
             document["sha256"],
+            RENDER_VERSION,
+            issued_at,
         )
 
 

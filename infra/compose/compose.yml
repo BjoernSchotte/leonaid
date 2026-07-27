@@ -55,6 +55,12 @@ services:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+      OBJECT_STORAGE_ENDPOINT_URL: http://rustfs:9000
+      OBJECT_STORAGE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      OBJECT_STORAGE_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_PATH_STYLE: "true"
       MAILPIT_API_URL: http://mailpit:8025/mail
       MAILPIT_SMTP_HOST: mailpit
       MAILPIT_SMTP_PORT: "1025"
@@ -94,6 +100,12 @@ services:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+      OBJECT_STORAGE_ENDPOINT_URL: http://rustfs:9000
+      OBJECT_STORAGE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      OBJECT_STORAGE_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:-leonaid}
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_PATH_STYLE: "true"
       MAILPIT_SMTP_HOST: mailpit
       MAILPIT_SMTP_PORT: "1025"
       LEONAID_MAIL_FROM: LeonAid <noreply@leonaid.invalid>
@@ -294,6 +306,25 @@ services:
       retries: 30
       start_period: 10s
 
+  seaweedfs:
+    image: docker.io/chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602
+    profiles: ["storage-contract"]
+    command: ["mini", "-dir=/data"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      S3_BUCKET: leonaid-contract
+    volumes:
+      - seaweedfs-data:/data
+    networks:
+      - storage-data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9333/cluster/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
   mailpit:
     image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
     profiles: ["dev-mail"]
@@ -384,6 +415,7 @@ volumes:
   twenty-redis-data:
   twenty-server-data:
   rustfs-data:
+  seaweedfs-data:
   mailpit-data:
   listmonk-postgres-data:
 

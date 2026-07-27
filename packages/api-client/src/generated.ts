@@ -582,6 +582,25 @@ export class LeonAidApiClient {
     );
   }
 
+  async downloadGeneratedDocument(
+    actionId: string,
+    documentId: string,
+    queryParameters: { readonly inline?: boolean; } = {},
+    options: RequestOptions = {},
+  ): Promise<void> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.inline !== undefined && queryParameters.inline !== null) {
+      searchParameters.set("inline", String(queryParameters.inline));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/actions/${encodeURIComponent(String(actionId))}/documents/${encodeURIComponent(String(documentId))}/download` + (queryString ? `?${queryString}` : "");
+    return this.request<void>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async setCharityActionGoal(
     actionId: string,
     body: SetActionGoalRequest,
