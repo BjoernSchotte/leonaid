@@ -143,11 +143,14 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 - Docker-Compose-Deployment, Secrets und Integrationen betreiben;
 - Benutzer, globale Rollen und Sitzungen verwalten;
 - Twenty, PostgreSQL, RustFS und Mail-Relay konfigurieren;
+- katalogisierte Feature-Flags für kontrollierte Rollouts ein- und
+  ausschalten sowie deren Revision und Wirkung prüfen;
 - Updates, Healthchecks, Diagnose, Backup und Restore durchführen.
 
 **Zugriffsgrenze:** `system_admin` ist systemweit und darf deshalb nicht als
 alltägliche Fachrolle verwendet werden. Kritische Aktionen benötigen eine
-frische Anmeldung und Audit.
+frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
+Rollout, niemals Rollen- oder Datensatzberechtigungen.
 
 **Oberfläche:** Systembereich der Web-App plus versionierte
 Docker-/Runbook-Werkzeuge.

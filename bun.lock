@@ -74,6 +74,7 @@
         "@hugeicons/react": "1.1.9",
         "@leonaid/api-client": "workspace:*",
         "@leonaid/ui": "workspace:*",
+        "@openfeature/react-sdk": "1.4.1",
         "@tanstack/react-query": "5.101.4",
         "react": "19.2.8",
       },
@@ -369,6 +370,12 @@
     "@leonaid/web": ["@leonaid/web@workspace:apps/web"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg=="],
+
+    "@openfeature/core": ["@openfeature/core@1.11.0", "", {}, "sha512-P0u3/ht/oZCQT89fOed+laLk0kZR529a825cS02uPDglxXbE97irWYpDAeRGGVETIzKfuy+H2g8c3Ccv/tXJNQ=="],
+
+    "@openfeature/react-sdk": ["@openfeature/react-sdk@1.4.1", "", { "peerDependencies": { "@openfeature/web-sdk": "^1.9.0", "react": ">=16.8.0" } }, "sha512-xKpXBXVT0w9CIrhl6IzGkIuxmsqy7At+eYUW1XtaZbk+odKW424ZnmmjqiQMrbu31pfAhQrzww36QokTQaIf7g=="],
+
+    "@openfeature/web-sdk": ["@openfeature/web-sdk@1.9.0", "", { "peerDependencies": { "@openfeature/core": "^1.11.0" } }, "sha512-FCrNfqvE/thHVfCNU0KKx1SD7rk+1wE2UaR5B5OPZl917QJv6AsKRwaI3N+SVgwXWI07GgtXP6hNlTVb49PGhg=="],
 
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
 

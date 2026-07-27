@@ -6,9 +6,12 @@ import {
   ActivityFeedPage,
   CommitmentAdminPage,
   CreateActionPage,
+  FeatureFlagAdminPage,
+  FeatureFlagProvider,
   InvoiceAdminPage,
   ManageActionPage,
   MemberInvitationPage,
+  PreviewNotice,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -20,6 +23,7 @@ function route() {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
   if (pathname === "/members") return { kind: "members" } as const;
+  if (pathname === "/system") return { kind: "system" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
   if (pathname === "/invoices") return { kind: "invoices" } as const;
   if (pathname === "/activities") return { kind: "activities" } as const;
@@ -97,37 +101,44 @@ export function App({ client }: AppProps) {
               ? "Rechnungen"
               : currentRoute.kind === "members"
                 ? "Mitglieder"
-                : "Alle Aktionen";
+                : currentRoute.kind === "system"
+                  ? "System"
+                  : "Alle Aktionen";
 
   return (
-    <AppShell
-      currentActionName={currentAction}
-      identity={identity.data}
-      onLogout={() => {
-        void client.logout().finally(() => {
-          window.location.assign("/login");
-        });
-      }}
-    >
-      {currentRoute.kind === "new" ? (
-        <CreateActionPage client={client} />
-      ) : currentRoute.kind === "manage" ? (
-        <ManageActionPage
-          actionId={currentRoute.actionId}
-          client={client}
-          key={currentRoute.actionId}
-        />
-      ) : currentRoute.kind === "members" ? (
-        <MemberInvitationPage client={client} />
-      ) : currentRoute.kind === "orders" ? (
-        <CommitmentAdminPage client={client} identity={identity.data} />
-      ) : currentRoute.kind === "invoices" ? (
-        <InvoiceAdminPage client={client} identity={identity.data} />
-      ) : currentRoute.kind === "activities" ? (
-        <ActivityFeedPage client={client} surface="web" />
-      ) : (
-        <ActionListPage identity={identity.data} />
-      )}
-    </AppShell>
+    <FeatureFlagProvider client={client} identity={identity.data} surface="web">
+      <AppShell
+        currentActionName={currentAction}
+        identity={identity.data}
+        onLogout={() => {
+          void client.logout().finally(() => {
+            window.location.assign("/login");
+          });
+        }}
+      >
+        <PreviewNotice />
+        {currentRoute.kind === "new" ? (
+          <CreateActionPage client={client} />
+        ) : currentRoute.kind === "manage" ? (
+          <ManageActionPage
+            actionId={currentRoute.actionId}
+            client={client}
+            key={currentRoute.actionId}
+          />
+        ) : currentRoute.kind === "members" ? (
+          <MemberInvitationPage client={client} />
+        ) : currentRoute.kind === "orders" ? (
+          <CommitmentAdminPage client={client} identity={identity.data} />
+        ) : currentRoute.kind === "invoices" ? (
+          <InvoiceAdminPage client={client} identity={identity.data} />
+        ) : currentRoute.kind === "activities" ? (
+          <ActivityFeedPage client={client} surface="web" />
+        ) : currentRoute.kind === "system" ? (
+          <FeatureFlagAdminPage client={client} />
+        ) : (
+          <ActionListPage identity={identity.data} />
+        )}
+      </AppShell>
+    </FeatureFlagProvider>
   );
 }

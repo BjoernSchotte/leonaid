@@ -3,6 +3,7 @@
   "idFormat": "uuid",
   "requiredCollections": [
     "users",
+    "featureFlags",
     "actions",
     "actionMemberships",
     "beneficiaries",
@@ -67,6 +68,10 @@
       "OPEN",
       "PAID",
       "CANCELLED"
+    ],
+    "featureFlagKey": [
+      "admin.system_status_panel",
+      "admin.preview_notice"
     ],
     "taxTreatment": [
       "STANDARD_VAT",

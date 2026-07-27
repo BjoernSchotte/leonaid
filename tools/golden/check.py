@@ -129,6 +129,7 @@ def main() -> int:
 
     enums = schema.get("enums", {})
     users = collections["users"]
+    feature_flags = collections["featureFlags"]
     actions = collections["actions"]
     memberships = collections["actionMemberships"]
     beneficiaries = collections["beneficiaries"]
@@ -141,6 +142,28 @@ def main() -> int:
     activities = collections["activities"]
     matches = collections["matchScenarios"]
     routes = collections["publicRoutes"]
+
+    feature_flag_states: dict[str, bool] = {}
+    for flag in feature_flags.values():
+        key = flag.get("key")
+        problems.require(
+            key in enums.get("featureFlagKey", []),
+            f"featureFlags: unknown key {key}",
+        )
+        problems.require(
+            isinstance(flag.get("enabled"), bool),
+            f"featureFlags: non-boolean value for {key}",
+        )
+        problems.require(
+            flag.get("revision") == 1,
+            f"featureFlags: Golden revision must be 1 for {key}",
+        )
+        if isinstance(key, str) and isinstance(flag.get("enabled"), bool):
+            feature_flag_states[key] = flag["enabled"]
+    problems.require(
+        feature_flag_states == expected.get("featureFlagStates"),
+        "feature flag states differ",
+    )
 
     for user in users.values():
         problems.require(

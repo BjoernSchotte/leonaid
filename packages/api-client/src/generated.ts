@@ -57,6 +57,11 @@ export type CreatePublicOrderRequest = { readonly accessToken: string; readonly 
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
+export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
+export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly defaultEnabled: boolean; readonly description: string; readonly effect: string; readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice"; readonly revision: number; readonly title: string; readonly updatedAt: string; readonly updatedByUserId: string | null; };
+export type FeatureFlagEvaluationListResponse = { readonly flags: Array<FeatureFlagEvaluationResponse>; readonly surface: "web" | "pwa"; };
+export type FeatureFlagEvaluationResponse = { readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice"; readonly provider: string; readonly reason: string; readonly variant: string; };
+export type FeatureFlagSystemStatusResponse = { readonly checkedAt: string; readonly evaluatedBy: "openfeature"; readonly provider: string; readonly status: "operational"; };
 export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly status: "fresh"; };
 export type GeneratedDocumentListResponse = { readonly actionId: string; readonly items: Array<GeneratedDocumentRecordResponse>; readonly reference: GeneratedDocumentReferenceResponse; };
 export type GeneratedDocumentRecordResponse = { readonly buyerDisplayName: string; readonly document: GeneratedDocumentResponse; readonly invoiceNumber: string | null; };
@@ -120,6 +125,7 @@ export type TransitionCharityActionRequest = { readonly revision: number; readon
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
 export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
+export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 
 export type FetchLike = (
   input: RequestInfo | URL,
@@ -891,6 +897,42 @@ export class LeonAidApiClient {
     );
   }
 
+  async listFeatureFlags(
+    options: RequestOptions = {},
+  ): Promise<FeatureFlagAdminListResponse> {
+    return this.request<FeatureFlagAdminListResponse>(
+      "/api/v1/admin/feature-flags",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateFeatureFlag(
+    key: string,
+    body: UpdateFeatureFlagRequest,
+    options: RequestOptions = {},
+  ): Promise<FeatureFlagAdminResponse> {
+    return this.request<FeatureFlagAdminResponse>(
+      `/api/v1/admin/feature-flags/${encodeURIComponent(String(key))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getFeatureFlagSystemStatus(
+    options: RequestOptions = {},
+  ): Promise<FeatureFlagSystemStatusResponse> {
+    return this.request<FeatureFlagSystemStatusResponse>(
+      "/api/v1/admin/system-status",
+      { method: "GET" },
+      options,
+    );
+  }
+
   async revokeUserSessions(
     userId: string,
     options: RequestOptions = {},
@@ -973,6 +1015,23 @@ export class LeonAidApiClient {
     return this.request<LogoutResponse>(
       "/api/v1/auth/logout",
       { method: "POST" },
+      options,
+    );
+  }
+
+  async getFeatureFlagEvaluations(
+    queryParameters: { readonly surface?: "web" | "pwa"; } = {},
+    options: RequestOptions = {},
+  ): Promise<FeatureFlagEvaluationListResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.surface !== undefined && queryParameters.surface !== null) {
+      searchParameters.set("surface", String(queryParameters.surface));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/feature-flags/evaluations" + (queryString ? `?${queryString}` : "");
+    return this.request<FeatureFlagEvaluationListResponse>(
+      requestPath,
+      { method: "GET" },
       options,
     );
   }

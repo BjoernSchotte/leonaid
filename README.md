@@ -72,6 +72,7 @@ Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
 | **Backend**             | [Twenty CRM](https://github.com/twentyhq/twenty) (Open Source, AGPL-3.0), self-hosted             |
 | **Operatives Frontend** | React/TypeScript-PWA, shadcn/ui, freie Hugeicons; gemeinsame App Shell                            |
 | **LeonAid Core**        | Python 3.13, FastAPI, frameworkfreie Application Services und transaktionaler Outbox-Worker       |
+| **Feature-Rollout**     | OpenFeature für Python und React; im PoC providerneutral aus LeonAid PostgreSQL                    |
 | **ERP-light**           | Bestellungen, Ausgangsrechnungen, Typst-PDF und manueller Zahlungsstatus                          |
 | **Public Web**          | Astro 7 als Teil des Core; zeitlich begrenzte Aktionsseiten und aktionsbezogene Standardformulare |
 | **Kommunikation**       | externer Mail-Relay; optionales listmonk-Compose-Profil                                           |

@@ -37,6 +37,7 @@ EXPECTED_TABLES = {
     "commitment_line",
     "consent_record",
     "generated_document",
+    "feature_flag",
     "invoice",
     "invoice_cancellation",
     "invoice_delivery",
@@ -95,7 +96,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0016_invoice_settlements":
+    if revision != "0017_feature_flags":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(

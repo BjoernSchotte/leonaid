@@ -67,6 +67,20 @@
       "status": "LOCKED"
     }
   ],
+  "featureFlags": [
+    {
+      "id": "95000000-0000-4000-8000-000000000001",
+      "key": "admin.system_status_panel",
+      "enabled": false,
+      "revision": 1
+    },
+    {
+      "id": "95000000-0000-4000-8000-000000000002",
+      "key": "admin.preview_notice",
+      "enabled": false,
+      "revision": 1
+    }
+  ],
   "actions": [
     {
       "id": "20000000-0000-4000-8000-000000000001",

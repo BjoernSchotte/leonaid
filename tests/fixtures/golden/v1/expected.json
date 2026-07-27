@@ -3,6 +3,7 @@
   "schemaVersion": 1,
   "counts": {
     "users": 8,
+    "featureFlags": 2,
     "actions": 3,
     "actionMemberships": 8,
     "beneficiaries": 4,
@@ -26,6 +27,10 @@
   "statusCounts": {
     "ACTIVE": 7,
     "LOCKED": 1
+  },
+  "featureFlagStates": {
+    "admin.system_status_panel": false,
+    "admin.preview_notice": false
   },
   "visibleActionIdsByUser": {
     "10000000-0000-4000-8000-000000000001": [

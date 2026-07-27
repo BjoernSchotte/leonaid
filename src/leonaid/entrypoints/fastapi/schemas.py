@@ -78,6 +78,54 @@ class CurrentIdentityResponse(TransportModel):
     fresh_until: datetime
 
 
+FeatureFlagKeyValue = Literal[
+    "admin.system_status_panel",
+    "admin.preview_notice",
+]
+
+
+class FeatureFlagEvaluationResponse(TransportModel):
+    key: FeatureFlagKeyValue
+    enabled: bool
+    variant: str
+    reason: str
+    provider: str
+
+
+class FeatureFlagEvaluationListResponse(TransportModel):
+    surface: Literal["web", "pwa"]
+    flags: list[FeatureFlagEvaluationResponse]
+
+
+class FeatureFlagAdminResponse(TransportModel):
+    key: FeatureFlagKeyValue
+    title: str
+    description: str
+    effect: str
+    enabled: bool
+    default_enabled: bool
+    client_safe: bool
+    revision: int
+    updated_by_user_id: UUID | None
+    updated_at: datetime
+
+
+class FeatureFlagAdminListResponse(TransportModel):
+    flags: list[FeatureFlagAdminResponse]
+
+
+class UpdateFeatureFlagRequest(TransportModel):
+    enabled: bool
+    expected_revision: int = Field(ge=1)
+
+
+class FeatureFlagSystemStatusResponse(TransportModel):
+    status: Literal["operational"]
+    evaluated_by: Literal["openfeature"]
+    provider: str
+    checked_at: datetime
+
+
 ActionRoleValue = Literal[
     "charity_admin",
     "acquirer",

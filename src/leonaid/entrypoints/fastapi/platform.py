@@ -11,9 +11,14 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from openfeature import api as openfeature_api
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
+from leonaid.adapters.feature_flags.openfeature import (
+    LeonAidFeatureProvider,
+    OpenFeatureBooleanEvaluator,
+)
 from leonaid.adapters.http_readiness import HttpReadinessProbe
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.acquisition import (
@@ -23,6 +28,7 @@ from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepositor
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
+from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
@@ -57,6 +63,7 @@ from leonaid.application.errors import (
     RateLimited,
     ResourceNotFound,
 )
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.identity import IdentityQueryService
 from leonaid.application.invoice_deliveries import InvoiceDeliveryService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
@@ -148,6 +155,12 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.invoice_settlement_service = InvoiceSettlementService(
             AsyncpgInvoiceSettlementRepository(pool)
         )
+        feature_flag_provider = LeonAidFeatureProvider()
+        feature_flag_evaluator = OpenFeatureBooleanEvaluator(feature_flag_provider)
+        application.state.feature_flag_service = FeatureFlagService(
+            AsyncpgFeatureFlagRepository(pool),
+            feature_flag_evaluator,
+        )
         document_repository = AsyncpgGeneratedDocumentRepository(pool)
         object_storage = S3ObjectStorage(
             endpoint_url=str(settings.object_storage_endpoint_url),
@@ -229,6 +242,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             if crm_gateway is not None:
                 await crm_gateway.close()
             await pool.close()
+            openfeature_api.shutdown()
 
     application = FastAPI(
         title="LeonAid Core",

@@ -64,9 +64,11 @@ from leonaid.application.actions import (
     UpdateActionDetailsDraft,
 )
 from leonaid.application.errors import DependencyUnavailable
+from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
+from leonaid.application.policies import require_system_admin
 from leonaid.application.public_orders import (
     PublicOrderDraft,
     PublicOrderPartyDraft,
@@ -120,6 +122,7 @@ from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     PaymentRecord,
 )
+from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
@@ -176,6 +179,11 @@ from leonaid.entrypoints.fastapi.schemas import (
     CurrentIdentityResponse,
     ERROR_RESPONSES,
     FreshLoginStatusResponse,
+    FeatureFlagAdminListResponse,
+    FeatureFlagAdminResponse,
+    FeatureFlagEvaluationListResponse,
+    FeatureFlagEvaluationResponse,
+    FeatureFlagSystemStatusResponse,
     GeneratedDocumentListResponse,
     GeneratedDocumentRecordResponse,
     GeneratedDocumentReferenceResponse,
@@ -233,6 +241,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     UpdateAcquisitionAssignmentRequest,
     UpdateActivityFeedItemRequest,
     UpdateActionDetailsRequest,
+    UpdateFeatureFlagRequest,
 )
 
 router = APIRouter()
@@ -339,6 +348,10 @@ def invoice_settlement_service(request: Request) -> InvoiceSettlementService:
         InvoiceSettlementService,
         request.app.state.invoice_settlement_service,
     )
+
+
+def feature_flag_service(request: Request) -> FeatureFlagService:
+    return cast(FeatureFlagService, request.app.state.feature_flag_service)
 
 
 def document_service(request: Request) -> GeneratedDocumentService:
@@ -1361,6 +1374,129 @@ async def current_identity(
     result = await identity_service(request).current_identity(session_token(request))
     response.headers["Cache-Control"] = "no-store"
     return CurrentIdentityResponse.model_validate(result)
+
+
+@router.get(
+    "/api/v1/feature-flags/evaluations",
+    operation_id="getFeatureFlagEvaluations",
+    response_model=FeatureFlagEvaluationListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["feature-flags"],
+)
+async def feature_flag_evaluations(
+    request: Request,
+    response: Response,
+    surface: Literal["web", "pwa"] = Query(default="web"),
+) -> FeatureFlagEvaluationListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    evaluations = await feature_flag_service(request).evaluations(
+        actor,
+        FeatureFlagSurface(surface),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return FeatureFlagEvaluationListResponse(
+        surface=surface,
+        flags=[
+            FeatureFlagEvaluationResponse.model_validate(evaluation)
+            for evaluation in evaluations
+        ],
+    )
+
+
+@router.get(
+    "/api/v1/admin/feature-flags",
+    operation_id="listFeatureFlags",
+    response_model=FeatureFlagAdminListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["feature-flags"],
+)
+async def list_feature_flags(
+    request: Request,
+    response: Response,
+) -> FeatureFlagAdminListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    items = await feature_flag_service(request).list_admin(actor)
+    response.headers["Cache-Control"] = "no-store"
+    return FeatureFlagAdminListResponse(
+        flags=[
+            FeatureFlagAdminResponse(
+                key=definition.key.value,
+                title=definition.title,
+                description=definition.description,
+                effect=definition.effect,
+                enabled=state.enabled,
+                default_enabled=definition.default_enabled,
+                client_safe=definition.client_safe,
+                revision=state.revision,
+                updated_by_user_id=state.updated_by_user_id,
+                updated_at=state.updated_at,
+            )
+            for definition, state in items
+        ]
+    )
+
+
+@router.put(
+    "/api/v1/admin/feature-flags/{key}",
+    operation_id="updateFeatureFlag",
+    response_model=FeatureFlagAdminResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["feature-flags"],
+)
+async def update_feature_flag(
+    key: str,
+    body: UpdateFeatureFlagRequest,
+    request: Request,
+    response: Response,
+) -> FeatureFlagAdminResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    definition, state = await feature_flag_service(request).update(
+        actor,
+        key=key,
+        enabled=body.enabled,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return FeatureFlagAdminResponse(
+        key=definition.key.value,
+        title=definition.title,
+        description=definition.description,
+        effect=definition.effect,
+        enabled=state.enabled,
+        default_enabled=definition.default_enabled,
+        client_safe=definition.client_safe,
+        revision=state.revision,
+        updated_by_user_id=state.updated_by_user_id,
+        updated_at=state.updated_at,
+    )
+
+
+@router.get(
+    "/api/v1/admin/system-status",
+    operation_id="getFeatureFlagSystemStatus",
+    response_model=FeatureFlagSystemStatusResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["feature-flags"],
+)
+async def feature_flag_system_status(
+    request: Request,
+    response: Response,
+) -> FeatureFlagSystemStatusResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_system_admin(actor)
+    await feature_flag_service(request).require_enabled(
+        actor,
+        FeatureFlagKey.SYSTEM_STATUS_PANEL,
+        surface=FeatureFlagSurface.WEB,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return FeatureFlagSystemStatusResponse(
+        status="operational",
+        evaluated_by="openfeature",
+        provider="leonaid-postgres-snapshot",
+        checked_at=datetime.now(timezone.utc),
+    )
 
 
 @router.post(

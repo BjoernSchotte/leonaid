@@ -1220,6 +1220,40 @@ Tests/Nachweise:
 Nachweis:
 [POC-095 – Manueller Zahlungseingang und Storno/Korrektur](proofs/POC-095.md).
 
+### [x] POC-096 OpenFeature-Rolloutkontrollen integrieren
+
+Abhängigkeiten: POC-020, POC-023, POC-042, POC-043
+
+Akzeptanzkriterien:
+
+- [x] Offizielle OpenFeature-SDKs sind für Python und React exakt gepinnt.
+- [x] Backend und Browser evaluieren denselben katalogisierten
+      Feature-Flag-Vertrag über austauschbare Provider.
+- [x] Ein System-Admin kann zwei installationsweite Flags im Portal
+      verständlich ein- und ausschalten.
+- [x] Änderungen verlangen Fresh Login, erwartete Revision und AuditEvent.
+- [x] Feature-Flags ersetzen keine Berechtigungen; der geschützte
+      Backend-Endpunkt prüft Rolle und Flag unabhängig.
+- [x] Evaluation Context enthält nur opake User-ID, Rollen und Oberfläche.
+- [x] Der PoC benötigt keinen zusätzlichen Flag-Service; PostgreSQL bleibt
+      Quelle des Verwaltungszustands.
+
+Tests/Nachweise:
+
+- [x] Unit-Tests prüfen echte OpenFeature-Auswertung, sichere Defaults und
+      den typisierten Katalog.
+- [x] Integrationstest persistiert Zustände in echtem PostgreSQL, prüft
+      RBAC, Fresh Login, Revision, Audit und API-Neustart.
+- [x] E2E schaltet beide Flags in Chromium und beweist je eine client- und
+      serverseitige Wirkung.
+- [x] Desktop- und Mobile-Nachweise besitzen keine kritischen oder ernsten
+      Axe-Verstöße.
+- [x] Derselbe Schalt- und Reload-Ablauf ist im In-App-Browser sichtbar
+      geprüft.
+
+Nachweis:
+[POC-096 – OpenFeature-Rolloutkontrollen](proofs/POC-096.md).
+
 ---
 
 ## M10 – Dashboard, UX-System und Produktqualität
@@ -1505,6 +1539,7 @@ vollständig lauffähige Golden Journey.
 | Alias und unveränderliches Archiv        | POC-070, POC-071                   |
 | Reales, portables PDF                    | POC-091                            |
 | Sichtbarer Versandstatus                 | POC-094, POC-114                   |
+| Providerneutrale Feature-Flags           | POC-096                            |
 | Vollständiger Backup/Restore             | POC-112                            |
 | World-class UX/DX                        | POC-002, POC-100, POC-102, POC-123 |
 

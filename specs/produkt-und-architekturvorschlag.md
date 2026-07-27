@@ -758,6 +758,40 @@ Prompt-/Modellversion, Tool-Aufrufe und relevante Ergebnisse müssen
 nachvollziehbar protokolliert werden, ohne unnötig personenbezogene Daten in
 Prompts oder Logs zu kopieren.
 
+#### Feature-Flags mit OpenFeature
+
+LeonAid verwendet für kontrollierte Funktions-Rollouts den
+CNCF-Standard **OpenFeature** in Backend und React-Frontend. Im PoC sind das
+offizielle Python-SDK `openfeature-sdk==0.10.0` und das offizielle
+React-SDK `@openfeature/react-sdk@1.4.1` exakt gelockt. Eine spätere
+Tauri-Oberfläche kann denselben TypeScript-Vertrag wiederverwenden.
+
+Der PoC führt dafür keinen zusätzlichen Infrastrukturservice ein. Ein kleiner
+LeonAid-Provider implementiert den offiziellen Providervertrag und wertet
+einen atomaren Snapshot aus; PostgreSQL speichert den katalogisierten
+Schaltzustand, Revision, Ändernde und Zeitpunkt. Für client-sichere Flags
+liefert FastAPI die Auswertung an einen OpenFeature-Provider im Browser. Der
+Provider bleibt austauschbar, sodass später etwa OFREP, `flagd` oder ein
+anderes OpenFeature-kompatibles System angebunden werden kann.
+
+Im Systembereich der Web-App kann ein System-Admin zunächst zwei
+installationsweite Flags bedienen:
+
+| Flag | Wirkung im PoC | Standard |
+|---|---|---|
+| `admin.preview_notice` | blendet einen internen PoC-Preview-Hinweis ein | aus |
+| `admin.system_status_panel` | schaltet einen technischen Statusbereich und dessen Backend-Endpunkt frei | aus |
+
+Änderungen benötigen eine frische Anmeldung, eine erwartete Revision und
+werden auditiert. Evaluation Context enthält nur opake User-ID, Rollen und
+Oberfläche, keine E-Mail oder Klarnamen.
+
+Feature-Flags sind ausdrücklich **keine Berechtigungen**. Rollen,
+Aktionsgrenzen und Datensatzschutz werden weiterhin in jedem Backend-Pfad
+serverseitig geprüft, auch wenn eine Funktion im Browser ausgeblendet ist.
+Die Entscheidung und der nachgewiesene PoC-Schnitt stehen in
+[ADR-0010](leonaid-poc/decisions/ADR-0010-openfeature-rollout-controls.md).
+
 ### 6.2 Login- und User-Management im PoC
 
 #### Grundentscheidung
@@ -1837,6 +1871,10 @@ Regel risikoärmer als ein eigener Row-Level-Permissions-Fork.
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [FastAPI Dependency Injection](https://fastapi.tiangolo.com/tutorial/dependencies/)
 - [FastAPI Background Tasks](https://fastapi.tiangolo.com/tutorial/background-tasks/)
+- [OpenFeature](https://openfeature.dev/)
+- [OpenFeature Python SDK](https://openfeature.dev/docs/reference/sdks/server/python/)
+- [OpenFeature React SDK](https://openfeature.dev/docs/reference/sdks/client/web/react/)
+- [OpenFeature SDK-Kompatibilität](https://openfeature.dev/docs/reference/sdks/sdk-compatibility/)
 - [FastMCP](https://gofastmcp.com/)
 - [FastMCP Authorization](https://gofastmcp.com/servers/authorization)
 - [CopilotKit](https://docs.copilotkit.ai/)

@@ -740,6 +740,38 @@ async def seed_identity(
                 user["id"],
             )
 
+    golden_feature_flag_ids = [
+        feature_flag["id"] for feature_flag in dataset["featureFlags"]
+    ]
+    await connection.execute(
+        """
+        DELETE FROM audit_event
+        WHERE entity_type = 'feature_flag'
+          AND entity_id = ANY($1::uuid[])
+        """,
+        golden_feature_flag_ids,
+    )
+    for feature_flag in dataset["featureFlags"]:
+        await connection.execute(
+            """
+            INSERT INTO feature_flag (
+                id, key, enabled, revision,
+                updated_by_user_id, updated_at
+            )
+            VALUES ($1, $2, $3, $4, NULL, CURRENT_TIMESTAMP)
+            ON CONFLICT (id) DO UPDATE
+            SET key = EXCLUDED.key,
+                enabled = EXCLUDED.enabled,
+                revision = EXCLUDED.revision,
+                updated_by_user_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            feature_flag["id"],
+            feature_flag["key"],
+            feature_flag["enabled"],
+            feature_flag["revision"],
+        )
+
     golden_membership_ids = [
         membership["id"] for membership in dataset["actionMemberships"]
     ]

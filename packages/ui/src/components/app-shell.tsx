@@ -52,6 +52,7 @@ const implementedWebNavigation = new Set([
   "invoices",
   "members",
   "orders",
+  "system",
 ]);
 const implementedPwaNavigation = new Set([
   "activities",
