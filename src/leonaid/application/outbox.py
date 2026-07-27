@@ -9,6 +9,8 @@ from uuid import UUID
 
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 
+OutboxObserver = Callable[[str, ClaimedOutboxEvent, str | None], None]
+
 
 class OutboxQueue(Protocol):
     async def claim_next(
@@ -52,6 +54,7 @@ class OutboxWorker:
         handlers: Mapping[str, OutboxEventHandler],
         retry_policy: RetryPolicy,
         clock: Callable[[], datetime] | None = None,
+        observer: OutboxObserver | None = None,
     ) -> None:
         if not worker_id.strip():
             raise ValueError("worker_id darf nicht leer sein.")
@@ -62,6 +65,7 @@ class OutboxWorker:
         self._handlers = dict(handlers)
         self._retry_policy = retry_policy
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._observer = observer
 
     async def run_once(self) -> bool:
         event = await self._queue.claim_next(
@@ -70,6 +74,7 @@ class OutboxWorker:
         )
         if event is None:
             return False
+        self._observe("outbox.job.claimed", event)
         try:
             handler = self._handlers[event.event_type]
         except KeyError:
@@ -93,6 +98,7 @@ class OutboxWorker:
             claim_token=event.claim_token,
             completed_at=self._clock(),
         )
+        self._observe("outbox.job.completed", event)
         return True
 
     async def run_until_idle(self, *, maximum_events: int = 10_000) -> int:
@@ -119,3 +125,19 @@ class OutboxWorker:
             available_at=decision.available_at,
             dead_letter=decision.dead_letter,
         )
+        self._observe(
+            "outbox.job.dead_lettered"
+            if decision.dead_letter
+            else "outbox.job.retry_scheduled",
+            event,
+            code,
+        )
+
+    def _observe(
+        self,
+        name: str,
+        event: ClaimedOutboxEvent,
+        error_code: str | None = None,
+    ) -> None:
+        if self._observer is not None:
+            self._observer(name, event, error_code)

@@ -99,6 +99,13 @@ export type IssueInvoiceRequest = { readonly serviceOn: string; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
+export type OperationalApiMetricsResponse = { readonly averageLatencyMs: number; readonly errors: number; readonly requests: number; };
+export type OperationalDependencyResponse = { readonly dependency: "twenty" | "rustfs" | "mail"; readonly errorCode: string | null; readonly latencyMs: number; readonly requestId: string; readonly status: "ready" | "unavailable"; };
+export type OperationalFailedJobResponse = { readonly aggregateId: string; readonly aggregateType: string; readonly attempts: number; readonly eventType: string; readonly failedAt: string; readonly id: string; readonly lastErrorCode: string; readonly manualRetryCount: number; };
+export type OperationalJobRetryResponse = { readonly id: string; readonly manualRetryCount: number; readonly requestId: string; readonly status: "pending"; };
+export type OperationalLoginMetricsResponse = { readonly challengesLast24h: number; readonly completionsLast24h: number; readonly failuresLast24h: number; };
+export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
+export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; };
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
@@ -950,6 +957,27 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getOperationsOverview(
+    options: RequestOptions = {},
+  ): Promise<OperationsOverviewResponse> {
+    return this.request<OperationsOverviewResponse>(
+      "/api/v1/admin/operations",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async retryOperationalJob(
+    eventId: string,
+    options: RequestOptions = {},
+  ): Promise<OperationalJobRetryResponse> {
+    return this.request<OperationalJobRetryResponse>(
+      `/api/v1/admin/operations/jobs/${encodeURIComponent(String(eventId))}/retry`,
+      { method: "POST" },
       options,
     );
   }

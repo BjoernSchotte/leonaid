@@ -4700,6 +4700,282 @@
         "title": "NavigationItemResponse",
         "type": "object"
       },
+      "OperationalApiMetricsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "averageLatencyMs": {
+            "minimum": 0.0,
+            "title": "Averagelatencyms",
+            "type": "number"
+          },
+          "errors": {
+            "minimum": 0.0,
+            "title": "Errors",
+            "type": "integer"
+          },
+          "requests": {
+            "minimum": 0.0,
+            "title": "Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requests",
+          "errors",
+          "averageLatencyMs"
+        ],
+        "title": "OperationalApiMetricsResponse",
+        "type": "object"
+      },
+      "OperationalDependencyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "dependency": {
+            "enum": [
+              "twenty",
+              "rustfs",
+              "mail"
+            ],
+            "title": "Dependency",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "latencyMs": {
+            "minimum": 0.0,
+            "title": "Latencyms",
+            "type": "number"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dependency",
+          "status",
+          "latencyMs",
+          "requestId",
+          "errorCode"
+        ],
+        "title": "OperationalDependencyResponse",
+        "type": "object"
+      },
+      "OperationalFailedJobResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregateId": {
+            "format": "uuid",
+            "title": "Aggregateid",
+            "type": "string"
+          },
+          "aggregateType": {
+            "title": "Aggregatetype",
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 1.0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "eventType": {
+            "title": "Eventtype",
+            "type": "string"
+          },
+          "failedAt": {
+            "format": "date-time",
+            "title": "Failedat",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "title": "Lasterrorcode",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "minimum": 0.0,
+            "title": "Manualretrycount",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "eventType",
+          "aggregateType",
+          "aggregateId",
+          "attempts",
+          "lastErrorCode",
+          "failedAt",
+          "manualRetryCount"
+        ],
+        "title": "OperationalFailedJobResponse",
+        "type": "object"
+      },
+      "OperationalJobRetryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "minimum": 1.0,
+            "title": "Manualretrycount",
+            "type": "integer"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          },
+          "status": {
+            "const": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "manualRetryCount",
+          "requestId"
+        ],
+        "title": "OperationalJobRetryResponse",
+        "type": "object"
+      },
+      "OperationalLoginMetricsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "challengesLast24h": {
+            "minimum": 0.0,
+            "title": "Challengeslast24H",
+            "type": "integer"
+          },
+          "completionsLast24h": {
+            "minimum": 0.0,
+            "title": "Completionslast24H",
+            "type": "integer"
+          },
+          "failuresLast24h": {
+            "minimum": 0.0,
+            "title": "Failureslast24H",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "challengesLast24h",
+          "completionsLast24h",
+          "failuresLast24h"
+        ],
+        "title": "OperationalLoginMetricsResponse",
+        "type": "object"
+      },
+      "OperationalStatusCountsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "minimum": 0.0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deadLetter": {
+            "minimum": 0.0,
+            "title": "Deadletter",
+            "type": "integer"
+          },
+          "pending": {
+            "minimum": 0.0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processing": {
+            "minimum": 0.0,
+            "title": "Processing",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "processing",
+          "completed",
+          "deadLetter"
+        ],
+        "title": "OperationalStatusCountsResponse",
+        "type": "object"
+      },
+      "OperationsOverviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "api": {
+            "$ref": "#/components/schemas/OperationalApiMetricsResponse"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/OperationalDependencyResponse"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "failedJobs": {
+            "items": {
+              "$ref": "#/components/schemas/OperationalFailedJobResponse"
+            },
+            "title": "Failedjobs",
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "login": {
+            "$ref": "#/components/schemas/OperationalLoginMetricsResponse"
+          },
+          "mail": {
+            "$ref": "#/components/schemas/OperationalStatusCountsResponse"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/OperationalStatusCountsResponse"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "requestId",
+          "api",
+          "dependencies",
+          "outbox",
+          "mail",
+          "login",
+          "failedJobs"
+        ],
+        "title": "OperationsOverviewResponse",
+        "type": "object"
+      },
       "OrderFormConfigurationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -12236,6 +12512,190 @@
         "summary": "Update Feature Flag",
         "tags": [
           "feature-flags"
+        ]
+      }
+    },
+    "/api/v1/admin/operations": {
+      "get": {
+        "operationId": "getOperationsOverview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Operations Overview",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/jobs/{event_id}/retry": {
+      "post": {
+        "operationId": "retryOperationalJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationalJobRetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Retry Operational Job",
+        "tags": [
+          "operations"
         ]
       }
     },

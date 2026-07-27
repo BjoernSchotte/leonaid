@@ -19,6 +19,7 @@ import {
   FEATURE_FLAGS,
   useLeonAidBooleanFlag,
 } from "../feature-flags/openfeature-provider";
+import { OperationsAdminPanel } from "./operations-admin";
 
 export interface FeatureFlagAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -216,11 +217,10 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
           <p className="feature-admin-header__eyebrow">
             System · kontrollierter Rollout
           </p>
-          <h1>Feature-Flags</h1>
+          <h1>System & Betrieb</h1>
           <p>
-            Schalte vorbereitete Funktionen ohne Redeploy frei. Änderungen
-            gelten installationsweit, werden versioniert und im Audit-Log
-            dokumentiert.
+            Prüfe Abhängigkeiten und Jobs live. Darunter steuerst du
+            vorbereitete Funktionen ohne Redeploy.
           </p>
         </div>
         <a
@@ -249,6 +249,17 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
           <p>{error.message}</p>
         </StatusMessage>
       )}
+
+      <OperationsAdminPanel client={client} />
+
+      <div className="feature-admin-section-heading" id="feature-flags">
+        <p className="feature-admin-header__eyebrow">Kontrollierter Rollout</p>
+        <h2>Feature-Flags</h2>
+        <p>
+          Änderungen gelten installationsweit, werden versioniert und im
+          Audit-Log dokumentiert.
+        </p>
+      </div>
 
       <section
         aria-label="Installationsweite Feature-Flags"

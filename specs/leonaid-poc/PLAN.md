@@ -1439,29 +1439,32 @@ Tests/Nachweise:
 Nachweis:
 [POC-113 – Upgrade- und Rollback-Prozess](proofs/POC-113.md).
 
-### [ ] POC-114 Observability und operatives Admin-Debugging ergänzen
+### [x] POC-114 Observability und operatives Admin-Debugging ergänzen
 
 Abhängigkeiten: POC-022, POC-031, POC-094
 
 Akzeptanzkriterien:
 
-- [ ] Strukturierte Logs tragen Request-, Job-, Action- und relevante
+- [x] Strukturierte Logs tragen Request-, Job-, Action- und relevante
       Fachobjekt-ID.
-- [ ] Metriken decken API-Latenz/Fehler, Outbox, Twenty, RustFS, Mail und
+- [x] Metriken decken API-Latenz/Fehler, Outbox, Twenty, RustFS, Mail und
       Login ab.
-- [ ] Admin sieht fehlgeschlagene Jobs und darf sichere Wiederholung
+- [x] Admin sieht fehlgeschlagene Jobs und darf sichere Wiederholung
       auslösen.
-- [ ] Healthchecks unterscheiden Prozessverfügbarkeit und Abhängigkeiten.
-- [ ] Personenbezogene Inhalte, Tokens und Dokumentbytes werden nicht
+- [x] Healthchecks unterscheiden Prozessverfügbarkeit und Abhängigkeiten.
+- [x] Personenbezogene Inhalte, Tokens und Dokumentbytes werden nicht
       protokolliert.
 
 Tests/Nachweise:
 
-- [ ] Ein E2E-Request lässt sich vom Browser bis Twenty/RustFS/Mail
+- [x] Ein E2E-Request lässt sich vom Browser bis Twenty/RustFS/Mail
       korrelieren.
-- [ ] Reale Ausfälle von Twenty, RustFS und Mailpit erzeugen jeweils
+- [x] Reale Ausfälle von Twenty, RustFS und Mailpit erzeugen jeweils
       unterscheidbare Signale.
-- [ ] Retry über Admin-UI verarbeitet den echten fehlgeschlagenen Job.
+- [x] Retry über Admin-UI verarbeitet den echten fehlgeschlagenen Job.
+
+Nachweis:
+[POC-114 – Observability und operatives Admin-Debugging](proofs/POC-114.md).
 
 ---
 

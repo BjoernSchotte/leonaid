@@ -29,8 +29,31 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
+from leonaid.adapters.operations import structured_event
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
-from leonaid.domain.outbox import OutboxState, RetryPolicy
+from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
+
+
+def observe_job(
+    name: str,
+    event: ClaimedOutboxEvent,
+    error_code: str | None,
+) -> None:
+    action_value = event.payload.get("actionId")
+    action_id = action_value if isinstance(action_value, str) else None
+    print(
+        structured_event(
+            name,
+            jobId=str(event.id),
+            eventType=event.event_type,
+            aggregateType=event.aggregate_type,
+            aggregateId=str(event.aggregate_id),
+            actionId=action_id,
+            attempt=event.attempts,
+            errorCode=error_code,
+        ),
+        flush=True,
+    )
 
 
 async def build_worker(
@@ -94,6 +117,7 @@ async def build_worker(
             base_delay=timedelta(seconds=base_backoff_seconds),
             maximum_delay=timedelta(minutes=15),
         ),
+        observer=observe_job,
     )
     return pool, queue, worker
 

@@ -68,10 +68,11 @@ from leonaid.application.actions import (
     PublicActionRoute,
     UpdateActionDetailsDraft,
 )
-from leonaid.application.errors import DependencyUnavailable
+from leonaid.application.errors import Conflict, DependencyUnavailable
 from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
 from leonaid.application.invitations import InvitationService
+from leonaid.application.operations import OperationsService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.policies import require_system_admin
 from leonaid.application.privacy import OPEN_LEGAL_DECISIONS, PrivacyService
@@ -224,6 +225,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
+    OperationalApiMetricsResponse,
+    OperationalDependencyResponse,
+    OperationalFailedJobResponse,
+    OperationalJobRetryResponse,
+    OperationalLoginMetricsResponse,
+    OperationalStatusCountsResponse,
+    OperationsOverviewResponse,
     PaginationQuery,
     PlatformInformationResponse,
     PlatformStatusResponse,
@@ -273,6 +281,10 @@ router = APIRouter()
 
 def platform_service(request: Request) -> PlatformApplicationService:
     return cast(PlatformApplicationService, request.app.state.platform_service)
+
+
+def operations_service(request: Request) -> OperationsService:
+    return cast(OperationsService, request.app.state.operations_service)
 
 
 def public_order_tokens(request: Request) -> PublicOrderTokenCodec:
@@ -1733,6 +1745,75 @@ async def feature_flag_system_status(
         evaluated_by="openfeature",
         provider="leonaid-postgres-snapshot",
         checked_at=datetime.now(timezone.utc),
+    )
+
+
+@router.get(
+    "/api/v1/admin/operations",
+    operation_id="getOperationsOverview",
+    response_model=OperationsOverviewResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["operations"],
+)
+async def operations_overview(
+    request: Request,
+    response: Response,
+) -> OperationsOverviewResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_system_admin(actor)
+    snapshot = await operations_service(request).snapshot(
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return OperationsOverviewResponse(
+        generated_at=snapshot.generated_at,
+        request_id=snapshot.request_id,
+        api=OperationalApiMetricsResponse.model_validate(snapshot.api),
+        dependencies=[
+            OperationalDependencyResponse.model_validate(item)
+            for item in snapshot.dependencies
+        ],
+        outbox=OperationalStatusCountsResponse.model_validate(snapshot.outbox),
+        mail=OperationalStatusCountsResponse.model_validate(snapshot.mail),
+        login=OperationalLoginMetricsResponse.model_validate(snapshot.login),
+        failed_jobs=[
+            OperationalFailedJobResponse.model_validate(item)
+            for item in snapshot.failed_jobs
+        ],
+    )
+
+
+@router.post(
+    "/api/v1/admin/operations/jobs/{event_id}/retry",
+    operation_id="retryOperationalJob",
+    response_model=OperationalJobRetryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["operations"],
+)
+async def retry_operational_job(
+    event_id: UUID,
+    request: Request,
+    response: Response,
+) -> OperationalJobRetryResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    require_system_admin(actor)
+    try:
+        retried = await operations_service(request).retry(
+            event_id=event_id,
+            operator_user_id=actor.account.id,
+            request_id=request_id(request),
+        )
+    except ValueError as error:
+        raise Conflict(
+            "outbox_job_not_retryable",
+            str(error),
+        ) from error
+    response.headers["Cache-Control"] = "no-store"
+    return OperationalJobRetryResponse(
+        id=retried.id,
+        status="pending",
+        manual_retry_count=retried.manual_retry_count,
+        request_id=request_id(request),
     )
 
 

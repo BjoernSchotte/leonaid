@@ -1450,6 +1450,62 @@ class AcquisitionDocumentResponse(TransportModel):
     created_at: datetime
 
 
+class OperationalApiMetricsResponse(TransportModel):
+    requests: int = Field(ge=0)
+    errors: int = Field(ge=0)
+    average_latency_ms: float = Field(ge=0)
+
+
+class OperationalDependencyResponse(TransportModel):
+    dependency: Literal["twenty", "rustfs", "mail"]
+    status: Literal["ready", "unavailable"]
+    latency_ms: float = Field(ge=0)
+    request_id: str
+    error_code: str | None
+
+
+class OperationalStatusCountsResponse(TransportModel):
+    pending: int = Field(ge=0)
+    processing: int = Field(ge=0)
+    completed: int = Field(ge=0)
+    dead_letter: int = Field(ge=0)
+
+
+class OperationalLoginMetricsResponse(TransportModel):
+    challenges_last24h: int = Field(ge=0)
+    completions_last24h: int = Field(ge=0)
+    failures_last24h: int = Field(ge=0)
+
+
+class OperationalFailedJobResponse(TransportModel):
+    id: UUID
+    event_type: str
+    aggregate_type: str
+    aggregate_id: UUID
+    attempts: int = Field(ge=1)
+    last_error_code: str
+    failed_at: datetime
+    manual_retry_count: int = Field(ge=0)
+
+
+class OperationsOverviewResponse(TransportModel):
+    generated_at: datetime
+    request_id: str
+    api: OperationalApiMetricsResponse
+    dependencies: list[OperationalDependencyResponse]
+    outbox: OperationalStatusCountsResponse
+    mail: OperationalStatusCountsResponse
+    login: OperationalLoginMetricsResponse
+    failed_jobs: list[OperationalFailedJobResponse]
+
+
+class OperationalJobRetryResponse(TransportModel):
+    id: UUID
+    status: Literal["pending"]
+    manual_retry_count: int = Field(ge=1)
+    request_id: str
+
+
 class ApiErrorDetail(TransportModel):
     code: str = Field(examples=["endpoint_not_found"])
     message: str = Field(

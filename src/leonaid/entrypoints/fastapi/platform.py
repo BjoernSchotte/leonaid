@@ -6,6 +6,7 @@ import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
+from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -75,6 +76,11 @@ from leonaid.application.invoice_deliveries import InvoiceDeliveryService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
+from leonaid.adapters.operations import (
+    ApiMetrics,
+    OperationsService,
+    structured_event,
+)
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.privacy import PrivacyService
 from leonaid.application.public_orders import (
@@ -94,6 +100,9 @@ from leonaid.entrypoints.fastapi.security import (
 )
 
 REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
+PATH_UUID = re.compile(
+    r"/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:/|$)"
+)
 
 
 def request_id_for(request: Request) -> str:
@@ -145,6 +154,17 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
+        api_metrics = ApiMetrics()
+        application.state.operations_service = OperationsService(
+            pool,
+            api_metrics=api_metrics,
+            dependency_urls={
+                "twenty": str(settings.twenty_health_url),
+                "rustfs": str(settings.rustfs_health_url),
+                "mail": (f"{str(settings.mailpit_api_url).rstrip('/')}/api/v1/info"),
+            },
+        )
+        application.state.api_metrics = api_metrics
         application.state.security_rate_limits = AsyncpgSecurityRateLimitRepository(
             pool
         )
@@ -375,6 +395,45 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             )
             response.headers["Vary"] = "Origin"
         return response
+
+    @application.middleware("http")
+    async def observe_request(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        started = perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            latency_ms = round((perf_counter() - started) * 1000, 2)
+            request.app.state.api_metrics.record(
+                status_code=status_code,
+                latency_ms=latency_ms,
+            )
+            entity_match = PATH_UUID.search(request.url.path)
+            entity_id = entity_match.group(1) if entity_match else None
+            action_id = (
+                entity_id
+                if entity_id is not None
+                and request.url.path.startswith("/api/v1/actions/")
+                else None
+            )
+            print(
+                structured_event(
+                    "http.request.completed",
+                    requestId=request_id_for(request),
+                    method=request.method,
+                    path=request.url.path,
+                    statusCode=status_code,
+                    latencyMs=latency_ms,
+                    actionId=action_id,
+                    entityId=entity_id,
+                ),
+                flush=True,
+            )
 
     @application.exception_handler(ApplicationError)
     async def application_error(

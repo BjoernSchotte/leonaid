@@ -31,6 +31,7 @@ vorhandenen Secrets.
 | `./leonaid test-integration`    | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
 | `./leonaid test-e2e`            | alle implementierten echten Browserjourneys ausführen                       |
 | `./leonaid test-typst`          | Rechnungs-PDFs mit realem Typst, PostgreSQL und zwei PDF-Engines prüfen     |
+| `./leonaid test-operations`     | echte Abhängigkeitsausfälle, sichere Logs und Admin-Job-Retry prüfen        |
 | `./leonaid seed`                | Golden Dataset v1 idempotent in reale Systeme einspielen                    |
 | `./leonaid snapshot [NAME]`     | geheimnisfreien kanonischen Systemzustand schreiben                         |
 | `./leonaid reset`               | markierte lokale Testumgebung sicher zurücksetzen                           |
@@ -67,6 +68,12 @@ Operator `poc022-operator`.
 `tools/outbox/test.sh` beendet einen echten Producer nach dem Commit, startet
 zwei konkurrierende Worker-Container und stoppt Mailpit real, um Retry, Dead
 Letter und Wiederanlauf ohne Mock-Server zu beweisen.
+
+Der für System-Admins geschützte Betriebsbereich unter `/admin/system` zeigt
+den Dead-Letter-Arbeitsvorrat sowie Live-Signale und Metriken. Sein
+Health-, Korrelations-, Datenschutz- und Retry-Vertrag steht in
+`infra/observability/README.md`; `./leonaid test-operations` stoppt die drei
+Abhängigkeiten real und wiederholt einen echten Mailjob über Chromium.
 
 ## OpenAPI und TypeScript-Client
 

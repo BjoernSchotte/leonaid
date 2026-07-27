@@ -51,6 +51,7 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "twentyIntegration": "unconfigured",
         "twentyHealthHost": "twenty-server",
         "rustfsHealthHost": "rustfs",
+        "mailHealthHost": "mailpit",
         "objectStorageHost": "rustfs",
         "objectStorageBucket": "leonaid",
     }

@@ -1,0 +1,234 @@
+.operations-panel {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.operations-panel__header,
+.operations-summary,
+.operations-dependency,
+.operations-job,
+.operations-jobs__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.operations-panel__header h2,
+.operations-jobs__heading h3,
+.feature-admin-section-heading h2 {
+  margin: 0.25rem 0;
+  color: var(--foreground);
+}
+
+.operations-panel__header p,
+.feature-admin-section-heading p,
+.operations-empty p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.operations-summary {
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
+
+.operations-summary__state {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--success-text);
+}
+
+.operations-summary__state div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.operations-summary__state span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.operations-summary code {
+  max-width: 23rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operations-dependencies,
+.operations-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.operations-dependency {
+  justify-content: flex-start;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
+
+.operations-dependency svg {
+  color: var(--success-text);
+}
+
+.operations-dependency.is-down {
+  border-color: color-mix(in srgb, var(--danger-text) 40%, var(--border));
+  background: color-mix(in srgb, var(--danger-text) 7%, var(--surface));
+}
+
+.operations-dependency.is-down svg {
+  color: var(--danger-text);
+}
+
+.operations-dependency div {
+  display: grid;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.operations-dependency span,
+.operations-dependency small,
+.operations-metrics span,
+.operations-metrics small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.operations-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operations-metrics article {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1rem;
+  border-left: 2px solid var(--primary);
+  background: var(--surface-muted);
+}
+
+.operations-metrics svg {
+  color: var(--primary);
+}
+
+.operations-metrics strong {
+  font-size: var(--text-lg);
+}
+
+.operations-jobs {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.operations-jobs__heading > span {
+  display: grid;
+  min-width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.operations-job-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.operations-job {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.operations-job__status {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger-text) 10%, transparent);
+  color: var(--danger-text);
+}
+
+.operations-job__copy {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.operations-job__copy p,
+.operations-job__copy h3,
+.operations-job__copy small {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operations-job__copy p,
+.operations-job__copy small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.operations-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--success-text) 7%, var(--surface));
+  color: var(--success-text);
+}
+
+.operations-empty div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.feature-admin-section-heading {
+  padding-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .operations-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .operations-panel__header,
+  .operations-summary,
+  .operations-job {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .operations-dependencies,
+  .operations-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .operations-summary code {
+    max-width: 100%;
+  }
+}
