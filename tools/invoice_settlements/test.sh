@@ -111,8 +111,8 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/invoice_settlements/contract.py capture /proof/state.json
 
-session_mode=$(stat -f '%Lp' "$proof/sessions.env" 2>/dev/null || \
-  stat -c '%a' "$proof/sessions.env")
+session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
+  stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
   echo "invoice-settlement-test: ERROR: Browser-Sitzungen sind nicht Modus 600" >&2
   exit 1

@@ -35,6 +35,19 @@ def records_by_id(items: Any, label: str) -> dict[str, JsonObject]:
     return result
 
 
+def normalized_business_snapshot(value: Any) -> Any:
+    """Remove only identifiers that RustFS regenerates after a volume reset."""
+    if isinstance(value, dict):
+        return {
+            key: normalized_business_snapshot(item)
+            for key, item in value.items()
+            if key not in {"snapshotSha256", "storageVersionId"}
+        }
+    if isinstance(value, list):
+        return [normalized_business_snapshot(item) for item in value]
+    return value
+
+
 def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
     dataset = load(fixture / "dataset.json")
     expected = load(fixture / "expected.json")
@@ -91,17 +104,35 @@ def verify_golden(snapshot: JsonObject, fixture: Path) -> None:
     objects = rustfs["objects"]
     if len(objects) != len(dataset["invoices"]):
         raise SnapshotError("RustFS enthält nicht exakt ein PDF je Golden-Rechnung")
+    core_documents = core.get("documentManifest")
+    if not isinstance(core_documents, list):
+        raise SnapshotError("Core-Dokumentmanifest fehlt")
+    core_document_by_key = {
+        str(item.get("objectKey")): item
+        for item in core_documents
+        if isinstance(item, dict)
+    }
     for item in objects:
         if (
             not isinstance(item, dict)
             or item.get("isPdf") is not True
             or item.get("contentType") != "application/pdf"
             or item.get("sha256") != item.get("storedSha256")
+            or not isinstance(item.get("storageVersionId"), str)
+            or not item["storageVersionId"]
             or not isinstance(item.get("size"), int)
             or item["size"] < 1_000
         ):
             raise SnapshotError(
                 "RustFS enthält ein ungültiges PDF oder SHA-256-Metadatum"
+            )
+        core_document = core_document_by_key.get(str(item.get("objectKey")))
+        if (
+            not isinstance(core_document, dict)
+            or core_document.get("storageVersionId") != item["storageVersionId"]
+        ):
+            raise SnapshotError(
+                "RustFS-Version-ID und Core-Dokumentzuordnung sind inkonsistent"
             )
 
     if snapshot.get("mailpit") != {"total": 0, "messageIds": []}:
@@ -135,9 +166,17 @@ def verify_mutated(snapshot: JsonObject, fixture: Path) -> None:
         raise SnapshotError("Mailpit-Mutation ist nicht sichtbar")
 
 
+def verify_equivalent(first: JsonObject, second: JsonObject) -> None:
+    if normalized_business_snapshot(first) != normalized_business_snapshot(second):
+        raise SnapshotError(
+            "fachlicher Snapshot wurde durch den vollständigen Reset nicht exakt "
+            "wiederhergestellt"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("golden", "mutated"))
+    parser.add_argument("mode", choices=("golden", "mutated", "equivalent"))
     parser.add_argument("snapshot", type=Path)
     parser.add_argument("fixture", type=Path)
     arguments = parser.parse_args()
@@ -145,8 +184,10 @@ def main() -> int:
         value = load(arguments.snapshot)
         if arguments.mode == "golden":
             verify_golden(value, arguments.fixture)
-        else:
+        elif arguments.mode == "mutated":
             verify_mutated(value, arguments.fixture)
+        else:
+            verify_equivalent(value, load(arguments.fixture))
     except (OSError, json.JSONDecodeError, SnapshotError) as error:
         print(f"snapshot-check: ERROR: {error}", file=sys.stderr)
         return 1

@@ -42,7 +42,7 @@ trap cleanup EXIT HUP INT TERM
 compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 profiles=$(compose config --profiles | sort)
-expected_profiles=$(printf '%s\n' dev-mail mailing observability | sort)
+expected_profiles=$(printf '%s\n' dev-mail mailing observability storage-contract | sort)
 if [ "$profiles" != "$expected_profiles" ]; then
   echo "compose-test: ERROR: unerwartete Profile: $profiles" >&2
   exit 1

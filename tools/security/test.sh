@@ -57,6 +57,7 @@ compose run --rm --no-deps \
   api tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 
 compose run --rm --no-deps \
+  --user "$(id -u):$(id -g)" \
   --env-from-file "$env_file" \
   --env CORE_DATABASE_URL=postgresql://leonaid:"$(sed -n 's/^CORE_POSTGRES_PASSWORD=//p' "$env_file")"@core-postgres:5432/leonaid \
   --env LEONAID_SECURITY_CANARY_FILE=/proof/canary \

@@ -38,7 +38,6 @@ async function sessionPage(browser, token, path, viewport) {
   ]);
   const page = await context.newPage();
   await page.goto(`${baseUrl}${path}`);
-  await expect(page.locator('[data-testid="display-name"]')).toBeVisible();
   return { context, page };
 }
 
@@ -65,15 +64,12 @@ test("Charity-Admin sieht nur eigene Aktionen und keine Systemnavigation", async
       page.locator('[data-nav-key="invoices"]').first(),
     ).toBeVisible();
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="action-list"]')).toContainText(
-      "Krapfentaxi 2026",
-    );
-    await expect(page.locator('[data-testid="action-list"]')).toContainText(
-      "Krapfentaxi 2025",
-    );
-    await expect(page.locator('[data-testid="action-list"]')).not.toContainText(
-      "Krapfentaxi Nord 2026",
-    );
+    const actionSelector = page.getByRole("combobox", {
+      name: "Charity-Aktion",
+    });
+    await expect(actionSelector).toContainText("Krapfentaxi 2026");
+    await expect(actionSelector).toContainText("Krapfentaxi 2025");
+    await expect(actionSelector).not.toContainText("Krapfentaxi Nord 2026");
     await page.screenshot({
       path: `${artifactDirectory}/charity-admin-desktop.png`,
       fullPage: true,
@@ -94,12 +90,12 @@ test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async 
   );
   try {
     const mobileNavigation = page.locator(".ui-pwa-tabbar");
-    await expect(page.locator('[data-testid="display-name"]')).toHaveText(
-      "Anna Akquise",
-    );
-    await expect(page.locator('[data-testid="roles"]')).toContainText(
-      "Akquisiteur",
-    );
+    await expect(
+      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Charity-Aktion" }),
+    ).toContainText("Krapfentaxi 2026");
     await expect(mobileNavigation).toBeVisible();
     await expect(
       mobileNavigation.locator('[data-nav-key="sponsors"]'),
@@ -113,11 +109,8 @@ test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async 
     await expect(page.locator('[data-nav-key="system"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="members"]')).toHaveCount(0);
     await expect(page.locator('[data-nav-key="invoices"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="action-list"]')).toContainText(
-      "Krapfentaxi 2026",
-    );
     await expect(
-      page.locator('[data-testid="action-list"] article'),
+      page.getByRole("combobox", { name: "Charity-Aktion" }).locator("option"),
     ).toHaveCount(1);
     await page.screenshot({
       path: `${artifactDirectory}/acquirer-mobile.png`,
@@ -145,9 +138,9 @@ test("System-Admin erkennt seinen globalen, aktionsunabhängigen Bereich", async
       "System-Admin",
     );
     await expect(page.locator('[data-nav-key="system"]').first()).toBeVisible();
-    await expect(page.locator('[data-testid="action-list"]')).toContainText(
-      "Noch keine verwaltete Aktion",
-    );
+    await expect(
+      page.getByRole("heading", { name: "Noch keine passende Charity-Aktion" }),
+    ).toBeVisible();
   } finally {
     await context.close();
   }

@@ -376,7 +376,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         final_list.raise_for_status()
         final_value = final_list.json()
         if len(final_value["items"]) != 4 or final_value["currencyTotals"] != [
-            {"currency": "EUR", "grossMinor": 64_800}
+            {"currency": "EUR", "grossMinor": 64_800, "openMinor": 46_800}
         ]:
             raise ContractFailure(
                 f"Rechnungsliste oder Golden-Summe ist falsch: {final_value!r}"

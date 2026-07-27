@@ -107,8 +107,10 @@ docker run --rm \
   /repo/.local/snapshots/poc012-restored.json \
   /repo/tests/fixtures/golden/v1
 docker run --rm \
-  -v "$root/.local:/local:ro" \
-  "$ALPINE_IMAGE" \
-  cmp /local/snapshots/poc012-first.json /local/snapshots/poc012-restored.json
+  -v "$root:/repo:ro" \
+  "$PYTHON_IMAGE" \
+  python /repo/tools/seed/verify_snapshot.py equivalent \
+  /repo/.local/snapshots/poc012-first.json \
+  /repo/.local/snapshots/poc012-restored.json
 
 echo "seed-test: OK: Sicherheit, Idempotenz, Mutation und exakter Reset bewiesen"

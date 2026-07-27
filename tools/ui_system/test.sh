@@ -68,8 +68,8 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/feature_flags/contract.py prepare /proof/sessions.env
 
-session_mode=$(stat -f '%Lp' "$proof/sessions.env" 2>/dev/null || \
-  stat -c '%a' "$proof/sessions.env")
+session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
+  stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
   echo "ui-system-test: ERROR: Browser-Sitzung ist nicht Modus 600" >&2
   exit 1

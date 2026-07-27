@@ -123,8 +123,8 @@ run_round() {
   normalized_path=$4
   mkdir -p "$artifact_path"
   contract prepare-sessions "$round_name" "/proof/sessions-$round_name.env"
-  session_mode=$(stat -f '%Lp' "$proof/sessions-$round_name.env" 2>/dev/null || \
-    stat -c '%a' "$proof/sessions-$round_name.env")
+  session_mode=$(stat -c '%a' "$proof/sessions-$round_name.env" 2>/dev/null || \
+    stat -f '%Lp' "$proof/sessions-$round_name.env")
   if [ "$session_mode" != "600" ]; then
     echo "golden-journey: ERROR: Sitzungsdatei ist nicht Modus 600" >&2
     exit 1

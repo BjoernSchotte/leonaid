@@ -104,8 +104,8 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/storage/workflow_contract.py prepare /proof/state.json
 
-state_mode=$(stat -f '%Lp' "$proof/state.json" 2>/dev/null || \
-  stat -c '%a' "$proof/state.json")
+state_mode=$(stat -c '%a' "$proof/state.json" 2>/dev/null || \
+  stat -f '%Lp' "$proof/state.json")
 if [ "$state_mode" != "600" ]; then
   echo "storage-test: ERROR: temporäre Sitzungen sind nicht auf Modus 600 begrenzt" >&2
   exit 1

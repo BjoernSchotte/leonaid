@@ -116,8 +116,8 @@ compose run --rm --no-deps \
   api tools/invoice_delivery/contract.py queue \
   /proof/state.json /proof/sessions.env
 
-session_mode=$(stat -f '%Lp' "$proof/sessions.env" 2>/dev/null || \
-  stat -c '%a' "$proof/sessions.env")
+session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
+  stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
   echo "invoice-delivery-test: ERROR: Browser-Sitzungen sind nicht Modus 600" >&2
   exit 1

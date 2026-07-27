@@ -114,8 +114,8 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/invoices/browser_setup.py
 
-session_mode=$(stat -f '%Lp' "$proof/sessions.env" 2>/dev/null || \
-  stat -c '%a' "$proof/sessions.env")
+session_mode=$(stat -c '%a' "$proof/sessions.env" 2>/dev/null || \
+  stat -f '%Lp' "$proof/sessions.env")
 if [ "$session_mode" != "600" ]; then
   echo "invoice-test: ERROR: Browser-Sitzungen sind nicht auf Modus 600 begrenzt" >&2
   exit 1

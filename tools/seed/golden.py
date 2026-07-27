@@ -526,18 +526,35 @@ def seed_rustfs(dataset: JsonObject, pdf_directory: Path) -> list[JsonObject]:
             client.delete_object(Bucket=bucket, Key=key)
     for item in manifest:
         content = (pdf_directory / f"{item['invoiceNumber']}.pdf").read_bytes()
-        response = client.put_object(
-            Bucket=bucket,
-            Key=item["objectKey"],
-            Body=content,
-            ContentType="application/pdf",
-            Metadata={
-                "sha256": item["sha256"],
-                "dataset-version": DATASET_VERSION,
-                "invoice-id": item["invoiceId"],
-                "invoice-number": item["invoiceNumber"],
-            },
-        )
+        metadata = {
+            "sha256": item["sha256"],
+            "dataset-version": DATASET_VERSION,
+            "invoice-id": item["invoiceId"],
+            "invoice-number": item["invoiceNumber"],
+        }
+        response: JsonObject | None = None
+        try:
+            existing = client.get_object(Bucket=bucket, Key=item["objectKey"])
+        except ClientError as error:
+            status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            if status != 404:
+                raise
+        else:
+            existing_content = existing["Body"].read()
+            if (
+                existing_content == content
+                and existing.get("ContentType") == "application/pdf"
+                and existing.get("Metadata") == metadata
+            ):
+                response = existing
+        if response is None:
+            response = client.put_object(
+                Bucket=bucket,
+                Key=item["objectKey"],
+                Body=content,
+                ContentType="application/pdf",
+                Metadata=metadata,
+            )
         version_id = response.get("VersionId")
         if not isinstance(version_id, str) or version_id in {"", "null"}:
             raise SeedError("RustFS lieferte keine unveränderliche Version-ID")

@@ -137,14 +137,13 @@ test("POC-062 Sponsorliste erfüllt Sicht-, Responsive- und A11y-Budgets", async
 
   await page.goto(`${baseUrl}/app/`);
   await expect(
-    page.getByRole("heading", { name: "Deine aktiven Charity-Aktionen" }),
+    page.getByRole("heading", { level: 1, name: "Guten Tag, Anna." }),
   ).toBeVisible();
-  await expect(page.locator('[data-testid="action-list"] article')).toHaveCount(
-    1,
-  );
-  await expect(page.locator('[data-testid="action-list"]')).toContainText(
-    "Krapfentaxi 2026",
-  );
+  const actionSelector = page.getByRole("combobox", {
+    name: "Charity-Aktion",
+  });
+  await expect(actionSelector).toContainText("Krapfentaxi 2026");
+  await expect(actionSelector.locator("option")).toHaveCount(1);
 });
 
 test("POC-062 zeigt einen echten leeren Arbeitsvorrat", async ({
