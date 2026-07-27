@@ -484,24 +484,58 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                 returned_invoice = await connection.fetchval(
                     """
                     INSERT INTO invoice (
-                        id, commitment_id, number, status, currency,
-                        net_minor, tax_minor, gross_minor, recipient_snapshot,
-                        line_snapshot, tax_note, document_version,
-                        idempotency_key
+                        id, action_id, commitment_id, number, status,
+                        issued_at, service_on, due_on, currency,
+                        net_minor, tax_minor, gross_minor, issuer_snapshot,
+                        recipient_snapshot, line_snapshot, tax_treatment,
+                        tax_rate_basis_points, tax_note, payment_reference,
+                        approved_by_user_id, document_version, idempotency_key
                     )
                     VALUES (
-                        $1, $2, $3, 'draft', 'EUR',
-                        3600, 0, 3600, '{"name":"Musterwerk GmbH"}'::jsonb,
-                        '[{"quantity":1,"unitPriceMinor":3600}]'::jsonb,
-                        'Kein Steuerausweis im synthetischen Nachweis.', 1, $4
+                        $1, $2, $3, $4, 'issued',
+                        CURRENT_TIMESTAMP, CURRENT_DATE, CURRENT_DATE + 14,
+                        'EUR', 3600, 0, 3600,
+                        '{
+                          "legalName":"Lions Club Beispielstadt",
+                          "streetLine1":"Goldenweg 1",
+                          "postalCode":"12345",
+                          "city":"Musterstadt",
+                          "countryCode":"DE",
+                          "taxIdentifier":"POC022",
+                          "email":"poc022@leonaid.invalid"
+                        }'::jsonb,
+                        '{
+                          "recipientName":"Musterwerk GmbH",
+                          "streetLine1":"Goldenweg 1",
+                          "postalCode":"12345",
+                          "city":"Musterstadt",
+                          "countryCode":"DE",
+                          "email":null
+                        }'::jsonb,
+                        '[{
+                          "description":"Krapfenbox",
+                          "quantity":1,
+                          "unit":"box",
+                          "unitPriceGrossMinor":3600,
+                          "taxRateBasisPoints":0,
+                          "netMinor":3600,
+                          "taxMinor":0,
+                          "grossMinor":3600,
+                          "currency":"EUR"
+                        }]'::jsonb,
+                        'small_business', 0,
+                        'Kein Steuerausweis im synthetischen Nachweis.',
+                        $4, $5, 1, $6
                     )
                     ON CONFLICT (idempotency_key) DO UPDATE
                     SET idempotency_key = EXCLUDED.idempotency_key
                     RETURNING id
                     """,
                     candidate_invoice,
+                    ACTION,
                     COMMITMENT,
                     candidate_number,
+                    USER_ADMIN,
                     "poc022:invoice:golden-v1",
                 )
                 if returned_invoice != INVOICE:

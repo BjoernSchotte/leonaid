@@ -343,11 +343,15 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         code_limit_token, code_limit_value = credentials_from_mail(code_limit_text)
         wrong_code = "999999" if code_limit_value != "999999" else "000000"
+        brute_force_headers = {"User-Agent": "LeonAid-POC041-invitation-lock-contract"}
         for attempt in range(5):
             await require_invalid(
                 await client.post(
                     "/api/v1/invitations/accept",
-                    headers={"X-Request-ID": f"poc041:code-limit:{attempt + 1}"},
+                    headers={
+                        **brute_force_headers,
+                        "X-Request-ID": f"poc041:code-limit:{attempt + 1}",
+                    },
                     json={
                         "email": BRUTE_FORCE_EMAIL,
                         "code": wrong_code,
@@ -358,6 +362,7 @@ async def run(arguments: argparse.Namespace) -> None:
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
+                headers=brute_force_headers,
                 json={
                     "email": BRUTE_FORCE_EMAIL,
                     "code": code_limit_value,
@@ -368,6 +373,7 @@ async def run(arguments: argparse.Namespace) -> None:
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
+                headers=brute_force_headers,
                 json={"magicToken": code_limit_token},
             ),
             "Magic Link nach Fehlversuchssperre",
@@ -522,7 +528,10 @@ async def run(arguments: argparse.Namespace) -> None:
             accepted_code.status_code != 200
             or accepted_code.json().get("role") != "driver"
         ):
-            raise ContractFailure("Sechsstelliger Code wurde nicht angenommen")
+            raise ContractFailure(
+                "Sechsstelliger Code wurde nicht angenommen: "
+                f"HTTP {accepted_code.status_code} {accepted_code.text[:300]}"
+            )
         await require_invalid(
             await client.post(
                 "/api/v1/invitations/accept",
