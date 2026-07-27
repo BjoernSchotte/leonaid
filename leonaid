@@ -56,6 +56,7 @@ Commands:
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
                     Prove cross-persona UX, A11y and performance budgets
+  test-security     Prove transport security, abuse limits and scan contracts
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -243,21 +244,21 @@ check_all() {
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
-    tools/pwa tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+    tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
-    tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+    tools/security tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/commitments \
     tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/outbox \
-    tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+    tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -470,6 +471,7 @@ case "$command" in
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
+    /bin/sh "$root/tools/security/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -493,6 +495,7 @@ case "$command" in
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
+    /bin/sh "$root/tools/security/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
@@ -529,6 +532,7 @@ case "$command" in
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
   test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;
+  test-security) /bin/sh "$root/tools/security/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

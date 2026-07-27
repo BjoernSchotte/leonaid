@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     invitation_hmac_secret: SecretStr = Field(alias="LEONAID_SECRET_KEY")
     mail_payload_secret: SecretStr = Field(alias="LEONAID_SESSION_ENCRYPTION_KEY")
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    allowed_origins_value: str = Field(
+        default="",
+        alias="LEONAID_ALLOWED_ORIGINS",
+    )
+    trust_proxy_headers: bool = Field(
+        default=False,
+        alias="LEONAID_TRUST_PROXY_HEADERS",
+    )
     invitation_ttl_minutes: int = Field(
         default=30,
         ge=5,
@@ -105,6 +113,8 @@ class Settings(BaseSettings):
             "serviceVersion": self.service_version,
             "apiVersion": self.api_version,
             "publicBaseHost": self.public_base_url.host or "invalid",
+            "allowedOriginCount": str(len(self.allowed_origins)),
+            "trustedProxyHeaders": str(self.trust_proxy_headers).lower(),
             "invitationTtlMinutes": str(self.invitation_ttl_minutes),
             "loginChallengeTtlMinutes": str(self.login_challenge_ttl_minutes),
             "freshLoginSeconds": str(self.fresh_login_seconds),
@@ -123,6 +133,23 @@ class Settings(BaseSettings):
             "objectStorageHost": self.object_storage_endpoint_url.host or "invalid",
             "objectStorageBucket": self.object_storage_bucket,
         }
+
+    @property
+    def allowed_origins(self) -> tuple[str, ...]:
+        configured = tuple(
+            item.strip().rstrip("/")
+            for item in self.allowed_origins_value.split(",")
+            if item.strip()
+        )
+        public_origin = (
+            f"{self.public_base_url.scheme}://{self.public_base_url.host}"
+            + (
+                f":{self.public_base_url.port}"
+                if self.public_base_url.port is not None
+                else ""
+            )
+        )
+        return tuple(dict.fromkeys((*configured, public_origin.rstrip("/"))))
 
 
 def load_settings() -> Settings:

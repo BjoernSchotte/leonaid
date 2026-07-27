@@ -173,7 +173,7 @@ jobs:
     if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
     name: Security
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/security
     steps:
@@ -184,7 +184,7 @@ jobs:
         run: docker builder prune --all --force
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
-      - name: Run dependency, migration and no-test-double policies
+      - name: Run policies, secret scan and critical vulnerability gates
         run: bash tools/ci/run-job.sh security bash tools/ci/security.sh
       - name: Publish security evidence
         if: always()

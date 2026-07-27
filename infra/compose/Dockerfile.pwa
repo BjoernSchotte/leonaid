@@ -15,9 +15,10 @@ COPY packages/features ./packages/features
 COPY packages/ui ./packages/ui
 RUN bun run build:pwa
 
-FROM docker.io/library/node:22.17.1-alpine3.22@sha256:5539840ce9d013fa13e3b9814c9353024be7ac75aca5db6d039504a56c04ea59
+FROM docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
 
 WORKDIR /app
+RUN rm -rf /opt/yarn-v1.22.22 /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm
 COPY infra/compose/static-server.mjs ./static-server.mjs
 COPY --from=build /workspace/apps/pwa/dist ./pwa-dist
 ENV PWA_ASSET_DIR=/app/pwa-dist

@@ -21,10 +21,10 @@ bun_version=$(docker run --rm "$BUN_IMAGE" bun --version)
 uv_version=$(docker run --rm "$UV_IMAGE" uv --version)
 typst_version=$(docker run --rm "$TYPST_IMAGE" --version)
 
-assert_equal python "Python 3.13.5" "$python_version"
-assert_equal node "v22.17.1" "$node_version"
+assert_equal python "Python 3.13.13" "$python_version"
+assert_equal node "v22.23.0" "$node_version"
 assert_equal bun "1.2.19" "$bun_version"
-assert_equal uv "uv 0.8.5" "$uv_version"
+assert_equal uv "uv 0.11.17" "$uv_version"
 assert_equal typst "typst 0.13.1 (unknown hash)" "$typst_version"
 
 browser_versions=$(docker run --rm "$PLAYWRIGHT_IMAGE" /bin/bash -lc '

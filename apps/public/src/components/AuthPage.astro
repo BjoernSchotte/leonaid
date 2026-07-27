@@ -90,7 +90,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
 </section>
 
 <script>
-  import { LeonAidApiClient } from "@leonaid/api-client";
+  import { ApiError, LeonAidApiClient } from "@leonaid/api-client";
 
   function requiredElement<T extends Element>(selector: string): T {
     const element = document.querySelector<T>(selector);
@@ -163,6 +163,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     const button = requestForm.querySelector<HTMLButtonElement>("button");
     if (!button) return;
     button.disabled = true;
+    status.setAttribute("role", "status");
     status.dataset.state = "";
     status.textContent = "Sicherer Zugang wird vorbereitet …";
     const email = fresh
@@ -178,11 +179,15 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
       status.textContent =
         "Wenn der Zugang berechtigt ist, wurde eine E-Mail versendet. Gib den Code hier ein.";
       showCode(email);
-    } catch {
+    } catch (error) {
+      status.setAttribute("role", "alert");
       status.dataset.state = "error";
-      status.textContent = fresh
-        ? "Deine Sitzung ist nicht mehr gültig. Bitte melde dich vollständig neu an."
-        : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
+      status.textContent =
+        error instanceof ApiError && error.status === 429
+          ? "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten und fordere den Zugang dann erneut an."
+          : fresh
+            ? "Deine Sitzung ist nicht mehr gültig. Bitte melde dich vollständig neu an."
+            : "Der Login konnte gerade nicht vorbereitet werden. Versuche es erneut.";
       button.disabled = false;
     }
   });
@@ -192,6 +197,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
     const button = completeForm.querySelector<HTMLButtonElement>("button");
     if (!button) return;
     button.disabled = true;
+    status.setAttribute("role", "status");
     status.dataset.state = "";
     status.textContent = "Anmeldung wird sicher bestätigt …";
     const body = token
@@ -214,6 +220,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
         : "Erfolgreich angemeldet.";
       window.location.replace(returnTo);
     } catch {
+      status.setAttribute("role", "alert");
       status.dataset.state = "error";
       status.textContent =
         "Link oder Code ist ungültig oder abgelaufen. Fordere einen neuen Zugang an.";

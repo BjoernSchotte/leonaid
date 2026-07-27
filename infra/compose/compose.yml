@@ -1,8 +1,15 @@
 name: leonaid
 
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   proxy:
-    image: docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    image: docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "127.0.0.1:${LEONAID_HTTP_PORT:-8080}:8080"
@@ -32,6 +39,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.core
+    logging: *default-logging
     restart: unless-stopped
     command: ["/workspace/infra/compose/start-api.sh"]
     environment:
@@ -42,6 +50,8 @@ services:
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
       LEONAID_PUBLIC_BASE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
+      LEONAID_ALLOWED_ORIGINS: http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443
+      LEONAID_TRUST_PROXY_HEADERS: "true"
       LEONAID_INVITATION_TTL_MINUTES: "30"
       LEONAID_LOGIN_CHALLENGE_TTL_MINUTES: ${LEONAID_LOGIN_CHALLENGE_TTL_MINUTES:-10}
       LEONAID_FRESH_LOGIN_SECONDS: ${LEONAID_FRESH_LOGIN_SECONDS:-900}
@@ -92,6 +102,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.core
+    logging: *default-logging
     restart: unless-stopped
     command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
     environment:
@@ -134,6 +145,7 @@ services:
 
   core-postgres:
     image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${CORE_POSTGRES_DB:-leonaid}
@@ -155,6 +167,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.web
+    logging: *default-logging
     restart: unless-stopped
     environment:
       APP_NAME: "LeonAid Verwaltung"
@@ -171,6 +184,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.pwa
+    logging: *default-logging
     restart: unless-stopped
     environment:
       APP_NAME: "LeonAid Akquise"
@@ -183,6 +197,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.public
+    logging: *default-logging
     restart: unless-stopped
     environment:
       CORE_API_URL: http://api:8000
@@ -197,6 +212,7 @@ services:
 
   twenty-server:
     image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
+    logging: *default-logging
     restart: unless-stopped
     environment: &twenty-environment
       NODE_PORT: "3000"
@@ -231,6 +247,7 @@ services:
 
   twenty-worker:
     image: docker.io/twentycrm/twenty:v2.24.0@sha256:333b6e3d06904293b3bdad9f4a5eb1489fa8719d886b3e6811aff1d0b85b860c
+    logging: *default-logging
     restart: unless-stopped
     command: ["yarn", "worker:prod"]
     environment:
@@ -256,6 +273,7 @@ services:
 
   twenty-postgres:
     image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${TWENTY_POSTGRES_DB:-default}
@@ -275,6 +293,7 @@ services:
 
   twenty-redis:
     image: docker.io/library/redis:7.4.5-alpine3.21@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
+    logging: *default-logging
     restart: unless-stopped
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
     volumes:
@@ -289,6 +308,7 @@ services:
 
   rustfs:
     image: docker.io/rustfs/rustfs:1.0.0-beta.11@sha256:84ce557a0245a06a9aae5516f55ee0f007fca78d41df356f419306fdc0cb168c
+    logging: *default-logging
     restart: unless-stopped
     command: ["/data"]
     environment:
@@ -308,6 +328,7 @@ services:
 
   seaweedfs:
     image: docker.io/chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602
+    logging: *default-logging
     profiles: ["storage-contract"]
     command: ["mini", "-dir=/data"]
     environment:
@@ -327,6 +348,7 @@ services:
 
   mailpit:
     image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    logging: *default-logging
     profiles: ["dev-mail"]
     restart: unless-stopped
     environment:
@@ -346,6 +368,7 @@ services:
 
   listmonk:
     image: docker.io/listmonk/listmonk:v5.0.3@sha256:d8f1a7fe7852a529139389564f32a914c278d394c75cb72bcde55bb2324f182e
+    logging: *default-logging
     profiles: ["mailing"]
     restart: unless-stopped
     command:
@@ -374,6 +397,7 @@ services:
 
   listmonk-postgres:
     image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    logging: *default-logging
     profiles: ["mailing"]
     restart: unless-stopped
     environment:
@@ -392,6 +416,7 @@ services:
 
   otel-collector:
     image: docker.io/otel/opentelemetry-collector-contrib:0.130.1@sha256:9c247564e65ca19f97d891cca19a1a8d291ce631b890885b44e3503c5fdb3895
+    logging: *default-logging
     profiles: ["observability"]
     restart: unless-stopped
     command: ["--config=/etc/otelcol-contrib/config.yaml"]

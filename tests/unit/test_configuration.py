@@ -40,6 +40,8 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "serviceVersion": "0.0.0",
         "apiVersion": "v1",
         "publicBaseHost": "localhost",
+        "allowedOriginCount": "1",
+        "trustedProxyHeaders": "false",
         "invitationTtlMinutes": "30",
         "loginChallengeTtlMinutes": "10",
         "freshLoginSeconds": "900",
@@ -53,6 +55,20 @@ def test_settings_are_typed_and_secret_safe() -> None:
     }
     assert "top-secret" not in repr(settings)
     assert "top-secret" not in repr(settings.safe_summary())
+    assert settings.allowed_origins == ("http://localhost:8080",)
+
+
+def test_allowed_origins_are_normalized_and_deduplicated() -> None:
+    settings = valid_settings(
+        LEONAID_ALLOWED_ORIGINS=(
+            "http://localhost:8080/, https://portal.leonaid.invalid"
+        )
+    )
+
+    assert settings.allowed_origins == (
+        "http://localhost:8080",
+        "https://portal.leonaid.invalid",
+    )
 
 
 def test_settings_reject_non_database_target() -> None:

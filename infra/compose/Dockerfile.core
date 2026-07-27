@@ -1,6 +1,6 @@
 FROM ghcr.io/typst/typst:v0.13.1@sha256:253fa1351e43316f5f8dd12d0dd7906b7eedc0c986bff9a374be749032da00c0 AS typst
 
-FROM ghcr.io/astral-sh/uv:0.8.5-python3.13-bookworm-slim@sha256:72943d818a2fa37faa5cfeb37d7afbfcafc405ed072bdac5c80cbce5e8dc5018
+FROM ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e
 
 WORKDIR /workspace
 ENV PATH="/workspace/.venv/bin:${PATH}" \
@@ -12,7 +12,8 @@ ENV PATH="/workspace/.venv/bin:${PATH}" \
 COPY --from=typst /bin/typst /usr/local/bin/typst
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project \
+    && rm -rf /root/.cache/uv
 
 COPY src ./src
 COPY apps ./apps

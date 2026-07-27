@@ -20,6 +20,6 @@ ausgeführt:
 
 ```sh
 docker run --rm -v "$PWD:/workspace:ro" \
-  python:3.13.5-slim-bookworm@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419 \
+  python:3.13.13-slim-trixie@sha256:aa938a849bcb82dce8f49480f056ab82bf5c1c3ebc294f0430f37b6820e7f286 \
   python /workspace/tools/pins/check.py /workspace
 ```

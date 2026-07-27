@@ -20,7 +20,7 @@ for checkout in "$checkout_a" "$checkout_b"; do
     -v "$checkout:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
-    uv lock --python 3.13.5
+    uv lock --python 3.13.13
   docker run --rm \
     -v "$checkout:/workspace" \
     -w /workspace \

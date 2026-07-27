@@ -43,6 +43,9 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
 from leonaid.adapters.postgres.sessions import AsyncpgSessionRepository
+from leonaid.adapters.postgres.security import (
+    AsyncpgSecurityRateLimitRepository,
+)
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.twenty.gateway import (
     TwentyCrmGateway,
@@ -82,6 +85,10 @@ from leonaid.configuration import Settings, load_settings
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
+from leonaid.entrypoints.fastapi.security import (
+    csrf_violation,
+    rate_limit_violation,
+)
 
 REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}\Z")
 
@@ -135,6 +142,14 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
+        application.state.security_rate_limits = AsyncpgSecurityRateLimitRepository(
+            pool
+        )
+        application.state.security_secret = (
+            settings.invitation_hmac_secret.get_secret_value()
+        )
+        application.state.allowed_origins = settings.allowed_origins
+        application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.identity_service = IdentityQueryService(
             AsyncpgIdentityRepository(pool),
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
@@ -264,8 +279,72 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             supplied if REQUEST_ID.fullmatch(supplied) else str(uuid4())
         )
+        allowed_origins = tuple(request.app.state.allowed_origins)
+        origin = request.headers.get("origin")
+        if (
+            request.method == "OPTIONS"
+            and origin is not None
+            and request.headers.get("access-control-request-method")
+        ):
+            if origin.rstrip("/") not in allowed_origins:
+                return error_response(
+                    request,
+                    status_code=403,
+                    code="cors_origin_rejected",
+                    message="Diese Browser-Anfrage ist für LeonAid nicht freigegeben.",
+                )
+            preflight = Response(status_code=204)
+            preflight.headers["Access-Control-Allow-Origin"] = origin
+            preflight.headers["Access-Control-Allow-Credentials"] = "true"
+            preflight.headers["Access-Control-Allow-Methods"] = (
+                "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"
+            )
+            preflight.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Idempotency-Key, X-Request-ID"
+            )
+            preflight.headers["Access-Control-Max-Age"] = "600"
+            preflight.headers["Vary"] = "Origin"
+            return preflight
+        csrf_reason = csrf_violation(
+            request,
+            allowed_origins=allowed_origins,
+        )
+        if csrf_reason is not None:
+            return error_response(
+                request,
+                status_code=403,
+                code="csrf_rejected",
+                message=(
+                    "Diese Anfrage wurde aus Sicherheitsgründen abgelehnt. "
+                    "Lade die Seite neu und versuche es erneut."
+                ),
+            )
+        rate_policy = await rate_limit_violation(
+            request,
+            repository=request.app.state.security_rate_limits,
+            secret=request.app.state.security_secret,
+            trust_proxy_headers=request.app.state.trust_proxy_headers,
+        )
+        if rate_policy is not None:
+            limited_response = error_response(
+                request,
+                status_code=429,
+                code="request_rate_limited",
+                message="Zu viele Versuche. Bitte warte kurz und versuche es erneut.",
+            )
+            limited_response.headers["Retry-After"] = str(
+                max(1, int(rate_policy.window.total_seconds()))
+            )
+            return limited_response
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        if origin is not None and origin.rstrip("/") in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Expose-Headers"] = (
+                "Content-Disposition, X-Request-ID"
+            )
+            response.headers["Vary"] = "Origin"
         return response
 
     @application.exception_handler(ApplicationError)

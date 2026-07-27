@@ -1340,27 +1340,30 @@ Nachweis:
 
 ## M11 – Sicherheit, Datenschutz und Betrieb
 
-### [ ] POC-110 Security Baseline und sichere Defaults umsetzen
+### [x] POC-110 Security Baseline und sichere Defaults umsetzen
 
 Abhängigkeiten: POC-010, POC-020, POC-042, POC-043
 
 Akzeptanzkriterien:
 
-- [ ] TLS, Security Header, CORS, CSRF, Cookie- und Proxy-Vertrauen sind
+- [x] TLS, Security Header, CORS, CSRF, Cookie- und Proxy-Vertrauen sind
       explizit konfiguriert.
-- [ ] Rate Limits schützen Login, Einladung und Public Forms.
-- [ ] Secrets stammen aus externer Konfiguration und erscheinen nicht in
+- [x] Rate Limits schützen Login, Einladung und Public Forms.
+- [x] Secrets stammen aus externer Konfiguration und erscheinen nicht in
       Logs, Images oder Browserbundles.
-- [ ] Upload-/Downloadpfade prüfen Typ, Größe, Hash und Autorisierung.
-- [ ] Logs minimieren personenbezogene Daten und besitzen Löschregeln.
-- [ ] Dependency-, Container- und Secret-Scans blockieren kritische Befunde.
+- [x] Upload-/Downloadpfade prüfen Typ, Größe, Hash und Autorisierung.
+- [x] Logs minimieren personenbezogene Daten und besitzen Löschregeln.
+- [x] Dependency-, Container- und Secret-Scans blockieren kritische Befunde.
 
 Tests/Nachweise:
 
-- [ ] Dynamische Tests prüfen CSRF, CORS, Session Fixation, horizontale
+- [x] Dynamische Tests prüfen CSRF, CORS, Session Fixation, horizontale
       Rechteausweitung und Rate Limits gegen den realen Stack.
-- [ ] Secret-Canary gelangt weder in Logs noch Fehlerantworten.
-- [ ] Security-Header werden über den echten Reverse Proxy geprüft.
+- [x] Secret-Canary gelangt weder in Logs noch Fehlerantworten.
+- [x] Security-Header werden über den echten Reverse Proxy geprüft.
+
+Nachweis:
+[POC-110 – Security Baseline und sichere Defaults](proofs/POC-110.md).
 
 ### [ ] POC-111 Datenschutz-, Consent-, Suppression- und Löschgrundlagen bauen
 

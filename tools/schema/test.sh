@@ -36,7 +36,7 @@ compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 docker run --rm \
   -v "$root:/repo:ro" \
-  docker.io/library/python:3.13.5-slim-bookworm@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7b0ceaccb55e9dd7e30987419 \
+  docker.io/library/python:3.13.13-slim-trixie@sha256:aa938a849bcb82dce8f49480f056ab82bf5c1c3ebc294f0430f37b6820e7f286 \
   python /repo/tools/schema/check_migrations.py /repo/migrations/versions
 
 echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"

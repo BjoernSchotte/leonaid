@@ -38,6 +38,7 @@ REQUIRED_SYSTEMS = {
     "seaweedfs",
     "syft",
     "twenty",
+    "trivy",
     "typst",
     "uv",
 }
@@ -224,7 +225,7 @@ def check_frontend(root: Path, problems: Problems) -> None:
     problems.require(
         isinstance(engines, dict)
         and engines.get("bun") == "1.2.19"
-        and engines.get("node") == "22.17.1",
+        and engines.get("node") == "22.23.0",
         f"{root / 'package.json'}: Bun and Node engines must be exact",
     )
 

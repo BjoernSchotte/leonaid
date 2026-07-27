@@ -9,7 +9,7 @@
   "packageManager": "bun@1.2.19",
   "engines": {
     "bun": "1.2.19",
-    "node": "22.17.1"
+    "node": "22.23.0"
   },
   "scripts": {
     "build:public": "bun run --filter @leonaid/public build",
