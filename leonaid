@@ -107,6 +107,20 @@ run_bun() {
     "$@"
 }
 
+generate_test_logins() {
+  mkdir -p "$root/.local"
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  docker run --rm \
+    --user "$host_user_id:$host_group_id" \
+    -v "$root:/workspace" \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/dx/generate_test_logins.py \
+    tests/fixtures/golden/v1/dataset.json \
+    .local/test-logins.md
+}
+
 compose() {
   integration_key=${TWENTY_INTEGRATION_API_KEY:-}
   if [ -z "$integration_key" ] && [ -f "$root/.local/twenty/integration.env" ]; then
@@ -410,6 +424,7 @@ seed_systems() {
   run_golden_tool seed \
     /repo/tests/fixtures/golden/v1 \
     /repo/.artifacts/golden-v1/invoices
+  generate_test_logins
 }
 
 snapshot_systems() {

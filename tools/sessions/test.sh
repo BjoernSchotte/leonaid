@@ -93,7 +93,10 @@ docker run --rm \
   --reporter=line
 
 mkdir -p "$artifact_directory"
-for screenshot in session-fresh-admin.png session-login.png; do
+for screenshot in \
+  session-fresh-admin.png \
+  session-login.png \
+  session-finance-default-route.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "session-test: ERROR: Browser-Screenshot fehlt: $screenshot" >&2
     exit 1

@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const mailpitBaseUrl = process.env.LEONAID_E2E_MAILPIT_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
-const email = "klara.kern@leonaid.invalid";
+const charityAdminEmail = "klara.kern@leonaid.invalid";
+const financeEmail = "finn.finanzen@leonaid.invalid";
 
 if (!baseUrl || !mailpitBaseUrl || !artifactDirectory) {
   throw new Error("POC-042 Browserumgebung ist unvollständig");
@@ -45,7 +46,7 @@ async function messageIds(request) {
   );
 }
 
-async function waitForCode(request, previousIds) {
+async function waitForCode(request, previousIds, recipientEmail) {
   let code;
   await expect
     .poll(
@@ -56,7 +57,7 @@ async function waitForCode(request, previousIds) {
         for (const summary of payload.messages ?? []) {
           if (
             previousIds.has(summary.ID) ||
-            !recipientAddresses(summary.To).has(email)
+            !recipientAddresses(summary.To).has(recipientEmail)
           ) {
             continue;
           }
@@ -102,10 +103,14 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Bei LeonAid anmelden",
     );
-    await page.locator("#login-email").fill(email);
+    await page.locator("#login-email").fill(charityAdminEmail);
     await page.locator('[data-testid="request-login"]').click();
     await expect(page.locator("#complete-login-form")).toBeVisible();
-    const loginCode = await waitForCode(context.request, loginMailIds);
+    const loginCode = await waitForCode(
+      context.request,
+      loginMailIds,
+      charityAdminEmail,
+    );
     expect(loginCode).toMatch(/^[0-9]{6}$/);
     await page.locator("#login-code").fill(loginCode);
     await page.locator('[data-testid="complete-login"]').click();
@@ -153,7 +158,11 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
     );
     await page.locator('[data-testid="request-login"]').click();
     await expect(page.locator("#complete-login-form")).toBeVisible();
-    const freshCode = await waitForCode(context.request, freshMailIds);
+    const freshCode = await waitForCode(
+      context.request,
+      freshMailIds,
+      charityAdminEmail,
+    );
     await page.locator("#login-code").fill(freshCode);
     await page.locator('[data-testid="complete-login"]').click();
     await page.waitForURL(`${baseUrl}/admin/members`);
@@ -189,6 +198,51 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
     ).toBe(false);
     await page.screenshot({
       path: `${artifactDirectory}/session-login.png`,
+      fullPage: true,
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+test("Finanz-Lesezugriff startet ohne Umweg im Rechnungsjournal", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    ignoreHTTPSErrors: true,
+  });
+  const page = await context.newPage();
+  try {
+    const loginMailIds = await messageIds(context.request);
+    await page.goto(`${baseUrl}/login`);
+    await page.locator("#login-email").fill(financeEmail);
+    await page.locator('[data-testid="request-login"]').click();
+    const loginCode = await waitForCode(
+      context.request,
+      loginMailIds,
+      financeEmail,
+    );
+    await page.locator("#login-code").fill(loginCode);
+    await page.locator('[data-testid="complete-login"]').click();
+
+    await page.waitForURL(`${baseUrl}/admin/invoices`);
+    await expect(page.locator('[data-testid="display-name"]')).toHaveText(
+      "Finn Finanzen",
+    );
+    await expect(page.locator('[data-testid="roles"]')).toContainText(
+      "Finanzen",
+    );
+    await expect(
+      page.getByText("Nur Lesezugriff", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Rechnungen" }),
+    ).toBeVisible();
+    await expect(page.locator('[data-testid="record-payment"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="cancel-invoice"]')).toHaveCount(0);
+    await page.screenshot({
+      path: `${artifactDirectory}/session-finance-default-route.png`,
       fullPage: true,
     });
   } finally {

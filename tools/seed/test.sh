@@ -60,6 +60,17 @@ fi
 
 echo "seed-test: setzt alle vier Systeme aus leeren Volumes auf Golden Data v1"
 "$root/leonaid" reset
+docker run --rm \
+  -v "$root:/workspace:ro" \
+  "$PYTHON_IMAGE" \
+  python /workspace/tools/dx/generate_test_logins.py \
+  /workspace/tests/fixtures/golden/v1/dataset.json \
+  /workspace/.local/test-logins.md \
+  --check
+if ! git -C "$root" check-ignore -q .local/test-logins.md; then
+  echo "seed-test: ERROR: lokale Testlogins sind nicht durch Git-Ignore geschützt" >&2
+  exit 1
+fi
 "$root/leonaid" snapshot poc012-first.json
 docker run --rm \
   -v "$root:/repo:ro" \

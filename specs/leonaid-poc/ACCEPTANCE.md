@@ -13,6 +13,7 @@ Stand: 2026-07-27
 | externe System- und Image-Locks | [`infra/locks`](../../infra/locks/README.md) |
 | Python- und Frontend-Locks | [`uv.lock`](../../uv.lock), [`bun.lock`](../../bun.lock) |
 | Golden Dataset | [`tests/fixtures/golden/v1`](../../tests/fixtures/golden/v1/README.md), Version 1.0.0 |
+| lokale Persona-Zugänge | nach `seed`/`reset` in der ignorierten Datei `.local/test-logins.md`, Codes über Mailpit |
 | Testberichte und vollständige Golden Journey | [`POC-122 – Reproduzierbarer Realnachweis`](proofs/POC-122.md#reproduzierbarer-realnachweis) |
 | Screenshots und Browser-PDFs | [`POC-122 – Artefakt- und Summennachweis`](proofs/POC-122.md#artefakt--und-summennachweis) |
 | UX-/Accessibility-Abnahme | [`POC-102`](proofs/POC-102.md) |

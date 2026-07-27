@@ -16,6 +16,8 @@ REQUIRED_CONTENT: dict[str, tuple[str, ...]] = {
         "./leonaid provision-twenty",
         "./leonaid test-golden-journey",
         "http://127.0.0.1:8080/krapfentaxi",
+        ".local/test-logins.md",
+        "Finanz-Lesezugriff",
         "specs/leonaid-poc/KNOWN-LIMITS.md",
     ),
     "specs/leonaid-poc/ARCHITECTURE.md": (

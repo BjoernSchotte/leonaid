@@ -90,7 +90,11 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
 </section>
 
 <script>
-  import { ApiError, LeonAidApiClient } from "@leonaid/api-client";
+  import {
+    ApiError,
+    LeonAidApiClient,
+    type CurrentIdentityResponse,
+  } from "@leonaid/api-client";
 
   function requiredElement<T extends Element>(selector: string): T {
     const element = document.querySelector<T>(selector);
@@ -109,6 +113,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
   const fresh = page.dataset.authFresh === "true";
   const parameters = new URLSearchParams(window.location.search);
   const token = parameters.get("token");
+  const hasExplicitReturnTo = parameters.has("returnTo");
   const requestedReturnTo =
     parameters.get("returnTo") ?? (fresh ? "/admin/" : "/app/");
   const returnTo =
@@ -117,6 +122,42 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
       : fresh
         ? "/admin/"
         : "/app/";
+
+  function defaultDestination(identity: CurrentIdentityResponse): string {
+    const actionRoles = new Set(
+      identity.actionMemberships.map((membership) => membership.role),
+    );
+    if (identity.globalRoles.includes("system_admin")) {
+      return "/admin/system";
+    }
+    if (actionRoles.has("charity_admin")) {
+      return "/admin/";
+    }
+    if (
+      identity.globalRoles.includes("finance_reader") ||
+      identity.globalRoles.includes("finance_manager") ||
+      actionRoles.has("finance_reader")
+    ) {
+      return "/admin/invoices";
+    }
+    if (actionRoles.has("acquirer")) {
+      return "/app/";
+    }
+    return (
+      identity.navigation.find((item) => item.surface === "web")?.href ??
+      identity.navigation[0]?.href ??
+      "/app/"
+    );
+  }
+
+  async function destinationAfterLogin(): Promise<string> {
+    if (fresh || hasExplicitReturnTo) return returnTo;
+    try {
+      return defaultDestination(await api.getCurrentIdentity());
+    } catch {
+      return returnTo;
+    }
+  }
 
   function formControl(
     form: HTMLFormElement,
@@ -218,7 +259,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
       status.textContent = fresh
         ? "Bestätigt. Du kannst fortfahren."
         : "Erfolgreich angemeldet.";
-      window.location.replace(returnTo);
+      window.location.replace(await destinationAfterLogin());
     } catch {
       status.setAttribute("role", "alert");
       status.dataset.state = "error";

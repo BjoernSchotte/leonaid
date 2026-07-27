@@ -48,20 +48,23 @@ der ignorierten Datei `.env.local` unter `TWENTY_BOOTSTRAP_EMAIL` und
 
 Der Start ist fertig, wenn `dev: OK` und `golden-seed: OK` erscheinen.
 
-| Oberfläche | Lokale Adresse |
-| --- | --- |
+| Oberfläche         | Lokale Adresse                      |
+| ------------------ | ----------------------------------- |
 | öffentliche Aktion | <http://127.0.0.1:8080/krapfentaxi> |
-| Mitglieder-Login | <http://127.0.0.1:8080/login> |
-| Admin-Portal | <http://127.0.0.1:8080/admin/> |
-| Akquisiteur-PWA | <http://127.0.0.1:8080/app/> |
-| Twenty | <http://crm.localhost:8080> |
-| lokale Testmails | <http://127.0.0.1:8080/mail/> |
+| Mitglieder-Login   | <http://127.0.0.1:8080/login>       |
+| Admin-Portal       | <http://127.0.0.1:8080/admin/>      |
+| Akquisiteur-PWA    | <http://127.0.0.1:8080/app/>        |
+| Twenty             | <http://crm.localhost:8080>         |
+| lokale Testmails   | <http://127.0.0.1:8080/mail/>       |
 
 Die synthetischen Persona-Adressen stehen in
 [`tests/fixtures/golden/v1`](tests/fixtures/golden/v1/README.md).
 Login-Codes kommen über den echten Mailpfad in Mailpit. Zusätzlich erzeugen
-die Nachweissuiten eine ignorierte `.local/test-logins.md`; sie enthält nur
-lokale Testzugänge und wird nie committed.
+`seed` und `reset` aus dem Golden Dataset die ignorierte
+`.local/test-logins.md`. Sie enthält die lokalen Einstiege für Akquisiteur,
+Charity-Admin, Finanz-Lesezugriff, System-Admin und die öffentliche Persona,
+aber bewusst keine kurzlebigen Codes oder Magic Links. Die Datei besitzt
+Modus `0600` und wird nie committed.
 
 ### Minute 18–30: Kernweg und vollständigen Nachweis ausführen
 
@@ -128,7 +131,7 @@ Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
 | **Backend**             | [Twenty CRM](https://github.com/twentyhq/twenty) (Open Source, AGPL-3.0), self-hosted             |
 | **Operatives Frontend** | React/TypeScript-PWA, shadcn/ui, freie Hugeicons; gemeinsame App Shell                            |
 | **LeonAid Core**        | Python 3.13, FastAPI, frameworkfreie Application Services und transaktionaler Outbox-Worker       |
-| **Feature-Rollout**     | OpenFeature für Python und React; im PoC providerneutral aus LeonAid PostgreSQL                    |
+| **Feature-Rollout**     | OpenFeature für Python und React; im PoC providerneutral aus LeonAid PostgreSQL                   |
 | **ERP-light**           | Bestellungen, Ausgangsrechnungen, Typst-PDF und manueller Zahlungsstatus                          |
 | **Public Web**          | Astro 7 als Teil des Core; zeitlich begrenzte Aktionsseiten und aktionsbezogene Standardformulare |
 | **Kommunikation**       | externer Mail-Relay; optionales listmonk-Compose-Profil                                           |

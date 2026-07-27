@@ -1,8 +1,8 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: in Umsetzung; POC-000 bis POC-002, POC-010 bis POC-012, POC-020 bis
-POC-023, POC-030 bis POC-033, POC-040 bis POC-043, POC-050 bis POC-052 sowie
-POC-060 bis POC-062 vollständig bewiesen
+Status: POC-000 bis POC-122 vollständig bewiesen; bei POC-123 sind nur die
+fachliche Produktabnahme und der dokumentierte Lauf durch eine unbeteiligte
+technische Person offen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 Zentrale Personas und Rollen:
@@ -64,21 +64,26 @@ Nicht-Ziele aus Kapitel 10.2 werden nicht nebenbei implementiert.
 
 Jeder Produkt-Slice erfüllt mindestens:
 
-- [ ] Fachregel liegt in einem serverseitigen Application Service oder
+- [x] Fachregel liegt in einem serverseitigen Application Service oder
       Domain-Modul, nicht ausschließlich in FastAPI, Astro Actions oder
       Browser-Code.
-- [ ] Autorisierung wird serverseitig positiv und negativ getestet.
-- [ ] OpenAPI-Vertrag und generierter TypeScript-Client sind aktuell.
-- [ ] Lade-, Leer-, Erfolg-, Konflikt- und Fehlerzustände sind gestaltet.
-- [ ] Bedienung funktioniert mit Tastatur sowie auf Smartphone und Desktop.
-- [ ] UI-Texte sind auf Deutsch, konkret und handlungsorientiert.
-- [ ] Relevante Mutationen sind idempotent oder besitzen eine dokumentierte
+- [x] Autorisierung wird serverseitig positiv und negativ getestet.
+- [x] OpenAPI-Vertrag und generierter TypeScript-Client sind aktuell.
+- [x] Lade-, Leer-, Erfolg-, Konflikt- und Fehlerzustände sind gestaltet.
+- [x] Bedienung funktioniert mit Tastatur sowie auf Smartphone und Desktop.
+- [x] UI-Texte sind auf Deutsch, konkret und handlungsorientiert.
+- [x] Relevante Mutationen sind idempotent oder besitzen eine dokumentierte
       Konfliktstrategie.
-- [ ] Audit- und Observability-Signale enthalten Korrelation, aber keine
+- [x] Audit- und Observability-Signale enthalten Korrelation, aber keine
       unnötigen personenbezogenen oder geheimen Daten.
-- [ ] Unit-, Integrations- und E2E-Tests mit Golden Data sind grün.
-- [ ] Reale Artefakte wie E-Mail oder PDF werden inhaltlich und technisch
+- [x] Unit-, Integrations- und E2E-Tests mit Golden Data sind grün.
+- [x] Reale Artefakte wie E-Mail oder PDF werden inhaltlich und technisch
       geprüft, nicht nur auf Existenz.
+
+Querschnittsnachweis:
+[POC-122 – vollständige Golden Journey](proofs/POC-122.md),
+[POC-102 – UX-/Accessibility-Abnahme](proofs/POC-102.md) und
+[POC-123 – Cold-CI-Nachweis](proofs/POC-123.md#reproduzierbarer-cold-ci-nachweis).
 
 ## 2. Zielarchitektur und Repository-Schnitt
 
