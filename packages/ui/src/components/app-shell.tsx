@@ -24,6 +24,7 @@ import type {
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { ThemeSwitcher } from "./theme-switcher";
+import { ToastProvider } from "./toast";
 
 export interface AppShellProps {
   readonly children: ReactNode;
@@ -172,133 +173,148 @@ export function AppShell({
   );
 
   return (
-    <div
-      className={cn("ui-shell", collapsed && "ui-shell--collapsed")}
-      data-sidebar-collapsed={collapsed}
-      data-surface={surface}
-    >
-      <aside className="ui-sidebar" data-testid="desktop-sidebar">
-        <div className="ui-sidebar__header">
-          <div className="ui-brand">
-            <span aria-hidden="true" className="ui-brand__mark">
-              L
-            </span>
-            <span className="ui-brand__name">LeonAid</span>
-          </div>
-          <button
-            aria-label={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
-            className="ui-sidebar__collapse"
-            data-testid="sidebar-toggle"
-            onClick={toggleSidebar}
-            title={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
-            type="button"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              icon={SidebarLeftIcon}
-              size={20}
-              strokeWidth={1.7}
-            />
-          </button>
-        </div>
-        {sidebarNavigation}
-      </aside>
-
-      <div className="ui-shell__body">
-        <header className="ui-topbar">
-          <Dialog.Root
-            onOpenChange={setMobileOpen}
-            open={surface === "web" && mobileOpen}
-          >
-            <Dialog.Trigger
-              aria-label="Navigation öffnen"
-              className={cn(
-                "ui-icon-button ui-mobile-menu",
-                surface === "pwa" && "ui-mobile-menu--hidden",
-              )}
-              data-testid="mobile-menu"
+    <ToastProvider>
+      <a className="ui-skip-link" href="#main-content">
+        Zum Hauptinhalt
+      </a>
+      <div
+        className={cn("ui-shell", collapsed && "ui-shell--collapsed")}
+        data-sidebar-collapsed={collapsed}
+        data-surface={surface}
+      >
+        <aside className="ui-sidebar" data-testid="desktop-sidebar">
+          <div className="ui-sidebar__header">
+            <div className="ui-brand">
+              <span aria-hidden="true" className="ui-brand__mark">
+                L
+              </span>
+              <span className="ui-brand__name">LeonAid</span>
+            </div>
+            <button
+              aria-label={
+                collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"
+              }
+              className="ui-sidebar__collapse"
+              data-testid="sidebar-toggle"
+              onClick={toggleSidebar}
+              title={collapsed ? "Sidebar ausklappen" : "Sidebar einklappen"}
+              type="button"
             >
               <HugeiconsIcon
                 aria-hidden="true"
-                icon={Menu01Icon}
-                size={22}
-                strokeWidth={1.8}
+                icon={SidebarLeftIcon}
+                size={20}
+                strokeWidth={1.7}
               />
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Backdrop className="ui-dialog-backdrop" />
-              <Dialog.Popup className="ui-mobile-drawer">
-                <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-                <Dialog.Description className="sr-only">
-                  Bereiche des LeonAid-Arbeitsbereichs
-                </Dialog.Description>
-                <Dialog.Close
-                  aria-label="Navigation schließen"
-                  className="ui-icon-button ui-mobile-drawer__close"
-                >
-                  <HugeiconsIcon
-                    aria-hidden="true"
-                    icon={Cancel01Icon}
-                    size={22}
-                    strokeWidth={1.8}
-                  />
-                </Dialog.Close>
-                <div className="ui-brand">
-                  <span aria-hidden="true" className="ui-brand__mark">
-                    L
-                  </span>
-                  <span className="ui-brand__name">LeonAid</span>
-                </div>
-                {sidebarNavigation}
-              </Dialog.Popup>
-            </Dialog.Portal>
-          </Dialog.Root>
-
-          <div className="ui-topbar__identity">
-            <span>Angemeldet als</span>
-            <strong data-testid="display-name">{identity.displayName}</strong>
+            </button>
           </div>
-          <div className="ui-topbar__actions">
-            <ThemeSwitcher />
-            <div
-              aria-label="Rollen"
-              className="ui-role-list"
-              data-testid="roles"
+          {sidebarNavigation}
+        </aside>
+
+        <div className="ui-shell__body">
+          <header className="ui-topbar">
+            <Dialog.Root
+              onOpenChange={setMobileOpen}
+              open={surface === "web" && mobileOpen}
             >
-              {identity.roleLabels.map((label) => (
-                <span className="ui-role" key={label}>
-                  {label}
-                </span>
-              ))}
-            </div>
-            <Button
-              aria-label="Abmelden"
-              data-testid="logout"
-              icon={
+              <Dialog.Trigger
+                aria-label="Navigation öffnen"
+                className={cn(
+                  "ui-icon-button ui-mobile-menu",
+                  surface === "pwa" && "ui-mobile-menu--hidden",
+                )}
+                data-testid="mobile-menu"
+              >
                 <HugeiconsIcon
                   aria-hidden="true"
-                  icon={Logout01Icon}
-                  size={18}
+                  icon={Menu01Icon}
+                  size={22}
                   strokeWidth={1.8}
                 />
-              }
-              onClick={onLogout}
-              title="Abmelden"
-              variant="ghost"
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Backdrop className="ui-dialog-backdrop" />
+                <Dialog.Popup className="ui-mobile-drawer">
+                  <Dialog.Title className="sr-only">Navigation</Dialog.Title>
+                  <Dialog.Description className="sr-only">
+                    Bereiche des LeonAid-Arbeitsbereichs
+                  </Dialog.Description>
+                  <Dialog.Close
+                    aria-label="Navigation schließen"
+                    className="ui-icon-button ui-mobile-drawer__close"
+                  >
+                    <HugeiconsIcon
+                      aria-hidden="true"
+                      icon={Cancel01Icon}
+                      size={22}
+                      strokeWidth={1.8}
+                    />
+                  </Dialog.Close>
+                  <div className="ui-brand">
+                    <span aria-hidden="true" className="ui-brand__mark">
+                      L
+                    </span>
+                    <span className="ui-brand__name">LeonAid</span>
+                  </div>
+                  {sidebarNavigation}
+                </Dialog.Popup>
+              </Dialog.Portal>
+            </Dialog.Root>
+
+            <div className="ui-topbar__identity">
+              <span>Angemeldet als</span>
+              <strong data-testid="display-name">{identity.displayName}</strong>
+            </div>
+            <div
+              aria-label="Aktueller Arbeitskontext"
+              className="ui-topbar__context"
+              data-testid="mobile-work-context"
             >
-              Abmelden
-            </Button>
-          </div>
-        </header>
-        <main className="ui-main" id="main-content">
-          {children}
-        </main>
-      </div>
-      {surface === "pwa" ? (
-        <div className="ui-pwa-tabbar">
-          <Navigation implemented={implemented} items={navigation} />
+              <span>{identity.roleLabels.join(" · ")}</span>
+              <strong>{currentActionName}</strong>
+            </div>
+            <div className="ui-topbar__actions">
+              <ThemeSwitcher />
+              <div
+                aria-label="Rollen"
+                className="ui-role-list"
+                data-testid="roles"
+              >
+                {identity.roleLabels.map((label) => (
+                  <span className="ui-role" key={label}>
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <Button
+                aria-label="Abmelden"
+                data-testid="logout"
+                icon={
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    icon={Logout01Icon}
+                    size={18}
+                    strokeWidth={1.8}
+                  />
+                }
+                onClick={onLogout}
+                title="Abmelden"
+                variant="ghost"
+              >
+                Abmelden
+              </Button>
+            </div>
+          </header>
+          <main className="ui-main" id="main-content">
+            {children}
+          </main>
         </div>
-      ) : null}
-    </div>
+        {surface === "pwa" ? (
+          <div className="ui-pwa-tabbar">
+            <Navigation implemented={implemented} items={navigation} />
+          </div>
+        ) : null}
+      </div>
+    </ToastProvider>
   );
 }

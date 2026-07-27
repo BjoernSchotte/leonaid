@@ -46,6 +46,16 @@
   --radius-lg: 1rem;
   --shadow-sm: 0 1px 2px rgb(13 34 64 / 0.07);
   --shadow-md: 0 14px 35px rgb(13 34 64 / 0.12);
+  --font-sans:
+    "Aptos", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --control-height: 2.75rem;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
 }
 
 :root[data-theme="dark"] {
@@ -56,8 +66,8 @@
   --border: color-mix(in oklch, var(--lions-light-blue) 27%, var(--lions-navy));
   --input: color-mix(in oklch, var(--lions-light-blue) 38%, var(--lions-navy));
   --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
-  --primary: var(--lions-blue);
-  --primary-foreground: #ffffff;
+  --primary: color-mix(in oklch, var(--lions-light-blue) 70%, white);
+  --primary-foreground: var(--lions-navy);
   --accent: color-mix(in oklch, var(--lions-light-blue) 22%, var(--lions-navy));
   --accent-foreground: #ffffff;
   --danger: var(--lions-coral);
@@ -98,8 +108,8 @@
       var(--lions-navy)
     );
     --muted: color-mix(in oklch, var(--lions-cool-gray-5) 85%, white);
-    --primary: var(--lions-blue);
-    --primary-foreground: #ffffff;
+    --primary: color-mix(in oklch, var(--lions-light-blue) 70%, white);
+    --primary-foreground: var(--lions-navy);
     --accent: color-mix(
       in oklch,
       var(--lions-light-blue) 22%,

@@ -4,6 +4,7 @@ import "./activity-feed/activity-feed.css";
 import "./commitments/commitments.css";
 import "./invoices/invoices.css";
 import "./system-admin/feature-flags.css";
+import "./ui-system/ui-system.css";
 
 export * from "./acquisition/activity-workspace";
 export * from "./acquisition/sponsor-workspace";
@@ -17,3 +18,4 @@ export * from "./commitments/commitment-capture";
 export * from "./invoices/invoice-admin";
 export * from "./feature-flags/openfeature-provider";
 export * from "./system-admin/feature-flag-admin";
+export * from "./ui-system/ui-system-catalog";

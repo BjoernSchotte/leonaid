@@ -13,6 +13,12 @@
   padding: 0.5rem 0 0.25rem;
 }
 
+.feature-admin-header__catalog {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  text-decoration: none;
+}
+
 .feature-admin-header__icon,
 .feature-system-status__icon {
   align-items: center;
@@ -247,6 +253,15 @@
 }
 
 @media (max-width: 46rem) {
+  .feature-admin-header {
+    flex-wrap: wrap;
+  }
+
+  .feature-admin-header__catalog {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
   .feature-flag-card {
     align-items: stretch;
     grid-template-columns: 1fr;

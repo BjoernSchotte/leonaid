@@ -223,6 +223,12 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
             dokumentiert.
           </p>
         </div>
+        <a
+          className="ui-button ui-button--secondary feature-admin-header__catalog"
+          href="/admin/system/ui"
+        >
+          UI-Basis
+        </a>
       </header>
 
       <aside className="feature-admin-guardrail">

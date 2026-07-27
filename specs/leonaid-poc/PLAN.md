@@ -1258,28 +1258,30 @@ Nachweis:
 
 ## M10 – Dashboard, UX-System und Produktqualität
 
-### [ ] POC-100 Gemeinsames UI-System und App Shell produktionsnah bauen
+### [x] POC-100 Gemeinsames UI-System und App Shell produktionsnah bauen
 
 Abhängigkeiten: POC-002
 
 Akzeptanzkriterien:
 
-- [ ] shadcn/ui, Design Tokens und freie Hugeicons sind zentral gekapselt.
-- [ ] Sidebar ist auf Desktop einklappbar; mobile Navigation ist
+- [x] shadcn/ui, Design Tokens und freie Hugeicons sind zentral gekapselt.
+- [x] Sidebar ist auf Desktop einklappbar; mobile Navigation ist
       aufgabenzentriert.
-- [ ] Rolle und aktuelle Charity-Aktion sind stets verständlich sichtbar.
-- [ ] Fokus, Dialoge, Toasts, Formfehler, Tabellen und Empty States folgen
+- [x] Rolle und aktuelle Charity-Aktion sind stets verständlich sichtbar.
+- [x] Fokus, Dialoge, Toasts, Formfehler, Tabellen und Empty States folgen
       dokumentierten Patterns.
-- [ ] Dark Mode wird nur aufgenommen, wenn vollständig; kein halbfertiges
+- [x] Dark Mode wird nur aufgenommen, wenn vollständig; kein halbfertiges
       Theme.
-- [ ] Lizenzhinweise für Icons und UI-Abhängigkeiten sind dokumentiert.
+- [x] Lizenzhinweise für Icons und UI-Abhängigkeiten sind dokumentiert.
 
 Tests/Nachweise:
 
-- [ ] Story-/Komponentenkatalog zeigt alle Zustände mit Golden Data und
+- [x] Story-/Komponentenkatalog zeigt alle Zustände mit Golden Data und
       realem Backend.
-- [ ] Accessibility-Scan aller Basiskomponenten ist ohne kritische Befunde.
-- [ ] Visuelle Regression prüft Shell bei mobilen und Desktop-Breiten.
+- [x] Accessibility-Scan aller Basiskomponenten ist ohne kritische Befunde.
+- [x] Visuelle Regression prüft Shell bei mobilen und Desktop-Breiten.
+
+Nachweis: [POC-100 – Gemeinsames UI-System](proofs/POC-100.md)
 
 ### [ ] POC-101 Rollenbezogene Dashboards und Zielvisualisierung umsetzen
 

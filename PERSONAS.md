@@ -152,8 +152,8 @@ alltägliche Fachrolle verwendet werden. Kritische Aktionen benötigen eine
 frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
 Rollout, niemals Rollen- oder Datensatzberechtigungen.
 
-**Oberfläche:** Systembereich der Web-App plus versionierte
-Docker-/Runbook-Werkzeuge.
+**Oberfläche:** Systembereich der Web-App einschließlich geschütztem
+UI-Prüfkatalog plus versionierte Docker-/Runbook-Werkzeuge.
 
 ## Nachgelagerte oder externe Personas
 

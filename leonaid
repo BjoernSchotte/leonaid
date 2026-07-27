@@ -52,6 +52,7 @@ Commands:
                     Prove exact full payment, cancellation and immutable PDFs
   test-feature-flags
                     Prove OpenFeature evaluation, admin controls and RBAC
+  test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -463,6 +464,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
+    /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -483,6 +485,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
+    /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
@@ -516,6 +519,7 @@ case "$command" in
   test-feature-flags)
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     ;;
+  test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

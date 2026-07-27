@@ -12,6 +12,7 @@ import {
   ManageActionPage,
   MemberInvitationPage,
   PreviewNotice,
+  UiSystemCatalogPage,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -24,6 +25,7 @@ function route() {
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
   if (pathname === "/members") return { kind: "members" } as const;
   if (pathname === "/system") return { kind: "system" } as const;
+  if (pathname === "/system/ui") return { kind: "system-ui" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
   if (pathname === "/invoices") return { kind: "invoices" } as const;
   if (pathname === "/activities") return { kind: "activities" } as const;
@@ -103,7 +105,9 @@ export function App({ client }: AppProps) {
                 ? "Mitglieder"
                 : currentRoute.kind === "system"
                   ? "System"
-                  : "Alle Aktionen";
+                  : currentRoute.kind === "system-ui"
+                    ? "UI-Basis"
+                    : "Alle Aktionen";
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
@@ -135,6 +139,8 @@ export function App({ client }: AppProps) {
           <ActivityFeedPage client={client} surface="web" />
         ) : currentRoute.kind === "system" ? (
           <FeatureFlagAdminPage client={client} />
+        ) : currentRoute.kind === "system-ui" ? (
+          <UiSystemCatalogPage identity={identity.data} />
         ) : (
           <ActionListPage identity={identity.data} />
         )}
