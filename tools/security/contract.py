@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
+import sys
 from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -21,7 +22,6 @@ from leonaid.domain.sessions import (
     LoginPurpose,
     login_code_digest,
     login_magic_digest,
-    session_token_digest,
 )
 
 ADMIN_ID = UUID("10000000-0000-4000-8000-000000000002")
@@ -230,7 +230,9 @@ async def prove() -> None:
             for _ in range(11)
         ]
         if invitation_statuses[:10] != [202] * 10 or invitation_statuses[10] != 429:
-            raise ContractFailure("Einladungs-Rate-Limit greift nicht am elften Versuch")
+            raise ContractFailure(
+                "Einladungs-Rate-Limit greift nicht am elften Versuch"
+            )
 
         login_statuses = [
             (
@@ -273,5 +275,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(prove())
     except (ContractFailure, asyncpg.PostgresError, httpx.HTTPError) as error:
-        print(f"security-contract: ERROR: {error}", file=os.sys.stderr)
+        print(f"security-contract: ERROR: {error}", file=sys.stderr)
         raise SystemExit(1) from None
