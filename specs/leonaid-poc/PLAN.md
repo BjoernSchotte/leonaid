@@ -1308,30 +1308,33 @@ Tests/Nachweise:
 Nachweis:
 [POC-101 – Rollenbezogene Dashboards](proofs/POC-101.md).
 
-### [ ] POC-102 Durchgängige UX-, Accessibility- und Content-Abnahme
+### [x] POC-102 Durchgängige UX-, Accessibility- und Content-Abnahme
 
 Abhängigkeiten: POC-052, POC-062, POC-063, POC-071, POC-072, POC-081,
 POC-082, POC-093, POC-094, POC-095, POC-101
 
 Akzeptanzkriterien:
 
-- [ ] Kritische Flows wurden mit mindestens einem Charity-Admin und einem
+- [x] Kritische Flows wurden mit mindestens einem Charity-Admin und einem
       Akquisiteur auf Smartphone und Desktop beobachtet.
-- [ ] Keine Persona benötigt Datenbankwissen, interne IDs oder Twenty-
+- [x] Keine Persona benötigt Datenbankwissen, interne IDs oder Twenty-
       Terminologie für den Kernablauf.
-- [ ] Fehlermeldungen erklären Problem, Auswirkung und nächsten Schritt.
-- [ ] Fokusreihenfolge, Zoom, Kontrast, Labels, Statusmeldungen und
+- [x] Fehlermeldungen erklären Problem, Auswirkung und nächsten Schritt.
+- [x] Fokusreihenfolge, Zoom, Kontrast, Labels, Statusmeldungen und
       Tastaturbedienung sind geprüft.
-- [ ] Jede Kernseite erfüllt vereinbarte Performancebudgets.
-- [ ] P0/P1-Usability- und Accessibility-Befunde sind geschlossen.
+- [x] Jede Kernseite erfüllt vereinbarte Performancebudgets.
+- [x] P0/P1-Usability- und Accessibility-Befunde sind geschlossen.
 
 Tests/Nachweise:
 
-- [ ] Moderiertes Golden-Scenario-Protokoll und priorisierte Befundliste
+- [x] Moderiertes Golden-Scenario-Protokoll und priorisierte Befundliste
       liegen vor.
-- [ ] Automatisierte Accessibility-Suite ist grün.
-- [ ] Manuelle Tastatur- und Screenreader-Smoke-Tests sind protokolliert.
-- [ ] Browser-Traces belegen Performancebudgets unter reproduzierbarer Last.
+- [x] Automatisierte Accessibility-Suite ist grün.
+- [x] Manuelle Tastatur- und Screenreader-Smoke-Tests sind protokolliert.
+- [x] Browser-Traces belegen Performancebudgets unter reproduzierbarer Last.
+
+Nachweis:
+[POC-102 – Durchgängige UX-, Accessibility- und Content-Abnahme](proofs/POC-102.md).
 
 ---
 

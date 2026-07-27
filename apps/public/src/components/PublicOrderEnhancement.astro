@@ -30,6 +30,7 @@
     const success = form.parentElement?.querySelector<HTMLElement>(
       "[data-order-success]",
     );
+    form.noValidate = true;
 
     const syncBillingFields = () => {
       if (!billingSame || !billingFields || !billingInputs) return;
@@ -146,7 +147,26 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       clearErrors();
-      if (!form.reportValidity()) return;
+      if (!form.checkValidity()) {
+        const fields: Record<string, readonly string[]> = {};
+        for (const control of form.querySelectorAll<HTMLInputElement>(
+          "input:invalid",
+        )) {
+          if (!control.name) continue;
+          fields[control.name] = [
+            control.validity.valueMissing
+              ? "Diese Angabe fehlt."
+              : control.validity.typeMismatch
+                ? "Bitte prüfe das Format."
+                : "Bitte prüfe diese Angabe.",
+          ];
+        }
+        showFailure(
+          "Bestellung noch nicht gesendet. Bitte prüfe die markierten Felder und sende sie anschließend erneut.",
+          fields,
+        );
+        return;
+      }
       if (submitButton) {
         submitButton.disabled = true;
         submitButton.setAttribute("aria-busy", "true");

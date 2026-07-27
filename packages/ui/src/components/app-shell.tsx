@@ -306,7 +306,7 @@ export function AppShell({
               </Button>
             </div>
           </header>
-          <main className="ui-main" id="main-content">
+          <main className="ui-main" id="main-content" tabIndex={-1}>
             {children}
           </main>
         </div>

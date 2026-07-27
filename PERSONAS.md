@@ -215,3 +215,21 @@ Weihnachtsmarkt konkretisiert.
 - Fehler erklären Problem, Auswirkung und mögliche Korrektur;
 - historische Finanz- und Aktivitätsdaten bleiben auch nach Rollenwechsel,
   Sperrung oder Archivierung nachvollziehbar.
+
+## Bewiesene Geräte- und Abnahmematrix
+
+Der gemeinsame responsive Code wird nicht nur aus den primären
+Nutzungskontexten abgeleitet. POC-102 beweist die kritischen Wege bewusst auf
+beiden Gerätegrößen:
+
+| Persona                | Primär nachgewiesen                         | Responsiver Gegencheck               |
+| ---------------------- | ------------------------------------------- | ------------------------------------ |
+| Charity-Admin          | Desktop-Dashboard und offene Rechnung       | Rechnungsliste auf dem Smartphone    |
+| Akquisiteur            | Smartphone-Pipeline und Bestellerfassung    | Bestellerfassung auf dem Desktop     |
+| Öffentlicher Besteller | Smartphone-Aktionsseite und Fehlerkorrektur | Desktop bleibt durch Astro responsiv |
+
+Für diese Wege sind Tastaturfokus, Screenreader-Texte, 200 Prozent
+Textvergrößerung, mindestens 44 Pixel große mobile Kernaktionen,
+WCAG-Automation und reproduzierbare Performancebudgets Bestandteil der
+Definition of Done. Der detaillierte Nachweis steht in
+[`specs/leonaid-poc/proofs/POC-102.md`](specs/leonaid-poc/proofs/POC-102.md).

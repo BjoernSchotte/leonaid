@@ -54,6 +54,8 @@ Commands:
                     Prove OpenFeature evaluation, admin controls and RBAC
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
+  test-ux-acceptance
+                    Prove cross-persona UX, A11y and performance budgets
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -467,6 +469,7 @@ case "$command" in
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
+    /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -489,6 +492,7 @@ case "$command" in
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
+    /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
@@ -524,6 +528,7 @@ case "$command" in
     ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
+  test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \
