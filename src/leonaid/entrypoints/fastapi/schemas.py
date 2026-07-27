@@ -826,6 +826,87 @@ class InvoiceListResponse(TransportModel):
     currency_totals: list[InvoiceCurrencyTotalResponse]
 
 
+class DashboardGoalResponse(TransportModel):
+    configured: bool
+    actual_value: str
+    target_value: str | None
+    unit: str | None
+    currency: str
+    progress_basis_points: int | None = Field(default=None, ge=0)
+
+
+class DashboardPipelineResponse(TransportModel):
+    open: int = Field(ge=0)
+    contacted: int = Field(ge=0)
+    committed: int = Field(ge=0)
+    declined: int = Field(ge=0)
+    handed_over: int = Field(ge=0)
+    total: int = Field(ge=0)
+
+
+class DashboardReminderResponse(TransportModel):
+    overdue: int = Field(ge=0)
+    today: int = Field(ge=0)
+    upcoming: int = Field(ge=0)
+    unscheduled: int = Field(ge=0)
+    total: int = Field(ge=0)
+
+
+class DashboardCommitmentResponse(TransportModel):
+    draft: int = Field(ge=0)
+    review_ready: int = Field(ge=0)
+    confirmed: int = Field(ge=0)
+    invoiced: int = Field(ge=0)
+    cancelled: int = Field(ge=0)
+    total: int = Field(ge=0)
+    active_total: int = Field(ge=0)
+    active_total_minor: int = Field(ge=0)
+    total_boxes: int = Field(ge=0)
+    total_pieces: int = Field(ge=0)
+    currency: str
+
+
+class DashboardInvoiceResponse(TransportModel):
+    issued: int = Field(ge=0)
+    sent: int = Field(ge=0)
+    open: int = Field(ge=0)
+    paid: int = Field(ge=0)
+    cancelled: int = Field(ge=0)
+    total: int = Field(ge=0)
+    invoiced_amount_minor: int = Field(ge=0)
+    open_amount_minor: int = Field(ge=0)
+    currency: str
+
+
+class AcquirerDashboardResponse(TransportModel):
+    pipeline: DashboardPipelineResponse
+    reminders: DashboardReminderResponse
+    activity_count: int = Field(ge=0)
+
+
+class CharityAdminDashboardResponse(TransportModel):
+    pipeline: DashboardPipelineResponse
+    commitments: DashboardCommitmentResponse
+    invoices: DashboardInvoiceResponse
+
+
+class DashboardMetricDefinitionResponse(TransportModel):
+    key: str
+    label: str
+    description: str
+    href: str
+
+
+class DashboardResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    goal: DashboardGoalResponse
+    acquirer: AcquirerDashboardResponse | None
+    charity_admin: CharityAdminDashboardResponse | None
+    metric_definitions: list[DashboardMetricDefinitionResponse]
+    generated_at: datetime
+
+
 GeneratedDocumentReferenceKindValue = Literal[
     "action",
     "commitment",

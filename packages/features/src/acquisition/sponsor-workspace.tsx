@@ -36,6 +36,13 @@ interface SponsorWorkspaceProps {
 
 type SponsorView = "list" | "new";
 type SponsorMode = "company" | "person";
+type SponsorStatusFilter =
+  | "all"
+  | "open"
+  | "contacted"
+  | "committed"
+  | "declined"
+  | "handed_over";
 
 const statusLabels = {
   committed: "Zusage",
@@ -216,25 +223,30 @@ function SponsorRow({
 function SponsorList({
   actionId,
   identity,
+  initialStatus,
   items,
   onCreate,
 }: {
   readonly actionId: string;
   readonly identity: CurrentIdentityResponse;
+  readonly initialStatus: SponsorStatusFilter;
   readonly items: ReadonlyArray<AcquisitionActivityWorkItemResponse>;
   readonly onCreate: () => void;
 }) {
   const [filter, setFilter] = useState("");
+  const [status, setStatus] = useState<SponsorStatusFilter>(initialStatus);
   const normalized = filter.trim().toLocaleLowerCase("de-DE");
+  const statusVisible =
+    status === "all" ? items : items.filter((item) => item.status === status);
   const visible = normalized
-    ? items.filter((item) =>
+    ? statusVisible.filter((item) =>
         [item.partyDisplayName, item.city, item.postalCode, item.contactName]
           .filter(Boolean)
           .some((value) =>
             value?.toLocaleLowerCase("de-DE").includes(normalized),
           ),
       )
-    : items;
+    : statusVisible;
 
   if (items.length === 0) {
     return (
@@ -276,6 +288,43 @@ function SponsorList({
         <span aria-live="polite" className="acq-result-count">
           {visible.length} {visible.length === 1 ? "Sponsor" : "Sponsoren"}
         </span>
+      </div>
+      <div
+        aria-label="Sponsoren nach Status filtern"
+        className="acq-tabs"
+        role="tablist"
+      >
+        {(
+          [
+            ["all", "Alle"],
+            ["open", "Offen"],
+            ["contacted", "Kontaktiert"],
+            ["committed", "Zugesagt"],
+            ["declined", "Abgesagt"],
+            ["handed_over", "Übergeben"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            aria-selected={status === value}
+            data-testid={`sponsor-status-${value}`}
+            key={value}
+            onClick={() => {
+              setStatus(value);
+              const url = new URL(window.location.href);
+              if (value === "all") url.searchParams.delete("status");
+              else url.searchParams.set("status", value);
+              window.history.replaceState(
+                {},
+                "",
+                `${url.pathname}${url.search}`,
+              );
+            }}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
       </div>
       {visible.length > 0 ? (
         <div className="acq-sponsor-list" data-testid="sponsor-list">
@@ -796,7 +845,23 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
       ),
     [identity.actionMemberships],
   );
-  const [actionId, setActionId] = useState(memberships[0]?.actionId ?? "");
+  const query = new URLSearchParams(window.location.search);
+  const requestedAction = query.get("action");
+  const [actionId, setActionId] = useState(
+    memberships.find((item) => item.actionId === requestedAction)?.actionId ??
+      memberships[0]?.actionId ??
+      "",
+  );
+  const requestedStatus = query.get("status");
+  const initialStatus: SponsorStatusFilter = [
+    "open",
+    "contacted",
+    "committed",
+    "declined",
+    "handed_over",
+  ].includes(requestedStatus ?? "")
+    ? (requestedStatus as SponsorStatusFilter)
+    : "all";
   const [view, setView] = useState<SponsorView>("list");
   const board = useQuery({
     enabled: Boolean(actionId),
@@ -839,7 +904,16 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
           <select
             data-testid="sponsor-action"
             id="sponsor-action"
-            onChange={(event) => setActionId(event.target.value)}
+            onChange={(event) => {
+              setActionId(event.target.value);
+              const url = new URL(window.location.href);
+              url.searchParams.set("action", event.target.value);
+              window.history.replaceState(
+                {},
+                "",
+                `${url.pathname}${url.search}`,
+              );
+            }}
             value={actionId}
           >
             {memberships.map((membership) => (
@@ -903,6 +977,7 @@ export function SponsorWorkspace({ client, identity }: SponsorWorkspaceProps) {
         <SponsorList
           actionId={actionId}
           identity={identity}
+          initialStatus={initialStatus}
           items={board.data?.workItems ?? []}
           onCreate={() => setView("new")}
         />

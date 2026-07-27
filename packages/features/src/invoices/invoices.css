@@ -1214,3 +1214,43 @@
     animation: none;
   }
 }
+.invoice-ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.invoice-ledger-toolbar > span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.invoice-filter {
+  display: inline-grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.invoice-filter button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 0.18rem);
+  color: var(--muted);
+  background: transparent;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.invoice-filter button[aria-selected="true"] {
+  color: var(--foreground);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}

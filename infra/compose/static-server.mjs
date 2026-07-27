@@ -28,6 +28,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
       pathname.startsWith("/assets/") || pathname === "/favicon.svg"
         ? pathname.slice(1)
         : pathname === "/" ||
+            pathname === "/acquisition" ||
             pathname === "/activities" ||
             pathname === "/invoices" ||
             pathname === "/members" ||

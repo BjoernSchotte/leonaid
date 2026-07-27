@@ -42,14 +42,17 @@ const navigationIcons = {
   orders: PackageAdd01Icon,
   "overview-pwa": DashboardSquare01Icon,
   "overview-web": DashboardSquare01Icon,
+  "acquisition-web": AddressBookIcon,
   commitment: PackageAdd01Icon,
   sponsors: AddressBookIcon,
   system: Settings02Icon,
 } as const;
 
 const implementedWebNavigation = new Set([
+  "acquisition-web",
   "actions",
   "activities",
+  "overview-web",
   "invoices",
   "members",
   "orders",
@@ -143,9 +146,7 @@ export function AppShell({
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigation = identity.navigation.filter(
-    (item) =>
-      item.surface === surface &&
-      (surface === "pwa" || item.key !== "overview-web"),
+    (item) => item.surface === surface,
   );
   const implemented =
     surface === "pwa" ? implementedPwaNavigation : implementedWebNavigation;

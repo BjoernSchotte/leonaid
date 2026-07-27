@@ -514,6 +514,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-muted);
+  overflow-x: auto;
 }
 
 .commitment-filter button {
@@ -897,6 +898,7 @@
 
   .commitment-filter {
     width: 100%;
+    grid-auto-columns: max-content;
   }
 
   .commitment-success__actions {

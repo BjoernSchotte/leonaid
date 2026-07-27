@@ -25,7 +25,13 @@ interface CommitmentAdminPageProps {
   readonly identity: CurrentIdentityResponse;
 }
 
-type CommitmentFilter = "all" | "review_ready" | "draft";
+type CommitmentFilter =
+  | "all"
+  | "draft"
+  | "review_ready"
+  | "confirmed"
+  | "invoiced"
+  | "cancelled";
 
 const statusLabels = {
   cancelled: "Storniert",
@@ -356,8 +362,21 @@ export function CommitmentAdminPage({
       ),
     [identity.actionMemberships],
   );
-  const [actionId, setActionId] = useState(memberships[0]?.actionId ?? "");
-  const [filter, setFilter] = useState<CommitmentFilter>("all");
+  const query = new URLSearchParams(window.location.search);
+  const requestedAction = query.get("action");
+  const requestedStatus = query.get("status");
+  const [actionId, setActionId] = useState(
+    memberships.find((item) => item.actionId === requestedAction)?.actionId ??
+      memberships[0]?.actionId ??
+      "",
+  );
+  const [filter, setFilter] = useState<CommitmentFilter>(
+    ["draft", "review_ready", "confirmed", "invoiced", "cancelled"].includes(
+      requestedStatus ?? "",
+    )
+      ? (requestedStatus as CommitmentFilter)
+      : "all",
+  );
   const [selectedCommitmentId, setSelectedCommitmentId] = useState(
     () => new URLSearchParams(window.location.search).get("invoice") ?? "",
   );
@@ -435,6 +454,13 @@ export function CommitmentAdminPage({
               setInvoiceSelection();
               setIssued(undefined);
               setIssueError(undefined);
+              const url = new URL(window.location.href);
+              url.searchParams.set("action", event.target.value);
+              window.history.replaceState(
+                {},
+                "",
+                `${url.pathname}${url.search}`,
+              );
             }}
             value={actionId}
           >
@@ -546,12 +572,25 @@ export function CommitmentAdminPage({
                   ["all", "Alle"],
                   ["review_ready", "Prüfbereit"],
                   ["draft", "Entwürfe"],
+                  ["confirmed", "Bestätigt"],
+                  ["invoiced", "Fakturiert"],
+                  ["cancelled", "Storniert"],
                 ] as const
               ).map(([value, label]) => (
                 <button
                   aria-selected={filter === value}
                   key={value}
-                  onClick={() => setFilter(value)}
+                  onClick={() => {
+                    setFilter(value);
+                    const url = new URL(window.location.href);
+                    if (value === "all") url.searchParams.delete("status");
+                    else url.searchParams.set("status", value);
+                    window.history.replaceState(
+                      {},
+                      "",
+                      `${url.pathname}${url.search}`,
+                    );
+                  }}
                   role="tab"
                   type="button"
                 >

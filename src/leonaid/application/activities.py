@@ -9,7 +9,12 @@ from typing import Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from leonaid.application.crm import CrmGateway, CrmPartyKind, PersonRecord
+from leonaid.application.crm import (
+    CompanyRecord,
+    CrmGateway,
+    CrmPartyKind,
+    PersonRecord,
+)
 from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.policies import concealed_resource
 from leonaid.application.sponsor_matching import AssignedAcquirer
@@ -104,6 +109,12 @@ class AcquisitionActivityRepository(Protocol):
         evaluated_at: datetime,
     ) -> tuple[AcquisitionAssignment, ...]: ...
 
+    async def active_assignments_for_action(
+        self,
+        *,
+        action_id: UUID,
+    ) -> tuple[AcquisitionAssignment, ...]: ...
+
     async def active_assignment_for_actor(
         self,
         *,
@@ -120,6 +131,13 @@ class AcquisitionActivityRepository(Protocol):
         action_id: UUID,
         actor_user_id: UUID,
         evaluated_at: datetime,
+        limit: int,
+    ) -> tuple[RecordedAcquisitionActivity, ...]: ...
+
+    async def activity_timeline_for_action(
+        self,
+        *,
+        action_id: UUID,
         limit: int,
     ) -> tuple[RecordedAcquisitionActivity, ...]: ...
 
@@ -152,25 +170,40 @@ class AcquisitionActivityService:
         actor: IdentityPrincipal,
         action_id: UUID,
         *,
+        action_wide: bool = False,
         limit: int = 50,
     ) -> AcquisitionActivityBoard:
-        self._require_acquirer(actor, action_id)
+        if action_wide:
+            self._require_charity_admin(actor, action_id)
+        else:
+            self._require_acquirer(actor, action_id)
         if not 1 <= limit <= 100:
             raise ValueError("Aktivitätslimit muss zwischen 1 und 100 liegen.")
         generated_at = datetime.now(timezone.utc)
-        assignments, activities = await asyncio.gather(
-            self._repository.active_assignments_for_actor(
-                action_id=action_id,
-                actor_user_id=actor.account.id,
-                evaluated_at=generated_at,
-            ),
-            self._repository.activity_timeline_for_actor(
-                action_id=action_id,
-                actor_user_id=actor.account.id,
-                evaluated_at=generated_at,
-                limit=limit,
-            ),
-        )
+        if action_wide:
+            assignments, activities = await asyncio.gather(
+                self._repository.active_assignments_for_action(
+                    action_id=action_id,
+                ),
+                self._repository.activity_timeline_for_action(
+                    action_id=action_id,
+                    limit=limit,
+                ),
+            )
+        else:
+            assignments, activities = await asyncio.gather(
+                self._repository.active_assignments_for_actor(
+                    action_id=action_id,
+                    actor_user_id=actor.account.id,
+                    evaluated_at=generated_at,
+                ),
+                self._repository.activity_timeline_for_actor(
+                    action_id=action_id,
+                    actor_user_id=actor.account.id,
+                    evaluated_at=generated_at,
+                    limit=limit,
+                ),
+            )
         party_keys = {
             (assignment.party_kind, assignment.party_id) for assignment in assignments
         } | {(activity.party_kind, activity.party_id) for activity in activities}
@@ -357,13 +390,26 @@ class AcquisitionActivityService:
         PartyDetails,
     ]:
         ordered = sorted(keys, key=lambda item: (item[0].value, str(item[1])))
-        people = (
-            await self._crm.list_people(
-                correlation_id=f"{correlation_prefix}:company-contacts",
+        if not ordered:
+            return {}
+        has_companies = any(kind is AssignmentPartyKind.COMPANY for kind, _ in ordered)
+        if has_companies:
+            companies_result, people = await asyncio.gather(
+                self._crm.list_companies(
+                    correlation_id=f"{correlation_prefix}:companies",
+                ),
+                self._crm.list_people(
+                    correlation_id=f"{correlation_prefix}:people",
+                ),
             )
-            if any(kind is AssignmentPartyKind.COMPANY for kind, _ in ordered)
-            else ()
-        )
+            companies: tuple[CompanyRecord, ...] = companies_result
+        else:
+            companies = ()
+            people = await self._crm.list_people(
+                correlation_id=f"{correlation_prefix}:people",
+            )
+        companies_by_id = {company.twenty_id: company for company in companies}
+        people_by_id = {person.twenty_id: person for person in people}
         company_contacts: dict[UUID, tuple[PersonRecord, ...]] = {}
         for person in people:
             company_id = person.data.company_twenty_id
@@ -373,7 +419,7 @@ class AcquisitionActivityService:
                     person,
                 )
 
-        async def load(
+        def load(
             party_kind: AssignmentPartyKind,
             party_id: UUID,
         ) -> tuple[
@@ -381,10 +427,7 @@ class AcquisitionActivityService:
             PartyDetails,
         ]:
             if party_kind is AssignmentPartyKind.COMPANY:
-                company = await self._crm.get_company(
-                    party_id,
-                    correlation_id=f"{correlation_prefix}:company:{party_id}",
-                )
+                company = companies_by_id.get(party_id)
                 if company is None:
                     raise concealed_resource()
                 contacts = sorted(
@@ -419,10 +462,7 @@ class AcquisitionActivityService:
                         phone=contact.data.phone if contact is not None else None,
                     ),
                 )
-            person = await self._crm.get_person(
-                party_id,
-                correlation_id=f"{correlation_prefix}:person:{party_id}",
-            )
+            person = people_by_id.get(party_id)
             if person is None:
                 raise concealed_resource()
             return (
@@ -437,11 +477,7 @@ class AcquisitionActivityService:
                 ),
             )
 
-        return dict(
-            await asyncio.gather(
-                *(load(party_kind, party_id) for party_kind, party_id in ordered)
-            )
-        )
+        return dict(load(party_kind, party_id) for party_kind, party_id in ordered)
 
     @staticmethod
     def _require_acquirer(actor: IdentityPrincipal, action_id: UUID) -> None:
@@ -452,6 +488,18 @@ class AcquisitionActivityService:
         raise PermissionDenied(
             "acquirer_required",
             "Aktivitäten dürfen nur aktive Akquisiteure dieser Charity-Aktion erfassen.",
+        )
+
+    @staticmethod
+    def _require_charity_admin(actor: IdentityPrincipal, action_id: UUID) -> None:
+        if (
+            actor.account.can_authenticate
+            and ActionRole.CHARITY_ADMIN in actor.roles_for(action_id)
+        ):
+            return
+        raise PermissionDenied(
+            "charity_admin_required",
+            "Die aktionsweite Pipeline ist nur für Charity-Admins sichtbar.",
         )
 
     @staticmethod

@@ -1,6 +1,4 @@
 import {
-  Add01Icon,
-  ArrowRight02Icon,
   Download04Icon,
   RefreshIcon,
   WifiDisconnected01Icon,
@@ -18,6 +16,7 @@ import {
   ActivityFeedPage,
   ActivityWorkspace,
   CommitmentCapturePage,
+  RoleDashboardPage,
   SponsorWorkspace,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
@@ -195,70 +194,6 @@ function PwaLifecycle() {
   return null;
 }
 
-function Overview({
-  displayName,
-  memberships,
-}: {
-  readonly displayName: string;
-  readonly memberships: ReadonlyArray<{
-    readonly actionId: string;
-    readonly actionName: string;
-    readonly roleLabel: string;
-  }>;
-}) {
-  return (
-    <div className="pwa-overview">
-      <header className="pwa-overview__header">
-        <p>Dein Akquise-Tag</p>
-        <h1>Guten Tag, {displayName.split(" ")[0]}.</h1>
-        <span>
-          Starte bei deinen Sponsoren oder dokumentiere den nächsten Kontakt.
-        </span>
-      </header>
-      <div className="pwa-overview__actions">
-        <a className="pwa-primary-path" href="/app/sponsors">
-          <span aria-hidden="true">
-            <HugeiconsIcon icon={Add01Icon} size={22} strokeWidth={1.9} />
-          </span>
-          <div>
-            <strong>Meine Sponsoren öffnen</strong>
-            <small>Zuständigkeiten, Kontakte und nächste Schritte</small>
-          </div>
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ArrowRight02Icon}
-            size={20}
-            strokeWidth={1.9}
-          />
-        </a>
-        <a className="pwa-secondary-path" href="/app/activities">
-          Aktivität dokumentieren
-          <HugeiconsIcon
-            aria-hidden="true"
-            icon={ArrowRight02Icon}
-            size={18}
-            strokeWidth={1.8}
-          />
-        </a>
-      </div>
-      <section aria-labelledby="pwa-actions-heading" className="pwa-actions">
-        <h2 id="pwa-actions-heading">Deine aktiven Charity-Aktionen</h2>
-        <div data-testid="action-list">
-          {memberships.map((membership) => (
-            <article
-              data-action-id={membership.actionId}
-              key={`${membership.actionId}-${membership.roleLabel}`}
-            >
-              <strong>{membership.actionName}</strong>
-              <span>{membership.roleLabel}</span>
-            </article>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function ActivityHub({
   client,
   identity,
@@ -274,9 +209,10 @@ function ActivityHub({
 
   function select(next: "news" | "contacts") {
     setView(next);
-    const nextUrl =
-      next === "contacts" ? "/app/activities?view=contacts" : "/app/activities";
-    window.history.replaceState({}, "", nextUrl);
+    const nextUrl = new URL(window.location.href);
+    if (next === "contacts") nextUrl.searchParams.set("view", "contacts");
+    else nextUrl.searchParams.delete("view");
+    window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
   }
 
   return (
@@ -399,9 +335,10 @@ export function App({ client }: AppProps) {
         ) : route === "activities" ? (
           <ActivityHub client={client} identity={identity.data} />
         ) : (
-          <Overview
-            displayName={identity.data.displayName}
-            memberships={memberships}
+          <RoleDashboardPage
+            client={client}
+            identity={identity.data}
+            mode="acquirer"
           />
         )}
       </AppShell>

@@ -88,13 +88,23 @@ function reminderLabel(item: AcquisitionActivityWorkItemResponse) {
 function ActivityBoard({
   board,
   onSelect,
+  urgency,
+  onUrgencyChange,
 }: {
   readonly board: AcquisitionActivityBoardResponse;
   readonly onSelect: (assignmentId: string) => void;
+  readonly urgency: "all" | "overdue" | "today" | "upcoming";
+  readonly onUrgencyChange: (
+    value: "all" | "overdue" | "today" | "upcoming",
+  ) => void;
 }) {
   const reminders = board.workItems.filter(
     (item) => item.nextAction && item.dueAt,
   );
+  const visibleReminders =
+    urgency === "all"
+      ? reminders
+      : reminders.filter((item) => item.urgency === urgency);
   const counts = {
     overdue: reminders.filter((item) => item.urgency === "overdue").length,
     today: reminders.filter((item) => item.urgency === "today").length,
@@ -120,10 +130,35 @@ function ActivityBoard({
           <span>Demnächst</span>
         </div>
       </div>
+      <div
+        aria-label="Wiedervorlagen filtern"
+        className="acq-tabs"
+        role="tablist"
+      >
+        {(
+          [
+            ["all", "Alle"],
+            ["overdue", "Überfällig"],
+            ["today", "Heute"],
+            ["upcoming", "Demnächst"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            aria-selected={urgency === value}
+            data-testid={`reminder-filter-${value}`}
+            key={value}
+            onClick={() => onUrgencyChange(value)}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {reminders.length > 0 ? (
+      {visibleReminders.length > 0 ? (
         <div className="acq-reminder-list" data-testid="reminder-list">
-          {reminders.map((item) => (
+          {visibleReminders.map((item) => (
             <button
               className="acq-reminder"
               data-select-assignment={item.assignmentId}
@@ -149,7 +184,11 @@ function ActivityBoard({
             size={22}
             strokeWidth={1.8}
           />
-          <strong>Für heute ist alles erledigt</strong>
+          <strong>
+            {reminders.length
+              ? "Keine Wiedervorlage in diesem Filter"
+              : "Für heute ist alles erledigt"}
+          </strong>
           <span>
             Plane beim nächsten Kontakt direkt einen Folgeschritt, damit nichts
             verloren geht.
@@ -227,7 +266,21 @@ export function ActivityWorkspace({
       ),
     [identity.actionMemberships],
   );
-  const [actionId, setActionId] = useState(memberships[0]?.actionId ?? "");
+  const query = new URLSearchParams(window.location.search);
+  const requestedAction = query.get("action");
+  const [actionId, setActionId] = useState(
+    memberships.find((item) => item.actionId === requestedAction)?.actionId ??
+      memberships[0]?.actionId ??
+      "",
+  );
+  const requestedUrgency = query.get("urgency");
+  const [urgency, setUrgency] = useState<
+    "all" | "overdue" | "today" | "upcoming"
+  >(
+    ["overdue", "today", "upcoming"].includes(requestedUrgency ?? "")
+      ? (requestedUrgency as "overdue" | "today" | "upcoming")
+      : "all",
+  );
   const [assignmentId, setAssignmentId] = useState(
     () => new URLSearchParams(window.location.search).get("assignment") ?? "",
   );
@@ -354,6 +407,13 @@ export function ActivityWorkspace({
                 onChange={(event) => {
                   setActionId(event.target.value);
                   setSuccess("");
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("action", event.target.value);
+                  window.history.replaceState(
+                    {},
+                    "",
+                    `${url.pathname}${url.search}`,
+                  );
                 }}
                 value={actionId}
               >
@@ -552,7 +612,22 @@ export function ActivityWorkspace({
               </div>
             </StatusMessage>
           ) : board.data ? (
-            <ActivityBoard board={board.data} onSelect={selectReminder} />
+            <ActivityBoard
+              board={board.data}
+              onSelect={selectReminder}
+              onUrgencyChange={(value) => {
+                setUrgency(value);
+                const url = new URL(window.location.href);
+                if (value === "all") url.searchParams.delete("urgency");
+                else url.searchParams.set("urgency", value);
+                window.history.replaceState(
+                  {},
+                  "",
+                  `${url.pathname}${url.search}`,
+                );
+              }}
+              urgency={urgency}
+            />
           ) : null}
         </section>
       </div>

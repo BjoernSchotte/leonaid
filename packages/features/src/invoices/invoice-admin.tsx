@@ -34,6 +34,8 @@ interface InvoiceAdminPageProps {
   readonly identity: CurrentIdentityResponse;
 }
 
+type InvoiceFilter = "all" | "open" | "paid" | "cancelled";
+
 const invoiceStatusLabels = {
   cancelled: "Storniert",
   issued: "Freigegeben",
@@ -1100,7 +1102,19 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
       return true;
     });
   }, [identity.actionMemberships, identity.globalRoles]);
-  const [actionId, setActionId] = useState(actions[0]?.actionId ?? "");
+  const query = new URLSearchParams(window.location.search);
+  const requestedAction = query.get("action");
+  const requestedStatus = query.get("status");
+  const [actionId, setActionId] = useState(
+    actions.find((item) => item.actionId === requestedAction)?.actionId ??
+      actions[0]?.actionId ??
+      "",
+  );
+  const [filter, setFilter] = useState<InvoiceFilter>(
+    ["open", "paid", "cancelled"].includes(requestedStatus ?? "")
+      ? (requestedStatus as InvoiceFilter)
+      : "all",
+  );
   const context = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.getInvoiceContext(actionId),
@@ -1144,6 +1158,17 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
   const paidCount =
     invoices.data?.items.filter(({ invoice }) => invoice.status === "paid")
       .length ?? 0;
+  const visibleInvoices =
+    invoices.data?.items.filter((record) => {
+      if (filter === "all") return true;
+      if (filter === "open") {
+        return (
+          ["issued", "sent"].includes(record.invoice.status) &&
+          record.openMinor > 0
+        );
+      }
+      return record.invoice.status === filter;
+    }) ?? [];
 
   if (!actions.length) {
     return (
@@ -1180,7 +1205,16 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
           <select
             data-testid="invoice-action"
             id="invoice-action"
-            onChange={(event) => setActionId(event.target.value)}
+            onChange={(event) => {
+              setActionId(event.target.value);
+              const url = new URL(window.location.href);
+              url.searchParams.set("action", event.target.value);
+              window.history.replaceState(
+                {},
+                "",
+                `${url.pathname}${url.search}`,
+              );
+            }}
             value={actionId}
           >
             {actions.map((action) => (
@@ -1294,7 +1328,49 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
             </div>
           </section>
 
-          {invoices.data?.items.length ? (
+          <div className="invoice-ledger-toolbar">
+            <div
+              aria-label="Rechnungen filtern"
+              className="invoice-filter"
+              role="tablist"
+            >
+              {(
+                [
+                  ["all", "Alle"],
+                  ["open", "Offen"],
+                  ["paid", "Bezahlt"],
+                  ["cancelled", "Storniert"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  aria-selected={filter === value}
+                  data-testid={`invoice-filter-${value}`}
+                  key={value}
+                  onClick={() => {
+                    setFilter(value);
+                    const url = new URL(window.location.href);
+                    if (value === "all") url.searchParams.delete("status");
+                    else url.searchParams.set("status", value);
+                    window.history.replaceState(
+                      {},
+                      "",
+                      `${url.pathname}${url.search}`,
+                    );
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span aria-live="polite">
+              {visibleInvoices.length}{" "}
+              {visibleInvoices.length === 1 ? "Beleg" : "Belege"}
+            </span>
+          </div>
+
+          {visibleInvoices.length ? (
             <section aria-label="Rechnungsliste" className="invoice-ledger">
               <header>
                 <div>
@@ -1304,9 +1380,9 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
                     zu sehen.
                   </p>
                 </div>
-                <span>{invoices.data.items.length} Belege</span>
+                <span>{visibleInvoices.length} Belege</span>
               </header>
-              {invoices.data.items.map((record) => (
+              {visibleInvoices.map((record) => (
                 <InvoiceLedgerRow
                   canManageDelivery={Boolean(context.data?.mayIssue)}
                   canManageSettlement={Boolean(
@@ -1322,6 +1398,19 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
                 />
               ))}
             </section>
+          ) : invoices.data?.items.length ? (
+            <div className="invoice-empty">
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Invoice03Icon}
+                size={26}
+                strokeWidth={1.8}
+              />
+              <strong>Keine Rechnungen in diesem Filter</strong>
+              <span>
+                Wähle einen anderen Status, um weitere Belege zu sehen.
+              </span>
+            </div>
           ) : (
             <div className="invoice-empty">
               <HugeiconsIcon

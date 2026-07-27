@@ -43,6 +43,11 @@ from leonaid.application.documents import (
     GeneratedDocumentReferenceKind,
     GeneratedDocumentService,
 )
+from leonaid.application.dashboard import (
+    DashboardService,
+    DashboardSnapshot,
+    PipelineCounts,
+)
 from leonaid.application.invoice_deliveries import (
     InvoiceDelivery,
     InvoiceDeliveryService,
@@ -177,6 +182,15 @@ from leonaid.entrypoints.fastapi.schemas import (
     CreateInvitationRequest,
     CreateCharityActionRequest,
     CurrentIdentityResponse,
+    DashboardCommitmentResponse,
+    DashboardGoalResponse,
+    DashboardInvoiceResponse,
+    DashboardMetricDefinitionResponse,
+    DashboardPipelineResponse,
+    DashboardReminderResponse,
+    DashboardResponse,
+    AcquirerDashboardResponse,
+    CharityAdminDashboardResponse,
     ERROR_RESPONSES,
     FreshLoginStatusResponse,
     FeatureFlagAdminListResponse,
@@ -322,6 +336,10 @@ def activity_management_service(request: Request) -> AcquisitionActivityService:
 
 def activity_feed_service(request: Request) -> ActivityFeedService:
     return cast(ActivityFeedService, request.app.state.activity_feed_service)
+
+
+def dashboard_service(request: Request) -> DashboardService:
+    return cast(DashboardService, request.app.state.dashboard_service)
 
 
 def action_service(request: Request) -> CharityActionService:
@@ -547,6 +565,161 @@ def recorded_acquisition_activity_response(
 def decimal_text(value: Decimal) -> str:
     text = format(value, "f")
     return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def dashboard_pipeline_response(
+    counts: PipelineCounts,
+) -> DashboardPipelineResponse:
+    return DashboardPipelineResponse(
+        open=counts.open,
+        contacted=counts.contacted,
+        committed=counts.committed,
+        declined=counts.declined,
+        handed_over=counts.handed_over,
+        total=counts.total,
+    )
+
+
+def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
+    action = quote(str(snapshot.action_id), safe="")
+    definitions: list[DashboardMetricDefinitionResponse] = []
+
+    acquirer_response: AcquirerDashboardResponse | None = None
+    if snapshot.acquirer is not None:
+        acquirer = snapshot.acquirer
+        definitions.extend(
+            (
+                DashboardMetricDefinitionResponse(
+                    key="acquirer.pipeline",
+                    label="Meine Pipeline",
+                    description=(
+                        "Alle Sponsor-Zuordnungen dieser Aktion, für die du "
+                        "persönlich verantwortlich bist."
+                    ),
+                    href=f"/app/sponsors?action={action}",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="acquirer.reminders",
+                    label="Meine Wiedervorlagen",
+                    description=(
+                        "Offene nächste Schritte nach lokalem Kalendertag; "
+                        "übergebene Zuordnungen zählen nicht mit."
+                    ),
+                    href=f"/app/activities?view=contacts&action={action}",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="acquirer.activities",
+                    label="Meine Aktivitäten",
+                    description=(
+                        "Von dir dokumentierte Kontakte in dieser Charity-Aktion."
+                    ),
+                    href=f"/app/activities?view=contacts&action={action}",
+                ),
+            )
+        )
+        acquirer_response = AcquirerDashboardResponse(
+            pipeline=dashboard_pipeline_response(acquirer.pipeline),
+            reminders=DashboardReminderResponse(
+                overdue=acquirer.reminders.overdue,
+                today=acquirer.reminders.today,
+                upcoming=acquirer.reminders.upcoming,
+                unscheduled=acquirer.reminders.unscheduled,
+                total=acquirer.reminders.total,
+            ),
+            activity_count=acquirer.activity_count,
+        )
+
+    admin_response: CharityAdminDashboardResponse | None = None
+    if snapshot.charity_admin is not None:
+        admin = snapshot.charity_admin
+        definitions.extend(
+            (
+                DashboardMetricDefinitionResponse(
+                    key="admin.pipeline",
+                    label="Aktionsweite Pipeline",
+                    description=(
+                        "Alle Sponsor-Zuordnungen der Charity-Aktion, auch bei "
+                        "mehrfach betreuten Sponsoren."
+                    ),
+                    href=f"/admin/acquisition?action={action}",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.commitments",
+                    label="Bestellungen",
+                    description=(
+                        "Alle nicht stornierten Bestellungen; Betrag und Mengen "
+                        "verwenden die gespeicherten Bestellpositionen."
+                    ),
+                    href=f"/admin/orders?action={action}&status=all",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.invoiced",
+                    label="Fakturierter Betrag",
+                    description=(
+                        "Summe ausgestellter, versendeter und bezahlter "
+                        "Rechnungen; Stornos zählen nicht mit."
+                    ),
+                    href=f"/admin/invoices?action={action}&status=all",
+                ),
+                DashboardMetricDefinitionResponse(
+                    key="admin.open_receivables",
+                    label="Offene Posten",
+                    description=(
+                        "Bruttosumme der aktuell offenen Rechnungen; bezahlte "
+                        "und stornierte Rechnungen zählen nicht mit."
+                    ),
+                    href=f"/admin/invoices?action={action}&status=open",
+                ),
+            )
+        )
+        admin_response = CharityAdminDashboardResponse(
+            pipeline=dashboard_pipeline_response(admin.pipeline),
+            commitments=DashboardCommitmentResponse(
+                draft=admin.commitments.draft,
+                review_ready=admin.commitments.review_ready,
+                confirmed=admin.commitments.confirmed,
+                invoiced=admin.commitments.invoiced,
+                cancelled=admin.commitments.cancelled,
+                total=admin.commitments.total,
+                active_total=admin.commitments.active_total,
+                active_total_minor=admin.commitments.active_total_minor,
+                total_boxes=admin.commitments.total_boxes,
+                total_pieces=admin.commitments.total_pieces,
+                currency=snapshot.currency,
+            ),
+            invoices=DashboardInvoiceResponse(
+                issued=admin.invoices.issued,
+                sent=admin.invoices.sent,
+                open=admin.invoices.open,
+                paid=admin.invoices.paid,
+                cancelled=admin.invoices.cancelled,
+                total=admin.invoices.total,
+                invoiced_amount_minor=admin.invoices.invoiced_amount_minor,
+                open_amount_minor=admin.invoices.open_amount_minor,
+                currency=snapshot.currency,
+            ),
+        )
+
+    return DashboardResponse(
+        action_id=snapshot.action_id,
+        action_name=snapshot.action_name,
+        goal=DashboardGoalResponse(
+            configured=snapshot.goal.configured,
+            actual_value=decimal_text(snapshot.goal.actual_value),
+            target_value=(
+                decimal_text(snapshot.goal.target_value)
+                if snapshot.goal.target_value is not None
+                else None
+            ),
+            unit=snapshot.goal.unit,
+            currency=snapshot.goal.currency,
+            progress_basis_points=snapshot.goal.progress_basis_points,
+        ),
+        acquirer=acquirer_response,
+        charity_admin=admin_response,
+        metric_definitions=definitions,
+        generated_at=snapshot.generated_at,
+    )
 
 
 def charity_action_response(action: CharityAction) -> CharityActionResponse:
@@ -1910,6 +2083,24 @@ async def get_charity_action_configuration(
 
 
 @router.get(
+    "/api/v1/actions/{action_id}/dashboard",
+    operation_id="getActionDashboard",
+    response_model=DashboardResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["dashboard"],
+)
+async def get_action_dashboard(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> DashboardResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    snapshot = await dashboard_service(request).get(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return dashboard_response(snapshot)
+
+
+@router.get(
     "/api/v1/actions/{action_id}/commitment-capture",
     operation_id="getCommitmentCaptureContext",
     response_model=CommitmentCaptureContextResponse,
@@ -2820,11 +3011,13 @@ async def get_acquisition_activity_board(
     request: Request,
     response: Response,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    scope: Literal["personal", "action"] = "personal",
 ) -> AcquisitionActivityBoardResponse:
     actor = await identity_service(request).authenticate(session_token(request))
     board = await activity_management_service(request).board(
         actor,
         action_id,
+        action_wide=scope == "action",
         limit=limit,
     )
     response.headers["Cache-Control"] = "no-store"

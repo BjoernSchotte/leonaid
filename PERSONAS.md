@@ -45,7 +45,10 @@ in kurzen Arbeitsfenstern. Der Charity-Admin verwaltet nur eigene Aktionen.
 - Rechnungs-PDF abrufen, versenden und den Versand kontrolliert wiederholen;
 - exakte Vollzahlung manuell verbuchen;
 - Rechnung begründet stornieren, ohne Beleg oder PDF zu überschreiben;
-- aktionsweite Neuigkeiten, Mengen, Rechnungen und offene Posten verstehen.
+- auf dem Dashboard aktionsweite Sponsor-Pipeline, Bestellungen,
+  Bestellwert, fakturierten Betrag und offene Posten verstehen;
+- von jeder Dashboard-Kennzahl in die bereits nach Aktion und Status
+  gefilterte Arbeitsliste wechseln.
 
 **Zugriffsgrenze:** `charity_admin` ist eine Aktionsrolle. Sie gibt keine
 Rechte auf fremde Aktionen und keine globalen System- oder Finanzrollen.
@@ -69,7 +72,10 @@ technikaffin.
 - Kontaktversuch, Ergebnis und Wiedervorlage dokumentieren;
 - Bestellung oder Zusage erfassen;
 - öffentliche Bestellungen eigener Kontakte unter „Neues“ sehen;
-- Aktionsfortschritt als Motivation verfolgen.
+- auf dem persönlichen Dashboard eigene Pipeline, Wiedervorlagen,
+  Aktivitäten und den nächsten sinnvollen Schritt sehen;
+- Aktionsfortschritt mit Wert, Einheit und verständlichem Text als
+  Motivation verfolgen und direkt in eine gefilterte Sponsor-Liste wechseln.
 
 **Zugriffsgrenze:** `acquirer` gilt je Aktion und nur für zugeordnete
 CRM-Parteien. Eine Zuordnung eröffnet keinen Zugriff auf Rechnungen,

@@ -53,6 +53,7 @@ Commands:
   test-feature-flags
                     Prove OpenFeature evaluation, admin controls and RBAC
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
+  test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -236,21 +237,21 @@ check_all() {
     python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/documents \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/documents tools/matching \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
-    tools/activity_feed tools/assignments tools/documents \
+    tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/commitments \
     tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/outbox \
@@ -465,6 +466,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
+    /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -486,6 +488,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
+    /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
@@ -520,6 +523,7 @@ case "$command" in
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
+  test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

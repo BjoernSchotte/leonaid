@@ -46,6 +46,29 @@
         "title": "AcceptInvitationRequest",
         "type": "object"
       },
+      "AcquirerDashboardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activityCount": {
+            "minimum": 0.0,
+            "title": "Activitycount",
+            "type": "integer"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/DashboardPipelineResponse"
+          },
+          "reminders": {
+            "$ref": "#/components/schemas/DashboardReminderResponse"
+          }
+        },
+        "required": [
+          "pipeline",
+          "reminders",
+          "activityCount"
+        ],
+        "title": "AcquirerDashboardResponse",
+        "type": "object"
+      },
       "AcquisitionActivityBoardResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1545,6 +1568,27 @@
         "title": "CharityActionResponse",
         "type": "object"
       },
+      "CharityAdminDashboardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commitments": {
+            "$ref": "#/components/schemas/DashboardCommitmentResponse"
+          },
+          "invoices": {
+            "$ref": "#/components/schemas/DashboardInvoiceResponse"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/DashboardPipelineResponse"
+          }
+        },
+        "required": [
+          "pipeline",
+          "commitments",
+          "invoices"
+        ],
+        "title": "CharityAdminDashboardResponse",
+        "type": "object"
+      },
       "CommitmentBuyerRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2748,6 +2792,375 @@
           "freshUntil"
         ],
         "title": "CurrentIdentityResponse",
+        "type": "object"
+      },
+      "DashboardCommitmentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activeTotal": {
+            "minimum": 0.0,
+            "title": "Activetotal",
+            "type": "integer"
+          },
+          "activeTotalMinor": {
+            "minimum": 0.0,
+            "title": "Activetotalminor",
+            "type": "integer"
+          },
+          "cancelled": {
+            "minimum": 0.0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "confirmed": {
+            "minimum": 0.0,
+            "title": "Confirmed",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "draft": {
+            "minimum": 0.0,
+            "title": "Draft",
+            "type": "integer"
+          },
+          "invoiced": {
+            "minimum": 0.0,
+            "title": "Invoiced",
+            "type": "integer"
+          },
+          "reviewReady": {
+            "minimum": 0.0,
+            "title": "Reviewready",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalBoxes": {
+            "minimum": 0.0,
+            "title": "Totalboxes",
+            "type": "integer"
+          },
+          "totalPieces": {
+            "minimum": 0.0,
+            "title": "Totalpieces",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "draft",
+          "reviewReady",
+          "confirmed",
+          "invoiced",
+          "cancelled",
+          "total",
+          "activeTotal",
+          "activeTotalMinor",
+          "totalBoxes",
+          "totalPieces",
+          "currency"
+        ],
+        "title": "DashboardCommitmentResponse",
+        "type": "object"
+      },
+      "DashboardGoalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actualValue": {
+            "title": "Actualvalue",
+            "type": "string"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "progressBasisPoints": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progressbasispoints"
+          },
+          "targetValue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetvalue"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "configured",
+          "actualValue",
+          "targetValue",
+          "unit",
+          "currency"
+        ],
+        "title": "DashboardGoalResponse",
+        "type": "object"
+      },
+      "DashboardInvoiceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "minimum": 0.0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "invoicedAmountMinor": {
+            "minimum": 0.0,
+            "title": "Invoicedamountminor",
+            "type": "integer"
+          },
+          "issued": {
+            "minimum": 0.0,
+            "title": "Issued",
+            "type": "integer"
+          },
+          "open": {
+            "minimum": 0.0,
+            "title": "Open",
+            "type": "integer"
+          },
+          "openAmountMinor": {
+            "minimum": 0.0,
+            "title": "Openamountminor",
+            "type": "integer"
+          },
+          "paid": {
+            "minimum": 0.0,
+            "title": "Paid",
+            "type": "integer"
+          },
+          "sent": {
+            "minimum": 0.0,
+            "title": "Sent",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "issued",
+          "sent",
+          "open",
+          "paid",
+          "cancelled",
+          "total",
+          "invoicedAmountMinor",
+          "openAmountMinor",
+          "currency"
+        ],
+        "title": "DashboardInvoiceResponse",
+        "type": "object"
+      },
+      "DashboardMetricDefinitionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "description",
+          "href"
+        ],
+        "title": "DashboardMetricDefinitionResponse",
+        "type": "object"
+      },
+      "DashboardPipelineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "committed": {
+            "minimum": 0.0,
+            "title": "Committed",
+            "type": "integer"
+          },
+          "contacted": {
+            "minimum": 0.0,
+            "title": "Contacted",
+            "type": "integer"
+          },
+          "declined": {
+            "minimum": 0.0,
+            "title": "Declined",
+            "type": "integer"
+          },
+          "handedOver": {
+            "minimum": 0.0,
+            "title": "Handedover",
+            "type": "integer"
+          },
+          "open": {
+            "minimum": 0.0,
+            "title": "Open",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "contacted",
+          "committed",
+          "declined",
+          "handedOver",
+          "total"
+        ],
+        "title": "DashboardPipelineResponse",
+        "type": "object"
+      },
+      "DashboardReminderResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "overdue": {
+            "minimum": 0.0,
+            "title": "Overdue",
+            "type": "integer"
+          },
+          "today": {
+            "minimum": 0.0,
+            "title": "Today",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unscheduled": {
+            "minimum": 0.0,
+            "title": "Unscheduled",
+            "type": "integer"
+          },
+          "upcoming": {
+            "minimum": 0.0,
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "overdue",
+          "today",
+          "upcoming",
+          "unscheduled",
+          "total"
+        ],
+        "title": "DashboardReminderResponse",
+        "type": "object"
+      },
+      "DashboardResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "acquirer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcquirerDashboardResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "charityAdmin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CharityAdminDashboardResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/DashboardGoalResponse"
+          },
+          "metricDefinitions": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardMetricDefinitionResponse"
+            },
+            "title": "Metricdefinitions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "goal",
+          "acquirer",
+          "charityAdmin",
+          "metricDefinitions",
+          "generatedAt"
+        ],
+        "title": "DashboardResponse",
         "type": "object"
       },
       "DependencyStatusResponse": {
@@ -6712,6 +7125,20 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "personal",
+              "enum": [
+                "personal",
+                "action"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -9206,6 +9633,99 @@
         "summary": "List Person Documents",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/dashboard": {
+      "get": {
+        "operationId": "getActionDashboard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Action Dashboard",
+        "tags": [
+          "dashboard"
         ]
       }
     },

@@ -28,6 +28,7 @@ from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepositor
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
+from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
 from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invoice_deliveries import (
@@ -54,6 +55,7 @@ from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.documents import GeneratedDocumentService
+from leonaid.application.dashboard import DashboardService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -142,6 +144,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)
+        )
+        application.state.dashboard_service = DashboardService(
+            AsyncpgDashboardRepository(pool)
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)

@@ -1368,6 +1368,44 @@ class AsyncpgAcquisitionPolicyRepository(
             )
         return tuple(self._assignment(row) for row in rows)
 
+    async def active_assignments_for_action(
+        self,
+        *,
+        action_id: UUID,
+    ) -> tuple[AcquisitionAssignment, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    assignment.id,
+                    assignment.action_id,
+                    assignment.twenty_company_id,
+                    assignment.twenty_person_id,
+                    assignment.acquirer_user_id,
+                    account.display_name AS acquirer_display_name,
+                    assignment.status,
+                    assignment.priority,
+                    assignment.next_action,
+                    assignment.due_at,
+                    assignment.revision,
+                    assignment.created_at,
+                    assignment.updated_at
+                FROM acquisition_assignment AS assignment
+                JOIN user_account AS account
+                  ON account.id = assignment.acquirer_user_id
+                JOIN charity_action_capability AS capability
+                  ON capability.action_id = assignment.action_id
+                 AND capability.capability = 'acquisition'
+                WHERE assignment.action_id = $1
+                ORDER BY
+                    assignment.due_at NULLS LAST,
+                    assignment.priority DESC,
+                    assignment.id
+                """,
+                action_id,
+            )
+        return tuple(self._assignment(row) for row in rows)
+
     async def active_assignment_for_actor(
         self,
         *,
@@ -1501,6 +1539,49 @@ class AsyncpgAcquisitionPolicyRepository(
                 action_id,
                 actor_user_id,
                 evaluated_at,
+                limit,
+            )
+        return tuple(self._recorded_activity(row) for row in rows)
+
+    async def activity_timeline_for_action(
+        self,
+        *,
+        action_id: UUID,
+        limit: int,
+    ) -> tuple[RecordedAcquisitionActivity, ...]:
+        async with self._pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    activity.id,
+                    activity.action_id,
+                    activity.assignment_id,
+                    activity.twenty_company_id,
+                    activity.twenty_person_id,
+                    activity.actor_user_id,
+                    actor.display_name AS actor_display_name,
+                    activity.channel,
+                    activity.outcome,
+                    activity.note,
+                    activity.next_action_snapshot,
+                    activity.due_at_snapshot,
+                    activity.assignment_revision,
+                    activity.occurred_at
+                FROM acquisition_activity AS activity
+                JOIN user_account AS actor
+                  ON actor.id = activity.actor_user_id
+                WHERE activity.action_id = $1
+                  AND activity.channel IN (
+                    'phone', 'email', 'in_person'
+                  )
+                  AND activity.outcome IN (
+                    'reached', 'no_answer', 'interested', 'follow_up',
+                    'committed', 'declined'
+                  )
+                ORDER BY activity.occurred_at DESC, activity.id DESC
+                LIMIT $2
+                """,
+                action_id,
                 limit,
             )
         return tuple(self._recorded_activity(row) for row in rows)

@@ -872,3 +872,121 @@
     animation: none;
   }
 }
+.acq-admin-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.acq-admin-page .acq-action-picker {
+  display: grid;
+  min-width: min(20rem, 100%);
+  gap: 0.35rem;
+}
+
+.acq-admin-page .acq-action-picker > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 720;
+}
+
+.acq-admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.acq-admin-toolbar .acq-tabs {
+  overflow-x: auto;
+}
+
+.acq-admin-toolbar .acq-search {
+  width: min(24rem, 100%);
+}
+
+.acq-admin-result-count {
+  margin: -0.8rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.acq-admin-table-wrap {
+  overflow-x: auto;
+  border-block: 1px solid var(--border);
+}
+
+.acq-admin-table-wrap table {
+  width: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+}
+
+.acq-admin-table-wrap th,
+.acq-admin-table-wrap td {
+  padding: 0.9rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.acq-admin-table-wrap tbody tr:last-child th,
+.acq-admin-table-wrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.acq-admin-table-wrap thead th {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.acq-admin-table-wrap tbody th,
+.acq-admin-table-wrap tbody td {
+  font-size: var(--text-sm);
+}
+
+.acq-admin-table-wrap tbody th,
+.acq-admin-table-wrap tbody td:last-child {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.acq-admin-table-wrap tbody th span,
+.acq-admin-due {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.acq-admin-assignees,
+.acq-admin-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.acq-admin-status {
+  display: inline-flex;
+  min-height: 1.8rem;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 720;
+}
+
+@media (max-width: 760px) {
+  .acq-admin-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .acq-admin-toolbar .acq-search {
+    width: 100%;
+  }
+}

@@ -1283,27 +1283,30 @@ Tests/Nachweise:
 
 Nachweis: [POC-100 – Gemeinsames UI-System](proofs/POC-100.md)
 
-### [ ] POC-101 Rollenbezogene Dashboards und Zielvisualisierung umsetzen
+### [x] POC-101 Rollenbezogene Dashboards und Zielvisualisierung umsetzen
 
 Abhängigkeiten: POC-050, POC-082, POC-095, POC-100
 
 Akzeptanzkriterien:
 
-- [ ] Akquisiteur sieht eigene Pipeline, Wiedervorlagen, Aktivitäten und
+- [x] Akquisiteur sieht eigene Pipeline, Wiedervorlagen, Aktivitäten und
       Aktionsfortschritt.
-- [ ] Charity-Admin sieht aktionsweite Pipeline, Bestellungen, fakturierten
+- [x] Charity-Admin sieht aktionsweite Pipeline, Bestellungen, fakturierten
       Betrag und offene Posten.
-- [ ] Zielvisualisierung nennt Wert und Einheit zusätzlich zur Grafik.
-- [ ] Kennzahlen besitzen eindeutige Definition und leiten auf gefilterte
+- [x] Zielvisualisierung nennt Wert und Einheit zusätzlich zur Grafik.
+- [x] Kennzahlen besitzen eindeutige Definition und leiten auf gefilterte
       Detailansichten.
-- [ ] Leere und teilweise konfigurierte Aktionen bleiben verständlich.
+- [x] Leere und teilweise konfigurierte Aktionen bleiben verständlich.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Kennzahlableitung aus Golden Data.
-- [ ] Integrationstest vergleicht API-Aggregate mit realen SQL-Ergebnissen.
-- [ ] E2E prüft rollenverschiedene Dashboards und Drilldowns.
-- [ ] Screenreader liest Zielstand und Status ohne visuelle Information.
+- [x] Unit-Tests prüfen Kennzahlableitung aus Golden Data.
+- [x] Integrationstest vergleicht API-Aggregate mit realen SQL-Ergebnissen.
+- [x] E2E prüft rollenverschiedene Dashboards und Drilldowns.
+- [x] Screenreader liest Zielstand und Status ohne visuelle Information.
+
+Nachweis:
+[POC-101 – Rollenbezogene Dashboards](proofs/POC-101.md).
 
 ### [ ] POC-102 Durchgängige UX-, Accessibility- und Content-Abnahme
 
