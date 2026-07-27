@@ -31,7 +31,9 @@ def main() -> None:
             result.stdout + result.stderr
         ):
             raise AssertionError("Fehlender Artefakt-Upload wurde nicht abgewiesen.")
-    print("ci-workflow-contract-test: OK: fehlender Upload wird abgewiesen")
+    print(
+        "ci-workflow-contract-test: OK: neun Jobs und fehlender Upload werden geprüft"
+    )
 
 
 if __name__ == "__main__":

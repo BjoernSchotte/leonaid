@@ -14,14 +14,17 @@ Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 
 ## Status
 
-🟡 **PoC in Umsetzung.** Der technische Plan wird taskweise umgesetzt. Ein
-Task wird erst nach realen, Docker-basierten Nachweisen abgehakt, committed
-und direkt auf `main` gepusht.
+🟢 **Krapfentaxi-PoC technisch bewiesen.** Die vollständige Journey läuft
+ohne Mocks in Chromium, Firefox und WebKit sowie nach einem leeren Golden
+Reset. Offen sind die protokollierte Fresh-Checkout-Abnahme durch eine weitere
+technische Person und die ausdrückliche fachliche Produktabnahme.
 
-## Lokaler Einstieg
+## In höchstens 30 Minuten zur Golden Journey
 
 Voraussetzung ist ausschließlich eine laufende Docker-Umgebung wie OrbStack.
 Projektpakete müssen nicht global installiert werden.
+
+### Minute 0–8: Checkout vorbereiten
 
 ```sh
 ./leonaid bootstrap
@@ -35,19 +38,64 @@ Frontend-Pakete in den digest-gepinnten Containern und ruft anschließend
 der ignorierten Datei `.env.local` unter `TWENTY_BOOTSTRAP_EMAIL` und
 `TWENTY_BOOTSTRAP_PASSWORD`; sie werden nie geloggt oder committed.
 
-Der reale Golden-Stack lässt sich anschließend reproduzierbar bedienen:
+### Minute 8–18: realen Stack und Golden Data starten
 
 ```sh
 ./leonaid dev
+./leonaid provision-twenty
 ./leonaid seed
+```
+
+Der Start ist fertig, wenn `dev: OK` und `golden-seed: OK` erscheinen.
+
+| Oberfläche | Lokale Adresse |
+| --- | --- |
+| öffentliche Aktion | <http://127.0.0.1:8080/krapfentaxi> |
+| Mitglieder-Login | <http://127.0.0.1:8080/login> |
+| Admin-Portal | <http://127.0.0.1:8080/admin/> |
+| Akquisiteur-PWA | <http://127.0.0.1:8080/app/> |
+| Twenty | <http://crm.localhost:8080> |
+| lokale Testmails | <http://127.0.0.1:8080/mail/> |
+
+Die synthetischen Persona-Adressen stehen in
+[`tests/fixtures/golden/v1`](tests/fixtures/golden/v1/README.md).
+Login-Codes kommen über den echten Mailpfad in Mailpit. Zusätzlich erzeugen
+die Nachweissuiten eine ignorierte `.local/test-logins.md`; sie enthält nur
+lokale Testzugänge und wird nie committed.
+
+### Minute 18–30: Kernweg und vollständigen Nachweis ausführen
+
+Im sichtbaren Smoke:
+
+1. mit `anna.akquise@leonaid.invalid` einen Code anfordern;
+2. den neuesten Code unter `/mail/` lesen und einmalig bestätigen;
+3. in „Meine Sponsoren“ die persönliche Krapfentaxi-Pipeline öffnen;
+4. öffentlich unter `/krapfentaxi` eine Testbestellung erfassen.
+
+Der reproduzierbare vollständige Abnahmelauf ist:
+
+```sh
+./leonaid test-golden-journey
+```
+
+Er startet ein isoliertes Projekt aus leeren Volumes, bedient sämtliche
+Personas in drei Browserengines, prüft Twenty/PostgreSQL/RustFS/Mail/Typst und
+wiederholt die Journey nach einem Golden Reset. Je nach bereits vorhandenem
+Imagecache dauert er ungefähr fünf bis zehn Minuten. Der normale lokale Stack
+bleibt davon unberührt.
+
+### Wiederanlauf und Diagnose
+
+```sh
 ./leonaid snapshot
 ./leonaid reset
+./leonaid doctor
 ```
 
 `reset` löscht ausschließlich ein explizit freigegebenes lokales LeonAid-
 Compose-Projekt und stellt Core-PostgreSQL, Twenty, RustFS und Mailpit auf
-Golden Data v1 wieder her. Verfügbare und für spätere Meilensteine bereits
-reservierte Befehle zeigt `./leonaid help`.
+Golden Data v1 wieder her. Alle Fach- und Betriebsbefehle zeigt
+`./leonaid help`.
 
 Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
 `./leonaid generate-api-client` gemeinsam aus FastAPI regeneriert.
@@ -62,8 +110,16 @@ Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
   den reinen Akquise-PoC; wird anhand des neuen Zielbilds neu bewertet.
 - [Technischer Implementierungsplan](specs/leonaid-poc/PLAN.md) — abhakbare
   Tasks, Akzeptanzkriterien und reale Tests.
+- [Implementierte Architektur](specs/leonaid-poc/ARCHITECTURE.md) —
+  Laufzeitbild, Datenhoheit, API- und Sicherheitsgrenzen.
 - [Development Guide](specs/leonaid-poc/DEVELOPMENT.md) — Docker-Workflow,
   Editor, Debugging und Fehlerdiagnose.
+- [Betriebs- und Benutzer-Runbooks](specs/leonaid-poc/RUNBOOKS.md) —
+  Normalbetrieb, Benutzerzugang und Incident-Ablauf.
+- [Bekannte PoC-Grenzen](specs/leonaid-poc/KNOWN-LIMITS.md) — bewusst
+  verschobener Scope und Produktivfreigabe-Blocker.
+- [Abnahmeprotokoll](specs/leonaid-poc/ACCEPTANCE.md) — Commit, Locks,
+  Dataset, Nachweise und ausstehende Sign-offs.
 
 ## Eckdaten der Lösung (Kurzfassung)
 

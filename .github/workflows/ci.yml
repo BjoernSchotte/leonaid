@@ -221,6 +221,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  golden-journey:
+    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    name: Golden journey
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/golden-journey
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare empty-cache runner
+        if: inputs.cold_run == true
+        run: docker builder prune --all --force
+      - name: Bootstrap locked Docker toolchains
+        run: ./leonaid bootstrap
+      - name: Run complete cross-browser Golden Journey
+        run: >-
+          bash tools/ci/run-job.sh
+          golden-journey
+          ./leonaid test-golden-journey
+      - name: Publish Golden Journey evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-golden-journey
+          path: |
+            .artifacts/ci/golden-journey
+            .artifacts/poc122
+            .artifacts/failures/poc122
+          if-no-files-found: error
+          retention-days: 14
+
   artifact-probe:
     if: github.ref == 'refs/heads/ci-artifact-probe' || inputs.artifact_probe == true
     name: Artifact probe

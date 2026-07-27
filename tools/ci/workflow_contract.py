@@ -11,6 +11,7 @@ REQUIRED_JOBS = {
     "build",
     "contract",
     "e2e",
+    "golden-journey",
     "integration",
     "lint-types",
     "security",
@@ -48,7 +49,7 @@ def main() -> None:
         for problem in problems:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
-    print("ci-workflow-contract: OK: acht getrennte Jobs und Failure-Artefakte")
+    print("ci-workflow-contract: OK: neun getrennte Jobs und Failure-Artefakte")
 
 
 if __name__ == "__main__":

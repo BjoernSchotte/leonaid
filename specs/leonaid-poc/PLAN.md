@@ -1503,14 +1503,14 @@ Abhängigkeiten: POC-102, POC-112, POC-113, POC-114, POC-122
 
 Akzeptanzkriterien:
 
-- [ ] README führt neue Entwickler in höchstens 30 Minuten zu laufendem Stack
+- [x] README führt neue Entwickler in höchstens 30 Minuten zu laufendem Stack
       und Golden Journey.
-- [ ] Betriebs-, Backup-, Restore-, Upgrade-, Incident- und
+- [x] Betriebs-, Backup-, Restore-, Upgrade-, Incident- und
       Benutzerverwaltungs-Runbooks sind vollständig.
-- [ ] Architektur-, Datenmodell-, API- und Sicherheitsentscheidungen sind
+- [x] Architektur-, Datenmodell-, API- und Sicherheitsentscheidungen sind
       aktuell.
-- [ ] Bekannte Grenzen und bewusst verschobene Funktionen sind sichtbar.
-- [ ] Keine P0/P1-Defekte und keine ungeklärten kritischen
+- [x] Bekannte Grenzen und bewusst verschobene Funktionen sind sichtbar.
+- [x] Keine P0/P1-Defekte und keine ungeklärten kritischen
       Sicherheits-/Datenverlustbefunde bleiben offen.
 - [ ] Produktverantwortlicher nimmt den PoC anhand der Golden Journey ab.
 
@@ -1520,8 +1520,11 @@ Tests/Nachweise:
       Restore nur anhand der Dokumentation aus.
 - [ ] Finaler CI-Lauf startet ohne Cache und veröffentlicht alle
       Beweisartefakte.
-- [ ] Abnahmeprotokoll verlinkt Commit, Locks, Dataset-Version,
+- [x] Abnahmeprotokoll verlinkt Commit, Locks, Dataset-Version,
       Testberichte, Screenshots, PDFs und Runbooks.
+
+Zwischennachweis:
+[POC-123 – Technischer Übergabe- und Abnahmekandidat](proofs/POC-123.md).
 
 ## 5. Empfohlene Ausführungsreihenfolge
 

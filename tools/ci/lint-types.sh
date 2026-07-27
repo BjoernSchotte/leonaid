@@ -25,30 +25,43 @@ run_bun() {
 }
 
 run_python uv run --frozen --no-sync ruff check \
-  migrations src tests tools/action_admin tools/actions tools/activities \
+  migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
-  tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
-  tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
+  tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
+  tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
+  tools/matching tools/openapi tools/operations tools/outbox tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/upgrade packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
-  migrations src tests tools/action_admin tools/actions tools/activities \
+  migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
-  tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
-  tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
+  tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
+  tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
+  tools/matching tools/openapi tools/operations tools/outbox tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/upgrade packages/testkit
 run_python uv run --frozen --no-sync mypy \
-  migrations src tools/action_admin tools/actions tools/activities \
+  migrations src tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
-  tools/compose/persistence_probe.py tools/core tools/dx tools/identity \
-  tools/documents tools/invitations tools/invoices tools/matching tools/openapi tools/outbox tools/policy tools/storage \
+  tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
+  tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
+  tools/matching tools/openapi tools/operations tools/outbox tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
+  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/upgrade packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check
 run_python uv run --frozen --no-sync \
   python tools/openapi/check_frontend.py --root /workspace
+docker run --rm \
+  -v "$root:/workspace:ro" \
+  "$PYTHON_IMAGE" \
+  python /workspace/tools/handoff/check.py /workspace
 run_bun bun run typecheck
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
   .github apps/public apps/pwa apps/web packages/api-client packages/features \
