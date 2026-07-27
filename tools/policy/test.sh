@@ -67,19 +67,8 @@ fi
 
 compose up --detach --wait --wait-timeout 420 api
 
-mkdir -p "$proof_dir/pdfs"
-for source in "$fixture"/documents/KT26-*.typ; do
-  filename=$(basename "$source" .typ)
-  docker run --rm \
-    --volume "$fixture/documents:/input:ro" \
-    --volume "$proof_dir/pdfs:/output" \
-    "$TYPST_IMAGE" \
-    compile \
-    --creation-timestamp 1782864000 \
-    --jobs 1 \
-    "/input/$filename.typ" \
-    "/output/$filename.pdf"
-done
+/bin/sh "$root/tools/typst/render_golden.sh" \
+  "$root" "$proof_dir/pdfs" "${project}-api"
 
 compose --profile dev-mail run --rm --no-deps \
   --env-from-file "$env_file" \

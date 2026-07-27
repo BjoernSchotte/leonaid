@@ -9,9 +9,8 @@
     "dataset.json",
     "expected.json",
     "README.md",
-    "documents/invoice-template.typ",
-    "documents/KT26-0001.typ",
-    "documents/KT26-0002.typ",
-    "documents/KT26-0003.typ"
+    "documents/KT26-0001.json",
+    "documents/KT26-0002.json",
+    "documents/KT26-0003.json"
   ]
 }

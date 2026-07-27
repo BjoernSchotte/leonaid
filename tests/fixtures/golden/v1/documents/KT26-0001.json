@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "invoiceId": "90000000-0000-4000-8000-000000000001",
+  "number": "KT26-0001",
+  "issuedAt": "2026-06-30T12:00:00+00:00",
+  "serviceOn": "2026-11-15",
+  "dueOn": "2026-07-14",
+  "issuer": {
+    "legalName": "Lions Hilfswerk LeonAid Golden e.V.",
+    "streetLine1": "Clubweg 1",
+    "postalCode": "86150",
+    "city": "Augsburg",
+    "countryCode": "DE",
+    "taxIdentifier": "103/999/99999",
+    "email": "finanzen@leonaid.invalid"
+  },
+  "recipient": {
+    "recipientName": "Sophie Sponsor",
+    "streetLine1": "Testweg 10",
+    "postalCode": "14050",
+    "city": "Beispielstadt",
+    "countryCode": "DE",
+    "email": null
+  },
+  "lines": [
+    {
+      "description": "Krapfenbox",
+      "quantity": 10,
+      "unit": "box",
+      "unitPriceGrossMinor": 3600,
+      "taxRateBasisPoints": 0,
+      "netMinor": 36000,
+      "taxMinor": 0,
+      "grossMinor": 36000,
+      "currency": "EUR"
+    }
+  ],
+  "taxTreatment": "small_business",
+  "taxNote": "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.",
+  "totals": {
+    "netMinor": 36000,
+    "taxMinor": 0,
+    "grossMinor": 36000,
+    "currency": "EUR"
+  },
+  "paymentReference": "KT26-0001"
+}

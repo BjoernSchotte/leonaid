@@ -43,6 +43,7 @@ Commands:
   test-testkit      Prove shared clients against all real PoC dependencies
   test-commitments  Prove offerings, quantities and server-priced commitments
   test-invoices     Prove Fresh-Login invoice issuing and immutable snapshots
+  test-typst        Prove deterministic invoice PDFs with real Typst/PDF engines
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -230,21 +231,21 @@ check_all() {
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/invoices tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions \
-    tools/pwa tools/templates tools/testkit tools/twenty packages/testkit
+    tools/pwa tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/matching \
     tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/identity tools/invitations tools/invoices tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions \
-    tools/templates tools/testkit tools/twenty packages/testkit
+    tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/activity_feed tools/assignments \
     tools/commitments \
     tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/identity tools/invitations tools/invoices tools/matching tools/openapi tools/outbox \
-    tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/testkit tools/twenty packages/testkit
+    tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
@@ -298,21 +299,14 @@ validate_reset_target() {
 }
 
 render_golden_pdfs() {
-  source_directory="$root/tests/fixtures/golden/v1/documents"
   output_directory="$root/.artifacts/golden-v1/invoices"
-  mkdir -p "$output_directory"
-  for source in "$source_directory"/KT26-*.typ; do
-    filename=$(basename "$source" .typ)
-    docker run --rm \
-      -v "$source_directory:/input:ro" \
-      -v "$output_directory:/output" \
-      "$TYPST_IMAGE" \
-      compile \
-      --creation-timestamp 1782864000 \
-      --jobs 1 \
-      "/input/$filename.typ" \
-      "/output/$filename.pdf"
-  done
+  api_image=$(compose images -q api)
+  if [ -z "$api_image" ]; then
+    echo "seed: ERROR: gebautes Core-Image für Typst fehlt" >&2
+    exit 1
+  fi
+  /bin/sh "$root/tools/typst/render_golden.sh" \
+    "$root" "$output_directory" "$api_image"
 }
 
 run_golden_tool() {
@@ -455,6 +449,7 @@ case "$command" in
     /bin/sh "$root/tools/public_orders/test.sh" "$root"
     /bin/sh "$root/tools/activity_feed/test.sh" "$root"
     /bin/sh "$root/tools/invoices/test.sh" "$root"
+    /bin/sh "$root/tools/typst/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -492,6 +487,7 @@ case "$command" in
   test-testkit) /bin/sh "$root/tools/testkit/test.sh" "$root" ;;
   test-commitments) /bin/sh "$root/tools/commitments/test.sh" "$root" ;;
   test-invoices) /bin/sh "$root/tools/invoices/test.sh" "$root" ;;
+  test-typst) /bin/sh "$root/tools/typst/test.sh" "$root" ;;
   generate-api-client)
     require_docker
     run_python uv run --frozen --no-sync \

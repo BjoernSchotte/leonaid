@@ -29,14 +29,13 @@ vorhandenen Secrets.
 | `./leonaid test-unit` | schnelle Tests reiner Domain-Logik |
 | `./leonaid dev` | vollständigen Corestack bauen und bis zur Readiness starten |
 | `./leonaid test-integration` | Compose, Reset, ASGI, Migrationen und Outbox aus leeren Volumes real testen |
-| `./leonaid test-e2e` | echte Browserjourneys, ab POC-041 |
+| `./leonaid test-e2e` | alle implementierten echten Browserjourneys ausführen |
+| `./leonaid test-typst` | Rechnungs-PDFs mit realem Typst, PostgreSQL und zwei PDF-Engines prüfen |
 | `./leonaid seed` | Golden Dataset v1 idempotent in reale Systeme einspielen |
 | `./leonaid snapshot [NAME]` | geheimnisfreien kanonischen Systemzustand schreiben |
 | `./leonaid reset` | markierte lokale Testumgebung sicher zurücksetzen |
 
-Der noch reservierte Befehl `test-e2e` scheitert bis zu seinem Meilenstein
-bewusst mit Exitcode 64 und nennt den zuständigen Task. Er gibt keinen grünen
-Scheinerfolg aus.
+Weitere fachlich geschnittene Nachweisbefehle zeigt `./leonaid help`.
 
 ## Core-Migrationen
 
@@ -90,6 +89,31 @@ Properties sowie neue Pflichtfelder und geänderte Typverträge scheitern. Eine
 Ausnahme benötigt exakte Alt-/Neu-SHA-256, die vollständige maschinenlesbare
 Änderungsliste und eine Begründung in
 `specs/leonaid-poc/openapi-breaking-approvals.json`.
+
+## Typst-Rechnungen
+
+Der Core-Container enthält die digest-gepinnte Typst-Laufzeit. Der produktive
+Adapter rendert die JSON-Snapshots aus
+`tests/fixtures/golden/v1/documents/` mit der versionierten Vorlage
+`invoice-v1.typ`.
+
+```sh
+./leonaid test-typst
+```
+
+Der Test startet echte Systeme aus leeren Volumes, exportiert die
+Rechnungssnapshots aus Core-PostgreSQL, rendert jede Rechnung zweimal ohne
+Netzwerk und prüft Inhalt, Metadaten, eingebettete Schriften und freigegebene
+Layoutbilder mit pypdf und MuPDF. Nachweise landen ignoriert unter
+`.artifacts/poc091/`.
+
+Eine absichtliche Vorlagenänderung wird zuerst als Kandidat gerendert:
+
+```sh
+LEONAID_TYPST_APPROVAL_CANDIDATE=1 ./leonaid test-typst
+```
+
+Dieser Modus aktualisiert die versionierten Referenzbilder nie automatisch.
 
 ## Secrets
 

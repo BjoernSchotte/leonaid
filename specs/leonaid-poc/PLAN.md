@@ -1095,27 +1095,30 @@ Tests/Nachweise:
 Nachweis:
 [POC-090 – Rechnungsmodell, Nummernkreis und Freigabe](proofs/POC-090.md).
 
-### [ ] POC-091 Typst-Rechnungsvorlage und realen Renderer bauen
+### [x] POC-091 Typst-Rechnungsvorlage und realen Renderer bauen
 
 Abhängigkeiten: POC-090, POC-001
 
 Akzeptanzkriterien:
 
-- [ ] Versionierte Typst-Vorlage rendert alle Golden-Rechnungsfälle.
-- [ ] Rendering ist deterministisch bei identischen Snapshots und
+- [x] Versionierte Typst-Vorlage rendert alle Golden-Rechnungsfälle.
+- [x] Rendering ist deterministisch bei identischen Snapshots und
       Render-Versionen.
-- [ ] Layout behandelt lange Namen, Adressen, mehrere Positionen und
+- [x] Layout behandelt lange Namen, Adressen, mehrere Positionen und
       Seitenumbrüche.
-- [ ] PDF enthält korrekte Metadaten, eingebettete Schriften und keine
+- [x] PDF enthält korrekte Metadaten, eingebettete Schriften und keine
       externen Laufzeitressourcen.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest startet den realen gepinnten Typst-Renderer.
-- [ ] Textinhalt und Beträge werden aus dem PDF extrahiert und verglichen.
-- [ ] Gerenderte Seiten werden visuell gegen freigegebene Golden-Bilder
+- [x] Integrationstest startet den realen gepinnten Typst-Renderer.
+- [x] Textinhalt und Beträge werden aus dem PDF extrahiert und verglichen.
+- [x] Gerenderte Seiten werden visuell gegen freigegebene Golden-Bilder
       geprüft.
-- [ ] PDFs öffnen in mindestens zwei realen Viewern/Engines.
+- [x] PDFs öffnen in mindestens zwei realen Viewern/Engines.
+
+Nachweis:
+[POC-091 – Typst-Rechnungsvorlage und realer Renderer](proofs/POC-091.md).
 
 ### [ ] POC-092 S3-Storage-Port und RustFS-Adapter implementieren
 
