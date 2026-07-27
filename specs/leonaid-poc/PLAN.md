@@ -1518,7 +1518,7 @@ Tests/Nachweise:
 
 - [ ] Unbeteiligte technische Person führt Bootstrap, Reset, Kernjourney und
       Restore nur anhand der Dokumentation aus.
-- [ ] Finaler CI-Lauf startet ohne Cache und veröffentlicht alle
+- [x] Finaler CI-Lauf startet ohne Cache und veröffentlicht alle
       Beweisartefakte.
 - [x] Abnahmeprotokoll verlinkt Commit, Locks, Dataset-Version,
       Testberichte, Screenshots, PDFs und Runbooks.

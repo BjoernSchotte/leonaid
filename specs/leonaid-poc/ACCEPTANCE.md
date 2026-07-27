@@ -6,7 +6,9 @@ Stand: 2026-07-27
 
 | Nachweis | Referenz |
 | --- | --- |
-| bewiesene Code- und Journey-Basis | Commit `ace42c1fc39857f1e6cb64b404d98bd8d93c3c5e` |
+| technisch abgenommener Code-Kandidat | Commit `2d52a5936c746aeec109898c3dccb828d8aaeda1` |
+| vollständige Golden-Journey-Basis | Commit `ace42c1fc39857f1e6cb64b404d98bd8d93c3c5e` |
+| finaler Cold-CI-Lauf | [GitHub Actions #30303874422](https://github.com/BjoernSchotte/leonaid/actions/runs/30303874422), `cold_run=true`, erfolgreich |
 | Implementierungsplan | [`PLAN.md`](PLAN.md) |
 | externe System- und Image-Locks | [`infra/locks`](../../infra/locks/README.md) |
 | Python- und Frontend-Locks | [`uv.lock`](../../uv.lock), [`bun.lock`](../../bun.lock) |
@@ -31,12 +33,17 @@ Stand: 2026-07-27
 - [x] Keine bekannten P0-/P1-Defekte im bewiesenen PoC-Scope.
 - [ ] Dokumentierter Fresh-Checkout-Lauf durch eine unbeteiligte technische
       Person protokolliert.
-- [ ] Finaler GitHub-Actions-Lauf mit `cold_run=true` grün und hier verlinkt.
+- [x] Finaler GitHub-Actions-Lauf mit `cold_run=true` grün und hier verlinkt.
 
 Nicht versionierte lokale Beweise liegen nach dem Lauf unter
 `.artifacts/poc122/`: JSON-Berichte, Admin-/Akquisiteur-Screenshots,
 In-App-Browser-Screenshots und heruntergeladene Typst-PDFs. GitHub Actions
-veröffentlicht dieselben Arten von Artefakten mit 14 Tagen Aufbewahrung.
+veröffentlicht dieselben Arten von Artefakten mit 14 Tagen Aufbewahrung. Der
+finale Cold Run veröffentlichte zwölf nicht abgelaufene Artefaktpakete:
+`ci-unit`, `ci-build`, `ci-contract`, `ci-lint-types`, `ci-security`,
+`ci-integration`, `ci-e2e-identity`, `ci-e2e-actions`,
+`ci-e2e-acquisition`, `ci-e2e-public`, `ci-e2e-invoices` und
+`ci-golden-journey`.
 
 ## Fachliche Abnahme
 
