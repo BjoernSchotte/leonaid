@@ -71,11 +71,12 @@ export type InvitationRoleOptionResponse = { readonly label: string; readonly va
 export type InviteableActionResponse = { readonly id: string; readonly name: string; readonly status: "draft" | "scheduled" | "active"; };
 export type InvoiceContextResponse = { readonly actionId: string; readonly actionName: string; readonly endsOn: string; readonly mayIssue: boolean; readonly profile: InvoiceProfileResponse | null; readonly startsOn: string; };
 export type InvoiceCurrencyTotalResponse = { readonly currency: string; readonly grossMinor: number; };
+export type InvoiceDeliveryResponse = { readonly actionId: string; readonly attempts: number; readonly canRetry: boolean; readonly generatedDocumentId: string; readonly id: string; readonly invoiceId: string; readonly lastErrorCode: string | null; readonly lastErrorDetail: string | null; readonly messageId: string | null; readonly recipientEmail: string; readonly requestedAt: string; readonly sentAt: string | null; readonly status: "queued" | "sending" | "retrying" | "failed" | "sent"; readonly subject: string; };
 export type InvoiceIssuerResponse = { readonly city: string; readonly countryCode: string; readonly email: string; readonly legalName: string; readonly postalCode: string; readonly streetLine1: string; readonly taxIdentifier: string; };
 export type InvoiceLineResponse = { readonly currency: string; readonly description: string; readonly grossMinor: number; readonly netMinor: number; readonly quantity: number; readonly taxMinor: number; readonly taxRateBasisPoints: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceGrossMinor: number; };
 export type InvoiceListResponse = { readonly actionId: string; readonly currencyTotals: Array<InvoiceCurrencyTotalResponse>; readonly items: Array<InvoiceRecordResponse>; };
 export type InvoiceProfileResponse = { readonly confirmedAt: string | null; readonly issuer: InvoiceIssuerResponse; readonly nextInvoiceNumber: string; readonly paymentTermsDays: number; readonly readyToIssue: boolean; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
-export type InvoiceRecordResponse = { readonly buyerDisplayName: string; readonly invoice: InvoiceResponse; };
+export type InvoiceRecordResponse = { readonly buyerDisplayName: string; readonly deliveries: Array<InvoiceDeliveryResponse>; readonly invoice: InvoiceResponse; };
 export type InvoiceResponse = { readonly actionId: string; readonly approvedByUserId: string; readonly commitmentId: string; readonly currency: string; readonly dueOn: string; readonly grossMinor: number; readonly id: string; readonly issuedAt: string; readonly issuer: InvoiceIssuerResponse; readonly lines: Array<InvoiceLineResponse>; readonly netMinor: number; readonly number: string; readonly paymentReference: string; readonly recipient: CommitmentInvoiceRecipientResponse; readonly replayed: boolean; readonly serviceOn: string; readonly status: "issued" | "sent" | "paid" | "cancelled"; readonly taxMinor: number; readonly taxNote: string; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type IssueInvoiceRequest = { readonly serviceOn: string; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
@@ -713,6 +714,31 @@ export class LeonAidApiClient {
     return this.request<InvoiceListResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async sendInvoice(
+    actionId: string,
+    invoiceId: string,
+    options: RequestOptions = {},
+  ): Promise<InvoiceDeliveryResponse> {
+    return this.request<InvoiceDeliveryResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices/${encodeURIComponent(String(invoiceId))}/deliveries`,
+      { method: "POST" },
+      options,
+    );
+  }
+
+  async retryInvoiceDelivery(
+    actionId: string,
+    invoiceId: string,
+    deliveryId: string,
+    options: RequestOptions = {},
+  ): Promise<InvoiceDeliveryResponse> {
+    return this.request<InvoiceDeliveryResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/invoices/${encodeURIComponent(String(invoiceId))}/deliveries/${encodeURIComponent(String(deliveryId))}/retry`,
+      { method: "POST" },
       options,
     );
   }

@@ -14,12 +14,16 @@ from uuid import UUID
 
 import asyncpg
 
+from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
 )
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
@@ -42,21 +46,30 @@ async def build_worker(
         pool,
         claim_lease=timedelta(seconds=claim_lease_seconds),
     )
+    object_storage = S3ObjectStorage(
+        endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
+        access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
+        secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
+        bucket=os.environ["OBJECT_STORAGE_BUCKET"],
+        region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
+        path_style=os.environ.get("OBJECT_STORAGE_PATH_STYLE", "true").casefold()
+        == "true",
+    )
     handlers: dict[str, OutboxEventHandler] = {
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
         "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
             repository=AsyncpgGeneratedDocumentRepository(pool),
             renderer=TypstInvoiceRenderer(),
-            storage=S3ObjectStorage(
-                endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
-                access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
-                secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
-                bucket=os.environ["OBJECT_STORAGE_BUCKET"],
-                region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
-                path_style=os.environ.get(
-                    "OBJECT_STORAGE_PATH_STYLE", "true"
-                ).casefold()
-                == "true",
+            storage=object_storage,
+        ),
+        "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
+            repository=AsyncpgInvoiceDeliveryRepository(pool),
+            storage=object_storage,
+            host=os.environ.get("MAILPIT_SMTP_HOST", "mailpit"),
+            port=int(os.environ.get("MAILPIT_SMTP_PORT", "1025")),
+            sender=os.environ.get(
+                "LEONAID_MAIL_FROM",
+                "LeonAid <noreply@leonaid.invalid>",
             ),
         ),
         "mail.send.v1": SmtpMailHandler(

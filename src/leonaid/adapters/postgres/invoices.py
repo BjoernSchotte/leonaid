@@ -9,7 +9,11 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
 from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.application.invoice_deliveries import InvoiceDelivery
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceRecord,
@@ -26,6 +30,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
     Money,
 )
+from leonaid.domain.documents import INVOICE_DOCUMENT_RENDER_REQUESTED
 from leonaid.domain.invoices import (
     Invoice,
     InvoiceIssuerSnapshot,
@@ -34,7 +39,6 @@ from leonaid.domain.invoices import (
     InvoiceStatus,
     TaxTreatment,
 )
-from leonaid.domain.documents import INVOICE_DOCUMENT_RENDER_REQUESTED
 
 COMMAND_TYPE = "issue_invoice_v1"
 
@@ -108,7 +112,41 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 """,
                 action_id,
             )
-        return tuple(self._record_from_row(row) for row in rows)
+            delivery_rows = await connection.fetch(
+                """
+                SELECT
+                    delivery.*,
+                    event.status AS outbox_status,
+                    event.attempts,
+                    event.last_error_code,
+                    event.last_error_detail,
+                    mail.message_id,
+                    mail.sent_at
+                FROM invoice_delivery AS delivery
+                JOIN outbox_event AS event
+                  ON event.id = delivery.outbox_event_id
+                LEFT JOIN mail_delivery AS mail
+                  ON mail.outbox_event_id = event.id
+                WHERE delivery.action_id = $1
+                ORDER BY delivery.requested_at DESC, delivery.id
+                """,
+                action_id,
+            )
+        deliveries_by_invoice: dict[UUID, list[Any]] = {}
+        for delivery_row in delivery_rows:
+            deliveries_by_invoice.setdefault(
+                delivery_row["invoice_id"],
+                [],
+            ).append(delivery_row)
+        return tuple(
+            self._record_from_row(
+                row,
+                deliveries=AsyncpgInvoiceDeliveryRepository.deliveries_from_rows(
+                    tuple(deliveries_by_invoice.get(row["id"], []))
+                ),
+            )
+            for row in rows
+        )
 
     async def issue(
         self,
@@ -710,7 +748,12 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         )
 
     @classmethod
-    def _record_from_row(cls, row: asyncpg.Record) -> InvoiceRecord:
+    def _record_from_row(
+        cls,
+        row: asyncpg.Record,
+        *,
+        deliveries: tuple[InvoiceDelivery, ...] = (),
+    ) -> InvoiceRecord:
         buyer = BuyerSnapshot.from_payload(
             _json_object(
                 row["customer_snapshot"],
@@ -720,6 +763,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
         return InvoiceRecord(
             invoice=cls._invoice_from_row(row),
             buyer_display_name=buyer.display_name,
+            deliveries=deliveries,
         )
 
     @classmethod

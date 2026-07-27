@@ -1,23 +1,30 @@
 import {
-  Calendar03Icon,
+  Alert02Icon,
+  CheckmarkCircle02Icon,
   Download04Icon,
   FileViewIcon,
   Invoice03Icon,
+  Mail02Icon,
+  MailSend02Icon,
   Pdf02Icon,
+  Refresh01Icon,
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import {
   ApiError,
   type CurrentIdentityResponse,
   type GeneratedDocumentRecordResponse,
+  type InvoiceDeliveryResponse,
   type InvoiceRecordResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { actionErrorMessage } from "../action-admin/errors";
 
 interface InvoiceAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -67,6 +74,43 @@ function formatFileSize(bytes: number) {
     maximumFractionDigits: value < 10 ? 1 : 0,
   }).format(value)} ${unit}`;
 }
+
+function deliveryCommandKey(invoiceId: string) {
+  const storageKey = `leonaid.invoice-delivery-command.${invoiceId}`;
+  const stored = window.sessionStorage.getItem(storageKey);
+  if (stored) return stored;
+  const value = `poc094:${crypto.randomUUID()}`;
+  window.sessionStorage.setItem(storageKey, value);
+  return value;
+}
+
+const deliveryStatus = {
+  failed: {
+    label: "Versand fehlgeschlagen",
+    description:
+      "Die E-Mail wurde nicht zugestellt. Der Beleg bleibt unverändert und kann kontrolliert neu gestartet werden.",
+  },
+  queued: {
+    label: "Für Versand eingeplant",
+    description:
+      "Der Versandauftrag ist dauerhaft gespeichert und wird vom Hintergrunddienst übernommen.",
+  },
+  retrying: {
+    label: "Automatischer Neuversuch",
+    description:
+      "Der letzte Versuch ist fehlgeschlagen. LeonAid versucht die Zustellung erneut.",
+  },
+  sending: {
+    label: "Wird gerade versendet",
+    description:
+      "Das gespeicherte Rechnungs-PDF wird jetzt an den Empfänger übertragen.",
+  },
+  sent: {
+    label: "Erfolgreich versendet",
+    description:
+      "Der Mailserver hat die Nachricht mit genau dieser PDF-Version angenommen.",
+  },
+} as const;
 
 function InvoiceDocumentPanel({
   actionId,
@@ -255,13 +299,262 @@ function InvoiceDocumentPanel({
   );
 }
 
+function InvoiceDeliveryPanel({
+  canManage,
+  client,
+  documentAvailable,
+  invoice,
+  onChanged,
+}: {
+  readonly canManage: boolean;
+  readonly client: LeonAidApiClient;
+  readonly documentAvailable: boolean;
+  readonly invoice: InvoiceRecordResponse;
+  readonly onChanged: () => void;
+}) {
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const [confirmResend, setConfirmResend] = useState(false);
+  const latest = invoice.deliveries[0];
+  const recipientEmail =
+    latest?.recipientEmail ?? invoice.invoice.recipient.email;
+  const send = useMutation({
+    mutationFn: () =>
+      client.sendInvoice(invoice.invoice.actionId, invoice.invoice.id, {
+        headers: {
+          "Idempotency-Key": deliveryCommandKey(invoice.invoice.id),
+        },
+      }),
+    onError(cause) {
+      setErrorMessage(actionErrorMessage(cause).message);
+    },
+    onSuccess() {
+      window.sessionStorage.removeItem(
+        `leonaid.invoice-delivery-command.${invoice.invoice.id}`,
+      );
+      setConfirmResend(false);
+      setErrorMessage(undefined);
+      onChanged();
+    },
+  });
+  const retry = useMutation({
+    mutationFn: (deliveryId: string) =>
+      client.retryInvoiceDelivery(
+        invoice.invoice.actionId,
+        invoice.invoice.id,
+        deliveryId,
+      ),
+    onError(cause) {
+      setErrorMessage(actionErrorMessage(cause).message);
+    },
+    onSuccess() {
+      setErrorMessage(undefined);
+      onChanged();
+    },
+  });
+  const busy = send.isPending || retry.isPending;
+  const status = latest ? deliveryStatus[latest.status] : undefined;
+
+  function statusIcon(delivery: InvoiceDeliveryResponse) {
+    if (delivery.status === "sent") return CheckmarkCircle02Icon;
+    if (delivery.status === "failed") return Alert02Icon;
+    if (delivery.status === "retrying") return Refresh01Icon;
+    return Mail02Icon;
+  }
+
+  return (
+    <section
+      aria-busy={busy}
+      className="invoice-delivery"
+      data-state={latest?.status ?? "not-sent"}
+      data-testid="invoice-delivery"
+    >
+      <header className="invoice-delivery__header">
+        <span aria-hidden="true" className="invoice-delivery__mark">
+          <HugeiconsIcon icon={MailSend02Icon} size={22} strokeWidth={1.8} />
+        </span>
+        <div>
+          <small>E-Mail-Versand</small>
+          <strong>{status?.label ?? "Noch nicht versendet"}</strong>
+          <p>
+            {status?.description ??
+              "Sende das unveränderliche Rechnungs-PDF direkt an den gespeicherten Empfänger."}
+          </p>
+        </div>
+        {latest ? (
+          <span
+            className="invoice-delivery__status"
+            data-status={latest.status}
+          >
+            {latest.status === "sent"
+              ? "Zugestellt"
+              : latest.status === "failed"
+                ? "Handlung nötig"
+                : "In Bearbeitung"}
+          </span>
+        ) : null}
+      </header>
+
+      <div className="invoice-delivery__recipient">
+        <span>Empfänger</span>
+        <strong>{recipientEmail ?? "Keine E-Mail-Adresse hinterlegt"}</strong>
+      </div>
+
+      {invoice.deliveries.length ? (
+        <ol
+          aria-label="Versandprotokoll"
+          className="invoice-delivery__timeline"
+        >
+          {invoice.deliveries.map((delivery, index) => {
+            const Icon = statusIcon(delivery);
+            return (
+              <li
+                data-status={delivery.status}
+                data-testid="invoice-delivery-attempt"
+                key={delivery.id}
+              >
+                <span aria-hidden="true">
+                  <HugeiconsIcon icon={Icon} size={17} strokeWidth={1.9} />
+                </span>
+                <div>
+                  <strong>
+                    {index === 0 ? "Aktueller Versand" : "Früherer Versand"}
+                  </strong>
+                  <small>{delivery.subject}</small>
+                  <span>
+                    Angelegt {formatDateTime(delivery.requestedAt)} ·{" "}
+                    {delivery.attempts}{" "}
+                    {delivery.attempts === 1 ? "Versuch" : "Versuche"}
+                  </span>
+                  {delivery.sentAt ? (
+                    <span>Versendet {formatDateTime(delivery.sentAt)}</span>
+                  ) : null}
+                  {delivery.messageId ? (
+                    <code data-testid="invoice-delivery-message-id">
+                      Message-ID {delivery.messageId}
+                    </code>
+                  ) : null}
+                  {delivery.lastErrorDetail ? (
+                    <p
+                      role={delivery.status === "failed" ? "alert" : undefined}
+                    >
+                      <strong>Letzter Fehler:</strong>{" "}
+                      {delivery.lastErrorDetail}
+                      {delivery.lastErrorCode
+                        ? ` (${delivery.lastErrorCode})`
+                        : ""}
+                    </p>
+                  ) : null}
+                </div>
+                {canManage && delivery.canRetry ? (
+                  <Button
+                    data-testid="retry-invoice-delivery"
+                    disabled={busy}
+                    icon={
+                      <HugeiconsIcon
+                        icon={Refresh01Icon}
+                        size={18}
+                        strokeWidth={1.8}
+                      />
+                    }
+                    onClick={() => retry.mutate(delivery.id)}
+                    variant="primary"
+                  >
+                    {retry.isPending
+                      ? "Wird neu gestartet …"
+                      : "Versand neu starten"}
+                  </Button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+
+      {canManage && !latest && documentAvailable && recipientEmail ? (
+        <Button
+          data-testid="send-invoice"
+          disabled={busy}
+          icon={
+            <HugeiconsIcon icon={MailSend02Icon} size={18} strokeWidth={1.8} />
+          }
+          onClick={() => send.mutate()}
+          variant="primary"
+        >
+          {send.isPending ? "Wird eingeplant …" : "Rechnung jetzt senden"}
+        </Button>
+      ) : null}
+
+      {canManage && latest?.status === "sent" && !confirmResend ? (
+        <Button
+          data-testid="resend-invoice"
+          disabled={busy}
+          icon={
+            <HugeiconsIcon icon={MailSend02Icon} size={18} strokeWidth={1.8} />
+          }
+          onClick={() => setConfirmResend(true)}
+          variant="secondary"
+        >
+          Erneut senden
+        </Button>
+      ) : null}
+
+      {confirmResend ? (
+        <div className="invoice-delivery__confirm" role="group">
+          <p>
+            Es wird eine zweite E-Mail mit derselben PDF-Version an{" "}
+            <strong>{recipientEmail}</strong> gesendet.
+          </p>
+          <div>
+            <Button
+              disabled={busy}
+              onClick={() => setConfirmResend(false)}
+              variant="secondary"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              data-testid="confirm-resend-invoice"
+              disabled={busy}
+              onClick={() => send.mutate()}
+              variant="primary"
+            >
+              {send.isPending ? "Wird eingeplant …" : "Erneut senden"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {canManage && !documentAvailable ? (
+        <p className="invoice-delivery__hint">
+          Der Versand ist möglich, sobald das Rechnungs-PDF bereitsteht.
+        </p>
+      ) : null}
+      {canManage && !recipientEmail ? (
+        <p className="invoice-delivery__hint">
+          Für den Versand fehlt eine E-Mail-Adresse im unveränderlichen
+          Rechnungsempfänger.
+        </p>
+      ) : null}
+      {errorMessage ? (
+        <p className="invoice-delivery__error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function InvoiceLedgerRow({
+  canManage,
   client,
   documentRecord,
+  onChanged,
   record,
 }: {
+  readonly canManage: boolean;
   readonly client: LeonAidApiClient;
   readonly documentRecord?: GeneratedDocumentRecordResponse;
+  readonly onChanged: () => void;
   readonly record: InvoiceRecordResponse;
 }) {
   const { invoice } = record;
@@ -295,6 +588,13 @@ function InvoiceLedgerRow({
           actionId={invoice.actionId}
           client={client}
           record={documentRecord}
+        />
+        <InvoiceDeliveryPanel
+          canManage={canManage}
+          client={client}
+          documentAvailable={documentRecord?.document.status === "available"}
+          invoice={record}
+          onChanged={onChanged}
         />
         <section>
           <span>Unveränderlicher Empfänger</span>
@@ -378,6 +678,14 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
     enabled: Boolean(actionId),
     queryFn: () => client.listInvoices(actionId),
     queryKey: ["invoices", actionId],
+    refetchInterval: (query) =>
+      query.state.data?.items.some(({ deliveries }) =>
+        deliveries.some(({ status }) =>
+          ["queued", "sending", "retrying"].includes(status),
+        ),
+      )
+        ? 750
+        : false,
   });
   const documents = useQuery({
     enabled: Boolean(actionId),
@@ -555,9 +863,13 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
               </header>
               {invoices.data.items.map((record) => (
                 <InvoiceLedgerRow
+                  canManage={Boolean(context.data?.mayIssue)}
                   client={client}
                   documentRecord={documentsByInvoice.get(record.invoice.id)}
                   key={record.invoice.id}
+                  onChanged={() => {
+                    void Promise.all([invoices.refetch(), documents.refetch()]);
+                  }}
                   record={record}
                 />
               ))}

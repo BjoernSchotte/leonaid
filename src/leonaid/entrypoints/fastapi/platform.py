@@ -24,6 +24,9 @@ from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
+from leonaid.adapters.postgres.invoice_deliveries import (
+    AsyncpgInvoiceDeliveryRepository,
+)
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
@@ -52,6 +55,7 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.application.identity import IdentityQueryService
+from leonaid.application.invoice_deliveries import InvoiceDeliveryService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
@@ -133,6 +137,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)
+        )
+        application.state.invoice_delivery_service = InvoiceDeliveryService(
+            AsyncpgInvoiceDeliveryRepository(pool)
         )
         document_repository = AsyncpgGeneratedDocumentRepository(pool)
         object_storage = S3ObjectStorage(

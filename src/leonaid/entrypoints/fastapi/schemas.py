@@ -702,9 +702,27 @@ class InvoiceContextResponse(TransportModel):
     may_issue: bool
 
 
+class InvoiceDeliveryResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    invoice_id: UUID
+    generated_document_id: UUID
+    recipient_email: str
+    subject: str
+    status: Literal["queued", "sending", "retrying", "failed", "sent"]
+    message_id: str | None
+    attempts: int = Field(ge=0)
+    last_error_code: str | None
+    last_error_detail: str | None
+    requested_at: datetime
+    sent_at: datetime | None
+    can_retry: bool
+
+
 class InvoiceRecordResponse(TransportModel):
     invoice: InvoiceResponse
     buyer_display_name: str
+    deliveries: list[InvoiceDeliveryResponse]
 
 
 class InvoiceCurrencyTotalResponse(TransportModel):

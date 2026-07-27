@@ -1170,26 +1170,29 @@ Tests/Nachweise:
 Nachweis:
 [POC-093 – Dokumentabruf in allen Fachkontexten](proofs/POC-093.md).
 
-### [ ] POC-094 Rechnungsversand und Versandprotokoll implementieren
+### [x] POC-094 Rechnungsversand und Versandprotokoll implementieren
 
 Abhängigkeiten: POC-022, POC-092
 
 Akzeptanzkriterien:
 
-- [ ] Versand erfolgt über Outbox und realen SMTP-Relay-Vertrag.
-- [ ] Mail besitzt verständlichen Betreff/Text und das richtige PDF.
-- [ ] Versandstatus, Message-ID, Versuchszahl und Fehler sind sichtbar.
-- [ ] Retry sendet nicht doppelt, wenn Erfolg bereits bestätigt wurde.
-- [ ] Erneuter bewusster Versand erzeugt kein neues Rechnungsdokument.
+- [x] Versand erfolgt über Outbox und realen SMTP-Relay-Vertrag.
+- [x] Mail besitzt verständlichen Betreff/Text und das richtige PDF.
+- [x] Versandstatus, Message-ID, Versuchszahl und Fehler sind sichtbar.
+- [x] Retry sendet nicht doppelt, wenn Erfolg bereits bestätigt wurde.
+- [x] Erneuter bewusster Versand erzeugt kein neues Rechnungsdokument.
 
 Tests/Nachweise:
 
-- [ ] Integrationstest sendet an echtes Mailpit und prüft MIME, Empfänger,
+- [x] Integrationstest sendet an echtes Mailpit und prüft MIME, Empfänger,
       Text, Attachment und PDF-Hash.
-- [ ] Reales Stoppen von Mailpit erzeugt Retry und sichtbaren Fehler.
-- [ ] Wiederanlauf nach Mailpit-Start führt zu genau einer erfolgreichen
+- [x] Reales Stoppen von Mailpit erzeugt Retry und sichtbaren Fehler.
+- [x] Wiederanlauf nach Mailpit-Start führt zu genau einer erfolgreichen
       fachlichen Zustellung.
-- [ ] E2E zeigt Versandstatus und administrativen Wiederanlauf.
+- [x] E2E zeigt Versandstatus und administrativen Wiederanlauf.
+
+Nachweis:
+[POC-094 – Rechnungsversand und Versandprotokoll](proofs/POC-094.md).
 
 ### [ ] POC-095 Manuellen Zahlungseingang und Storno/Korrektur bauen
 

@@ -43,6 +43,10 @@ from leonaid.application.documents import (
     GeneratedDocumentReferenceKind,
     GeneratedDocumentService,
 )
+from leonaid.application.invoice_deliveries import (
+    InvoiceDelivery,
+    InvoiceDeliveryService,
+)
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceList,
@@ -178,6 +182,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvitationRevocationResponse,
     InvoiceContextResponse,
     InvoiceCurrencyTotalResponse,
+    InvoiceDeliveryResponse,
     InvoiceIssuerResponse,
     InvoiceLineResponse,
     InvoiceListResponse,
@@ -311,6 +316,13 @@ def commitment_service(request: Request) -> CommitmentService:
 
 def invoice_service(request: Request) -> InvoiceService:
     return cast(InvoiceService, request.app.state.invoice_service)
+
+
+def invoice_delivery_service(request: Request) -> InvoiceDeliveryService:
+    return cast(
+        InvoiceDeliveryService,
+        request.app.state.invoice_delivery_service,
+    )
 
 
 def document_service(request: Request) -> GeneratedDocumentService:
@@ -944,6 +956,30 @@ def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
     return InvoiceRecordResponse(
         invoice=invoice_response(record.invoice),
         buyer_display_name=record.buyer_display_name,
+        deliveries=[
+            invoice_delivery_response(delivery) for delivery in record.deliveries
+        ],
+    )
+
+
+def invoice_delivery_response(
+    delivery: InvoiceDelivery,
+) -> InvoiceDeliveryResponse:
+    return InvoiceDeliveryResponse(
+        id=delivery.id,
+        action_id=delivery.action_id,
+        invoice_id=delivery.invoice_id,
+        generated_document_id=delivery.generated_document_id,
+        recipient_email=delivery.recipient_email,
+        subject=delivery.subject,
+        status=delivery.status.value,
+        message_id=delivery.message_id,
+        attempts=delivery.attempts,
+        last_error_code=delivery.last_error_code,
+        last_error_detail=delivery.last_error_detail,
+        requested_at=delivery.requested_at,
+        sent_at=delivery.sent_at,
+        can_retry=delivery.can_retry,
     )
 
 
@@ -1803,6 +1839,65 @@ async def issue_invoice(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Location"] = f"/api/v1/actions/{action_id}/invoices/{invoice.id}"
     return invoice_response(invoice)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/deliveries",
+    operation_id="sendInvoice",
+    response_model=InvoiceDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def send_invoice(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceDeliveryResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await invoice_delivery_service(request).send(
+        actor,
+        action_id,
+        invoice_id,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/deliveries/{delivery.id}"
+    )
+    return invoice_delivery_response(delivery)
+
+
+@router.post(
+    (
+        "/api/v1/actions/{action_id}/invoices/{invoice_id}/deliveries/"
+        "{delivery_id}/retry"
+    ),
+    operation_id="retryInvoiceDelivery",
+    response_model=InvoiceDeliveryResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["invoices"],
+)
+async def retry_invoice_delivery(
+    action_id: UUID,
+    invoice_id: UUID,
+    delivery_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceDeliveryResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    delivery = await invoice_delivery_service(request).retry(
+        actor,
+        action_id,
+        invoice_id,
+        delivery_id,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_delivery_response(delivery)
 
 
 async def _list_generated_documents(

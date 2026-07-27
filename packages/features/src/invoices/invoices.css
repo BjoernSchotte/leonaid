@@ -418,6 +418,246 @@
   justify-content: center;
 }
 
+.invoice-delivery {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  gap: 0.85rem;
+  padding-block: 0.2rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-delivery__header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem 0.85rem;
+}
+
+.invoice-delivery__mark {
+  display: inline-grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border: 1px solid
+    color-mix(in oklch, var(--accent-foreground) 18%, var(--border));
+  border-radius: var(--radius-md);
+  color: var(--accent-foreground);
+  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+}
+
+.invoice-delivery__header > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.invoice-delivery__header small,
+.invoice-delivery__recipient > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 720;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.invoice-delivery__header strong {
+  color: var(--foreground);
+  font-size: 0.86rem;
+}
+
+.invoice-delivery__header p {
+  max-width: 50rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.invoice-delivery__status {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 1.7rem;
+  grid-column: 2;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.52rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--info-text);
+  background: color-mix(in oklch, var(--info) 10%, var(--surface));
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.invoice-delivery__status::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.invoice-delivery__status[data-status="sent"] {
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.invoice-delivery__status[data-status="failed"] {
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 9%, var(--surface));
+}
+
+.invoice-delivery__recipient {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.65rem;
+}
+
+.invoice-delivery__recipient strong {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 0.78rem;
+}
+
+.invoice-delivery__timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.invoice-delivery__timeline > li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  padding-block: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-delivery__timeline > li > span {
+  display: inline-grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--info-text);
+  background: color-mix(in oklch, var(--info) 10%, var(--surface));
+}
+
+.invoice-delivery__timeline > li[data-status="sent"] > span {
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.invoice-delivery__timeline > li[data-status="failed"] > span {
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 9%, var(--surface));
+}
+
+.invoice-delivery__timeline > li > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.invoice-delivery__timeline strong {
+  color: var(--foreground);
+  font-size: 0.76rem;
+}
+
+.invoice-delivery__timeline small,
+.invoice-delivery__timeline div > span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.invoice-delivery__timeline code {
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.invoice-delivery__timeline p {
+  margin: 0.35rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 8%, var(--surface));
+  font-size: 0.71rem;
+  line-height: 1.45;
+}
+
+.invoice-delivery__timeline .ui-button {
+  min-height: 2.75rem;
+  grid-column: 2;
+  justify-self: start;
+}
+
+.invoice-delivery > .ui-button {
+  min-height: 2.75rem;
+  justify-self: start;
+}
+
+.invoice-delivery__confirm {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border-left: 3px solid var(--warning, var(--accent-foreground));
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+}
+
+.invoice-delivery__confirm p,
+.invoice-delivery__hint,
+.invoice-delivery__error {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.invoice-delivery__confirm p strong {
+  color: var(--foreground);
+}
+
+.invoice-delivery__confirm > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.invoice-delivery__confirm .ui-button {
+  min-height: 2.75rem;
+  justify-content: center;
+}
+
+.invoice-delivery__hint {
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--border-strong, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.invoice-delivery__error {
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 8%, var(--surface));
+}
+
 .invoice-document__error {
   grid-column: 1 / -1;
   margin: 0;
@@ -563,7 +803,8 @@
   .invoice-ledger-row__details dl,
   .invoice-ledger-row__lines,
   .invoice-ledger-row__tax-note,
-  .invoice-document {
+  .invoice-document,
+  .invoice-delivery {
     grid-column: 1 / -1;
   }
 
@@ -584,6 +825,28 @@
 
   .invoice-document__actions .ui-button {
     min-width: 10.5rem;
+  }
+
+  .invoice-delivery__header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .invoice-delivery__status {
+    grid-column: 3;
+  }
+
+  .invoice-delivery__timeline > li {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .invoice-delivery__timeline .ui-button {
+    grid-column: 3;
+  }
+
+  .invoice-delivery__confirm {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 }
 

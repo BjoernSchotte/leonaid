@@ -11,6 +11,7 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied
+from leonaid.application.invoice_deliveries import InvoiceDelivery
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.commitments import Money
 from leonaid.domain.errors import DomainInvariantError
@@ -35,6 +36,7 @@ class InvoiceContext:
 class InvoiceRecord:
     invoice: Invoice
     buyer_display_name: str
+    deliveries: tuple[InvoiceDelivery, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
