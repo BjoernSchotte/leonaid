@@ -292,29 +292,32 @@ Tests/Nachweise:
 Nachweis:
 [POC-002 – Monorepo und Docker-basierte DX](proofs/POC-002.md).
 
-### [ ] POC-003 CI-Pipeline und Beweisartefakte einrichten
+### [x] POC-003 CI-Pipeline und Beweisartefakte einrichten
 
 Abhängigkeiten: POC-002
 
 Akzeptanzkriterien:
 
-- [ ] CI besitzt getrennte, nachvollziehbare Jobs für Lint/Types, Unit,
+- [x] CI besitzt getrennte, nachvollziehbare Jobs für Lint/Types, Unit,
       Integration, Contract, E2E, Security und Build.
-- [ ] Dienste werden aus denselben Compose-Definitionen wie lokal gestartet.
-- [ ] Fehlgeschlagene Tests veröffentlichen Logs, Browser-Traces,
+- [x] Dienste werden aus denselben Compose-Definitionen wie lokal gestartet.
+- [x] Fehlgeschlagene Tests veröffentlichen Logs, Browser-Traces,
       Screenshots, Mail- und Storage-Diagnosen ohne Secrets.
-- [ ] Migrationen und Golden-Data-Seeding laufen in CI aus einer leeren
+- [x] Migrationen und Golden-Data-Seeding laufen in CI aus einer leeren
       Umgebung.
-- [ ] CI verbietet Mock-/Fake-Bibliotheken, HTTP-Fixtures und
+- [x] CI verbietet Mock-/Fake-Bibliotheken, HTTP-Fixtures und
       Testimplementierungen produktiver I/O-Ports; begründete reine
       UI-Testhelfer dürfen keine Serverantwort oder Fachentscheidung ersetzen.
-- [ ] Branchschutz verlangt alle definierten Gates.
+- [x] Branchschutz verlangt alle definierten Gates.
 
 Tests/Nachweise:
 
-- [ ] Ein absichtlich fehlschlagender Probe-Branch beweist die Artefakte und
+- [x] Ein absichtlich fehlschlagender Probe-Branch beweist die Artefakte und
       wird danach verworfen.
-- [ ] Ein kompletter grüner Lauf aus leerem Cache ist dokumentiert.
+- [x] Ein kompletter grüner Lauf aus leerem Cache ist dokumentiert.
+
+Nachweis:
+[POC-003 – CI-Pipeline, Fehlerartefakte und Branchschutz](proofs/POC-003.md).
 
 ---
 
