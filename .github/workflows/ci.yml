@@ -144,6 +144,7 @@ jobs:
           - acquisition
           - actions
           - public
+          - invoices
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.shard }}
     steps:

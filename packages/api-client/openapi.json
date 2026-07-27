@@ -3001,6 +3001,445 @@
         "title": "InviteableActionResponse",
         "type": "object"
       },
+      "InvoiceContextResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "mayIssue": {
+            "title": "Mayissue",
+            "type": "boolean"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvoiceProfileResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "startsOn",
+          "endsOn",
+          "profile",
+          "mayIssue"
+        ],
+        "title": "InvoiceContextResponse",
+        "type": "object"
+      },
+      "InvoiceCurrencyTotalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "grossMinor": {
+            "minimum": 0.0,
+            "title": "Grossminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency",
+          "grossMinor"
+        ],
+        "title": "InvoiceCurrencyTotalResponse",
+        "type": "object"
+      },
+      "InvoiceIssuerResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "legalName": {
+            "title": "Legalname",
+            "type": "string"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "taxIdentifier": {
+            "title": "Taxidentifier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "taxIdentifier",
+          "email"
+        ],
+        "title": "InvoiceIssuerResponse",
+        "type": "object"
+      },
+      "InvoiceLineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "grossMinor": {
+            "minimum": 0.0,
+            "title": "Grossminor",
+            "type": "integer"
+          },
+          "netMinor": {
+            "minimum": 0.0,
+            "title": "Netminor",
+            "type": "integer"
+          },
+          "quantity": {
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "taxMinor": {
+            "minimum": 0.0,
+            "title": "Taxminor",
+            "type": "integer"
+          },
+          "taxRateBasisPoints": {
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Taxratebasispoints",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unitPriceGrossMinor": {
+            "minimum": 0.0,
+            "title": "Unitpricegrossminor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unit",
+          "unitPriceGrossMinor",
+          "taxRateBasisPoints",
+          "netMinor",
+          "taxMinor",
+          "grossMinor",
+          "currency"
+        ],
+        "title": "InvoiceLineResponse",
+        "type": "object"
+      },
+      "InvoiceListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "currencyTotals": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceCurrencyTotalResponse"
+            },
+            "title": "Currencytotals",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRecordResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionId",
+          "items",
+          "currencyTotals"
+        ],
+        "title": "InvoiceListResponse",
+        "type": "object"
+      },
+      "InvoiceProfileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmedat"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/InvoiceIssuerResponse"
+          },
+          "nextInvoiceNumber": {
+            "title": "Nextinvoicenumber",
+            "type": "string"
+          },
+          "paymentTermsDays": {
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Paymenttermsdays",
+            "type": "integer"
+          },
+          "readyToIssue": {
+            "title": "Readytoissue",
+            "type": "boolean"
+          },
+          "taxNote": {
+            "title": "Taxnote",
+            "type": "string"
+          },
+          "taxRateBasisPoints": {
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Taxratebasispoints",
+            "type": "integer"
+          },
+          "taxTreatment": {
+            "enum": [
+              "standard_vat",
+              "small_business",
+              "tax_exempt"
+            ],
+            "title": "Taxtreatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "taxTreatment",
+          "taxRateBasisPoints",
+          "taxNote",
+          "nextInvoiceNumber",
+          "paymentTermsDays",
+          "confirmedAt",
+          "readyToIssue"
+        ],
+        "title": "InvoiceProfileResponse",
+        "type": "object"
+      },
+      "InvoiceRecordResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "buyerDisplayName": {
+            "title": "Buyerdisplayname",
+            "type": "string"
+          },
+          "invoice": {
+            "$ref": "#/components/schemas/InvoiceResponse"
+          }
+        },
+        "required": [
+          "invoice",
+          "buyerDisplayName"
+        ],
+        "title": "InvoiceRecordResponse",
+        "type": "object"
+      },
+      "InvoiceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "approvedByUserId": {
+            "format": "uuid",
+            "title": "Approvedbyuserid",
+            "type": "string"
+          },
+          "commitmentId": {
+            "format": "uuid",
+            "title": "Commitmentid",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "dueOn": {
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          },
+          "grossMinor": {
+            "minimum": 0.0,
+            "title": "Grossminor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "title": "Issuedat",
+            "type": "string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/InvoiceIssuerResponse"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineResponse"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "netMinor": {
+            "minimum": 0.0,
+            "title": "Netminor",
+            "type": "integer"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "paymentReference": {
+            "title": "Paymentreference",
+            "type": "string"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/CommitmentInvoiceRecipientResponse"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "serviceOn": {
+            "format": "date",
+            "title": "Serviceon",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "issued",
+              "sent",
+              "paid",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "taxMinor": {
+            "minimum": 0.0,
+            "title": "Taxminor",
+            "type": "integer"
+          },
+          "taxNote": {
+            "title": "Taxnote",
+            "type": "string"
+          },
+          "taxTreatment": {
+            "enum": [
+              "standard_vat",
+              "small_business",
+              "tax_exempt"
+            ],
+            "title": "Taxtreatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "commitmentId",
+          "number",
+          "status",
+          "issuedAt",
+          "serviceOn",
+          "dueOn",
+          "issuer",
+          "recipient",
+          "lines",
+          "taxTreatment",
+          "taxNote",
+          "netMinor",
+          "taxMinor",
+          "grossMinor",
+          "currency",
+          "paymentReference",
+          "approvedByUserId",
+          "replayed"
+        ],
+        "title": "InvoiceResponse",
+        "type": "object"
+      },
+      "IssueInvoiceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "serviceOn": {
+            "format": "date",
+            "title": "Serviceon",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serviceOn"
+        ],
+        "title": "IssueInvoiceRequest",
+        "type": "object"
+      },
       "LoginDispatchResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7307,6 +7746,129 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/invoice": {
+      "post": {
+        "operationId": "issueInvoice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Issue Invoice",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/configuration": {
       "get": {
         "operationId": "getCharityActionConfiguration",
@@ -7736,6 +8298,212 @@
         "summary": "Set Charity Action Goal",
         "tags": [
           "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoice-context": {
+      "get": {
+        "operationId": "getInvoiceContext",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceContextResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Invoice Context",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices": {
+      "get": {
+        "operationId": "listInvoices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Invoices",
+        "tags": [
+          "invoices"
         ]
       }
     },

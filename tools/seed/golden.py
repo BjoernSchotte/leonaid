@@ -859,19 +859,24 @@ async def seed_operational_golden(
     assignment_ids = [item["id"] for item in dataset["assignments"]]
     activity_ids = [item["id"] for item in dataset["activities"]]
     commitment_ids = [item["id"] for item in dataset["commitments"]]
-    invoice_ids = [item["id"] for item in dataset["invoices"]]
+    golden_action_ids = [item["id"] for item in dataset["actions"]]
+    invoice_ids = await connection.fetch(
+        "SELECT id FROM invoice WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
+    )
+    scoped_invoice_ids = [row["id"] for row in invoice_ids]
 
     await connection.execute(
         "DELETE FROM payment_record WHERE invoice_id = ANY($1::uuid[])",
-        invoice_ids,
+        scoped_invoice_ids,
     )
     await connection.execute(
         "DELETE FROM generated_document WHERE invoice_id = ANY($1::uuid[])",
-        invoice_ids,
+        scoped_invoice_ids,
     )
     await connection.execute(
         "DELETE FROM invoice WHERE id = ANY($1::uuid[])",
-        invoice_ids,
+        scoped_invoice_ids,
     )
     await connection.execute(
         "DELETE FROM acquisition_activity WHERE id = ANY($1::uuid[])",
@@ -884,6 +889,10 @@ async def seed_operational_golden(
     await connection.execute(
         "DELETE FROM acquisition_assignment WHERE id = ANY($1::uuid[])",
         assignment_ids,
+    )
+    await connection.execute(
+        "DELETE FROM invoice_profile WHERE action_id = ANY($1::uuid[])",
+        golden_action_ids,
     )
 
     for offer in dataset["offers"]:
@@ -1039,7 +1048,18 @@ async def seed_operational_golden(
                 ),
                 "email": buyer_email,
             }
-        if invoice is not None:
+        invoice_address = commitment.get("invoiceAddress")
+        if isinstance(invoice_address, dict):
+            address = invoice_address
+            recipient_snapshot = {
+                "recipientName": address["recipient"],
+                "streetLine1": address["street"],
+                "postalCode": address["postalCode"],
+                "city": address["city"],
+                "countryCode": address["country"],
+                "email": buyer_email,
+            }
+        elif invoice is not None:
             address = invoice["addressSnapshot"]
             recipient_snapshot = {
                 "recipientName": address["recipient"],
@@ -1189,49 +1209,132 @@ async def seed_operational_golden(
             str(activity["kind"]).casefold(),
         )
 
+    tax_treatment = {
+        "STANDARD_VAT": "standard_vat",
+        "SMALL_BUSINESS": "small_business",
+        "TAX_EXEMPT": "tax_exempt",
+    }
+    for profile in dataset["invoiceProfiles"]:
+        await connection.execute(
+            """
+            INSERT INTO invoice_profile (
+                id, action_id, legal_name, street_line_1, postal_code, city,
+                country_code, tax_identifier, email, tax_treatment,
+                tax_rate_basis_points, tax_note, number_prefix, next_number,
+                number_width, payment_terms_days, confirmed_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                $11, $12, $13, $14, $15, $16, $17
+            )
+            """,
+            profile["id"],
+            profile["actionId"],
+            profile["legalName"],
+            profile["street"],
+            profile["postalCode"],
+            profile["city"],
+            profile["country"],
+            profile["taxIdentifier"],
+            profile["email"],
+            tax_treatment[str(profile["taxTreatment"])],
+            profile["taxRateBasisPoints"],
+            profile["taxNote"],
+            profile["numberPrefix"],
+            profile["nextNumber"],
+            profile["numberWidth"],
+            profile["paymentTermsDays"],
+            datetime.fromisoformat(str(profile["confirmedAt"])),
+        )
+
     invoice_status = {
-        "OPEN": "open",
+        "OPEN": "issued",
         "PAID": "paid",
         "CANCELLED": "cancelled",
+    }
+    profiles_by_action = {
+        str(item["actionId"]): item for item in dataset["invoiceProfiles"]
     }
     issued_at = datetime(2026, 6, 30, 12, tzinfo=timezone.utc)
     for invoice in dataset["invoices"]:
         commitment = commitments_by_id[str(invoice["commitmentId"])]
+        profile = profiles_by_action[str(commitment["actionId"])]
         amount = int(invoice["amountCents"])
+        issuer_snapshot = {
+            "legalName": profile["legalName"],
+            "streetLine1": profile["street"],
+            "postalCode": profile["postalCode"],
+            "city": profile["city"],
+            "countryCode": profile["country"],
+            "taxIdentifier": profile["taxIdentifier"],
+            "email": profile["email"],
+        }
+        recipient_source = invoice["addressSnapshot"]
+        recipient_snapshot = {
+            "recipientName": recipient_source["recipient"],
+            "streetLine1": recipient_source["street"],
+            "postalCode": recipient_source["postalCode"],
+            "city": recipient_source["city"],
+            "countryCode": recipient_source["country"],
+            "email": None,
+        }
+        line_snapshot = [
+            {
+                "description": offers[str(line["offerId"])]["name"],
+                "quantity": int(line["quantity"]),
+                "unit": str(offers[str(line["offerId"])]["unit"]).casefold(),
+                "unitPriceGrossMinor": int(
+                    offers[str(line["offerId"])]["unitPriceCents"]
+                ),
+                "taxRateBasisPoints": 0,
+                "netMinor": int(line["quantity"])
+                * int(offers[str(line["offerId"])]["unitPriceCents"]),
+                "taxMinor": 0,
+                "grossMinor": int(line["quantity"])
+                * int(offers[str(line["offerId"])]["unitPriceCents"]),
+                "currency": invoice["currency"],
+            }
+            for line in commitment["lines"]
+        ]
         await connection.execute(
             """
             INSERT INTO invoice (
-                id,
-                commitment_id,
-                number,
-                status,
-                issued_at,
-                due_on,
-                currency,
-                net_minor,
-                tax_minor,
-                gross_minor,
-                recipient_snapshot,
-                line_snapshot,
-                tax_note,
+                id, action_id, commitment_id, number, status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, payment_reference, approved_by_user_id,
                 document_version
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, 0, $8,
-                $9::json, $10::json, $11, 1
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $10,
+                $11::jsonb, $12::json, $13::json, $14, 0, $15, $4, $16, 1
             )
             """,
             invoice["id"],
+            commitment["actionId"],
             invoice["commitmentId"],
             invoice["number"],
             invoice_status[str(invoice["status"])],
             issued_at,
+            date.fromisoformat(
+                str(
+                    next(
+                        action["endsOn"]
+                        for action in dataset["actions"]
+                        if action["id"] == commitment["actionId"]
+                    )
+                )
+            ),
             issued_at.date() + timedelta(days=14),
             invoice["currency"],
             amount,
-            json.dumps(invoice["addressSnapshot"], separators=(",", ":")),
-            json.dumps(commitment["lines"], separators=(",", ":")),
-            "Synthetischer Golden-Datensatz; keine steuerliche Fachentscheidung.",
+            json.dumps(issuer_snapshot, separators=(",", ":")),
+            json.dumps(recipient_snapshot, separators=(",", ":")),
+            json.dumps(line_snapshot, separators=(",", ":")),
+            tax_treatment[str(profile["taxTreatment"])],
+            profile["taxNote"],
+            "10000000-0000-4000-8000-000000000002",
         )
 
     document_by_invoice = {str(item["invoiceId"]): item for item in documents}

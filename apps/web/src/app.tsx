@@ -6,6 +6,7 @@ import {
   ActivityFeedPage,
   CommitmentAdminPage,
   CreateActionPage,
+  InvoiceAdminPage,
   ManageActionPage,
   MemberInvitationPage,
 } from "@leonaid/features";
@@ -20,6 +21,7 @@ function route() {
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
   if (pathname === "/members") return { kind: "members" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
+  if (pathname === "/invoices") return { kind: "invoices" } as const;
   if (pathname === "/activities") return { kind: "activities" } as const;
   if (pathname === "/actions/new") return { kind: "new" } as const;
   const match = pathname.match(
@@ -91,9 +93,11 @@ export function App({ client }: AppProps) {
           ? "Neues"
           : currentRoute.kind === "orders"
             ? "Bestellungen"
-            : currentRoute.kind === "members"
-              ? "Mitglieder"
-              : "Alle Aktionen";
+            : currentRoute.kind === "invoices"
+              ? "Rechnungen"
+              : currentRoute.kind === "members"
+                ? "Mitglieder"
+                : "Alle Aktionen";
 
   return (
     <AppShell
@@ -117,6 +121,8 @@ export function App({ client }: AppProps) {
         <MemberInvitationPage client={client} />
       ) : currentRoute.kind === "orders" ? (
         <CommitmentAdminPage client={client} identity={identity.data} />
+      ) : currentRoute.kind === "invoices" ? (
+        <InvoiceAdminPage client={client} identity={identity.data} />
       ) : currentRoute.kind === "activities" ? (
         <ActivityFeedPage client={client} surface="web" />
       ) : (

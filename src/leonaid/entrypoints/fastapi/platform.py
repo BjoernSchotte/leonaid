@@ -23,6 +23,7 @@ from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepositor
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
+from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
@@ -48,6 +49,7 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.application.identity import IdentityQueryService
+from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.public_orders import (
@@ -125,6 +127,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
+        )
+        application.state.invoice_service = InvoiceService(
+            AsyncpgInvoiceRepository(pool)
         )
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()

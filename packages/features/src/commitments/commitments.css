@@ -599,6 +599,233 @@
   font-variant-numeric: tabular-nums;
 }
 
+.commitment-ledger-row__action {
+  display: flex;
+  align-items: center;
+}
+
+.commitment-ledger-row__action .ui-button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.commitment-ledger-row__action > a {
+  color: var(--accent-foreground);
+  font-size: 0.78rem;
+  font-weight: 740;
+  text-decoration: none;
+}
+
+.commitment-ledger-row__action > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.commitment-invoice-review {
+  display: grid;
+  min-width: 0;
+  gap: 1.2rem;
+  margin-top: 0.3rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid
+    color-mix(in oklch, var(--accent-foreground) 24%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--accent) 26%, var(--surface));
+}
+
+.commitment-invoice-review > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.2rem;
+}
+
+.commitment-invoice-review h2,
+.commitment-invoice-review header p,
+.commitment-invoice-review__legal p {
+  margin: 0;
+}
+
+.commitment-invoice-review h2 {
+  margin-top: 0.18rem;
+  font-size: clamp(1.25rem, 3vw, 1.6rem);
+  letter-spacing: -0.035em;
+}
+
+.commitment-invoice-review header p:not(.commitment-eyebrow) {
+  max-width: 42rem;
+  margin-top: 0.38rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.commitment-invoice-review__number {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.68rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-invoice-review__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.commitment-invoice-review__facts > section {
+  display: grid;
+  align-content: start;
+  gap: 0.22rem;
+  padding-block: 0.8rem;
+  border-block: 1px solid var(--border);
+}
+
+.commitment-invoice-review__facts span,
+.commitment-invoice-review__legal > span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 720;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.commitment-invoice-review__facts strong {
+  margin-top: 0.2rem;
+  color: var(--foreground);
+  font-size: 0.9rem;
+}
+
+.commitment-invoice-review__facts address,
+.commitment-invoice-review__facts small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.commitment-invoice-review__lines {
+  display: grid;
+  gap: 0;
+}
+
+.commitment-invoice-review__lines > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.66rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.commitment-invoice-review__lines span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.commitment-invoice-review__lines strong {
+  flex: 0 0 auto;
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commitment-invoice-review__lines > .commitment-invoice-review__total {
+  padding-top: 0.9rem;
+  border-bottom: 0;
+}
+
+.commitment-invoice-review__total span,
+.commitment-invoice-review__total strong {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 790;
+}
+
+.commitment-invoice-review__legal {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.commitment-invoice-review__legal p {
+  color: var(--foreground);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.commitment-invoice-review__approval {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.6fr) minmax(16rem, 1fr);
+  align-items: end;
+  gap: 1rem;
+  padding-top: 0.2rem;
+}
+
+.commitment-invoice-review__date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.commitment-invoice-review__date > svg {
+  margin-left: 0.72rem;
+}
+
+.commitment-invoice-review__date > input {
+  border: 0;
+  background: transparent;
+}
+
+.commitment-invoice-review__date:focus-within {
+  border-color: var(--focus);
+  outline: 3px solid color-mix(in oklch, var(--focus) 32%, transparent);
+}
+
+.commitment-invoice-review__warning {
+  display: grid;
+  gap: 0.2rem;
+  align-self: stretch;
+  align-content: center;
+  padding: 0.72rem 0.82rem;
+  border-left: 2px solid var(--warning);
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--warning) 9%, var(--surface));
+}
+
+.commitment-invoice-review__warning strong {
+  font-size: 0.8rem;
+}
+
+.commitment-invoice-review__warning span {
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.commitment-invoice-review__approval > .ui-status,
+.commitment-invoice-review__actions {
+  grid-column: 1 / -1;
+}
+
+.commitment-invoice-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 @media (min-width: 660px) {
   .commitment-offering-grid,
   .commitment-recipient-grid {
@@ -647,13 +874,18 @@
       minmax(13rem, 1.2fr)
       minmax(13rem, 1fr)
       minmax(8rem, 0.65fr)
-      auto;
+      auto
+      minmax(9rem, auto);
     align-items: center;
     gap: clamp(1rem, 2.5vw, 2rem);
   }
 
   .commitment-ledger-row__amount {
     justify-self: end;
+  }
+
+  .commitment-invoice-review {
+    grid-column: 1 / -1;
   }
 }
 
@@ -673,6 +905,30 @@
   }
 
   .commitment-success__actions .ui-button {
+    width: 100%;
+  }
+
+  .commitment-invoice-review > header,
+  .commitment-invoice-review__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commitment-invoice-review__number {
+    width: fit-content;
+  }
+
+  .commitment-invoice-review__facts,
+  .commitment-invoice-review__approval {
+    grid-template-columns: 1fr;
+  }
+
+  .commitment-invoice-review__approval > .ui-status,
+  .commitment-invoice-review__actions {
+    grid-column: auto;
+  }
+
+  .commitment-invoice-review__actions .ui-button {
     width: 100%;
   }
 }

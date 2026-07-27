@@ -49,6 +49,7 @@ const navigationIcons = {
 const implementedWebNavigation = new Set([
   "actions",
   "activities",
+  "invoices",
   "members",
   "orders",
 ]);

@@ -27,8 +27,11 @@ case "$shard" in
     /bin/sh "$root/tools/public_orders/test.sh" "$root"
     /bin/sh "$root/tools/activity_feed/test.sh" "$root"
     ;;
+  invoices)
+    /bin/sh "$root/tools/invoices/test.sh" "$root"
+    ;;
   *)
-    echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public erforderlich" >&2
+    echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2
     exit 64
     ;;
 esac

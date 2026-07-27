@@ -633,6 +633,91 @@ class CommitmentListResponse(TransportModel):
     total_boxes: int = Field(ge=0)
 
 
+class IssueInvoiceRequest(TransportModel):
+    service_on: date
+
+
+class InvoiceIssuerResponse(TransportModel):
+    legal_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    tax_identifier: str
+    email: str
+
+
+class InvoiceProfileResponse(TransportModel):
+    issuer: InvoiceIssuerResponse
+    tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
+    tax_rate_basis_points: int = Field(ge=0, le=10_000)
+    tax_note: str
+    next_invoice_number: str
+    payment_terms_days: int = Field(ge=1, le=120)
+    confirmed_at: datetime | None
+    ready_to_issue: bool
+
+
+class InvoiceLineResponse(TransportModel):
+    description: str
+    quantity: int = Field(ge=1)
+    unit: OfferingUnitValue
+    unit_price_gross_minor: int = Field(ge=0)
+    tax_rate_basis_points: int = Field(ge=0, le=10_000)
+    net_minor: int = Field(ge=0)
+    tax_minor: int = Field(ge=0)
+    gross_minor: int = Field(ge=0)
+    currency: str
+
+
+class InvoiceResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    commitment_id: UUID
+    number: str
+    status: Literal["issued", "sent", "paid", "cancelled"]
+    issued_at: datetime
+    service_on: date
+    due_on: date
+    issuer: InvoiceIssuerResponse
+    recipient: CommitmentInvoiceRecipientResponse
+    lines: list[InvoiceLineResponse]
+    tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
+    tax_note: str
+    net_minor: int = Field(ge=0)
+    tax_minor: int = Field(ge=0)
+    gross_minor: int = Field(ge=0)
+    currency: str
+    payment_reference: str
+    approved_by_user_id: UUID
+    replayed: bool
+
+
+class InvoiceContextResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    starts_on: date
+    ends_on: date
+    profile: InvoiceProfileResponse | None
+    may_issue: bool
+
+
+class InvoiceRecordResponse(TransportModel):
+    invoice: InvoiceResponse
+    buyer_display_name: str
+
+
+class InvoiceCurrencyTotalResponse(TransportModel):
+    currency: str
+    gross_minor: int = Field(ge=0)
+
+
+class InvoiceListResponse(TransportModel):
+    action_id: UUID
+    items: list[InvoiceRecordResponse]
+    currency_totals: list[InvoiceCurrencyTotalResponse]
+
+
 class UpdateActionDetailsRequest(TransportModel):
     revision: int = Field(ge=1)
     carrier_name: str = Field(min_length=1, max_length=200)

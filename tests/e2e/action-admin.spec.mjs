@@ -163,8 +163,8 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       "true",
     );
     await expect(
-      page.locator('[data-nav-key="invoices"][aria-disabled="true"]').first(),
-    ).toContainText("In Aufbau");
+      page.locator('a[data-nav-key="invoices"]').first(),
+    ).toHaveAttribute("href", "/admin/invoices");
     await expect(page.locator("#manage-name-help")).toContainText(
       "öffentliche Titel",
     );

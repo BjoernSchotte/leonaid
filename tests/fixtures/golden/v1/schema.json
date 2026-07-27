@@ -11,6 +11,7 @@
     "assignments",
     "offers",
     "commitments",
+    "invoiceProfiles",
     "invoices",
     "activities",
     "matchScenarios",
@@ -66,6 +67,11 @@
       "OPEN",
       "PAID",
       "CANCELLED"
+    ],
+    "taxTreatment": [
+      "STANDARD_VAT",
+      "SMALL_BUSINESS",
+      "TAX_EXEMPT"
     ]
   }
 }

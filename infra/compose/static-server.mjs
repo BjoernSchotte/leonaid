@@ -29,6 +29,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
         ? pathname.slice(1)
         : pathname === "/" ||
             pathname === "/activities" ||
+            pathname === "/invoices" ||
             pathname === "/members" ||
             pathname === "/orders" ||
             pathname === "/actions" ||

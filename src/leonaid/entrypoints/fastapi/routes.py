@@ -35,6 +35,12 @@ from leonaid.application.commitments import (
     CommitmentRecord,
     CommitmentService,
 )
+from leonaid.application.invoices import (
+    InvoiceContext,
+    InvoiceList,
+    InvoiceRecord,
+    InvoiceService,
+)
 from leonaid.application.actions import (
     BeneficiaryDraft,
     CharityActionService,
@@ -96,6 +102,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.identity import ActionRole
+from leonaid.domain.invoices import Invoice, InvoiceProfile
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
@@ -157,6 +164,15 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvitationDispatchResponse,
     InvitationOptionsResponse,
     InvitationRevocationResponse,
+    InvoiceContextResponse,
+    InvoiceCurrencyTotalResponse,
+    InvoiceIssuerResponse,
+    InvoiceLineResponse,
+    InvoiceListResponse,
+    InvoiceProfileResponse,
+    InvoiceRecordResponse,
+    InvoiceResponse,
+    IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
     PaginationQuery,
@@ -279,6 +295,10 @@ def action_service(request: Request) -> CharityActionService:
 
 def commitment_service(request: Request) -> CommitmentService:
     return cast(CommitmentService, request.app.state.commitment_service)
+
+
+def invoice_service(request: Request) -> InvoiceService:
+    return cast(InvoiceService, request.app.state.invoice_service)
 
 
 def session_token(request: Request) -> str | None:
@@ -805,6 +825,123 @@ def commitment_list_response(value: CommitmentList) -> CommitmentListResponse:
         ],
         total_pieces=value.total_pieces,
         total_boxes=value.total_boxes,
+    )
+
+
+def invoice_issuer_response(profile: InvoiceProfile) -> InvoiceIssuerResponse:
+    issuer = profile.issuer
+    return InvoiceIssuerResponse(
+        legal_name=issuer.legal_name,
+        street_line_1=issuer.street_line_1,
+        postal_code=issuer.postal_code,
+        city=issuer.city,
+        country_code=issuer.country_code,
+        tax_identifier=issuer.tax_identifier,
+        email=issuer.email,
+    )
+
+
+def invoice_profile_response(profile: InvoiceProfile) -> InvoiceProfileResponse:
+    return InvoiceProfileResponse(
+        issuer=invoice_issuer_response(profile),
+        tax_treatment=profile.tax_treatment.value,
+        tax_rate_basis_points=profile.tax_rate_basis_points,
+        tax_note=profile.tax_note,
+        next_invoice_number=profile.next_invoice_number,
+        payment_terms_days=profile.payment_terms_days,
+        confirmed_at=profile.confirmed_at,
+        ready_to_issue=profile.ready_to_issue,
+    )
+
+
+def invoice_response(invoice: Invoice) -> InvoiceResponse:
+    recipient = invoice.recipient
+    issuer = invoice.issuer
+    return InvoiceResponse(
+        id=invoice.id,
+        action_id=invoice.action_id,
+        commitment_id=invoice.commitment_id,
+        number=invoice.number,
+        status=invoice.status.value,
+        issued_at=invoice.issued_at,
+        service_on=invoice.service_on,
+        due_on=invoice.due_on,
+        issuer=InvoiceIssuerResponse(
+            legal_name=issuer.legal_name,
+            street_line_1=issuer.street_line_1,
+            postal_code=issuer.postal_code,
+            city=issuer.city,
+            country_code=issuer.country_code,
+            tax_identifier=issuer.tax_identifier,
+            email=issuer.email,
+        ),
+        recipient=CommitmentInvoiceRecipientResponse(
+            recipient_name=recipient.recipient_name,
+            street_line_1=recipient.street_line_1,
+            postal_code=recipient.postal_code,
+            city=recipient.city,
+            country_code=recipient.country_code,
+            email=recipient.email,
+        ),
+        lines=[
+            InvoiceLineResponse(
+                description=line.description,
+                quantity=line.quantity,
+                unit=line.unit.value,
+                unit_price_gross_minor=line.unit_price_gross.amount_minor,
+                tax_rate_basis_points=line.tax_rate_basis_points,
+                net_minor=line.net.amount_minor,
+                tax_minor=line.tax.amount_minor,
+                gross_minor=line.gross.amount_minor,
+                currency=line.gross.currency,
+            )
+            for line in invoice.lines
+        ],
+        tax_treatment=invoice.tax_treatment.value,
+        tax_note=invoice.tax_note,
+        net_minor=invoice.net.amount_minor,
+        tax_minor=invoice.tax.amount_minor,
+        gross_minor=invoice.gross.amount_minor,
+        currency=invoice.gross.currency,
+        payment_reference=invoice.payment_reference,
+        approved_by_user_id=invoice.approved_by_user_id,
+        replayed=invoice.replayed,
+    )
+
+
+def invoice_context_response(context: InvoiceContext) -> InvoiceContextResponse:
+    return InvoiceContextResponse(
+        action_id=context.action_id,
+        action_name=context.action_name,
+        starts_on=context.starts_on,
+        ends_on=context.ends_on,
+        profile=(
+            invoice_profile_response(context.profile)
+            if context.profile is not None
+            else None
+        ),
+        may_issue=context.may_issue,
+    )
+
+
+def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
+    return InvoiceRecordResponse(
+        invoice=invoice_response(record.invoice),
+        buyer_display_name=record.buyer_display_name,
+    )
+
+
+def invoice_list_response(value: InvoiceList) -> InvoiceListResponse:
+    return InvoiceListResponse(
+        action_id=value.action_id,
+        items=[invoice_record_response(record) for record in value.records],
+        currency_totals=[
+            InvoiceCurrencyTotalResponse(
+                currency=item.currency,
+                gross_minor=item.total.amount_minor,
+            )
+            for item in value.currency_totals
+        ],
     )
 
 
@@ -1544,6 +1681,71 @@ async def create_commitment(
         f"/api/v1/actions/{action_id}/commitments/{commitment.id}"
     )
     return commitment_response(commitment)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/invoice-context",
+    operation_id="getInvoiceContext",
+    response_model=InvoiceContextResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["invoices"],
+)
+async def get_invoice_context(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceContextResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    context = await invoice_service(request).context(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_context_response(context)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/invoices",
+    operation_id="listInvoices",
+    response_model=InvoiceListResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["invoices"],
+)
+async def list_invoices(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvoiceListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    invoices = await invoice_service(request).list_for_action(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return invoice_list_response(invoices)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/invoice",
+    operation_id="issueInvoice",
+    response_model=InvoiceResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def issue_invoice(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: IssueInvoiceRequest,
+    response: Response,
+) -> InvoiceResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    invoice = await invoice_service(request).issue(
+        actor,
+        action_id,
+        commitment_id,
+        service_on=body.service_on,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = f"/api/v1/actions/{action_id}/invoices/{invoice.id}"
+    return invoice_response(invoice)
 
 
 @router.post(

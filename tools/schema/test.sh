@@ -52,6 +52,7 @@ compose run --rm --no-deps \
 echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
 compose down --volumes --remove-orphans
 compose up --detach --wait --wait-timeout 120 core-postgres
+compose run --rm --no-deps --entrypoint alembic api upgrade 0011_public_orders
 compose exec -T core-postgres sh -ec \
   'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   <"$root/tests/fixtures/schema/v0.sql"

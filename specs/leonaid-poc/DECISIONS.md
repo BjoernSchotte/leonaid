@@ -16,15 +16,16 @@ unabhängige Implementierung.
 | ARC-003 | Der gesamte PoC läuft Docker-basiert | Produktverantwortlicher / Implementierung | 2026-07-25 | ADR-0002, ADR-0003 |
 | ARC-004 | Core ist Python/FastAPI; Fachlogik bleibt adapterunabhängig | Produktverantwortlicher / Implementierung | 2026-07-25 | ADR-0003 |
 | ARC-005 | RustFS ist PoC-Default hinter einem S3-Port | Produktverantwortlicher / Implementierung | 2026-07-25 | Produktkonzept 7.2 |
+| LEG-001 | Rechnungsaussteller kommt aus einem je Aktion explizit bestätigten Profil; das Golden-Profil ist synthetisch | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
+| LEG-002 | Steuerfall und Rechtstext sind explizit; Golden nutzt ausschließlich den synthetischen Kleinunternehmerfall | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
+| LEG-003 | Nummern werden transaktional eindeutig vergeben und nie wiederverwendet; Storno/Korrektur überschreibt keinen Beleg | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 
 ## Offene Entscheidungen mit spätestem Klärpunkt
 
 | ID | Offene Entscheidung | Owner | Fällig vor | Status |
 |---|---|---|---|---|
-| LEG-001 | Rechtlicher Träger und Rechnungsaussteller | Produktverantwortlicher | POC-090 | offen |
-| LEG-002 | Rechnungstypen, Steuerfälle, Pflichtangaben und Steuerhinweise | Produktverantwortlicher plus Steuerberatung | POC-090 | offen |
-| LEG-003 | Nummernkreis, Freigabe- und Stornoregeln | Produktverantwortlicher plus Finanzrolle | POC-090 | offen |
 | LEG-004 | Aufbewahrungs- und Löschfristen je Fachobjekt | Produktverantwortlicher plus Datenschutz/Recht | POC-111 | offen |
+| LEG-005 | Produktive Trägerdaten, Steuerfall und E-Rechnungsbedarf der konkreten Installation | Rechtlicher Träger plus Steuerberatung | Produktivfreigabe | offen; der PoC verwendet nur synthetische Daten |
 | OPS-001 | Produktiver SMTP/API-Relay | Betrieb | POC-094 | offen; Mailpit ist nur Testsystem |
 | OPS-002 | Zweiter realer S3-kompatibler Contract-Endpunkt | Betrieb | POC-092 | offen |
 

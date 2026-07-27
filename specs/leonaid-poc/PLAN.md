@@ -1068,29 +1068,32 @@ Tests/Nachweise:
 
 ## M9 – ERP-light, Dokumente, Versand und Zahlung
 
-### [ ] POC-090 Rechnungsmodell, Nummernkreis und Freigabe implementieren
+### [x] POC-090 Rechnungsmodell, Nummernkreis und Freigabe implementieren
 
 Abhängigkeiten: POC-042, POC-080
 
 Akzeptanzkriterien:
 
-- [ ] Rechtlicher Träger, Pflichtangaben, Steuerfall und Nummernkreis sind als
+- [x] Rechtlicher Träger, Pflichtangaben, Steuerfall und Nummernkreis sind als
       ADR/Fachentscheidung dokumentiert.
-- [ ] Rechnung entsteht nur aus prüfbereitem Commitment nach Fresh Login.
-- [ ] Nummer wird transaktional eindeutig und lücken nachvollziehbar
+- [x] Rechnung entsteht nur aus prüfbereitem Commitment nach Fresh Login.
+- [x] Nummer wird transaktional eindeutig und lücken nachvollziehbar
       vergeben.
-- [ ] Empfänger, Positionen, Preise und rechtliche Texte werden als
+- [x] Empfänger, Positionen, Preise und rechtliche Texte werden als
       unveränderlicher Snapshot gespeichert.
-- [ ] Storno/Korrektur ersetzt kein ausgestelltes Dokument.
+- [x] Storno/Korrektur ersetzt kein ausgestelltes Dokument.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Statusautomat, Beträge, Fälligkeit und Snapshot.
-- [ ] Integrationstest gibt konkurrierend frei und erzeugt genau eine
+- [x] Unit-Tests prüfen Statusautomat, Beträge, Fälligkeit und Snapshot.
+- [x] Integrationstest gibt konkurrierend frei und erzeugt genau eine
       Rechnung/Nummer.
-- [ ] Änderung der Twenty-Adresse lässt die ausgestellte Rechnung
+- [x] Änderung der Twenty-Adresse lässt die ausgestellte Rechnung
       unverändert.
-- [ ] E2E verlangt vor Freigabe eine reale frische Anmeldung.
+- [x] E2E verlangt vor Freigabe eine reale frische Anmeldung.
+
+Nachweis:
+[POC-090 – Rechnungsmodell, Nummernkreis und Freigabe](proofs/POC-090.md).
 
 ### [ ] POC-091 Typst-Rechnungsvorlage und realen Renderer bauen
 

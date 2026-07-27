@@ -38,6 +38,7 @@ EXPECTED_TABLES = {
     "consent_record",
     "generated_document",
     "invoice",
+    "invoice_profile",
     "login_challenge",
     "mail_delivery",
     "offering",
@@ -92,7 +93,7 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0010_offering_commitments":
+    if revision != "0012_invoice_issuing":
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -105,6 +106,34 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
             or marker["payload"]["actionId"] != ACTION
         ):
             raise SchemaError("Daten des Vorgänger-Snapshots gingen verloren")
+        migrated_invoice = await connection.fetchrow(
+            """
+            SELECT
+                action_id, status, recipient_snapshot, line_snapshot,
+                issuer_snapshot, tax_treatment, tax_rate_basis_points,
+                payment_reference
+            FROM invoice
+            WHERE id = '99000000-0000-4000-8000-000000000001'
+            """
+        )
+        if (
+            migrated_invoice is None
+            or str(migrated_invoice["action_id"]) != ACTION
+            or migrated_invoice["status"] != "issued"
+            or migrated_invoice["recipient_snapshot"]["recipientName"]
+            != "Legacy Sponsor GmbH"
+            or migrated_invoice["recipient_snapshot"]["streetLine1"] != "Altweg 7"
+            or migrated_invoice["line_snapshot"][0]["description"] != "Krapfenbox"
+            or migrated_invoice["line_snapshot"][0]["grossMinor"] != 7200
+            or migrated_invoice["issuer_snapshot"]["city"]
+            != "MIGRATION_REVIEW_REQUIRED"
+            or migrated_invoice["tax_treatment"] != "tax_exempt"
+            or migrated_invoice["tax_rate_basis_points"] != 0
+            or migrated_invoice["payment_reference"] != "LEGACY-0001"
+        ):
+            raise SchemaError(
+                "Alt-Rechnung wurde nicht vollständig in den neuen Snapshotvertrag migriert"
+            )
 
 
 async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
@@ -133,6 +162,13 @@ async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
         ACTION,
         date(2026, 9, 1),
         date(2026, 11, 15),
+    )
+    await connection.execute(
+        """
+        INSERT INTO charity_action_capability (action_id, capability)
+        VALUES ($1, 'invoicing')
+        """,
+        ACTION,
     )
 
 
@@ -275,6 +311,154 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         ),
         "negative Minor Units",
     )
+    await connection.execute(
+        """
+        INSERT INTO offering (
+            id, action_id, code, name, status, unit,
+            allowed_quantity_units, pieces_per_unit,
+            unit_price_minor, currency
+        )
+        VALUES (
+            '70000000-0000-4000-8000-000000000001', $1,
+            'krapfenbox-24', 'Krapfenbox', 'active', 'box',
+            ARRAY['box']::text[], 24, 3600, 'EUR'
+        )
+        """,
+        ACTION,
+    )
+    await connection.execute(
+        """
+        INSERT INTO commitment (
+            id, action_id, twenty_company_id, source, status,
+            customer_snapshot, invoice_recipient_snapshot,
+            currency, total_minor, idempotency_key
+        )
+        VALUES (
+            '80000000-0000-4000-8000-000000000001', $1, $2,
+            'acquisition', 'invoiced',
+            '{"partyKind":"company","twentyId":"40000000-0000-4000-8000-000000000001","displayName":"Musterwerk GmbH","email":null}'::jsonb,
+            '{"recipientName":"Musterwerk GmbH","streetLine1":"Werkstraße 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
+            'EUR', 7200, 'poc090:schema:commitment'
+        )
+        """,
+        ACTION,
+        COMPANY,
+    )
+    await connection.execute(
+        """
+        INSERT INTO commitment_line (
+            id, commitment_id, offering_id, description_snapshot,
+            quantity, unit_snapshot, pieces_per_unit_snapshot,
+            unit_price_minor, line_total_minor
+        )
+        VALUES (
+            '81000000-0000-4000-8000-000000000001',
+            '80000000-0000-4000-8000-000000000001',
+            '70000000-0000-4000-8000-000000000001',
+            'Krapfenbox', 2, 'box', 24, 3600, 7200
+        )
+        """
+    )
+    await connection.execute(
+        """
+        INSERT INTO invoice_profile (
+            id, action_id, legal_name, street_line_1, postal_code, city,
+            country_code, tax_identifier, email, tax_treatment,
+            tax_rate_basis_points, tax_note, number_prefix, next_number,
+            number_width, payment_terms_days, confirmed_at
+        )
+        VALUES (
+            '96000000-0000-4000-8000-000000000001', $1,
+            'Lions Hilfswerk LeonAid Golden e.V.', 'Clubweg 1', '86150',
+            'Augsburg', 'DE', '103/999/99999', 'finanzen@leonaid.invalid',
+            'small_business', 0,
+            'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+            'KT26-', 2, 4, 14, CURRENT_TIMESTAMP
+        )
+        """,
+        ACTION,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE invoice_profile
+            SET tax_rate_basis_points = 1900
+            WHERE action_id = $1
+            """,
+            ACTION,
+        ),
+        "Steuersatz trotz Kleinunternehmerregelung",
+    )
+    await connection.execute(
+        """
+        INSERT INTO invoice (
+            id, action_id, commitment_id, number, status, issued_at,
+            service_on, due_on, currency, net_minor, tax_minor,
+            gross_minor, issuer_snapshot, recipient_snapshot,
+            line_snapshot, tax_treatment, tax_rate_basis_points,
+            tax_note, payment_reference, approved_by_user_id,
+            document_version, idempotency_key
+        )
+        VALUES (
+            '90000000-0000-4000-8000-000000000001', $1,
+            '80000000-0000-4000-8000-000000000001', 'KT26-0001',
+            'issued', CURRENT_TIMESTAMP, '2026-11-15', '2026-11-29',
+            'EUR', 7200, 0, 7200,
+            '{"legalName":"Lions Hilfswerk LeonAid Golden e.V.","streetLine1":"Clubweg 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","taxIdentifier":"103/999/99999","email":"finanzen@leonaid.invalid"}'::jsonb,
+            '{"recipientName":"Musterwerk GmbH","streetLine1":"Werkstraße 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
+            '[{"description":"Krapfenbox","quantity":2,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":7200,"taxMinor":0,"grossMinor":7200,"currency":"EUR"}]'::jsonb,
+            'small_business', 0,
+            'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+            'KT26-0001', $2, 1, 'poc090:schema:invoice'
+        )
+        """,
+        ACTION,
+        USER_A,
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            UPDATE invoice
+            SET recipient_snapshot =
+                jsonb_set(recipient_snapshot::jsonb, '{streetLine1}', '"Neu 9"')
+            WHERE number = 'KT26-0001'
+            """
+        ),
+        "veränderter ausgestellter Rechnungssnapshot",
+    )
+    await expect_database_error(
+        lambda: connection.execute(
+            """
+            INSERT INTO invoice (
+                id, action_id, commitment_id, number, status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, payment_reference, approved_by_user_id,
+                document_version
+            )
+            SELECT
+                '90000000-0000-4000-8000-000000000002', action_id,
+                commitment_id, 'KT26-0002', status, issued_at,
+                service_on, due_on, currency, net_minor, tax_minor,
+                gross_minor, issuer_snapshot, recipient_snapshot,
+                line_snapshot, tax_treatment, tax_rate_basis_points,
+                tax_note, 'KT26-0002', approved_by_user_id,
+                document_version
+            FROM invoice
+            WHERE number = 'KT26-0001'
+            """
+        ),
+        "zweite Rechnung für dasselbe Commitment",
+    )
+    await connection.execute(
+        "UPDATE invoice SET status = 'cancelled' WHERE number = 'KT26-0001'"
+    )
+    preserved_number = await connection.fetchval(
+        "SELECT number FROM invoice WHERE status = 'cancelled'"
+    )
+    if preserved_number != "KT26-0001":
+        raise SchemaError("Storno hat die ausgestellte Rechnungsnummer ersetzt")
     await expect_database_error(
         lambda: connection.execute(
             """

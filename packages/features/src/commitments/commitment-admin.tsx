@@ -1,19 +1,24 @@
 import {
+  Calendar03Icon,
   Invoice03Icon,
   Package01Icon,
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import type {
   CommitmentRecordResponse,
   CommitmentResponse,
   CurrentIdentityResponse,
+  InvoiceContextResponse,
+  InvoiceResponse,
   LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { actionErrorMessage } from "../action-admin/errors";
 
 interface CommitmentAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -57,10 +62,218 @@ function lineLabel(commitment: CommitmentResponse) {
     .join(", ");
 }
 
-function CommitmentRow({
+function invoiceCommandKey(commitmentId: string) {
+  const storageKey = `leonaid.invoice-command.${commitmentId}`;
+  const existing = window.sessionStorage.getItem(storageKey);
+  if (existing) return existing;
+  const value = `poc090:${crypto.randomUUID()}`;
+  window.sessionStorage.setItem(storageKey, value);
+  return value;
+}
+
+function setInvoiceSelection(commitmentId?: string) {
+  const url = new URL(window.location.href);
+  if (commitmentId) {
+    url.searchParams.set("invoice", commitmentId);
+  } else {
+    url.searchParams.delete("invoice");
+  }
+  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+}
+
+function InvoiceReview({
+  context,
+  error,
+  issuing,
+  onCancel,
+  onIssue,
   record,
 }: {
+  readonly context: InvoiceContextResponse;
+  readonly error?: string;
+  readonly issuing: boolean;
+  readonly onCancel: () => void;
+  readonly onIssue: (serviceOn: string) => void;
   readonly record: CommitmentRecordResponse;
+}) {
+  const { commitment } = record;
+  const recipient = commitment.invoiceRecipient;
+  const profile = context.profile;
+  return (
+    <section
+      aria-labelledby={`invoice-review-${commitment.id}`}
+      className="commitment-invoice-review"
+      data-testid="invoice-review"
+    >
+      <header>
+        <div>
+          <p className="commitment-eyebrow">Verbindliche Freigabe</p>
+          <h2 id={`invoice-review-${commitment.id}`}>Rechnung prüfen</h2>
+          <p>
+            Kontrolliere die Angaben jetzt. Nach der Freigabe bleiben Empfänger,
+            Positionen, Preise und Rechtstexte unverändert gespeichert.
+          </p>
+        </div>
+        <strong className="commitment-invoice-review__number">
+          {profile?.nextInvoiceNumber ?? "Nummernkreis fehlt"}
+        </strong>
+      </header>
+
+      {!profile?.readyToIssue ? (
+        <StatusMessage tone="error">
+          <strong>Rechnungsprofil noch nicht freigegeben</strong>
+          <p>
+            Träger, Steuerfall und Nummernkreis müssen vor der ersten Rechnung
+            verbindlich bestätigt sein.
+          </p>
+        </StatusMessage>
+      ) : null}
+
+      <div className="commitment-invoice-review__facts">
+        <section>
+          <span>Rechnungsempfänger</span>
+          <strong>
+            {recipient?.recipientName ?? commitment.buyer.displayName}
+          </strong>
+          {recipient ? (
+            <address>
+              {recipient.streetLine1}
+              <br />
+              {recipient.postalCode} {recipient.city}
+              <br />
+              {recipient.countryCode}
+            </address>
+          ) : (
+            <small>Für diese Bestellung fehlt eine Rechnungsadresse.</small>
+          )}
+        </section>
+        <section>
+          <span>Rechnungssteller</span>
+          <strong>
+            {profile?.issuer.legalName ?? "Noch nicht hinterlegt"}
+          </strong>
+          {profile ? (
+            <address>
+              {profile.issuer.streetLine1}
+              <br />
+              {profile.issuer.postalCode} {profile.issuer.city}
+              <br />
+              {profile.issuer.taxIdentifier}
+            </address>
+          ) : null}
+        </section>
+      </div>
+
+      <div className="commitment-invoice-review__lines">
+        {commitment.lines.map((line) => (
+          <div key={line.id}>
+            <span>
+              {line.quantity} × {line.description}
+            </span>
+            <strong>{formatMoney(line.lineTotalMinor, line.currency)}</strong>
+          </div>
+        ))}
+        <div className="commitment-invoice-review__total">
+          <span>Rechnungsbetrag</span>
+          <strong>
+            {formatMoney(commitment.totalMinor, commitment.currency)}
+          </strong>
+        </div>
+      </div>
+
+      {profile ? (
+        <div className="commitment-invoice-review__legal">
+          <span>Steuerhinweis</span>
+          <p>{profile.taxNote}</p>
+        </div>
+      ) : null}
+
+      <form
+        className="commitment-invoice-review__approval"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const values = new FormData(event.currentTarget);
+          onIssue(String(values.get("serviceOn") ?? ""));
+        }}
+      >
+        <div className="commitment-field">
+          <label htmlFor={`invoice-service-on-${commitment.id}`}>
+            Leistungsdatum
+          </label>
+          <small id={`invoice-service-help-${commitment.id}`}>
+            Tag, an dem die Leistung für diese Charity-Aktion erbracht wurde.
+          </small>
+          <div className="commitment-invoice-review__date">
+            <HugeiconsIcon
+              aria-hidden="true"
+              icon={Calendar03Icon}
+              size={19}
+              strokeWidth={1.8}
+            />
+            <input
+              aria-describedby={`invoice-service-help-${commitment.id}`}
+              data-testid="invoice-service-on"
+              defaultValue={context.endsOn}
+              id={`invoice-service-on-${commitment.id}`}
+              max={context.endsOn}
+              min={context.startsOn}
+              name="serviceOn"
+              required
+              type="date"
+            />
+          </div>
+        </div>
+        <div className="commitment-invoice-review__warning">
+          <strong>Danach ist die Rechnung verbindlich.</strong>
+          <span>
+            Sie erhält dauerhaft die Nummer {profile?.nextInvoiceNumber ?? "–"}.
+            Änderungen erfolgen später nur über Storno oder Korrektur.
+          </span>
+        </div>
+        {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+        <div className="commitment-invoice-review__actions">
+          <Button disabled={issuing} onClick={onCancel} variant="ghost">
+            Prüfung schließen
+          </Button>
+          <Button
+            data-testid="issue-invoice"
+            disabled={issuing || !profile?.readyToIssue || !recipient}
+            icon={
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Invoice03Icon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            }
+            type="submit"
+          >
+            {issuing
+              ? "Rechnung wird freigegeben …"
+              : "Rechnung verbindlich freigeben"}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function CommitmentRow({
+  context,
+  error,
+  issuing,
+  onIssue,
+  onToggleReview,
+  record,
+  reviewOpen,
+}: {
+  readonly context?: InvoiceContextResponse;
+  readonly error?: string;
+  readonly issuing: boolean;
+  readonly onIssue: (serviceOn: string) => void;
+  readonly onToggleReview: () => void;
+  readonly record: CommitmentRecordResponse;
+  readonly reviewOpen: boolean;
 }) {
   const { commitment } = record;
   return (
@@ -104,6 +317,30 @@ function CommitmentRow({
       <strong className="commitment-ledger-row__amount">
         {formatMoney(commitment.totalMinor, commitment.currency)}
       </strong>
+      <div className="commitment-ledger-row__action">
+        {commitment.status === "review_ready" ? (
+          <Button
+            aria-expanded={reviewOpen}
+            data-testid="review-invoice"
+            onClick={onToggleReview}
+            variant={reviewOpen ? "ghost" : "secondary"}
+          >
+            {reviewOpen ? "Prüfung schließen" : "Rechnung prüfen"}
+          </Button>
+        ) : commitment.status === "invoiced" ? (
+          <a href="/admin/invoices">Rechnung ansehen</a>
+        ) : null}
+      </div>
+      {reviewOpen && context ? (
+        <InvoiceReview
+          context={context}
+          error={error}
+          issuing={issuing}
+          onCancel={onToggleReview}
+          onIssue={onIssue}
+          record={record}
+        />
+      ) : null}
     </article>
   );
 }
@@ -121,10 +358,52 @@ export function CommitmentAdminPage({
   );
   const [actionId, setActionId] = useState(memberships[0]?.actionId ?? "");
   const [filter, setFilter] = useState<CommitmentFilter>("all");
+  const [selectedCommitmentId, setSelectedCommitmentId] = useState(
+    () => new URLSearchParams(window.location.search).get("invoice") ?? "",
+  );
+  const [issueError, setIssueError] = useState<string>();
+  const [issued, setIssued] = useState<InvoiceResponse>();
   const commitments = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.listCommitments(actionId),
     queryKey: ["commitments", actionId],
+  });
+  const invoiceContext = useQuery({
+    enabled: Boolean(actionId),
+    queryFn: () => client.getInvoiceContext(actionId),
+    queryKey: ["invoice-context", actionId],
+  });
+  const issueInvoice = useMutation({
+    mutationFn: ({
+      commitmentId,
+      serviceOn,
+    }: {
+      commitmentId: string;
+      serviceOn: string;
+    }) =>
+      client.issueInvoice(
+        actionId,
+        commitmentId,
+        { serviceOn },
+        {
+          headers: {
+            "Idempotency-Key": invoiceCommandKey(commitmentId),
+          },
+        },
+      ),
+    onError(cause) {
+      setIssueError(actionErrorMessage(cause).message);
+    },
+    onSuccess(invoice) {
+      window.sessionStorage.removeItem(
+        `leonaid.invoice-command.${invoice.commitmentId}`,
+      );
+      setIssued(invoice);
+      setIssueError(undefined);
+      setSelectedCommitmentId("");
+      setInvoiceSelection();
+      void Promise.all([commitments.refetch(), invoiceContext.refetch()]);
+    },
   });
   const visible =
     commitments.data?.items.filter(
@@ -150,7 +429,13 @@ export function CommitmentAdminPage({
           <select
             data-testid="commitment-admin-action"
             id="commitment-admin-action"
-            onChange={(event) => setActionId(event.target.value)}
+            onChange={(event) => {
+              setActionId(event.target.value);
+              setSelectedCommitmentId("");
+              setInvoiceSelection();
+              setIssued(undefined);
+              setIssueError(undefined);
+            }}
             value={actionId}
           >
             {memberships.map((membership) => (
@@ -161,6 +446,17 @@ export function CommitmentAdminPage({
           </select>
         </div>
       </header>
+
+      {issued ? (
+        <StatusMessage tone="success">
+          <strong>Rechnung {issued.number} ist verbindlich freigegeben.</strong>
+          <p>
+            Der Beleg wurde mit unveränderlichen Empfänger-, Positions- und
+            Rechtstextdaten gespeichert.{" "}
+            <a href="/admin/invoices">Zur Rechnungsübersicht</a>
+          </p>
+        </StatusMessage>
+      ) : null}
 
       {commitments.isPending ? (
         <div
@@ -272,7 +568,39 @@ export function CommitmentAdminPage({
           {visible.length ? (
             <section aria-label="Bestellliste" className="commitment-ledger">
               {visible.map((record) => (
-                <CommitmentRow key={record.commitment.id} record={record} />
+                <CommitmentRow
+                  context={invoiceContext.data}
+                  error={
+                    selectedCommitmentId === record.commitment.id
+                      ? issueError
+                      : undefined
+                  }
+                  issuing={
+                    issueInvoice.isPending &&
+                    selectedCommitmentId === record.commitment.id
+                  }
+                  key={record.commitment.id}
+                  onIssue={(serviceOn) =>
+                    issueInvoice.mutate({
+                      commitmentId: record.commitment.id,
+                      serviceOn,
+                    })
+                  }
+                  onToggleReview={() => {
+                    const next =
+                      selectedCommitmentId === record.commitment.id
+                        ? ""
+                        : record.commitment.id;
+                    setSelectedCommitmentId(next);
+                    setInvoiceSelection(next || undefined);
+                    setIssueError(undefined);
+                  }}
+                  record={record}
+                  reviewOpen={
+                    selectedCommitmentId === record.commitment.id &&
+                    record.commitment.status === "review_ready"
+                  }
+                />
               ))}
             </section>
           ) : (
