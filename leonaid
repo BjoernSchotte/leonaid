@@ -53,6 +53,8 @@ Commands:
   test-feature-flags
                     Prove OpenFeature evaluation, admin controls and RBAC
   test-operations   Prove operational signals, safe logs and UI job retry
+  test-golden-journey
+                    Prove the complete cross-browser Krapfentaxi journey
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -249,7 +251,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/matching tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/matching tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
@@ -257,7 +259,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -265,7 +267,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox \
+    tools/feature_flags tools/golden_journey tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -478,6 +480,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/operations/test.sh" "$root"
+    /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
@@ -506,6 +509,7 @@ case "$command" in
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     /bin/sh "$root/tools/operations/test.sh" "$root"
+    /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     /bin/sh "$root/tools/ui_system/test.sh" "$root"
     /bin/sh "$root/tools/dashboard/test.sh" "$root"
     /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
@@ -547,6 +551,9 @@ case "$command" in
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
     ;;
   test-operations) /bin/sh "$root/tools/operations/test.sh" "$root" ;;
+  test-golden-journey)
+    /bin/sh "$root/tools/golden_journey/test.sh" "$root"
+    ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
   test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;

@@ -69,6 +69,7 @@ function PwaLifecycle() {
       void navigator.serviceWorker
         .register("/app/sw.js", { scope: "/app/" })
         .then((value) => {
+          if (!value) return;
           registration.current = value;
           if (value.waiting) setUpdateReady(true);
           value.addEventListener("updatefound", () => {
@@ -83,6 +84,9 @@ function PwaLifecycle() {
             });
           });
           void value.update();
+        })
+        .catch(() => {
+          registration.current = null;
         });
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (!reloading.current) {

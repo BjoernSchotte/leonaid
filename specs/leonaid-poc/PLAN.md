@@ -1470,29 +1470,32 @@ Nachweis:
 
 ## M12 – Krapfentaxi-Abnahme und Übergabe
 
-### [ ] POC-122 Vollständige Krapfentaxi-Golden-Journey abnehmen
+### [x] POC-122 Vollständige Krapfentaxi-Golden-Journey abnehmen
 
 Abhängigkeiten: alle Tasks POC-000 bis POC-114
 
 Akzeptanzkriterien:
 
-- [ ] Journey umfasst Einladung, Login, Sponsor, Assignment, Aktivität,
+- [x] Journey umfasst Einladung, Login, Sponsor, Assignment, Aktivität,
       interne und öffentliche Bestellung, Feed, Fresh Login, Rechnung, PDF,
       Versand, Zahlung und Dashboard.
-- [ ] Journey benötigt keine direkte Datenbankarbeit.
-- [ ] Alle Rollen- und Row-Level-Grenzen bleiben aktiv.
-- [ ] Reale Twenty-, PostgreSQL-, RustFS-, Mail- und Browserartefakte werden
+- [x] Journey benötigt keine direkte Datenbankarbeit.
+- [x] Alle Rollen- und Row-Level-Grenzen bleiben aktiv.
+- [x] Reale Twenty-, PostgreSQL-, RustFS-, Mail- und Browserartefakte werden
       gesammelt.
-- [ ] Wiederholung aus Golden Reset ist deterministisch.
+- [x] Wiederholung aus Golden Reset ist deterministisch.
 
 Tests/Nachweise:
 
-- [ ] E2E-Journey läuft in Chromium, Firefox und WebKit.
-- [ ] PDF-Bytes/-Inhalt, Mail-MIME, Twenty-Daten, DB-Summen und RustFS-Hash
+- [x] E2E-Journey läuft in Chromium, Firefox und WebKit.
+- [x] PDF-Bytes/-Inhalt, Mail-MIME, Twenty-Daten, DB-Summen und RustFS-Hash
       werden geprüft.
-- [ ] Zweiter Lauf erzeugt erwartete neue Fachvorgänge, aber keine technischen
+- [x] Zweiter Lauf erzeugt erwartete neue Fachvorgänge, aber keine technischen
       Duplikate.
-- [ ] Sämtliche Gates aus Kapitel 10.3 besitzen einen grünen Nachweislink.
+- [x] Sämtliche Gates aus Kapitel 10.3 besitzen einen grünen Nachweislink.
+
+Nachweis:
+[POC-122 – Vollständige Krapfentaxi-Golden-Journey](proofs/POC-122.md).
 
 ### [ ] POC-123 PoC-Abnahme, Runbooks und DX-Übergabe abschließen
 
