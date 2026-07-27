@@ -5,6 +5,8 @@ repo_root=${1:-/workspace}
 plan="$repo_root/specs/leonaid-poc/PLAN.md"
 requirements="$repo_root/specs/leonaid-poc/requirements.tsv"
 concept="$repo_root/specs/produkt-und-architekturvorschlag.md"
+proofs="$repo_root/specs/leonaid-poc/proofs"
+gate_proof="$proofs/POC-122.md"
 
 fail() {
   echo "traceability: ERROR: $*" >&2
@@ -16,12 +18,17 @@ fail() {
 [ -f "$concept" ] || fail "missing product concept: $concept"
 
 tasks_file=$(mktemp)
+completed_tasks=$(mktemp)
 requirements_tasks=$(mktemp)
 concept_gates=$(mktemp)
 mapped_gates=$(mktemp)
-trap 'rm -f "$tasks_file" "$requirements_tasks" "$concept_gates" "$mapped_gates"' EXIT
+proof_gates=$(mktemp)
+expected_tasks=$(mktemp)
+actual_tasks=$(mktemp)
+trap 'rm -f "$tasks_file" "$completed_tasks" "$requirements_tasks" "$concept_gates" "$mapped_gates" "$proof_gates" "$expected_tasks" "$actual_tasks"' EXIT
 
 sed -n 's/^### \[[ x]\] \(POC-[0-9][0-9][0-9]\) .*/\1/p' "$plan" > "$tasks_file"
+sed -n 's/^### \[x\] \(POC-[0-9][0-9][0-9]\) .*/\1/p' "$plan" > "$completed_tasks"
 
 [ -s "$tasks_file" ] || fail "no task IDs found in PLAN.md"
 
@@ -84,6 +91,37 @@ if ! diff -u "$concept_gates" "$mapped_gates" >/dev/null; then
   diff -u "$concept_gates" "$mapped_gates" >&2 || true
   exit 1
 fi
+
+[ -d "$proofs" ] || fail "missing proof directory: $proofs"
+while IFS= read -r completed_task; do
+  [ -f "$proofs/$completed_task.md" ] ||
+    fail "completed task has no proof document: $completed_task"
+done < "$completed_tasks"
+
+[ -f "$gate_proof" ] || fail "missing hard-gate proof: $gate_proof"
+sed -n 's/^| \(POC-GATE-[0-9][0-9][0-9]\) |.*/\1/p' "$gate_proof" |
+  sort > "$proof_gates"
+
+if ! diff -u "$mapped_gates" "$proof_gates" >/dev/null; then
+  echo "traceability: ERROR: hard-gate proof table and requirements.tsv differ" >&2
+  diff -u "$mapped_gates" "$proof_gates" >&2 || true
+  exit 1
+fi
+
+awk -F '\t' 'NR > 1 && $2 == "gate" { print $1 "\t" $4 }' "$requirements" |
+  while IFS="$(printf '\t')" read -r requirement_id mapped_tasks; do
+    proof_line=$(grep -F "| $requirement_id |" "$gate_proof")
+    printf '%s\n' "$mapped_tasks" | tr ',' '\n' | sort -u > "$expected_tasks"
+    printf '%s\n' "$proof_line" |
+      grep -o 'POC-[0-9][0-9][0-9]' |
+      sort -u > "$actual_tasks"
+
+    if ! diff -u "$expected_tasks" "$actual_tasks" >/dev/null; then
+      echo "traceability: ERROR: proof tasks differ for $requirement_id" >&2
+      diff -u "$expected_tasks" "$actual_tasks" >&2 || true
+      exit 1
+    fi
+  done
 
 gate_count=$(awk -F '\t' 'NR > 1 && $2 == "gate" { count++ } END { print count + 0 }' "$requirements")
 scope_count=$(awk -F '\t' 'NR > 1 && ($2 == "included" || $2 == "excluded") { count++ } END { print count + 0 }' "$requirements")

@@ -247,6 +247,9 @@ Tests/Nachweise:
       Requirement-IDs.
 - [x] Manueller Scope-Review mit Produktverantwortlichem ist protokolliert.
 
+Nachweis:
+[POC-000 – Scope-Baseline und Traceability](proofs/POC-000.md).
+
 ### [x] POC-001 Abhängigkeiten und Images exakt pinnen
 
 Abhängigkeiten: POC-000

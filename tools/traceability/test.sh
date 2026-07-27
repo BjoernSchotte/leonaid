@@ -30,7 +30,9 @@ run_fixture() {
 
 duplicate_fixture=$(mktemp -d)
 unknown_fixture=$(mktemp -d)
-trap 'rm -rf "$duplicate_fixture" "$unknown_fixture"' EXIT
+proof_fixture=$(mktemp -d)
+mapping_fixture=$(mktemp -d)
+trap 'rm -rf "$duplicate_fixture" "$unknown_fixture" "$proof_fixture" "$mapping_fixture"' EXIT
 
 mkdir -p "$duplicate_fixture/specs/leonaid-poc"
 cp "$source_root/specs/leonaid-poc/PLAN.md" "$duplicate_fixture/specs/leonaid-poc/PLAN.md"
@@ -47,4 +49,23 @@ sed 's/POC-052,POC-122/POC-052,POC-999/' \
   > "$unknown_fixture/specs/leonaid-poc/requirements.tsv"
 run_fixture "$unknown_fixture" "unknown task referenced by requirements.tsv: POC-999"
 
-echo "traceability-test: OK: positive, duplicate-ID and unknown-task cases passed"
+for fixture_root in "$proof_fixture" "$mapping_fixture"; do
+  mkdir -p "$fixture_root/specs/leonaid-poc"
+  cp "$source_root/specs/leonaid-poc/PLAN.md" "$fixture_root/specs/leonaid-poc/PLAN.md"
+  cp "$source_root/specs/leonaid-poc/requirements.tsv" "$fixture_root/specs/leonaid-poc/requirements.tsv"
+  cp "$source_root/specs/produkt-und-architekturvorschlag.md" "$fixture_root/specs/produkt-und-architekturvorschlag.md"
+  cp -R "$source_root/specs/leonaid-poc/proofs" "$fixture_root/specs/leonaid-poc/proofs"
+done
+
+sed -i.bak '/^| POC-GATE-023 |/d' \
+  "$proof_fixture/specs/leonaid-poc/proofs/POC-122.md"
+rm "$proof_fixture/specs/leonaid-poc/proofs/POC-122.md.bak"
+run_fixture "$proof_fixture" "hard-gate proof table and requirements.tsv differ"
+
+sed -i.bak \
+  's/| POC-GATE-014 | POC-092 |/| POC-GATE-014 | POC-094 |/' \
+  "$mapping_fixture/specs/leonaid-poc/proofs/POC-122.md"
+rm "$mapping_fixture/specs/leonaid-poc/proofs/POC-122.md.bak"
+run_fixture "$mapping_fixture" "proof tasks differ for POC-GATE-014"
+
+echo "traceability-test: OK: positive and four traceability-drift cases passed"
