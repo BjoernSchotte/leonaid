@@ -1376,6 +1376,22 @@
         "title": "BeneficiaryResponse",
         "type": "object"
       },
+      "CancelInvoiceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CancelInvoiceRequest",
+        "type": "object"
+      },
       "CharityActionConfigurationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3254,6 +3270,77 @@
         "title": "InviteableActionResponse",
         "type": "object"
       },
+      "InvoiceCancellationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoiceId": {
+            "format": "uuid",
+            "title": "Invoiceid",
+            "type": "string"
+          },
+          "originalStatus": {
+            "enum": [
+              "issued",
+              "sent",
+              "paid"
+            ],
+            "title": "Originalstatus",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "requestedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestedbydisplayname"
+          },
+          "requestedByUserId": {
+            "format": "uuid",
+            "title": "Requestedbyuserid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "invoiceId",
+          "originalStatus",
+          "reason",
+          "requestedByUserId",
+          "requestedByDisplayName",
+          "requestedAt",
+          "replayed"
+        ],
+        "title": "InvoiceCancellationResponse",
+        "type": "object"
+      },
       "InvoiceContextResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3273,6 +3360,10 @@
           },
           "mayIssue": {
             "title": "Mayissue",
+            "type": "boolean"
+          },
+          "mayManageSettlements": {
+            "title": "Maymanagesettlements",
             "type": "boolean"
           },
           "profile": {
@@ -3297,7 +3388,8 @@
           "startsOn",
           "endsOn",
           "profile",
-          "mayIssue"
+          "mayIssue",
+          "mayManageSettlements"
         ],
         "title": "InvoiceContextResponse",
         "type": "object"
@@ -3313,11 +3405,17 @@
             "minimum": 0.0,
             "title": "Grossminor",
             "type": "integer"
+          },
+          "openMinor": {
+            "minimum": 0.0,
+            "title": "Openminor",
+            "type": "integer"
           }
         },
         "required": [
           "currency",
-          "grossMinor"
+          "grossMinor",
+          "openMinor"
         ],
         "title": "InvoiceCurrencyTotalResponse",
         "type": "object"
@@ -3585,6 +3683,84 @@
         "title": "InvoiceListResponse",
         "type": "object"
       },
+      "InvoicePaymentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "amountMinor": {
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoiceId": {
+            "format": "uuid",
+            "title": "Invoiceid",
+            "type": "string"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "recordedByDisplayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordedbydisplayname"
+          },
+          "recordedByUserId": {
+            "format": "uuid",
+            "title": "Recordedbyuserid",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "actionId",
+          "invoiceId",
+          "amountMinor",
+          "currency",
+          "receivedOn",
+          "reference",
+          "recordedByUserId",
+          "recordedByDisplayName",
+          "recordedAt",
+          "replayed"
+        ],
+        "title": "InvoicePaymentResponse",
+        "type": "object"
+      },
       "InvoiceProfileResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3657,6 +3833,16 @@
             "title": "Buyerdisplayname",
             "type": "string"
           },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvoiceCancellationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "deliveries": {
             "items": {
               "$ref": "#/components/schemas/InvoiceDeliveryResponse"
@@ -3666,11 +3852,29 @@
           },
           "invoice": {
             "$ref": "#/components/schemas/InvoiceResponse"
+          },
+          "openMinor": {
+            "minimum": 0.0,
+            "title": "Openminor",
+            "type": "integer"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvoicePaymentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "invoice",
           "buyerDisplayName",
+          "openMinor",
+          "payment",
+          "cancellation",
           "deliveries"
         ],
         "title": "InvoiceRecordResponse",
@@ -4666,6 +4870,40 @@
           "activity"
         ],
         "title": "RecordAcquisitionActivityResponse",
+        "type": "object"
+      },
+      "RecordInvoicePaymentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "minimum": 1.0,
+            "title": "Amountminor",
+            "type": "integer"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "receivedOn": {
+            "format": "date",
+            "title": "Receivedon",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amountMinor",
+          "currency",
+          "receivedOn",
+          "reference"
+        ],
+        "title": "RecordInvoicePaymentRequest",
         "type": "object"
       },
       "RecordedAcquisitionActivityResponse": {
@@ -9415,6 +9653,129 @@
         ]
       }
     },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation": {
+      "post": {
+        "operationId": "cancelInvoice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCancellationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Cancel Invoice",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
     "/api/v1/actions/{action_id}/invoices/{invoice_id}/deliveries": {
       "post": {
         "operationId": "sendInvoice",
@@ -9751,6 +10112,129 @@
         "summary": "List Invoice Documents",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/payments": {
+      "post": {
+        "operationId": "recordInvoicePayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordInvoicePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePaymentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Record Invoice Payment",
+        "tags": [
+          "invoices"
         ]
       }
     },

@@ -79,12 +79,7 @@
       "actualAmountCents": 90000,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": [
-        "acquisition",
-        "offerings",
-        "ordering",
-        "invoicing"
-      ],
+      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
       "publicAlias": "krapfentaxi",
       "publicationStartsAt": "2026-07-01T00:00:00+02:00",
       "publicationEndsAt": "2026-11-16T00:00:00+01:00",
@@ -101,12 +96,7 @@
       "actualAmountCents": 0,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": [
-        "acquisition",
-        "offerings",
-        "ordering",
-        "invoicing"
-      ],
+      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
       "publicAlias": null,
       "publicationStartsAt": null,
       "publicationEndsAt": null,
@@ -123,12 +113,7 @@
       "actualAmountCents": 0,
       "goalUnit": "EUR",
       "currency": "EUR",
-      "capabilities": [
-        "acquisition",
-        "offerings",
-        "ordering",
-        "invoicing"
-      ],
+      "capabilities": ["acquisition", "offerings", "ordering", "invoicing"],
       "publicAlias": null,
       "publicationStartsAt": null,
       "publicationEndsAt": null,
@@ -336,9 +321,7 @@
       "name": "Krapfenbox",
       "active": true,
       "unit": "BOX",
-      "allowedQuantityUnits": [
-        "BOX"
-      ],
+      "allowedQuantityUnits": ["BOX"],
       "piecesPerUnit": 24,
       "unitPriceCents": 3600,
       "currency": "EUR",
@@ -352,9 +335,7 @@
       "name": "Kleine Krapfenbox",
       "active": false,
       "unit": "BOX",
-      "allowedQuantityUnits": [
-        "BOX"
-      ],
+      "allowedQuantityUnits": ["BOX"],
       "piecesPerUnit": 12,
       "unitPriceCents": 1800,
       "currency": "EUR",
@@ -513,6 +494,14 @@
       "status": "PAID",
       "amountCents": 14400,
       "currency": "EUR",
+      "payment": {
+        "id": "97000000-0000-4000-8000-000000000001",
+        "amountCents": 14400,
+        "receivedOn": "2026-07-10",
+        "reference": "KT26-0002",
+        "recordedByUserId": "10000000-0000-4000-8000-000000000007",
+        "recordedAt": "2026-07-10T09:15:00+02:00"
+      },
       "addressSnapshot": {
         "recipient": "Musterwerk GmbH",
         "street": "Beispielallee 1",
@@ -528,6 +517,13 @@
       "status": "CANCELLED",
       "amountCents": 3600,
       "currency": "EUR",
+      "cancellation": {
+        "id": "98000000-0000-4000-8000-000000000001",
+        "originalStatus": "OPEN",
+        "reason": "Bestellung wurde vor Auslieferung vollständig zurückgenommen.",
+        "requestedByUserId": "10000000-0000-4000-8000-000000000002",
+        "requestedAt": "2026-07-02T11:30:00+02:00"
+      },
       "addressSnapshot": {
         "recipient": "Bäckerei Sonnenseite KG",
         "street": "Sonnenstraße 2",
@@ -587,12 +583,8 @@
         "name": "Baeckerei  Sonnenseite K.G."
       },
       "normalizedKey": "baeckerei sonnenseite kg",
-      "expectedCompanyIds": [
-        "40000000-0000-4000-8000-000000000002"
-      ],
-      "warningAcquirerIds": [
-        "10000000-0000-4000-8000-000000000005"
-      ]
+      "expectedCompanyIds": ["40000000-0000-4000-8000-000000000002"],
+      "warningAcquirerIds": ["10000000-0000-4000-8000-000000000005"]
     },
     {
       "id": "b0000000-0000-4000-8000-000000000002",

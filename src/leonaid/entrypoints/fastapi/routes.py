@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from urllib.parse import quote
 from uuid import UUID
 
@@ -47,6 +47,7 @@ from leonaid.application.invoice_deliveries import (
     InvoiceDelivery,
     InvoiceDeliveryService,
 )
+from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import (
     InvoiceContext,
     InvoiceList,
@@ -115,6 +116,10 @@ from leonaid.domain.commitments import (
 )
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.invoices import Invoice, InvoiceProfile
+from leonaid.domain.invoice_settlements import (
+    InvoiceCancellation,
+    PaymentRecord,
+)
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
@@ -181,14 +186,17 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvitationOptionsResponse,
     InvitationRevocationResponse,
     InvoiceContextResponse,
+    InvoiceCancellationResponse,
     InvoiceCurrencyTotalResponse,
     InvoiceDeliveryResponse,
     InvoiceIssuerResponse,
     InvoiceLineResponse,
     InvoiceListResponse,
+    InvoicePaymentResponse,
     InvoiceProfileResponse,
     InvoiceRecordResponse,
     InvoiceResponse,
+    CancelInvoiceRequest,
     IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
@@ -202,6 +210,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PublicOrderResultResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
+    RecordInvoicePaymentRequest,
     RecordAcquisitionActivityResponse,
     RecordedAcquisitionActivityResponse,
     RequestLoginRequest,
@@ -322,6 +331,13 @@ def invoice_delivery_service(request: Request) -> InvoiceDeliveryService:
     return cast(
         InvoiceDeliveryService,
         request.app.state.invoice_delivery_service,
+    )
+
+
+def invoice_settlement_service(request: Request) -> InvoiceSettlementService:
+    return cast(
+        InvoiceSettlementService,
+        request.app.state.invoice_settlement_service,
     )
 
 
@@ -949,6 +965,7 @@ def invoice_context_response(context: InvoiceContext) -> InvoiceContextResponse:
             else None
         ),
         may_issue=context.may_issue,
+        may_manage_settlements=context.may_manage_settlements,
     )
 
 
@@ -956,6 +973,17 @@ def invoice_record_response(record: InvoiceRecord) -> InvoiceRecordResponse:
     return InvoiceRecordResponse(
         invoice=invoice_response(record.invoice),
         buyer_display_name=record.buyer_display_name,
+        open_minor=record.open_amount.amount_minor,
+        payment=(
+            invoice_payment_response(record.payment)
+            if record.payment is not None
+            else None
+        ),
+        cancellation=(
+            invoice_cancellation_response(record.cancellation)
+            if record.cancellation is not None
+            else None
+        ),
         deliveries=[
             invoice_delivery_response(delivery) for delivery in record.deliveries
         ],
@@ -983,6 +1011,41 @@ def invoice_delivery_response(
     )
 
 
+def invoice_payment_response(payment: PaymentRecord) -> InvoicePaymentResponse:
+    return InvoicePaymentResponse(
+        id=payment.id,
+        action_id=payment.action_id,
+        invoice_id=payment.invoice_id,
+        amount_minor=payment.amount.amount_minor,
+        currency=payment.amount.currency,
+        received_on=payment.received_on,
+        reference=payment.reference,
+        recorded_by_user_id=payment.recorded_by_user_id,
+        recorded_by_display_name=payment.recorded_by_display_name,
+        recorded_at=payment.recorded_at,
+        replayed=payment.replayed,
+    )
+
+
+def invoice_cancellation_response(
+    cancellation: InvoiceCancellation,
+) -> InvoiceCancellationResponse:
+    return InvoiceCancellationResponse(
+        id=cancellation.id,
+        action_id=cancellation.action_id,
+        invoice_id=cancellation.invoice_id,
+        original_status=cast(
+            Literal["issued", "sent", "paid"],
+            cancellation.original_status.value,
+        ),
+        reason=cancellation.reason,
+        requested_by_user_id=cancellation.requested_by_user_id,
+        requested_by_display_name=cancellation.requested_by_display_name,
+        requested_at=cancellation.requested_at,
+        replayed=cancellation.replayed,
+    )
+
+
 def invoice_list_response(value: InvoiceList) -> InvoiceListResponse:
     return InvoiceListResponse(
         action_id=value.action_id,
@@ -990,7 +1053,8 @@ def invoice_list_response(value: InvoiceList) -> InvoiceListResponse:
         currency_totals=[
             InvoiceCurrencyTotalResponse(
                 currency=item.currency,
-                gross_minor=item.total.amount_minor,
+                gross_minor=item.gross_total.amount_minor,
+                open_minor=item.open_total.amount_minor,
             )
             for item in value.currency_totals
         ],
@@ -1839,6 +1903,71 @@ async def issue_invoice(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Location"] = f"/api/v1/actions/{action_id}/invoices/{invoice.id}"
     return invoice_response(invoice)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/payments",
+    operation_id="recordInvoicePayment",
+    response_model=InvoicePaymentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def record_invoice_payment(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    body: RecordInvoicePaymentRequest,
+    response: Response,
+) -> InvoicePaymentResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    payment = await invoice_settlement_service(request).record_payment(
+        actor,
+        action_id,
+        invoice_id,
+        amount_minor=body.amount_minor,
+        currency=body.currency,
+        received_on=body.received_on,
+        reference=body.reference,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/payments/{payment.id}"
+    )
+    return invoice_payment_response(payment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation",
+    operation_id="cancelInvoice",
+    response_model=InvoiceCancellationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_201_CREATED,
+    tags=["invoices"],
+)
+async def cancel_invoice(
+    action_id: UUID,
+    invoice_id: UUID,
+    request: Request,
+    body: CancelInvoiceRequest,
+    response: Response,
+) -> InvoiceCancellationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    cancellation = await invoice_settlement_service(request).cancel(
+        actor,
+        action_id,
+        invoice_id,
+        reason=body.reason,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Location"] = (
+        f"/api/v1/actions/{action_id}/invoices/{invoice_id}/cancellation"
+    )
+    return invoice_cancellation_response(cancellation)
 
 
 @router.post(

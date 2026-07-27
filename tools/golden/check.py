@@ -412,6 +412,7 @@ def main() -> int:
 
     invoice_statuses: Counter[str] = Counter()
     invoice_numbers: set[str] = set()
+    open_invoice_amount = 0
     for invoice in invoices.values():
         commitment_id = invoice.get("commitmentId")
         problems.require(commitment_id in commitments, "invoice: unknown commitment")
@@ -438,10 +439,45 @@ def main() -> int:
             ),
             f"invoice: incomplete address snapshot for {invoice['id']}",
         )
+        payment = invoice.get("payment")
+        cancellation = invoice.get("cancellation")
+        if invoice.get("status") == "PAID":
+            problems.require(
+                isinstance(payment, dict)
+                and payment.get("amountCents") == invoice.get("amountCents")
+                and payment.get("recordedByUserId") in users
+                and bool(payment.get("receivedOn"))
+                and bool(payment.get("reference"))
+                and bool(payment.get("recordedAt")),
+                f"invoice: incomplete full payment for {invoice['id']}",
+            )
+            problems.require(
+                cancellation is None,
+                f"invoice: paid Golden invoice unexpectedly cancelled {invoice['id']}",
+            )
+        elif invoice.get("status") == "CANCELLED":
+            problems.require(
+                isinstance(cancellation, dict)
+                and cancellation.get("originalStatus") in {"OPEN", "PAID"}
+                and cancellation.get("requestedByUserId") in users
+                and len(str(cancellation.get("reason", "")).strip()) >= 8
+                and bool(cancellation.get("requestedAt")),
+                f"invoice: incomplete cancellation for {invoice['id']}",
+            )
+        else:
+            problems.require(
+                payment is None and cancellation is None,
+                f"invoice: open Golden invoice has settlement for {invoice['id']}",
+            )
+            open_invoice_amount += int(invoice.get("amountCents", 0))
         invoice_statuses[str(invoice.get("status"))] += 1
     problems.require(
         dict(invoice_statuses) == expected.get("invoiceStatusCounts"),
         "invoice status counts differ",
+    )
+    problems.require(
+        open_invoice_amount == expected.get("openInvoiceAmountCents"),
+        "open invoice amount differs",
     )
 
     feed: dict[str, list[str]] = {

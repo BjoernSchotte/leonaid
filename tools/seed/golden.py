@@ -883,9 +883,34 @@ async def seed_operational_golden(
         scoped_invoice_ids,
     )
     scoped_document_ids = [row["id"] for row in document_ids]
+    delivery_outbox_ids = await connection.fetch(
+        """
+        SELECT outbox_event_id
+        FROM invoice_delivery
+        WHERE invoice_id = ANY($1::uuid[])
+        """,
+        scoped_invoice_ids,
+    )
+    scoped_delivery_outbox_ids = [row["outbox_event_id"] for row in delivery_outbox_ids]
 
     await connection.execute(
+        "DELETE FROM mail_delivery WHERE outbox_event_id = ANY($1::uuid[])",
+        scoped_delivery_outbox_ids,
+    )
+    await connection.execute(
+        "DELETE FROM invoice_delivery WHERE invoice_id = ANY($1::uuid[])",
+        scoped_invoice_ids,
+    )
+    await connection.execute(
+        "DELETE FROM outbox_event WHERE id = ANY($1::uuid[])",
+        scoped_delivery_outbox_ids,
+    )
+    await connection.execute(
         "DELETE FROM payment_record WHERE invoice_id = ANY($1::uuid[])",
+        scoped_invoice_ids,
+    )
+    await connection.execute(
+        "DELETE FROM invoice_cancellation WHERE invoice_id = ANY($1::uuid[])",
         scoped_invoice_ids,
     )
     await connection.execute(
@@ -1362,6 +1387,45 @@ async def seed_operational_golden(
             profile["taxNote"],
             "10000000-0000-4000-8000-000000000002",
         )
+        payment = invoice.get("payment")
+        if isinstance(payment, dict):
+            await connection.execute(
+                """
+                INSERT INTO payment_record (
+                    id, invoice_id, amount_minor, currency, received_on,
+                    recorded_by_user_id, reference, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                """,
+                payment["id"],
+                invoice["id"],
+                payment["amountCents"],
+                invoice["currency"],
+                date.fromisoformat(str(payment["receivedOn"])),
+                payment["recordedByUserId"],
+                payment["reference"],
+                datetime.fromisoformat(str(payment["recordedAt"])),
+            )
+        cancellation = invoice.get("cancellation")
+        if isinstance(cancellation, dict):
+            await connection.execute(
+                """
+                INSERT INTO invoice_cancellation (
+                    id, action_id, invoice_id, original_status,
+                    reason_snapshot, requested_by_user_id, idempotency_key,
+                    requested_at, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+                """,
+                cancellation["id"],
+                commitment["actionId"],
+                invoice["id"],
+                invoice_status[str(cancellation["originalStatus"])],
+                cancellation["reason"],
+                cancellation["requestedByUserId"],
+                f"golden:cancellation:{invoice['id']}",
+                datetime.fromisoformat(str(cancellation["requestedAt"])),
+            )
 
     document_by_invoice = {str(item["invoiceId"]): item for item in documents}
     for invoice in dataset["invoices"]:

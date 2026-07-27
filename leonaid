@@ -48,6 +48,8 @@ Commands:
   test-documents    Prove contextual PDF discovery, download and document RBAC
   test-invoice-delivery
                     Prove durable SMTP delivery of the immutable invoice PDF
+  test-invoice-settlements
+                    Prove exact full payment, cancellation and immutable PDFs
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -233,14 +235,14 @@ check_all() {
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/documents \
     tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/openapi tools/outbox \
+    tools/dx tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/matching tools/policy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/documents tools/matching \
     tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/openapi tools/outbox \
+    tools/dx tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/policy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -248,7 +250,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/documents \
     tools/commitments \
     tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/matching tools/openapi tools/outbox \
+    tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/outbox \
     tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python uv run --frozen --no-sync \
@@ -457,6 +459,7 @@ case "$command" in
     /bin/sh "$root/tools/storage/test.sh" "$root"
     /bin/sh "$root/tools/documents/test.sh" "$root"
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
+    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-e2e)
@@ -475,6 +478,7 @@ case "$command" in
     /bin/sh "$root/tools/invoices/test.sh" "$root"
     /bin/sh "$root/tools/documents/test.sh" "$root"
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
+    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/testkit/test.sh" "$root"
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
@@ -501,6 +505,9 @@ case "$command" in
   test-documents) /bin/sh "$root/tools/documents/test.sh" "$root" ;;
   test-invoice-delivery)
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
+    ;;
+  test-invoice-settlements)
+    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     ;;
   generate-api-client)
     require_docker

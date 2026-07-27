@@ -54,6 +54,8 @@ Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
 
 ## Dokumente
 
+- [Personas und Rollen](PERSONAS.md) — zentrale, bei Rollen-, Rechte- und
+  UX-Änderungen verbindlich mitzuführende Produktreferenz.
 - [Produkt- und Architekturvorschlag](specs/produkt-und-architekturvorschlag.md) —
   neues Zielbild mit PoC-Schnitt, Systemgrenzen, Compose-Profilen und Capability-Landkarte.
 - [Architektur & Design](specs/architektur.md) — bisheriger, engerer Entwurf für
@@ -65,16 +67,16 @@ Der kanonische HTTP-Vertrag und der gemeinsame TypeScript-Client werden mit
 
 ## Eckdaten der Lösung (Kurzfassung)
 
-| | |
-|---|---|
-| **Backend** | [Twenty CRM](https://github.com/twentyhq/twenty) (Open Source, AGPL-3.0), self-hosted |
-| **Operatives Frontend** | React/TypeScript-PWA, shadcn/ui, freie Hugeicons; gemeinsame App Shell |
-| **LeonAid Core** | Python 3.13, FastAPI, frameworkfreie Application Services und transaktionaler Outbox-Worker |
-| **ERP-light** | Bestellungen, Ausgangsrechnungen, Typst-PDF und manueller Zahlungsstatus |
-| **Public Web** | Astro 7 als Teil des Core; zeitlich begrenzte Aktionsseiten und aktionsbezogene Standardformulare |
-| **Kommunikation** | externer Mail-Relay; optionales listmonk-Compose-Profil |
-| **Hosting** | Hetzner (EU → DSGVO-sauber), Docker Compose, TLS via Caddy |
-| **Team** | 2 Personen (Infra/Backend + Frontend/UX) |
+|                         |                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| **Backend**             | [Twenty CRM](https://github.com/twentyhq/twenty) (Open Source, AGPL-3.0), self-hosted             |
+| **Operatives Frontend** | React/TypeScript-PWA, shadcn/ui, freie Hugeicons; gemeinsame App Shell                            |
+| **LeonAid Core**        | Python 3.13, FastAPI, frameworkfreie Application Services und transaktionaler Outbox-Worker       |
+| **ERP-light**           | Bestellungen, Ausgangsrechnungen, Typst-PDF und manueller Zahlungsstatus                          |
+| **Public Web**          | Astro 7 als Teil des Core; zeitlich begrenzte Aktionsseiten und aktionsbezogene Standardformulare |
+| **Kommunikation**       | externer Mail-Relay; optionales listmonk-Compose-Profil                                           |
+| **Hosting**             | Hetzner (EU → DSGVO-sauber), Docker Compose, TLS via Caddy                                        |
+| **Team**                | 2 Personen (Infra/Backend + Frontend/UX)                                                          |
 
 ## Warum nicht Twenty direkt am Handy?
 

@@ -12,10 +12,15 @@ from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied
 from leonaid.application.invoice_deliveries import InvoiceDelivery
+from leonaid.application.invoice_settlements import may_manage_invoice_settlements
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.commitments import Money
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, GlobalRole, IdentityPrincipal
+from leonaid.domain.invoice_settlements import (
+    InvoiceCancellation,
+    PaymentRecord,
+)
 from leonaid.domain.invoices import Invoice, InvoiceProfile
 from leonaid.domain.policies import may_manage_action
 
@@ -30,19 +35,24 @@ class InvoiceContext:
     ends_on: date
     profile: InvoiceProfile | None
     may_issue: bool
+    may_manage_settlements: bool
 
 
 @dataclass(frozen=True, slots=True)
 class InvoiceRecord:
     invoice: Invoice
     buyer_display_name: str
+    open_amount: Money
+    payment: PaymentRecord | None = None
+    cancellation: InvoiceCancellation | None = None
     deliveries: tuple[InvoiceDelivery, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class InvoiceCurrencyTotal:
     currency: str
-    total: Money
+    gross_total: Money
+    open_total: Money
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +127,7 @@ class InvoiceService:
             ends_on=context.ends_on,
             profile=context.profile,
             may_issue=may_manage_action(actor, action_id),
+            may_manage_settlements=may_manage_invoice_settlements(actor, action_id),
         )
 
     async def list_for_action(
@@ -126,19 +137,28 @@ class InvoiceService:
     ) -> InvoiceList:
         self._require_read(actor, action_id)
         records = await self._repository.list_for_action(action_id=action_id)
-        totals: dict[str, Money] = {}
+        gross_totals: dict[str, Money] = {}
+        open_totals: dict[str, Money] = {}
         for record in records:
             total = record.invoice.gross
-            totals[total.currency] = totals.get(
+            gross_totals[total.currency] = gross_totals.get(
                 total.currency,
                 Money(0, total.currency),
             ).plus(total)
+            open_totals[total.currency] = open_totals.get(
+                total.currency,
+                Money(0, total.currency),
+            ).plus(record.open_amount)
         return InvoiceList(
             action_id=action_id,
             records=records,
             currency_totals=tuple(
-                InvoiceCurrencyTotal(currency=currency, total=totals[currency])
-                for currency in sorted(totals)
+                InvoiceCurrencyTotal(
+                    currency=currency,
+                    gross_total=gross_totals[currency],
+                    open_total=open_totals[currency],
+                )
+                for currency in sorted(gross_totals)
             ),
         )
 

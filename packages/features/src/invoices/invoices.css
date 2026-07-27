@@ -658,6 +658,311 @@
   background: color-mix(in oklch, var(--danger) 8%, var(--surface));
 }
 
+.invoice-settlement {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  gap: 0.85rem;
+  padding-block: 0.2rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-settlement__header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem 0.85rem;
+}
+
+.invoice-settlement__mark {
+  display: inline-grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border: 1px solid
+    color-mix(in oklch, var(--accent-foreground) 18%, var(--border));
+  border-radius: var(--radius-md);
+  color: var(--accent-foreground);
+  background: color-mix(in oklch, var(--accent) 35%, var(--surface));
+}
+
+.invoice-settlement[data-state="paid"] .invoice-settlement__mark {
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.invoice-settlement[data-state="cancelled"] .invoice-settlement__mark {
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 9%, var(--surface));
+}
+
+.invoice-settlement__header > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.invoice-settlement__header small,
+.invoice-settlement__cancellation > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 720;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.invoice-settlement__header strong {
+  color: var(--foreground);
+  font-size: 0.86rem;
+}
+
+.invoice-settlement__header p,
+.invoice-settlement__cancellation p {
+  max-width: 50rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.5;
+}
+
+.invoice-settlement__status {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 1.7rem;
+  grid-column: 2;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.52rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--warning-text, var(--foreground));
+  background: color-mix(
+    in oklch,
+    var(--warning, var(--accent)) 10%,
+    var(--surface)
+  );
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.invoice-settlement__status::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.invoice-settlement__status[data-status="paid"] {
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.invoice-settlement__status[data-status="cancelled"] {
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 9%, var(--surface));
+}
+
+.invoice-settlement__facts {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 !important;
+  margin: 0;
+  border-block: 1px solid var(--border);
+}
+
+.invoice-settlement__facts > div {
+  display: grid !important;
+  align-content: start;
+  gap: 0.12rem !important;
+  padding: 0.65rem 0.45rem !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.invoice-settlement__facts dt {
+  color: var(--muted) !important;
+  font-size: 0.66rem !important;
+}
+
+.invoice-settlement__facts dd {
+  overflow-wrap: anywhere;
+  color: var(--foreground) !important;
+  font-size: 0.74rem !important;
+  font-weight: 720 !important;
+  text-align: left !important;
+}
+
+.invoice-settlement__cancellation {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.8rem;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--danger) 7%, var(--surface));
+}
+
+.invoice-settlement__cancellation strong {
+  color: var(--foreground);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.invoice-settlement > .ui-button {
+  min-height: 2.75rem;
+  justify-self: start;
+}
+
+.invoice-settlement__form {
+  display: grid;
+  gap: 0.85rem;
+  padding: clamp(0.85rem, 2vw, 1.1rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.invoice-settlement__form--danger {
+  border-color: color-mix(in oklch, var(--danger) 28%, var(--border));
+  background: color-mix(in oklch, var(--danger) 4%, var(--surface));
+}
+
+.invoice-settlement__form-intro {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.invoice-settlement__form-intro strong {
+  color: var(--foreground);
+  font-size: 0.84rem;
+}
+
+.invoice-settlement__form-intro p {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.5;
+}
+
+.invoice-settlement__form label {
+  display: grid;
+  align-content: start;
+  gap: 0.34rem;
+}
+
+.invoice-settlement__form label > span:first-child {
+  color: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.invoice-settlement__form input:not([type="checkbox"]),
+.invoice-settlement__form textarea {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.72rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  background: var(--background);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.invoice-settlement__form textarea {
+  min-height: 5.5rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.invoice-settlement__form input:focus,
+.invoice-settlement__form textarea:focus {
+  border-color: var(--focus);
+  outline: 3px solid color-mix(in oklch, var(--focus) 30%, transparent);
+}
+
+.invoice-settlement__form label > small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.invoice-settlement__input-with-icon {
+  position: relative;
+  display: grid;
+}
+
+.invoice-settlement__input-with-icon > svg {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0.72rem;
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.invoice-settlement__input-with-icon > input {
+  padding-left: 2.2rem !important;
+}
+
+.invoice-settlement__validation,
+.invoice-settlement__error {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger-text);
+  background: color-mix(in oklch, var(--danger) 8%, var(--surface));
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.invoice-settlement__confirmation {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start !important;
+  gap: 0.6rem !important;
+  padding: 0.7rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--danger) 7%, var(--surface));
+  cursor: pointer;
+}
+
+.invoice-settlement__confirmation input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.08rem 0 0;
+  accent-color: var(--danger-text);
+}
+
+.invoice-settlement__confirmation span {
+  color: var(--foreground);
+  font-size: 0.72rem !important;
+  font-weight: 620 !important;
+  line-height: 1.45;
+}
+
+.invoice-settlement__form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.invoice-settlement__form-actions .ui-button {
+  min-height: 2.75rem;
+  justify-content: center;
+}
+
+.invoice-settlement__form--danger
+  .invoice-settlement__form-actions
+  .ui-button--primary {
+  border-color: var(--danger-text);
+  color: var(--background);
+  background: var(--danger-text);
+}
+
 .invoice-document__error {
   grid-column: 1 / -1;
   margin: 0;
@@ -759,7 +1064,7 @@
   }
 
   .invoice-totals {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .invoice-totals > div {
@@ -804,7 +1109,8 @@
   .invoice-ledger-row__lines,
   .invoice-ledger-row__tax-note,
   .invoice-document,
-  .invoice-delivery {
+  .invoice-delivery,
+  .invoice-settlement {
     grid-column: 1 / -1;
   }
 
@@ -847,6 +1153,44 @@
   .invoice-delivery__confirm {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+  }
+
+  .invoice-settlement__header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .invoice-settlement__status {
+    grid-column: 3;
+  }
+
+  .invoice-settlement__facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .invoice-settlement__facts > div {
+    border-right: 1px solid var(--border);
+    border-bottom: 0 !important;
+  }
+
+  .invoice-settlement__facts > div:last-child {
+    border-right: 0;
+  }
+
+  .invoice-settlement__form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .invoice-settlement__form-intro,
+  .invoice-settlement__form-wide,
+  .invoice-settlement__confirmation,
+  .invoice-settlement__validation,
+  .invoice-settlement__form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .invoice-settlement__form-actions {
+    grid-template-columns: repeat(2, max-content);
+    justify-content: end;
   }
 }
 

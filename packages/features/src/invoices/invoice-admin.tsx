@@ -1,5 +1,8 @@
 import {
+  AddMoneyCircleIcon,
   Alert02Icon,
+  Calendar03Icon,
+  CancelCircleIcon,
   CheckmarkCircle02Icon,
   Download04Icon,
   FileViewIcon,
@@ -82,6 +85,27 @@ function deliveryCommandKey(invoiceId: string) {
   const value = `poc094:${crypto.randomUUID()}`;
   window.sessionStorage.setItem(storageKey, value);
   return value;
+}
+
+function settlementCommandKey(
+  invoiceId: string,
+  kind: "cancellation" | "payment",
+) {
+  const storageKey = `leonaid.invoice-${kind}-command.${invoiceId}`;
+  const stored = window.sessionStorage.getItem(storageKey);
+  if (stored) return stored;
+  const value = `poc095:${kind}:${crypto.randomUUID()}`;
+  window.sessionStorage.setItem(storageKey, value);
+  return value;
+}
+
+function localIsoDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+  }).format(new Date());
 }
 
 const deliveryStatus = {
@@ -544,14 +568,409 @@ function InvoiceDeliveryPanel({
   );
 }
 
-function InvoiceLedgerRow({
+function InvoiceSettlementPanel({
   canManage,
+  client,
+  onChanged,
+  record,
+}: {
+  readonly canManage: boolean;
+  readonly client: LeonAidApiClient;
+  readonly onChanged: () => void;
+  readonly record: InvoiceRecordResponse;
+}) {
+  const { invoice, payment, cancellation } = record;
+  const [mode, setMode] = useState<"cancellation" | "payment">();
+  const [amount, setAmount] = useState((invoice.grossMinor / 100).toFixed(2));
+  const [receivedOn, setReceivedOn] = useState(localIsoDate);
+  const [reference, setReference] = useState(invoice.paymentReference);
+  const [reason, setReason] = useState("");
+  const [confirmCancellation, setConfirmCancellation] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const parsedAmount = Math.round(Number(amount.replace(",", ".")) * 100);
+  const amountMatches =
+    Number.isFinite(parsedAmount) && parsedAmount === invoice.grossMinor;
+  const paymentMutation = useMutation({
+    mutationFn: () =>
+      client.recordInvoicePayment(
+        invoice.actionId,
+        invoice.id,
+        {
+          amountMinor: parsedAmount,
+          currency: invoice.currency,
+          receivedOn,
+          reference,
+        },
+        {
+          headers: {
+            "Idempotency-Key": settlementCommandKey(invoice.id, "payment"),
+          },
+        },
+      ),
+    onError(cause) {
+      setErrorMessage(actionErrorMessage(cause).message);
+    },
+    onSuccess() {
+      window.sessionStorage.removeItem(
+        `leonaid.invoice-payment-command.${invoice.id}`,
+      );
+      setMode(undefined);
+      setErrorMessage(undefined);
+      onChanged();
+    },
+  });
+  const cancellationMutation = useMutation({
+    mutationFn: () =>
+      client.cancelInvoice(
+        invoice.actionId,
+        invoice.id,
+        { reason },
+        {
+          headers: {
+            "Idempotency-Key": settlementCommandKey(invoice.id, "cancellation"),
+          },
+        },
+      ),
+    onError(cause) {
+      setErrorMessage(actionErrorMessage(cause).message);
+    },
+    onSuccess() {
+      window.sessionStorage.removeItem(
+        `leonaid.invoice-cancellation-command.${invoice.id}`,
+      );
+      setMode(undefined);
+      setReason("");
+      setConfirmCancellation(false);
+      setErrorMessage(undefined);
+      onChanged();
+    },
+  });
+  const busy = paymentMutation.isPending || cancellationMutation.isPending;
+
+  function chooseMode(next: "cancellation" | "payment") {
+    setMode(next);
+    setErrorMessage(undefined);
+    if (next !== "cancellation") setConfirmCancellation(false);
+  }
+
+  return (
+    <section
+      aria-busy={busy}
+      className="invoice-settlement"
+      data-state={cancellation ? "cancelled" : payment ? "paid" : "outstanding"}
+      data-testid="invoice-settlement"
+    >
+      <header className="invoice-settlement__header">
+        <span aria-hidden="true" className="invoice-settlement__mark">
+          <HugeiconsIcon
+            icon={
+              cancellation
+                ? CancelCircleIcon
+                : payment
+                  ? CheckmarkCircle02Icon
+                  : AddMoneyCircleIcon
+            }
+            size={22}
+            strokeWidth={1.8}
+          />
+        </span>
+        <div>
+          <small>Zahlungsstatus</small>
+          <strong>
+            {cancellation
+              ? "Dauerhaft storniert"
+              : payment
+                ? "Vollständig bezahlt"
+                : `${formatMoney(record.openMinor, invoice.currency)} offen`}
+          </strong>
+          <p>
+            {cancellation
+              ? "Der ursprüngliche Beleg und seine PDF-Version bleiben unverändert erhalten."
+              : payment
+                ? "Der vollständige Zahlungseingang ist nachvollziehbar verbucht."
+                : "Im PoC wird ausschließlich der exakte vollständige Rechnungsbetrag verbucht."}
+          </p>
+        </div>
+        <span
+          className="invoice-settlement__status"
+          data-status={
+            cancellation ? "cancelled" : payment ? "paid" : "outstanding"
+          }
+        >
+          {cancellation ? "Storniert" : payment ? "Erledigt" : "Offen"}
+        </span>
+      </header>
+
+      {payment ? (
+        <dl className="invoice-settlement__facts" data-testid="payment-record">
+          <div>
+            <dt>Betrag</dt>
+            <dd>{formatMoney(payment.amountMinor, payment.currency)}</dd>
+          </div>
+          <div>
+            <dt>Eingegangen</dt>
+            <dd>{formatDate(payment.receivedOn)}</dd>
+          </div>
+          <div>
+            <dt>Referenz</dt>
+            <dd>{payment.reference}</dd>
+          </div>
+          <div>
+            <dt>Verbucht</dt>
+            <dd>
+              {payment.recordedByDisplayName ?? "Berechtigte Finanzrolle"},{" "}
+              {formatDateTime(payment.recordedAt)}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {cancellation ? (
+        <div
+          className="invoice-settlement__cancellation"
+          data-testid="invoice-cancellation"
+        >
+          <span>Begründung</span>
+          <strong>{cancellation.reason}</strong>
+          <p>
+            Storniert von{" "}
+            {cancellation.requestedByDisplayName ?? "berechtigter Rolle"} am{" "}
+            {formatDateTime(cancellation.requestedAt)}. Eine Korrektur wird als
+            neuer, separat nummerierter Vorgang angelegt.
+          </p>
+        </div>
+      ) : null}
+
+      {canManage && !payment && !cancellation && mode !== "payment" ? (
+        <Button
+          data-testid="open-payment-form"
+          disabled={busy}
+          icon={
+            <HugeiconsIcon
+              icon={AddMoneyCircleIcon}
+              size={18}
+              strokeWidth={1.8}
+            />
+          }
+          onClick={() => chooseMode("payment")}
+          variant="primary"
+        >
+          Zahlung erfassen
+        </Button>
+      ) : null}
+
+      {mode === "payment" && !payment && !cancellation ? (
+        <form
+          className="invoice-settlement__form"
+          data-testid="payment-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (amountMatches && reference.trim()) paymentMutation.mutate();
+          }}
+        >
+          <div className="invoice-settlement__form-intro">
+            <strong>Vollzahlung verbuchen</strong>
+            <p>
+              Gleiche Datum, Betrag und Referenz mit dem Bankumsatz ab. Eine
+              Teil- oder Überzahlung wird nicht gespeichert.
+            </p>
+          </div>
+          <label>
+            <span>Zahlungsbetrag</span>
+            <input
+              data-testid="payment-amount"
+              inputMode="decimal"
+              min="0.01"
+              onChange={(event) => setAmount(event.target.value)}
+              required
+              step="0.01"
+              type="number"
+              value={amount}
+            />
+            <small>
+              Muss exakt {formatMoney(invoice.grossMinor, invoice.currency)}{" "}
+              entsprechen.
+            </small>
+          </label>
+          <label>
+            <span>Geldeingang am</span>
+            <span className="invoice-settlement__input-with-icon">
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Calendar03Icon}
+                size={17}
+                strokeWidth={1.8}
+              />
+              <input
+                data-testid="payment-date"
+                max={localIsoDate()}
+                min={invoice.issuedAt.slice(0, 10)}
+                onChange={(event) => setReceivedOn(event.target.value)}
+                required
+                type="date"
+                value={receivedOn}
+              />
+            </span>
+            <small>Das Buchungsdatum des tatsächlichen Bankumsatzes.</small>
+          </label>
+          <label className="invoice-settlement__form-wide">
+            <span>Zahlungsreferenz</span>
+            <input
+              data-testid="payment-reference"
+              maxLength={160}
+              onChange={(event) => setReference(event.target.value)}
+              required
+              value={reference}
+            />
+            <small>
+              Zum Beispiel Rechnungsnummer oder Verwendungszweck des
+              Bankumsatzes.
+            </small>
+          </label>
+          {!amountMatches ? (
+            <p className="invoice-settlement__validation" role="alert">
+              Der Betrag muss für den PoC exakt dem vollständigen offenen
+              Rechnungsbetrag entsprechen.
+            </p>
+          ) : null}
+          <div className="invoice-settlement__form-actions">
+            <Button
+              disabled={busy}
+              onClick={() => setMode(undefined)}
+              type="button"
+              variant="secondary"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              data-testid="record-payment"
+              disabled={busy || !amountMatches || !reference.trim()}
+              type="submit"
+              variant="primary"
+            >
+              {paymentMutation.isPending
+                ? "Zahlung wird verbucht …"
+                : "Vollzahlung verbuchen"}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {canManage &&
+      !cancellation &&
+      mode !== "cancellation" &&
+      mode !== "payment" ? (
+        <Button
+          data-testid="open-cancellation-form"
+          disabled={busy}
+          icon={
+            <HugeiconsIcon
+              icon={CancelCircleIcon}
+              size={18}
+              strokeWidth={1.8}
+            />
+          }
+          onClick={() => chooseMode("cancellation")}
+          variant="secondary"
+        >
+          Storno oder Korrektur
+        </Button>
+      ) : null}
+
+      {mode === "cancellation" && !cancellation ? (
+        <form
+          className="invoice-settlement__form invoice-settlement__form--danger"
+          data-testid="cancellation-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (confirmCancellation && reason.trim().length >= 8) {
+              cancellationMutation.mutate();
+            }
+          }}
+        >
+          <div className="invoice-settlement__form-intro">
+            <strong>Rechnung dauerhaft stornieren</strong>
+            <p>
+              Nummer, Rechnungsdaten, PDF und eine bereits erfasste Zahlung
+              bleiben erhalten. Eine Korrektur erhält später eine neue
+              Rechnungsnummer.
+            </p>
+          </div>
+          <label className="invoice-settlement__form-wide">
+            <span>Storno- oder Korrekturgrund</span>
+            <textarea
+              data-testid="cancellation-reason"
+              maxLength={500}
+              minLength={8}
+              onChange={(event) => setReason(event.target.value)}
+              required
+              rows={3}
+              value={reason}
+            />
+            <small>
+              Beschreibe nachvollziehbar, warum der ausgestellte Beleg nicht
+              mehr gelten soll.
+            </small>
+          </label>
+          <label className="invoice-settlement__confirmation">
+            <input
+              checked={confirmCancellation}
+              data-testid="confirm-cancellation"
+              onChange={(event) => setConfirmCancellation(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              Ich bestätige das endgültige Storno. Der Beleg kann danach nicht
+              wieder geöffnet werden.
+            </span>
+          </label>
+          <div className="invoice-settlement__form-actions">
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setMode(undefined);
+                setConfirmCancellation(false);
+              }}
+              type="button"
+              variant="secondary"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              data-testid="cancel-invoice"
+              disabled={
+                busy || !confirmCancellation || reason.trim().length < 8
+              }
+              type="submit"
+              variant="primary"
+            >
+              {cancellationMutation.isPending
+                ? "Storno wird gespeichert …"
+                : "Endgültig stornieren"}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {errorMessage ? (
+        <p className="invoice-settlement__error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function InvoiceLedgerRow({
+  canManageDelivery,
+  canManageSettlement,
   client,
   documentRecord,
   onChanged,
   record,
 }: {
-  readonly canManage: boolean;
+  readonly canManageDelivery: boolean;
+  readonly canManageSettlement: boolean;
   readonly client: LeonAidApiClient;
   readonly documentRecord?: GeneratedDocumentRecordResponse;
   readonly onChanged: () => void;
@@ -575,6 +994,13 @@ function InvoiceLedgerRow({
         <span className="invoice-ledger-row__dates">
           <small>Freigegeben {formatDateTime(invoice.issuedAt)}</small>
           <small>Fällig {formatDate(invoice.dueOn)}</small>
+          <small data-testid="invoice-open-amount">
+            {invoice.status === "cancelled"
+              ? "Kein offener Posten · storniert"
+              : record.openMinor === 0
+                ? "Kein offener Posten · vollständig bezahlt"
+                : `${formatMoney(record.openMinor, invoice.currency)} offen`}
+          </small>
         </span>
         <span className="invoice-status" data-status={invoice.status}>
           {invoiceStatusLabels[invoice.status]}
@@ -590,11 +1016,17 @@ function InvoiceLedgerRow({
           record={documentRecord}
         />
         <InvoiceDeliveryPanel
-          canManage={canManage}
+          canManage={canManageDelivery}
           client={client}
           documentAvailable={documentRecord?.document.status === "available"}
           invoice={record}
           onChanged={onChanged}
+        />
+        <InvoiceSettlementPanel
+          canManage={canManageSettlement}
+          client={client}
+          onChanged={onChanged}
+          record={record}
         />
         <section>
           <span>Unveränderlicher Empfänger</span>
@@ -709,10 +1141,9 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
   const euroTotal = invoices.data?.currencyTotals.find(
     (item) => item.currency === "EUR",
   );
-  const openCount =
-    invoices.data?.items.filter(({ invoice }) =>
-      ["issued", "sent"].includes(invoice.status),
-    ).length ?? 0;
+  const paidCount =
+    invoices.data?.items.filter(({ invoice }) => invoice.status === "paid")
+      .length ?? 0;
 
   if (!actions.length) {
     return (
@@ -818,11 +1249,17 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
             </div>
             <span
               className="invoice-access"
-              data-access={context.data?.mayIssue ? "manage" : "read"}
+              data-access={
+                context.data?.mayIssue || context.data?.mayManageSettlements
+                  ? "manage"
+                  : "read"
+              }
             >
               {context.data?.mayIssue
                 ? "Freigabe über Bestellungen"
-                : "Nur Lesezugriff"}
+                : context.data?.mayManageSettlements
+                  ? "Finanzbuchung"
+                  : "Nur Lesezugriff"}
             </span>
           </section>
 
@@ -836,8 +1273,16 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
               <strong>{invoices.data?.items.length ?? 0}</strong>
             </div>
             <div>
-              <small>Offen oder versendet</small>
-              <strong>{openCount}</strong>
+              <small>Offene Posten</small>
+              <strong>
+                {euroTotal
+                  ? formatMoney(euroTotal.openMinor, euroTotal.currency)
+                  : "–"}
+              </strong>
+            </div>
+            <div>
+              <small>Vollständig bezahlt</small>
+              <strong>{paidCount}</strong>
             </div>
             <div>
               <small>Bruttovolumen aller Belege</small>
@@ -863,7 +1308,10 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
               </header>
               {invoices.data.items.map((record) => (
                 <InvoiceLedgerRow
-                  canManage={Boolean(context.data?.mayIssue)}
+                  canManageDelivery={Boolean(context.data?.mayIssue)}
+                  canManageSettlement={Boolean(
+                    context.data?.mayManageSettlements,
+                  )}
                   client={client}
                   documentRecord={documentsByInvoice.get(record.invoice.id)}
                   key={record.invoice.id}

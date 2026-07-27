@@ -21,6 +21,7 @@ unabhängige Implementierung.
 | LEG-001 | Rechnungsaussteller kommt aus einem je Aktion explizit bestätigten Profil; das Golden-Profil ist synthetisch | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-002 | Steuerfall und Rechtstext sind explizit; Golden nutzt ausschließlich den synthetischen Kleinunternehmerfall | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
 | LEG-003 | Nummern werden transaktional eindeutig vergeben und nie wiederverwendet; Storno/Korrektur überschreibt keinen Beleg | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0004 |
+| LEG-006 | Im PoC wird nur eine exakte Vollzahlung verbucht; Storno ist ein eigener begründeter Vorgang und verändert Rechnung oder PDF nicht | Produktverantwortlicher / Implementierung | 2026-07-27 | ADR-0009 |
 
 ## Offene Entscheidungen mit spätestem Klärpunkt
 

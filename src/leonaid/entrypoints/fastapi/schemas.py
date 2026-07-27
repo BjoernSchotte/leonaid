@@ -637,6 +637,17 @@ class IssueInvoiceRequest(TransportModel):
     service_on: date
 
 
+class RecordInvoicePaymentRequest(TransportModel):
+    amount_minor: int = Field(ge=1)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    received_on: date
+    reference: str = Field(min_length=1, max_length=160)
+
+
+class CancelInvoiceRequest(TransportModel):
+    reason: str = Field(min_length=8, max_length=500)
+
+
 class InvoiceIssuerResponse(TransportModel):
     legal_name: str
     street_line_1: str
@@ -700,6 +711,7 @@ class InvoiceContextResponse(TransportModel):
     ends_on: date
     profile: InvoiceProfileResponse | None
     may_issue: bool
+    may_manage_settlements: bool
 
 
 class InvoiceDeliveryResponse(TransportModel):
@@ -719,15 +731,45 @@ class InvoiceDeliveryResponse(TransportModel):
     can_retry: bool
 
 
+class InvoicePaymentResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    invoice_id: UUID
+    amount_minor: int = Field(ge=1)
+    currency: str
+    received_on: date
+    reference: str
+    recorded_by_user_id: UUID
+    recorded_by_display_name: str | None
+    recorded_at: datetime
+    replayed: bool
+
+
+class InvoiceCancellationResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    invoice_id: UUID
+    original_status: Literal["issued", "sent", "paid"]
+    reason: str
+    requested_by_user_id: UUID
+    requested_by_display_name: str | None
+    requested_at: datetime
+    replayed: bool
+
+
 class InvoiceRecordResponse(TransportModel):
     invoice: InvoiceResponse
     buyer_display_name: str
+    open_minor: int = Field(ge=0)
+    payment: InvoicePaymentResponse | None
+    cancellation: InvoiceCancellationResponse | None
     deliveries: list[InvoiceDeliveryResponse]
 
 
 class InvoiceCurrencyTotalResponse(TransportModel):
     currency: str
     gross_minor: int = Field(ge=0)
+    open_minor: int = Field(ge=0)
 
 
 class InvoiceListResponse(TransportModel):

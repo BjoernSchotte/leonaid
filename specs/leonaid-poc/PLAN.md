@@ -5,6 +5,8 @@ POC-023, POC-030 bis POC-033, POC-040 bis POC-043, POC-050 bis POC-052 sowie
 POC-060 bis POC-062 vollständig bewiesen
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
+Zentrale Personas und Rollen:
+[`PERSONAS.md`](../../PERSONAS.md)
 
 ## 1. Ziel und Arbeitsweise
 
@@ -54,6 +56,9 @@ Nicht-Ziele aus Kapitel 10.2 werden nicht nebenbei implementiert.
 - UX, Barrierefreiheit, responsive Bedienung, verständliche Fehlerzustände
   und schnelle Feedbackschleifen sind Definition of Done jedes vertikalen
   Slices, kein späteres Verschönerungsprojekt.
+- Änderungen an Personas, Rollen, Berechtigungen, Navigation oder
+  Nutzungskontext aktualisieren im selben Task die zentrale
+  [`PERSONAS.md`](../../PERSONAS.md).
 
 ### 1.2 Definition of Done für jeden Produkt-Slice
 
@@ -133,19 +138,19 @@ um Berechtigungs-, Matching-, Lifecycle- und Rechnungsfälle abzudecken.
 Personen und Firmen sind synthetisch; alle E-Mail-Adressen verwenden eine
 reservierte Testdomain.
 
-| Bereich | Mindestinhalt |
-|---|---|
-| Benutzer | 1 System-Admin, 2 Charity-Admins, 3 Akquisiteure, 1 Finanzrolle, 1 gesperrter Benutzer |
-| Aktionen | Krapfentaxi aktiv, Krapfentaxi Vorjahr archiviert und zweite fremdverwaltete Krapfentaxi-Testaktion |
-| Beneficiaries | mindestens 2 Begünstigte der aktiven Krapfentaxi-Aktion |
-| Firmen | eindeutige Firma, normalisierter Namenskonflikt, Firma mit zwei Ansprechpartnern, Firma ohne Zuweisung |
-| Personen | eigenständiger Sponsor ohne Firma, gleichnamige Person mit unterscheidenden Zusatzdaten |
-| Zuweisungen | exklusiv A, exklusiv B, gemeinsam A+B, unzugeordnet |
-| Angebote | Krapfenbox mit Boxen- und Stückumrechnung, inaktives Angebot |
-| Bestellungen | Entwurf, prüfbereit, öffentlich eingegangen, bereits fakturiert |
-| Rechnungen | offen, bezahlt, storniert sowie unveränderlicher Adress-Snapshot |
-| Aktivitäten | interne Akquise, öffentliche Bestellung, Mitzuordnung |
-| Public Web | Alias `krapfentaxi`, aktiver Archiv-Slug, historischer Archiv-Slug |
+| Bereich       | Mindestinhalt                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| Benutzer      | 1 System-Admin, 2 Charity-Admins, 3 Akquisiteure, 1 Finanzrolle, 1 gesperrter Benutzer                 |
+| Aktionen      | Krapfentaxi aktiv, Krapfentaxi Vorjahr archiviert und zweite fremdverwaltete Krapfentaxi-Testaktion    |
+| Beneficiaries | mindestens 2 Begünstigte der aktiven Krapfentaxi-Aktion                                                |
+| Firmen        | eindeutige Firma, normalisierter Namenskonflikt, Firma mit zwei Ansprechpartnern, Firma ohne Zuweisung |
+| Personen      | eigenständiger Sponsor ohne Firma, gleichnamige Person mit unterscheidenden Zusatzdaten                |
+| Zuweisungen   | exklusiv A, exklusiv B, gemeinsam A+B, unzugeordnet                                                    |
+| Angebote      | Krapfenbox mit Boxen- und Stückumrechnung, inaktives Angebot                                           |
+| Bestellungen  | Entwurf, prüfbereit, öffentlich eingegangen, bereits fakturiert                                        |
+| Rechnungen    | offen, bezahlt, storniert sowie unveränderlicher Adress-Snapshot                                       |
+| Aktivitäten   | interne Akquise, öffentliche Bestellung, Mitzuordnung                                                  |
+| Public Web    | Alias `krapfentaxi`, aktiver Archiv-Slug, historischer Archiv-Slug                                     |
 
 Golden Data besitzt stabile UUIDs, erwartete fachliche Ergebnisse und eine
 menschenlesbare Dokumentation. Passwörter oder produktive Secrets gehören
@@ -153,13 +158,13 @@ nicht hinein.
 
 ### 3.2 Teststufen
 
-| Stufe | Reale Bestandteile | Zweck |
-|---|---|---|
-| Unit | Domain-Objekte und Golden-Data-Werte | Invarianten, Statusautomaten, Geld-/Mengenrechnung, Policies |
-| Integration | echter Prozess plus reale abhängige Container | SQL, Transaktionen, Twenty API, S3, SMTP, Typst, Outbox |
-| Contract | produktive Clients gegen echte gepinnte Systeme | verwendete Twenty-, S3-, Mail- und OpenAPI-Teilmenge |
-| E2E | Reverse Proxy, alle Core-Dienste, Chromium, Firefox und WebKit | reale Benutzerabläufe und visuelle/responsive Qualität |
-| Recovery | frische Volumes/Instanz aus echten Backups | RPO/RTO, Prüfsummen, referenzielle Vollständigkeit |
+| Stufe       | Reale Bestandteile                                             | Zweck                                                        |
+| ----------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| Unit        | Domain-Objekte und Golden-Data-Werte                           | Invarianten, Statusautomaten, Geld-/Mengenrechnung, Policies |
+| Integration | echter Prozess plus reale abhängige Container                  | SQL, Transaktionen, Twenty API, S3, SMTP, Typst, Outbox      |
+| Contract    | produktive Clients gegen echte gepinnte Systeme                | verwendete Twenty-, S3-, Mail- und OpenAPI-Teilmenge         |
+| E2E         | Reverse Proxy, alle Core-Dienste, Chromium, Firefox und WebKit | reale Benutzerabläufe und visuelle/responsive Qualität       |
+| Recovery    | frische Volumes/Instanz aus echten Backups                     | RPO/RTO, Prüfsummen, referenzielle Vollständigkeit           |
 
 Unit-Tests dürfen für reine Funktionen direkt konstruierte Golden-Data-
 Objekte verwenden. Sobald I/O, Zeitablauf, Identität oder ein Fremdsystem
@@ -191,17 +196,17 @@ kontrollierte Ablaufzeitpunkte und frische Datenbanken, nicht durch Mocks.
 
 „World-class“ wird für den PoC nicht nur als Geschmacksurteil verwendet:
 
-| Dimension | Verbindliches PoC-Budget |
-|---|---|
-| Accessibility | WCAG 2.2 AA; keine automatisierten `critical`/`serious` Befunde; kritische Flows vollständig per Tastatur |
-| Public Performance | LCP ≤ 2,5 s, INP ≤ 200 ms, CLS ≤ 0,1 im definierten mobilen Testprofil |
-| Interaktionsfeedback | sichtbare Reaktion auf lokale Eingabe ≤ 100 ms; längere Serveraktion zeigt unmittelbar Fortschritt |
-| API | p95 der Golden-Data-Kernreads ≤ 500 ms im definierten PoC-Profil; Budgetausnahmen werden begründet |
-| Responsive | kein horizontaler Seiten-Scroll bei 320–1440 px; Touch-Ziele mindestens 44 × 44 CSS-Pixel |
-| Formulare | kein Verlust valider Eingaben bei behebbaren Server-/Validierungsfehlern |
-| Browser | aktuelle gepinnte Chromium-, Firefox- und WebKit-Versionen |
-| Bootstrap | frischer Entwickler erreicht mit dokumentierten Befehlen ohne internes Wissen den laufenden Golden-Stack |
-| Diagnose | jeder fehlgeschlagene externe Effekt ist über Request-/Job-ID auffindbar und sicher wiederholbar |
+| Dimension            | Verbindliches PoC-Budget                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| Accessibility        | WCAG 2.2 AA; keine automatisierten `critical`/`serious` Befunde; kritische Flows vollständig per Tastatur |
+| Public Performance   | LCP ≤ 2,5 s, INP ≤ 200 ms, CLS ≤ 0,1 im definierten mobilen Testprofil                                    |
+| Interaktionsfeedback | sichtbare Reaktion auf lokale Eingabe ≤ 100 ms; längere Serveraktion zeigt unmittelbar Fortschritt        |
+| API                  | p95 der Golden-Data-Kernreads ≤ 500 ms im definierten PoC-Profil; Budgetausnahmen werden begründet        |
+| Responsive           | kein horizontaler Seiten-Scroll bei 320–1440 px; Touch-Ziele mindestens 44 × 44 CSS-Pixel                 |
+| Formulare            | kein Verlust valider Eingaben bei behebbaren Server-/Validierungsfehlern                                  |
+| Browser              | aktuelle gepinnte Chromium-, Firefox- und WebKit-Versionen                                                |
+| Bootstrap            | frischer Entwickler erreicht mit dokumentierten Befehlen ohne internes Wissen den laufenden Golden-Stack  |
+| Diagnose             | jeder fehlgeschlagene externe Effekt ist über Request-/Job-ID auffindbar und sicher wiederholbar          |
 
 Die Performancewerte werden gegen ein dokumentiertes CPU-/RAM-/Netzprofil
 gemessen. Eine schnellere Entwicklermaschine darf schlechte Queries oder
@@ -1194,23 +1199,26 @@ Tests/Nachweise:
 Nachweis:
 [POC-094 – Rechnungsversand und Versandprotokoll](proofs/POC-094.md).
 
-### [ ] POC-095 Manuellen Zahlungseingang und Storno/Korrektur bauen
+### [x] POC-095 Manuellen Zahlungseingang und Storno/Korrektur bauen
 
 Abhängigkeiten: POC-090
 
 Akzeptanzkriterien:
 
-- [ ] Berechtigte Rolle kann Zahlung mit Datum, Betrag und Referenz erfassen.
-- [ ] Im PoC unterstützte Vollzahlung ist klar von nicht unterstützten
+- [x] Berechtigte Rolle kann Zahlung mit Datum, Betrag und Referenz erfassen.
+- [x] Im PoC unterstützte Vollzahlung ist klar von nicht unterstützten
       Teil-/Überzahlungen abgegrenzt.
-- [ ] Zahlung und Storno erzeugen AuditEvents.
-- [ ] Historische Rechnung und Dokumentversion bleiben unverändert.
+- [x] Zahlung und Storno erzeugen AuditEvents.
+- [x] Historische Rechnung und Dokumentversion bleiben unverändert.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen erlaubte Zahlungs-/Stornoübergänge.
-- [ ] Integrationstest persistiert Zahlung und aktualisiert offenen Betrag.
-- [ ] E2E zeigt offenen und bezahlten Golden-Fall verständlich.
+- [x] Unit-Tests prüfen erlaubte Zahlungs-/Stornoübergänge.
+- [x] Integrationstest persistiert Zahlung und aktualisiert offenen Betrag.
+- [x] E2E zeigt offenen und bezahlten Golden-Fall verständlich.
+
+Nachweis:
+[POC-095 – Manueller Zahlungseingang und Storno/Korrektur](proofs/POC-095.md).
 
 ---
 
@@ -1480,25 +1488,25 @@ vollständig lauffähige Golden Journey.
 
 ## 6. Nicht verhandelbare PoC-Abnahmematrix
 
-| Gate | Primäre Tasks |
-|---|---|
-| Fremde CRM-Datensätze bleiben unsichtbar | POC-043, POC-062 |
-| Einladungs- und Aktionsgrenzen | POC-041, POC-042 |
-| Mehrfachzuordnung mit Warnung | POC-032, POC-060, POC-063 |
-| Adminablauf ohne DB-Arbeit | POC-052, POC-122 |
-| Reproduzierbares Twenty-Schema | POC-030 |
-| Genau eine Rechnung je Freigabe | POC-090 |
-| Unveränderlicher Rechnungssnapshot | POC-090, POC-091 |
-| Geschützter Dokumentzugriff | POC-092, POC-093 |
-| RustFS-Ausfall und Restore | POC-092, POC-112 |
-| Providerneutraler S3-Vertrag | POC-092 |
-| Idempotente Formulare/Jobs | POC-022, POC-072, POC-081, POC-094 |
-| Öffentliche Bestellung im Feed | POC-072, POC-082 |
-| Alias und unveränderliches Archiv | POC-070, POC-071 |
-| Reales, portables PDF | POC-091 |
-| Sichtbarer Versandstatus | POC-094, POC-114 |
-| Vollständiger Backup/Restore | POC-112 |
-| World-class UX/DX | POC-002, POC-100, POC-102, POC-123 |
+| Gate                                     | Primäre Tasks                      |
+| ---------------------------------------- | ---------------------------------- |
+| Fremde CRM-Datensätze bleiben unsichtbar | POC-043, POC-062                   |
+| Einladungs- und Aktionsgrenzen           | POC-041, POC-042                   |
+| Mehrfachzuordnung mit Warnung            | POC-032, POC-060, POC-063          |
+| Adminablauf ohne DB-Arbeit               | POC-052, POC-122                   |
+| Reproduzierbares Twenty-Schema           | POC-030                            |
+| Genau eine Rechnung je Freigabe          | POC-090                            |
+| Unveränderlicher Rechnungssnapshot       | POC-090, POC-091                   |
+| Geschützter Dokumentzugriff              | POC-092, POC-093                   |
+| RustFS-Ausfall und Restore               | POC-092, POC-112                   |
+| Providerneutraler S3-Vertrag             | POC-092                            |
+| Idempotente Formulare/Jobs               | POC-022, POC-072, POC-081, POC-094 |
+| Öffentliche Bestellung im Feed           | POC-072, POC-082                   |
+| Alias und unveränderliches Archiv        | POC-070, POC-071                   |
+| Reales, portables PDF                    | POC-091                            |
+| Sichtbarer Versandstatus                 | POC-094, POC-114                   |
+| Vollständiger Backup/Restore             | POC-112                            |
+| World-class UX/DX                        | POC-002, POC-100, POC-102, POC-123 |
 
 Der PoC ist nicht abgeschlossen, solange ein Eintrag dieser Matrix nur durch
 eine Annahme, einen Mock, einen Screenshot ohne überprüften Zustand oder einen

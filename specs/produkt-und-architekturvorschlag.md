@@ -1199,7 +1199,11 @@ ERP-light bedeutet ausschließlich Ausgangsrechnungen für Charity-Aktionen:
 - Versand über Outbox und Versandprotokoll,
 - erneuter Versand ohne Neuerstellung der Rechnung,
 - Storno/Korrektur statt Überschreiben einer ausgestellten Rechnung,
-- Zahlung im PoC manuell verbuchen,
+- Zahlung im PoC mit Eingangsdatum, exaktem Vollbetrag und Referenz manuell
+  verbuchen,
+- offenen Betrag sowie bezahlten oder stornierten Status verständlich
+  darstellen,
+- Zahlung und Storno mit Person, Zeitpunkt und AuditEvent nachvollziehen,
 - CSV/strukturierter Export für Schatzmeister oder Steuerberatung.
 
 Für Krapfentaxi muss im PoC/MVP die Menge als Boxen und/oder Krapfen
@@ -1210,6 +1214,19 @@ zurückgestellt.
 
 Die Rechnung wird erst nach expliziter Freigabe aus einer Bestellung erzeugt.
 `Commitment` und `Invoice` bleiben getrennte Aggregate.
+
+Der PoC akzeptiert ausschließlich die exakte Vollzahlung in der
+Rechnungswährung. Teil- und Überzahlungen werden nicht implizit verrechnet,
+sondern serverseitig abgewiesen. Ein Storno benötigt eine nachvollziehbare
+Begründung und explizite Bestätigung. Nummer, Empfänger-, Positions- und
+Steuersnapshot sowie die konkrete Typst-PDF-Version bleiben dabei
+unverändert; eine spätere Korrektur ist ein neuer, separat nummerierter
+Vorgang.
+
+Charity-Admins dürfen diese Finanzaktionen nur in selbst verwalteten
+Charity-Aktionen ausführen. `finance_reader` bleibt lesend; eine globale
+`finance_manager`-Rolle kann später ausschließlich durch den System-Admin
+vergeben werden.
 
 ### 7.2 Dokumentablage – fachlich begrenzt
 

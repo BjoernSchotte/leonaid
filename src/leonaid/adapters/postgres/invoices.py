@@ -39,6 +39,10 @@ from leonaid.domain.invoices import (
     InvoiceStatus,
     TaxTreatment,
 )
+from leonaid.domain.invoice_settlements import (
+    InvoiceCancellation,
+    PaymentRecord,
+)
 
 COMMAND_TYPE = "issue_invoice_v1"
 
@@ -91,6 +95,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 self._profile_from_row(profile_row) if profile_row is not None else None
             ),
             may_issue=False,
+            may_manage_settlements=False,
         )
 
     async def list_for_action(
@@ -104,9 +109,32 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 """
                 SELECT
                     invoice.*,
-                    commitment.customer_snapshot
+                    commitment.customer_snapshot,
+                    payment.id AS payment_id,
+                    payment.amount_minor AS payment_amount_minor,
+                    payment.currency AS payment_currency,
+                    payment.received_on AS payment_received_on,
+                    payment.reference AS payment_reference_recorded,
+                    payment.recorded_by_user_id,
+                    payment.created_at AS payment_recorded_at,
+                    payment_actor.display_name AS payment_recorded_by_display_name,
+                    cancellation.id AS cancellation_id,
+                    cancellation.original_status AS cancellation_original_status,
+                    cancellation.reason_snapshot AS cancellation_reason,
+                    cancellation.requested_by_user_id,
+                    cancellation.requested_at AS cancellation_requested_at,
+                    cancellation_actor.display_name
+                      AS cancellation_requested_by_display_name
                 FROM invoice
                 JOIN commitment ON commitment.id = invoice.commitment_id
+                LEFT JOIN payment_record AS payment
+                  ON payment.invoice_id = invoice.id
+                LEFT JOIN user_account AS payment_actor
+                  ON payment_actor.id = payment.recorded_by_user_id
+                LEFT JOIN invoice_cancellation AS cancellation
+                  ON cancellation.invoice_id = invoice.id
+                LEFT JOIN user_account AS cancellation_actor
+                  ON cancellation_actor.id = cancellation.requested_by_user_id
                 WHERE invoice.action_id = $1
                 ORDER BY invoice.issued_at DESC, invoice.number DESC
                 """,
@@ -760,9 +788,52 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 label="Besteller-Snapshot",
             )
         )
+        invoice = cls._invoice_from_row(row)
+        payment = (
+            PaymentRecord(
+                id=row["payment_id"],
+                action_id=invoice.action_id,
+                invoice_id=invoice.id,
+                amount=Money(
+                    int(row["payment_amount_minor"]),
+                    str(row["payment_currency"]),
+                ),
+                received_on=row["payment_received_on"],
+                reference=str(row["payment_reference_recorded"]),
+                recorded_by_user_id=row["recorded_by_user_id"],
+                recorded_at=row["payment_recorded_at"],
+                recorded_by_display_name=str(row["payment_recorded_by_display_name"]),
+            )
+            if row["payment_id"] is not None
+            else None
+        )
+        cancellation = (
+            InvoiceCancellation(
+                id=row["cancellation_id"],
+                action_id=invoice.action_id,
+                invoice_id=invoice.id,
+                original_status=InvoiceStatus(str(row["cancellation_original_status"])),
+                reason=str(row["cancellation_reason"]),
+                requested_by_user_id=row["requested_by_user_id"],
+                requested_at=row["cancellation_requested_at"],
+                requested_by_display_name=str(
+                    row["cancellation_requested_by_display_name"]
+                ),
+            )
+            if row["cancellation_id"] is not None
+            else None
+        )
+        open_amount = (
+            Money(0, invoice.gross.currency)
+            if invoice.status in {InvoiceStatus.PAID, InvoiceStatus.CANCELLED}
+            else invoice.gross
+        )
         return InvoiceRecord(
-            invoice=cls._invoice_from_row(row),
+            invoice=invoice,
             buyer_display_name=buyer.display_name,
+            open_amount=open_amount,
+            payment=payment,
+            cancellation=cancellation,
             deliveries=deliveries,
         )
 

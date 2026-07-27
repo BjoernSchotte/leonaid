@@ -30,7 +30,7 @@
   --danger-foreground: #ffffff;
   --danger-text: color-mix(in oklch, var(--lions-coral) 64%, #641414);
   --success: var(--lions-green);
-  --success-text: color-mix(in oklch, var(--lions-green) 72%, #064e3b);
+  --success-text: #006f49;
   --warning: var(--lions-yellow);
   --warning-foreground: var(--lions-navy);
   --warning-text: color-mix(in oklch, var(--lions-yellow) 58%, #604100);
