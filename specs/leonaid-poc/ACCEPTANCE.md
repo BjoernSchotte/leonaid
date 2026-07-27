@@ -6,9 +6,9 @@ Stand: 2026-07-27
 
 | Nachweis | Referenz |
 | --- | --- |
-| technisch abgenommener Code-Kandidat | Commit `2d52a5936c746aeec109898c3dccb828d8aaeda1` |
+| technisch abgenommener Code-Kandidat | Commit `45ce583d6c02752c80f3b0b10d86c41d06bdae89` |
 | vollständige Golden-Journey-Basis | Commit `ace42c1fc39857f1e6cb64b404d98bd8d93c3c5e` |
-| finaler Cold-CI-Lauf | [GitHub Actions #30303874422](https://github.com/BjoernSchotte/leonaid/actions/runs/30303874422), `cold_run=true`, erfolgreich |
+| finaler Cold-CI-Lauf | [GitHub Actions #30308417145](https://github.com/BjoernSchotte/leonaid/actions/runs/30308417145), `cold_run=true`, erfolgreich |
 | Implementierungsplan | [`PLAN.md`](PLAN.md) |
 | externe System- und Image-Locks | [`infra/locks`](../../infra/locks/README.md) |
 | Python- und Frontend-Locks | [`uv.lock`](../../uv.lock), [`bun.lock`](../../bun.lock) |
