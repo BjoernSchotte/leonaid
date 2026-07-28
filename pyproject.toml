@@ -2,6 +2,8 @@
 name = "leonaid"
 version = "0.0.0"
 description = "LeonAid PoC application core"
+license = "LicenseRef-Undefined"
+license-files = ["LICENSE"]
 requires-python = "==3.13.*"
 dependencies = [
   "alembic==1.16.4",

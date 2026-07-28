@@ -1,6 +1,7 @@
 {
   "name": "@leonaid/root",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "workspaces": [
     "apps/*",

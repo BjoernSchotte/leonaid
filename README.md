@@ -1,7 +1,7 @@
 # LeonAid — Charity-Verwaltung für Service Clubs
 
-Open-Source-Plattform für die Charity-Arbeit von Service Clubs. Der geplante
-PoC verbindet verteilte Sponsoren-Akquise, aktionsbezogene Abwicklung und
+Plattform für die Charity-Arbeit von Service Clubs. Der geplante PoC verbindet
+verteilte Sponsoren-Akquise, aktionsbezogene Abwicklung und
 Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 
 - **Charity-Admins** verwalten Aktionen, Akquisiteure, Bestellungen und
@@ -18,6 +18,14 @@ Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 ohne Mocks in Chromium, Firefox und WebKit sowie nach einem leeren Golden
 Reset. Offen sind die protokollierte Fresh-Checkout-Abnahme durch eine weitere
 technische Person und die ausdrückliche fachliche Produktabnahme.
+
+## Lizenz
+
+**Status: `UNDEFINED`.** Für LeonAid wurde noch keine Projektlizenz
+festgelegt. Der Repository-Inhalt ist daher derzeit nicht als
+Open-Source-Software lizenziert. [`LICENSE`](LICENSE) hält diesen
+Zwischenstand ausdrücklich fest; die gesonderten Lizenzen und Hinweise der
+verwendeten Drittanbieter-Komponenten bleiben davon unberührt.
 
 ## In höchstens 30 Minuten zur Golden Journey
 
