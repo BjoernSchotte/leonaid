@@ -401,6 +401,8 @@ LEONAID_COMPOSE_PROJECT="$rollback_project" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
 rollback_target --profile dev-mail run --rm --no-deps \
   --env-from-file "$env_file" \
+  --env MAIL_SMTP_HOST=mailpit \
+  --env MAIL_SMTP_PORT=1025 \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/seed/golden.py mutate \

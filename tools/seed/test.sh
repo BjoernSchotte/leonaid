@@ -90,6 +90,8 @@ docker run --rm \
 echo "seed-test: verändert PostgreSQL, Twenty, RustFS und Mailpit real"
 compose run --rm --no-deps \
   --env-from-file "$env_file" \
+  --env MAIL_SMTP_HOST=mailpit \
+  --env MAIL_SMTP_PORT=1025 \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/seed/golden.py mutate /repo/tests/fixtures/golden/v1

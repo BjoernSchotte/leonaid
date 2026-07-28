@@ -19,13 +19,15 @@ compose() {
 
 api_probe() {
   compose run --rm --no-deps \
+    --env MAIL_SMTP_HOST=mailpit \
+    --env MAIL_SMTP_PORT=1025 \
     --volume "$root:/repo:ro" \
     api python /repo/tools/outbox/probe.py "$@"
 }
 
 outbox_cli() {
   compose run --rm --no-deps \
-    api python -m leonaid.entrypoints.worker.outbox "$@"
+    worker python -m leonaid.entrypoints.worker.outbox "$@"
 }
 
 cleanup() {
@@ -34,7 +36,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 cleanup
-compose build api
+compose build api worker
 compose up --detach --wait --wait-timeout 120 core-postgres mailpit
 compose run --rm --no-deps api alembic upgrade head
 api_probe prepare
