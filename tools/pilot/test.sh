@@ -28,7 +28,10 @@ for directory in \
   "$container_proof/.local/pilot/evidence" \
   "$container_proof/.local/pilot/backups" \
   "$container_proof/.local/pilot/manifests"; do
-  actual=$(stat -f '%Lp' "$directory" 2>/dev/null || stat -c '%a' "$directory")
+  # GNU stat accepts `-f` with a different meaning and would print a complete
+  # filesystem report instead of failing. Try the GNU mode format first and
+  # fall back to the BSD/macOS format.
+  actual=$(stat -c '%a' "$directory" 2>/dev/null || stat -f '%Lp' "$directory")
   if [ "$actual" != "700" ]; then
     echo "pilot-data-boundary-test: ERROR: $directory ist Modus $actual statt 700" >&2
     exit 1

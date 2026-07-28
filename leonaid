@@ -102,8 +102,27 @@ require_docker() {
   fi
 }
 
+docker_retry() {
+  attempt=1
+  max_attempts=3
+
+  while :; do
+    if "$@"; then
+      return 0
+    else
+      status=$?
+    fi
+    if [ "$status" -ne 125 ] || [ "$attempt" -ge "$max_attempts" ]; then
+      return "$status"
+    fi
+    attempt=$((attempt + 1))
+    echo "leonaid: Docker-Registry/Daemon vorübergehend nicht erreichbar; Versuch $attempt/$max_attempts …" >&2
+    sleep 2
+  done
+}
+
 run_python() {
-  docker run --rm \
+  docker_retry docker run --rm \
     -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
@@ -114,7 +133,7 @@ run_python() {
 }
 
 run_bun() {
-  docker run --rm \
+  docker_retry docker run --rm \
     -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
     -v "$root:/workspace" \
     -w /workspace \
@@ -126,7 +145,7 @@ generate_test_logins() {
   mkdir -p "$root/.local"
   host_user_id=$(id -u)
   host_group_id=$(id -g)
-  docker run --rm \
+  docker_retry docker run --rm \
     --user "$host_user_id:$host_group_id" \
     -v "$root:/workspace" \
     -w /workspace \
@@ -154,7 +173,7 @@ bootstrap() {
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
   host_group_id=$(id -g)
-  docker run --rm \
+  docker_retry docker run --rm \
     --user "$host_user_id:$host_group_id" \
     -v "$root:/workspace" \
     -w /workspace \
