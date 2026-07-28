@@ -1,5 +1,4 @@
 {
-	email {$CADDY_ACME_EMAIL}
 	admin off
 }
 
@@ -29,6 +28,7 @@
 }
 
 {$LEONAID_PUBLIC_DOMAIN} {
+	tls internal
 	import common_headers
 
 	handle /_health {
@@ -63,6 +63,7 @@
 }
 
 {$TWENTY_PUBLIC_DOMAIN} {
+	tls internal
 	import common_headers
 	reverse_proxy twenty-server:3000
 }

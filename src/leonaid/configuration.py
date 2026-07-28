@@ -5,6 +5,7 @@ from __future__ import annotations
 from email.utils import parseaddr
 from ipaddress import ip_address
 from pathlib import Path
+import re
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "production"] = Field(alias="LEONAID_ENV")
     service_name: str = Field(default="leonaid-api", alias="LEONAID_SERVICE_NAME")
     service_version: str = Field(default="0.0.0", alias="LEONAID_SERVICE_VERSION")
+    release_commit: str | None = Field(default=None, alias="LEONAID_RELEASE_COMMIT")
     api_version: str = Field(default="v1", alias="LEONAID_API_VERSION")
     core_database_url: SecretStr = Field(alias="CORE_DATABASE_URL")
     invitation_hmac_secret: SecretStr = Field(
@@ -143,6 +145,15 @@ class Settings(BaseSettings):
     def validate_production_boundary(self) -> Settings:
         if self.environment != "production":
             return self
+        if (
+            self.release_commit is None
+            or re.fullmatch(
+                r"[0-9a-f]{40}",
+                self.release_commit,
+            )
+            is None
+        ):
+            raise ValueError("Produktion erfordert einen vollständigen Release-Commit.")
         if self.public_base_url.scheme != "https" or _is_forbidden_public_host(
             self.public_base_url.host
         ):
@@ -177,6 +188,9 @@ class Settings(BaseSettings):
             "environment": self.environment,
             "serviceName": self.service_name,
             "serviceVersion": self.service_version,
+            "releaseCommit": (
+                "configured" if self.release_commit is not None else "unconfigured"
+            ),
             "apiVersion": self.api_version,
             "publicBaseHost": self.public_base_url.host or "invalid",
             "allowedOriginCount": str(len(self.allowed_origins)),

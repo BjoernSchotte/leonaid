@@ -33,6 +33,7 @@ def valid_settings(**overrides: str) -> Settings:
 def valid_production_settings(**overrides: str) -> Settings:
     values = {
         "LEONAID_ENV": "production",
+        "LEONAID_RELEASE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
         "LEONAID_TRUST_PROXY_HEADERS": "true",
         "LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.org",
         "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
@@ -51,6 +52,7 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "environment": "test",
         "serviceName": "leonaid-api",
         "serviceVersion": "0.0.0",
+        "releaseCommit": "unconfigured",
         "apiVersion": "v1",
         "publicBaseHost": "localhost",
         "allowedOriginCount": "1",
@@ -97,6 +99,7 @@ def test_production_settings_require_public_edges_and_separate_secrets() -> None
 
     unsafe_values = (
         {"LEONAID_PUBLIC_BASE_URL": "http://portal.leonaid.org"},
+        {"LEONAID_RELEASE_COMMIT": "main"},
         {"LEONAID_PUBLIC_BASE_URL": "https://127.0.0.1"},
         {"LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.invalid"},
         {"LEONAID_TRUST_PROXY_HEADERS": "false"},

@@ -130,7 +130,7 @@ def validate(config: dict[str, Any]) -> None:
     validate_public_url(public_url, "LEONAID_PUBLIC_BASE_URL")
     for origin in string_value(api_environment, "LEONAID_ALLOWED_ORIGINS").split(","):
         validate_public_url(origin.strip(), "LEONAID_ALLOWED_ORIGINS")
-    release_commit = string_value(api_environment, "LEONAID_SERVICE_VERSION")
+    release_commit = string_value(api_environment, "LEONAID_RELEASE_COMMIT")
     if FULL_COMMIT.fullmatch(release_commit) is None:
         raise DeploymentContractError(
             "Release ist nicht an einen vollständigen Commit gebunden"
