@@ -12,7 +12,7 @@ env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
 fixture="/repo/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
-artifact_directory="$root/.artifacts/poc040"
+artifact_directory="$root/.local/pilot/evidence/identity"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
 
@@ -101,14 +101,25 @@ docker run --rm \
   --trace=retain-on-failure \
   --reporter=line
 
-for screenshot in charity-admin-desktop.png acquirer-mobile.png; do
+for screenshot in \
+  charity-admin-desktop.png \
+  acquirer-mobile.png \
+  system-members-desktop.png \
+  charity-members-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "identity-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
     exit 1
   fi
 done
 mkdir -p "$artifact_directory"
-cp "$proof/charity-admin-desktop.png" "$artifact_directory/"
-cp "$proof/acquirer-mobile.png" "$artifact_directory/"
+chmod 700 "$root/.local/pilot" "$root/.local/pilot/evidence" "$artifact_directory"
+for screenshot in \
+  charity-admin-desktop.png \
+  acquirer-mobile.png \
+  system-members-desktop.png \
+  charity-members-mobile.png; do
+  cp "$proof/$screenshot" "$artifact_directory/"
+  chmod 600 "$artifact_directory/$screenshot"
+done
 
-echo "identity-test: OK: Rollen, Sitzungsentzug und Persona-Navigation real bewiesen"
+echo "identity-test: OK: autorisierte Mitgliederübersicht, Rollen, Sitzungsentzug und Persona-Navigation real bewiesen"

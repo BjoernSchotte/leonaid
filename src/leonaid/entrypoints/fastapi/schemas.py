@@ -78,6 +78,39 @@ class CurrentIdentityResponse(TransportModel):
     fresh_until: datetime
 
 
+class MemberDirectoryMembershipResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+    role: Literal["charity_admin", "acquirer", "finance_reader", "driver"]
+    role_label: str
+
+
+class MemberDirectoryMemberResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+    email: str
+    status: Literal["invited", "active", "suspended", "archived"]
+    status_label: str
+    global_roles: list[Literal["system_admin", "finance_reader", "finance_manager"]]
+    global_role_labels: list[str]
+    action_memberships: list[MemberDirectoryMembershipResponse]
+    last_login_at: datetime | None
+    active_session_count: int = Field(ge=0)
+
+
+class MemberDirectoryActionResponse(TransportModel):
+    action_id: UUID
+    action_name: str
+
+
+class MemberDirectoryResponse(TransportModel):
+    items: list[MemberDirectoryMemberResponse]
+    actions: list[MemberDirectoryActionResponse]
+    total: int = Field(ge=0)
+    next_cursor: str | None
+    partial: bool
+
+
 FeatureFlagKeyValue = Literal[
     "admin.system_status_panel",
     "admin.preview_notice",

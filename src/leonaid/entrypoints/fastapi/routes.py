@@ -70,7 +70,11 @@ from leonaid.application.actions import (
 )
 from leonaid.application.errors import Conflict, DependencyUnavailable
 from leonaid.application.feature_flags import FeatureFlagService
-from leonaid.application.identity import ROLE_LABELS, IdentityQueryService
+from leonaid.application.identity import (
+    ROLE_LABELS,
+    IdentityQueryService,
+    MemberDirectoryQuery,
+)
 from leonaid.application.invitations import InvitationService
 from leonaid.application.operations import OperationsService
 from leonaid.application.platform import PlatformApplicationService
@@ -123,7 +127,7 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
-from leonaid.domain.identity import ActionRole
+from leonaid.domain.identity import AccountStatus, ActionRole
 from leonaid.domain.invoices import Invoice, InvoiceProfile
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
@@ -225,6 +229,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
+    MemberDirectoryMemberResponse,
+    MemberDirectoryResponse,
     OperationalApiMetricsResponse,
     OperationalDependencyResponse,
     OperationalFailedJobResponse,
@@ -1623,6 +1629,58 @@ async def current_identity(
     result = await identity_service(request).current_identity(session_token(request))
     response.headers["Cache-Control"] = "no-store"
     return CurrentIdentityResponse.model_validate(result)
+
+
+@router.get(
+    "/api/v1/admin/members",
+    operation_id="listMembers",
+    response_model=MemberDirectoryResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def list_members(
+    request: Request,
+    response: Response,
+    search: Annotated[str, Query(max_length=160)] = "",
+    account_status: Annotated[
+        Literal["invited", "active", "suspended", "archived"] | None,
+        Query(alias="status"),
+    ] = None,
+    action_id: UUID | None = None,
+    cursor: Annotated[str | None, Query(max_length=128)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 6,
+) -> MemberDirectoryResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    page = await identity_service(request).list_members(
+        actor,
+        MemberDirectoryQuery(
+            search=search,
+            status=AccountStatus(account_status) if account_status else None,
+            action_id=action_id,
+            cursor=cursor,
+            limit=limit,
+        ),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MemberDirectoryResponse.model_validate(page)
+
+
+@router.get(
+    "/api/v1/admin/members/{user_id}",
+    operation_id="getMember",
+    response_model=MemberDirectoryMemberResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def get_member(
+    user_id: UUID,
+    request: Request,
+    response: Response,
+) -> MemberDirectoryMemberResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    member = await identity_service(request).get_member(actor, user_id)
+    response.headers["Cache-Control"] = "no-store"
+    return MemberDirectoryMemberResponse.model_validate(member)
 
 
 @router.get(

@@ -98,6 +98,10 @@ export type InvoiceResponse = { readonly actionId: string; readonly approvedByUs
 export type IssueInvoiceRequest = { readonly serviceOn: string; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
+export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; };
+export type MemberDirectoryMemberResponse = { readonly actionMemberships: Array<MemberDirectoryMembershipResponse>; readonly activeSessionCount: number; readonly displayName: string; readonly email: string; readonly globalRoleLabels: Array<string>; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly lastLoginAt: string | null; readonly status: "invited" | "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
+export type MemberDirectoryMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
+export type MemberDirectoryResponse = { readonly actions: Array<MemberDirectoryActionResponse>; readonly items: Array<MemberDirectoryMemberResponse>; readonly nextCursor: string | null; readonly partial: boolean; readonly total: number; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type OperationalApiMetricsResponse = { readonly averageLatencyMs: number; readonly errors: number; readonly requests: number; };
 export type OperationalDependencyResponse = { readonly dependency: "twenty" | "rustfs" | "mail"; readonly errorCode: string | null; readonly latencyMs: number; readonly requestId: string; readonly status: "ready" | "unavailable"; };
@@ -957,6 +961,46 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async listMembers(
+    queryParameters: { readonly search?: string; readonly status?: "invited" | "active" | "suspended" | "archived" | null; readonly actionId?: string | null; readonly cursor?: string | null; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<MemberDirectoryResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.status !== undefined && queryParameters.status !== null) {
+      searchParameters.set("status", String(queryParameters.status));
+    }
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("action_id", String(queryParameters.actionId));
+    }
+    if (queryParameters.cursor !== undefined && queryParameters.cursor !== null) {
+      searchParameters.set("cursor", String(queryParameters.cursor));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/admin/members" + (queryString ? `?${queryString}` : "");
+    return this.request<MemberDirectoryResponse>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async getMember(
+    userId: string,
+    options: RequestOptions = {},
+  ): Promise<MemberDirectoryMemberResponse> {
+    return this.request<MemberDirectoryMemberResponse>(
+      `/api/v1/admin/members/${encodeURIComponent(String(userId))}`,
+      { method: "GET" },
       options,
     );
   }

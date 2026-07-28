@@ -414,30 +414,30 @@ In Scope:
 
 Akzeptanzkriterien:
 
-- [ ] System-Admin sieht alle Accounts mit Status, Rollen,
+- [x] System-Admin sieht alle Accounts mit Status, Rollen,
       Aktionsmitgliedschaften, letztem Login und aktiven Sitzungszahlen.
-- [ ] Charity-Admin sieht ausschließlich Mitglieder in selbst verwalteten
+- [x] Charity-Admin sieht ausschließlich Mitglieder in selbst verwalteten
       Aktionen und keine globalen Rollen außerhalb seines Scopes.
-- [ ] Akquisiteur, Finanzen und öffentliche Persona erhalten keinen
+- [x] Akquisiteur, Finanzen und öffentliche Persona erhalten keinen
       Mitgliederlisten-Zugriff.
-- [ ] Suche, Statusfilter, Aktionsfilter und cursorbasierte Pagination sind
+- [x] Suche, Statusfilter, Aktionsfilter und cursorbasierte Pagination sind
       serverseitig autorisiert.
-- [ ] Die Oberfläche verwendet Namen und verständliche Rollen statt
+- [x] Die Oberfläche verwendet Namen und verständliche Rollen statt
       interner UUIDs.
-- [ ] Empty, Loading, Fehler, Teilzugriff und leere Suchergebnisse sind
+- [x] Empty, Loading, Fehler, Teilzugriff und leere Suchergebnisse sind
       gestaltet.
-- [ ] Liste und Detail funktionieren auf Smartphone, Desktop, Tastatur und
+- [x] Liste und Detail funktionieren auf Smartphone, Desktop, Tastatur und
       Screenreader.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Filter-/Sortiervertrag mit Golden-Domainobjekten.
-- [ ] Integrationstest vergleicht API-Ergebnis mit echtem PostgreSQL und
+- [x] Unit-Tests prüfen Filter-/Sortiervertrag mit Golden-Domainobjekten.
+- [x] Integrationstest vergleicht API-Ergebnis mit echtem PostgreSQL und
       beweist Charity-Admin-Row-Level-Grenzen.
-- [ ] Negative API-Tests prüfen alle nicht berechtigten Personas.
-- [ ] E2E bedient Suche, Filter, Pagination und Detail in Chromium sowie
+- [x] Negative API-Tests prüfen alle nicht berechtigten Personas.
+- [x] E2E bedient Suche, Filter, Pagination und Detail in Chromium sowie
       sichtbar im In-App-Browser.
-- [ ] Axe besitzt keine kritischen oder ernsten Befunde.
+- [x] Axe besitzt keine kritischen oder ernsten Befunde.
 
 ### [ ] PILOT-011 Account sperren, reaktivieren und archivieren
 

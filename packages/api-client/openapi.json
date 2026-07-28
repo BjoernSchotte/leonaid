@@ -4667,6 +4667,199 @@
         "title": "LogoutResponse",
         "type": "object"
       },
+      "MemberDirectoryActionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName"
+        ],
+        "title": "MemberDirectoryActionResponse",
+        "type": "object"
+      },
+      "MemberDirectoryMemberResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionMemberships": {
+            "items": {
+              "$ref": "#/components/schemas/MemberDirectoryMembershipResponse"
+            },
+            "title": "Actionmemberships",
+            "type": "array"
+          },
+          "activeSessionCount": {
+            "minimum": 0.0,
+            "title": "Activesessioncount",
+            "type": "integer"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "globalRoleLabels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Globalrolelabels",
+            "type": "array"
+          },
+          "globalRoles": {
+            "items": {
+              "enum": [
+                "system_admin",
+                "finance_reader",
+                "finance_manager"
+              ],
+              "type": "string"
+            },
+            "title": "Globalroles",
+            "type": "array"
+          },
+          "lastLoginAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastloginat"
+          },
+          "status": {
+            "enum": [
+              "invited",
+              "active",
+              "suspended",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "statusLabel": {
+            "title": "Statuslabel",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "email",
+          "status",
+          "statusLabel",
+          "globalRoles",
+          "globalRoleLabels",
+          "actionMemberships",
+          "lastLoginAt",
+          "activeSessionCount"
+        ],
+        "title": "MemberDirectoryMemberResponse",
+        "type": "object"
+      },
+      "MemberDirectoryMembershipResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "actionName": {
+            "title": "Actionname",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "charity_admin",
+              "acquirer",
+              "finance_reader",
+              "driver"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "roleLabel": {
+            "title": "Rolelabel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "actionName",
+          "role",
+          "roleLabel"
+        ],
+        "title": "MemberDirectoryMembershipResponse",
+        "type": "object"
+      },
+      "MemberDirectoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/MemberDirectoryActionResponse"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemberDirectoryMemberResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "actions",
+          "total",
+          "nextCursor",
+          "partial"
+        ],
+        "title": "MemberDirectoryResponse",
+        "type": "object"
+      },
       "NavigationItemResponse": {
         "additionalProperties": false,
         "properties": {
@@ -12512,6 +12705,261 @@
         "summary": "Update Feature Flag",
         "tags": [
           "feature-flags"
+        ]
+      }
+    },
+    "/api/v1/admin/members": {
+      "get": {
+        "operationId": "listMembers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 160,
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "invited",
+                    "active",
+                    "suspended",
+                    "archived"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberDirectoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/admin/members/{user_id}": {
+      "get": {
+        "operationId": "getMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberDirectoryMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Member",
+        "tags": [
+          "identity"
         ]
       }
     },

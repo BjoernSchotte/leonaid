@@ -9,7 +9,15 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
-from leonaid.application.identity import AuthenticatedIdentity
+from leonaid.application.identity import (
+    ROLE_LABELS,
+    STATUS_LABELS,
+    AuthenticatedIdentity,
+    MemberDirectoryAction,
+    MemberDirectoryMember,
+    MemberDirectoryMembership,
+    MemberDirectorySnapshot,
+)
 from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
@@ -141,6 +149,188 @@ class AsyncpgIdentityRepository:
                 last_seen_at=max(account_row["session_last_seen_at"], now),
                 fresh_login_at=account_row["session_fresh_login_at"],
                 revoked_at=account_row["session_revoked_at"],
+            ),
+        )
+
+    async def member_directory_snapshot(
+        self,
+        *,
+        visible_action_ids: tuple[UUID, ...] | None,
+        include_global_roles: bool,
+        now: datetime,
+    ) -> MemberDirectorySnapshot:
+        visible_ids = None if visible_action_ids is None else list(visible_action_ids)
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(
+                isolation="repeatable_read",
+                readonly=True,
+            ):
+                account_rows = await connection.fetch(
+                    """
+                    SELECT
+                        account.id,
+                        account.email,
+                        account.display_name,
+                        account.status,
+                        account.email_verified_at
+                    FROM user_account AS account
+                    WHERE $1::uuid[] IS NULL
+                       OR EXISTS (
+                            SELECT 1
+                            FROM action_membership AS membership
+                            WHERE membership.user_id = account.id
+                              AND membership.action_id = ANY($1::uuid[])
+                              AND membership.active_from <= $2
+                              AND (
+                                membership.active_until IS NULL
+                                OR membership.active_until > $2
+                              )
+                       )
+                    ORDER BY lower(account.display_name), account.id
+                    """,
+                    visible_ids,
+                    now,
+                )
+                user_ids = [row["id"] for row in account_rows]
+                role_rows = (
+                    await connection.fetch(
+                        """
+                        SELECT user_id, role
+                        FROM user_global_role
+                        WHERE user_id = ANY($1::uuid[])
+                        ORDER BY user_id, role
+                        """,
+                        user_ids,
+                    )
+                    if include_global_roles and user_ids
+                    else []
+                )
+                membership_rows = (
+                    await connection.fetch(
+                        """
+                        SELECT
+                            membership.user_id,
+                            membership.action_id,
+                            action.name AS action_name,
+                            membership.role
+                        FROM action_membership AS membership
+                        JOIN charity_action AS action
+                          ON action.id = membership.action_id
+                        WHERE membership.user_id = ANY($1::uuid[])
+                          AND membership.active_from <= $2
+                          AND (
+                            membership.active_until IS NULL
+                            OR membership.active_until > $2
+                          )
+                          AND (
+                            $3::uuid[] IS NULL
+                            OR membership.action_id = ANY($3::uuid[])
+                          )
+                        ORDER BY
+                            membership.user_id,
+                            action.starts_on DESC,
+                            action.name,
+                            membership.role
+                        """,
+                        user_ids,
+                        now,
+                        visible_ids,
+                    )
+                    if user_ids
+                    else []
+                )
+                session_rows = (
+                    await connection.fetch(
+                        """
+                        SELECT
+                            user_id,
+                            max(created_at) AS last_login_at,
+                            count(*) FILTER (
+                                WHERE revoked_at IS NULL
+                                  AND expires_at > $2
+                            ) AS active_session_count
+                        FROM user_session
+                        WHERE user_id = ANY($1::uuid[])
+                        GROUP BY user_id
+                        """,
+                        user_ids,
+                        now,
+                    )
+                    if user_ids
+                    else []
+                )
+                if visible_ids is None:
+                    action_rows = await connection.fetch(
+                        """
+                        SELECT id, name
+                        FROM charity_action
+                        ORDER BY starts_on DESC, name, id
+                        """
+                    )
+                else:
+                    action_rows = await connection.fetch(
+                        """
+                        SELECT id, name
+                        FROM charity_action
+                        WHERE id = ANY($1::uuid[])
+                        ORDER BY starts_on DESC, name, id
+                        """,
+                        visible_ids,
+                    )
+
+        roles_by_user: dict[UUID, list[GlobalRole]] = {}
+        for row in role_rows:
+            roles_by_user.setdefault(row["user_id"], []).append(
+                GlobalRole(str(row["role"]))
+            )
+        memberships_by_user: dict[UUID, list[MemberDirectoryMembership]] = {}
+        for row in membership_rows:
+            role = ActionRole(str(row["role"]))
+            memberships_by_user.setdefault(row["user_id"], []).append(
+                MemberDirectoryMembership(
+                    action_id=row["action_id"],
+                    action_name=str(row["action_name"]),
+                    role=role,
+                    role_label=ROLE_LABELS[role],
+                )
+            )
+        sessions_by_user = {
+            row["user_id"]: (
+                row["last_login_at"],
+                int(row["active_session_count"]),
+            )
+            for row in session_rows
+        }
+        members: list[MemberDirectoryMember] = []
+        for row in account_rows:
+            account = account_from_record(row)
+            roles = tuple(roles_by_user.get(account.id, ()))
+            last_login_at, active_session_count = sessions_by_user.get(
+                account.id,
+                (None, 0),
+            )
+            members.append(
+                MemberDirectoryMember(
+                    user_id=account.id,
+                    display_name=account.display_name,
+                    email=account.email,
+                    status=account.status,
+                    status_label=STATUS_LABELS[account.status],
+                    global_roles=roles,
+                    global_role_labels=tuple(ROLE_LABELS[role] for role in roles),
+                    action_memberships=tuple(memberships_by_user.get(account.id, ())),
+                    last_login_at=last_login_at,
+                    active_session_count=active_session_count,
+                )
+            )
+        return MemberDirectorySnapshot(
+            members=tuple(members),
+            actions=tuple(
+                MemberDirectoryAction(
+                    action_id=row["id"],
+                    action_name=str(row["name"]),
+                )
+                for row in action_rows
             ),
         )
 

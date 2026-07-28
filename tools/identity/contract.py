@@ -31,7 +31,10 @@ from leonaid.domain.identity import (
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
+FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 GESA_ID = UUID("10000000-0000-4000-8000-000000000008")
+ACTIVE_ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
+ARCHIVED_ACTION_ID = UUID("20000000-0000-4000-8000-000000000002")
 FOREIGN_ACTION_ID = UUID("20000000-0000-4000-8000-000000000003")
 TEMPORARY_MEMBERSHIP_ID = UUID("21000000-0000-4000-8000-000000000040")
 
@@ -134,6 +137,7 @@ async def run(arguments: argparse.Namespace) -> None:
             "SYSTEM_SESSION": await create_session(connection, SYSTEM_ID, now=now),
             "KLARA_SESSION": await create_session(connection, KLARA_ID, now=now),
             "ANNA_OLD_SESSION": await create_session(connection, ANNA_ID, now=now),
+            "FINN_SESSION": await create_session(connection, FINN_ID, now=now),
             "GESA_SESSION": await create_session(connection, GESA_ID, now=now),
         }
         original_anna_email = await connection.fetchval(
@@ -285,6 +289,171 @@ async def run(arguments: argparse.Namespace) -> None:
                 "mehrere globale/Aktionsrollen wurden nicht getrennt persistiert"
             )
 
+        async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
+            system_cookies = {"__Host-leonaid_session": tokens["SYSTEM_SESSION"]}
+            system_page = await client.get(
+                "/api/v1/admin/members",
+                params={"limit": 3},
+                cookies=system_cookies,
+            )
+            if (
+                system_page.status_code != 200
+                or system_page.headers.get("cache-control") != "no-store"
+            ):
+                raise ContractFailure(
+                    "System-Admin-Mitgliederliste ist nicht sicher erreichbar"
+                )
+            system_payload = system_page.json()
+            first_items = system_payload.get("items")
+            next_cursor = system_payload.get("nextCursor")
+            if (
+                system_payload.get("total") != 8
+                or system_payload.get("partial") is not False
+                or not isinstance(first_items, list)
+                or [item.get("displayName") for item in first_items]
+                != ["Anna Akquise", "Bernd Binder", "Carla Club"]
+                or not isinstance(next_cursor, str)
+            ):
+                raise ContractFailure(
+                    "System-Admin-Sortierung oder Cursor-Seite ist inkorrekt"
+                )
+            second_page = await client.get(
+                "/api/v1/admin/members",
+                params={"limit": 3, "cursor": next_cursor},
+                cookies=system_cookies,
+            )
+            if second_page.status_code != 200 or [
+                item.get("displayName") for item in second_page.json().get("items", [])
+            ] != ["Felix Fremd", "Finn Finanzen", "Gesa Gesperrt"]:
+                raise ContractFailure("zweite Cursor-Seite ist inkorrekt")
+
+            suspended = await client.get(
+                "/api/v1/admin/members",
+                params={"status": "suspended"},
+                cookies=system_cookies,
+            )
+            foreign = await client.get(
+                "/api/v1/admin/members",
+                params={"action_id": str(FOREIGN_ACTION_ID)},
+                cookies=system_cookies,
+            )
+            search = await client.get(
+                "/api/v1/admin/members",
+                params={"search": "anna akquise"},
+                cookies=system_cookies,
+            )
+            if (
+                suspended.status_code != 200
+                or [
+                    item.get("displayName")
+                    for item in suspended.json().get("items", [])
+                ]
+                != ["Gesa Gesperrt"]
+                or foreign.status_code != 200
+                or [item.get("displayName") for item in foreign.json().get("items", [])]
+                != ["Felix Fremd", "Klara Kern"]
+                or search.status_code != 200
+                or [item.get("displayName") for item in search.json().get("items", [])]
+                != ["Anna Akquise"]
+            ):
+                raise ContractFailure(
+                    "Mitgliedersuche, Status- oder Aktionsfilter ist inkorrekt"
+                )
+
+            system_detail = await client.get(
+                f"/api/v1/admin/members/{KLARA_ID}",
+                cookies=system_cookies,
+            )
+            system_detail_payload = system_detail.json()
+            if (
+                system_detail.status_code != 200
+                or system_detail_payload.get("globalRoles") != ["finance_reader"]
+                or len(system_detail_payload.get("actionMemberships", [])) != 3
+            ):
+                raise ContractFailure("System-Admin-Detail enthält nicht alle Rollen")
+
+            klara_cookies = {"__Host-leonaid_session": tokens["KLARA_SESSION"]}
+            klara_page = await client.get(
+                "/api/v1/admin/members",
+                params={"limit": 100},
+                cookies=klara_cookies,
+            )
+            klara_payload = klara_page.json()
+            klara_items = klara_payload.get("items")
+            if (
+                klara_page.status_code != 200
+                or klara_payload.get("partial") is not True
+                or klara_payload.get("total") != 6
+                or not isinstance(klara_items, list)
+                or {item.get("displayName") for item in klara_items}
+                != {
+                    "Anna Akquise",
+                    "Bernd Binder",
+                    "Carla Club",
+                    "Finn Finanzen",
+                    "Gesa Gesperrt",
+                    "Klara Kern",
+                }
+                or any(item.get("globalRoles") for item in klara_items)
+                or any(
+                    membership.get("actionId")
+                    not in {str(ACTIVE_ACTION_ID), str(ARCHIVED_ACTION_ID)}
+                    for item in klara_items
+                    for membership in item.get("actionMemberships", [])
+                )
+            ):
+                raise ContractFailure(
+                    "Charity-Admin-Row-Level-Sicht oder Rollenredaktion ist inkorrekt"
+                )
+            klara_detail = await client.get(
+                f"/api/v1/admin/members/{KLARA_ID}",
+                cookies=klara_cookies,
+            )
+            if (
+                klara_detail.status_code != 200
+                or klara_detail.json().get("globalRoles") != []
+                or len(klara_detail.json().get("actionMemberships", [])) != 2
+            ):
+                raise ContractFailure(
+                    "Charity-Admin-Detail redigiert den Fremdscope nicht"
+                )
+            forbidden_action = await client.get(
+                "/api/v1/admin/members",
+                params={"action_id": str(FOREIGN_ACTION_ID)},
+                cookies=klara_cookies,
+            )
+            concealed_member = await client.get(
+                f"/api/v1/admin/members/{UUID('10000000-0000-4000-8000-000000000003')}",
+                cookies=klara_cookies,
+            )
+            if forbidden_action.status_code != 403:
+                raise ContractFailure("Charity-Admin durfte fremde Aktion filtern")
+            if concealed_member.status_code != 404:
+                raise ContractFailure(
+                    "fremdes Mitglied wurde nicht als unbekannt verborgen"
+                )
+
+            public_denied = await client.get("/api/v1/admin/members")
+            if public_denied.status_code != 401:
+                raise ContractFailure(
+                    "öffentliche Persona erhielt Mitgliederlisten-Zugriff"
+                )
+
+            for persona, token in (
+                ("Akquisiteur", tokens["ANNA_OLD_SESSION"]),
+                ("Finanzen", tokens["FINN_SESSION"]),
+            ):
+                denied = await client.get(
+                    "/api/v1/admin/members",
+                    cookies={"__Host-leonaid_session": token},
+                )
+                if (
+                    denied.status_code != 403
+                    or denied.json().get("error", {}).get("code")
+                    != "member_directory_forbidden"
+                ):
+                    raise ContractFailure(f"{persona} erhielt Mitgliederlisten-Zugriff")
+
         if not await administration.remove_action_membership(
             system,
             TEMPORARY_MEMBERSHIP_ID,
@@ -372,7 +541,13 @@ async def run(arguments: argparse.Namespace) -> None:
             "\n".join(
                 f"{name}={value}"
                 for name, value in tokens.items()
-                if name in {"SYSTEM_SESSION", "KLARA_SESSION", "ANNA_SESSION"}
+                if name
+                in {
+                    "SYSTEM_SESSION",
+                    "KLARA_SESSION",
+                    "ANNA_SESSION",
+                    "FINN_SESSION",
+                }
             )
             + "\n",
             encoding="utf-8",

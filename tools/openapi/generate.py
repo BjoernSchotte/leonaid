@@ -219,8 +219,8 @@ def query_parameter_type(
     parameters: list[tuple[str, str, str, bool]],
 ) -> str:
     fields = []
-    for original, _identifier, parameter_type, required in parameters:
-        key = original if IDENTIFIER.fullmatch(original) else json.dumps(original)
+    for _original, identifier, parameter_type, required in parameters:
+        key = identifier
         optional = "" if required else "?"
         fields.append(f"readonly {key}{optional}: {parameter_type};")
     return "{ " + " ".join(fields) + " }"

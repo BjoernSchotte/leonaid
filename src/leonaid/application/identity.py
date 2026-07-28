@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,7 +12,9 @@ from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.errors import (
+    ApplicationError,
     AuthenticationRequired,
+    PermissionDenied,
     ResourceNotFound,
 )
 from leonaid.application.policies import require_system_admin
@@ -87,6 +91,14 @@ class IdentityRepository(Protocol):
         occurred_at: datetime,
     ) -> bool: ...
 
+    async def member_directory_snapshot(
+        self,
+        *,
+        visible_action_ids: tuple[UUID, ...] | None,
+        include_global_roles: bool,
+        now: datetime,
+    ) -> MemberDirectorySnapshot: ...
+
 
 @dataclass(frozen=True, slots=True)
 class NavigationItem:
@@ -118,6 +130,64 @@ class CurrentIdentity:
     fresh_until: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryMembership:
+    action_id: UUID
+    action_name: str
+    role: ActionRole
+    role_label: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryMember:
+    user_id: UUID
+    display_name: str
+    email: str
+    status: AccountStatus
+    status_label: str
+    global_roles: tuple[GlobalRole, ...]
+    global_role_labels: tuple[str, ...]
+    action_memberships: tuple[MemberDirectoryMembership, ...]
+    last_login_at: datetime | None
+    active_session_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryAction:
+    action_id: UUID
+    action_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectorySnapshot:
+    members: tuple[MemberDirectoryMember, ...]
+    actions: tuple[MemberDirectoryAction, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryQuery:
+    search: str = ""
+    status: AccountStatus | None = None
+    action_id: UUID | None = None
+    cursor: str | None = None
+    limit: int = 6
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.limit <= 100:
+            raise ValueError("Das Mitgliederlimit muss zwischen 1 und 100 liegen.")
+        if len(self.search) > 160:
+            raise ValueError("Die Mitgliedersuche darf höchstens 160 Zeichen haben.")
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryPage:
+    items: tuple[MemberDirectoryMember, ...]
+    actions: tuple[MemberDirectoryAction, ...]
+    total: int
+    next_cursor: str | None
+    partial: bool
+
+
 ROLE_LABELS: dict[GlobalRole | ActionRole, str] = {
     GlobalRole.SYSTEM_ADMIN: "System-Admin",
     GlobalRole.FINANCE_READER: "Finanzen (Lesen)",
@@ -127,6 +197,91 @@ ROLE_LABELS: dict[GlobalRole | ActionRole, str] = {
     ActionRole.FINANCE_READER: "Finanzen",
     ActionRole.DRIVER: "Ausfahrer",
 }
+
+STATUS_LABELS: dict[AccountStatus, str] = {
+    AccountStatus.INVITED: "Eingeladen",
+    AccountStatus.ACTIVE: "Aktiv",
+    AccountStatus.SUSPENDED: "Gesperrt",
+    AccountStatus.ARCHIVED: "Archiviert",
+}
+
+
+def member_directory_sort_key(
+    member: MemberDirectoryMember,
+) -> tuple[str, str, str]:
+    return (
+        member.display_name.casefold(),
+        member.email.casefold(),
+        str(member.user_id),
+    )
+
+
+def member_matches_directory_query(
+    member: MemberDirectoryMember,
+    query: MemberDirectoryQuery,
+) -> bool:
+    search_terms = tuple(term for term in query.search.casefold().split() if term)
+    searchable = f"{member.display_name} {member.email}".casefold()
+    if any(term not in searchable for term in search_terms):
+        return False
+    if query.status is not None and member.status is not query.status:
+        return False
+    if query.action_id is not None and all(
+        membership.action_id != query.action_id
+        for membership in member.action_memberships
+    ):
+        return False
+    return True
+
+
+def encode_member_cursor(user_id: UUID) -> str:
+    return base64.urlsafe_b64encode(user_id.bytes).decode("ascii").rstrip("=")
+
+
+def decode_member_cursor(value: str) -> UUID:
+    try:
+        padded = value + ("=" * (-len(value) % 4))
+        raw = base64.b64decode(padded, altchars=b"-_", validate=True)
+        if len(raw) != 16:
+            raise ValueError
+        return UUID(bytes=raw)
+    except (binascii.Error, ValueError) as error:
+        raise ApplicationError(
+            "member_cursor_invalid",
+            "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+        ) from error
+
+
+def paginate_member_directory(
+    members: tuple[MemberDirectoryMember, ...],
+    query: MemberDirectoryQuery,
+) -> tuple[tuple[MemberDirectoryMember, ...], int, str | None]:
+    filtered = tuple(
+        sorted(
+            (
+                member
+                for member in members
+                if member_matches_directory_query(member, query)
+            ),
+            key=member_directory_sort_key,
+        )
+    )
+    start = 0
+    if query.cursor is not None:
+        cursor_user_id = decode_member_cursor(query.cursor)
+        for index, member in enumerate(filtered):
+            if member.user_id == cursor_user_id:
+                start = index + 1
+                break
+        else:
+            raise ApplicationError(
+                "member_cursor_invalid",
+                "Die Mitgliederseite ist nicht mehr gültig. Bitte starte die Suche neu.",
+            )
+    page = filtered[start : start + query.limit]
+    has_more = start + len(page) < len(filtered)
+    next_cursor = encode_member_cursor(page[-1].user_id) if page and has_more else None
+    return page, len(filtered), next_cursor
 
 
 def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
@@ -286,6 +441,75 @@ class IdentityQueryService:
             session_last_seen_at=identity.session.last_seen_at,
             fresh_login_at=identity.session.fresh_login_at,
             fresh_until=identity.session.fresh_login_at + self._fresh_login_window,
+        )
+
+    @staticmethod
+    def _member_scope(actor: IdentityPrincipal) -> tuple[UUID, ...] | None:
+        if actor.is_system_admin:
+            return None
+        action_ids = tuple(
+            dict.fromkeys(
+                membership.action_id
+                for membership in actor.action_memberships
+                if membership.role is ActionRole.CHARITY_ADMIN
+            )
+        )
+        if not action_ids:
+            raise PermissionDenied(
+                "member_directory_forbidden",
+                "Nur Charity- oder System-Admins dürfen Mitglieder einsehen.",
+            )
+        return action_ids
+
+    async def list_members(
+        self,
+        actor: IdentityPrincipal,
+        query: MemberDirectoryQuery,
+    ) -> MemberDirectoryPage:
+        visible_action_ids = self._member_scope(actor)
+        if (
+            visible_action_ids is not None
+            and query.action_id is not None
+            and query.action_id not in visible_action_ids
+        ):
+            raise PermissionDenied(
+                "member_action_scope_forbidden",
+                "Du darfst Mitglieder nur in selbst verwalteten Aktionen einsehen.",
+            )
+        snapshot = await self._repository.member_directory_snapshot(
+            visible_action_ids=visible_action_ids,
+            include_global_roles=actor.is_system_admin,
+            now=self._clock(),
+        )
+        items, total, next_cursor = paginate_member_directory(
+            snapshot.members,
+            query,
+        )
+        return MemberDirectoryPage(
+            items=items,
+            actions=snapshot.actions,
+            total=total,
+            next_cursor=next_cursor,
+            partial=visible_action_ids is not None,
+        )
+
+    async def get_member(
+        self,
+        actor: IdentityPrincipal,
+        user_id: UUID,
+    ) -> MemberDirectoryMember:
+        visible_action_ids = self._member_scope(actor)
+        snapshot = await self._repository.member_directory_snapshot(
+            visible_action_ids=visible_action_ids,
+            include_global_roles=actor.is_system_admin,
+            now=self._clock(),
+        )
+        for member in snapshot.members:
+            if member.user_id == user_id:
+                return member
+        raise ResourceNotFound(
+            "member_not_found",
+            "Das Mitglied wurde nicht gefunden.",
         )
 
 

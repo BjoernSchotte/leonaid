@@ -11,7 +11,7 @@ import {
   FeatureFlagProvider,
   InvoiceAdminPage,
   ManageActionPage,
-  MemberInvitationPage,
+  MemberAdministrationPage,
   PrivacyAdminPage,
   PreviewNotice,
   RoleDashboardPage,
@@ -154,7 +154,7 @@ export function App({ client }: AppProps) {
             key={currentRoute.actionId}
           />
         ) : currentRoute.kind === "members" ? (
-          <MemberInvitationPage client={client} />
+          <MemberAdministrationPage client={client} />
         ) : currentRoute.kind === "orders" ? (
           <CommitmentAdminPage client={client} identity={identity.data} />
         ) : currentRoute.kind === "invoices" ? (

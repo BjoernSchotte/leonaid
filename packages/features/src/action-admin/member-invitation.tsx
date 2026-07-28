@@ -18,6 +18,7 @@ import { actionErrorMessage } from "./errors";
 
 export interface MemberInvitationPageProps {
   readonly client: LeonAidApiClient;
+  readonly embedded?: boolean;
 }
 
 type InvitationRole = CreateInvitationRequest["role"];
@@ -36,7 +37,10 @@ const emptyDraft: InvitationDraft = {
   role: "",
 };
 
-export function MemberInvitationPage({ client }: MemberInvitationPageProps) {
+export function MemberInvitationPage({
+  client,
+  embedded = false,
+}: MemberInvitationPageProps) {
   const [draft, setDraft] = useState<InvitationDraft>(emptyDraft);
   const [feedback, setFeedback] = useState<
     { readonly message: string; readonly tone: "error" | "success" } | undefined
@@ -110,17 +114,25 @@ export function MemberInvitationPage({ client }: MemberInvitationPageProps) {
     options.data.actions.length > 0 && options.data.roles.length > 0;
 
   return (
-    <div className="action-page action-page--invitation">
-      <header className="action-page__header">
-        <div>
-          <p className="action-page__eyebrow">Mitglieder</p>
-          <h1>Mitglied einladen</h1>
-          <p>
-            Ordne ein Mitglied beim Annehmen der Einladung direkt einer von dir
-            verwalteten Charity-Aktion zu.
-          </p>
-        </div>
-      </header>
+    <div
+      className={
+        embedded
+          ? "member-invitation-panel"
+          : "action-page action-page--invitation"
+      }
+    >
+      {!embedded ? (
+        <header className="action-page__header">
+          <div>
+            <p className="action-page__eyebrow">Mitglieder</p>
+            <h1>Mitglied einladen</h1>
+            <p>
+              Ordne ein Mitglied beim Annehmen der Einladung direkt einer von
+              dir verwalteten Charity-Aktion zu.
+            </p>
+          </div>
+        </header>
+      ) : null}
 
       <div className="action-invitation-layout">
         <form
