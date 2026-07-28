@@ -118,6 +118,7 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Klara Kern",
     );
+    await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
     await expect(page.locator('[data-testid="invite-action"]')).toBeEnabled();
 
     const cookies = await context.cookies(baseUrl);
@@ -169,6 +170,7 @@ test("Login, normale Arbeit, Fresh Login, Adminaktion und Logout", async ({
     await expect(page.locator('[data-testid="display-name"]')).toHaveText(
       "Klara Kern",
     );
+    await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
 
     await page
       .getByRole("textbox", { name: "Name des Mitglieds" })

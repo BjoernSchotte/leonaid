@@ -203,6 +203,7 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   await adminPage.goto(`${baseUrl}/admin/members`);
   await expect(adminPage).toHaveURL(`${baseUrl}/admin/members`);
   await expect(adminPage.getByTestId("display-name")).toHaveText("Klara Kern");
+  await adminPage.getByRole("tab", { name: /Mitglied einladen/ }).click();
   await expect(adminPage.getByTestId("invite-action")).toBeEnabled();
   await adminPage
     .getByRole("textbox", { name: "Name des Mitglieds" })

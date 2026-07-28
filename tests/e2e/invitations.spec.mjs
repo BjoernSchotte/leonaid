@@ -27,6 +27,7 @@ async function sessionPage(browser, token) {
   const page = await context.newPage();
   await page.goto(`${baseUrl}/admin/members`);
   await expect(page.locator('[data-testid="display-name"]')).toBeVisible();
+  await page.getByRole("tab", { name: /Mitglied einladen/ }).click();
   await expect(page.locator('[data-testid="invite-action"]')).toBeEnabled();
   return { context, page };
 }
