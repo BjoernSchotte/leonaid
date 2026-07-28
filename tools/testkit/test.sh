@@ -92,6 +92,8 @@ compose run --rm --no-deps \
   --env-from-file "$env_file" \
   --env-from-file "$proof/integration.env" \
   --env LEONAID_API_BASE_URL=http://api:8000 \
+  --env MAIL_SMTP_HOST=mailpit \
+  --env MAIL_SMTP_PORT=1025 \
   --env PYTHONPATH=/repo/packages/testkit:/repo/src:/repo:/workspace/src \
   --env TESTKIT_PROOF_DIR=/proof \
   --volume "$root:/repo:ro" \
