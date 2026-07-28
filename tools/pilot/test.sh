@@ -52,4 +52,23 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python tools/ci/sanitize_artifacts_test.py /workspace
 
-echo "pilot-data-boundary-test: OK: Host-, Docker-, Git- und Artefaktgrenze bewiesen"
+production_test_logins="$container_proof/production-test-logins.md"
+if docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --env LEONAID_ENV=production \
+  --volume "$root:/workspace:ro" \
+  --volume "$container_proof:/boundary" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/dx/generate_test_logins.py \
+  tests/fixtures/golden/v1/dataset.json \
+  /boundary/production-test-logins.md; then
+  echo "pilot-data-boundary-test: ERROR: Produktion erzeugte Golden-Testlogins" >&2
+  exit 1
+fi
+if [ -e "$production_test_logins" ]; then
+  echo "pilot-data-boundary-test: ERROR: abgewiesene Produktion hinterließ Testlogins" >&2
+  exit 1
+fi
+
+echo "pilot-data-boundary-test: OK: Host-, Docker-, Git-, Workflow-, Artefakt- und Produktionsgrenze bewiesen"

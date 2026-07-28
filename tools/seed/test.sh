@@ -61,6 +61,7 @@ fi
 echo "seed-test: setzt alle vier Systeme aus leeren Volumes auf Golden Data v1"
 "$root/leonaid" reset
 docker run --rm \
+  --env LEONAID_ENV=local \
   -v "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
   python /workspace/tools/dx/generate_test_logins.py \
@@ -69,6 +70,16 @@ docker run --rm \
   --check
 if ! git -C "$root" check-ignore -q .local/test-logins.md; then
   echo "seed-test: ERROR: lokale Testlogins sind nicht durch Git-Ignore geschützt" >&2
+  exit 1
+fi
+if compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env LEONAID_ENV=production \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/seed/golden.py \
+  seed-core /repo/tests/fixtures/golden/v1; then
+  echo "seed-test: ERROR: Golden-Seeding wurde in Produktion nicht abgewiesen" >&2
   exit 1
 fi
 "$root/leonaid" snapshot poc012-first.json

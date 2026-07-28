@@ -148,6 +148,7 @@ generate_test_logins() {
   host_group_id=$(id -g)
   docker_retry docker run --rm \
     --user "$host_user_id:$host_group_id" \
+    --env LEONAID_ENV=local \
     -v "$root:/workspace" \
     -w /workspace \
     "$PYTHON_IMAGE" \

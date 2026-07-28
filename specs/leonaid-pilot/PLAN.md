@@ -380,9 +380,9 @@ Akzeptanzkriterien:
       Dokumentbytes werden aus öffentlichen Artefakten entfernt.
 - [x] Der Sanitizer verarbeitet Text, JSON, HTML, Playwright-Traces,
       Screenshots, PDFs und verschachtelte ZIP-Dateien fail-closed.
-- [ ] Produktive Backups und private Beweise werden nicht in GitHub Actions
+- [x] Produktive Backups und private Beweise werden nicht in GitHub Actions
       hochgeladen.
-- [ ] Testlogins bleiben für lokale/staging Golden-Tests erreichbar, werden
+- [x] Testlogins bleiben für lokale/staging Golden-Tests erreichbar, werden
       aber niemals als gemeinsame Produktionsaccounts angelegt.
 
 Tests/Nachweise:
@@ -393,6 +393,9 @@ Tests/Nachweise:
       Pilot-Intake-Datei ab.
 - [x] Reale Dateirechte werden in einem Docker-/Host-Grenztest geprüft.
 - [x] `./leonaid test-pilot-data-boundary` ist grün.
+
+Technischer Nachweis:
+[`proofs/PILOT-002.md`](proofs/PILOT-002.md)
 
 ## 7. M1 – Vollständige Benutzeradministration
 
@@ -567,7 +570,7 @@ Akzeptanzkriterien:
 - [x] Mailpit bleibt realer lokaler/CI-SMTP-Server im expliziten
       Entwicklungsprofil.
 - [x] API und Worker erhalten nur die jeweils erforderlichen Mail-Secrets.
-- [ ] Login, Einladung, E-Mail-Korrektur und Rechnungsversand verwenden
+- [x] Login, Einladung, E-Mail-Korrektur und Rechnungsversand verwenden
       denselben providerneutralen Outbox-Pfad.
 - [x] Retry, Message-ID, Idempotenz und unveränderliches Rechnungsdokument
       bleiben erhalten.

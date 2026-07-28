@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,15 @@ LOGIN_PERSONAS = (
         destination_url="http://127.0.0.1:8080/admin/system",
     ),
 )
+
+
+def require_non_production_environment() -> None:
+    environment = os.environ.get("LEONAID_ENV")
+    if environment not in {"local", "test"}:
+        raise ValueError(
+            "Golden-Testlogins sind ausschließlich in local/test erlaubt; "
+            "Produktion und unbekannte Umgebungen werden abgewiesen"
+        )
 
 
 def load_dataset(path: Path) -> dict[str, Any]:
@@ -151,15 +161,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
-    if args.check:
-        check_test_logins(args.dataset, args.output)
-        print("test-login-handoff: OK: Golden-Personas, Inhalt und Modus aktuell")
-        return
-    write_test_logins(args.dataset, args.output)
+    try:
+        require_non_production_environment()
+        if args.check:
+            check_test_logins(args.dataset, args.output)
+            print("test-login-handoff: OK: Golden-Personas, Inhalt und Modus aktuell")
+            return 0
+        write_test_logins(args.dataset, args.output)
+    except (OSError, ValueError) as error:
+        print(f"test-login-handoff: BLOCKED: {error}", file=sys.stderr)
+        return 1
     print(f"test-login-handoff: OK: lokale Zugänge unter {args.output}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

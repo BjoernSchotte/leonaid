@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.pilot.evidence import build_manifest, initialize, write_private_json
+from tools.pilot.boundary import BoundaryError, check_workflows
 
 EXPECTED_MANIFEST_KEYS = {
     "sha256",
@@ -138,12 +139,78 @@ def prove_real_git_index_and_history(root: Path, workspace: Path) -> None:
     expect_boundary_failure(history_repo, "Git-Historie")
 
 
+def workflow_with_upload(
+    path: str, *, action: str = "actions/upload-artifact@pin"
+) -> str:
+    return (
+        "name: Boundary proof\n"
+        "jobs:\n"
+        "  proof:\n"
+        "    steps:\n"
+        f"      - uses: {action}\n"
+        "        with:\n"
+        f"          path: {path}\n"
+    )
+
+
+def prove_workflow_upload_boundary(workspace: Path) -> None:
+    root = workspace / "workflow-boundary"
+    workflows = root / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    ci = workflows / "ci.yml"
+    pins = workflows / "pins.yaml"
+    ci.write_text(
+        workflow_with_upload(".artifacts/ci/integration"),
+        encoding="utf-8",
+    )
+    pins.write_text(
+        workflow_with_upload(".artifacts/sbom/*.cdx.json"),
+        encoding="utf-8",
+    )
+    check_workflows(root)
+
+    for forbidden in (
+        ".local/pilot/backups/production.dump",
+        ".local/pilot/evidence/session.zip",
+        ".local/test-logins.md",
+        ".artifacts/failures",
+    ):
+        ci.write_text(workflow_with_upload(forbidden), encoding="utf-8")
+        try:
+            check_workflows(root)
+        except BoundaryError as error:
+            if "nicht freigegebener öffentlicher Uploadpfad" not in str(error):
+                raise AssertionError(
+                    f"Uploadgrenze meldete falschen Fehler für {forbidden}: {error}"
+                ) from error
+        else:
+            raise AssertionError(f"privater CI-Upload wurde erlaubt: {forbidden}")
+
+    ci.write_text(
+        workflow_with_upload(
+            ".artifacts/ci/pages",
+            action="actions/upload-pages-artifact@pin",
+        ),
+        encoding="utf-8",
+    )
+    try:
+        check_workflows(root)
+    except BoundaryError as error:
+        if "unbekannte Upload-Action" not in str(error):
+            raise AssertionError(
+                f"unbekannte Upload-Action meldete falschen Fehler: {error}"
+            ) from error
+    else:
+        raise AssertionError("unbekannte Upload-Action wurde erlaubt")
+
+
 def main() -> None:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     with tempfile.TemporaryDirectory() as temporary:
         workspace = Path(temporary)
         prove_permissions_and_manifest(workspace)
         prove_real_git_index_and_history(root, workspace)
+        prove_workflow_upload_boundary(workspace)
     result = run(
         sys.executable,
         "tools/pilot/boundary.py",
@@ -165,7 +232,7 @@ def main() -> None:
         raise AssertionError("Repository-Grenznachweis fehlt")
     print(
         "pilot-data-boundary-test: OK: 0700/0600, minimales Manifest, "
-        "echter Git-Index und Git-Historie bewiesen"
+        "echter Git-Index, Git-Historie und alle Workflow-Uploads bewiesen"
     )
 
 

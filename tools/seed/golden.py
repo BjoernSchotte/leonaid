@@ -52,6 +52,15 @@ class SeedError(RuntimeError):
     """A real target system rejected or lost Golden Data."""
 
 
+def require_non_production_environment() -> None:
+    environment = os.environ.get("LEONAID_ENV")
+    if environment not in {"local", "test"}:
+        raise SeedError(
+            "Golden Data sind ausschließlich in local/test erlaubt; "
+            "Produktion und unbekannte Umgebungen werden abgewiesen"
+        )
+
+
 def load_json_object(path: Path) -> JsonObject:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -1873,6 +1882,7 @@ def main() -> int:
             command.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     try:
+        require_non_production_environment()
         asyncio.run(run(arguments))
     except (
         OSError,

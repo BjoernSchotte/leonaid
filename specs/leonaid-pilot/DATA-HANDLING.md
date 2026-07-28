@@ -82,19 +82,27 @@ Textzusammenfassungen unter `.artifacts/ci/`.
 1. alle dokumentierten privaten Pfade werden ignoriert;
 2. kein privater Pfad liegt im aktuellen Git-Index;
 3. kein privater Pfad liegt in der erreichbaren Git-Historie;
-4. GitHub Actions lädt nur die sanitisierte `.artifacts/ci/`-Grenze hoch.
+4. jede Workflow-Datei und jede Upload-Action wird geprüft;
+5. GitHub Actions lädt nur die sanitisierte `.artifacts/ci/`-Grenze oder
+   explizit freigegebene CycloneDX-SBOMs unter `.artifacts/sbom/` hoch;
+6. unbekannte Upload-Actions sowie dynamische, absolute oder traversierende
+   Uploadpfade werden fail-closed abgewiesen.
 
 Der Test verwendet zwei echte temporäre Git-Repositories. Eines enthält eine
 absichtlich gestagte Intake-Datei, das andere eine bereits wieder gelöschte
-private Evidence in der Historie. Beide müssen abgewiesen werden.
+private Evidence in der Historie. Beide müssen abgewiesen werden. Zusätzliche
+reale Workflow-Dateien beweisen die Ablehnung von produktiven Backups,
+privater Evidence, Testlogin-Dateien, Failure-Verzeichnissen und unbekannten
+Upload-Actions.
 
 ## 5. Testlogins
 
 Golden-Testlogins verwenden ausschließlich synthetische `.invalid`-Adressen.
-Sie dürfen lokal und in isoliertem Staging erzeugt werden. Produktion wird nie
-mit Golden Data geseedet und erhält keine gemeinsam genutzten Testaccounts.
-Reale Pilotpersonen erhalten individuelle Einladungen; Entzug und Audit
-bleiben dadurch einer Person zuordenbar.
+Golden-Seed und Testlogin-Generator verlangen vor jedem System- oder
+Dateizugriff explizit `LEONAID_ENV=local` oder `LEONAID_ENV=test`. Produktion
+und unbekannte Umgebungen werden fail-closed abgewiesen und hinterlassen
+keine Testlogin-Datei. Reale Pilotpersonen erhalten individuelle Einladungen;
+Entzug und Audit bleiben dadurch einer Person zuordenbar.
 
 ## 6. Operatorablauf
 
