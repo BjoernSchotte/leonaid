@@ -274,7 +274,7 @@ jeweils genannten Entscheidungs- und Betriebs-Gates erfolgen.
 
 ## 6. M0 – Pilotvertrag und bindende Entscheidungen
 
-### [ ] PILOT-000 Pilot-Traceability und Proof-Infrastruktur etablieren
+### [x] PILOT-000 Pilot-Traceability und Proof-Infrastruktur etablieren
 
 Priorität: P1 · Aufwand: S · Risiko: niedrig  
 Abhängigkeiten: abgeschlossener PoC
@@ -289,25 +289,25 @@ In Scope:
 
 Akzeptanzkriterien:
 
-- [ ] Jeder Pilot-Task, jedes Akzeptanzkriterium und jeder harte Gate besitzt
+- [x] Jeder Pilot-Task, jedes Akzeptanzkriterium und jeder harte Gate besitzt
       eine stabile ID.
-- [ ] `specs/leonaid-pilot/proofs/` ist der einzige versionierte Ort für
+- [x] `specs/leonaid-pilot/proofs/` ist der einzige versionierte Ort für
       personenbezugsfreie Pilotnachweise.
-- [ ] Private Evidence-Pfade und öffentliche CI-Artefakte sind explizit
+- [x] Private Evidence-Pfade und öffentliche CI-Artefakte sind explizit
       getrennt.
-- [ ] `./leonaid test-pilot-contract` prüft Planstruktur, Abhängigkeiten,
+- [x] `./leonaid test-pilot-contract` prüft Planstruktur, Abhängigkeiten,
       offene/geschlossene Kriterien und Proof-Links.
-- [ ] CI veröffentlicht auch bei Fehlschlag sanitizte, secretsfreie
+- [x] CI veröffentlicht auch bei Fehlschlag sanitizte, secretsfreie
       Task-Artefakte.
-- [ ] Das bestehende PoC-Traceability-Gate bleibt unverändert grün.
+- [x] Das bestehende PoC-Traceability-Gate bleibt unverändert grün.
 
 Tests/Nachweise:
 
-- [ ] Positivtest akzeptiert den vollständigen Pilotplan.
-- [ ] Negative Tests lehnen fehlenden Proof-Link, verwaistes Kriterium,
+- [x] Positivtest akzeptiert den vollständigen Pilotplan.
+- [x] Negative Tests lehnen fehlenden Proof-Link, verwaistes Kriterium,
       unbekannte Abhängigkeit und verfrüht abgehakten Task ab.
-- [ ] `./leonaid test-pilot-contract` meldet `pilot-contract: OK`.
-- [ ] `./leonaid check` bleibt grün.
+- [x] `./leonaid test-pilot-contract` meldet `pilot-contract: OK`.
+- [x] `./leonaid check` bleibt grün.
 
 ### [ ] PILOT-001 Rechtliche und operative Pilotentscheidungen schließen
 
@@ -1017,24 +1017,24 @@ Tests/Nachweise:
 
 ## 12. Harte Pilot-Abnahmematrix
 
-| Gate | Primäre Tasks |
-| --- | --- |
-| Keine realen Daten in Git/öffentlicher CI | PILOT-002, PILOT-030, PILOT-053 |
-| Keine Benutzerverwaltung per SQL | PILOT-010 bis PILOT-013 |
-| Sperre entzieht Sitzungen sofort | PILOT-011 |
-| Rollen wirken im nächsten Request | PILOT-012 |
-| Charity-Admin bleibt auf eigene Aktionen begrenzt | PILOT-010, PILOT-012 |
-| Produktiver Mailweg real bewiesen | PILOT-020, PILOT-021 |
-| Import ist Dry-Run-first, konfliktbewusst und idempotent | PILOT-030 bis PILOT-032 |
-| Produktion besitzt keine lokalen/Test-Defaults | PILOT-040 |
-| Externer Backup-Restore erfüllt RPO/RTO | PILOT-041 |
-| Reale Alarmkette und Runbooks funktionieren | PILOT-042 |
-| Release/Rollback verwendet exakt gepinnte Artefakte | PILOT-043 |
-| Träger-, Steuer- und Datenschutzentscheidungen geschlossen | PILOT-001, PILOT-044 |
-| Generalprobe ohne Implementierer-Sonderweg | PILOT-050 |
-| Alle Personas sind mit realen Diensten bedienbar | PILOT-050, PILOT-051 |
-| Live-Pilot besitzt Stopkriterien und Incidentweg | PILOT-052 |
-| World-class UX/DX, A11y und mobile Bedienung | PILOT-010 bis PILOT-013, PILOT-051 |
+| Gate-ID | Gate | Primäre Tasks |
+| --- | --- | --- |
+| PILOT-GATE-001 | Keine realen Daten in Git/öffentlicher CI | PILOT-002, PILOT-030, PILOT-053 |
+| PILOT-GATE-002 | Keine Benutzerverwaltung per SQL | PILOT-010 bis PILOT-013 |
+| PILOT-GATE-003 | Sperre entzieht Sitzungen sofort | PILOT-011 |
+| PILOT-GATE-004 | Rollen wirken im nächsten Request | PILOT-012 |
+| PILOT-GATE-005 | Charity-Admin bleibt auf eigene Aktionen begrenzt | PILOT-010, PILOT-012 |
+| PILOT-GATE-006 | Produktiver Mailweg real bewiesen | PILOT-020, PILOT-021 |
+| PILOT-GATE-007 | Import ist Dry-Run-first, konfliktbewusst und idempotent | PILOT-030 bis PILOT-032 |
+| PILOT-GATE-008 | Produktion besitzt keine lokalen/Test-Defaults | PILOT-040 |
+| PILOT-GATE-009 | Externer Backup-Restore erfüllt RPO/RTO | PILOT-041 |
+| PILOT-GATE-010 | Reale Alarmkette und Runbooks funktionieren | PILOT-042 |
+| PILOT-GATE-011 | Release/Rollback verwendet exakt gepinnte Artefakte | PILOT-043 |
+| PILOT-GATE-012 | Träger-, Steuer- und Datenschutzentscheidungen geschlossen | PILOT-001, PILOT-044 |
+| PILOT-GATE-013 | Generalprobe ohne Implementierer-Sonderweg | PILOT-050 |
+| PILOT-GATE-014 | Alle Personas sind mit realen Diensten bedienbar | PILOT-050, PILOT-051 |
+| PILOT-GATE-015 | Live-Pilot besitzt Stopkriterien und Incidentweg | PILOT-052 |
+| PILOT-GATE-016 | World-class UX/DX, A11y und mobile Bedienung | PILOT-010 bis PILOT-013, PILOT-051 |
 
 Kein Matrixeintrag gilt aufgrund eines Screenshots allein, eines manuellen
 Datenbankeingriffs, eines Mock-Servers oder einer nicht reproduzierbaren

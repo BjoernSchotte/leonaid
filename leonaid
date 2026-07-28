@@ -56,6 +56,8 @@ Commands:
   test-golden-journey
                     Prove the complete cross-browser Krapfentaxi journey
   test-handoff      Prove onboarding and handoff docs from a fresh checkout
+  test-pilot-contract
+                    Prove pilot plan IDs, dependencies, criteria and proof links
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -244,6 +246,10 @@ check_all() {
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_contract/test.py /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
   docker run --rm \
     -v "$root:/workspace:ro" \
@@ -266,7 +272,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot_contract tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
@@ -274,7 +280,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot_contract tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -282,7 +288,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -576,6 +582,37 @@ case "$command" in
     ;;
   test-handoff)
     /bin/sh "$root/tools/handoff/test.sh" "$root"
+    ;;
+  test-pilot-contract)
+    require_docker
+    artifact_arguments=
+    if [ -n "${LEONAID_CI_ARTIFACT_DIR:-}" ]; then
+      case "$LEONAID_CI_ARTIFACT_DIR" in
+        "$root"/*)
+          artifact_relative=${LEONAID_CI_ARTIFACT_DIR#"$root/"}
+          ;;
+        .artifacts/*)
+          artifact_relative=$LEONAID_CI_ARTIFACT_DIR
+          ;;
+        *)
+          echo "pilot-contract: ERROR: CI-Artefaktpfad muss unter .artifacts/ liegen" >&2
+          exit 64
+          ;;
+      esac
+      mkdir -p "$root/$artifact_relative"
+      artifact_arguments="--report /workspace/$artifact_relative/pilot-contract.json"
+    fi
+    # shellcheck disable=SC2086
+    docker run --rm \
+      -v "$root:/workspace" \
+      "$PYTHON_IMAGE" \
+      python /workspace/tools/pilot_contract/test.py /workspace
+    # shellcheck disable=SC2086
+    docker run --rm \
+      -v "$root:/workspace" \
+      "$PYTHON_IMAGE" \
+      python /workspace/tools/pilot_contract/check.py \
+      /workspace $artifact_arguments
     ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
