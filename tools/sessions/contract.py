@@ -251,7 +251,7 @@ async def require_identity(
 async def run() -> None:
     database_url = require_env("CORE_DATABASE_URL")
     api_url = require_env("LEONAID_API_BASE_URL").rstrip("/")
-    mailpit_url = require_env("MAILPIT_API_URL").rstrip("/")
+    mailpit_url = require_env("MAIL_TEST_API_URL").rstrip("/")
     connection = await asyncpg.connect(database_url, timeout=10)
     try:
         await connection.execute(

@@ -557,31 +557,31 @@ In Scope:
 
 Akzeptanzkriterien:
 
-- [ ] Produktcode verwendet generische `MAIL_*`-Konfiguration statt
+- [x] Produktcode verwendet generische `MAIL_*`-Konfiguration statt
       Mailpit-spezifischer Namen.
 - [ ] Unterstützt werden die vom ausgewählten Provider benötigten
       SMTP-Transportmodi, Authentifizierung, Timeouts und Zertifikatsprüfung.
-- [ ] Mailpit bleibt realer lokaler/CI-SMTP-Server im expliziten
+- [x] Mailpit bleibt realer lokaler/CI-SMTP-Server im expliziten
       Entwicklungsprofil.
-- [ ] API und Worker erhalten nur die jeweils erforderlichen Mail-Secrets.
+- [x] API und Worker erhalten nur die jeweils erforderlichen Mail-Secrets.
 - [ ] Login, Einladung, E-Mail-Korrektur und Rechnungsversand verwenden
       denselben providerneutralen Outbox-Pfad.
-- [ ] Retry, Message-ID, Idempotenz und unveränderliches Rechnungsdokument
+- [x] Retry, Message-ID, Idempotenz und unveränderliches Rechnungsdokument
       bleiben erhalten.
-- [ ] Readiness unterscheidet fachkritischen Core und degradierte
+- [x] Readiness unterscheidet fachkritischen Core und degradierte
       Mailzustellung.
-- [ ] Logs und Fehlermeldungen enthalten keine Adressen, Tokens,
+- [x] Logs und Fehlermeldungen enthalten keine Adressen, Tokens,
       Zugangsdaten oder Mailinhalte.
 
 Tests/Nachweise:
 
-- [ ] Bestehende Mailpit-Integrationstests bleiben grün.
+- [x] Bestehende Mailpit-Integrationstests bleiben grün.
 - [ ] Providervertrag sendet über den offiziellen Sandbox-/Testmodus des
       ausgewählten realen Relays an ein kontrolliertes Testpostfach.
-- [ ] Falsches Zertifikat, Authfehler, Timeout und Provider-Limit werden real
+- [x] Falsches Zertifikat, Authfehler, Timeout und Provider-Limit werden real
       erzeugt und als sichere Outbox-Fehler klassifiziert.
-- [ ] Erfolgreicher Retry sendet exakt einmal.
-- [ ] `./leonaid test-mail-relay` ist grün.
+- [x] Erfolgreicher Retry sendet exakt einmal.
+- [x] `./leonaid test-mail-relay` ist grün.
 
 ### [ ] PILOT-021 Domainzustellung und Mailbetrieb freigeben
 

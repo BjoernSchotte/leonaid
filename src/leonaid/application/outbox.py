@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
-from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
+from leonaid.domain.outbox import ClaimedOutboxEvent, RetryDecision, RetryPolicy
 
 OutboxObserver = Callable[[str, ClaimedOutboxEvent, str | None], None]
+SAFE_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,119}\Z")
 
 
 class OutboxQueue(Protocol):
@@ -89,8 +91,9 @@ class OutboxWorker:
         except Exception as error:
             await self._record_failure(
                 event,
-                code=type(error).__name__.lower(),
+                code=self.error_code(error),
                 detail=str(error),
+                retryable=getattr(error, "retryable", True) is not False,
             )
             return True
         await self._queue.complete(
@@ -113,9 +116,14 @@ class OutboxWorker:
         *,
         code: str,
         detail: str,
+        retryable: bool = True,
     ) -> None:
         failed_at = self._clock()
-        decision = self._retry_policy.after_failure(event.attempts, failed_at)
+        decision = (
+            self._retry_policy.after_failure(event.attempts, failed_at)
+            if retryable
+            else RetryDecision(dead_letter=True, available_at=failed_at)
+        )
         await self._queue.fail(
             event_id=event.id,
             claim_token=event.claim_token,
@@ -132,6 +140,13 @@ class OutboxWorker:
             event,
             code,
         )
+
+    @staticmethod
+    def error_code(error: Exception) -> str:
+        explicit = getattr(error, "code", None)
+        if isinstance(explicit, str) and SAFE_ERROR_CODE.fullmatch(explicit):
+            return explicit
+        return type(error).__name__.lower()[:120]
 
     def _observe(
         self,

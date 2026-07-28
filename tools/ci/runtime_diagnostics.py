@@ -57,7 +57,7 @@ async def database_diagnostic() -> JsonObject:
 
 async def mailpit_diagnostic() -> JsonObject:
     async with httpx.AsyncClient(
-        base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+        base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
         timeout=5,
     ) as client:
         response = await client.get("/api/v1/messages")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import ValidationError
 from pytest import raises
 
-from leonaid.configuration import Settings
+from leonaid.configuration import MailTransportSettings, Settings
 
 
 def valid_settings(**overrides: str) -> Settings:
@@ -76,3 +76,69 @@ def test_allowed_origins_are_normalized_and_deduplicated() -> None:
 def test_settings_reject_non_database_target() -> None:
     with raises(ValidationError):
         valid_settings(CORE_DATABASE_URL="https://example.invalid/database")
+
+
+def test_mail_transport_settings_are_generic_and_secret_safe() -> None:
+    settings = MailTransportSettings.model_validate(
+        {
+            "LEONAID_ENV": "production",
+            "MAIL_SMTP_HOST": "smtp.provider.invalid",
+            "MAIL_SMTP_PORT": "465",
+            "MAIL_FROM": "LeonAid <postmaster@provider.invalid>",
+            "MAIL_SMTP_MODE": "tls",
+            "MAIL_SMTP_USERNAME": "smtp-user",
+            "MAIL_SMTP_PASSWORD": "provider-secret",
+            "MAIL_SMTP_TIMEOUT_SECONDS": "15",
+            "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+        }
+    )
+
+    assert settings.safe_summary() == {
+        "host": "smtp.provider.invalid",
+        "port": "465",
+        "mode": "tls",
+        "authentication": "configured",
+        "certificateVerification": "true",
+        "customCertificateAuthority": "unconfigured",
+    }
+    assert "provider-secret" not in repr(settings)
+    assert "provider-secret" not in repr(settings.safe_summary())
+
+
+def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
+    base = {
+        "LEONAID_ENV": "production",
+        "MAIL_SMTP_HOST": "smtp.provider.invalid",
+        "MAIL_SMTP_PORT": "587",
+        "MAIL_FROM": "LeonAid <postmaster@provider.invalid>",
+    }
+    with raises(ValidationError):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_SMTP_MODE": "plain",
+                "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+            }
+        )
+    with raises(ValidationError):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_SMTP_MODE": "starttls",
+                "MAIL_SMTP_VERIFY_CERTIFICATES": "false",
+            }
+        )
+
+
+def test_mail_credentials_must_be_complete() -> None:
+    with raises(ValidationError):
+        MailTransportSettings.model_validate(
+            {
+                "LEONAID_ENV": "test",
+                "MAIL_SMTP_HOST": "mailpit",
+                "MAIL_SMTP_PORT": "1025",
+                "MAIL_FROM": "LeonAid <noreply@leonaid.invalid>",
+                "MAIL_SMTP_MODE": "plain",
+                "MAIL_SMTP_USERNAME": "only-a-user",
+            }
+        )

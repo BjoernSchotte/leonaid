@@ -294,7 +294,7 @@ async def verify_round(
         raise ContractFailure("Nicht alle Journey-PDFs sind verfügbar")
     pdf_evidence: dict[str, dict[str, object]] = {}
     async with httpx.AsyncClient(
-        base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+        base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
         timeout=20,
     ) as mailpit:
         messages = await mail_messages(mailpit)

@@ -48,6 +48,7 @@ Commands:
   test-documents    Prove contextual PDF discovery, download and document RBAC
   test-invoice-delivery
                     Prove durable SMTP delivery of the immutable invoice PDF
+  test-mail-relay   Prove provider-neutral SMTP modes and safe failures
   test-invoice-settlements
                     Prove exact full payment, cancellation and immutable PDFs
   test-feature-flags
@@ -309,7 +310,7 @@ check_all() {
     python3 /workspace/tools/pilot/boundary.py /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
@@ -317,7 +318,7 @@ check_all() {
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
@@ -325,7 +326,7 @@ check_all() {
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
-    tools/activity_feed tools/assignments tools/dashboard tools/documents \
+    tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_contract tools/pilot_decisions \
@@ -581,6 +582,7 @@ case "$command" in
     /bin/sh "$root/tools/typst/test.sh" "$root"
     /bin/sh "$root/tools/storage/test.sh" "$root"
     /bin/sh "$root/tools/documents/test.sh" "$root"
+    /bin/sh "$root/tools/mail_relay/test.sh" "$root"
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
     /bin/sh "$root/tools/feature_flags/test.sh" "$root"
@@ -648,6 +650,9 @@ case "$command" in
   test-documents) /bin/sh "$root/tools/documents/test.sh" "$root" ;;
   test-invoice-delivery)
     /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
+    ;;
+  test-mail-relay)
+    /bin/sh "$root/tools/mail_relay/test.sh" "$root"
     ;;
   test-invoice-settlements)
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"

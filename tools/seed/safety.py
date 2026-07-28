@@ -16,7 +16,7 @@ EXPECTED_ENDPOINTS = {
     ("api", "CORE_DATABASE_URL"): ("postgresql", "core-postgres"),
     ("api", "TWENTY_BASE_URL"): ("http", "twenty-server"),
     ("api", "RUSTFS_ENDPOINT_URL"): ("http", "rustfs"),
-    ("api", "MAILPIT_API_URL"): ("http", "mailpit"),
+    ("api", "MAIL_HEALTH_URL"): ("http", "mailpit"),
     ("twenty-server", "PG_DATABASE_URL"): ("postgresql", "twenty-postgres"),
 }
 REQUIRED_SERVICES = {

@@ -183,7 +183,7 @@ async def queue(
             timeout=60,
         ) as api,
         httpx.AsyncClient(
-            base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
             timeout=10,
         ) as mailpit,
     ):
@@ -303,8 +303,8 @@ async def assert_failed(
         delivery.get("status") != "failed"
         or delivery.get("attempts") != 1
         or delivery.get("canRetry") is not True
-        or not delivery.get("lastErrorCode")
-        or not delivery.get("lastErrorDetail")
+        or delivery.get("lastErrorCode") != "mail_unavailable"
+        or delivery.get("lastErrorDetail") != "mail_unavailable"
         or delivery.get("messageId") is not None
     ):
         raise ContractFailure(
@@ -326,8 +326,8 @@ async def assert_failed(
         row is None
         or row["status"] != "dead_letter"
         or row["attempts"] != 1
-        or not row["last_error_code"]
-        or not row["last_error_detail"]
+        or row["last_error_code"] != "mail_unavailable"
+        or row["last_error_detail"] != "mail_unavailable"
         or row["mail_id"] is not None
     ):
         raise ContractFailure(
@@ -440,7 +440,7 @@ async def assert_delivered(
             timeout=30,
         ) as api,
         httpx.AsyncClient(
-            base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
             timeout=10,
         ) as mailpit,
     ):
@@ -565,7 +565,7 @@ async def assert_resend(
             timeout=30,
         ) as api,
         httpx.AsyncClient(
-            base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+            base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
             timeout=10,
         ) as mailpit,
     ):

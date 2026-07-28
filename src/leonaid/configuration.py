@@ -72,9 +72,9 @@ class Settings(BaseSettings):
     )
     twenty_health_url: HttpUrl = Field(alias="TWENTY_HEALTH_URL")
     rustfs_health_url: HttpUrl = Field(alias="RUSTFS_HEALTH_URL")
-    mailpit_api_url: HttpUrl = Field(
-        default=HttpUrl("http://mailpit:8025/mail"),
-        alias="MAILPIT_API_URL",
+    mail_health_url: HttpUrl = Field(
+        default=HttpUrl("http://mailpit:8025/mail/api/v1/info"),
+        alias="MAIL_HEALTH_URL",
     )
     object_storage_endpoint_url: HttpUrl = Field(alias="OBJECT_STORAGE_ENDPOINT_URL")
     object_storage_access_key: SecretStr = Field(alias="OBJECT_STORAGE_ACCESS_KEY")
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
             ),
             "twentyHealthHost": self.twenty_health_url.host or "invalid",
             "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
-            "mailHealthHost": self.mailpit_api_url.host or "invalid",
+            "mailHealthHost": self.mail_health_url.host or "invalid",
             "objectStorageHost": self.object_storage_endpoint_url.host or "invalid",
             "objectStorageBucket": self.object_storage_bucket,
         }
@@ -163,6 +163,75 @@ class Settings(BaseSettings):
         return tuple(dict.fromkeys((*configured, public_origin.rstrip("/"))))
 
 
+class MailTransportSettings(BaseSettings):
+    """Worker-only SMTP settings with production-safe validation."""
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    environment: Literal["local", "test", "production"] = Field(
+        default="local",
+        alias="LEONAID_ENV",
+    )
+    host: str = Field(min_length=1, alias="MAIL_SMTP_HOST")
+    port: int = Field(ge=1, le=65535, alias="MAIL_SMTP_PORT")
+    sender: str = Field(min_length=3, alias="MAIL_FROM")
+    mode: Literal["plain", "starttls", "tls"] = Field(
+        default="starttls",
+        alias="MAIL_SMTP_MODE",
+    )
+    username: str | None = Field(default=None, alias="MAIL_SMTP_USERNAME")
+    password: SecretStr | None = Field(default=None, alias="MAIL_SMTP_PASSWORD")
+    timeout_seconds: float = Field(
+        default=10,
+        gt=0,
+        le=120,
+        alias="MAIL_SMTP_TIMEOUT_SECONDS",
+    )
+    verify_certificates: bool = Field(
+        default=True,
+        alias="MAIL_SMTP_VERIFY_CERTIFICATES",
+    )
+    ca_file: Path | None = Field(default=None, alias="MAIL_SMTP_CA_FILE")
+
+    @field_validator("username", "password", "ca_file", mode="before")
+    @classmethod
+    def empty_mail_credentials_are_unconfigured(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    def model_post_init(self, __context: object) -> None:
+        if (self.username is None) != (self.password is None):
+            raise ValueError(
+                "SMTP-Benutzername und -Passwort müssen gemeinsam gesetzt sein."
+            )
+        if self.environment == "production":
+            if self.mode == "plain":
+                raise ValueError("Produktiver SMTP-Versand erfordert TLS.")
+            if not self.verify_certificates:
+                raise ValueError(
+                    "Produktiver SMTP-Versand erfordert Zertifikatsprüfung."
+                )
+
+    def safe_summary(self) -> dict[str, str]:
+        return {
+            "host": self.host,
+            "port": str(self.port),
+            "mode": self.mode,
+            "authentication": (
+                "configured" if self.username is not None else "unconfigured"
+            ),
+            "certificateVerification": str(self.verify_certificates).lower(),
+            "customCertificateAuthority": (
+                "configured" if self.ca_file is not None else "unconfigured"
+            ),
+        }
+
+
 def load_settings() -> Settings:
     try:
         # BaseSettings resolves required aliases from the process environment.
@@ -176,4 +245,19 @@ def load_settings() -> Settings:
         )
         raise ConfigurationError(
             "LeonAid-Konfiguration ist ungültig: " + ", ".join(diagnostics)
+        ) from None
+
+
+def load_mail_transport_settings() -> MailTransportSettings:
+    try:
+        return MailTransportSettings()  # type: ignore[call-arg]
+    except ValidationError as error:
+        diagnostics = sorted(
+            {
+                f"{'.'.join(str(part) for part in item['loc'])}:{item['type']}"
+                for item in error.errors(include_url=False, include_input=False)
+            }
+        )
+        raise ConfigurationError(
+            "LeonAid-Mailkonfiguration ist ungültig: " + ", ".join(diagnostics)
         ) from None

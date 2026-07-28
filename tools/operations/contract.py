@@ -270,7 +270,7 @@ async def assert_recovered(
             f"Retry-Nachweise unvollständig: delivery={delivered}, audit={audited}"
         )
     async with httpx.AsyncClient(
-        base_url=require_env("MAILPIT_API_URL").rstrip("/"),
+        base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
         timeout=30,
     ) as mailpit:
         response = await mailpit.get("/api/v1/messages")

@@ -72,9 +72,8 @@ services:
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:-leonaid}
       OBJECT_STORAGE_REGION: us-east-1
       OBJECT_STORAGE_PATH_STYLE: "true"
-      MAILPIT_API_URL: http://mailpit:8025/mail
-      MAILPIT_SMTP_HOST: mailpit
-      MAILPIT_SMTP_PORT: "1025"
+      MAIL_HEALTH_URL: http://mailpit:8025/mail/api/v1/info
+      MAIL_TEST_API_URL: http://mailpit:8025/mail
     volumes:
       - maintenance-state:/run/leonaid-maintenance:ro
     networks:
@@ -120,9 +119,16 @@ services:
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:-leonaid}
       OBJECT_STORAGE_REGION: us-east-1
       OBJECT_STORAGE_PATH_STYLE: "true"
-      MAILPIT_SMTP_HOST: mailpit
-      MAILPIT_SMTP_PORT: "1025"
-      LEONAID_MAIL_FROM: LeonAid <noreply@leonaid.invalid>
+      LEONAID_ENV: ${LEONAID_ENV:-local}
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-mailpit}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-1025}
+      MAIL_FROM: ${MAIL_FROM:-LeonAid <noreply@leonaid.invalid>}
+      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:-plain}
+      MAIL_SMTP_USERNAME: ${MAIL_SMTP_USERNAME:-}
+      MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
+      MAIL_SMTP_TIMEOUT_SECONDS: ${MAIL_SMTP_TIMEOUT_SECONDS:-10}
+      MAIL_SMTP_VERIFY_CERTIFICATES: ${MAIL_SMTP_VERIFY_CERTIFICATES:-true}
+      MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
       OUTBOX_MAX_ATTEMPTS: "5"
       OUTBOX_BASE_BACKOFF_SECONDS: "5"
@@ -368,6 +374,68 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  mailpit-contract-starttls:
+    image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    logging: *default-logging
+    profiles: ["mail-contract"]
+    environment:
+      MP_DATABASE: /tmp/mailpit.db
+      MP_SMTP_TLS_CERT: sans:mailpit-contract-starttls
+      MP_SMTP_TLS_KEY: sans:mailpit-contract-starttls
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+      MP_SMTP_AUTH: pilot-user:pilot-password
+    networks:
+      - mail-data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  mailpit-contract-chaos:
+    image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    logging: *default-logging
+    profiles: ["mail-contract"]
+    environment:
+      MP_DATABASE: /tmp/mailpit.db
+      MP_CHAOS_TRIGGERS: Recipient:452:100
+    networks:
+      - mail-data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  mailpit-contract-tls:
+    image: docker.io/axllent/mailpit:v1.30.0@sha256:0059ef81e492a7192af3816281eed6859eb078bd7bdc58b76757c13e10e53a7d
+    logging: *default-logging
+    profiles: ["mail-contract"]
+    environment:
+      MP_DATABASE: /tmp/mailpit.db
+      MP_SMTP_TLS_CERT: sans:mailpit-contract-tls
+      MP_SMTP_TLS_KEY: sans:mailpit-contract-tls
+      MP_SMTP_REQUIRE_TLS: "true"
+      MP_SMTP_AUTH: pilot-user:pilot-password
+    networks:
+      - mail-data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  mail-contract-blackhole:
+    image: docker.io/library/alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+    logging: *default-logging
+    profiles: ["mail-contract"]
+    command:
+      - /bin/sh
+      - -c
+      - while true; do sleep 60 | nc -l -p 1025; done
+    networks:
+      - mail-data
 
   listmonk:
     image: docker.io/listmonk/listmonk:v5.0.3@sha256:d8f1a7fe7852a529139389564f32a914c278d394c75cb72bcde55bb2324f182e

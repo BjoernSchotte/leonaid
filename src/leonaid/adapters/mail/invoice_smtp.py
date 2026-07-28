@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import smtplib
 from datetime import datetime, timezone
 from email.message import EmailMessage
 from uuid import UUID
 
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.application.invoice_deliveries import (
     INVOICE_MAIL_SEND_REQUESTED,
     InvoiceDeliveryWorkerRepository,
@@ -24,19 +24,11 @@ class InvoiceSmtpHandler:
         *,
         repository: InvoiceDeliveryWorkerRepository,
         storage: ObjectStorage,
-        host: str,
-        port: int,
-        sender: str,
-        timeout_seconds: float = 5,
+        transport: SmtpTransport,
     ) -> None:
-        if not host.strip() or port < 1 or not sender.strip():
-            raise ValueError("SMTP-Konfiguration ist unvollständig.")
         self._repository = repository
         self._storage = storage
-        self._host = host
-        self._port = port
-        self._sender = sender
-        self._timeout_seconds = timeout_seconds
+        self._transport = transport
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         if event.event_type != INVOICE_MAIL_SEND_REQUESTED:
@@ -78,7 +70,7 @@ class InvoiceSmtpHandler:
 
         message_id = SmtpMailHandler.message_id(event.idempotency_key)
         message = EmailMessage()
-        message["From"] = self._sender
+        message["From"] = self._transport.sender
         message["To"] = job.recipient_email
         message["Subject"] = job.subject
         message["Message-ID"] = message_id
@@ -105,9 +97,4 @@ class InvoiceSmtpHandler:
         )
 
     def _send(self, message: EmailMessage) -> None:
-        with smtplib.SMTP(
-            self._host,
-            self._port,
-            timeout=self._timeout_seconds,
-        ) as smtp:
-            smtp.send_message(message)
+        self._transport.send(message)

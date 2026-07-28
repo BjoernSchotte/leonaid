@@ -1675,7 +1675,7 @@ async def snapshot_core() -> JsonObject:
 def mailpit_request(method: str, path: str) -> httpx.Response:
     response = httpx.request(
         method,
-        f"{require_env('MAILPIT_API_URL').rstrip('/')}{path}",
+        f"{require_env('MAIL_TEST_API_URL').rstrip('/')}{path}",
         timeout=20,
     )
     response.raise_for_status()
@@ -1817,8 +1817,8 @@ async def mutate(fixture: Path) -> None:
     message["Subject"] = "Absichtliche POC-012-Mutation"
     message.set_content("Diese Nachricht muss durch Reset verschwinden.")
     with smtplib.SMTP(
-        require_env("MAILPIT_SMTP_HOST"),
-        int(require_env("MAILPIT_SMTP_PORT")),
+        require_env("MAIL_SMTP_HOST"),
+        int(require_env("MAIL_SMTP_PORT")),
         timeout=20,
     ) as smtp:
         smtp.send_message(message)

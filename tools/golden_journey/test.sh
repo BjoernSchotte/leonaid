@@ -52,7 +52,7 @@ contract() {
     --user "$(id -u):$(id -g)" \
     --env-from-file "$env_file" \
     --env API_BASE_URL=http://api:8000 \
-    --env MAILPIT_API_URL=http://mailpit:8025/mail \
+    --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
     --env TWENTY_BASE_URL=http://twenty-server:3000 \
     --env TWENTY_INTEGRATION_API_KEY="$integration_key" \
     --env PYTHONPATH=/repo:/workspace/src \

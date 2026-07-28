@@ -17,6 +17,7 @@ import asyncpg
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
 )
@@ -31,6 +32,7 @@ from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.adapters.operations import structured_event
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
+from leonaid.configuration import load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
 
 
@@ -78,6 +80,22 @@ async def build_worker(
         path_style=os.environ.get("OBJECT_STORAGE_PATH_STYLE", "true").casefold()
         == "true",
     )
+    mail_settings = load_mail_transport_settings()
+    mail_transport = SmtpTransport(
+        host=mail_settings.host,
+        port=mail_settings.port,
+        sender=mail_settings.sender,
+        mode=mail_settings.mode,
+        username=mail_settings.username,
+        password=(
+            mail_settings.password.get_secret_value()
+            if mail_settings.password is not None
+            else None
+        ),
+        timeout_seconds=mail_settings.timeout_seconds,
+        verify_certificates=mail_settings.verify_certificates,
+        ca_file=mail_settings.ca_file,
+    )
     handlers: dict[str, OutboxEventHandler] = {
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
         "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
@@ -88,21 +106,11 @@ async def build_worker(
         "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
             repository=AsyncpgInvoiceDeliveryRepository(pool),
             storage=object_storage,
-            host=os.environ.get("MAILPIT_SMTP_HOST", "mailpit"),
-            port=int(os.environ.get("MAILPIT_SMTP_PORT", "1025")),
-            sender=os.environ.get(
-                "LEONAID_MAIL_FROM",
-                "LeonAid <noreply@leonaid.invalid>",
-            ),
+            transport=mail_transport,
         ),
         "mail.send.v1": SmtpMailHandler(
             pool,
-            host=os.environ.get("MAILPIT_SMTP_HOST", "mailpit"),
-            port=int(os.environ.get("MAILPIT_SMTP_PORT", "1025")),
-            sender=os.environ.get(
-                "LEONAID_MAIL_FROM",
-                "LeonAid <noreply@leonaid.invalid>",
-            ),
+            transport=mail_transport,
             secure_payload=SecureMailPayload(
                 os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
             ),

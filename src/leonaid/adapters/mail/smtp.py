@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import smtplib
 from email.message import EmailMessage
 from typing import Any
 from uuid import UUID, uuid5
@@ -12,6 +11,7 @@ from uuid import UUID, uuid5
 import asyncpg
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.domain.outbox import ClaimedOutboxEvent
 
 MAIL_DELIVERY_NAMESPACE = UUID("8a30d44c-d313-4cc6-af6a-237af95a4d4c")
@@ -22,20 +22,12 @@ class SmtpMailHandler:
         self,
         pool: asyncpg.Pool[Any],
         *,
-        host: str,
-        port: int,
-        sender: str,
+        transport: SmtpTransport,
         secure_payload: SecureMailPayload | None = None,
-        timeout_seconds: float = 5,
     ) -> None:
-        if not host.strip() or port < 1 or not sender.strip():
-            raise ValueError("SMTP-Konfiguration ist unvollständig.")
         self._pool = pool
-        self._host = host
-        self._port = port
-        self._sender = sender
+        self._transport = transport
         self._secure_payload = secure_payload
-        self._timeout_seconds = timeout_seconds
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         fields = self._mail_fields(event)
@@ -47,7 +39,7 @@ class SmtpMailHandler:
 
         message_id = self.message_id(event.idempotency_key)
         message = EmailMessage()
-        message["From"] = self._sender
+        message["From"] = self._transport.sender
         message["To"] = recipient
         message["Subject"] = subject
         message["Message-ID"] = message_id
@@ -75,12 +67,7 @@ class SmtpMailHandler:
             )
 
     def _send(self, message: EmailMessage) -> None:
-        with smtplib.SMTP(
-            self._host,
-            self._port,
-            timeout=self._timeout_seconds,
-        ) as smtp:
-            smtp.send_message(message)
+        self._transport.send(message)
 
     async def _was_sent(self, idempotency_key: str) -> bool:
         async with self._pool.acquire() as connection:

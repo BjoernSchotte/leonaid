@@ -164,7 +164,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             dependency_urls={
                 "twenty": str(settings.twenty_health_url),
                 "rustfs": str(settings.rustfs_health_url),
-                "mail": (f"{str(settings.mailpit_api_url).rstrip('/')}/api/v1/info"),
+                "mail": str(settings.mail_health_url),
             },
         )
         application.state.api_metrics = api_metrics

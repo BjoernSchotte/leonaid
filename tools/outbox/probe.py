@@ -15,6 +15,7 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.action_progress import (
     AsyncpgActionProgressUnitOfWorkFactory,
     AsyncpgTransactionalOutboxRepository,
@@ -348,11 +349,18 @@ async def replay_and_verify_mail() -> None:
             raise RuntimeError("Mail-Outbox-Event fehlt.")
         handler = SmtpMailHandler(
             pool,
-            host=os.environ["MAILPIT_SMTP_HOST"],
-            port=int(os.environ["MAILPIT_SMTP_PORT"]),
-            sender=os.environ.get(
-                "LEONAID_MAIL_FROM",
-                "LeonAid <noreply@leonaid.invalid>",
+            transport=SmtpTransport(
+                host=os.environ["MAIL_SMTP_HOST"],
+                port=int(os.environ["MAIL_SMTP_PORT"]),
+                sender=os.environ.get(
+                    "MAIL_FROM",
+                    "LeonAid <noreply@leonaid.invalid>",
+                ),
+                mode="plain",
+                username=None,
+                password=None,
+                timeout_seconds=10,
+                verify_certificates=True,
             ),
         )
         replay = ClaimedOutboxEvent(
@@ -390,7 +398,7 @@ async def replay_and_verify_mail() -> None:
         await pool.close()
 
     response = httpx.get(
-        f"{os.environ['MAILPIT_API_URL'].rstrip('/')}/api/v1/messages",
+        f"{os.environ['MAIL_TEST_API_URL'].rstrip('/')}/api/v1/messages",
         timeout=10,
     )
     response.raise_for_status()

@@ -84,9 +84,9 @@ async def run() -> None:
     output_directory = Path(require_env("TESTKIT_PROOF_DIR", context))
     output_directory.mkdir(parents=True, exist_ok=True)
     mailpit = MailpitClient(
-        api_url=require_env("MAILPIT_API_URL", context),
-        smtp_host=require_env("MAILPIT_SMTP_HOST", context),
-        smtp_port=int(require_env("MAILPIT_SMTP_PORT", context)),
+        api_url=require_env("MAIL_TEST_API_URL", context),
+        smtp_host=require_env("MAIL_SMTP_HOST", context),
+        smtp_port=int(require_env("MAIL_SMTP_PORT", context)),
         context=context,
     )
     api = LeonAidApiClient(
