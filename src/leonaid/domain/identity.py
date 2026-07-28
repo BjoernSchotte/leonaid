@@ -53,6 +53,7 @@ class UserAccount:
     display_name: str
     status: AccountStatus
     email_verified_at: datetime | None = None
+    revision: int = 1
 
     def __post_init__(self) -> None:
         if (
@@ -71,6 +72,11 @@ class UserAccount:
             )
         if self.email_verified_at is not None:
             require_aware(self.email_verified_at, "email_verified_at")
+        if self.revision < 1:
+            raise DomainInvariantError(
+                "account_revision_invalid",
+                "Die Kontorevision muss positiv sein.",
+            )
 
     @property
     def can_authenticate(self) -> bool:
@@ -85,7 +91,7 @@ class UserAccount:
                 f"Der Kontostatus darf nicht von {self.status.value} "
                 f"nach {target.value} wechseln.",
             )
-        return replace(self, status=target)
+        return replace(self, status=target, revision=self.revision + 1)
 
 
 @dataclass(frozen=True, slots=True)

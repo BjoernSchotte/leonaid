@@ -91,11 +91,29 @@ class MemberDirectoryMemberResponse(TransportModel):
     email: str
     status: Literal["invited", "active", "suspended", "archived"]
     status_label: str
+    revision: int = Field(ge=1)
     global_roles: list[Literal["system_admin", "finance_reader", "finance_manager"]]
     global_role_labels: list[str]
     action_memberships: list[MemberDirectoryMembershipResponse]
     last_login_at: datetime | None
     active_session_count: int = Field(ge=0)
+
+
+class ChangeMemberStatusRequest(TransportModel):
+    status: Literal["active", "suspended", "archived"]
+    expected_revision: int = Field(ge=1)
+
+
+class MemberStatusChangeResponse(TransportModel):
+    user_id: UUID
+    display_name: str
+    status: Literal["active", "suspended", "archived"]
+    status_label: str
+    previous_status: Literal["active", "suspended"]
+    previous_status_label: str
+    revision: int = Field(ge=2)
+    revoked_session_count: int = Field(ge=0)
+    replayed: bool
 
 
 class MemberDirectoryActionResponse(TransportModel):

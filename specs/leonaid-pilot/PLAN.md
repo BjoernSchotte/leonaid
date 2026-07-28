@@ -451,26 +451,26 @@ zugänglich gemacht; keine parallele Zustandsmaschine entsteht.
 
 Akzeptanzkriterien:
 
-- [ ] Nur System-Admin mit frischer Anmeldung darf Accountstatus ändern.
-- [ ] Sperren widerruft atomar alle aktiven Sitzungen und verhindert neue
+- [x] Nur System-Admin mit frischer Anmeldung darf Accountstatus ändern.
+- [x] Sperren widerruft atomar alle aktiven Sitzungen und verhindert neue
       Login-Challenges.
-- [ ] Reaktivieren stellt keine alten Sitzungen wieder her.
-- [ ] Archivieren erhält historische Zuordnungen, Audit, Rechnungen und
+- [x] Reaktivieren stellt keine alten Sitzungen wieder her.
+- [x] Archivieren erhält historische Zuordnungen, Audit, Rechnungen und
       Dokumentreferenzen unverändert.
-- [ ] Selbstsperre/-archivierung und Archivierung des letzten aktiven
+- [x] Selbstsperre/-archivierung und Archivierung des letzten aktiven
       System-Admins werden serverseitig verhindert.
-- [ ] UI zeigt Auswirkung, betroffene Person, Session-Anzahl und erforderliche
+- [x] UI zeigt Auswirkung, betroffene Person, Session-Anzahl und erforderliche
       Bestätigung.
-- [ ] Jede Änderung besitzt erwartete Revision/Idempotency-Key und AuditEvent.
+- [x] Jede Änderung besitzt erwartete Revision/Idempotency-Key und AuditEvent.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen alle erlaubten und verbotenen Übergänge.
-- [ ] Integrationstest sperrt einen Account mit zwei realen Sessions und
+- [x] Unit-Tests prüfen alle erlaubten und verbotenen Übergänge.
+- [x] Integrationstest sperrt einen Account mit zwei realen Sessions und
       beweist sofortigen Entzug in PostgreSQL und FastAPI.
-- [ ] E2E beweist Fresh Login, Sperren, abgewiesene alte Browser-Session,
+- [x] E2E beweist Fresh Login, Sperren, abgewiesene alte Browser-Session,
       Reaktivieren und neuen Login.
-- [ ] Concurrency-Test lässt nur eine von zwei widersprüchlichen
+- [x] Concurrency-Test lässt nur eine von zwei widersprüchlichen
       Statusänderungen gewinnen.
 
 ### [ ] PILOT-012 Rollen und Aktionsmitgliedschaften vollständig verwalten

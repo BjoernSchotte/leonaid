@@ -29,13 +29,14 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --profile dev-mail \
     "$@"
 }
 
 diagnose() {
   compose ps >&2 || true
   compose logs --no-color --tail=120 \
-    core-postgres api web pwa proxy >&2 || true
+    core-postgres api worker web pwa proxy mailpit >&2 || true
 }
 
 cleanup() {
@@ -66,7 +67,7 @@ run_python() {
 }
 
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose up --build --detach --wait --wait-timeout 420 proxy
+compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 
 run_python tools/seed/golden.py seed-core "$fixture"
 run_python tools/identity/contract.py \
@@ -88,6 +89,7 @@ docker run --rm \
   --env HOME=/tmp \
   --env CI=1 \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_MAILPIT_URL=https://proxy:8443/mail \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
   --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" \
@@ -96,6 +98,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
+  tests/e2e/z-account-status.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
   --trace=retain-on-failure \
@@ -105,7 +108,9 @@ for screenshot in \
   charity-admin-desktop.png \
   acquirer-mobile.png \
   system-members-desktop.png \
-  charity-members-mobile.png; do
+  charity-members-mobile.png \
+  account-status-suspended.png \
+  account-status-reactivated.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "identity-test: ERROR: Browsernachweis fehlt: $screenshot" >&2
     exit 1
@@ -117,9 +122,11 @@ for screenshot in \
   charity-admin-desktop.png \
   acquirer-mobile.png \
   system-members-desktop.png \
-  charity-members-mobile.png; do
+  charity-members-mobile.png \
+  account-status-suspended.png \
+  account-status-reactivated.png; do
   cp "$proof/$screenshot" "$artifact_directory/"
   chmod 600 "$artifact_directory/$screenshot"
 done
 
-echo "identity-test: OK: autorisierte Mitgliederübersicht, Rollen, Sitzungsentzug und Persona-Navigation real bewiesen"
+echo "identity-test: OK: Mitgliederübersicht, Statusworkflow, Konkurrenz, Sitzungsentzug und Persona-Navigation real bewiesen"

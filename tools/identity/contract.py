@@ -19,7 +19,7 @@ import httpx
 
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.application.errors import PermissionDenied
+from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.identity import IdentityAdministrationService
 from leonaid.domain.identity import (
     AccountStatus,
@@ -31,6 +31,8 @@ from leonaid.domain.identity import (
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
+BERND_ID = UUID("10000000-0000-4000-8000-000000000005")
+CARLA_ID = UUID("10000000-0000-4000-8000-000000000006")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 GESA_ID = UUID("10000000-0000-4000-8000-000000000008")
 ACTIVE_ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
@@ -55,9 +57,12 @@ async def create_session(
     user_id: UUID,
     *,
     now: datetime,
+    fresh_login_at: datetime | None = None,
+    created_at: datetime | None = None,
 ) -> str:
     token = secrets.token_urlsafe(48)
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    session_created_at = created_at or now
     await connection.execute(
         """
         INSERT INTO user_session (
@@ -71,13 +76,15 @@ async def create_session(
             created_at,
             updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $5, 'POC-040 real contract', $5, $5)
+        VALUES ($1, $2, $3, $4, $5, $6, 'POC-040 real contract', $7, $5)
         """,
         uuid4(),
         user_id,
         digest,
-        now + timedelta(days=90),
+        session_created_at + timedelta(days=90),
         now,
+        fresh_login_at or session_created_at,
+        session_created_at,
     )
     return token
 
@@ -135,8 +142,16 @@ async def run(arguments: argparse.Namespace) -> None:
         )
         tokens = {
             "SYSTEM_SESSION": await create_session(connection, SYSTEM_ID, now=now),
+            "SYSTEM_STALE_SESSION": await create_session(
+                connection,
+                SYSTEM_ID,
+                now=now,
+                fresh_login_at=now - timedelta(hours=1),
+                created_at=now - timedelta(hours=1),
+            ),
             "KLARA_SESSION": await create_session(connection, KLARA_ID, now=now),
             "ANNA_OLD_SESSION": await create_session(connection, ANNA_ID, now=now),
+            "ANNA_SECOND_SESSION": await create_session(connection, ANNA_ID, now=now),
             "FINN_SESSION": await create_session(connection, FINN_ID, now=now),
             "GESA_SESSION": await create_session(connection, GESA_ID, now=now),
         }
@@ -468,33 +483,381 @@ async def run(arguments: argparse.Namespace) -> None:
         ):
             raise ContractFailure("temporäre globale Rolle wurde nicht entfernt")
 
-        changed = await administration.change_status(
-            system,
-            ANNA_ID,
-            AccountStatus.SUSPENDED,
-            request_id="poc040:status:suspend",
-        )
-        if changed.status is not AccountStatus.SUSPENDED:
-            raise ContractFailure("Suspendierung wurde nicht persistiert")
         async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
-            denied = await identity_response(client, tokens["ANNA_OLD_SESSION"])
-            if denied.status_code != 401:
+            system_cookies = {
+                "__Host-leonaid_session": tokens["SYSTEM_SESSION"],
+            }
+            stale_system_cookies = {
+                "__Host-leonaid_session": tokens["SYSTEM_STALE_SESSION"],
+            }
+            klara_cookies = {
+                "__Host-leonaid_session": tokens["KLARA_SESSION"],
+            }
+            anna_detail = await client.get(
+                f"/api/v1/admin/members/{ANNA_ID}",
+                cookies=system_cookies,
+            )
+            if anna_detail.status_code != 200:
                 raise ContractFailure(
-                    "bestehende Sitzung blieb nach Suspendierung wirksam"
+                    "Anna konnte nicht für Statusänderung geladen werden"
+                )
+            anna_payload = anna_detail.json()
+            anna_revision = int(anna_payload["revision"])
+            if int(anna_payload["activeSessionCount"]) != 2:
+                raise ContractFailure(
+                    "Integrationstest besitzt nicht exakt zwei aktive Anna-Sitzungen"
                 )
 
-        await administration.change_status(
-            system,
-            ANNA_ID,
-            AccountStatus.ACTIVE,
-            request_id="poc040:status:reactivate",
-        )
-        async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
-            still_denied = await identity_response(client, tokens["ANNA_OLD_SESSION"])
-            if still_denied.status_code != 401:
+            stale_change = await client.patch(
+                f"/api/v1/admin/members/{ANNA_ID}/status",
+                cookies=stale_system_cookies,
+                headers={
+                    "Idempotency-Key": "pilot011:stale:suspend",
+                    "X-Request-ID": "pilot011:stale:suspend",
+                },
+                json={
+                    "status": "suspended",
+                    "expectedRevision": anna_revision,
+                },
+            )
+            if (
+                stale_change.status_code != 401
+                or stale_change.json().get("error", {}).get("code")
+                != "fresh_login_required"
+            ):
                 raise ContractFailure(
-                    "widerrufene alte Sitzung lebte nach Reaktivierung wieder auf"
+                    "Statusänderung akzeptierte veraltetes Fresh Login nicht "
+                    f"korrekt: HTTP {stale_change.status_code} "
+                    f"{stale_change.text[:300]}"
                 )
+
+            forbidden_change = await client.patch(
+                f"/api/v1/admin/members/{ANNA_ID}/status",
+                cookies=klara_cookies,
+                headers={
+                    "Idempotency-Key": "pilot011:charity-admin:suspend",
+                    "X-Request-ID": "pilot011:charity-admin:suspend",
+                },
+                json={
+                    "status": "suspended",
+                    "expectedRevision": anna_revision,
+                },
+            )
+            if forbidden_change.status_code != 403:
+                raise ContractFailure("Charity-Admin durfte Kontostatus ändern")
+
+            self_change = await client.patch(
+                f"/api/v1/admin/members/{SYSTEM_ID}/status",
+                cookies=system_cookies,
+                headers={
+                    "Idempotency-Key": "pilot011:self:suspend",
+                    "X-Request-ID": "pilot011:self:suspend",
+                },
+                json={"status": "suspended", "expectedRevision": 1},
+            )
+            if (
+                self_change.status_code != 409
+                or self_change.json().get("error", {}).get("code")
+                != "account_self_status_change_forbidden"
+            ):
+                raise ContractFailure("System-Admin konnte sich selbst sperren")
+
+            suspend_body = {
+                "status": "suspended",
+                "expectedRevision": anna_revision,
+            }
+            suspend_headers = {
+                "Idempotency-Key": "pilot011:anna:suspend",
+                "X-Request-ID": "pilot011:anna:suspend",
+            }
+            suspended = await client.patch(
+                f"/api/v1/admin/members/{ANNA_ID}/status",
+                cookies=system_cookies,
+                headers=suspend_headers,
+                json=suspend_body,
+            )
+            if suspended.status_code != 200:
+                raise ContractFailure(
+                    f"Sperren lieferte HTTP {suspended.status_code}: "
+                    f"{suspended.text[:300]}"
+                )
+            suspended_payload = suspended.json()
+            if (
+                suspended_payload.get("status") != "suspended"
+                or suspended_payload.get("revokedSessionCount") != 2
+                or suspended_payload.get("revision") != anna_revision + 1
+                or suspended_payload.get("replayed") is not False
+            ):
+                raise ContractFailure("Sperrantwort besitzt falschen atomaren Beleg")
+
+            replay = await client.patch(
+                f"/api/v1/admin/members/{ANNA_ID}/status",
+                cookies=system_cookies,
+                headers=suspend_headers,
+                json=suspend_body,
+            )
+            if replay.status_code != 200 or replay.json().get("replayed") is not True:
+                raise ContractFailure(
+                    "Statusänderung ist nicht idempotent wiederholbar"
+                )
+
+            for token in (
+                tokens["ANNA_OLD_SESSION"],
+                tokens["ANNA_SECOND_SESSION"],
+            ):
+                denied = await identity_response(client, token)
+                if denied.status_code != 401:
+                    raise ContractFailure(
+                        "bestehende Sitzung blieb nach Suspendierung wirksam"
+                    )
+
+            async with pool.acquire() as status_connection:
+                active_sessions = int(
+                    await status_connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM user_session
+                        WHERE user_id = $1
+                          AND revoked_at IS NULL
+                        """,
+                        ANNA_ID,
+                    )
+                )
+                challenges_before = int(
+                    await status_connection.fetchval(
+                        "SELECT count(*) FROM login_challenge WHERE user_id = $1",
+                        ANNA_ID,
+                    )
+                )
+            if active_sessions != 0:
+                raise ContractFailure("PostgreSQL enthält aktive Anna-Sitzungen")
+
+            login_request = await client.post(
+                "/api/v1/auth/login",
+                headers={"X-Request-ID": "pilot011:anna:login-blocked"},
+                json={"email": "anna.akquise@leonaid.invalid"},
+            )
+            if login_request.status_code != 202:
+                raise ContractFailure("Login-Anfrage verrät den gesperrten Kontostatus")
+            async with pool.acquire() as status_connection:
+                challenges_after = int(
+                    await status_connection.fetchval(
+                        "SELECT count(*) FROM login_challenge WHERE user_id = $1",
+                        ANNA_ID,
+                    )
+                )
+            if challenges_after != challenges_before:
+                raise ContractFailure("Gesperrtes Konto erhielt eine Login-Challenge")
+
+            reactivated = await client.patch(
+                f"/api/v1/admin/members/{ANNA_ID}/status",
+                cookies=system_cookies,
+                headers={
+                    "Idempotency-Key": "pilot011:anna:reactivate",
+                    "X-Request-ID": "pilot011:anna:reactivate",
+                },
+                json={
+                    "status": "active",
+                    "expectedRevision": suspended_payload["revision"],
+                },
+            )
+            if (
+                reactivated.status_code != 200
+                or reactivated.json().get("status") != "active"
+                or reactivated.json().get("revokedSessionCount") != 0
+            ):
+                raise ContractFailure("Reaktivierung wurde nicht persistiert")
+            for token in (
+                tokens["ANNA_OLD_SESSION"],
+                tokens["ANNA_SECOND_SESSION"],
+            ):
+                still_denied = await identity_response(client, token)
+                if still_denied.status_code != 401:
+                    raise ContractFailure(
+                        "widerrufene alte Sitzung lebte nach Reaktivierung wieder auf"
+                    )
+
+            bernd_detail = await client.get(
+                f"/api/v1/admin/members/{BERND_ID}",
+                cookies=system_cookies,
+            )
+            if bernd_detail.status_code != 200:
+                raise ContractFailure("Concurrency-Konto konnte nicht geladen werden")
+            bernd_revision = int(bernd_detail.json()["revision"])
+
+            async def conflicting_status(
+                target: str,
+                command_id: str,
+            ) -> httpx.Response:
+                return await client.patch(
+                    f"/api/v1/admin/members/{BERND_ID}/status",
+                    cookies=system_cookies,
+                    headers={
+                        "Idempotency-Key": command_id,
+                        "X-Request-ID": command_id,
+                    },
+                    json={
+                        "status": target,
+                        "expectedRevision": bernd_revision,
+                    },
+                )
+
+            conflicts = await asyncio.gather(
+                conflicting_status(
+                    "suspended",
+                    "pilot011:concurrency:suspend",
+                ),
+                conflicting_status(
+                    "archived",
+                    "pilot011:concurrency:archive",
+                ),
+            )
+            if sorted(response.status_code for response in conflicts) != [200, 409]:
+                raise ContractFailure(
+                    "Widersprüchliche Statusänderungen gewannen nicht exakt einmal"
+                )
+            winning_response = next(
+                response for response in conflicts if response.status_code == 200
+            )
+            winning_payload = winning_response.json()
+            if winning_payload.get("revision") != bernd_revision + 1:
+                raise ContractFailure("Concurrency-Sieger erhöhte Revision nicht exakt")
+            if winning_payload.get("status") == "suspended":
+                restored = await client.patch(
+                    f"/api/v1/admin/members/{BERND_ID}/status",
+                    cookies=system_cookies,
+                    headers={
+                        "Idempotency-Key": "pilot011:concurrency:restore",
+                        "X-Request-ID": "pilot011:concurrency:restore",
+                    },
+                    json={
+                        "status": "active",
+                        "expectedRevision": winning_payload["revision"],
+                    },
+                )
+                if restored.status_code != 200:
+                    raise ContractFailure(
+                        "Concurrency-Test konnte Bernd nicht reaktivieren"
+                    )
+
+            async with pool.acquire() as archive_connection:
+                archive_before = {
+                    "memberships": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM action_membership WHERE user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "activities": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM acquisition_activity "
+                            "WHERE actor_user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "actorAudit": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM audit_event WHERE actor_user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "invoices": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM invoice"
+                        )
+                    ),
+                    "documents": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM generated_document"
+                        )
+                    ),
+                }
+            carla_detail = await client.get(
+                f"/api/v1/admin/members/{CARLA_ID}",
+                cookies=system_cookies,
+            )
+            carla_revision = int(carla_detail.json()["revision"])
+            archived = await client.patch(
+                f"/api/v1/admin/members/{CARLA_ID}/status",
+                cookies=system_cookies,
+                headers={
+                    "Idempotency-Key": "pilot011:carla:archive",
+                    "X-Request-ID": "pilot011:carla:archive",
+                },
+                json={
+                    "status": "archived",
+                    "expectedRevision": carla_revision,
+                },
+            )
+            if (
+                archived.status_code != 200
+                or archived.json().get("status") != "archived"
+            ):
+                raise ContractFailure("Archivierung wurde nicht persistiert")
+            async with pool.acquire() as archive_connection:
+                archive_after = {
+                    "memberships": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM action_membership WHERE user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "activities": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM acquisition_activity "
+                            "WHERE actor_user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "actorAudit": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM audit_event WHERE actor_user_id = $1",
+                            CARLA_ID,
+                        )
+                    ),
+                    "invoices": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM invoice"
+                        )
+                    ),
+                    "documents": int(
+                        await archive_connection.fetchval(
+                            "SELECT count(*) FROM generated_document"
+                        )
+                    ),
+                }
+            if archive_after != archive_before:
+                raise ContractFailure(
+                    "Archivierung veränderte historische Fachzuordnungen"
+                )
+
+        async with pool.acquire() as status_connection:
+            system_revision = int(
+                await status_connection.fetchval(
+                    "SELECT revision FROM user_account WHERE id = $1",
+                    SYSTEM_ID,
+                )
+            )
+        try:
+            await repository.transition_account_status(
+                SYSTEM_ID,
+                AccountStatus.ARCHIVED,
+                actor_user_id=KLARA_ID,
+                expected_revision=system_revision,
+                idempotency_key="pilot011:last-system-admin:archive",
+                request_hash=hashlib.sha256(
+                    b"pilot011:last-system-admin:archive"
+                ).hexdigest(),
+                request_id="pilot011:last-system-admin:archive",
+                occurred_at=datetime.now(timezone.utc),
+            )
+        except Conflict as error:
+            if error.code != "last_system_admin_archival_forbidden":
+                raise ContractFailure(
+                    f"Letzter System-Admin lieferte falschen Konflikt: {error.code}"
+                ) from error
+        else:
+            raise ContractFailure("Letzter aktiver System-Admin wurde archiviert")
 
         connection = await asyncpg.connect(database_url, timeout=10)
         try:
@@ -516,6 +879,26 @@ async def run(arguments: argparse.Namespace) -> None:
                 ORDER BY occurred_at, event_type
                 """
             )
+            pilot_status_audit_rows = await connection.fetch(
+                """
+                SELECT entity_id, payload::text AS payload
+                FROM audit_event
+                WHERE request_id LIKE 'pilot011:%'
+                  AND event_type = 'identity.account.status_changed'
+                ORDER BY occurred_at, entity_id
+                """
+            )
+            pilot_status_receipts = int(
+                await connection.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM command_receipt
+                    WHERE command_type = 'identity.account.status.change'
+                      AND idempotency_key LIKE 'pilot011:%'
+                      AND result IS NOT NULL
+                    """
+                )
+            )
         finally:
             await connection.close()
         if current_anna_email != original_anna_email:
@@ -527,13 +910,30 @@ async def run(arguments: argparse.Namespace) -> None:
                 "identity.global_role.revoked",
                 "identity.action_membership.granted",
                 "identity.action_membership.revoked",
-                "identity.account.status_changed",
-                "identity.account.status_changed",
             ]
         ):
             raise ContractFailure(f"AuditEvents sind unvollständig: {event_types}")
         if any("email" in str(row["payload"]).casefold() for row in audit_rows):
             raise ContractFailure("AuditEvent enthält unerwartet eine E-Mail")
+        expected_status_events = (
+            5 if winning_payload.get("status") == "suspended" else 4
+        )
+        if (
+            len(pilot_status_audit_rows) != expected_status_events
+            or pilot_status_receipts != expected_status_events
+        ):
+            raise ContractFailure(
+                "Statusänderungen besitzen nicht je einen Audit- und Idempotenzbeleg"
+            )
+        for row in pilot_status_audit_rows:
+            payload = str(row["payload"])
+            if (
+                "idempotencyKey" not in payload
+                or "previousRevision" not in payload
+                or "revision" not in payload
+                or "email" in payload.casefold()
+            ):
+                raise ContractFailure("Status-Audit ist unvollständig oder enthält PII")
 
         output = arguments.session_output.resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -544,6 +944,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 if name
                 in {
                     "SYSTEM_SESSION",
+                    "SYSTEM_STALE_SESSION",
                     "KLARA_SESSION",
                     "ANNA_SESSION",
                     "FINN_SESSION",
@@ -557,8 +958,8 @@ async def run(arguments: argparse.Namespace) -> None:
         await pool.close()
 
     print(
-        "identity-contract: Rollen, Mehrfachmitgliedschaften, Audit, "
-        "E-Mail-Grenze und sofortiger Sitzungsentzug real bewiesen"
+        "identity-contract: Rollen, Statusrevision, Idempotenz, Konkurrenz, "
+        "Archivtreue und sofortiger Sitzungsentzug real bewiesen"
     )
 
 

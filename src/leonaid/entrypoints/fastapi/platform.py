@@ -71,7 +71,10 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.application.feature_flags import FeatureFlagService
-from leonaid.application.identity import IdentityQueryService
+from leonaid.application.identity import (
+    IdentityAdministrationService,
+    IdentityQueryService,
+)
 from leonaid.application.invoice_deliveries import InvoiceDeliveryService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
@@ -174,9 +177,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.allowed_origins = settings.allowed_origins
         application.state.trust_proxy_headers = settings.trust_proxy_headers
         application.state.maintenance_flag_path = settings.maintenance_flag_path
+        identity_repository = AsyncpgIdentityRepository(pool)
         application.state.identity_service = IdentityQueryService(
-            AsyncpgIdentityRepository(pool),
+            identity_repository,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
+        )
+        application.state.identity_administration_service = (
+            IdentityAdministrationService(identity_repository)
         )
         application.state.action_service = CharityActionService(
             AsyncpgCharityActionRepository(pool)

@@ -14,6 +14,7 @@ from uuid import UUID
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
+    Conflict,
     PermissionDenied,
     ResourceNotFound,
 )
@@ -49,9 +50,12 @@ class IdentityRepository(Protocol):
         target: AccountStatus,
         *,
         actor_user_id: UUID,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> UserAccount | None: ...
+    ) -> AccountStatusChange | None: ...
 
     async def grant_global_role(
         self,
@@ -145,6 +149,7 @@ class MemberDirectoryMember:
     email: str
     status: AccountStatus
     status_label: str
+    revision: int
     global_roles: tuple[GlobalRole, ...]
     global_role_labels: tuple[str, ...]
     action_memberships: tuple[MemberDirectoryMembership, ...]
@@ -186,6 +191,14 @@ class MemberDirectoryPage:
     total: int
     next_cursor: str | None
     partial: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AccountStatusChange:
+    account: UserAccount
+    previous_status: AccountStatus
+    revoked_session_count: int
+    replayed: bool = False
 
 
 ROLE_LABELS: dict[GlobalRole | ActionRole, str] = {
@@ -533,13 +546,45 @@ class IdentityAdministrationService:
         target_user_id: UUID,
         target: AccountStatus,
         *,
+        expected_revision: int,
+        idempotency_key: str,
         request_id: str,
-    ) -> UserAccount:
+    ) -> AccountStatusChange:
         self.require_system_admin(actor)
+        if actor.account.id == target_user_id and target in {
+            AccountStatus.SUSPENDED,
+            AccountStatus.ARCHIVED,
+        }:
+            raise Conflict(
+                "account_self_status_change_forbidden",
+                "Du kannst deinen eigenen Zugang nicht sperren oder archivieren.",
+            )
+        if expected_revision < 1:
+            raise ApplicationError(
+                "account_revision_invalid",
+                "Die erwartete Kontorevision muss positiv sein.",
+            )
+        if not 8 <= len(idempotency_key) <= 160 or any(
+            character.isspace() for character in idempotency_key
+        ):
+            raise ApplicationError(
+                "account_status_idempotency_key_invalid",
+                "Die Vorgangs-ID muss zwischen 8 und 160 Zeichen lang sein "
+                "und darf keine Leerzeichen enthalten.",
+            )
+        request_hash = hashlib.sha256(
+            (
+                f"{actor.account.id}:{target_user_id}:{target.value}:"
+                f"{expected_revision}"
+            ).encode("utf-8")
+        ).hexdigest()
         changed = await self._repository.transition_account_status(
             target_user_id,
             target,
             actor_user_id=actor.account.id,
+            expected_revision=expected_revision,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
             request_id=request_id,
             occurred_at=self._clock(),
         )

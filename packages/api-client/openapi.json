@@ -1428,6 +1428,31 @@
         "title": "CancelInvoiceRequest",
         "type": "object"
       },
+      "ChangeMemberStatusRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "expectedRevision"
+        ],
+        "title": "ChangeMemberStatusRequest",
+        "type": "object"
+      },
       "CharityActionConfigurationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4741,6 +4766,11 @@
             ],
             "title": "Lastloginat"
           },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
           "status": {
             "enum": [
               "invited",
@@ -4767,6 +4797,7 @@
           "email",
           "status",
           "statusLabel",
+          "revision",
           "globalRoles",
           "globalRoleLabels",
           "actionMemberships",
@@ -4858,6 +4889,72 @@
           "partial"
         ],
         "title": "MemberDirectoryResponse",
+        "type": "object"
+      },
+      "MemberStatusChangeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "previousStatus": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "title": "Previousstatus",
+            "type": "string"
+          },
+          "previousStatusLabel": {
+            "title": "Previousstatuslabel",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "revision": {
+            "minimum": 2.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "revokedSessionCount": {
+            "minimum": 0.0,
+            "title": "Revokedsessioncount",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "statusLabel": {
+            "title": "Statuslabel",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "status",
+          "statusLabel",
+          "previousStatus",
+          "previousStatusLabel",
+          "revision",
+          "revokedSessionCount",
+          "replayed"
+        ],
+        "title": "MemberStatusChangeResponse",
         "type": "object"
       },
       "NavigationItemResponse": {
@@ -12958,6 +13055,119 @@
           }
         },
         "summary": "Get Member",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/admin/members/{user_id}/status": {
+      "patch": {
+        "operationId": "changeMemberStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMemberStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberStatusChangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Change Member Status",
         "tags": [
           "identity"
         ]

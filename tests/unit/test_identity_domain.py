@@ -10,12 +10,17 @@ import pytest
 
 from leonaid.application.errors import ApplicationError
 from leonaid.application.identity import (
+    AccountStatusChange,
     ROLE_LABELS,
     STATUS_LABELS,
     MemberDirectoryMember,
     MemberDirectoryMembership,
     MemberDirectoryQuery,
     paginate_member_directory,
+)
+from leonaid.adapters.postgres.identity import (
+    replayed_status_change,
+    status_change_receipt,
 )
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import (
@@ -42,6 +47,24 @@ def account(status: AccountStatus) -> UserAccount:
         display_name="Klara Kern",
         status=status,
     )
+
+
+def test_status_change_receipt_round_trips_asyncpg_json_text() -> None:
+    changed = account(AccountStatus.ACTIVE).transition_to(AccountStatus.SUSPENDED)
+    receipt = status_change_receipt(
+        AccountStatusChange(
+            account=changed,
+            previous_status=AccountStatus.ACTIVE,
+            revoked_session_count=2,
+        )
+    )
+
+    replayed = replayed_status_change(json.dumps(receipt))
+
+    assert replayed.account == changed
+    assert replayed.previous_status is AccountStatus.ACTIVE
+    assert replayed.revoked_session_count == 2
+    assert replayed.replayed is True
 
 
 def golden_directory_members() -> tuple[MemberDirectoryMember, ...]:
@@ -83,6 +106,7 @@ def golden_directory_members() -> tuple[MemberDirectoryMember, ...]:
                 email=item["email"],
                 status=status,
                 status_label=STATUS_LABELS[status],
+                revision=1,
                 global_roles=global_roles,
                 global_role_labels=tuple(ROLE_LABELS[role] for role in global_roles),
                 action_memberships=tuple(memberships_by_user.get(item["id"], ())),
@@ -111,6 +135,7 @@ def test_account_allows_every_declared_status_transition(
 
     assert changed.status is target
     assert changed.email == "klara.kern@leonaid.invalid"
+    assert changed.revision == 2
 
 
 @pytest.mark.parametrize(
@@ -149,6 +174,19 @@ def test_login_email_is_normalized_and_immutable() -> None:
             display_name="Klara Kern",
             status=AccountStatus.ACTIVE,
         )
+
+
+def test_account_requires_positive_revision() -> None:
+    with pytest.raises(DomainInvariantError) as captured:
+        UserAccount(
+            id=KLARA_ID,
+            email="klara.kern@leonaid.invalid",
+            display_name="Klara Kern",
+            status=AccountStatus.ACTIVE,
+            revision=0,
+        )
+
+    assert captured.value.code == "account_revision_invalid"
 
 
 def test_principal_keeps_global_and_action_roles_separate() -> None:

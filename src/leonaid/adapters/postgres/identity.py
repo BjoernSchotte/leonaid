@@ -9,7 +9,9 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.application.errors import Conflict
 from leonaid.application.identity import (
+    AccountStatusChange,
     ROLE_LABELS,
     STATUS_LABELS,
     AuthenticatedIdentity,
@@ -36,7 +38,57 @@ def account_from_record(row: asyncpg.Record) -> UserAccount:
         display_name=str(row["display_name"]),
         status=AccountStatus(str(row["status"])),
         email_verified_at=row["email_verified_at"],
+        revision=int(row["revision"]),
     )
+
+
+def replayed_status_change(value: Any) -> AccountStatusChange:
+    try:
+        if isinstance(value, str):
+            value = json.loads(value)
+        account_value = value["account"]
+        verified_at = account_value.get("emailVerifiedAt")
+        return AccountStatusChange(
+            account=UserAccount(
+                id=UUID(str(account_value["id"])),
+                email=str(account_value["email"]),
+                display_name=str(account_value["displayName"]),
+                status=AccountStatus(str(account_value["status"])),
+                email_verified_at=(
+                    datetime.fromisoformat(str(verified_at))
+                    if verified_at is not None
+                    else None
+                ),
+                revision=int(account_value["revision"]),
+            ),
+            previous_status=AccountStatus(str(value["previousStatus"])),
+            revoked_session_count=int(value["revokedSessionCount"]),
+            replayed=True,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(
+            "Der Beleg der Kontostatusänderung ist unvollständig."
+        ) from error
+
+
+def status_change_receipt(change: AccountStatusChange) -> dict[str, Any]:
+    account = change.account
+    return {
+        "account": {
+            "id": str(account.id),
+            "email": account.email,
+            "displayName": account.display_name,
+            "status": account.status.value,
+            "emailVerifiedAt": (
+                account.email_verified_at.isoformat()
+                if account.email_verified_at is not None
+                else None
+            ),
+            "revision": account.revision,
+        },
+        "previousStatus": change.previous_status.value,
+        "revokedSessionCount": change.revoked_session_count,
+    }
 
 
 class AsyncpgIdentityRepository:
@@ -58,6 +110,7 @@ class AsyncpgIdentityRepository:
                     account.display_name,
                     account.status,
                     account.email_verified_at,
+                    account.revision,
                     session.id AS session_id,
                     session.created_at AS session_created_at,
                     session.expires_at AS session_expires_at,
@@ -172,7 +225,8 @@ class AsyncpgIdentityRepository:
                         account.email,
                         account.display_name,
                         account.status,
-                        account.email_verified_at
+                        account.email_verified_at,
+                        account.revision
                     FROM user_account AS account
                     WHERE $1::uuid[] IS NULL
                        OR EXISTS (
@@ -316,6 +370,7 @@ class AsyncpgIdentityRepository:
                     email=account.email,
                     status=account.status,
                     status_label=STATUS_LABELS[account.status],
+                    revision=account.revision,
                     global_roles=roles,
                     global_role_labels=tuple(ROLE_LABELS[role] for role in roles),
                     action_memberships=tuple(memberships_by_user.get(account.id, ())),
@@ -340,14 +395,65 @@ class AsyncpgIdentityRepository:
         target: AccountStatus,
         *,
         actor_user_id: UUID,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> UserAccount | None:
+    ) -> AccountStatusChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    "identity.account.status",
+                )
+                inserted = await connection.fetchval(
+                    """
+                    INSERT INTO command_receipt (
+                        idempotency_key, command_type, request_hash
+                    )
+                    VALUES ($1, 'identity.account.status.change', $2)
+                    ON CONFLICT (idempotency_key) DO NOTHING
+                    RETURNING true
+                    """,
+                    idempotency_key,
+                    request_hash,
+                )
+                if not inserted:
+                    receipt = await connection.fetchrow(
+                        """
+                        SELECT command_type, request_hash, result
+                        FROM command_receipt
+                        WHERE idempotency_key = $1
+                        FOR UPDATE
+                        """,
+                        idempotency_key,
+                    )
+                    if receipt is None:
+                        raise RuntimeError(
+                            "Der Beleg der Kontostatusänderung ist verschwunden."
+                        )
+                    if (
+                        str(receipt["command_type"]) != "identity.account.status.change"
+                        or str(receipt["request_hash"]) != request_hash
+                    ):
+                        raise Conflict(
+                            "idempotency_conflict",
+                            "Diese Vorgangs-ID wurde bereits für eine andere "
+                            "Statusänderung verwendet.",
+                        )
+                    if receipt["result"] is None:
+                        raise Conflict(
+                            "idempotency_incomplete",
+                            "Die vorherige Statusänderung ist noch nicht "
+                            "abgeschlossen. Bitte versuche es erneut.",
+                        )
+                    return replayed_status_change(receipt["result"])
                 row = await connection.fetchrow(
                     """
-                    SELECT id, email, display_name, status, email_verified_at
+                    SELECT
+                        id, email, display_name, status, email_verified_at,
+                        revision
                     FROM user_account
                     WHERE id = $1
                     FOR UPDATE
@@ -355,34 +461,117 @@ class AsyncpgIdentityRepository:
                     user_id,
                 )
                 if row is None:
+                    await connection.execute(
+                        """
+                        DELETE FROM command_receipt
+                        WHERE idempotency_key = $1
+                          AND command_type = 'identity.account.status.change'
+                          AND result IS NULL
+                        """,
+                        idempotency_key,
+                    )
                     return None
                 current = account_from_record(row)
+                if current.revision != expected_revision:
+                    raise Conflict(
+                        "account_revision_conflict",
+                        "Der Zugang wurde zwischenzeitlich geändert. "
+                        "Bitte lade den aktuellen Stand.",
+                    )
+                if current.status is AccountStatus.INVITED:
+                    raise Conflict(
+                        "account_invitation_activation_forbidden",
+                        "Ein eingeladener Zugang wird ausschließlich durch "
+                        "Annahme der Einladung aktiviert.",
+                    )
                 changed = current.transition_to(target)
                 if changed.status is current.status:
-                    return current
-                await connection.execute(
+                    raise Conflict(
+                        "account_status_unchanged",
+                        "Der Zugang besitzt diesen Status bereits.",
+                    )
+                if (
+                    target is AccountStatus.ARCHIVED
+                    and current.status is AccountStatus.ACTIVE
+                    and await connection.fetchval(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM user_global_role
+                            WHERE user_id = $1
+                              AND role = 'system_admin'
+                        )
+                        """,
+                        user_id,
+                    )
+                ):
+                    active_system_admins = int(
+                        await connection.fetchval(
+                            """
+                            SELECT count(*)
+                            FROM user_global_role AS role
+                            JOIN user_account AS account
+                              ON account.id = role.user_id
+                            WHERE role.role = 'system_admin'
+                              AND account.status = 'active'
+                            """
+                        )
+                    )
+                    if active_system_admins <= 1:
+                        raise Conflict(
+                            "last_system_admin_archival_forbidden",
+                            "Der letzte aktive System-Admin kann nicht "
+                            "archiviert werden.",
+                        )
+                revision = await connection.fetchval(
                     """
                     UPDATE user_account
                     SET status = $2,
+                        revision = revision + 1,
                         updated_at = $3
                     WHERE id = $1
+                      AND revision = $4
+                    RETURNING revision
                     """,
                     user_id,
                     target.value,
                     occurred_at,
+                    expected_revision,
                 )
-                if target in {AccountStatus.SUSPENDED, AccountStatus.ARCHIVED}:
-                    await connection.execute(
-                        """
-                        UPDATE user_session
-                        SET revoked_at = COALESCE(revoked_at, $2),
-                            updated_at = $2
-                        WHERE user_id = $1
-                          AND revoked_at IS NULL
-                        """,
-                        user_id,
-                        occurred_at,
+                if revision is None:
+                    raise Conflict(
+                        "account_revision_conflict",
+                        "Der Zugang wurde zwischenzeitlich geändert. "
+                        "Bitte lade den aktuellen Stand.",
                     )
+                if int(revision) != changed.revision:
+                    raise RuntimeError(
+                        "PostgreSQL lieferte eine unerwartete Kontorevision."
+                    )
+                revoked_session_count = 0
+                if target in {AccountStatus.SUSPENDED, AccountStatus.ARCHIVED}:
+                    revoked_session_count = int(
+                        await connection.fetchval(
+                            """
+                            WITH revoked AS (
+                                UPDATE user_session
+                                SET revoked_at = COALESCE(revoked_at, $2),
+                                    updated_at = $2
+                                WHERE user_id = $1
+                                  AND revoked_at IS NULL
+                                RETURNING 1
+                            )
+                            SELECT count(*) FROM revoked
+                            """,
+                            user_id,
+                            occurred_at,
+                        )
+                    )
+                result = AccountStatusChange(
+                    account=changed,
+                    previous_status=current.status,
+                    revoked_session_count=revoked_session_count,
+                )
                 await self._audit(
                     connection,
                     action_id=None,
@@ -394,10 +583,35 @@ class AsyncpgIdentityRepository:
                     payload={
                         "previousStatus": current.status.value,
                         "newStatus": target.value,
+                        "previousRevision": current.revision,
+                        "revision": changed.revision,
+                        "revokedSessionCount": revoked_session_count,
+                        "idempotencyKey": idempotency_key,
                     },
                     occurred_at=occurred_at,
                 )
-                return changed
+                receipt_status = await connection.execute(
+                    """
+                    UPDATE command_receipt
+                    SET result = $2::jsonb,
+                        completed_at = $3
+                    WHERE idempotency_key = $1
+                      AND command_type = 'identity.account.status.change'
+                      AND result IS NULL
+                    """,
+                    idempotency_key,
+                    json.dumps(
+                        status_change_receipt(result),
+                        separators=(",", ":"),
+                    ),
+                    occurred_at,
+                )
+                if receipt_status != "UPDATE 1":
+                    raise RuntimeError(
+                        "Der Beleg der Kontostatusänderung konnte nicht "
+                        "abgeschlossen werden."
+                    )
+                return result
 
     async def grant_global_role(
         self,
@@ -571,7 +785,7 @@ class AsyncpgIdentityRepository:
         entity_type: str,
         entity_id: UUID,
         request_id: str,
-        payload: dict[str, str],
+        payload: dict[str, str | int | bool | None],
         occurred_at: datetime,
     ) -> None:
         await connection.execute(

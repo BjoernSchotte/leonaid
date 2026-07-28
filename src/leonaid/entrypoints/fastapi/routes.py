@@ -72,6 +72,8 @@ from leonaid.application.errors import Conflict, DependencyUnavailable
 from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.identity import (
     ROLE_LABELS,
+    STATUS_LABELS,
+    IdentityAdministrationService,
     IdentityQueryService,
     MemberDirectoryQuery,
 )
@@ -226,11 +228,13 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvoiceRecordResponse,
     InvoiceResponse,
     CancelInvoiceRequest,
+    ChangeMemberStatusRequest,
     IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
     MemberDirectoryMemberResponse,
     MemberDirectoryResponse,
+    MemberStatusChangeResponse,
     OperationalApiMetricsResponse,
     OperationalDependencyResponse,
     OperationalFailedJobResponse,
@@ -312,6 +316,15 @@ def public_order_service(request: Request) -> PublicOrderService:
 
 def identity_service(request: Request) -> IdentityQueryService:
     return cast(IdentityQueryService, request.app.state.identity_service)
+
+
+def identity_administration_service(
+    request: Request,
+) -> IdentityAdministrationService:
+    return cast(
+        IdentityAdministrationService,
+        request.app.state.identity_administration_service,
+    )
 
 
 def invitation_service(request: Request) -> InvitationService:
@@ -1681,6 +1694,48 @@ async def get_member(
     member = await identity_service(request).get_member(actor, user_id)
     response.headers["Cache-Control"] = "no-store"
     return MemberDirectoryMemberResponse.model_validate(member)
+
+
+@router.patch(
+    "/api/v1/admin/members/{user_id}/status",
+    operation_id="changeMemberStatus",
+    response_model=MemberStatusChangeResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def change_member_status(
+    user_id: UUID,
+    body: ChangeMemberStatusRequest,
+    request: Request,
+    response: Response,
+) -> MemberStatusChangeResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await identity_administration_service(request).change_status(
+        actor,
+        user_id,
+        AccountStatus(body.status),
+        expected_revision=body.expected_revision,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return MemberStatusChangeResponse(
+        user_id=result.account.id,
+        display_name=result.account.display_name,
+        status=cast(
+            Literal["active", "suspended", "archived"],
+            result.account.status.value,
+        ),
+        status_label=STATUS_LABELS[result.account.status],
+        previous_status=cast(
+            Literal["active", "suspended"],
+            result.previous_status.value,
+        ),
+        previous_status_label=STATUS_LABELS[result.previous_status],
+        revision=result.account.revision,
+        revoked_session_count=result.revoked_session_count,
+        replayed=result.replayed,
+    )
 
 
 @router.get(

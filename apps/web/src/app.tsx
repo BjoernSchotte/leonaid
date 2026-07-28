@@ -154,7 +154,7 @@ export function App({ client }: AppProps) {
             key={currentRoute.actionId}
           />
         ) : currentRoute.kind === "members" ? (
-          <MemberAdministrationPage client={client} />
+          <MemberAdministrationPage client={client} identity={identity.data} />
         ) : currentRoute.kind === "orders" ? (
           <CommitmentAdminPage client={client} identity={identity.data} />
         ) : currentRoute.kind === "invoices" ? (

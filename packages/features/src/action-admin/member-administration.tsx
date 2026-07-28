@@ -1,26 +1,31 @@
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  Delete02Icon,
+  LockIcon,
   Search01Icon,
   UserAdd01Icon,
+  UserCheck01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
   ApiError,
+  type CurrentIdentityResponse,
   type LeonAidApiClient,
   type MemberDirectoryMemberResponse,
 } from "@leonaid/api-client";
-import { Button, StatusMessage } from "@leonaid/ui";
+import { Button, ConfirmDialog, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
 import { MemberInvitationPage } from "./member-invitation";
 
 export interface MemberAdministrationPageProps {
   readonly client: LeonAidApiClient;
+  readonly identity: CurrentIdentityResponse;
 }
 
 type MemberView = "directory" | "invite";
@@ -59,13 +64,21 @@ function initials(displayName: string): string {
 
 function MemberDetail({
   client,
+  identity,
   memberId,
   partial,
 }: {
   readonly client: LeonAidApiClient;
+  readonly identity: CurrentIdentityResponse;
   readonly memberId: string | undefined;
   readonly partial: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [pendingStatus, setPendingStatus] = useState<
+    "active" | "suspended" | "archived"
+  >();
+  const [commandId, setCommandId] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const detail = useQuery({
     enabled: Boolean(memberId),
     queryFn: () => client.getMember(memberId ?? ""),
@@ -74,6 +87,57 @@ function MemberDetail({
       !(error instanceof ApiError) && failureCount < 2,
     staleTime: 15_000,
   });
+  const statusChange = useMutation({
+    mutationFn: ({
+      member,
+      status,
+      idempotencyKey,
+    }: {
+      readonly member: MemberDirectoryMemberResponse;
+      readonly status: "active" | "suspended" | "archived";
+      readonly idempotencyKey: string;
+    }) =>
+      client.changeMemberStatus(
+        member.userId,
+        {
+          expectedRevision: member.revision,
+          status,
+        },
+        {
+          headers: {
+            "Idempotency-Key": idempotencyKey,
+          },
+        },
+      ),
+    onSuccess: async (result) => {
+      setPendingStatus(undefined);
+      setCommandId("");
+      setSuccessMessage(
+        result.status === "suspended"
+          ? `${result.displayName} ist gesperrt. ${result.revokedSessionCount} ${
+              result.revokedSessionCount === 1
+                ? "Sitzung wurde"
+                : "Sitzungen wurden"
+            } sofort beendet.`
+          : result.status === "active"
+            ? `${result.displayName} ist wieder aktiv. Für den nächsten Zugriff ist eine neue Anmeldung erforderlich.`
+            : `${result.displayName} ist archiviert. Historische Zuordnungen und Dokumente bleiben erhalten.`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["members"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["member-detail", result.userId],
+        }),
+      ]);
+    },
+  });
+
+  useEffect(() => {
+    setPendingStatus(undefined);
+    setCommandId("");
+    setSuccessMessage("");
+    statusChange.reset();
+  }, [memberId]);
 
   if (!memberId) {
     return (
@@ -119,6 +183,47 @@ function MemberDetail({
   }
 
   const member = detail.data;
+  const systemAdmin = identity.globalRoles.includes("system_admin");
+  const self = member.userId === identity.userId;
+  const canChangeStatus =
+    systemAdmin &&
+    !self &&
+    !partial &&
+    member.status !== "invited" &&
+    member.status !== "archived";
+  const statusError = statusChange.error
+    ? actionErrorMessage(statusChange.error)
+    : null;
+  const dialogDescription =
+    pendingStatus === "suspended"
+      ? `${member.displayName} verliert sofort den Zugriff. ${
+          member.activeSessionCount === 1
+            ? "Die aktive Sitzung wird"
+            : `${member.activeSessionCount} aktive Sitzungen werden`
+        } unwiderruflich beendet.`
+      : pendingStatus === "active"
+        ? `${member.displayName} erhält wieder Zugriff. Alte Sitzungen bleiben beendet; die Person muss sich neu anmelden.`
+        : `${member.displayName} wird dauerhaft archiviert. Aktionszuordnungen, Audit-Verlauf, Rechnungen und Dokumente bleiben historisch erhalten.`;
+  const dialogTitle =
+    pendingStatus === "suspended"
+      ? "Zugang wirklich sperren?"
+      : pendingStatus === "active"
+        ? "Zugang reaktivieren?"
+        : "Zugang dauerhaft archivieren?";
+  const confirmLabel =
+    pendingStatus === "suspended"
+      ? "Zugang sperren"
+      : pendingStatus === "active"
+        ? "Zugang reaktivieren"
+        : "Zugang archivieren";
+
+  function openStatusDialog(status: "active" | "suspended" | "archived") {
+    setSuccessMessage("");
+    statusChange.reset();
+    setCommandId(`pilot011:member-status:${crypto.randomUUID()}`);
+    setPendingStatus(status);
+  }
+
   return (
     <aside
       aria-label={`Details zu ${member.displayName}`}
@@ -193,12 +298,136 @@ function MemberDetail({
         )}
       </section>
 
+      {systemAdmin && !partial ? (
+        <section
+          aria-labelledby="member-access-title"
+          className="member-detail__section member-access"
+        >
+          <div>
+            <h3 id="member-access-title">Zugang steuern</h3>
+            <p>
+              Kritische Änderungen benötigen eine frisch bestätigte Anmeldung
+              und werden vollständig protokolliert.
+            </p>
+          </div>
+          {successMessage ? (
+            <StatusMessage tone="success">
+              <p data-testid="member-status-success">{successMessage}</p>
+            </StatusMessage>
+          ) : null}
+          {statusError ? (
+            <StatusMessage tone="error">
+              <strong>
+                {statusError.conflict
+                  ? "Stand wurde zwischenzeitlich geändert"
+                  : "Status konnte nicht geändert werden"}
+              </strong>
+              <p>{statusError.message}</p>
+              {statusError.conflict ? (
+                <Button
+                  onClick={() => void detail.refetch()}
+                  variant="secondary"
+                >
+                  Aktuellen Stand laden
+                </Button>
+              ) : null}
+            </StatusMessage>
+          ) : null}
+          {self ? (
+            <p className="member-access__note" data-testid="member-status-self">
+              Deinen eigenen Zugang kannst du nicht sperren oder archivieren.
+            </p>
+          ) : member.status === "invited" ? (
+            <p className="member-access__note">
+              Dieser Zugang wird durch die Annahme seiner Einladung aktiviert.
+            </p>
+          ) : member.status === "archived" ? (
+            <p className="member-access__note">
+              Archivierte Zugänge bleiben als historischer Datensatz erhalten
+              und können nicht reaktiviert werden.
+            </p>
+          ) : canChangeStatus ? (
+            <div className="member-access__actions">
+              {member.status === "active" ? (
+                <Button
+                  data-testid="member-status-suspend"
+                  icon={
+                    <HugeiconsIcon
+                      aria-hidden="true"
+                      icon={LockIcon}
+                      size={18}
+                      strokeWidth={1.8}
+                    />
+                  }
+                  onClick={() => openStatusDialog("suspended")}
+                  variant="secondary"
+                >
+                  Zugang sperren
+                </Button>
+              ) : (
+                <Button
+                  data-testid="member-status-reactivate"
+                  icon={
+                    <HugeiconsIcon
+                      aria-hidden="true"
+                      icon={UserCheck01Icon}
+                      size={18}
+                      strokeWidth={1.8}
+                    />
+                  }
+                  onClick={() => openStatusDialog("active")}
+                >
+                  Reaktivieren
+                </Button>
+              )}
+              <Button
+                data-testid="member-status-archive"
+                icon={
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    icon={Delete02Icon}
+                    size={18}
+                    strokeWidth={1.8}
+                  />
+                }
+                onClick={() => openStatusDialog("archived")}
+                variant="danger"
+              >
+                Archivieren
+              </Button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {partial ? (
         <p className="member-detail__scope-note">
           Du siehst ausschließlich Rollen in deinen verwalteten Aktionen.
           Globale Rollen bleiben ausgeblendet.
         </p>
       ) : null}
+      <ConfirmDialog
+        confirmLabel={confirmLabel}
+        description={dialogDescription}
+        onConfirm={() => {
+          if (!pendingStatus || !commandId) return;
+          statusChange.mutate({
+            idempotencyKey: commandId,
+            member,
+            status: pendingStatus,
+          });
+        }}
+        onOpenChange={(open) => {
+          if (!open && !statusChange.isPending) {
+            setPendingStatus(undefined);
+            setCommandId("");
+          }
+        }}
+        open={Boolean(pendingStatus)}
+        pending={statusChange.isPending}
+        title={dialogTitle}
+        tone={pendingStatus === "active" ? "primary" : "danger"}
+      />
     </aside>
   );
 }
@@ -255,7 +484,13 @@ function MemberCard({
   );
 }
 
-function MemberDirectory({ client }: { readonly client: LeonAidApiClient }) {
+function MemberDirectory({
+  client,
+  identity,
+}: {
+  readonly client: LeonAidApiClient;
+  readonly identity: CurrentIdentityResponse;
+}) {
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<MemberStatus>("");
@@ -522,6 +757,7 @@ function MemberDirectory({ client }: { readonly client: LeonAidApiClient }) {
           </div>
           <MemberDetail
             client={client}
+            identity={identity}
             memberId={selectedMemberId}
             partial={directory.data.partial}
           />
@@ -533,6 +769,7 @@ function MemberDirectory({ client }: { readonly client: LeonAidApiClient }) {
 
 export function MemberAdministrationPage({
   client,
+  identity,
 }: MemberAdministrationPageProps) {
   const [view, setView] = useState<MemberView>(initialView);
 
@@ -629,7 +866,7 @@ export function MemberAdministrationPage({
         tabIndex={0}
       >
         {view === "directory" ? (
-          <MemberDirectory client={client} />
+          <MemberDirectory client={client} identity={identity} />
         ) : (
           <MemberInvitationPage client={client} embedded />
         )}
