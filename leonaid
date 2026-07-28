@@ -63,6 +63,8 @@ Commands:
                     Prove the public pilot decision register and STOP rules
   test-pilot-data-boundary
                     Prove private pilot paths, manifests and public evidence
+  test-pilot-deployment
+                    Prove the merged production topology and fail-closed guards
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor [--gate GATE] [--json]
@@ -709,6 +711,10 @@ case "$command" in
   test-pilot-data-boundary)
     require_docker
     /bin/sh "$root/tools/pilot/test.sh" "$root"
+    ;;
+  test-pilot-deployment)
+    require_docker
+    /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
     ;;
   pilot-evidence-init)
     require_docker

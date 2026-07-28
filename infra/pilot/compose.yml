@@ -1,0 +1,72 @@
+services:
+  proxy:
+    ports: !override
+      - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:80:80"
+      - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
+    environment:
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:?CADDY_ACME_EMAIL fehlt}
+      LEONAID_PUBLIC_DOMAIN: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
+      TWENTY_PUBLIC_DOMAIN: ${TWENTY_PUBLIC_DOMAIN:?TWENTY_PUBLIC_DOMAIN fehlt}
+    volumes: !override
+      - ../pilot/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/_health"]
+
+  api:
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    build: !reset null
+    environment:
+      LEONAID_ENV: production
+      LEONAID_SERVICE_VERSION: ${LEONAID_RELEASE_COMMIT:?LEONAID_RELEASE_COMMIT fehlt}
+      LEONAID_PUBLIC_BASE_URL: ${LEONAID_PUBLIC_BASE_URL:?LEONAID_PUBLIC_BASE_URL fehlt}
+      LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS fehlt}
+      TWENTY_ORIGIN: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
+      MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL fehlt}
+      MAIL_TEST_API_URL: !reset null
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+
+  worker:
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    build: !reset null
+    environment:
+      LEONAID_ENV: production
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:?MAIL_SMTP_HOST fehlt}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:?MAIL_SMTP_PORT fehlt}
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM fehlt}
+      MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:?MAIL_SMTP_MODE fehlt}
+      MAIL_SMTP_USERNAME: ${MAIL_SMTP_USERNAME:-}
+      MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}
+      MAIL_SMTP_TIMEOUT_SECONDS: ${MAIL_SMTP_TIMEOUT_SECONDS:-10}
+      MAIL_SMTP_VERIFY_CERTIFICATES: "true"
+      MAIL_SMTP_CA_FILE: ${MAIL_SMTP_CA_FILE:-}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+      OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+
+  web:
+    image: ${LEONAID_WEB_IMAGE:?LEONAID_WEB_IMAGE fehlt}
+    build: !reset null
+
+  pwa:
+    image: ${LEONAID_PWA_IMAGE:?LEONAID_PWA_IMAGE fehlt}
+    build: !reset null
+
+  public:
+    image: ${LEONAID_PUBLIC_IMAGE:?LEONAID_PUBLIC_IMAGE fehlt}
+    build: !reset null
+
+  twenty-server:
+    environment:
+      SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
+      IS_EMAIL_VERIFICATION_REQUIRED: "true"
+
+  twenty-worker:
+    environment:
+      SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
+      IS_EMAIL_VERIFICATION_REQUIRED: "true"
+
+volumes:
+  caddy-data:
+  caddy-config:

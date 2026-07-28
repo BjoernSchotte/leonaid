@@ -1,0 +1,64 @@
+{
+	email {$CADDY_ACME_EMAIL}
+	admin off
+}
+
+(common_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
+
+(leonaid_headers) {
+	header {
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self' wss:; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+		X-Frame-Options DENY
+	}
+}
+
+:80 {
+	handle /_health {
+		respond "ready" 200
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
+
+{$LEONAID_PUBLIC_DOMAIN} {
+	import common_headers
+
+	handle /api/health/* {
+		import leonaid_headers
+		uri strip_prefix /api
+		reverse_proxy api:8000
+	}
+
+	handle /api/* {
+		import leonaid_headers
+		reverse_proxy api:8000
+	}
+
+	handle_path /app/* {
+		import leonaid_headers
+		reverse_proxy pwa:3000
+	}
+
+	handle_path /admin/* {
+		import leonaid_headers
+		reverse_proxy web:3000
+	}
+
+	handle {
+		import leonaid_headers
+		reverse_proxy public:3000
+	}
+}
+
+{$TWENTY_PUBLIC_DOMAIN} {
+	import common_headers
+	reverse_proxy twenty-server:3000
+}
