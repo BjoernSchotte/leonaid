@@ -15,28 +15,27 @@ git -C "$root" checkout-index --all --prefix="$checkout_a/"
 git -C "$root" checkout-index --all --prefix="$checkout_b/"
 
 for checkout in "$checkout_a" "$checkout_b"; do
-  rm -f "$checkout/uv.lock" "$checkout/bun.lock"
   docker run --rm \
     -v "$checkout:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
-    uv lock --python 3.13.13
+    uv sync --frozen --no-install-project --python 3.13.13
   docker run --rm \
     -v "$checkout:/workspace" \
     -w /workspace \
     "$BUN_IMAGE" \
-    bun install --lockfile-only --ignore-scripts
+    bun install --frozen-lockfile --ignore-scripts
 done
 
 for lock in uv.lock bun.lock infra/locks/external-systems.lock; do
   if ! cmp "$checkout_a/$lock" "$checkout_b/$lock"; then
-    echo "pin-reproduce: ERROR: two fresh index checkouts differ for $lock" >&2
+    echo "pin-reproduce: ERROR: two isolated index checkouts differ for $lock" >&2
     exit 1
   fi
   if ! cmp "$root/$lock" "$checkout_a/$lock"; then
-    echo "pin-reproduce: ERROR: committed/indexed $lock is stale" >&2
+    echo "pin-reproduce: ERROR: worktree and indexed $lock differ" >&2
     exit 1
   fi
 done
 
-echo "pin-reproduce: OK: two fresh index checkouts produced identical locks"
+echo "pin-reproduce: OK: two isolated index checkouts installed identical frozen locks"

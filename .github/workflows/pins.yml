@@ -53,14 +53,14 @@ jobs:
           /bin/sh /workspace/tools/pins/test.sh /workspace
 
   reproducibility:
-    name: Reproduce locks twice
+    name: Install frozen locks twice
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Compare two fresh index checkouts
+      - name: Install two isolated index checkouts
         run: /bin/sh tools/pins/reproduce.sh "$PWD"
 
       - name: Execute pinned toolchains and browser artifacts
