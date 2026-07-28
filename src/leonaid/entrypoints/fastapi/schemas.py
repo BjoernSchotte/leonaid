@@ -342,6 +342,39 @@ class InvitationDispatchResponse(TransportModel):
     status: Literal["queued"]
 
 
+InvitationStatusValue = Literal["pending", "accepted", "expired", "revoked"]
+
+
+class InvitationSummaryResponse(TransportModel):
+    id: UUID
+    action_id: UUID
+    action_name: str
+    email: str
+    display_name: str
+    role: ActionRoleValue
+    status: InvitationStatusValue
+    invited_by_name: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+    revoked_at: datetime | None
+    expired_at: datetime | None
+    supersedes_invitation_id: UUID | None
+
+
+class InvitationListResponse(TransportModel):
+    items: list[InvitationSummaryResponse]
+
+
+class CorrectInvitationAddressRequest(TransportModel):
+    email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalized_invitation_email(value)
+
+
 class AcceptInvitationRequest(TransportModel):
     magic_token: str | None = Field(default=None, min_length=32, max_length=256)
     email: str | None = Field(default=None, min_length=3, max_length=320)

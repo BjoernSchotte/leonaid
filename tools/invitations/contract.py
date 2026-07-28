@@ -30,6 +30,12 @@ LINK_EMAIL = "link-pilot@leonaid.invalid"
 CODE_EMAIL = "code-pilot@leonaid.invalid"
 REVOKED_EMAIL = "revoked-pilot@leonaid.invalid"
 BRUTE_FORCE_EMAIL = "code-limit-pilot@leonaid.invalid"
+REISSUE_EMAIL = "reissue-pilot@leonaid.invalid"
+CORRECTED_EMAIL = "reissue-corrected-pilot@leonaid.invalid"
+UI_RESEND_EMAIL = "ui-resend-pilot@leonaid.invalid"
+UI_CORRECT_EMAIL = "ui-correct-pilot@leonaid.invalid"
+UI_REVOKE_EMAIL = "ui-revoke-pilot@leonaid.invalid"
+FOREIGN_EMAIL = "foreign-lifecycle-pilot@leonaid.invalid"
 TOKEN_PATTERN = re.compile(r"/invite\?token=([A-Za-z0-9_-]{32,256})")
 CODE_PATTERN = re.compile(r"\bCode ([0-9]{6})\b")
 
@@ -578,6 +584,187 @@ async def run(arguments: argparse.Namespace) -> None:
             "unbekanntes Konto",
         )
 
+        foreign_id, _ = await create_invitation(
+            client,
+            system_session,
+            action_id=FOREIGN_ACTION_ID,
+            email=FOREIGN_EMAIL,
+            display_name="Foreign Lifecycle Pilot",
+            role="acquirer",
+        )
+        lifecycle_id, _ = await create_invitation(
+            client,
+            klara_session,
+            action_id=ACTION_ID,
+            email=REISSUE_EMAIL,
+            display_name="Reissue Pilot",
+            role="acquirer",
+        )
+        lifecycle_text, _ = await wait_for_mail(mailpit, REISSUE_EMAIL)
+        lifecycle_token, _ = credentials_from_mail(lifecycle_text)
+
+        klara_list = await client.get(
+            "/api/v1/invitations",
+            cookies=cookies(klara_session),
+        )
+        if klara_list.status_code != 200:
+            raise ContractFailure("Charity-Admin konnte Einladungen nicht auflisten")
+        klara_items = klara_list.json().get("items", [])
+        if (
+            not klara_items
+            or {UUID(str(item["actionId"])) for item in klara_items} != {ACTION_ID}
+            or foreign_id in {UUID(str(item["id"])) for item in klara_items}
+            or {"pending", "accepted", "expired", "revoked"}
+            - {str(item["status"]) for item in klara_items}
+        ):
+            raise ContractFailure(
+                "Einladungsliste verletzt Aktionsscope oder Lifecycle-Vollständigkeit"
+            )
+        system_list = await client.get(
+            "/api/v1/invitations",
+            cookies=cookies(system_session),
+            params={"actionId": str(FOREIGN_ACTION_ID), "status": "pending"},
+        )
+        if system_list.status_code != 200 or foreign_id not in {
+            UUID(str(item["id"])) for item in system_list.json().get("items", [])
+        }:
+            raise ContractFailure("System-Admin-Filter enthält die fremde Aktion nicht")
+
+        connection = await asyncpg.connect(database_url, timeout=10)
+        try:
+            await connection.execute(
+                """
+                UPDATE action_invitation
+                SET created_at = $2
+                WHERE id = $1
+                """,
+                lifecycle_id,
+                now - timedelta(minutes=2),
+            )
+        finally:
+            await connection.close()
+
+        await mailpit.delete("/api/v1/messages")
+        reissued = await client.post(
+            f"/api/v1/invitations/{lifecycle_id}/resend",
+            cookies=cookies(klara_session),
+            headers={"X-Request-ID": f"pilot013:resend:{uuid4()}"},
+        )
+        if reissued.status_code != 202:
+            raise ContractFailure(
+                f"Neuversand scheiterte: {reissued.status_code} {reissued.text[:300]}"
+            )
+        reissued_id = UUID(str(reissued.json()["invitationId"]))
+        reissued_text, _ = await wait_for_mail(mailpit, REISSUE_EMAIL)
+        reissued_token, _ = credentials_from_mail(reissued_text)
+        if reissued_id == lifecycle_id or reissued_token == lifecycle_token:
+            raise ContractFailure("Neuversand rotierte Einladung oder Token nicht")
+        await require_invalid(
+            await client.post(
+                "/api/v1/invitations/accept",
+                headers={"User-Agent": "LeonAid-PILOT013-reissue-contract"},
+                json={"magicToken": lifecycle_token},
+            ),
+            "Link vor Neuversand",
+        )
+        too_soon = await client.post(
+            f"/api/v1/invitations/{reissued_id}/resend",
+            cookies=cookies(klara_session),
+        )
+        if (
+            too_soon.status_code != 400
+            or too_soon.json().get("error", {}).get("code")
+            != "invitation_reissue_unavailable"
+        ):
+            raise ContractFailure("Neuversand wurde nicht zeitlich begrenzt")
+
+        await mailpit.delete("/api/v1/messages")
+        corrected = await client.post(
+            f"/api/v1/invitations/{reissued_id}/correct-address",
+            cookies=cookies(klara_session),
+            headers={"X-Request-ID": f"pilot013:correct:{uuid4()}"},
+            json={"email": CORRECTED_EMAIL},
+        )
+        if corrected.status_code != 202:
+            raise ContractFailure(
+                "Adresskorrektur scheiterte: "
+                f"{corrected.status_code} {corrected.text[:300]}"
+            )
+        corrected_id = UUID(str(corrected.json()["invitationId"]))
+        corrected_text, _ = await wait_for_mail(mailpit, CORRECTED_EMAIL)
+        corrected_token, _ = credentials_from_mail(corrected_text)
+        await require_invalid(
+            await client.post(
+                "/api/v1/invitations/accept",
+                headers={"User-Agent": "LeonAid-PILOT013-correction-contract"},
+                json={"magicToken": reissued_token},
+            ),
+            "Link vor Adresskorrektur",
+        )
+
+        ui_resend_id, _ = await create_invitation(
+            client,
+            klara_session,
+            action_id=ACTION_ID,
+            email=UI_RESEND_EMAIL,
+            display_name="UI Neuversand",
+            role="acquirer",
+        )
+        ui_correct_id, _ = await create_invitation(
+            client,
+            klara_session,
+            action_id=ACTION_ID,
+            email=UI_CORRECT_EMAIL,
+            display_name="UI Adresskorrektur",
+            role="driver",
+        )
+        ui_revoke_id, _ = await create_invitation(
+            client,
+            klara_session,
+            action_id=ACTION_ID,
+            email=UI_REVOKE_EMAIL,
+            display_name="UI Widerruf",
+            role="finance_reader",
+        )
+        connection = await asyncpg.connect(database_url, timeout=10)
+        try:
+            await connection.execute(
+                "UPDATE action_invitation SET created_at = $2 WHERE id = $1",
+                ui_resend_id,
+                now - timedelta(minutes=2),
+            )
+            replacement_rows = await connection.fetch(
+                """
+                SELECT
+                  id,
+                  email_snapshot,
+                  status,
+                  supersedes_invitation_id
+                FROM action_invitation
+                WHERE id = ANY($1::uuid[])
+                ORDER BY created_at, id
+                """,
+                [lifecycle_id, reissued_id, corrected_id],
+            )
+            expected_chain = {
+                lifecycle_id: (REISSUE_EMAIL, "revoked", None),
+                reissued_id: (REISSUE_EMAIL, "revoked", lifecycle_id),
+                corrected_id: (CORRECTED_EMAIL, "pending", reissued_id),
+            }
+            if {
+                row["id"]: (
+                    row["email_snapshot"],
+                    row["status"],
+                    row["supersedes_invitation_id"],
+                )
+                for row in replacement_rows
+            } != expected_chain:
+                raise ContractFailure(
+                    "Historie von Neuversand und Adresskorrektur ist nicht unveränderlich"
+                )
+        finally:
+            await connection.close()
+
     connection = await asyncpg.connect(database_url, timeout=10)
     try:
         await verify_accepted(
@@ -640,6 +827,9 @@ async def run(arguments: argparse.Namespace) -> None:
             revoked_token,
             code_limit_token,
             code_limit_value,
+            lifecycle_token,
+            reissued_token,
+            corrected_token,
         }
         if any(
             secret in str(row["payload"])
@@ -653,13 +843,23 @@ async def run(arguments: argparse.Namespace) -> None:
     output = arguments.session_output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        f"SYSTEM_SESSION={system_session}\nKLARA_SESSION={klara_session}\n",
+        "\n".join(
+            (
+                f"SYSTEM_SESSION={system_session}",
+                f"KLARA_SESSION={klara_session}",
+                f"UI_RESEND_INVITATION_ID={ui_resend_id}",
+                f"UI_CORRECT_INVITATION_ID={ui_correct_id}",
+                f"UI_REVOKE_INVITATION_ID={ui_revoke_id}",
+                "",
+            )
+        ),
         encoding="utf-8",
     )
     output.chmod(0o600)
     print(
         "invitation-contract: Link, Code, Ablauf, Widerruf, atomare "
-        "Aktivierung und echter Outbox/SMTP-Versand bewiesen"
+        "Aktivierung, Lifecycle-Liste, Neuversand, Adresskorrektur und "
+        "echter Outbox/SMTP-Versand bewiesen"
     )
 
 

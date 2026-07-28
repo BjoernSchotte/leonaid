@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
@@ -58,6 +59,10 @@ RATE_LIMITS: Final = {
         timedelta(minutes=10),
     ),
 }
+
+INVITATION_REISSUE_PATH: Final = re.compile(
+    r"^/api/v1/invitations/[0-9a-fA-F-]{36}/(resend|correct-address)$"
+)
 
 
 def client_address(request: Request, *, trust_proxy_headers: bool) -> str:
@@ -127,6 +132,16 @@ async def rate_limit_violation(
     trust_proxy_headers: bool,
 ) -> RateLimitPolicy | None:
     policy = RATE_LIMITS.get((request.method, request.url.path))
+    if (
+        policy is None
+        and request.method == "POST"
+        and INVITATION_REISSUE_PATH.fullmatch(request.url.path)
+    ):
+        policy = RateLimitPolicy(
+            "invitation.reissue",
+            5,
+            timedelta(hours=1),
+        )
     if policy is None:
         return None
     allowed = await repository.consume(

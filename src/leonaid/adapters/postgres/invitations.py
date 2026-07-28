@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -13,12 +13,15 @@ from leonaid.application.errors import PermissionDenied
 from leonaid.application.invitations import (
     InvitationAcceptance,
     InvitationContext,
+    InvitationReissueContext,
+    InvitationSummary,
     InviteableAction,
 )
 from leonaid.domain.identity import ActionRole
 from leonaid.domain.invitations import (
     ActionInvitation,
     InvitationAcceptanceMethod,
+    InvitationStatus,
     after_failed_code_attempt,
 )
 from leonaid.domain.outbox import PendingOutboxEvent
@@ -94,6 +97,181 @@ class AsyncpgInvitationRepository:
                 action_id,
                 now=now,
             )
+
+    async def list_authorized(
+        self,
+        actor_user_id: UUID,
+        *,
+        action_id: UUID | None,
+        status: InvitationStatus | None,
+        now: datetime,
+    ) -> tuple[InvitationSummary, ...]:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    """
+                    UPDATE action_invitation
+                    SET status = 'expired',
+                        expired_at = $2,
+                        updated_at = $2
+                    WHERE status = 'pending'
+                      AND expires_at <= $2
+                      AND action_id IN (
+                        SELECT action.id
+                        FROM charity_action AS action
+                        WHERE EXISTS (
+                          SELECT 1
+                          FROM user_global_role
+                          WHERE user_id = $1
+                            AND role = 'system_admin'
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM action_membership
+                          WHERE action_id = action.id
+                            AND user_id = $1
+                            AND role = 'charity_admin'
+                            AND active_from <= $2
+                            AND (
+                              active_until IS NULL
+                              OR active_until > $2
+                            )
+                        )
+                      )
+                    """,
+                    actor_user_id,
+                    now,
+                )
+                rows = await connection.fetch(
+                    """
+                    SELECT
+                      invitation.id,
+                      invitation.action_id,
+                      invitation.action_name_snapshot,
+                      invitation.email_snapshot,
+                      invitation.display_name_snapshot,
+                      invitation.role_snapshot,
+                      invitation.status,
+                      invitation.invited_by_name_snapshot,
+                      invitation.created_at,
+                      invitation.expires_at,
+                      invitation.accepted_at,
+                      invitation.revoked_at,
+                      invitation.expired_at,
+                      invitation.supersedes_invitation_id
+                    FROM action_invitation AS invitation
+                    JOIN user_account AS actor
+                      ON actor.id = $1
+                     AND actor.status = 'active'
+                    WHERE (
+                      EXISTS (
+                        SELECT 1
+                        FROM user_global_role
+                        WHERE user_id = $1
+                          AND role = 'system_admin'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM action_membership
+                        WHERE action_id = invitation.action_id
+                          AND user_id = $1
+                          AND role = 'charity_admin'
+                          AND active_from <= $4
+                          AND (
+                            active_until IS NULL
+                            OR active_until > $4
+                          )
+                      )
+                    )
+                      AND ($2::uuid IS NULL OR invitation.action_id = $2)
+                      AND ($3::text IS NULL OR invitation.status = $3)
+                    ORDER BY invitation.created_at DESC, invitation.id DESC
+                    LIMIT 200
+                    """,
+                    actor_user_id,
+                    action_id,
+                    status.value if status is not None else None,
+                    now,
+                )
+        return tuple(
+            InvitationSummary(
+                id=row["id"],
+                action_id=row["action_id"],
+                action_name=str(row["action_name_snapshot"]),
+                email=str(row["email_snapshot"]),
+                display_name=str(row["display_name_snapshot"]),
+                role=ActionRole(str(row["role_snapshot"])),
+                status=InvitationStatus(str(row["status"])),
+                invited_by_name=str(row["invited_by_name_snapshot"]),
+                created_at=row["created_at"],
+                expires_at=row["expires_at"],
+                accepted_at=row["accepted_at"],
+                revoked_at=row["revoked_at"],
+                expired_at=row["expired_at"],
+                supersedes_invitation_id=row["supersedes_invitation_id"],
+            )
+            for row in rows
+        )
+
+    async def reissue_context(
+        self,
+        invitation_id: UUID,
+        *,
+        actor_user_id: UUID,
+        now: datetime,
+    ) -> InvitationReissueContext | None:
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                SELECT
+                  invitation.action_id,
+                  invitation.action_name_snapshot,
+                  invitation.email_snapshot,
+                  invitation.display_name_snapshot,
+                  invitation.role_snapshot,
+                  actor.display_name AS invited_by_name
+                FROM action_invitation AS invitation
+                JOIN user_account AS actor
+                  ON actor.id = $2
+                 AND actor.status = 'active'
+                WHERE invitation.id = $1
+                  AND invitation.status = 'pending'
+                  AND invitation.expires_at > $3
+                  AND (
+                    EXISTS (
+                      SELECT 1
+                      FROM user_global_role
+                      WHERE user_id = $2
+                        AND role = 'system_admin'
+                    )
+                    OR EXISTS (
+                      SELECT 1
+                      FROM action_membership
+                      WHERE action_id = invitation.action_id
+                        AND user_id = $2
+                        AND role = 'charity_admin'
+                        AND active_from <= $3
+                        AND (
+                          active_until IS NULL
+                          OR active_until > $3
+                        )
+                    )
+                  )
+                """,
+                invitation_id,
+                actor_user_id,
+                now,
+            )
+        if row is None:
+            return None
+        return InvitationReissueContext(
+            action_id=row["action_id"],
+            action_name=str(row["action_name_snapshot"]),
+            email=str(row["email_snapshot"]),
+            display_name=str(row["display_name_snapshot"]),
+            role=ActionRole(str(row["role_snapshot"])),
+            invited_by_name=str(row["invited_by_name"]),
+        )
 
     async def create(
         self,
@@ -609,6 +787,148 @@ class AsyncpgInvitationRepository:
                     occurred_at=occurred_at,
                 )
                 return True
+
+    async def replace(
+        self,
+        replaced_invitation_id: UUID,
+        replacement: ActionInvitation,
+        mail_event: PendingOutboxEvent,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+        minimum_age: timedelta,
+    ) -> UUID | None:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction():
+                row = await connection.fetchrow(
+                    """
+                    SELECT *
+                    FROM action_invitation
+                    WHERE id = $1
+                    FOR UPDATE
+                    """,
+                    replaced_invitation_id,
+                )
+                if row is None:
+                    return None
+                context = await self._authorized_context(
+                    connection,
+                    actor_user_id,
+                    row["action_id"],
+                    now=occurred_at,
+                )
+                if (
+                    row["status"] != "pending"
+                    or occurred_at >= row["expires_at"]
+                    or occurred_at - row["created_at"] < minimum_age
+                    or replacement.action_id != row["action_id"]
+                    or replacement.action_name_snapshot != row["action_name_snapshot"]
+                    or replacement.display_name_snapshot != row["display_name_snapshot"]
+                    or replacement.role_snapshot.value != row["role_snapshot"]
+                    or replacement.invited_by_user_id != actor_user_id
+                    or replacement.invited_by_name_snapshot != context.invited_by_name
+                ):
+                    return None
+                await connection.execute(
+                    """
+                    UPDATE action_invitation
+                    SET status = 'revoked',
+                        revoked_at = $2,
+                        updated_at = $2
+                    WHERE id = $1
+                    """,
+                    replaced_invitation_id,
+                    occurred_at,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO action_invitation (
+                        id,
+                        action_id,
+                        invited_by_user_id,
+                        email_snapshot,
+                        display_name_snapshot,
+                        action_name_snapshot,
+                        invited_by_name_snapshot,
+                        role_snapshot,
+                        status,
+                        token_digest,
+                        code_digest,
+                        expires_at,
+                        created_at,
+                        updated_at,
+                        supersedes_invitation_id
+                    )
+                    VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8,
+                        'pending', $9, $10, $11, $12, $12, $13
+                    )
+                    """,
+                    replacement.id,
+                    replacement.action_id,
+                    replacement.invited_by_user_id,
+                    replacement.email_snapshot,
+                    replacement.display_name_snapshot,
+                    replacement.action_name_snapshot,
+                    replacement.invited_by_name_snapshot,
+                    replacement.role_snapshot.value,
+                    replacement.token_digest,
+                    replacement.code_digest,
+                    replacement.expires_at,
+                    occurred_at,
+                    replaced_invitation_id,
+                )
+                await self._audit(
+                    connection,
+                    action_id=replacement.action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="identity.invitation.revoked",
+                    entity_type="action_invitation",
+                    entity_id=replaced_invitation_id,
+                    request_id=request_id,
+                    payload={"replacementId": str(replacement.id)},
+                    occurred_at=occurred_at,
+                )
+                await self._audit(
+                    connection,
+                    action_id=replacement.action_id,
+                    actor_user_id=actor_user_id,
+                    event_type="identity.invitation.reissued",
+                    entity_type="action_invitation",
+                    entity_id=replacement.id,
+                    request_id=request_id,
+                    payload={
+                        "previousInvitationId": str(replaced_invitation_id),
+                        "addressCorrected": str(
+                            replacement.email_snapshot != row["email_snapshot"]
+                        ).lower(),
+                    },
+                    occurred_at=occurred_at,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO outbox_event (
+                        id,
+                        aggregate_type,
+                        aggregate_id,
+                        event_type,
+                        idempotency_key,
+                        payload,
+                        available_at,
+                        created_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
+                    """,
+                    mail_event.id,
+                    mail_event.aggregate_type,
+                    mail_event.aggregate_id,
+                    mail_event.event_type,
+                    mail_event.idempotency_key,
+                    json.dumps(mail_event.payload, separators=(",", ":")),
+                    occurred_at,
+                )
+                return replacement.id
 
     @staticmethod
     async def _authorized_context(

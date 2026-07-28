@@ -131,6 +131,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.identity import AccountStatus, ActionRole, GlobalRole
+from leonaid.domain.invitations import InvitationStatus
 from leonaid.domain.invoices import Invoice, InvoiceProfile
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
@@ -185,6 +186,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CommitmentResponse,
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
+    CorrectInvitationAddressRequest,
     CreateCommitmentRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
@@ -215,6 +217,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     HandOverAcquisitionAssignmentRequest,
     InvitationAcceptanceResponse,
     InvitationDispatchResponse,
+    InvitationListResponse,
     InvitationOptionsResponse,
     InvitationRevocationResponse,
     InvoiceContextResponse,
@@ -3608,6 +3611,84 @@ async def create_invitation(
         email=str(body.email),
         display_name=body.display_name,
         role=ActionRole(body.role),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return InvitationDispatchResponse.model_validate(dispatched)
+
+
+@router.get(
+    "/api/v1/invitations",
+    operation_id="listInvitations",
+    response_model=InvitationListResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def list_invitations(
+    request: Request,
+    response: Response,
+    action_id: Annotated[UUID | None, Query(alias="actionId")] = None,
+    invitation_status: Annotated[
+        Literal["pending", "accepted", "expired", "revoked"] | None,
+        Query(alias="status"),
+    ] = None,
+) -> InvitationListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    invitations = await invitation_service(request).list(
+        actor,
+        action_id=action_id,
+        status=(
+            InvitationStatus(invitation_status)
+            if invitation_status is not None
+            else None
+        ),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return InvitationListResponse.model_validate({"items": invitations})
+
+
+@router.post(
+    "/api/v1/invitations/{invitation_id}/resend",
+    operation_id="resendInvitation",
+    response_model=InvitationDispatchResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["identity"],
+)
+async def resend_invitation(
+    invitation_id: UUID,
+    request: Request,
+    response: Response,
+) -> InvitationDispatchResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    dispatched = await invitation_service(request).resend(
+        actor,
+        invitation_id,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return InvitationDispatchResponse.model_validate(dispatched)
+
+
+@router.post(
+    "/api/v1/invitations/{invitation_id}/correct-address",
+    operation_id="correctInvitationAddress",
+    response_model=InvitationDispatchResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["identity"],
+)
+async def correct_invitation_address(
+    invitation_id: UUID,
+    body: CorrectInvitationAddressRequest,
+    request: Request,
+    response: Response,
+) -> InvitationDispatchResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    dispatched = await invitation_service(request).correct_address(
+        actor,
+        invitation_id,
+        email=body.email,
         request_id=request_id(request),
     )
     response.headers["Cache-Control"] = "no-store"

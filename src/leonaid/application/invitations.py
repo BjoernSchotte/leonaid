@@ -49,6 +49,34 @@ class InvitationDispatch:
 
 
 @dataclass(frozen=True, slots=True)
+class InvitationSummary:
+    id: UUID
+    action_id: UUID
+    action_name: str
+    email: str
+    display_name: str
+    role: ActionRole
+    status: InvitationStatus
+    invited_by_name: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+    revoked_at: datetime | None
+    expired_at: datetime | None
+    supersedes_invitation_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
+class InvitationReissueContext:
+    action_id: UUID
+    action_name: str
+    email: str
+    display_name: str
+    role: ActionRole
+    invited_by_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class InvitationAcceptance:
     user_id: UUID
     action_id: UUID
@@ -71,6 +99,23 @@ class InvitationRepository(Protocol):
         *,
         now: datetime,
     ) -> InvitationContext: ...
+
+    async def list_authorized(
+        self,
+        actor_user_id: UUID,
+        *,
+        action_id: UUID | None,
+        status: InvitationStatus | None,
+        now: datetime,
+    ) -> tuple[InvitationSummary, ...]: ...
+
+    async def reissue_context(
+        self,
+        invitation_id: UUID,
+        *,
+        actor_user_id: UUID,
+        now: datetime,
+    ) -> InvitationReissueContext | None: ...
 
     async def create(
         self,
@@ -101,6 +146,18 @@ class InvitationRepository(Protocol):
         request_id: str,
         occurred_at: datetime,
     ) -> bool: ...
+
+    async def replace(
+        self,
+        replaced_invitation_id: UUID,
+        replacement: ActionInvitation,
+        mail_event: PendingOutboxEvent,
+        *,
+        actor_user_id: UUID,
+        request_id: str,
+        occurred_at: datetime,
+        minimum_age: timedelta,
+    ) -> UUID | None: ...
 
 
 class InvitationMailPayloadProtector(Protocol):
@@ -145,6 +202,20 @@ class InvitationService:
     ) -> tuple[InviteableAction, ...]:
         return await self._repository.inviteable_actions(
             actor.account.id,
+            now=self._clock(),
+        )
+
+    async def list(
+        self,
+        actor: IdentityPrincipal,
+        *,
+        action_id: UUID | None = None,
+        status: InvitationStatus | None = None,
+    ) -> tuple[InvitationSummary, ...]:
+        return await self._repository.list_authorized(
+            actor.account.id,
+            action_id=action_id,
+            status=status,
             now=self._clock(),
         )
 
@@ -275,6 +346,92 @@ class InvitationService:
         )
         if not revoked:
             self._reject()
+
+    async def resend(
+        self,
+        actor: IdentityPrincipal,
+        invitation_id: UUID,
+        *,
+        request_id: str,
+    ) -> InvitationDispatch:
+        return await self._reissue(
+            actor,
+            invitation_id,
+            email=None,
+            request_id=request_id,
+            minimum_age=timedelta(minutes=1),
+        )
+
+    async def correct_address(
+        self,
+        actor: IdentityPrincipal,
+        invitation_id: UUID,
+        *,
+        email: str,
+        request_id: str,
+    ) -> InvitationDispatch:
+        return await self._reissue(
+            actor,
+            invitation_id,
+            email=normalize_email(email),
+            request_id=request_id,
+            minimum_age=timedelta(0),
+        )
+
+    async def _reissue(
+        self,
+        actor: IdentityPrincipal,
+        invitation_id: UUID,
+        *,
+        email: str | None,
+        request_id: str,
+        minimum_age: timedelta,
+    ) -> InvitationDispatch:
+        now = self._clock()
+        context = await self._repository.reissue_context(
+            invitation_id,
+            actor_user_id=actor.account.id,
+            now=now,
+        )
+        if context is None:
+            self._reject()
+        target_email = email or context.email
+        magic_token = secrets.token_urlsafe(32)
+        code = InvitationCode.generate()
+        replacement = ActionInvitation(
+            id=uuid4(),
+            action_id=context.action_id,
+            action_name_snapshot=context.action_name,
+            invited_by_user_id=actor.account.id,
+            invited_by_name_snapshot=context.invited_by_name,
+            email_snapshot=target_email,
+            display_name_snapshot=context.display_name,
+            role_snapshot=context.role,
+            status=InvitationStatus.PENDING,
+            token_digest=magic_token_digest(magic_token),
+            code_digest=invitation_code_digest(
+                target_email,
+                code,
+                self._hmac_secret,
+            ),
+            created_at=now,
+            expires_at=now + self._ttl,
+        )
+        replacement_id = await self._repository.replace(
+            invitation_id,
+            replacement,
+            self._mail_event(replacement, magic_token, code),
+            actor_user_id=actor.account.id,
+            request_id=request_id,
+            occurred_at=now,
+            minimum_age=minimum_age,
+        )
+        if replacement_id is None:
+            raise ApplicationError(
+                "invitation_reissue_unavailable",
+                "Die Einladung wurde bereits bearbeitet oder gerade erst versendet.",
+            )
+        return InvitationDispatch(invitation_id=replacement_id)
 
     def _mail_event(
         self,

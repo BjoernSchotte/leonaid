@@ -52,6 +52,7 @@ export type CompleteFreshLoginRequest = { readonly code?: string | null; readonl
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
+export type CorrectInvitationAddressRequest = { readonly email: string; };
 export type CreateAcquisitionAssignmentRequest = { readonly acquirerUserId: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly templateKey: "blank" | "krapfentaxi"; readonly templateVersion?: number | null; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
@@ -82,9 +83,11 @@ export type HandOverAcquisitionAssignmentRequest = { readonly revision: number; 
 export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
 export type InvitationAcceptanceResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "accepted"; };
 export type InvitationDispatchResponse = { readonly invitationId: string; readonly status: "queued"; };
+export type InvitationListResponse = { readonly items: Array<InvitationSummaryResponse>; };
 export type InvitationOptionsResponse = { readonly actions: Array<InviteableActionResponse>; readonly roles: Array<InvitationRoleOptionResponse>; };
 export type InvitationRevocationResponse = { readonly status: "revoked"; };
 export type InvitationRoleOptionResponse = { readonly label: string; readonly value: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
+export type InvitationSummaryResponse = { readonly acceptedAt: string | null; readonly actionId: string; readonly actionName: string; readonly createdAt: string; readonly displayName: string; readonly email: string; readonly expiredAt: string | null; readonly expiresAt: string; readonly id: string; readonly invitedByName: string; readonly revokedAt: string | null; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "pending" | "accepted" | "expired" | "revoked"; readonly supersedesInvitationId: string | null; };
 export type InviteableActionResponse = { readonly id: string; readonly name: string; readonly status: "draft" | "scheduled" | "active"; };
 export type InvoiceCancellationResponse = { readonly actionId: string; readonly id: string; readonly invoiceId: string; readonly originalStatus: "issued" | "sent" | "paid"; readonly reason: string; readonly replayed: boolean; readonly requestedAt: string; readonly requestedByDisplayName: string | null; readonly requestedByUserId: string; };
 export type InvoiceContextResponse = { readonly actionId: string; readonly actionName: string; readonly endsOn: string; readonly mayIssue: boolean; readonly mayManageSettlements: boolean; readonly profile: InvoiceProfileResponse | null; readonly startsOn: string; };
@@ -1265,6 +1268,26 @@ export class LeonAidApiClient {
     );
   }
 
+  async listInvitations(
+    queryParameters: { readonly actionId?: string | null; readonly status?: "pending" | "accepted" | "expired" | "revoked" | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<InvitationListResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("actionId", String(queryParameters.actionId));
+    }
+    if (queryParameters.status !== undefined && queryParameters.status !== null) {
+      searchParameters.set("status", String(queryParameters.status));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/invitations" + (queryString ? `?${queryString}` : "");
+    return this.request<InvitationListResponse>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async createInvitation(
     body: CreateInvitationRequest,
     options: RequestOptions = {},
@@ -1312,6 +1335,33 @@ export class LeonAidApiClient {
     return this.request<InvitationRevocationResponse>(
       `/api/v1/invitations/${encodeURIComponent(String(invitationId))}`,
       { method: "DELETE" },
+      options,
+    );
+  }
+
+  async correctInvitationAddress(
+    invitationId: string,
+    body: CorrectInvitationAddressRequest,
+    options: RequestOptions = {},
+  ): Promise<InvitationDispatchResponse> {
+    return this.request<InvitationDispatchResponse>(
+      `/api/v1/invitations/${encodeURIComponent(String(invitationId))}/correct-address`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async resendInvitation(
+    invitationId: string,
+    options: RequestOptions = {},
+  ): Promise<InvitationDispatchResponse> {
+    return this.request<InvitationDispatchResponse>(
+      `/api/v1/invitations/${encodeURIComponent(String(invitationId))}/resend`,
+      { method: "POST" },
       options,
     );
   }

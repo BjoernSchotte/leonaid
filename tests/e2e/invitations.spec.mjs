@@ -4,8 +4,19 @@ const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
 const klaraSession = process.env.KLARA_SESSION;
 const systemSession = process.env.SYSTEM_SESSION;
+const uiResendInvitationId = process.env.UI_RESEND_INVITATION_ID;
+const uiCorrectInvitationId = process.env.UI_CORRECT_INVITATION_ID;
+const uiRevokeInvitationId = process.env.UI_REVOKE_INVITATION_ID;
 
-if (!baseUrl || !artifactDirectory || !klaraSession || !systemSession) {
+if (
+  !baseUrl ||
+  !artifactDirectory ||
+  !klaraSession ||
+  !systemSession ||
+  !uiResendInvitationId ||
+  !uiCorrectInvitationId ||
+  !uiRevokeInvitationId
+) {
   throw new Error("POC-041 Browserumgebung ist unvollständig");
 }
 
@@ -80,6 +91,69 @@ test("System-Admin erhält die global einladbaren Aktionen", async ({
     await expect(action).toContainText("Krapfentaxi 2026");
     await expect(action).toContainText("Krapfentaxi Nord 2026");
     await expect(action).not.toContainText("Krapfentaxi 2025");
+  } finally {
+    await context.close();
+  }
+});
+
+test("Charity-Admin verwaltet den vollständigen Einladungsverlauf", async ({
+  browser,
+}) => {
+  const { context, page } = await sessionPage(browser, klaraSession);
+  try {
+    await expect(
+      page.getByRole("heading", { name: "Einladungen im Blick" }),
+    ).toBeVisible();
+    await expect(page.getByText("Foreign Lifecycle Pilot")).toHaveCount(0);
+    await expect(page.locator(".invitation-card")).not.toHaveCount(0);
+
+    const resendCard = page.locator(
+      `[data-testid="invitation-${uiResendInvitationId}"]`,
+    );
+    await resendCard.getByTestId("invitation-resend").click();
+    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
+      "Eine neue Einladung wurde versendet",
+    );
+    await expect(resendCard).toHaveAttribute("data-status", "revoked");
+
+    const correctCard = page.locator(
+      `[data-testid="invitation-${uiCorrectInvitationId}"]`,
+    );
+    await correctCard.getByTestId("invitation-correct-address").click();
+    const correctedEmail = "ui-corrected-pilot@leonaid.invalid";
+    await correctCard.getByLabel("Neue Login-E-Mail").fill(correctedEmail);
+    await correctCard
+      .getByRole("button", {
+        name: "Korrigieren & senden",
+      })
+      .click();
+    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
+      "korrigierte Adresse",
+    );
+    await expect(page.getByText(correctedEmail)).toBeVisible();
+    await expect(correctCard).toHaveAttribute("data-status", "revoked");
+
+    const revokeCard = page.locator(
+      `[data-testid="invitation-${uiRevokeInvitationId}"]`,
+    );
+    await revokeCard.getByTestId("invitation-revoke").click();
+    await expect(revokeCard).toContainText("Wirklich widerrufen?");
+    await revokeCard.getByRole("button", { name: "Jetzt widerrufen" }).click();
+    await expect(page.locator("#invitation-lifecycle-status")).toContainText(
+      "wurde widerrufen",
+    );
+    await expect(revokeCard).toHaveAttribute("data-status", "revoked");
+
+    await page.getByTestId("invitation-status-filter").selectOption("accepted");
+    await expect(page.locator(".invitation-card")).not.toHaveCount(0);
+    await expect(
+      page.locator('.invitation-card[data-status="accepted"]'),
+    ).not.toHaveCount(0);
+
+    await page.screenshot({
+      path: `${artifactDirectory}/invitation-lifecycle-admin.png`,
+      fullPage: true,
+    });
   } finally {
     await context.close();
   }

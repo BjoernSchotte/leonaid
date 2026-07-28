@@ -1418,6 +1418,223 @@
   color: var(--accent-foreground);
 }
 
+.invitation-lifecycle {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3vw, 1.55rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.invitation-lifecycle__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.28fr);
+  align-items: end;
+  gap: 1.5rem;
+}
+
+.invitation-lifecycle__header h2,
+.invitation-lifecycle__header p {
+  margin: 0;
+}
+
+.invitation-lifecycle__header h2 {
+  margin-top: 0.15rem;
+  color: var(--foreground);
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.invitation-lifecycle__header > div > p:last-child {
+  max-width: 48rem;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.invitation-lifecycle__skeleton {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.invitation-lifecycle__skeleton span {
+  height: 7.5rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted),
+    var(--surface),
+    var(--surface-muted)
+  );
+  background-size: 220% 100%;
+  animation: invitation-skeleton 1.4s linear infinite;
+}
+
+@keyframes invitation-skeleton {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+.invitation-lifecycle__empty {
+  display: grid;
+  min-height: 12rem;
+  place-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  text-align: center;
+  background: var(--surface-muted);
+}
+
+.invitation-lifecycle__empty svg {
+  margin-bottom: 0.25rem;
+  color: var(--accent-foreground);
+}
+
+.invitation-lifecycle__empty strong {
+  color: var(--foreground);
+}
+
+.invitation-lifecycle__empty span {
+  max-width: 30rem;
+  font-size: 0.8rem;
+}
+
+.invitation-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.invitation-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.invitation-card[data-status="pending"] {
+  border-color: color-mix(in oklch, var(--primary) 28%, var(--border));
+}
+
+.invitation-card__identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.invitation-card__identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.invitation-card__identity strong,
+.invitation-card__identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invitation-card__identity > div > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.invitation-card__status {
+  flex: 0 0 auto;
+  padding: 0.26rem 0.52rem;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.invitation-card__status[data-status="pending"] {
+  color: var(--primary);
+  background: color-mix(in oklch, var(--primary) 10%, var(--surface));
+}
+
+.invitation-card__status[data-status="accepted"] {
+  color: var(--success-text);
+  background: color-mix(in oklch, var(--success) 10%, var(--surface));
+}
+
+.invitation-card__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.invitation-card__meta > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.invitation-card__meta dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.invitation-card__meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invitation-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.invitation-card__inline-form,
+.invitation-card__confirmation {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.invitation-card__inline-form {
+  grid-template-columns: minmax(15rem, 1fr) auto;
+  align-items: end;
+}
+
+.invitation-card__inline-form .action-field small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.invitation-card__confirmation {
+  border: 1px solid color-mix(in oklch, var(--danger) 30%, var(--border));
+}
+
+.invitation-card__confirmation p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .action-loading {
   display: grid;
   min-height: 60vh;
@@ -1472,6 +1689,12 @@
     grid-template-columns: 1fr;
   }
 
+  .invitation-lifecycle__header,
+  .invitation-card__inline-form {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .action-workspace-tabs {
     grid-auto-columns: minmax(10.5rem, 1fr);
     grid-auto-flow: column;
@@ -1493,6 +1716,22 @@
 @media (max-width: 680px) {
   .member-view-tabs {
     grid-template-columns: 1fr;
+  }
+
+  .invitation-card__meta {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .invitation-card__meta > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .invitation-card__actions {
+    align-items: stretch;
+  }
+
+  .invitation-card__actions .ui-button {
+    width: 100%;
   }
 
   .member-view-tabs button {
