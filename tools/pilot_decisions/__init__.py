@@ -1,0 +1,1 @@
+"""Pilot readiness decision contract."""

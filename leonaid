@@ -58,6 +58,14 @@ Commands:
   test-handoff      Prove onboarding and handoff docs from a fresh checkout
   test-pilot-contract
                     Prove pilot plan IDs, dependencies, criteria and proof links
+  test-pilot-decisions
+                    Prove the public pilot decision register and STOP rules
+  pilot-doctor      Validate readiness for productive pilot actions
+  pilot-deploy      Deploy the productive pilot after pilot-doctor
+  pilot-release     Release the productive pilot after pilot-doctor
+  pilot-import      Import private pilot data after pilot-doctor
+  pilot-backup      Back up productive pilot data after pilot-doctor
+  pilot-restore     Restore productive pilot data after pilot-doctor
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -250,6 +258,10 @@ check_all() {
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_decisions/test.py /workspace
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
   docker run --rm \
     -v "$root:/workspace:ro" \
@@ -272,7 +284,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot_contract tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
@@ -280,7 +292,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot_contract tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -288,7 +300,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract tools/pilot_decisions \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -320,6 +332,21 @@ future_command() {
   echo "leonaid: '$command_name' ist verdrahtet, wird aber erst mit $task ausführbar." >&2
   echo "leonaid: Nutze './leonaid help' für den aktuellen Meilenstein." >&2
   exit 64
+}
+
+pilot_doctor() {
+  require_docker
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_decisions/check.py /workspace --ready
+}
+
+pilot_future_command() {
+  command_name=$1
+  task=$2
+  pilot_doctor
+  future_command "$command_name" "$task"
 }
 
 dev() {
@@ -614,6 +641,19 @@ case "$command" in
       python /workspace/tools/pilot_contract/check.py \
       /workspace $artifact_arguments
     ;;
+  test-pilot-decisions)
+    require_docker
+    docker run --rm \
+      -v "$root:/workspace:ro" \
+      "$PYTHON_IMAGE" \
+      python /workspace/tools/pilot_decisions/test.py /workspace
+    ;;
+  pilot-doctor) pilot_doctor ;;
+  pilot-deploy) pilot_future_command "$command" PILOT-043 ;;
+  pilot-release) pilot_future_command "$command" PILOT-050 ;;
+  pilot-import) pilot_future_command "$command" PILOT-010 ;;
+  pilot-backup) pilot_future_command "$command" PILOT-040 ;;
+  pilot-restore) pilot_future_command "$command" PILOT-040 ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
   test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;

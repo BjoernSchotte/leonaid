@@ -4,7 +4,8 @@ set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
 "$root/leonaid" test-pilot-contract
+"$root/leonaid" test-pilot-decisions
 /bin/sh "$root/tools/openapi/test.sh" "$root"
 /bin/sh "$root/tools/testkit/test.sh" "$root"
 
-echo "ci-contract: OK: Pilotplan, OpenAPI und systemübergreifende Verträge"
+echo "ci-contract: OK: Pilotplan, Entscheidungen, OpenAPI und Verträge"
