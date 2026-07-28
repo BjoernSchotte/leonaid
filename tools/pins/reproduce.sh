@@ -9,6 +9,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 checkout_a="$tmp/checkout-a"
 checkout_b="$tmp/checkout-b"
+runner_user="$(id -u):$(id -g)"
 mkdir -p "$checkout_a" "$checkout_b"
 
 git -C "$root" checkout-index --all --prefix="$checkout_a/"
@@ -16,11 +17,16 @@ git -C "$root" checkout-index --all --prefix="$checkout_b/"
 
 for checkout in "$checkout_a" "$checkout_b"; do
   docker run --rm \
+    --user "$runner_user" \
+    -e UV_CACHE_DIR=/workspace/.cache/uv \
+    -e UV_LINK_MODE=copy \
     -v "$checkout:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
     uv sync --frozen --no-install-project --python 3.13.13
   docker run --rm \
+    --user "$runner_user" \
+    -e BUN_INSTALL_CACHE_DIR=/workspace/.cache/bun \
     -v "$checkout:/workspace" \
     -w /workspace \
     "$BUN_IMAGE" \
