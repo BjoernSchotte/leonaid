@@ -180,11 +180,15 @@ if ! cmp -s \
   exit 1
 fi
 
-mkdir -p "$root/.artifacts/poc122"
+private_evidence="$root/.local/pilot/evidence/golden-journey"
+mkdir -p "$private_evidence"
+chmod 700 "$root/.local" "$root/.local/pilot" \
+  "$root/.local/pilot/evidence" "$private_evidence"
 cp "$proof"/primary-round-*.json "$proof"/repeat-round-1*.json \
-  "$root/.artifacts/poc122/"
+  "$private_evidence/"
 cp "$proof"/primary/golden-*.png "$proof"/primary/golden-*.pdf \
-  "$root/.artifacts/poc122/"
+  "$private_evidence/"
+find "$private_evidence" -type f -exec chmod 600 {} +
 
 echo "golden-journey: OK: vollständiger Persona-Weg in Chromium, Firefox und WebKit,"
 echo "golden-journey:     zwei zusätzliche Fachrunden ohne technische Duplikate"

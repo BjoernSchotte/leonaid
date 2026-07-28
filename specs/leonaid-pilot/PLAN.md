@@ -365,20 +365,20 @@ In Scope:
 
 - `.gitignore`
 - `tools/security/`
-- `tools/ci/artifact-sanitize.py`
+- `tools/ci/sanitize_artifacts.py`
 - neue Pilot-Evidence-Werkzeuge unter `tools/pilot/`
 - `specs/leonaid-pilot/DATA-HANDLING.md`
 
 Akzeptanzkriterien:
 
-- [ ] `.local/pilot/` und alle dokumentierten privaten Intake-/Evidence-Pfade
+- [x] `.local/pilot/` und alle dokumentierten privaten Intake-/Evidence-Pfade
       sind ignoriert und werden mit Modus `0600` beziehungsweise
       Verzeichnismodus `0700` angelegt.
-- [ ] Ein Pilot-Evidence-Manifest speichert nur SHA-256, Counts,
+- [x] Ein Pilot-Evidence-Manifest speichert nur SHA-256, Counts,
       Fehlerklassen, Zeitpunkte, Actor-ID und externe Evidence-ID.
-- [ ] E-Mail, Namen, Adressen, Telefon, Rechnungsdaten, Tokens und
+- [x] E-Mail, Namen, Adressen, Telefon, Rechnungsdaten, Tokens und
       Dokumentbytes werden aus öffentlichen Artefakten entfernt.
-- [ ] Der Sanitizer verarbeitet Text, JSON, HTML, Playwright-Traces,
+- [x] Der Sanitizer verarbeitet Text, JSON, HTML, Playwright-Traces,
       Screenshots, PDFs und verschachtelte ZIP-Dateien fail-closed.
 - [ ] Produktive Backups und private Beweise werden nicht in GitHub Actions
       hochgeladen.
@@ -387,12 +387,12 @@ Akzeptanzkriterien:
 
 Tests/Nachweise:
 
-- [ ] Canary-Test injiziert synthetische PII- und Secret-Signaturen in jede
+- [x] Canary-Test injiziert synthetische PII- und Secret-Signaturen in jede
       unterstützte Artefaktart und beweist deren Ablehnung.
-- [ ] Git-History-/Index-Test lehnt eine absichtlich gestagte
+- [x] Git-History-/Index-Test lehnt eine absichtlich gestagte
       Pilot-Intake-Datei ab.
-- [ ] Reale Dateirechte werden in einem Docker-/Host-Grenztest geprüft.
-- [ ] `./leonaid test-pilot-data-boundary` ist grün.
+- [x] Reale Dateirechte werden in einem Docker-/Host-Grenztest geprüft.
+- [x] `./leonaid test-pilot-data-boundary` ist grün.
 
 ## 7. M1 – Vollständige Benutzeradministration
 

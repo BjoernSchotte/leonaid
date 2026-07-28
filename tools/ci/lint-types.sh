@@ -30,7 +30,8 @@ run_python uv run --frozen --no-sync ruff check \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
-  tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract tools/policy tools/storage \
+  tools/matching tools/openapi tools/operations tools/outbox tools/pilot \
+  tools/pilot_contract tools/pilot_decisions tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade packages/testkit
@@ -40,7 +41,8 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
-  tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract tools/policy tools/storage \
+  tools/matching tools/openapi tools/operations tools/outbox tools/pilot \
+  tools/pilot_contract tools/pilot_decisions tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade packages/testkit
@@ -50,7 +52,8 @@ run_python uv run --frozen --no-sync mypy \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
-  tools/matching tools/openapi tools/operations tools/outbox tools/pilot_contract tools/policy tools/storage \
+  tools/matching tools/openapi tools/operations tools/outbox tools/pilot \
+  tools/pilot_contract tools/pilot_decisions tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade packages/testkit

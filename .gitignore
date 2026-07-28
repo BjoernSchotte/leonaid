@@ -20,3 +20,11 @@ apps/*/.astro/
 .env.*
 !.env.example
 .local/
+
+# Private pilot intake, evidence, recovery data and minimal local manifests.
+# These explicit entries document the boundary even though .local/ is ignored.
+.local/pilot/intake/
+.local/pilot/evidence/
+.local/pilot/backups/
+.local/pilot/manifests/
+.local/test-logins.md

@@ -45,14 +45,17 @@ normalisiert. Verglichen werden Fachsummen, Firmen, Rechnungsnummern und
 PDF-Größen. Dadurch bleiben fachliche Abweichungen sichtbar, ohne einen
 identischen Echtzeitstempel vorzutäuschen.
 
-Erfolgreiche Läufe legen die nicht versionierten Nachweise unter
-`.artifacts/poc122/` ab:
+Erfolgreiche Läufe legen die privaten, nicht versionierten Nachweise unter
+`.local/pilot/evidence/golden-journey/` ab:
 
 - vollständige und normalisierte JSON-Protokolle;
 - Admin- und Akquisiteur-Screenshots aller Browser und Runden;
 - die im Browser heruntergeladenen Typst-PDFs;
 - Screenshots des sichtbaren In-App-Browser-Smokes.
 
-Bei einem Fehler landen Diagnose, Containerstatus, Logs, Screenshots, Traces
-und der temporäre Prüfstand unter `.artifacts/failures/poc122/`. Bekannte
-Secret- und Sitzungsmuster werden vor der Ablage redigiert.
+Die Verzeichnisse besitzen Modus `0700`, Dateien Modus `0600`. Screenshots,
+PDFs und Rohdaten werden nie als öffentliche GitHub-Artefakte hochgeladen.
+Bei einem Fehler entstehen zusätzlich sanitisierte Service-Diagnosen unter
+`.artifacts/failures/poc122/`. Sobald ein Screenshot, PDF, Trace oder anderes
+nicht sicher prüfbares Artefakt die öffentliche Grenze erreicht, verwirft der
+CI-Wrapper den gesamten öffentlichen Artefaktsatz fail-closed.

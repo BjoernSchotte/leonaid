@@ -16,6 +16,7 @@ docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
   python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
+/bin/sh "$root/tools/pilot/test.sh" "$root"
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
