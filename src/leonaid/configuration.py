@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from email.utils import parseaddr
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -12,12 +14,28 @@ from pydantic import (
     SecretStr,
     ValidationError,
     field_validator,
+    model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ConfigurationError(RuntimeError):
     """Configuration failed without exposing its values."""
+
+
+def _is_forbidden_public_host(host: str | None) -> bool:
+    if host is None:
+        return True
+    normalized = host.rstrip(".").casefold()
+    if normalized == "localhost" or normalized.endswith(
+        (".localhost", ".invalid", ".test", ".example")
+    ):
+        return True
+    try:
+        address = ip_address(normalized)
+    except ValueError:
+        return False
+    return not address.is_global
 
 
 class Settings(BaseSettings):
@@ -32,8 +50,14 @@ class Settings(BaseSettings):
     service_version: str = Field(default="0.0.0", alias="LEONAID_SERVICE_VERSION")
     api_version: str = Field(default="v1", alias="LEONAID_API_VERSION")
     core_database_url: SecretStr = Field(alias="CORE_DATABASE_URL")
-    invitation_hmac_secret: SecretStr = Field(alias="LEONAID_SECRET_KEY")
-    mail_payload_secret: SecretStr = Field(alias="LEONAID_SESSION_ENCRYPTION_KEY")
+    invitation_hmac_secret: SecretStr = Field(
+        min_length=32,
+        alias="LEONAID_SECRET_KEY",
+    )
+    mail_payload_secret: SecretStr = Field(
+        min_length=32,
+        alias="LEONAID_SESSION_ENCRYPTION_KEY",
+    )
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
     allowed_origins_value: str = Field(
         default="",
@@ -114,6 +138,39 @@ class Settings(BaseSettings):
         ):
             raise ValueError("ungültiger PostgreSQL-DSN")
         return value
+
+    @model_validator(mode="after")
+    def validate_production_boundary(self) -> Settings:
+        if self.environment != "production":
+            return self
+        if self.public_base_url.scheme != "https" or _is_forbidden_public_host(
+            self.public_base_url.host
+        ):
+            raise ValueError("Produktion erfordert eine öffentliche HTTPS-Basis-URL.")
+        if not self.trust_proxy_headers:
+            raise ValueError(
+                "Produktion erfordert validierte Proxy-Header am Caddy-Rand."
+            )
+        for origin in self.allowed_origins:
+            parsed = urlparse(origin)
+            if parsed.scheme != "https" or _is_forbidden_public_host(parsed.hostname):
+                raise ValueError(
+                    "Produktive Origins müssen öffentliche HTTPS-Origins sein."
+                )
+        if (self.mail_health_url.host or "").casefold() == "mailpit":
+            raise ValueError("Mailpit ist in Produktion nicht erlaubt.")
+        if self.object_storage_bucket == "leonaid":
+            raise ValueError(
+                "Produktion erfordert einen umgebungsspezifischen Object-Store-Bucket."
+            )
+        if (
+            self.invitation_hmac_secret.get_secret_value()
+            == self.mail_payload_secret.get_secret_value()
+        ):
+            raise ValueError(
+                "Produktive HMAC- und Payload-Secrets müssen getrennt sein."
+            )
+        return self
 
     def safe_summary(self) -> dict[str, str]:
         return {
@@ -215,6 +272,20 @@ class MailTransportSettings(BaseSettings):
             if not self.verify_certificates:
                 raise ValueError(
                     "Produktiver SMTP-Versand erfordert Zertifikatsprüfung."
+                )
+            sender_address = parseaddr(self.sender)[1]
+            sender_domain = (
+                sender_address.rsplit("@", maxsplit=1)[1]
+                if "@" in sender_address
+                else ""
+            )
+            if not sender_domain or _is_forbidden_public_host(sender_domain):
+                raise ValueError(
+                    "Produktion erfordert eine Absenderadresse mit realer Domain."
+                )
+            if self.host.casefold() in {"mailpit", "localhost"}:
+                raise ValueError(
+                    "Mailpit und Loopback-SMTP sind in Produktion verboten."
                 )
 
     def safe_summary(self) -> dict[str, str]:

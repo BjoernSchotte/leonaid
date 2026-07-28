@@ -30,6 +30,19 @@ def valid_settings(**overrides: str) -> Settings:
     return Settings.model_validate(values)
 
 
+def valid_production_settings(**overrides: str) -> Settings:
+    values = {
+        "LEONAID_ENV": "production",
+        "LEONAID_TRUST_PROXY_HEADERS": "true",
+        "LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.org",
+        "LEONAID_ALLOWED_ORIGINS": "https://portal.leonaid.org",
+        "MAIL_HEALTH_URL": "https://status.mail-provider.org/health",
+        "OBJECT_STORAGE_BUCKET": "leonaid-production-club-111",
+    }
+    values.update(overrides)
+    return valid_settings(**values)
+
+
 def test_settings_are_typed_and_secret_safe() -> None:
     settings = valid_settings()
 
@@ -78,13 +91,43 @@ def test_settings_reject_non_database_target() -> None:
         valid_settings(CORE_DATABASE_URL="https://example.invalid/database")
 
 
+def test_production_settings_require_public_edges_and_separate_secrets() -> None:
+    settings = valid_production_settings()
+    assert settings.environment == "production"
+
+    unsafe_values = (
+        {"LEONAID_PUBLIC_BASE_URL": "http://portal.leonaid.org"},
+        {"LEONAID_PUBLIC_BASE_URL": "https://127.0.0.1"},
+        {"LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.invalid"},
+        {"LEONAID_TRUST_PROXY_HEADERS": "false"},
+        {"LEONAID_ALLOWED_ORIGINS": "http://portal.leonaid.org"},
+        {"MAIL_HEALTH_URL": "http://mailpit:8025/mail/api/v1/info"},
+        {"OBJECT_STORAGE_BUCKET": "leonaid"},
+        {
+            "LEONAID_SESSION_ENCRYPTION_KEY": (
+                "invitation-hmac-secret-with-at-least-32-characters"
+            )
+        },
+    )
+    for unsafe in unsafe_values:
+        with raises(ValidationError):
+            valid_production_settings(**unsafe)
+
+
+def test_runtime_secrets_require_minimum_length() -> None:
+    with raises(ValidationError):
+        valid_settings(LEONAID_SECRET_KEY="too-short")
+    with raises(ValidationError):
+        valid_settings(LEONAID_SESSION_ENCRYPTION_KEY="too-short")
+
+
 def test_mail_transport_settings_are_generic_and_secret_safe() -> None:
     settings = MailTransportSettings.model_validate(
         {
             "LEONAID_ENV": "production",
-            "MAIL_SMTP_HOST": "smtp.provider.invalid",
+            "MAIL_SMTP_HOST": "smtp.provider.org",
             "MAIL_SMTP_PORT": "465",
-            "MAIL_FROM": "LeonAid <postmaster@provider.invalid>",
+            "MAIL_FROM": "LeonAid <postmaster@provider.org>",
             "MAIL_SMTP_MODE": "tls",
             "MAIL_SMTP_USERNAME": "smtp-user",
             "MAIL_SMTP_PASSWORD": "provider-secret",
@@ -94,7 +137,7 @@ def test_mail_transport_settings_are_generic_and_secret_safe() -> None:
     )
 
     assert settings.safe_summary() == {
-        "host": "smtp.provider.invalid",
+        "host": "smtp.provider.org",
         "port": "465",
         "mode": "tls",
         "authentication": "configured",
@@ -126,6 +169,16 @@ def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
                 **base,
                 "MAIL_SMTP_MODE": "starttls",
                 "MAIL_SMTP_VERIFY_CERTIFICATES": "false",
+            }
+        )
+    with raises(ValidationError):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_SMTP_HOST": "mailpit",
+                "MAIL_FROM": "LeonAid <noreply@leonaid.invalid>",
+                "MAIL_SMTP_MODE": "starttls",
+                "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
             }
         )
 
