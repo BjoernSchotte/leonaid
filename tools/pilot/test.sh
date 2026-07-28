@@ -39,6 +39,8 @@ for directory in \
 done
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/tmp \
   --volume "$root:/workspace:ro" \
   --workdir /workspace \
   "$PLAYWRIGHT_IMAGE" \

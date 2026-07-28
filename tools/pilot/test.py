@@ -149,7 +149,18 @@ def main() -> None:
         "tools/pilot/boundary.py",
         str(root),
         cwd=root,
+        check=False,
     )
+    if result.returncode != 0:
+        details = "\n".join(
+            output.strip()
+            for output in (result.stdout, result.stderr)
+            if output.strip()
+        )
+        raise AssertionError(
+            "Repository-Grenznachweis fehlgeschlagen"
+            + (f":\n{details}" if details else " ohne Diagnoseausgabe")
+        )
     if "pilot-data-boundary: OK" not in result.stdout:
         raise AssertionError("Repository-Grenznachweis fehlt")
     print(
