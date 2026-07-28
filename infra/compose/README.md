@@ -131,9 +131,12 @@ absichtlich verändert und aus dem verschlüsselten Recovery Point auf leere
 Volumes zurückgesetzt. Das Betriebsverfahren steht in
 [`infra/upgrade/README.md`](../upgrade/README.md).
 
-`./leonaid provision-twenty` legt den lokalen Integrations-Key mit restriktiven
-Dateirechten unter `.local/twenty/integration.env` ab. Alle folgenden
-`./leonaid`-Compose-Kommandos lesen ihn automatisch ein, ohne ihn in
-`.env.local`, Prozessargumente oder Browserkonfiguration zu kopieren. Eine
-explizite Prozessvariable `TWENTY_INTEGRATION_API_KEY` hat für CI weiterhin
-Vorrang.
+`./leonaid provision-twenty` rotiert den lokalen Integrations-Key in einem
+isolierten Staging-Verzeichnis und ersetzt
+`.local/twenty/integration.env` erst, nachdem erlaubte CRM-Zugriffe und
+verweigerte fachfremde beziehungsweise administrative Zugriffe gegen das echte
+Twenty bewiesen wurden. Die Datei besitzt restriktive Rechte. Alle folgenden
+`./leonaid`-Compose-Kommandos lesen sie automatisch ein, ohne den Key in
+`.env.local`, Prozessargumente oder Browserkonfiguration zu kopieren. Nach
+einer Rotation lädt `./leonaid dev` den Key in API und Worker. Eine explizite
+Prozessvariable `TWENTY_INTEGRATION_API_KEY` hat für CI weiterhin Vorrang.

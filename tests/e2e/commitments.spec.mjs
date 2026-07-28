@@ -64,7 +64,10 @@ async function openMusterwerkCapture(context, page) {
   const captureLink = sponsor.getByRole("link", { name: "Bestellung" });
   const href = await captureLink.getAttribute("href");
   expect(href).toMatch(/^\/app\/commitments\/new\?/);
-  await captureLink.click();
+  await Promise.all([
+    page.waitForURL(/\/app\/commitments\/new\?/),
+    captureLink.click(),
+  ]);
   await expect(
     page.getByRole("heading", {
       name: "Vom Gespräch zur klaren Bestellung.",

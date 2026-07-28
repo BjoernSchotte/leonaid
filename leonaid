@@ -400,9 +400,13 @@ provision_twenty() {
   mkdir -p "$root/.local/twenty"
   host_user_id=$(id -u)
   host_group_id=$(id -g)
+  staged_directory=$(mktemp -d "$root/.local/twenty/provision.XXXXXX")
+  staged_name=${staged_directory##*/}
+  staged_token="$staged_directory/integration.env"
+  container_staged_token="/repo/.local/twenty/$staged_name/integration.env"
   compose build api
   compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
-  compose run --rm --no-deps \
+  if ! compose run --rm --no-deps \
     --user "$host_user_id:$host_group_id" \
     --env-from-file "$root/.env.local" \
     --env PYTHONPATH=/repo:/workspace/src \
@@ -411,9 +415,29 @@ provision_twenty() {
     --workdir /repo \
     --entrypoint python \
     api tools/twenty/provision.py apply \
-    --token-output /repo/.local/twenty/integration.env \
-    --snapshot-output /repo/.local/twenty/schema-snapshot.json
-  echo "provision-twenty: OK: lokaler Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
+    --token-output "$container_staged_token" \
+    --snapshot-output /repo/.local/twenty/schema-snapshot.json; then
+    rm -f "$staged_token"
+    rmdir "$staged_directory"
+    return 1
+  fi
+  if ! compose run --rm --no-deps \
+    --user "$host_user_id:$host_group_id" \
+    --env-from-file "$root/.env.local" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$root/.local:/repo/.local" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/twenty/provision.py verify-key \
+    --token-file "$container_staged_token"; then
+    rm -f "$staged_token"
+    rmdir "$staged_directory"
+    return 1
+  fi
+  mv "$staged_token" "$root/.local/twenty/integration.env"
+  rmdir "$staged_directory"
+  echo "provision-twenty: OK: deklarationsgleicher, real verifizierter Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
 }
 
 import_crm() {

@@ -51,8 +51,12 @@ function PwaLifecycle() {
   const [online, setOnline] = useState(navigator.onLine);
   const registration = useRef<ServiceWorkerRegistration | null>(null);
   const reloading = useRef(false);
+  const activationRequested = useRef(false);
 
   useEffect(() => {
+    let disposed = false;
+    let observedRegistration: ServiceWorkerRegistration | null = null;
+    let observedWorker: ServiceWorker | null = null;
     const beforeInstall = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
@@ -60,47 +64,68 @@ function PwaLifecycle() {
     const onOnline = () => setOnline(true);
     const onOffline = () => setOnline(false);
     const onUpdateAvailable = () => setUpdateReady(true);
+    const onWorkerStateChange = () => {
+      if (
+        observedWorker?.state === "installed" &&
+        navigator.serviceWorker.controller
+      ) {
+        setUpdateReady(true);
+      }
+    };
+    const onUpdateFound = () => {
+      observedWorker?.removeEventListener("statechange", onWorkerStateChange);
+      observedWorker = observedRegistration?.installing ?? null;
+      observedWorker?.addEventListener("statechange", onWorkerStateChange);
+    };
+    const onControllerChange = () => {
+      if (activationRequested.current && !reloading.current) {
+        reloading.current = true;
+        window.location.reload();
+      }
+    };
     window.addEventListener("beforeinstallprompt", beforeInstall);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("leonaid:update-available", onUpdateAvailable);
 
     if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        onControllerChange,
+      );
       void navigator.serviceWorker
         .register("/app/sw.js", { scope: "/app/" })
         .then((value) => {
-          if (!value) return;
+          if (disposed) return;
           registration.current = value;
+          observedRegistration = value;
           if (value.waiting) setUpdateReady(true);
-          value.addEventListener("updatefound", () => {
-            const worker = value.installing;
-            worker?.addEventListener("statechange", () => {
-              if (
-                worker.state === "installed" &&
-                navigator.serviceWorker.controller
-              ) {
-                setUpdateReady(true);
-              }
-            });
+          value.addEventListener("updatefound", onUpdateFound);
+          void value.update().catch(() => {
+            // A background update failure must not interrupt active work.
           });
-          void value.update();
         })
         .catch(() => {
-          registration.current = null;
+          if (!disposed) {
+            registration.current = null;
+          }
         });
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (!reloading.current) {
-          reloading.current = true;
-          window.location.reload();
-        }
-      });
     }
 
     return () => {
+      disposed = true;
       window.removeEventListener("beforeinstallprompt", beforeInstall);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("leonaid:update-available", onUpdateAvailable);
+      observedWorker?.removeEventListener("statechange", onWorkerStateChange);
+      observedRegistration?.removeEventListener("updatefound", onUpdateFound);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          onControllerChange,
+        );
+      }
     };
   }, []);
 
@@ -113,8 +138,10 @@ function PwaLifecycle() {
 
   function activateUpdate() {
     if (registration.current?.waiting) {
+      activationRequested.current = true;
       registration.current.waiting.postMessage({ type: "SKIP_WAITING" });
     } else {
+      activationRequested.current = false;
       setUpdateReady(false);
     }
   }
@@ -159,7 +186,7 @@ function PwaLifecycle() {
         <div>
           <strong>Eine neue Version ist bereit</strong>
           <span>
-            Aktualisiere LeonAid jetzt; offene Eingaben bleiben unberührt.
+            Speichere offene Eingaben vorher. Danach wird LeonAid neu geladen.
           </span>
         </div>
         <Button onClick={activateUpdate} variant="secondary">
@@ -332,6 +359,7 @@ export function App({ client }: AppProps) {
         }}
         surface="pwa"
       >
+        <PwaLifecycle />
         {route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
         ) : route === "commitment" ? (
@@ -346,7 +374,6 @@ export function App({ client }: AppProps) {
           />
         )}
       </AppShell>
-      <PwaLifecycle />
     </>
   );
 }
