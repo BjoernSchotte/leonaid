@@ -16,6 +16,7 @@ import {
   ApiError,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
+  type MemberDirectoryActionResponse,
   type MemberDirectoryMemberResponse,
 } from "@leonaid/api-client";
 import { Button, ConfirmDialog, StatusMessage } from "@leonaid/ui";
@@ -30,6 +31,54 @@ export interface MemberAdministrationPageProps {
 
 type MemberView = "directory" | "invite";
 type MemberStatus = "" | "invited" | "active" | "suspended" | "archived";
+type GlobalRoleValue = "system_admin" | "finance_reader" | "finance_manager";
+type ActionRoleValue =
+  | "charity_admin"
+  | "acquirer"
+  | "finance_reader"
+  | "driver";
+type RoleCommand =
+  | {
+      readonly scope: "global";
+      readonly role: GlobalRoleValue;
+      readonly enabled: boolean;
+    }
+  | {
+      readonly scope: "action";
+      readonly actionId: string;
+      readonly actionName: string;
+      readonly role: ActionRoleValue;
+      readonly enabled: boolean;
+    };
+
+const globalRoleOptions: ReadonlyArray<{
+  readonly role: GlobalRoleValue;
+  readonly label: string;
+  readonly description: string;
+}> = [
+  {
+    role: "system_admin",
+    label: "System-Admin",
+    description: "Verwaltet Benutzer, Betrieb und globale Einstellungen.",
+  },
+  {
+    role: "finance_reader",
+    label: "Finanzen lesen",
+    description: "Sieht Rechnungen und Finanzstatus in allen Aktionen.",
+  },
+  {
+    role: "finance_manager",
+    label: "Finanzen verwalten",
+    description: "Darf Zahlungen und Stornierungen clubweit bearbeiten.",
+  },
+];
+
+const actionRoleLabels: Record<ActionRoleValue, string> = {
+  charity_admin: "Charity-Admin",
+  acquirer: "Akquisiteur",
+  finance_reader: "Finanzen lesen",
+  driver: "Ausfahrer",
+};
 
 const statusOptions: ReadonlyArray<{
   readonly label: string;
@@ -67,11 +116,13 @@ function MemberDetail({
   identity,
   memberId,
   partial,
+  actions,
 }: {
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
   readonly memberId: string | undefined;
   readonly partial: boolean;
+  readonly actions: ReadonlyArray<MemberDirectoryActionResponse>;
 }) {
   const queryClient = useQueryClient();
   const [pendingStatus, setPendingStatus] = useState<
@@ -79,6 +130,9 @@ function MemberDetail({
   >();
   const [commandId, setCommandId] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [pendingRole, setPendingRole] = useState<RoleCommand>();
+  const [roleCommandId, setRoleCommandId] = useState("");
+  const [roleSuccessMessage, setRoleSuccessMessage] = useState("");
   const detail = useQuery({
     enabled: Boolean(memberId),
     queryFn: () => client.getMember(memberId ?? ""),
@@ -131,12 +185,63 @@ function MemberDetail({
       ]);
     },
   });
+  const roleChange = useMutation({
+    mutationFn: ({
+      command,
+      member,
+      idempotencyKey,
+    }: {
+      readonly command: RoleCommand;
+      readonly member: MemberDirectoryMemberResponse;
+      readonly idempotencyKey: string;
+    }) =>
+      command.scope === "global"
+        ? client.changeMemberGlobalRole(
+            member.userId,
+            command.role,
+            {
+              enabled: command.enabled,
+              expectedRevision: member.revision,
+            },
+            { headers: { "Idempotency-Key": idempotencyKey } },
+          )
+        : client.changeMemberActionRole(
+            member.userId,
+            command.actionId,
+            command.role,
+            {
+              enabled: command.enabled,
+              expectedRevision: member.revision,
+            },
+            { headers: { "Idempotency-Key": idempotencyKey } },
+          ),
+    onSuccess: async (result) => {
+      setPendingRole(undefined);
+      setRoleCommandId("");
+      setRoleSuccessMessage(
+        `${result.roleLabel} wurde ${
+          result.enabled ? "zugewiesen" : "entzogen"
+        }${result.actionName ? ` · ${result.actionName}` : ""}.`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["members"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["member-detail", result.userId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["identity"] }),
+      ]);
+    },
+  });
 
   useEffect(() => {
     setPendingStatus(undefined);
     setCommandId("");
     setSuccessMessage("");
+    setPendingRole(undefined);
+    setRoleCommandId("");
+    setRoleSuccessMessage("");
     statusChange.reset();
+    roleChange.reset();
   }, [memberId]);
 
   if (!memberId) {
@@ -194,6 +299,9 @@ function MemberDetail({
   const statusError = statusChange.error
     ? actionErrorMessage(statusChange.error)
     : null;
+  const roleError = roleChange.error
+    ? actionErrorMessage(roleChange.error)
+    : null;
   const dialogDescription =
     pendingStatus === "suspended"
       ? `${member.displayName} verliert sofort den Zugriff. ${
@@ -223,6 +331,29 @@ function MemberDetail({
     setCommandId(`pilot011:member-status:${crypto.randomUUID()}`);
     setPendingStatus(status);
   }
+
+  function openRoleDialog(command: RoleCommand) {
+    setRoleSuccessMessage("");
+    roleChange.reset();
+    setRoleCommandId(`pilot012:member-role:${crypto.randomUUID()}`);
+    setPendingRole(command);
+  }
+
+  const pendingRoleLabel = pendingRole
+    ? pendingRole.scope === "global"
+      ? globalRoleOptions.find((option) => option.role === pendingRole.role)
+          ?.label
+      : actionRoleLabels[pendingRole.role]
+    : "";
+  const roleDialogDescription = pendingRole
+    ? `${member.displayName} erhält ${
+        pendingRole.enabled ? "die Rolle" : "nicht mehr die Rolle"
+      } „${pendingRoleLabel}“${
+        pendingRole.scope === "action"
+          ? ` in ${pendingRole.actionName}`
+          : " im gesamten Club"
+      }. Die Änderung wirkt ab dem nächsten Request. Historische Fachzuordnungen bleiben erhalten.`
+    : "";
 
   return (
     <aside
@@ -297,6 +428,138 @@ function MemberDetail({
           <p>Derzeit keiner Charity-Aktion zugeordnet.</p>
         )}
       </section>
+
+      {member.status !== "archived" ? (
+        <section
+          aria-labelledby="member-roles-title"
+          className="member-detail__section member-role-admin"
+          data-testid="member-role-admin"
+        >
+          <div>
+            <h3 id="member-roles-title">Rollen verwalten</h3>
+            <p>
+              Änderungen benötigen eine frisch bestätigte Anmeldung und wirken
+              ab dem nächsten Request.
+            </p>
+          </div>
+          {roleSuccessMessage ? (
+            <StatusMessage tone="success">
+              <p data-testid="member-role-success">{roleSuccessMessage}</p>
+            </StatusMessage>
+          ) : null}
+          {roleError ? (
+            <StatusMessage tone="error">
+              <strong>
+                {roleError.conflict
+                  ? "Rollenstand wurde zwischenzeitlich geändert"
+                  : "Rolle konnte nicht geändert werden"}
+              </strong>
+              <p>{roleError.message}</p>
+              {roleError.conflict ? (
+                <Button
+                  onClick={() => void detail.refetch()}
+                  variant="secondary"
+                >
+                  Aktuellen Stand laden
+                </Button>
+              ) : null}
+            </StatusMessage>
+          ) : null}
+          {systemAdmin ? (
+            <div className="member-role-group">
+              <div>
+                <strong>Clubweite Rollen</strong>
+                <span>Gelten unabhängig von einer Charity-Aktion.</span>
+              </div>
+              <ul>
+                {globalRoleOptions.map((option) => {
+                  const enabled = member.globalRoles.includes(option.role);
+                  return (
+                    <li key={option.role}>
+                      <span>
+                        <strong>{option.label}</strong>
+                        <small>{option.description}</small>
+                      </span>
+                      <Button
+                        aria-pressed={enabled}
+                        data-testid={`member-global-role-${option.role}`}
+                        disabled={roleChange.isPending}
+                        onClick={() =>
+                          openRoleDialog({
+                            enabled: !enabled,
+                            role: option.role,
+                            scope: "global",
+                          })
+                        }
+                        variant={enabled ? "secondary" : "primary"}
+                      >
+                        {enabled ? "Entziehen" : "Zuweisen"}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+          <div className="member-role-group">
+            <div>
+              <strong>Rollen je Charity-Aktion</strong>
+              <span>
+                Du siehst ausschließlich Aktionen, die du verwalten darfst.
+              </span>
+            </div>
+            <div className="member-role-actions">
+              {actions.map((action) => (
+                <section key={action.actionId}>
+                  <h4>{action.actionName}</h4>
+                  <ul>
+                    {action.availableRoles.map((role) => {
+                      const enabled = member.actionMemberships.some(
+                        (membership) =>
+                          membership.actionId === action.actionId &&
+                          membership.role === role,
+                      );
+                      return (
+                        <li key={role}>
+                          <span>
+                            <strong>{actionRoleLabels[role]}</strong>
+                            <small>
+                              {role === "charity_admin"
+                                ? "Verwaltet diese Aktion und ihre Mitglieder."
+                                : role === "acquirer"
+                                  ? "Betreut Sponsoren und Zusagen."
+                                  : role === "finance_reader"
+                                    ? "Liest Rechnungen dieser Aktion."
+                                    : "Sieht zugewiesene Auslieferungen."}
+                            </small>
+                          </span>
+                          <Button
+                            aria-pressed={enabled}
+                            data-testid={`member-action-role-${action.actionId}-${role}`}
+                            disabled={roleChange.isPending}
+                            onClick={() =>
+                              openRoleDialog({
+                                actionId: action.actionId,
+                                actionName: action.actionName,
+                                enabled: !enabled,
+                                role,
+                                scope: "action",
+                              })
+                            }
+                            variant={enabled ? "secondary" : "primary"}
+                          >
+                            {enabled ? "Entziehen" : "Zuweisen"}
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {systemAdmin && !partial ? (
         <section
@@ -427,6 +690,34 @@ function MemberDetail({
         pending={statusChange.isPending}
         title={dialogTitle}
         tone={pendingStatus === "active" ? "primary" : "danger"}
+      />
+      <ConfirmDialog
+        confirmLabel={
+          pendingRole?.enabled ? "Rolle zuweisen" : "Rolle entziehen"
+        }
+        description={roleDialogDescription}
+        onConfirm={() => {
+          if (!pendingRole || !roleCommandId) return;
+          roleChange.mutate({
+            command: pendingRole,
+            idempotencyKey: roleCommandId,
+            member,
+          });
+        }}
+        onOpenChange={(open) => {
+          if (!open && !roleChange.isPending) {
+            setPendingRole(undefined);
+            setRoleCommandId("");
+          }
+        }}
+        open={Boolean(pendingRole)}
+        pending={roleChange.isPending}
+        title={
+          pendingRole?.enabled
+            ? `${pendingRoleLabel} zuweisen?`
+            : `${pendingRoleLabel} entziehen?`
+        }
+        tone={pendingRole?.enabled ? "primary" : "danger"}
       />
     </aside>
   );
@@ -756,6 +1047,7 @@ function MemberDirectory({
             </nav>
           </div>
           <MemberDetail
+            actions={directory.data.actions}
             client={client}
             identity={identity}
             memberId={selectedMemberId}

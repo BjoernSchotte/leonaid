@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.errors import DomainInvariantError
 
 
@@ -158,3 +159,47 @@ class IdentityPrincipal:
             for membership in self.action_memberships
             if membership.action_id == action_id
         )
+
+
+def can_manage_action_roles(
+    principal: IdentityPrincipal,
+    action_id: UUID,
+) -> bool:
+    """Return whether a principal may manage roles in one action scope."""
+
+    return principal.is_system_admin or (
+        ActionRole.CHARITY_ADMIN in principal.roles_for(action_id)
+    )
+
+
+def removes_last_active_system_admin(
+    *,
+    role: GlobalRole,
+    enabled: bool,
+    active_admin_count: int,
+) -> bool:
+    """Protect an installation from losing its final active system admin."""
+
+    return not enabled and role is GlobalRole.SYSTEM_ADMIN and active_admin_count <= 1
+
+
+def removes_last_required_charity_admin(
+    *,
+    action_status: CharityActionStatus,
+    role: ActionRole,
+    enabled: bool,
+    active_admin_count: int,
+) -> bool:
+    """Protect actions that can still be operated or changed."""
+
+    return (
+        not enabled
+        and role is ActionRole.CHARITY_ADMIN
+        and action_status
+        in {
+            CharityActionStatus.DRAFT,
+            CharityActionStatus.SCHEDULED,
+            CharityActionStatus.ACTIVE,
+        }
+        and active_admin_count <= 1
+    )

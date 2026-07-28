@@ -21,11 +21,11 @@ from leonaid.application.errors import (
 from leonaid.application.policies import require_system_admin
 from leonaid.domain.identity import (
     AccountStatus,
-    ActionMembership,
     ActionRole,
     GlobalRole,
     IdentityPrincipal,
     UserAccount,
+    can_manage_action_roles,
 )
 from leonaid.domain.sessions import UserSession
 
@@ -62,38 +62,30 @@ class IdentityRepository(Protocol):
         user_id: UUID,
         role: GlobalRole,
         *,
+        enabled: bool,
         actor_user_id: UUID,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> bool: ...
-
-    async def revoke_global_role(
-        self,
-        user_id: UUID,
-        role: GlobalRole,
-        *,
-        actor_user_id: UUID,
-        request_id: str,
-        occurred_at: datetime,
-    ) -> bool: ...
+    ) -> RoleAssignmentChange | None: ...
 
     async def grant_action_membership(
         self,
-        membership: ActionMembership,
+        user_id: UUID,
+        action_id: UUID,
+        role: ActionRole,
         *,
+        enabled: bool,
+        actor: IdentityPrincipal,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         actor_user_id: UUID,
         request_id: str,
         occurred_at: datetime,
-    ) -> bool: ...
-
-    async def revoke_action_membership(
-        self,
-        membership_id: UUID,
-        *,
-        actor_user_id: UUID,
-        request_id: str,
-        occurred_at: datetime,
-    ) -> bool: ...
+    ) -> RoleAssignmentChange | None: ...
 
     async def member_directory_snapshot(
         self,
@@ -161,6 +153,7 @@ class MemberDirectoryMember:
 class MemberDirectoryAction:
     action_id: UUID
     action_name: str
+    available_roles: tuple[ActionRole, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +191,17 @@ class AccountStatusChange:
     account: UserAccount
     previous_status: AccountStatus
     revoked_session_count: int
+    replayed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RoleAssignmentChange:
+    user_id: UUID
+    revision: int
+    role: GlobalRole | ActionRole
+    enabled: bool
+    action_id: UUID | None = None
+    action_name: str | None = None
     replayed: bool = False
 
 
@@ -540,6 +544,26 @@ class IdentityAdministrationService:
     def require_system_admin(actor: IdentityPrincipal) -> None:
         require_system_admin(actor)
 
+    @staticmethod
+    def _validate_role_command(
+        *,
+        expected_revision: int,
+        idempotency_key: str,
+    ) -> None:
+        if expected_revision < 1:
+            raise ApplicationError(
+                "account_revision_invalid",
+                "Die erwartete Kontorevision muss positiv sein.",
+            )
+        if not 8 <= len(idempotency_key) <= 160 or any(
+            character.isspace() for character in idempotency_key
+        ):
+            raise ApplicationError(
+                "role_assignment_idempotency_key_invalid",
+                "Die Vorgangs-ID muss zwischen 8 und 160 Zeichen lang sein "
+                "und darf keine Leerzeichen enthalten.",
+            )
+
     async def change_status(
         self,
         actor: IdentityPrincipal,
@@ -601,60 +625,83 @@ class IdentityAdministrationService:
         target_user_id: UUID,
         role: GlobalRole,
         *,
+        enabled: bool,
+        expected_revision: int,
+        idempotency_key: str,
         request_id: str,
-    ) -> bool:
+    ) -> RoleAssignmentChange:
         self.require_system_admin(actor)
-        return await self._repository.grant_global_role(
+        self._validate_role_command(
+            expected_revision=expected_revision,
+            idempotency_key=idempotency_key,
+        )
+        request_hash = hashlib.sha256(
+            (
+                f"{actor.account.id}:{target_user_id}:global:{role.value}:"
+                f"{enabled}:{expected_revision}"
+            ).encode("utf-8")
+        ).hexdigest()
+        result = await self._repository.grant_global_role(
             target_user_id,
             role,
+            enabled=enabled,
             actor_user_id=actor.account.id,
+            expected_revision=expected_revision,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
             request_id=request_id,
             occurred_at=self._clock(),
         )
-
-    async def remove_global_role(
-        self,
-        actor: IdentityPrincipal,
-        target_user_id: UUID,
-        role: GlobalRole,
-        *,
-        request_id: str,
-    ) -> bool:
-        self.require_system_admin(actor)
-        return await self._repository.revoke_global_role(
-            target_user_id,
-            role,
-            actor_user_id=actor.account.id,
-            request_id=request_id,
-            occurred_at=self._clock(),
-        )
+        if result is None:
+            raise ResourceNotFound(
+                "user_not_found",
+                "Das Benutzerkonto wurde nicht gefunden.",
+            )
+        return result
 
     async def add_action_membership(
         self,
         actor: IdentityPrincipal,
-        membership: ActionMembership,
+        target_user_id: UUID,
+        action_id: UUID,
+        role: ActionRole,
         *,
+        enabled: bool,
+        expected_revision: int,
+        idempotency_key: str,
         request_id: str,
-    ) -> bool:
-        self.require_system_admin(actor)
-        return await self._repository.grant_action_membership(
-            membership,
+    ) -> RoleAssignmentChange:
+        if not can_manage_action_roles(actor, action_id):
+            raise PermissionDenied(
+                "role_action_scope_forbidden",
+                "Du darfst Rollen nur in selbst verwalteten Aktionen ändern.",
+            )
+        self._validate_role_command(
+            expected_revision=expected_revision,
+            idempotency_key=idempotency_key,
+        )
+        request_hash = hashlib.sha256(
+            (
+                f"{actor.account.id}:{target_user_id}:{action_id}:{role.value}:"
+                f"{enabled}:{expected_revision}"
+            ).encode("utf-8")
+        ).hexdigest()
+        result = await self._repository.grant_action_membership(
+            target_user_id,
+            action_id,
+            role,
+            enabled=enabled,
+            actor=actor,
             actor_user_id=actor.account.id,
+            expected_revision=expected_revision,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
             request_id=request_id,
             occurred_at=self._clock(),
         )
-
-    async def remove_action_membership(
-        self,
-        actor: IdentityPrincipal,
-        membership_id: UUID,
-        *,
-        request_id: str,
-    ) -> bool:
-        self.require_system_admin(actor)
-        return await self._repository.revoke_action_membership(
-            membership_id,
-            actor_user_id=actor.account.id,
-            request_id=request_id,
-            occurred_at=self._clock(),
-        )
+        if result is None:
+            raise ResourceNotFound(
+                "user_or_action_not_found",
+                "Mitglied oder Charity-Aktion wurde nicht gefunden.",
+            )
+        return result

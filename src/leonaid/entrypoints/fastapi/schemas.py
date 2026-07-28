@@ -116,9 +116,36 @@ class MemberStatusChangeResponse(TransportModel):
     replayed: bool
 
 
+class ChangeMemberRoleRequest(TransportModel):
+    enabled: bool
+    expected_revision: int = Field(ge=1)
+
+
+class MemberRoleChangeResponse(TransportModel):
+    user_id: UUID
+    revision: int = Field(ge=2)
+    scope: Literal["global", "action"]
+    role: Literal[
+        "system_admin",
+        "finance_reader",
+        "finance_manager",
+        "charity_admin",
+        "acquirer",
+        "driver",
+    ]
+    role_label: str
+    enabled: bool
+    action_id: UUID | None
+    action_name: str | None
+    replayed: bool
+
+
 class MemberDirectoryActionResponse(TransportModel):
     action_id: UUID
     action_name: str
+    available_roles: list[
+        Literal["charity_admin", "acquirer", "finance_reader", "driver"]
+    ]
 
 
 class MemberDirectoryResponse(TransportModel):

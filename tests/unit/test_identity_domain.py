@@ -16,12 +16,16 @@ from leonaid.application.identity import (
     MemberDirectoryMember,
     MemberDirectoryMembership,
     MemberDirectoryQuery,
+    RoleAssignmentChange,
     paginate_member_directory,
 )
 from leonaid.adapters.postgres.identity import (
+    replayed_role_assignment,
     replayed_status_change,
+    role_assignment_receipt,
     status_change_receipt,
 )
+from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import (
     AccountStatus,
@@ -30,6 +34,9 @@ from leonaid.domain.identity import (
     GlobalRole,
     IdentityPrincipal,
     UserAccount,
+    can_manage_action_roles,
+    removes_last_active_system_admin,
+    removes_last_required_charity_admin,
 )
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
@@ -65,6 +72,48 @@ def test_status_change_receipt_round_trips_asyncpg_json_text() -> None:
     assert replayed.previous_status is AccountStatus.ACTIVE
     assert replayed.revoked_session_count == 2
     assert replayed.replayed is True
+
+
+@pytest.mark.parametrize(
+    ("change", "expected_role"),
+    (
+        (
+            RoleAssignmentChange(
+                user_id=KLARA_ID,
+                revision=2,
+                role=GlobalRole.FINANCE_READER,
+                enabled=True,
+            ),
+            GlobalRole.FINANCE_READER,
+        ),
+        (
+            RoleAssignmentChange(
+                user_id=KLARA_ID,
+                revision=3,
+                role=ActionRole.ACQUIRER,
+                enabled=False,
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+            ),
+            ActionRole.ACQUIRER,
+        ),
+    ),
+)
+def test_role_assignment_receipt_round_trips_asyncpg_json_text(
+    change: RoleAssignmentChange,
+    expected_role: GlobalRole | ActionRole,
+) -> None:
+    replayed = replayed_role_assignment(json.dumps(role_assignment_receipt(change)))
+
+    assert replayed == RoleAssignmentChange(
+        user_id=change.user_id,
+        revision=change.revision,
+        role=expected_role,
+        enabled=change.enabled,
+        action_id=change.action_id,
+        action_name=change.action_name,
+        replayed=True,
+    )
 
 
 def golden_directory_members() -> tuple[MemberDirectoryMember, ...]:
@@ -220,6 +269,73 @@ def test_principal_keeps_global_and_action_roles_separate() -> None:
         {ActionRole.FINANCE_READER}
     )
     assert principal.is_system_admin is False
+
+
+def test_role_management_matrix_separates_global_and_action_scopes() -> None:
+    charity_admin = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=frozenset(),
+        action_memberships=(
+            ActionMembership(
+                id=UUID("21000000-0000-4000-8000-000000000010"),
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+                user_id=KLARA_ID,
+                role=ActionRole.CHARITY_ADMIN,
+                active_from=NOW,
+            ),
+        ),
+    )
+    system_admin = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=frozenset({GlobalRole.SYSTEM_ADMIN}),
+        action_memberships=(),
+    )
+
+    assert can_manage_action_roles(charity_admin, ACTIVE_ACTION_ID) is True
+    assert can_manage_action_roles(charity_admin, ARCHIVED_ACTION_ID) is False
+    assert can_manage_action_roles(system_admin, ACTIVE_ACTION_ID) is True
+    assert can_manage_action_roles(system_admin, ARCHIVED_ACTION_ID) is True
+
+
+def test_last_admin_invariants_cover_global_and_action_lifecycles() -> None:
+    assert removes_last_active_system_admin(
+        role=GlobalRole.SYSTEM_ADMIN,
+        enabled=False,
+        active_admin_count=1,
+    )
+    assert not removes_last_active_system_admin(
+        role=GlobalRole.FINANCE_READER,
+        enabled=False,
+        active_admin_count=1,
+    )
+    for status in (
+        CharityActionStatus.DRAFT,
+        CharityActionStatus.SCHEDULED,
+        CharityActionStatus.ACTIVE,
+    ):
+        assert removes_last_required_charity_admin(
+            action_status=status,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            active_admin_count=1,
+        )
+    for status in (
+        CharityActionStatus.COMPLETED,
+        CharityActionStatus.ARCHIVED,
+    ):
+        assert not removes_last_required_charity_admin(
+            action_status=status,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            active_admin_count=1,
+        )
+    assert not removes_last_required_charity_admin(
+        action_status=CharityActionStatus.ACTIVE,
+        role=ActionRole.CHARITY_ADMIN,
+        enabled=False,
+        active_admin_count=2,
+    )
 
 
 def test_membership_period_is_timezone_aware_and_end_exclusive() -> None:

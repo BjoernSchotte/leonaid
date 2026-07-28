@@ -39,6 +39,8 @@ in kurzen Arbeitsfenstern. Der Charity-Admin verwaltet nur eigene Aktionen.
 
 - Aktion, Zeitraum, Ziel, Beneficiaries und öffentliche Darstellung pflegen;
 - Mitglieder in selbst verwaltete Aktionen einladen;
+- Aktionsrollen ausschließlich in selbst verwalteten Aktionen zuweisen und
+  entziehen;
 - Firmen, Kontakte, Akquisiteure und Mehrfachzuordnungen überblicken;
 - interne und öffentliche Bestellungen prüfen;
 - Rechnungen nach frischer Anmeldung freigeben;
@@ -51,7 +53,9 @@ in kurzen Arbeitsfenstern. Der Charity-Admin verwaltet nur eigene Aktionen.
   gefilterte Arbeitsliste wechseln.
 
 **Zugriffsgrenze:** `charity_admin` ist eine Aktionsrolle. Sie gibt keine
-Rechte auf fremde Aktionen und keine globalen System- oder Finanzrollen.
+Rechte auf fremde Aktionen und keine globalen System- oder Finanzrollen. Der
+letzte Charity-Admin einer noch operativ veränderbaren Aktion kann nicht
+ersatzlos entfernt werden.
 
 **Oberfläche:** Responsive Backoffice-Web-App; einzelne CRM-Aufgaben können
 zusätzlich in Twenty stattfinden.
@@ -147,7 +151,7 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 **Kernaufgaben im PoC:**
 
 - Docker-Compose-Deployment, Secrets und Integrationen betreiben;
-- Benutzer, globale Rollen und Sitzungen verwalten;
+- Benutzer, globale Rollen, Aktionsrollen und Sitzungen verwalten;
 - Twenty, PostgreSQL, RustFS und Mail-Relay konfigurieren;
 - katalogisierte Feature-Flags für kontrollierte Rollouts ein- und
   ausschalten sowie deren Revision und Wirkung prüfen;
@@ -161,7 +165,8 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 **Zugriffsgrenze:** `system_admin` ist systemweit und darf deshalb nicht als
 alltägliche Fachrolle verwendet werden. Kritische Aktionen benötigen eine
 frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
-Rollout, niemals Rollen- oder Datensatzberechtigungen.
+Rollout, niemals Rollen- oder Datensatzberechtigungen. Der letzte aktive
+System-Admin kann nicht entfernt werden.
 
 **Oberfläche:** Systembereich der Web-App einschließlich geschütztem
 Datenschutz-Arbeitsbereich und UI-Prüfkatalog plus versionierte
@@ -210,6 +215,26 @@ Weitere aktionsspezifische Rollen wie `player`, `tournament_admin`,
 `booth_operator` oder `volunteer` werden erst mit den entsprechenden
 Capabilities und den nachgelagerten Use-Cases Lions Open beziehungsweise
 Weihnachtsmarkt konkretisiert.
+
+### Verwaltung der Rollen
+
+- Nur ein System-Admin darf globale Rollen vergeben oder entziehen.
+- Ein System-Admin darf sämtliche für eine Aktion verfügbaren Aktionsrollen
+  verwalten.
+- Ein Charity-Admin darf ausschließlich Aktionsrollen in selbst verwalteten
+  Aktionen verwalten; globale Rollen und fremde Aktionen bleiben sowohl in der
+  Oberfläche als auch über direkte API-Aufrufe gesperrt.
+- `driver` wird nur angeboten, wenn die konkrete Aktion die
+  `delivery`-Capability besitzt. Der produktive Lieferworkflow bleibt im Pilot
+  weiterhin zurückgestellt.
+- Jede Änderung benötigt eine frisch bestätigte Anmeldung, einen
+  Idempotenzschlüssel und die erwartete Revision. Konflikte werden verständlich
+  angezeigt und erfolgreiche Änderungen auditiert.
+- Rollen wirken ohne erneute Anmeldung ab dem nächsten Request auf Navigation,
+  Listen, Exporte und Dokumentzugriff.
+- Ein Entzug beendet die Berechtigung, löscht aber weder die historische
+  Mitgliedschaft noch bestehende Fachzuordnungen, Aktivitäten, Rechnungen oder
+  Dokumentreferenzen.
 
 ## Gemeinsame UX-Anforderungen
 

@@ -98,6 +98,7 @@ docker run --rm \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
   tests/e2e/identity.spec.mjs \
+  tests/e2e/y-role-management.spec.mjs \
   tests/e2e/z-account-status.spec.mjs \
   --browser=chromium \
   --output=/proof/test-results \
@@ -109,6 +110,9 @@ for screenshot in \
   acquirer-mobile.png \
   system-members-desktop.png \
   charity-members-mobile.png \
+  role-charity-scope.png \
+  roles-assigned.png \
+  roles-offboarded.png \
   account-status-suspended.png \
   account-status-reactivated.png; do
   if [ ! -s "$proof/$screenshot" ]; then
@@ -123,10 +127,13 @@ for screenshot in \
   acquirer-mobile.png \
   system-members-desktop.png \
   charity-members-mobile.png \
+  role-charity-scope.png \
+  roles-assigned.png \
+  roles-offboarded.png \
   account-status-suspended.png \
   account-status-reactivated.png; do
   cp "$proof/$screenshot" "$artifact_directory/"
   chmod 600 "$artifact_directory/$screenshot"
 done
 
-echo "identity-test: OK: Mitgliederübersicht, Statusworkflow, Konkurrenz, Sitzungsentzug und Persona-Navigation real bewiesen"
+echo "identity-test: OK: Mitgliederübersicht, Rollen-Offboarding, Statusworkflow, Konkurrenz, Sitzungsentzug und Persona-Navigation real bewiesen"

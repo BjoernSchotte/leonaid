@@ -32,6 +32,7 @@ export type AssignedAcquirerResponse = { readonly displayName: string; readonly 
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
 export type CancelInvoiceRequest = { readonly reason: string; };
+export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
 export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly publicationEndsAt: string | null; readonly publicationStartsAt: string | null; readonly purpose: string; readonly revision: number; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
@@ -99,10 +100,11 @@ export type InvoiceResponse = { readonly actionId: string; readonly approvedByUs
 export type IssueInvoiceRequest = { readonly serviceOn: string; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
-export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; };
+export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; readonly availableRoles: Array<"charity_admin" | "acquirer" | "finance_reader" | "driver">; };
 export type MemberDirectoryMemberResponse = { readonly actionMemberships: Array<MemberDirectoryMembershipResponse>; readonly activeSessionCount: number; readonly displayName: string; readonly email: string; readonly globalRoleLabels: Array<string>; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly lastLoginAt: string | null; readonly revision: number; readonly status: "invited" | "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
 export type MemberDirectoryMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
 export type MemberDirectoryResponse = { readonly actions: Array<MemberDirectoryActionResponse>; readonly items: Array<MemberDirectoryMemberResponse>; readonly nextCursor: string | null; readonly partial: boolean; readonly total: number; };
+export type MemberRoleChangeResponse = { readonly actionId: string | null; readonly actionName: string | null; readonly enabled: boolean; readonly replayed: boolean; readonly revision: number; readonly role: "system_admin" | "finance_reader" | "finance_manager" | "charity_admin" | "acquirer" | "driver"; readonly roleLabel: string; readonly scope: "global" | "action"; readonly userId: string; };
 export type MemberStatusChangeResponse = { readonly displayName: string; readonly previousStatus: "active" | "suspended"; readonly previousStatusLabel: string; readonly replayed: boolean; readonly revision: number; readonly revokedSessionCount: number; readonly status: "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type OperationalApiMetricsResponse = { readonly averageLatencyMs: number; readonly errors: number; readonly requests: number; };
@@ -1003,6 +1005,41 @@ export class LeonAidApiClient {
     return this.request<MemberDirectoryMemberResponse>(
       `/api/v1/admin/members/${encodeURIComponent(String(userId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async changeMemberActionRole(
+    userId: string,
+    actionId: string,
+    role: "charity_admin" | "acquirer" | "finance_reader" | "driver",
+    body: ChangeMemberRoleRequest,
+    options: RequestOptions = {},
+  ): Promise<MemberRoleChangeResponse> {
+    return this.request<MemberRoleChangeResponse>(
+      `/api/v1/admin/members/${encodeURIComponent(String(userId))}/actions/${encodeURIComponent(String(actionId))}/roles/${encodeURIComponent(String(role))}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async changeMemberGlobalRole(
+    userId: string,
+    role: "system_admin" | "finance_reader" | "finance_manager",
+    body: ChangeMemberRoleRequest,
+    options: RequestOptions = {},
+  ): Promise<MemberRoleChangeResponse> {
+    return this.request<MemberRoleChangeResponse>(
+      `/api/v1/admin/members/${encodeURIComponent(String(userId))}/global-roles/${encodeURIComponent(String(role))}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

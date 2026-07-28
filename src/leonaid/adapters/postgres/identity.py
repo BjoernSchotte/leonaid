@@ -19,7 +19,9 @@ from leonaid.application.identity import (
     MemberDirectoryMember,
     MemberDirectoryMembership,
     MemberDirectorySnapshot,
+    RoleAssignmentChange,
 )
+from leonaid.domain.actions import CharityActionStatus
 from leonaid.domain.identity import (
     AccountStatus,
     ActionMembership,
@@ -27,6 +29,8 @@ from leonaid.domain.identity import (
     GlobalRole,
     IdentityPrincipal,
     UserAccount,
+    removes_last_active_system_admin,
+    removes_last_required_charity_admin,
 )
 from leonaid.domain.sessions import UserSession
 
@@ -88,6 +92,49 @@ def status_change_receipt(change: AccountStatusChange) -> dict[str, Any]:
         },
         "previousStatus": change.previous_status.value,
         "revokedSessionCount": change.revoked_session_count,
+    }
+
+
+def replayed_role_assignment(value: Any) -> RoleAssignmentChange:
+    try:
+        if isinstance(value, str):
+            value = json.loads(value)
+        scope = str(value["scope"])
+        role: GlobalRole | ActionRole = (
+            GlobalRole(str(value["role"]))
+            if scope == "global"
+            else ActionRole(str(value["role"]))
+        )
+        return RoleAssignmentChange(
+            user_id=UUID(str(value["userId"])),
+            revision=int(value["revision"]),
+            role=role,
+            enabled=bool(value["enabled"]),
+            action_id=(
+                UUID(str(value["actionId"]))
+                if value.get("actionId") is not None
+                else None
+            ),
+            action_name=(
+                str(value["actionName"])
+                if value.get("actionName") is not None
+                else None
+            ),
+            replayed=True,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("Der Beleg der Rollenänderung ist unvollständig.") from error
+
+
+def role_assignment_receipt(change: RoleAssignmentChange) -> dict[str, Any]:
+    return {
+        "userId": str(change.user_id),
+        "revision": change.revision,
+        "scope": "global" if isinstance(change.role, GlobalRole) else "action",
+        "role": change.role.value,
+        "enabled": change.enabled,
+        "actionId": str(change.action_id) if change.action_id is not None else None,
+        "actionName": change.action_name,
     }
 
 
@@ -316,18 +363,34 @@ class AsyncpgIdentityRepository:
                 if visible_ids is None:
                     action_rows = await connection.fetch(
                         """
-                        SELECT id, name
-                        FROM charity_action
-                        ORDER BY starts_on DESC, name, id
+                        SELECT
+                            action.id,
+                            action.name,
+                            EXISTS (
+                                SELECT 1
+                                FROM charity_action_capability AS capability
+                                WHERE capability.action_id = action.id
+                                  AND capability.capability = 'delivery'
+                            ) AS has_delivery
+                        FROM charity_action AS action
+                        ORDER BY action.starts_on DESC, action.name, action.id
                         """
                     )
                 else:
                     action_rows = await connection.fetch(
                         """
-                        SELECT id, name
-                        FROM charity_action
-                        WHERE id = ANY($1::uuid[])
-                        ORDER BY starts_on DESC, name, id
+                        SELECT
+                            action.id,
+                            action.name,
+                            EXISTS (
+                                SELECT 1
+                                FROM charity_action_capability AS capability
+                                WHERE capability.action_id = action.id
+                                  AND capability.capability = 'delivery'
+                            ) AS has_delivery
+                        FROM charity_action AS action
+                        WHERE action.id = ANY($1::uuid[])
+                        ORDER BY action.starts_on DESC, action.name, action.id
                         """,
                         visible_ids,
                     )
@@ -384,6 +447,12 @@ class AsyncpgIdentityRepository:
                 MemberDirectoryAction(
                     action_id=row["id"],
                     action_name=str(row["name"]),
+                    available_roles=(
+                        ActionRole.CHARITY_ADMIN,
+                        ActionRole.ACQUIRER,
+                        ActionRole.FINANCE_READER,
+                        *((ActionRole.DRIVER,) if bool(row["has_delivery"]) else ()),
+                    ),
                 )
                 for row in action_rows
             ),
@@ -618,162 +687,497 @@ class AsyncpgIdentityRepository:
         user_id: UUID,
         role: GlobalRole,
         *,
+        enabled: bool,
         actor_user_id: UUID,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> bool:
+    ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                inserted = await connection.fetchval(
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    "identity.role.assignment",
+                )
+                replayed = await self._begin_role_command(
+                    connection,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                )
+                if replayed is not None:
+                    return replayed
+                account = await connection.fetchrow(
                     """
-                    INSERT INTO user_global_role (user_id, role, granted_at)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (user_id, role) DO NOTHING
-                    RETURNING true
+                    SELECT revision
+                    FROM user_account
+                    WHERE id = $1
+                    FOR UPDATE
                     """,
                     user_id,
-                    role.value,
-                    occurred_at,
                 )
-                if inserted is not True:
-                    return False
-                await self._audit(
-                    connection,
-                    action_id=None,
-                    actor_user_id=actor_user_id,
-                    event_type="identity.global_role.granted",
-                    entity_type="user_global_role",
-                    entity_id=user_id,
-                    request_id=request_id,
-                    payload={"role": role.value},
-                    occurred_at=occurred_at,
-                )
-                return True
-
-    async def revoke_global_role(
-        self,
-        user_id: UUID,
-        role: GlobalRole,
-        *,
-        actor_user_id: UUID,
-        request_id: str,
-        occurred_at: datetime,
-    ) -> bool:
-        async with self._pool.acquire() as connection:
-            async with connection.transaction():
-                removed = await connection.fetchval(
-                    """
-                    DELETE FROM user_global_role
-                    WHERE user_id = $1 AND role = $2
-                    RETURNING true
-                    """,
-                    user_id,
-                    role.value,
-                )
-                if removed is not True:
-                    return False
-                await self._audit(
-                    connection,
-                    action_id=None,
-                    actor_user_id=actor_user_id,
-                    event_type="identity.global_role.revoked",
-                    entity_type="user_global_role",
-                    entity_id=user_id,
-                    request_id=request_id,
-                    payload={"role": role.value},
-                    occurred_at=occurred_at,
-                )
-                return True
-
-    async def grant_action_membership(
-        self,
-        membership: ActionMembership,
-        *,
-        actor_user_id: UUID,
-        request_id: str,
-        occurred_at: datetime,
-    ) -> bool:
-        async with self._pool.acquire() as connection:
-            async with connection.transaction():
-                inserted = await connection.fetchval(
-                    """
-                    INSERT INTO action_membership (
-                        id,
-                        action_id,
-                        user_id,
-                        role,
-                        active_from,
-                        active_until,
-                        delegate_user_id,
-                        created_at,
-                        updated_at
+                if account is None:
+                    await self._discard_role_command(connection, idempotency_key)
+                    return None
+                if int(account["revision"]) != expected_revision:
+                    raise Conflict(
+                        "account_revision_conflict",
+                        "Die Rollen wurden zwischenzeitlich geändert. "
+                        "Bitte lade den aktuellen Stand.",
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-                    ON CONFLICT (action_id, user_id, role) DO NOTHING
-                    RETURNING true
-                    """,
-                    membership.id,
-                    membership.action_id,
-                    membership.user_id,
-                    membership.role.value,
-                    membership.active_from,
-                    membership.active_until,
-                    membership.delegate_user_id,
-                    occurred_at,
+                currently_enabled = bool(
+                    await connection.fetchval(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM user_global_role
+                            WHERE user_id = $1 AND role = $2
+                        )
+                        """,
+                        user_id,
+                        role.value,
+                    )
                 )
-                if inserted is not True:
-                    return False
+                if currently_enabled == enabled:
+                    raise Conflict(
+                        "role_assignment_unchanged",
+                        "Diese Rolle besitzt bereits den gewünschten Stand.",
+                    )
+                active_system_admin_count = int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM user_global_role AS role
+                        JOIN user_account AS account
+                          ON account.id = role.user_id
+                        WHERE role.role = 'system_admin'
+                          AND account.status = 'active'
+                        """
+                    )
+                )
+                if removes_last_active_system_admin(
+                    role=role,
+                    enabled=enabled,
+                    active_admin_count=active_system_admin_count,
+                ):
+                    raise Conflict(
+                        "last_system_admin_role_forbidden",
+                        "Die Rolle des letzten aktiven System-Admins kann "
+                        "nicht entfernt werden.",
+                    )
+                if enabled:
+                    await connection.execute(
+                        """
+                        INSERT INTO user_global_role (user_id, role, granted_at)
+                        VALUES ($1, $2, $3)
+                        """,
+                        user_id,
+                        role.value,
+                        occurred_at,
+                    )
+                else:
+                    await connection.execute(
+                        """
+                        DELETE FROM user_global_role
+                        WHERE user_id = $1 AND role = $2
+                        """,
+                        user_id,
+                        role.value,
+                    )
+                revision = await self._advance_account_revision(
+                    connection,
+                    user_id=user_id,
+                    expected_revision=expected_revision,
+                    occurred_at=occurred_at,
+                )
+                result = RoleAssignmentChange(
+                    user_id=user_id,
+                    revision=revision,
+                    role=role,
+                    enabled=enabled,
+                )
                 await self._audit(
                     connection,
-                    action_id=membership.action_id,
+                    action_id=None,
                     actor_user_id=actor_user_id,
-                    event_type="identity.action_membership.granted",
-                    entity_type="action_membership",
-                    entity_id=membership.id,
+                    event_type=(
+                        "identity.global_role.granted"
+                        if enabled
+                        else "identity.global_role.revoked"
+                    ),
+                    entity_type="user_global_role",
+                    entity_id=user_id,
                     request_id=request_id,
                     payload={
-                        "userId": str(membership.user_id),
-                        "role": membership.role.value,
+                        "role": role.value,
+                        "enabled": enabled,
+                        "previousRevision": expected_revision,
+                        "revision": revision,
+                        "idempotencyKey": idempotency_key,
                     },
                     occurred_at=occurred_at,
                 )
-                return True
+                await self._complete_role_command(
+                    connection,
+                    idempotency_key=idempotency_key,
+                    result=result,
+                    occurred_at=occurred_at,
+                )
+                return result
 
-    async def revoke_action_membership(
+    async def grant_action_membership(
         self,
-        membership_id: UUID,
+        user_id: UUID,
+        action_id: UUID,
+        role: ActionRole,
         *,
+        enabled: bool,
+        actor: IdentityPrincipal,
         actor_user_id: UUID,
+        expected_revision: int,
+        idempotency_key: str,
+        request_hash: str,
         request_id: str,
         occurred_at: datetime,
-    ) -> bool:
+    ) -> RoleAssignmentChange | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
-                removed = await connection.fetchrow(
-                    """
-                    DELETE FROM action_membership
-                    WHERE id = $1
-                    RETURNING action_id, user_id, role
-                    """,
-                    membership_id,
+                await connection.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+                    "identity.role.assignment",
                 )
-                if removed is None:
-                    return False
+                replayed = await self._begin_role_command(
+                    connection,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                )
+                if replayed is not None:
+                    return replayed
+                account = await connection.fetchrow(
+                    """
+                    SELECT revision
+                    FROM user_account
+                    WHERE id = $1
+                    FOR UPDATE
+                    """,
+                    user_id,
+                )
+                action = await connection.fetchrow(
+                    """
+                    SELECT id, name, status
+                    FROM charity_action
+                    WHERE id = $1
+                    FOR UPDATE
+                    """,
+                    action_id,
+                )
+                if account is None or action is None:
+                    await self._discard_role_command(connection, idempotency_key)
+                    return None
+                if int(account["revision"]) != expected_revision:
+                    raise Conflict(
+                        "account_revision_conflict",
+                        "Die Rollen wurden zwischenzeitlich geändert. "
+                        "Bitte lade den aktuellen Stand.",
+                    )
+                if not actor.is_system_admin:
+                    actor_still_manages = bool(
+                        await connection.fetchval(
+                            """
+                            SELECT EXISTS (
+                                SELECT 1
+                                FROM action_membership
+                                WHERE action_id = $1
+                                  AND user_id = $2
+                                  AND role = 'charity_admin'
+                                  AND active_from <= $3
+                                  AND (
+                                    active_until IS NULL OR active_until > $3
+                                  )
+                            )
+                            """,
+                            action_id,
+                            actor_user_id,
+                            occurred_at,
+                        )
+                    )
+                    if not actor_still_manages:
+                        raise Conflict(
+                            "role_action_scope_changed",
+                            "Deine Verwaltungsrolle wurde zwischenzeitlich "
+                            "geändert. Bitte lade den aktuellen Stand.",
+                        )
+                if role is ActionRole.DRIVER and not bool(
+                    await connection.fetchval(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM charity_action_capability
+                            WHERE action_id = $1 AND capability = 'delivery'
+                        )
+                        """,
+                        action_id,
+                    )
+                ):
+                    raise Conflict(
+                        "driver_role_capability_missing",
+                        "Die Rolle Ausfahrer ist nur für Aktionen mit "
+                        "Auslieferung verfügbar.",
+                    )
+                current = await connection.fetchrow(
+                    """
+                    SELECT id, active_from, active_until
+                    FROM action_membership
+                    WHERE action_id = $1 AND user_id = $2 AND role = $3
+                    FOR UPDATE
+                    """,
+                    action_id,
+                    user_id,
+                    role.value,
+                )
+                currently_enabled = (
+                    current is not None
+                    and current["active_from"] <= occurred_at
+                    and (
+                        current["active_until"] is None
+                        or current["active_until"] > occurred_at
+                    )
+                )
+                if currently_enabled == enabled:
+                    raise Conflict(
+                        "role_assignment_unchanged",
+                        "Diese Rolle besitzt bereits den gewünschten Stand.",
+                    )
+                active_charity_admin_count = int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM action_membership
+                        WHERE action_id = $1
+                          AND role = 'charity_admin'
+                          AND active_from <= $2
+                          AND (
+                            active_until IS NULL OR active_until > $2
+                          )
+                        """,
+                        action_id,
+                        occurred_at,
+                    )
+                )
+                if removes_last_required_charity_admin(
+                    action_status=CharityActionStatus(str(action["status"])),
+                    role=role,
+                    enabled=enabled,
+                    active_admin_count=active_charity_admin_count,
+                ):
+                    raise Conflict(
+                        "last_charity_admin_role_forbidden",
+                        "Die letzte Charity-Admin-Rolle einer laufenden "
+                        "Aktion kann nicht entfernt werden.",
+                    )
+                membership_id: UUID
+                if enabled and current is None:
+                    membership_id = uuid4()
+                    await connection.execute(
+                        """
+                        INSERT INTO action_membership (
+                            id, action_id, user_id, role, active_from,
+                            active_until, created_at, updated_at
+                        )
+                        VALUES ($1, $2, $3, $4, $5, NULL, $5, $5)
+                        """,
+                        membership_id,
+                        action_id,
+                        user_id,
+                        role.value,
+                        occurred_at,
+                    )
+                elif enabled:
+                    membership_id = current["id"]
+                    await connection.execute(
+                        """
+                        UPDATE action_membership
+                        SET active_from = $2,
+                            active_until = NULL,
+                            updated_at = $2
+                        WHERE id = $1
+                        """,
+                        membership_id,
+                        occurred_at,
+                    )
+                else:
+                    membership_id = current["id"]
+                    await connection.execute(
+                        """
+                        UPDATE action_membership
+                        SET active_until = $2,
+                            updated_at = $2
+                        WHERE id = $1
+                        """,
+                        membership_id,
+                        occurred_at,
+                    )
+                revision = await self._advance_account_revision(
+                    connection,
+                    user_id=user_id,
+                    expected_revision=expected_revision,
+                    occurred_at=occurred_at,
+                )
+                result = RoleAssignmentChange(
+                    user_id=user_id,
+                    revision=revision,
+                    role=role,
+                    enabled=enabled,
+                    action_id=action_id,
+                    action_name=str(action["name"]),
+                )
                 await self._audit(
                     connection,
-                    action_id=removed["action_id"],
+                    action_id=action_id,
                     actor_user_id=actor_user_id,
-                    event_type="identity.action_membership.revoked",
+                    event_type=(
+                        "identity.action_membership.granted"
+                        if enabled
+                        else "identity.action_membership.revoked"
+                    ),
                     entity_type="action_membership",
                     entity_id=membership_id,
                     request_id=request_id,
                     payload={
-                        "userId": str(removed["user_id"]),
-                        "role": str(removed["role"]),
+                        "userId": str(user_id),
+                        "role": role.value,
+                        "enabled": enabled,
+                        "previousRevision": expected_revision,
+                        "revision": revision,
+                        "idempotencyKey": idempotency_key,
                     },
                     occurred_at=occurred_at,
                 )
-                return True
+                await self._complete_role_command(
+                    connection,
+                    idempotency_key=idempotency_key,
+                    result=result,
+                    occurred_at=occurred_at,
+                )
+                return result
+
+    @staticmethod
+    async def _begin_role_command(
+        connection: asyncpg.Connection[Any],
+        *,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> RoleAssignmentChange | None:
+        inserted = await connection.fetchval(
+            """
+            INSERT INTO command_receipt (
+                idempotency_key, command_type, request_hash
+            )
+            VALUES ($1, 'identity.role.assignment.change', $2)
+            ON CONFLICT (idempotency_key) DO NOTHING
+            RETURNING true
+            """,
+            idempotency_key,
+            request_hash,
+        )
+        if inserted:
+            return None
+        receipt = await connection.fetchrow(
+            """
+            SELECT command_type, request_hash, result
+            FROM command_receipt
+            WHERE idempotency_key = $1
+            FOR UPDATE
+            """,
+            idempotency_key,
+        )
+        if receipt is None:
+            raise RuntimeError("Der Beleg der Rollenänderung ist verschwunden.")
+        if (
+            str(receipt["command_type"]) != "identity.role.assignment.change"
+            or str(receipt["request_hash"]) != request_hash
+        ):
+            raise Conflict(
+                "idempotency_conflict",
+                "Diese Vorgangs-ID wurde bereits für eine andere "
+                "Rollenänderung verwendet.",
+            )
+        if receipt["result"] is None:
+            raise Conflict(
+                "idempotency_incomplete",
+                "Die vorherige Rollenänderung ist noch nicht abgeschlossen.",
+            )
+        return replayed_role_assignment(receipt["result"])
+
+    @staticmethod
+    async def _discard_role_command(
+        connection: asyncpg.Connection[Any],
+        idempotency_key: str,
+    ) -> None:
+        await connection.execute(
+            """
+            DELETE FROM command_receipt
+            WHERE idempotency_key = $1
+              AND command_type = 'identity.role.assignment.change'
+              AND result IS NULL
+            """,
+            idempotency_key,
+        )
+
+    @staticmethod
+    async def _advance_account_revision(
+        connection: asyncpg.Connection[Any],
+        *,
+        user_id: UUID,
+        expected_revision: int,
+        occurred_at: datetime,
+    ) -> int:
+        revision = await connection.fetchval(
+            """
+            UPDATE user_account
+            SET revision = revision + 1,
+                updated_at = $3
+            WHERE id = $1 AND revision = $2
+            RETURNING revision
+            """,
+            user_id,
+            expected_revision,
+            occurred_at,
+        )
+        if revision is None:
+            raise Conflict(
+                "account_revision_conflict",
+                "Die Rollen wurden zwischenzeitlich geändert. "
+                "Bitte lade den aktuellen Stand.",
+            )
+        return int(revision)
+
+    @staticmethod
+    async def _complete_role_command(
+        connection: asyncpg.Connection[Any],
+        *,
+        idempotency_key: str,
+        result: RoleAssignmentChange,
+        occurred_at: datetime,
+    ) -> None:
+        status = await connection.execute(
+            """
+            UPDATE command_receipt
+            SET result = $2::jsonb,
+                completed_at = $3
+            WHERE idempotency_key = $1
+              AND command_type = 'identity.role.assignment.change'
+              AND result IS NULL
+            """,
+            idempotency_key,
+            json.dumps(role_assignment_receipt(result), separators=(",", ":")),
+            occurred_at,
+        )
+        if status != "UPDATE 1":
+            raise RuntimeError(
+                "Der Beleg der Rollenänderung konnte nicht abgeschlossen werden."
+            )
 
     @staticmethod
     async def _audit(

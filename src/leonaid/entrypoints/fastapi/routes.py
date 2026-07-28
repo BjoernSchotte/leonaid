@@ -76,6 +76,7 @@ from leonaid.application.identity import (
     IdentityAdministrationService,
     IdentityQueryService,
     MemberDirectoryQuery,
+    RoleAssignmentChange,
 )
 from leonaid.application.invitations import InvitationService
 from leonaid.application.operations import OperationsService
@@ -129,7 +130,7 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
-from leonaid.domain.identity import AccountStatus, ActionRole
+from leonaid.domain.identity import AccountStatus, ActionRole, GlobalRole
 from leonaid.domain.invoices import Invoice, InvoiceProfile
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
@@ -228,12 +229,14 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvoiceRecordResponse,
     InvoiceResponse,
     CancelInvoiceRequest,
+    ChangeMemberRoleRequest,
     ChangeMemberStatusRequest,
     IssueInvoiceRequest,
     LoginDispatchResponse,
     LogoutResponse,
     MemberDirectoryMemberResponse,
     MemberDirectoryResponse,
+    MemberRoleChangeResponse,
     MemberStatusChangeResponse,
     OperationalApiMetricsResponse,
     OperationalDependencyResponse,
@@ -1736,6 +1739,90 @@ async def change_member_status(
         revoked_session_count=result.revoked_session_count,
         replayed=result.replayed,
     )
+
+
+def member_role_change_response(
+    result: RoleAssignmentChange,
+) -> MemberRoleChangeResponse:
+    return MemberRoleChangeResponse(
+        user_id=result.user_id,
+        revision=result.revision,
+        scope="global" if isinstance(result.role, GlobalRole) else "action",
+        role=cast(
+            Literal[
+                "system_admin",
+                "finance_reader",
+                "finance_manager",
+                "charity_admin",
+                "acquirer",
+                "driver",
+            ],
+            result.role.value,
+        ),
+        role_label=ROLE_LABELS[result.role],
+        enabled=result.enabled,
+        action_id=result.action_id,
+        action_name=result.action_name,
+        replayed=result.replayed,
+    )
+
+
+@router.patch(
+    "/api/v1/admin/members/{user_id}/global-roles/{role}",
+    operation_id="changeMemberGlobalRole",
+    response_model=MemberRoleChangeResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def change_member_global_role(
+    user_id: UUID,
+    role: Literal["system_admin", "finance_reader", "finance_manager"],
+    body: ChangeMemberRoleRequest,
+    request: Request,
+    response: Response,
+) -> MemberRoleChangeResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await identity_administration_service(request).add_global_role(
+        actor,
+        user_id,
+        GlobalRole(role),
+        enabled=body.enabled,
+        expected_revision=body.expected_revision,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return member_role_change_response(result)
+
+
+@router.patch(
+    "/api/v1/admin/members/{user_id}/actions/{action_id}/roles/{role}",
+    operation_id="changeMemberActionRole",
+    response_model=MemberRoleChangeResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def change_member_action_role(
+    user_id: UUID,
+    action_id: UUID,
+    role: Literal["charity_admin", "acquirer", "finance_reader", "driver"],
+    body: ChangeMemberRoleRequest,
+    request: Request,
+    response: Response,
+) -> MemberRoleChangeResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await identity_administration_service(request).add_action_membership(
+        actor,
+        user_id,
+        action_id,
+        ActionRole(role),
+        enabled=body.enabled,
+        expected_revision=body.expected_revision,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return member_role_change_response(result)
 
 
 @router.get(

@@ -484,29 +484,29 @@ globale Rollen und Aktionsmitgliedschaften.
 
 Akzeptanzkriterien:
 
-- [ ] System-Admin kann globale Rollen und alle Aktionsrollen hinzufügen und
+- [x] System-Admin kann globale Rollen und alle Aktionsrollen hinzufügen und
       entfernen.
-- [ ] Charity-Admin kann ausschließlich Aktionsrollen in selbst verwalteten
+- [x] Charity-Admin kann ausschließlich Aktionsrollen in selbst verwalteten
       Aktionen ändern.
-- [ ] Charity-Admin kann weder System-Admin noch globale Finanzrollen
+- [x] Charity-Admin kann weder System-Admin noch globale Finanzrollen
       vergeben.
-- [ ] Entfernen des letzten Charity-Admins einer aktiven Aktion wird
+- [x] Entfernen des letzten Charity-Admins einer aktiven Aktion wird
       verhindert oder erfordert eine atomare Nachfolgezuweisung.
-- [ ] Rollenänderungen wirken im nächsten Request auf Navigation, Listen,
+- [x] Rollenänderungen wirken im nächsten Request auf Navigation, Listen,
       Exporte und Dokumentzugriff.
-- [ ] Bestehende historische Fachzuordnungen werden durch
+- [x] Bestehende historische Fachzuordnungen werden durch
       Membership-Entzug nicht gelöscht.
-- [ ] Änderungen benötigen Fresh Login, erwartete Revision, verständliche
+- [x] Änderungen benötigen Fresh Login, erwartete Revision, verständliche
       Konflikte und AuditEvents.
-- [ ] Rollenmatrix in `PERSONAS.md`, OpenAPI und UI bleibt konsistent.
+- [x] Rollenmatrix in `PERSONAS.md`, OpenAPI und UI bleibt konsistent.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Rollenmatrix und Last-Admin-Invariante.
-- [ ] Integrationstest mutiert Memberships gegen PostgreSQL und prüft jede
+- [x] Unit-Tests prüfen Rollenmatrix und Last-Admin-Invariante.
+- [x] Integrationstest mutiert Memberships gegen PostgreSQL und prüft jede
       Row-Level-Grenze ohne neue Anmeldung.
-- [ ] E2E führt Rollenwechsel und vollständiges Offboarding über UI durch.
-- [ ] Negative E2E beweist, dass Charity-Admin globale Rollen weder sieht
+- [x] E2E führt Rollenwechsel und vollständiges Offboarding über UI durch.
+- [x] Negative E2E beweist, dass Charity-Admin globale Rollen weder sieht
       noch über direkte API-Aufrufe ändern kann.
 
 ### [ ] PILOT-013 Einladungen und E-Mail-Korrektur betreibbar machen

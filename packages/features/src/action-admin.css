@@ -1150,6 +1150,92 @@
   font-size: 0.7rem;
 }
 
+.member-role-admin {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.member-role-admin > div:first-child,
+.member-role-group > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.member-role-group {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--surface-muted) 72%, transparent);
+}
+
+.member-role-group > div:first-child > strong {
+  font-size: 0.76rem;
+}
+
+.member-role-group > div:first-child > span {
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.member-role-group ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-role-group li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.member-role-group li > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.member-role-group li strong {
+  font-size: 0.72rem;
+}
+
+.member-role-group li small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.member-role-group li .ui-button {
+  min-width: 6.5rem;
+  flex: 0 0 auto;
+}
+
+.member-role-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.member-role-actions > section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.member-role-actions h4 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 0.72rem;
+}
+
 .member-detail__scope-note {
   margin: 0;
   padding-top: 0.75rem;

@@ -23,7 +23,6 @@ from leonaid.application.errors import Conflict, PermissionDenied
 from leonaid.application.identity import IdentityAdministrationService
 from leonaid.domain.identity import (
     AccountStatus,
-    ActionMembership,
     ActionRole,
     GlobalRole,
 )
@@ -38,7 +37,6 @@ GESA_ID = UUID("10000000-0000-4000-8000-000000000008")
 ACTIVE_ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 ARCHIVED_ACTION_ID = UUID("20000000-0000-4000-8000-000000000002")
 FOREIGN_ACTION_ID = UUID("20000000-0000-4000-8000-000000000003")
-TEMPORARY_MEMBERSHIP_ID = UUID("21000000-0000-4000-8000-000000000040")
 
 
 class ContractFailure(RuntimeError):
@@ -129,6 +127,669 @@ def navigation_keys(payload: dict[str, Any], surface: str) -> set[str]:
     }
 
 
+def require_http(
+    response: httpx.Response,
+    expected_status: int,
+    message: str,
+) -> dict[str, Any]:
+    if response.status_code != expected_status:
+        raise ContractFailure(
+            f"{message}: HTTP {response.status_code}: {response.text[:300]}"
+        )
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ContractFailure(f"{message}: Antwort ist kein Objekt")
+    return payload
+
+
+async def prove_role_administration(
+    pool: asyncpg.Pool[Any],
+    *,
+    base_url: str,
+    tokens: dict[str, str],
+) -> None:
+    system_cookies = {"__Host-leonaid_session": tokens["SYSTEM_SESSION"]}
+    stale_system_cookies = {
+        "__Host-leonaid_session": tokens["SYSTEM_ROLE_STALE_SESSION"]
+    }
+    klara_cookies = {"__Host-leonaid_session": tokens["KLARA_SESSION"]}
+    anna_cookies = {"__Host-leonaid_session": tokens["ANNA_OLD_SESSION"]}
+    successful_commands: set[str] = set()
+
+    async def member_revision(
+        client: httpx.AsyncClient,
+        user_id: UUID,
+    ) -> int:
+        payload = require_http(
+            await client.get(
+                f"/api/v1/admin/members/{user_id}",
+                cookies=system_cookies,
+            ),
+            200,
+            "Mitgliedsrevision konnte nicht geladen werden",
+        )
+        return int(payload["revision"])
+
+    async def change_global_role(
+        client: httpx.AsyncClient,
+        *,
+        cookies: dict[str, str],
+        user_id: UUID,
+        role: GlobalRole,
+        enabled: bool,
+        revision: int,
+        command_id: str,
+        expected_status: int = 200,
+    ) -> dict[str, Any]:
+        payload = require_http(
+            await client.patch(
+                f"/api/v1/admin/members/{user_id}/global-roles/{role.value}",
+                cookies=cookies,
+                headers={
+                    "Idempotency-Key": command_id,
+                    "X-Request-ID": command_id,
+                },
+                json={"enabled": enabled, "expectedRevision": revision},
+            ),
+            expected_status,
+            f"Globale Rollenänderung {role.value}",
+        )
+        if expected_status == 200:
+            successful_commands.add(command_id)
+        return payload
+
+    async def change_action_role(
+        client: httpx.AsyncClient,
+        *,
+        cookies: dict[str, str],
+        user_id: UUID,
+        action_id: UUID,
+        role: ActionRole,
+        enabled: bool,
+        revision: int,
+        command_id: str,
+        expected_status: int = 200,
+    ) -> dict[str, Any]:
+        payload = require_http(
+            await client.patch(
+                (
+                    f"/api/v1/admin/members/{user_id}/actions/"
+                    f"{action_id}/roles/{role.value}"
+                ),
+                cookies=cookies,
+                headers={
+                    "Idempotency-Key": command_id,
+                    "X-Request-ID": command_id,
+                },
+                json={"enabled": enabled, "expectedRevision": revision},
+            ),
+            expected_status,
+            f"Aktionsrollenänderung {role.value}",
+        )
+        if expected_status == 200:
+            successful_commands.add(command_id)
+        return payload
+
+    async with pool.acquire() as connection:
+        outbox_before = int(
+            await connection.fetchval("SELECT count(*) FROM outbox_event")
+        )
+        await connection.execute(
+            """
+            INSERT INTO charity_action_capability (action_id, capability)
+            VALUES ($1, 'delivery')
+            ON CONFLICT DO NOTHING
+            """,
+            ACTIVE_ACTION_ID,
+        )
+
+    async with httpx.AsyncClient(base_url=base_url, timeout=20) as client:
+        anna_revision = await member_revision(client, ANNA_ID)
+        stale = await change_global_role(
+            client,
+            cookies=stale_system_cookies,
+            user_id=ANNA_ID,
+            role=GlobalRole.FINANCE_READER,
+            enabled=True,
+            revision=anna_revision,
+            command_id="pilot012:stale:global-finance",
+            expected_status=401,
+        )
+        if stale.get("error", {}).get("code") != "fresh_login_required":
+            raise ContractFailure("Rollenänderung akzeptierte veraltetes Fresh Login")
+
+        forbidden_global = await change_global_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            role=GlobalRole.FINANCE_READER,
+            enabled=True,
+            revision=anna_revision,
+            command_id="pilot012:charity:forbidden-global",
+            expected_status=403,
+        )
+        if forbidden_global.get("error", {}).get("code") != "system_admin_required":
+            raise ContractFailure(
+                "Charity-Admin erhielt für globale Rolle keinen klaren Scopefehler"
+            )
+        forbidden_foreign = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=FOREIGN_ACTION_ID,
+            role=ActionRole.ACQUIRER,
+            enabled=True,
+            revision=anna_revision,
+            command_id="pilot012:charity:forbidden-foreign",
+            expected_status=403,
+        )
+        if (
+            forbidden_foreign.get("error", {}).get("code")
+            != "role_action_scope_forbidden"
+        ):
+            raise ContractFailure(
+                "Charity-Admin erhielt für fremde Aktion keinen klaren Scopefehler"
+            )
+
+        finance_grant_id = "pilot012:charity:finance-grant"
+        finance_grant = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.FINANCE_READER,
+            enabled=True,
+            revision=anna_revision,
+            command_id=finance_grant_id,
+        )
+        finance_replay = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.FINANCE_READER,
+            enabled=True,
+            revision=anna_revision,
+            command_id=finance_grant_id,
+        )
+        if (
+            finance_grant.get("replayed") is not False
+            or finance_replay.get("replayed") is not True
+        ):
+            raise ContractFailure("Aktionsrollenänderung ist nicht idempotent")
+
+        anna_with_finance = require_identity(
+            await identity_response(client, tokens["ANNA_OLD_SESSION"]),
+            display_name="Anna Akquise",
+        )
+        if "invoices" not in navigation_keys(anna_with_finance, "web"):
+            raise ContractFailure(
+                "Finanzrolle wirkte nicht im nächsten Navigationsrequest"
+            )
+        for path in (
+            f"/api/v1/actions/{ACTIVE_ACTION_ID}/invoices",
+            f"/api/v1/actions/{ACTIVE_ACTION_ID}/documents",
+        ):
+            if (await client.get(path, cookies=anna_cookies)).status_code != 200:
+                raise ContractFailure(
+                    "Finanzrolle wirkte nicht im nächsten Rechnungs-/Dokumentrequest"
+                )
+
+        finance_revoke = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.FINANCE_READER,
+            enabled=False,
+            revision=int(finance_grant["revision"]),
+            command_id="pilot012:charity:finance-revoke",
+        )
+        anna_without_finance = require_identity(
+            await identity_response(client, tokens["ANNA_OLD_SESSION"]),
+            display_name="Anna Akquise",
+        )
+        if "invoices" in navigation_keys(anna_without_finance, "web"):
+            raise ContractFailure(
+                "Entzogene Finanzrolle blieb im nächsten Navigationsrequest wirksam"
+            )
+        for path in (
+            f"/api/v1/actions/{ACTIVE_ACTION_ID}/invoices",
+            f"/api/v1/actions/{ACTIVE_ACTION_ID}/documents",
+        ):
+            denied = await client.get(path, cookies=anna_cookies)
+            if denied.status_code != 403 or denied.json().get("error", {}).get(
+                "code"
+            ) not in {"invoice_read_required", "document_download_required"}:
+                raise ContractFailure(
+                    "Entzogene Finanzrolle blieb für Rechnungen/Dokumente wirksam"
+                )
+
+        async with pool.acquire() as connection:
+            membership_before = await connection.fetchrow(
+                """
+                SELECT id, active_from, active_until
+                FROM action_membership
+                WHERE action_id = $1 AND user_id = $2 AND role = 'acquirer'
+                """,
+                ACTIVE_ACTION_ID,
+                ANNA_ID,
+            )
+            association_counts_before = (
+                int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM acquisition_assignment
+                        WHERE action_id = $1 AND acquirer_user_id = $2
+                        """,
+                        ACTIVE_ACTION_ID,
+                        ANNA_ID,
+                    )
+                ),
+                int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM acquisition_assignment_history AS history
+                        JOIN acquisition_assignment AS assignment
+                          ON assignment.id = history.assignment_id
+                        WHERE assignment.action_id = $1
+                          AND assignment.acquirer_user_id = $2
+                        """,
+                        ACTIVE_ACTION_ID,
+                        ANNA_ID,
+                    )
+                ),
+            )
+        if membership_before is None or membership_before["active_until"] is not None:
+            raise ContractFailure("Golden-Akquisiteur-Membership fehlt")
+
+        acquirer_revoke = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.ACQUIRER,
+            enabled=False,
+            revision=int(finance_revoke["revision"]),
+            command_id="pilot012:charity:acquirer-revoke",
+        )
+        anna_offboarded = require_identity(
+            await identity_response(client, tokens["ANNA_OLD_SESSION"]),
+            display_name="Anna Akquise",
+        )
+        if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"}:
+            raise ContractFailure(
+                "Membership-Entzug wirkte nicht im nächsten PWA-Request"
+            )
+        async with pool.acquire() as connection:
+            membership_after = await connection.fetchrow(
+                """
+                SELECT id, active_from, active_until
+                FROM action_membership
+                WHERE action_id = $1 AND user_id = $2 AND role = 'acquirer'
+                """,
+                ACTIVE_ACTION_ID,
+                ANNA_ID,
+            )
+            association_counts_after = (
+                int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM acquisition_assignment
+                        WHERE action_id = $1 AND acquirer_user_id = $2
+                        """,
+                        ACTIVE_ACTION_ID,
+                        ANNA_ID,
+                    )
+                ),
+                int(
+                    await connection.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM acquisition_assignment_history AS history
+                        JOIN acquisition_assignment AS assignment
+                          ON assignment.id = history.assignment_id
+                        WHERE assignment.action_id = $1
+                          AND assignment.acquirer_user_id = $2
+                        """,
+                        ACTIVE_ACTION_ID,
+                        ANNA_ID,
+                    )
+                ),
+            )
+        if (
+            membership_after is None
+            or membership_after["id"] != membership_before["id"]
+            or membership_after["active_from"] != membership_before["active_from"]
+            or membership_after["active_until"] is None
+            or association_counts_after != association_counts_before
+        ):
+            raise ContractFailure(
+                "Membership-Entzug löschte historische Fachzuordnungen"
+            )
+        acquirer_restore = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.ACQUIRER,
+            enabled=True,
+            revision=int(acquirer_revoke["revision"]),
+            command_id="pilot012:charity:acquirer-restore",
+        )
+
+        driver_grant = await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.DRIVER,
+            enabled=True,
+            revision=int(acquirer_restore["revision"]),
+            command_id="pilot012:system:driver-grant",
+        )
+        anna_with_driver = require_identity(
+            await identity_response(client, tokens["ANNA_OLD_SESSION"]),
+            display_name="Anna Akquise",
+        )
+        if "delivery" not in navigation_keys(anna_with_driver, "pwa"):
+            raise ContractFailure("Ausfahrerrolle wirkte nicht im nächsten Request")
+        await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.DRIVER,
+            enabled=False,
+            revision=int(driver_grant["revision"]),
+            command_id="pilot012:system:driver-revoke",
+        )
+
+        klara_revision = await member_revision(client, KLARA_ID)
+        system_admin_grant = await change_global_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            role=GlobalRole.SYSTEM_ADMIN,
+            enabled=True,
+            revision=klara_revision,
+            command_id="pilot012:system:system-admin-grant",
+        )
+        klara_as_system = require_identity(
+            await identity_response(client, tokens["KLARA_SESSION"]),
+            display_name="Klara Kern",
+        )
+        if "system" not in navigation_keys(klara_as_system, "web"):
+            raise ContractFailure(
+                "System-Admin-Rolle wirkte nicht im nächsten Navigationsrequest"
+            )
+        full_directory = require_http(
+            await client.get(
+                "/api/v1/admin/members",
+                params={"limit": 100},
+                cookies=klara_cookies,
+            ),
+            200,
+            "Globale Mitgliederliste",
+        )
+        if full_directory.get("partial") is not False:
+            raise ContractFailure(
+                "System-Admin-Rolle wirkte nicht auf die nächste Listenabfrage"
+            )
+        privacy_export = await client.post(
+            "/api/v1/admin/privacy/exports",
+            cookies=klara_cookies,
+            json={"email": "mara.muster@musterwerk.leonaid.invalid"},
+        )
+        if privacy_export.status_code != 200:
+            raise ContractFailure(
+                "System-Admin-Rolle wirkte nicht auf den nächsten Exportrequest"
+            )
+        await change_global_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            role=GlobalRole.SYSTEM_ADMIN,
+            enabled=False,
+            revision=int(system_admin_grant["revision"]),
+            command_id="pilot012:system:system-admin-revoke",
+        )
+        klara_after_system = require_identity(
+            await identity_response(client, tokens["KLARA_SESSION"]),
+            display_name="Klara Kern",
+        )
+        if "system" in navigation_keys(klara_after_system, "web"):
+            raise ContractFailure(
+                "Entzogene System-Admin-Rolle blieb im nächsten Request wirksam"
+            )
+        partial_directory = require_http(
+            await client.get(
+                "/api/v1/admin/members",
+                params={"limit": 100},
+                cookies=klara_cookies,
+            ),
+            200,
+            "Aktionsbezogene Mitgliederliste",
+        )
+        if partial_directory.get("partial") is not True:
+            raise ContractFailure(
+                "Entzogene System-Admin-Rolle blieb auf Listen wirksam"
+            )
+        denied_export = await client.post(
+            "/api/v1/admin/privacy/exports",
+            cookies=klara_cookies,
+            json={"email": "mara.muster@musterwerk.leonaid.invalid"},
+        )
+        if (
+            denied_export.status_code != 403
+            or denied_export.json().get("error", {}).get("code")
+            != "system_admin_required"
+        ):
+            raise ContractFailure(
+                "Entzogene System-Admin-Rolle blieb auf Export wirksam"
+            )
+
+        anna_revision = await member_revision(client, ANNA_ID)
+        successor_grant = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=True,
+            revision=anna_revision,
+            command_id="pilot012:charity:successor-grant",
+        )
+        klara_revision = await member_revision(client, KLARA_ID)
+        klara_revoke = await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            revision=klara_revision,
+            command_id="pilot012:system:klara-admin-revoke",
+        )
+        stale_scope = await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=BERND_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.FINANCE_READER,
+            enabled=True,
+            revision=await member_revision(client, BERND_ID),
+            command_id="pilot012:charity:scope-changed",
+            expected_status=403,
+        )
+        if stale_scope.get("error", {}).get("code") != "role_action_scope_forbidden":
+            raise ContractFailure(
+                "Entzogene Charity-Admin-Rolle wirkte noch im nächsten Request"
+            )
+        klara_restore = await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=True,
+            revision=int(klara_revoke["revision"]),
+            command_id="pilot012:system:klara-admin-restore",
+        )
+        await change_action_role(
+            client,
+            cookies=klara_cookies,
+            user_id=ANNA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            revision=int(successor_grant["revision"]),
+            command_id="pilot012:charity:successor-revoke",
+        )
+        last_admin = await change_action_role(
+            client,
+            cookies=system_cookies,
+            user_id=KLARA_ID,
+            action_id=ACTIVE_ACTION_ID,
+            role=ActionRole.CHARITY_ADMIN,
+            enabled=False,
+            revision=int(klara_restore["revision"]),
+            command_id="pilot012:system:last-charity-admin",
+            expected_status=409,
+        )
+        if (
+            last_admin.get("error", {}).get("code")
+            != "last_charity_admin_role_forbidden"
+        ):
+            raise ContractFailure(
+                "Letzter Charity-Admin lieferte keinen verständlichen Konflikt"
+            )
+
+        finn_revision = await member_revision(client, FINN_ID)
+
+        async def concurrent_global_role(
+            role: GlobalRole,
+            command_id: str,
+        ) -> tuple[GlobalRole, str, httpx.Response]:
+            return (
+                role,
+                command_id,
+                await client.patch(
+                    (f"/api/v1/admin/members/{FINN_ID}/global-roles/{role.value}"),
+                    cookies=system_cookies,
+                    headers={
+                        "Idempotency-Key": command_id,
+                        "X-Request-ID": command_id,
+                    },
+                    json={"enabled": True, "expectedRevision": finn_revision},
+                ),
+            )
+
+        concurrent_results = await asyncio.gather(
+            concurrent_global_role(
+                GlobalRole.FINANCE_READER,
+                "pilot012:concurrency:finance-reader",
+            ),
+            concurrent_global_role(
+                GlobalRole.FINANCE_MANAGER,
+                "pilot012:concurrency:finance-manager",
+            ),
+        )
+        if sorted(item[2].status_code for item in concurrent_results) != [200, 409]:
+            raise ContractFailure(
+                "Widersprüchliche Rollenänderungen gewannen nicht exakt einmal"
+            )
+        winning_role, winning_id, winning_response = next(
+            item for item in concurrent_results if item[2].status_code == 200
+        )
+        losing_role, _, losing_response = next(
+            item for item in concurrent_results if item[2].status_code == 409
+        )
+        successful_commands.add(winning_id)
+        winning_payload = winning_response.json()
+        if (
+            losing_response.json().get("error", {}).get("code")
+            != "account_revision_conflict"
+            or winning_payload.get("revision") != finn_revision + 1
+        ):
+            raise ContractFailure(
+                "Rollen-Revision löste Konkurrenz nicht verständlich auf"
+            )
+        losing_grant = await change_global_role(
+            client,
+            cookies=system_cookies,
+            user_id=FINN_ID,
+            role=losing_role,
+            enabled=True,
+            revision=int(winning_payload["revision"]),
+            command_id=f"pilot012:system:{losing_role.value}-grant",
+        )
+        first_revoke = await change_global_role(
+            client,
+            cookies=system_cookies,
+            user_id=FINN_ID,
+            role=winning_role,
+            enabled=False,
+            revision=int(losing_grant["revision"]),
+            command_id=f"pilot012:system:{winning_role.value}-revoke",
+        )
+        await change_global_role(
+            client,
+            cookies=system_cookies,
+            user_id=FINN_ID,
+            role=losing_role,
+            enabled=False,
+            revision=int(first_revoke["revision"]),
+            command_id=f"pilot012:system:{losing_role.value}-revoke",
+        )
+
+    async with pool.acquire() as connection:
+        outbox_after = int(
+            await connection.fetchval("SELECT count(*) FROM outbox_event")
+        )
+        audit_rows = await connection.fetch(
+            """
+            SELECT request_id, payload::text AS payload
+            FROM audit_event
+            WHERE request_id LIKE 'pilot012:%'
+              AND event_type IN (
+                'identity.global_role.granted',
+                'identity.global_role.revoked',
+                'identity.action_membership.granted',
+                'identity.action_membership.revoked'
+              )
+            ORDER BY request_id
+            """
+        )
+        receipt_keys = {
+            str(row["idempotency_key"])
+            for row in await connection.fetch(
+                """
+                SELECT idempotency_key
+                FROM command_receipt
+                WHERE command_type = 'identity.role.assignment.change'
+                  AND idempotency_key LIKE 'pilot012:%'
+                  AND result IS NOT NULL
+                """
+            )
+        }
+    audit_keys = {str(row["request_id"]) for row in audit_rows}
+    if (
+        outbox_after != outbox_before
+        or audit_keys != successful_commands
+        or receipt_keys != successful_commands
+        or len(audit_rows) != len(successful_commands)
+        or any("email" in str(row["payload"]).casefold() for row in audit_rows)
+    ):
+        raise ContractFailure(
+            "Rollenänderungen besitzen keine exakten, PII-freien Audit-/"
+            "Idempotenzbelege oder lösten unerwartete E-Mail-Effekte aus"
+        )
+
+
 async def run(arguments: argparse.Namespace) -> None:
     database_url = require_env("CORE_DATABASE_URL")
     now = datetime.now(timezone.utc)
@@ -143,6 +804,13 @@ async def run(arguments: argparse.Namespace) -> None:
         tokens = {
             "SYSTEM_SESSION": await create_session(connection, SYSTEM_ID, now=now),
             "SYSTEM_STALE_SESSION": await create_session(
+                connection,
+                SYSTEM_ID,
+                now=now,
+                fresh_login_at=now - timedelta(hours=1),
+                created_at=now - timedelta(hours=1),
+            ),
+            "SYSTEM_ROLE_STALE_SESSION": await create_session(
                 connection,
                 SYSTEM_ID,
                 now=now,
@@ -242,6 +910,9 @@ async def run(arguments: argparse.Namespace) -> None:
                 klara,
                 ANNA_ID,
                 GlobalRole.FINANCE_READER,
+                enabled=True,
+                expected_revision=1,
+                idempotency_key="poc040:forbidden:global-role",
                 request_id="poc040:forbidden:global-role",
             )
         except PermissionDenied:
@@ -249,45 +920,63 @@ async def run(arguments: argparse.Namespace) -> None:
         else:
             raise ContractFailure("Charity-Admin durfte globale Rolle vergeben")
 
-        if not await administration.add_global_role(
-            system,
-            KLARA_ID,
-            GlobalRole.FINANCE_READER,
-            request_id="poc040:global-role:grant",
-        ):
-            raise ContractFailure("globale Rolle wurde nicht hinzugefügt")
-        if await administration.add_global_role(
-            system,
-            KLARA_ID,
-            GlobalRole.FINANCE_READER,
-            request_id="poc040:global-role:duplicate",
-        ):
-            raise ContractFailure("doppelte globale Rolle wurde erneut angelegt")
-
-        membership = ActionMembership(
-            id=TEMPORARY_MEMBERSHIP_ID,
-            action_id=FOREIGN_ACTION_ID,
-            action_name="Krapfentaxi Nord 2026",
-            user_id=KLARA_ID,
-            role=ActionRole.FINANCE_READER,
-            active_from=now,
+        klara_revision = int(
+            await pool.fetchval(
+                "SELECT revision FROM user_account WHERE id = $1",
+                KLARA_ID,
+            )
         )
-        if not await administration.add_action_membership(
+        global_grant = await administration.add_global_role(
             system,
-            membership,
+            KLARA_ID,
+            GlobalRole.FINANCE_READER,
+            enabled=True,
+            expected_revision=klara_revision,
+            idempotency_key="poc040:global-role:grant",
+            request_id="poc040:global-role:grant",
+        )
+        if not global_grant.enabled:
+            raise ContractFailure("globale Rolle wurde nicht hinzugefügt")
+        global_replay = await administration.add_global_role(
+            system,
+            KLARA_ID,
+            GlobalRole.FINANCE_READER,
+            enabled=True,
+            expected_revision=klara_revision,
+            idempotency_key="poc040:global-role:grant",
+            request_id="poc040:global-role:grant:replay",
+        )
+        if not global_replay.replayed:
+            raise ContractFailure("globale Rollenänderung ist nicht wiederholbar")
+
+        membership_grant = await administration.add_action_membership(
+            system,
+            KLARA_ID,
+            FOREIGN_ACTION_ID,
+            ActionRole.FINANCE_READER,
+            enabled=True,
+            expected_revision=global_grant.revision,
+            idempotency_key="poc040:membership:grant",
             request_id="poc040:membership:grant",
-        ):
+        )
+        if not membership_grant.enabled:
             raise ContractFailure("zweite Aktionsrolle wurde nicht hinzugefügt")
-        if await administration.add_action_membership(
+        membership_replay = await administration.add_action_membership(
             system,
-            membership,
-            request_id="poc040:membership:duplicate",
-        ):
-            raise ContractFailure("doppelte Aktionsrolle wurde erneut angelegt")
+            KLARA_ID,
+            FOREIGN_ACTION_ID,
+            ActionRole.FINANCE_READER,
+            enabled=True,
+            expected_revision=global_grant.revision,
+            idempotency_key="poc040:membership:grant",
+            request_id="poc040:membership:grant:replay",
+        )
+        if not membership_replay.replayed:
+            raise ContractFailure("Aktionsrollenänderung ist nicht wiederholbar")
 
         klara_identity_with_roles = await repository.principal_for_session(
             hashlib.sha256(tokens["KLARA_SESSION"].encode()).hexdigest(),
-            now=now,
+            now=datetime.now(timezone.utc),
         )
         if klara_identity_with_roles is None:
             raise ContractFailure(
@@ -469,19 +1158,31 @@ async def run(arguments: argparse.Namespace) -> None:
                 ):
                     raise ContractFailure(f"{persona} erhielt Mitgliederlisten-Zugriff")
 
-        if not await administration.remove_action_membership(
+        membership_revoke = await administration.add_action_membership(
             system,
-            TEMPORARY_MEMBERSHIP_ID,
+            KLARA_ID,
+            FOREIGN_ACTION_ID,
+            ActionRole.FINANCE_READER,
+            enabled=False,
+            expected_revision=membership_grant.revision,
+            idempotency_key="poc040:membership:revoke",
             request_id="poc040:membership:revoke",
-        ):
+        )
+        if membership_revoke.enabled:
             raise ContractFailure("temporäre Aktionsrolle wurde nicht entfernt")
-        if not await administration.remove_global_role(
+        global_revoke = await administration.add_global_role(
             system,
             KLARA_ID,
             GlobalRole.FINANCE_READER,
+            enabled=False,
+            expected_revision=membership_revoke.revision,
+            idempotency_key="poc040:global-role:revoke",
             request_id="poc040:global-role:revoke",
-        ):
+        )
+        if global_revoke.enabled:
             raise ContractFailure("temporäre globale Rolle wurde nicht entfernt")
+
+        await prove_role_administration(pool, base_url=base_url, tokens=tokens)
 
         async with httpx.AsyncClient(base_url=base_url, timeout=15) as client:
             system_cookies = {
@@ -945,6 +1646,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 in {
                     "SYSTEM_SESSION",
                     "SYSTEM_STALE_SESSION",
+                    "SYSTEM_ROLE_STALE_SESSION",
                     "KLARA_SESSION",
                     "ANNA_SESSION",
                     "FINN_SESSION",
