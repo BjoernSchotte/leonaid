@@ -58,10 +58,18 @@ RATE_LIMITS: Final = {
         10,
         timedelta(minutes=10),
     ),
+    ("POST", "/api/v1/email-changes/confirm"): RateLimitPolicy(
+        "email-change.confirm",
+        10,
+        timedelta(minutes=10),
+    ),
 }
 
 INVITATION_REISSUE_PATH: Final = re.compile(
     r"^/api/v1/invitations/[0-9a-fA-F-]{36}/(resend|correct-address)$"
+)
+MEMBER_EMAIL_CHANGE_PATH: Final = re.compile(
+    r"^/api/v1/identity/members/[0-9a-fA-F-]{36}/email-change$"
 )
 
 
@@ -139,6 +147,16 @@ async def rate_limit_violation(
     ):
         policy = RateLimitPolicy(
             "invitation.reissue",
+            5,
+            timedelta(hours=1),
+        )
+    if (
+        policy is None
+        and request.method == "POST"
+        and MEMBER_EMAIL_CHANGE_PATH.fullmatch(request.url.path)
+    ):
+        policy = RateLimitPolicy(
+            "email-change.request",
             5,
             timedelta(hours=1),
         )

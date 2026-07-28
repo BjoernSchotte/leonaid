@@ -2365,6 +2365,51 @@
         "title": "ConfiguredOfferingResponse",
         "type": "object"
       },
+      "ConfirmEmailChangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "magicToken": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Magictoken"
+          }
+        },
+        "title": "ConfirmEmailChangeRequest",
+        "type": "object"
+      },
       "CopyCharityActionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2653,6 +2698,22 @@
           "lines"
         ],
         "title": "CreateCommitmentRequest",
+        "type": "object"
+      },
+      "CreateEmailChangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "newEmail": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Newemail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "newEmail"
+        ],
+        "title": "CreateEmailChangeRequest",
         "type": "object"
       },
       "CreateInvitationRequest": {
@@ -3271,6 +3332,48 @@
           "details"
         ],
         "title": "DependencyStatusResponse",
+        "type": "object"
+      },
+      "EmailChangeConfirmationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "revokedSessionCount": {
+            "minimum": 0.0,
+            "title": "Revokedsessioncount",
+            "type": "integer"
+          },
+          "status": {
+            "const": "confirmed",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "revokedSessionCount"
+        ],
+        "title": "EmailChangeConfirmationResponse",
+        "type": "object"
+      },
+      "EmailChangeDispatchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "changeId": {
+            "format": "uuid",
+            "title": "Changeid",
+            "type": "string"
+          },
+          "status": {
+            "const": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeId",
+          "status"
+        ],
+        "title": "EmailChangeDispatchResponse",
         "type": "object"
       },
       "FeatureFlagAdminListResponse": {
@@ -14945,6 +15048,77 @@
         ]
       }
     },
+    "/api/v1/email-changes/confirm": {
+      "post": {
+        "operationId": "confirmEmailChange",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmEmailChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChangeConfirmationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Confirm Email Change",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/api/v1/feature-flags/evaluations": {
       "get": {
         "operationId": "getFeatureFlagEvaluations",
@@ -15118,6 +15292,119 @@
           }
         },
         "summary": "Current Identity",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/identity/members/{user_id}/email-change": {
+      "post": {
+        "operationId": "createMemberEmailChange",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmailChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChangeDispatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Create Member Email Change",
         "tags": [
           "identity"
         ]

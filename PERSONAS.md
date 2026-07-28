@@ -152,6 +152,11 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 
 - Docker-Compose-Deployment, Secrets und Integrationen betreiben;
 - Benutzer, globale Rollen, Aktionsrollen und Sitzungen verwalten;
+- offene, angenommene, abgelaufene und widerrufene Einladungen im jeweils
+  erlaubten Aktionsscope nachvollziehen, widerrufen oder kontrolliert neu
+  versenden;
+- eine falsche Login-E-Mail nach frischer Anmeldung als Pending Change
+  korrigieren, ohne die bisherige Adresse vor der Bestätigung zu deaktivieren;
 - Twenty, PostgreSQL, RustFS und Mail-Relay konfigurieren;
 - katalogisierte Feature-Flags für kontrollierte Rollouts ein- und
   ausschalten sowie deren Revision und Wirkung prüfen;
@@ -166,7 +171,10 @@ Die Mandantentrennung erfolgt durch getrennte Installationen.
 alltägliche Fachrolle verwendet werden. Kritische Aktionen benötigen eine
 frische Anmeldung und Audit. Feature-Flags verändern Sichtbarkeit oder
 Rollout, niemals Rollen- oder Datensatzberechtigungen. Der letzte aktive
-System-Admin kann nicht entfernt werden.
+System-Admin kann nicht entfernt werden. Mitglieder können ihre Login-E-Mail
+im Pilot nicht selbst ändern. Ein vom System-Admin begonnener Wechsel wird erst
+nach Bestätigung durch Link oder Code an der neuen Adresse aktiv und widerruft
+nur die Sitzungen des betroffenen Kontos.
 
 **Oberfläche:** Systembereich der Web-App einschließlich geschütztem
 Datenschutz-Arbeitsbereich und UI-Prüfkatalog plus versionierte

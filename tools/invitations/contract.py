@@ -25,7 +25,11 @@ KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 FOREIGN_ACTION_ID = UUID("20000000-0000-4000-8000-000000000003")
 CODE_USER_ID = UUID("10000000-0000-4000-8000-000000000041")
+EMAIL_CHANGE_USER_ID = UUID("10000000-0000-4000-8000-000000000042")
+UI_EMAIL_CONFIRM_USER_ID = UUID("10000000-0000-4000-8000-000000000043")
+UI_EMAIL_START_USER_ID = UUID("10000000-0000-4000-8000-000000000044")
 EXPIRED_INVITATION_ID = UUID("41000000-0000-4000-8000-000000000099")
+EXPIRED_EMAIL_CHANGE_ID = UUID("71000000-0000-4000-8000-000000000099")
 LINK_EMAIL = "link-pilot@leonaid.invalid"
 CODE_EMAIL = "code-pilot@leonaid.invalid"
 REVOKED_EMAIL = "revoked-pilot@leonaid.invalid"
@@ -36,7 +40,14 @@ UI_RESEND_EMAIL = "ui-resend-pilot@leonaid.invalid"
 UI_CORRECT_EMAIL = "ui-correct-pilot@leonaid.invalid"
 UI_REVOKE_EMAIL = "ui-revoke-pilot@leonaid.invalid"
 FOREIGN_EMAIL = "foreign-lifecycle-pilot@leonaid.invalid"
+EMAIL_CHANGE_OLD = "email-change-old@leonaid.invalid"
+EMAIL_CHANGE_NEW = "email-change-new@leonaid.invalid"
+UI_EMAIL_CONFIRM_OLD = "ui-email-confirm-old@leonaid.invalid"
+UI_EMAIL_CONFIRM_NEW = "ui-email-confirm-new@leonaid.invalid"
+UI_EMAIL_START_OLD = "ui-email-start-old@leonaid.invalid"
+EXPIRED_EMAIL_CHANGE_NEW = "expired-email-change@leonaid.invalid"
 TOKEN_PATTERN = re.compile(r"/invite\?token=([A-Za-z0-9_-]{32,256})")
+EMAIL_CHANGE_TOKEN_PATTERN = re.compile(r"/email-change\?token=([A-Za-z0-9_-]{32,256})")
 CODE_PATTERN = re.compile(r"\bCode ([0-9]{6})\b")
 
 
@@ -173,6 +184,14 @@ def credentials_from_mail(text: str) -> tuple[str, str]:
     return token.group(1), code.group(1)
 
 
+def email_change_credentials_from_mail(text: str) -> tuple[str, str]:
+    token = EMAIL_CHANGE_TOKEN_PATTERN.search(text)
+    code = CODE_PATTERN.search(text)
+    if token is None or code is None:
+        raise ContractFailure("E-Mail-Korrektur enthält nicht Link und Code")
+    return token.group(1), code.group(1)
+
+
 async def require_invalid(
     response: httpx.Response,
     label: str,
@@ -245,8 +264,71 @@ async def run(arguments: argparse.Namespace) -> None:
             CODE_EMAIL,
             now,
         )
+        await connection.executemany(
+            """
+            INSERT INTO user_account (
+                id, email, display_name, status,
+                email_verified_at, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, 'active', $4, $4, $4)
+            """,
+            (
+                (
+                    EMAIL_CHANGE_USER_ID,
+                    EMAIL_CHANGE_OLD,
+                    "E-Mail Wechsel Real",
+                    now,
+                ),
+                (
+                    UI_EMAIL_CONFIRM_USER_ID,
+                    UI_EMAIL_CONFIRM_OLD,
+                    "E-Mail Bestätigung UI",
+                    now,
+                ),
+                (
+                    UI_EMAIL_START_USER_ID,
+                    UI_EMAIL_START_OLD,
+                    "E-Mail Korrektur UI",
+                    now,
+                ),
+            ),
+        )
+        email_session_one = await create_session(
+            connection,
+            EMAIL_CHANGE_USER_ID,
+            now=now,
+        )
+        email_session_two = await create_session(
+            connection,
+            EMAIL_CHANGE_USER_ID,
+            now=now,
+        )
         system_session = await create_session(connection, SYSTEM_ID, now=now)
         klara_session = await create_session(connection, KLARA_ID, now=now)
+        expired_email_token = secrets.token_urlsafe(32)
+        await connection.execute(
+            """
+            INSERT INTO email_change_request (
+              id, user_id, requested_by_user_id,
+              old_email_snapshot, new_email_snapshot,
+              display_name_snapshot, status, token_digest, code_digest,
+              expires_at, created_at, updated_at
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, 'E-Mail Korrektur UI', 'pending',
+              $6, $7, $8, $9, $9
+            )
+            """,
+            EXPIRED_EMAIL_CHANGE_ID,
+            UI_EMAIL_START_USER_ID,
+            SYSTEM_ID,
+            UI_EMAIL_START_OLD,
+            EXPIRED_EMAIL_CHANGE_NEW,
+            hashlib.sha256(expired_email_token.encode()).hexdigest(),
+            hashlib.sha256(b"expired-email-change-code").hexdigest(),
+            now - timedelta(minutes=1),
+            now - timedelta(minutes=31),
+        )
     finally:
         await connection.close()
 
@@ -255,6 +337,19 @@ async def run(arguments: argparse.Namespace) -> None:
         httpx.AsyncClient(base_url=mailpit_url, timeout=10) as mailpit,
     ):
         await mailpit.delete("/api/v1/messages")
+
+        expired_email_change = await client.post(
+            "/api/v1/email-changes/confirm",
+            json={"magicToken": expired_email_token},
+        )
+        if (
+            expired_email_change.status_code != 400
+            or expired_email_change.json().get("error", {}).get("code")
+            != "email_change_invalid"
+        ):
+            raise ContractFailure(
+                "Abgelaufene E-Mail-Bestätigung wurde nicht generisch abgewiesen"
+            )
 
         klara_options = await client.get(
             "/api/v1/invitations/options",
@@ -765,6 +860,134 @@ async def run(arguments: argparse.Namespace) -> None:
         finally:
             await connection.close()
 
+        await mailpit.delete("/api/v1/messages")
+        login_before_change = await client.post(
+            "/api/v1/auth/login",
+            json={"email": EMAIL_CHANGE_OLD},
+        )
+        if login_before_change.status_code != 202:
+            raise ContractFailure("Login-Challenge vor E-Mail-Wechsel fehlt")
+        await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
+        await mailpit.delete("/api/v1/messages")
+        requested_change = await client.post(
+            f"/api/v1/identity/members/{EMAIL_CHANGE_USER_ID}/email-change",
+            cookies=cookies(system_session),
+            headers={"X-Request-ID": f"pilot013:email-change:{uuid4()}"},
+            json={"newEmail": EMAIL_CHANGE_NEW},
+        )
+        if requested_change.status_code != 202:
+            raise ContractFailure(
+                "E-Mail-Korrektur konnte nicht angefordert werden: "
+                f"{requested_change.status_code} {requested_change.text[:300]}"
+            )
+        old_notice_text, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
+        new_confirmation_text, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_NEW)
+        if "bleibt aktiv" not in old_notice_text:
+            raise ContractFailure("Alte Adresse erhielt keinen Sicherheitshinweis")
+        email_change_token, email_change_code = email_change_credentials_from_mail(
+            new_confirmation_text
+        )
+        duplicate_change = await client.post(
+            f"/api/v1/identity/members/{EMAIL_CHANGE_USER_ID}/email-change",
+            cookies=cookies(system_session),
+            json={"newEmail": "duplicate-email-change@leonaid.invalid"},
+        )
+        if (
+            duplicate_change.status_code != 409
+            or duplicate_change.json().get("error", {}).get("code")
+            != "email_change_already_pending"
+        ):
+            raise ContractFailure(
+                "Konkurrierende E-Mail-Korrektur wurde nicht abgewiesen"
+            )
+        occupied_change = await client.post(
+            f"/api/v1/identity/members/{UI_EMAIL_START_USER_ID}/email-change",
+            cookies=cookies(system_session),
+            json={"newEmail": "system-admin@leonaid.invalid"},
+        )
+        if (
+            occupied_change.status_code != 409
+            or occupied_change.json().get("error", {}).get("code")
+            != "email_change_address_in_use"
+        ):
+            raise ContractFailure("Belegte E-Mail-Adresse wurde nicht abgewiesen")
+        forbidden_change = await client.post(
+            f"/api/v1/identity/members/{EMAIL_CHANGE_USER_ID}/email-change",
+            cookies=cookies(klara_session),
+            json={"newEmail": "forbidden-change@leonaid.invalid"},
+        )
+        if forbidden_change.status_code != 403:
+            raise ContractFailure("Charity-Admin konnte Login-E-Mail korrigieren")
+        still_active = await client.get(
+            "/api/v1/identity/me",
+            cookies=cookies(email_session_one),
+        )
+        if still_active.status_code != 200:
+            raise ContractFailure("Alte Adresse wurde vor Bestätigung deaktiviert")
+
+        await mailpit.delete("/api/v1/messages")
+        confirmed_change = await client.post(
+            "/api/v1/email-changes/confirm",
+            headers={"User-Agent": "LeonAid-PILOT013-email-change-confirm"},
+            cookies=cookies(system_session),
+            json={"email": EMAIL_CHANGE_NEW, "code": email_change_code},
+        )
+        if confirmed_change.status_code != 200 or confirmed_change.json() != {
+            "status": "confirmed",
+            "revokedSessionCount": 2,
+        }:
+            raise ContractFailure(
+                "E-Mail-Korrektur wurde nicht atomar bestätigt: "
+                f"{confirmed_change.status_code} {confirmed_change.text[:300]}"
+            )
+        if confirmed_change.headers.get("set-cookie") is not None:
+            raise ContractFailure(
+                "E-Mail-Bestätigung löschte die unabhängige Browser-Sitzung"
+            )
+        admin_still_active = await client.get(
+            "/api/v1/identity/me",
+            cookies=cookies(system_session),
+        )
+        if admin_still_active.status_code != 200:
+            raise ContractFailure(
+                "E-Mail-Bestätigung widerrief die unabhängige Admin-Sitzung"
+            )
+        replay = await client.post(
+            "/api/v1/email-changes/confirm",
+            headers={"User-Agent": "LeonAid-PILOT013-email-change-replay"},
+            json={"magicToken": email_change_token},
+        )
+        if (
+            replay.status_code != 400
+            or replay.json().get("error", {}).get("code") != "email_change_invalid"
+        ):
+            raise ContractFailure("E-Mail-Bestätigung war wiederverwendbar")
+        for old_session in (email_session_one, email_session_two):
+            denied = await client.get(
+                "/api/v1/identity/me",
+                cookies=cookies(old_session),
+            )
+            if denied.status_code != 401:
+                raise ContractFailure("Alte Sitzung blieb nach E-Mail-Wechsel aktiv")
+        completed_old, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_OLD)
+        completed_new, _ = await wait_for_mail(mailpit, EMAIL_CHANGE_NEW)
+        if "wurde bestätigt und geändert" not in completed_old or (
+            "wurde bestätigt und geändert" not in completed_new
+        ):
+            raise ContractFailure("Abschlussinformation erreichte nicht beide Adressen")
+
+        await mailpit.delete("/api/v1/messages")
+        ui_confirm_change = await client.post(
+            f"/api/v1/identity/members/{UI_EMAIL_CONFIRM_USER_ID}/email-change",
+            cookies=cookies(system_session),
+            headers={"X-Request-ID": f"pilot013:ui-email-confirm:{uuid4()}"},
+            json={"newEmail": UI_EMAIL_CONFIRM_NEW},
+        )
+        if ui_confirm_change.status_code != 202:
+            raise ContractFailure("UI-Bestätigungsfixture konnte nicht erstellt werden")
+        ui_confirm_text, _ = await wait_for_mail(mailpit, UI_EMAIL_CONFIRM_NEW)
+        ui_email_confirm_token, _ = email_change_credentials_from_mail(ui_confirm_text)
+
     connection = await asyncpg.connect(database_url, timeout=10)
     try:
         await verify_accepted(
@@ -785,6 +1008,10 @@ async def run(arguments: argparse.Namespace) -> None:
             "SELECT status FROM action_invitation WHERE id = $1",
             EXPIRED_INVITATION_ID,
         )
+        expired_email_change_status = await connection.fetchval(
+            "SELECT status FROM email_change_request WHERE id = $1",
+            EXPIRED_EMAIL_CHANGE_ID,
+        )
         revoked_status = await connection.fetchval(
             "SELECT status FROM action_invitation WHERE id = $1",
             revoked_id,
@@ -797,14 +1024,53 @@ async def run(arguments: argparse.Namespace) -> None:
             """,
             code_limit_id,
         )
-        if expired_status != "expired" or revoked_status != "revoked":
-            raise ContractFailure("Terminale Einladungsstatus fehlen")
+        if (
+            expired_status != "expired"
+            or revoked_status != "revoked"
+            or expired_email_change_status != "expired"
+        ):
+            raise ContractFailure(
+                "Terminale Einladungs- oder E-Mail-Änderungsstatus fehlen"
+            )
         if code_limit is None or dict(code_limit) != {
             "status": "revoked",
             "failed_code_attempts": 5,
             "failed": True,
         }:
             raise ContractFailure("Fehlversuchssperre wurde nicht persistiert")
+        email_change_state = await connection.fetchrow(
+            """
+            SELECT
+              account.email,
+              change.status,
+              (
+                SELECT count(*)
+                FROM user_session
+                WHERE user_id = account.id
+                  AND revoked_at IS NULL
+              ) AS active_sessions,
+              (
+                SELECT count(*)
+                FROM login_challenge
+                WHERE user_id = account.id
+                  AND status = 'pending'
+              ) AS pending_challenges
+            FROM user_account AS account
+            JOIN email_change_request AS change
+              ON change.user_id = account.id
+            WHERE account.id = $1
+            """,
+            EMAIL_CHANGE_USER_ID,
+        )
+        if email_change_state is None or dict(email_change_state) != {
+            "email": EMAIL_CHANGE_NEW,
+            "status": "confirmed",
+            "active_sessions": 0,
+            "pending_challenges": 0,
+        }:
+            raise ContractFailure(
+                "E-Mail-Wechsel, Sessionentzug und Challengeentzug waren nicht atomar"
+            )
         audit_payloads = await connection.fetch(
             """
             SELECT event_type, payload::text AS payload
@@ -830,6 +1096,9 @@ async def run(arguments: argparse.Namespace) -> None:
             lifecycle_token,
             reissued_token,
             corrected_token,
+            email_change_token,
+            email_change_code,
+            ui_email_confirm_token,
         }
         if any(
             secret in str(row["payload"])
@@ -850,6 +1119,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 f"UI_RESEND_INVITATION_ID={ui_resend_id}",
                 f"UI_CORRECT_INVITATION_ID={ui_correct_id}",
                 f"UI_REVOKE_INVITATION_ID={ui_revoke_id}",
+                f"UI_EMAIL_CONFIRM_TOKEN={ui_email_confirm_token}",
                 "",
             )
         ),
@@ -859,7 +1129,8 @@ async def run(arguments: argparse.Namespace) -> None:
     print(
         "invitation-contract: Link, Code, Ablauf, Widerruf, atomare "
         "Aktivierung, Lifecycle-Liste, Neuversand, Adresskorrektur und "
-        "echter Outbox/SMTP-Versand bewiesen"
+        "bestätigten Login-E-Mail-Wechsel mit Sessionentzug sowie echten "
+        "Outbox/SMTP-Versand bewiesen"
     )
 
 

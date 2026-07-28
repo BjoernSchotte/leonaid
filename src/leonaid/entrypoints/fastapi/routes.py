@@ -43,6 +43,7 @@ from leonaid.application.documents import (
     GeneratedDocumentReferenceKind,
     GeneratedDocumentService,
 )
+from leonaid.application.email_changes import EmailChangeService
 from leonaid.application.dashboard import (
     DashboardService,
     DashboardSnapshot,
@@ -176,6 +177,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     BeneficiaryDraftRequest,
     CompleteFreshLoginRequest,
     CompleteLoginRequest,
+    ConfirmEmailChangeRequest,
     CommitmentBuyerResponse,
     CommitmentCaptureContextResponse,
     CommitmentCurrencyTotalResponse,
@@ -187,6 +189,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     ConfiguredOfferingResponse,
     CopyCharityActionRequest,
     CorrectInvitationAddressRequest,
+    CreateEmailChangeRequest,
     CreateCommitmentRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
@@ -204,6 +207,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     AcquirerDashboardResponse,
     CharityAdminDashboardResponse,
     ERROR_RESPONSES,
+    EmailChangeConfirmationResponse,
+    EmailChangeDispatchResponse,
     FreshLoginStatusResponse,
     FeatureFlagAdminListResponse,
     FeatureFlagAdminResponse,
@@ -335,6 +340,10 @@ def identity_administration_service(
 
 def invitation_service(request: Request) -> InvitationService:
     return cast(InvitationService, request.app.state.invitation_service)
+
+
+def email_change_service(request: Request) -> EmailChangeService:
+    return cast(EmailChangeService, request.app.state.email_change_service)
 
 
 def authentication_service(request: Request) -> SessionService:
@@ -3752,3 +3761,55 @@ async def revoke_invitation(
     )
     response.headers["Cache-Control"] = "no-store"
     return InvitationRevocationResponse(status="revoked")
+
+
+@router.post(
+    "/api/v1/identity/members/{user_id}/email-change",
+    operation_id="createMemberEmailChange",
+    response_model=EmailChangeDispatchResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["identity"],
+)
+async def create_member_email_change(
+    user_id: UUID,
+    body: CreateEmailChangeRequest,
+    request: Request,
+    response: Response,
+) -> EmailChangeDispatchResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    dispatched = await email_change_service(request).request(
+        actor,
+        user_id,
+        new_email=body.new_email,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return EmailChangeDispatchResponse.model_validate(dispatched)
+
+
+@router.post(
+    "/api/v1/email-changes/confirm",
+    operation_id="confirmEmailChange",
+    response_model=EmailChangeConfirmationResponse,
+    responses=ERROR_RESPONSES,
+    tags=["identity"],
+)
+async def confirm_email_change(
+    body: ConfirmEmailChangeRequest,
+    request: Request,
+    response: Response,
+) -> EmailChangeConfirmationResponse:
+    if body.magic_token is not None:
+        confirmed = await email_change_service(request).confirm_magic(
+            body.magic_token,
+            request_id=request_id(request),
+        )
+    else:
+        confirmed = await email_change_service(request).confirm_code(
+            str(body.email),
+            cast(str, body.code),
+            request_id=request_id(request),
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return EmailChangeConfirmationResponse.model_validate(confirmed)

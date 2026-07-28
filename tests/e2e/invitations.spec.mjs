@@ -7,6 +7,7 @@ const systemSession = process.env.SYSTEM_SESSION;
 const uiResendInvitationId = process.env.UI_RESEND_INVITATION_ID;
 const uiCorrectInvitationId = process.env.UI_CORRECT_INVITATION_ID;
 const uiRevokeInvitationId = process.env.UI_REVOKE_INVITATION_ID;
+const uiEmailConfirmToken = process.env.UI_EMAIL_CONFIRM_TOKEN;
 
 if (
   !baseUrl ||
@@ -15,7 +16,8 @@ if (
   !systemSession ||
   !uiResendInvitationId ||
   !uiCorrectInvitationId ||
-  !uiRevokeInvitationId
+  !uiRevokeInvitationId ||
+  !uiEmailConfirmToken
 ) {
   throw new Error("POC-041 Browserumgebung ist unvollständig");
 }
@@ -178,6 +180,81 @@ test("Öffentliche Code-Eingabe ist mobil bedienbar", async ({ browser }) => {
     await expect(page.locator('[data-testid="accept-submit"]')).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/invitation-code-mobile.png`,
+      fullPage: true,
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+test("System-Admin fordert E-Mail-Korrektur verständlich an", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 1000 },
+    ignoreHTTPSErrors: true,
+  });
+  await context.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: systemSession,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    },
+  ]);
+  const page = await context.newPage();
+  try {
+    await page.goto(`${baseUrl}/admin/members`);
+    await page
+      .getByPlaceholder("Name oder Login-E-Mail")
+      .fill("E-Mail Korrektur UI");
+    const card = page
+      .getByTestId("member-card")
+      .filter({ hasText: "E-Mail Korrektur UI" });
+    await expect(card).toHaveCount(1);
+    await card.click();
+    await page.getByTestId("member-email-change-open").click();
+    await page
+      .getByTestId("member-email-change-input")
+      .fill("ui-email-start-new@leonaid.invalid");
+    await page.getByTestId("member-email-change-submit").click();
+    await expect(page.getByTestId("member-email-change-success")).toContainText(
+      "wartet auf Bestätigung",
+    );
+    await page.screenshot({
+      path: `${artifactDirectory}/email-change-admin.png`,
+      fullPage: true,
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+test("Neue Login-E-Mail wird öffentlich bestätigt", async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    ignoreHTTPSErrors: true,
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(
+      `${baseUrl}/email-change?token=${encodeURIComponent(uiEmailConfirmToken)}`,
+    );
+    await expect(page).toHaveURL(`${baseUrl}/email-change`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Neue Login-E-Mail bestätigen",
+    );
+    await page.getByTestId("email-change-submit").click();
+    await expect(page.locator("#email-change-status")).toContainText(
+      "Neue Login-E-Mail bestätigt",
+    );
+    await expect(
+      page.getByRole("link", { name: "Mit neuer E-Mail anmelden" }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/email-change-confirm-mobile.png`,
       fullPage: true,
     });
   } finally {

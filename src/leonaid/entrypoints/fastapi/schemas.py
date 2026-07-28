@@ -405,6 +405,44 @@ class InvitationRevocationResponse(TransportModel):
     status: Literal["revoked"]
 
 
+class CreateEmailChangeRequest(TransportModel):
+    new_email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("new_email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalized_invitation_email(value)
+
+
+class EmailChangeDispatchResponse(TransportModel):
+    change_id: UUID
+    status: Literal["pending"]
+
+
+class ConfirmEmailChangeRequest(TransportModel):
+    magic_token: str | None = Field(default=None, min_length=32, max_length=256)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
+    code: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalized_invitation_email(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def exactly_one_credential(self) -> ConfirmEmailChangeRequest:
+        magic = self.magic_token is not None
+        code = self.email is not None and self.code is not None
+        if magic == code or (self.email is None) != (self.code is None):
+            raise ValueError("Magic Token oder E-Mail mit Code ist erforderlich.")
+        return self
+
+
+class EmailChangeConfirmationResponse(TransportModel):
+    status: Literal["confirmed"]
+    revoked_session_count: int = Field(ge=0)
+
+
 class RequestLoginRequest(TransportModel):
     email: str = Field(min_length=3, max_length=320)
 

@@ -30,6 +30,7 @@ from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
+from leonaid.adapters.postgres.email_changes import AsyncpgEmailChangeRepository
 from leonaid.adapters.postgres.feature_flags import AsyncpgFeatureFlagRepository
 from leonaid.adapters.postgres.identity import AsyncpgIdentityRepository
 from leonaid.adapters.postgres.invoice_deliveries import (
@@ -61,6 +62,7 @@ from leonaid.application.actions import CharityActionService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.dashboard import DashboardService
+from leonaid.application.email_changes import EmailChangeService
 from leonaid.application.errors import (
     ApplicationError,
     AuthenticationRequired,
@@ -246,6 +248,13 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.invitation_service = InvitationService(
             AsyncpgInvitationRepository(pool),
+            mail_payload,
+            hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
+            public_base_url=str(settings.public_base_url),
+            ttl=timedelta(minutes=settings.invitation_ttl_minutes),
+        )
+        application.state.email_change_service = EmailChangeService(
+            AsyncpgEmailChangeRepository(pool),
             mail_payload,
             hmac_secret=settings.invitation_hmac_secret.get_secret_value(),
             public_base_url=str(settings.public_base_url),

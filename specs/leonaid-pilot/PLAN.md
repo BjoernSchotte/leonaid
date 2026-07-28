@@ -516,29 +516,32 @@ Abhängigkeiten: PILOT-010, PILOT-011, PILOT-012, PILOT-020
 
 Akzeptanzkriterien:
 
-- [ ] Mitgliederseite listet offene, angenommene, abgelaufene und widerrufene
+- [x] Mitgliederseite listet offene, angenommene, abgelaufene und widerrufene
       Einladungen im autorisierten Aktionsscope.
-- [ ] Berechtigte Rolle kann offene Einladung widerrufen und mit begrenzter
+- [x] Berechtigte Rolle kann offene Einladung widerrufen und mit begrenzter
       Rate erneut senden.
-- [ ] Falsche Adresse einer offenen Einladung wird durch Widerruf plus neue
+- [x] Falsche Adresse einer offenen Einladung wird durch Widerruf plus neue
       Einladung korrigiert, nie durch Mutation der Historie.
-- [ ] Aktive Login-E-Mail kann nur der System-Admin über einen
+- [x] Aktive Login-E-Mail kann nur der System-Admin über einen
       Fresh-Login-geschützten Pending-Change-Workflow korrigieren.
-- [ ] Die neue Adresse muss Link oder Code bestätigen; erst dann wird sie
+- [x] Die neue Adresse muss Link oder Code bestätigen; erst dann wird sie
       atomar aktiv und alle Sessions werden widerrufen.
-- [ ] Bereits belegte Adresse, abgelaufene Bestätigung und konkurrierende
+- [x] Bereits belegte Adresse, abgelaufene Bestätigung und konkurrierende
       Änderung werden verständlich abgewiesen.
-- [ ] Alte und neue Adresse erhalten angemessene Sicherheitsinformation,
+- [x] Alte und neue Adresse erhalten angemessene Sicherheitsinformation,
       ohne Tokens oder unnötige Personendaten.
-- [ ] Mitglieder können ihre E-Mail weiterhin nicht selbst ändern.
+- [x] Mitglieder können ihre E-Mail weiterhin nicht selbst ändern.
 
 Tests/Nachweise:
 
-- [ ] Unit-Tests prüfen Einladungslifecycle und Pending-Email-Change.
-- [ ] Integrationstest verwendet PostgreSQL, Worker und echten SMTP-Server.
-- [ ] E2E beweist Liste, Resend, Revoke, Korrektur, Bestätigung und
+- [x] Unit-Tests prüfen Einladungslifecycle und Pending-Email-Change.
+- [x] Integrationstest verwendet PostgreSQL, Worker und echten SMTP-Server.
+- [x] E2E beweist Liste, Resend, Revoke, Korrektur, Bestätigung und
       Sessionentzug.
-- [ ] Abuse-Test prüft Enumeration, Rate Limits und Token-Replay.
+- [x] Abuse-Test prüft Enumeration, Rate Limits und Token-Replay.
+
+Technischer Nachweis:
+[`proofs/PILOT-013.md`](proofs/PILOT-013.md)
 
 ## 8. M2 – Produktive E-Mail
 

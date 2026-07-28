@@ -3,6 +3,7 @@ import {
   ArrowRight01Icon,
   Delete02Icon,
   LockIcon,
+  NoteEditIcon,
   Search01Icon,
   UserAdd01Icon,
   UserCheck01Icon,
@@ -133,6 +134,9 @@ function MemberDetail({
   const [pendingRole, setPendingRole] = useState<RoleCommand>();
   const [roleCommandId, setRoleCommandId] = useState("");
   const [roleSuccessMessage, setRoleSuccessMessage] = useState("");
+  const [emailChangeOpen, setEmailChangeOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState("");
   const detail = useQuery({
     enabled: Boolean(memberId),
     queryFn: () => client.getMember(memberId ?? ""),
@@ -232,6 +236,22 @@ function MemberDetail({
       ]);
     },
   });
+  const emailChange = useMutation({
+    mutationFn: ({
+      email,
+      userId,
+    }: {
+      readonly email: string;
+      readonly userId: string;
+    }) => client.createMemberEmailChange(userId, { newEmail: email }),
+    onSuccess: () => {
+      setEmailChangeOpen(false);
+      setNewEmail("");
+      setEmailChangeSuccess(
+        "Die Korrektur wartet auf Bestätigung. Die bisherige Adresse bleibt bis dahin aktiv; beide Adressen wurden informiert.",
+      );
+    },
+  });
 
   useEffect(() => {
     setPendingStatus(undefined);
@@ -240,8 +260,12 @@ function MemberDetail({
     setPendingRole(undefined);
     setRoleCommandId("");
     setRoleSuccessMessage("");
+    setEmailChangeOpen(false);
+    setNewEmail("");
+    setEmailChangeSuccess("");
     statusChange.reset();
     roleChange.reset();
+    emailChange.reset();
   }, [memberId]);
 
   if (!memberId) {
@@ -301,6 +325,9 @@ function MemberDetail({
     : null;
   const roleError = roleChange.error
     ? actionErrorMessage(roleChange.error)
+    : null;
+  const emailChangeError = emailChange.error
+    ? actionErrorMessage(emailChange.error)
     : null;
   const dialogDescription =
     pendingStatus === "suspended"
@@ -573,6 +600,107 @@ function MemberDetail({
               und werden vollständig protokolliert.
             </p>
           </div>
+          {member.status === "active" ? (
+            <div className="member-email-change">
+              <div>
+                <strong>Login-E-Mail korrigieren</strong>
+                <p>
+                  Die neue Adresse wird erst nach eigener Bestätigung aktiv.
+                  Danach enden alle bisherigen Sitzungen.
+                </p>
+              </div>
+              {emailChangeSuccess ? (
+                <StatusMessage tone="success">
+                  <p data-testid="member-email-change-success">
+                    {emailChangeSuccess}
+                  </p>
+                </StatusMessage>
+              ) : null}
+              {emailChangeError ? (
+                <StatusMessage tone="error">
+                  <strong>
+                    {emailChangeError.conflict
+                      ? "E-Mail-Korrektur nicht möglich"
+                      : "E-Mail-Korrektur fehlgeschlagen"}
+                  </strong>
+                  <p>{emailChangeError.message}</p>
+                </StatusMessage>
+              ) : null}
+              {emailChangeOpen ? (
+                <form
+                  className="member-email-change__form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!newEmail.trim()) return;
+                    emailChange.mutate({
+                      email: newEmail,
+                      userId: member.userId,
+                    });
+                  }}
+                >
+                  <label className="action-field">
+                    <span>Neue Login-E-Mail</span>
+                    <small>
+                      Magic Link und Code gehen an diese Adresse. Die bisherige
+                      Adresse erhält einen Sicherheitshinweis.
+                    </small>
+                    <input
+                      autoComplete="email"
+                      autoFocus
+                      data-testid="member-email-change-input"
+                      onChange={(event) =>
+                        setNewEmail(event.currentTarget.value)
+                      }
+                      required
+                      type="email"
+                      value={newEmail}
+                    />
+                  </label>
+                  <div className="member-access__actions">
+                    <Button
+                      data-testid="member-email-change-submit"
+                      disabled={emailChange.isPending}
+                      type="submit"
+                    >
+                      Bestätigung senden
+                    </Button>
+                    <Button
+                      disabled={emailChange.isPending}
+                      onClick={() => {
+                        setEmailChangeOpen(false);
+                        setNewEmail("");
+                        emailChange.reset();
+                      }}
+                      variant="ghost"
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <Button
+                  data-testid="member-email-change-open"
+                  icon={
+                    <HugeiconsIcon
+                      aria-hidden="true"
+                      icon={NoteEditIcon}
+                      size={18}
+                      strokeWidth={1.8}
+                    />
+                  }
+                  onClick={() => {
+                    setEmailChangeSuccess("");
+                    emailChange.reset();
+                    setNewEmail(member.email);
+                    setEmailChangeOpen(true);
+                  }}
+                  variant="secondary"
+                >
+                  E-Mail korrigieren
+                </Button>
+              )}
+            </div>
+          ) : null}
           {successMessage ? (
             <StatusMessage tone="success">
               <p data-testid="member-status-success">{successMessage}</p>

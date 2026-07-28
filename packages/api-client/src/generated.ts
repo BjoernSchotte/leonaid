@@ -51,12 +51,14 @@ export type CommitmentResponse = { readonly actionId: string; readonly buyer: Co
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
+export type ConfirmEmailChangeRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
 export type CorrectInvitationAddressRequest = { readonly email: string; };
 export type CreateAcquisitionAssignmentRequest = { readonly acquirerUserId: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly templateKey: "blank" | "krapfentaxi"; readonly templateVersion?: number | null; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type CreateCommitmentRequest = { readonly buyer: CommitmentBuyerRequest; readonly invoiceRecipient?: CommitmentInvoiceRecipientRequest | null; readonly lines: Array<CommitmentLineRequest>; readonly readyForReview?: boolean; readonly source: "acquisition" | "admin"; };
+export type CreateEmailChangeRequest = { readonly newEmail: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: "public-order-poc-2026-07"; readonly website?: string | null; };
 export type CrmPartyKind = "company" | "person";
@@ -69,6 +71,8 @@ export type DashboardPipelineResponse = { readonly committed: number; readonly c
 export type DashboardReminderResponse = { readonly overdue: number; readonly today: number; readonly total: number; readonly unscheduled: number; readonly upcoming: number; };
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
+export type EmailChangeConfirmationResponse = { readonly revokedSessionCount: number; readonly status: "confirmed"; };
+export type EmailChangeDispatchResponse = { readonly changeId: string; readonly status: "pending"; };
 export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
 export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly defaultEnabled: boolean; readonly description: string; readonly effect: string; readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice"; readonly revision: number; readonly title: string; readonly updatedAt: string; readonly updatedByUserId: string | null; };
 export type FeatureFlagEvaluationListResponse = { readonly flags: Array<FeatureFlagEvaluationResponse>; readonly surface: "web" | "pwa"; };
@@ -1241,6 +1245,21 @@ export class LeonAidApiClient {
     );
   }
 
+  async confirmEmailChange(
+    body: ConfirmEmailChangeRequest,
+    options: RequestOptions = {},
+  ): Promise<EmailChangeConfirmationResponse> {
+    return this.request<EmailChangeConfirmationResponse>(
+      "/api/v1/email-changes/confirm",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async getFeatureFlagEvaluations(
     queryParameters: { readonly surface?: "web" | "pwa"; } = {},
     options: RequestOptions = {},
@@ -1264,6 +1283,22 @@ export class LeonAidApiClient {
     return this.request<CurrentIdentityResponse>(
       "/api/v1/identity/me",
       { method: "GET" },
+      options,
+    );
+  }
+
+  async createMemberEmailChange(
+    userId: string,
+    body: CreateEmailChangeRequest,
+    options: RequestOptions = {},
+  ): Promise<EmailChangeDispatchResponse> {
+    return this.request<EmailChangeDispatchResponse>(
+      `/api/v1/identity/members/${encodeURIComponent(String(userId))}/email-change`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

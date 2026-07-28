@@ -1,0 +1,138 @@
+---
+import PublicMark from "../components/PublicMark.astro";
+import AuthLayout from "../layouts/AuthLayout.astro";
+
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<AuthLayout title="Neue Login-E-Mail bestätigen">
+  <section class="auth-page">
+    <main class="auth-panel">
+      <PublicMark />
+      <p class="eyebrow">Kontosicherheit</p>
+      <h1>Neue Login-E-Mail bestätigen</h1>
+      <p class="auth-panel__lead" id="email-change-intro">
+        Bestätige die neue Adresse per Link oder mit dem sechsstelligen Code aus
+        deiner E-Mail. Erst danach wird sie aktiv.
+      </p>
+      <form id="email-change-form">
+        <div class="auth-field code-field">
+          <label for="email-change-email">Neue E-Mail</label>
+          <small id="email-change-email-help">
+            Die Adresse, an die der Bestätigungscode gesendet wurde.
+          </small>
+          <input
+            id="email-change-email"
+            aria-describedby="email-change-email-help"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          />
+        </div>
+        <div class="auth-field code-field">
+          <label for="email-change-code">Sechsstelliger Code</label>
+          <small id="email-change-code-help">
+            Verwende den Code aus der zuletzt versendeten Nachricht.
+          </small>
+          <input
+            id="email-change-code"
+            aria-describedby="email-change-code-help"
+            name="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+          />
+        </div>
+        <button data-testid="email-change-submit" type="submit">
+          Neue E-Mail bestätigen
+        </button>
+        <p
+          id="email-change-status"
+          class="auth-panel__status"
+          role="status"
+          aria-live="polite"
+        >
+        </p>
+      </form>
+    </main>
+  </section>
+</AuthLayout>
+
+<script>
+  import { LeonAidApiClient } from "@leonaid/api-client";
+
+  function requiredElement<T extends Element>(selector: string): T {
+    const element = document.querySelector<T>(selector);
+    if (!element) {
+      throw new Error(`LeonAid E-Mail-Bestätigungselement fehlt: ${selector}`);
+    }
+    return element;
+  }
+
+  const form = requiredElement<HTMLFormElement>("#email-change-form");
+  const status = requiredElement<HTMLElement>("#email-change-status");
+  const submit = requiredElement<HTMLButtonElement>(
+    "#email-change-form button",
+  );
+  const token = new URLSearchParams(window.location.search).get("token");
+  const api = new LeonAidApiClient(window.location.origin);
+
+  function control(name: string): HTMLInputElement | null {
+    const item = form.elements.namedItem(name);
+    return item instanceof HTMLInputElement ? item : null;
+  }
+
+  if (token) {
+    document.querySelectorAll<HTMLElement>(".code-field").forEach((field) => {
+      field.hidden = true;
+    });
+    const email = control("email");
+    const code = control("code");
+    if (email) email.required = false;
+    if (code) code.required = false;
+    const introduction = document.querySelector("#email-change-intro");
+    if (introduction) {
+      introduction.textContent =
+        "Der Bestätigungslink ist bereit. Nach der Bestätigung werden alle bisherigen Sitzungen beendet.";
+    }
+    window.history.replaceState({}, "", "/email-change");
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    status.dataset.state = "";
+    status.textContent = "Neue Adresse wird geprüft …";
+    const body = token
+      ? { magicToken: token }
+      : {
+          email: control("email")?.value ?? "",
+          code: control("code")?.value ?? "",
+        };
+    try {
+      const confirmed = await api.confirmEmailChange(body);
+      status.dataset.state = "success";
+      status.textContent = `Neue Login-E-Mail bestätigt. ${confirmed.revokedSessionCount} bisherige ${
+        confirmed.revokedSessionCount === 1
+          ? "Sitzung wurde"
+          : "Sitzungen wurden"
+      } beendet. `;
+      const loginLink = document.createElement("a");
+      loginLink.href = "/login";
+      loginLink.textContent = "Mit neuer E-Mail anmelden";
+      status.append(loginLink);
+      submit.hidden = true;
+      document.querySelectorAll<HTMLElement>(".auth-field").forEach((field) => {
+        field.hidden = true;
+      });
+    } catch {
+      status.dataset.state = "error";
+      status.textContent =
+        "Diese E-Mail-Korrektur ist ungültig oder nicht mehr gültig. Bitte wende dich an einen System-Admin.";
+      submit.disabled = false;
+    }
+  });
+</script>

@@ -104,8 +104,10 @@ PILOT-020 bleibt formal offen:
 - Der reale produktive Relay ist in `PILOT-001` noch nicht ausgewählt.
 - Deshalb können Transportmodus und Zugangsdaten des ausgewählten Providers
   sowie dessen offizieller Sandbox-/Testmodus noch nicht belegt werden.
-- Die E-Mail-Korrektur gehört zu `PILOT-013` und existiert noch nicht; sie
-  kann deshalb noch nicht gegen denselben Outbox-Pfad bewiesen werden.
+- Der providerneutrale Pending-Change-Workflow zur E-Mail-Korrektur ist
+  inzwischen unter `PILOT-013` technisch gegen denselben Outbox-Pfad
+  bewiesen. Sein produktiver Abschluss bleibt von der hier noch offenen
+  Providerkonfiguration und dem externen Zustelllauf abhängig.
 - Die Abhängigkeiten `PILOT-001` und `PILOT-002` sind formal offen.
 
 Diese externen beziehungsweise nachgelagerten Kriterien werden nicht durch

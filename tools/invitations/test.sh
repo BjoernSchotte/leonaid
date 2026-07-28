@@ -107,7 +107,9 @@ mkdir -p "$artifact_directory"
 for screenshot in \
   invitation-charity-admin.png \
   invitation-lifecycle-admin.png \
-  invitation-code-mobile.png; do
+  invitation-code-mobile.png \
+  email-change-admin.png \
+  email-change-confirm-mobile.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "invitation-test: ERROR: Browser-Screenshot fehlt: $screenshot" >&2
     exit 1
