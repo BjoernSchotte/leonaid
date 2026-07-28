@@ -1,8 +1,7 @@
 # LeonAid PoC – technischer Implementierungsplan
 
-Status: POC-000 bis POC-122 vollständig bewiesen; bei POC-123 sind nur die
-fachliche Produktabnahme und der dokumentierte Lauf durch eine unbeteiligte
-technische Person offen
+Status: POC-000 bis POC-123 vollständig bewiesen und vom
+Produktverantwortlichen für den PoC-Schnitt freigegeben
 Primäre Spezifikation:
 [Produkt- und Architekturvorschlag](../produkt-und-architekturvorschlag.md)
 Zentrale Personas und Rollen:
@@ -1505,7 +1504,7 @@ Tests/Nachweise:
 Nachweis:
 [POC-122 – Vollständige Krapfentaxi-Golden-Journey](proofs/POC-122.md).
 
-### [ ] POC-123 PoC-Abnahme, Runbooks und DX-Übergabe abschließen
+### [x] POC-123 PoC-Abnahme, Runbooks und DX-Übergabe abschließen
 
 Abhängigkeiten: POC-102, POC-112, POC-113, POC-114, POC-122
 
@@ -1520,19 +1519,21 @@ Akzeptanzkriterien:
 - [x] Bekannte Grenzen und bewusst verschobene Funktionen sind sichtbar.
 - [x] Keine P0/P1-Defekte und keine ungeklärten kritischen
       Sicherheits-/Datenverlustbefunde bleiben offen.
-- [ ] Produktverantwortlicher nimmt den PoC anhand der Golden Journey ab.
+- [x] Produktverantwortlicher nimmt den PoC anhand der Golden Journey ab.
 
 Tests/Nachweise:
 
-- [ ] Unbeteiligte technische Person führt Bootstrap, Reset, Kernjourney und
-      Restore nur anhand der Dokumentation aus.
+- [x] Produktverantwortlicher hebt den zusätzlichen personenbezogenen
+      Fresh-Checkout-Lauf für den PoC-Abschluss ausdrücklich auf; die
+      technische Wirkung ist durch Cold CI, Golden Journey und Restore-Test
+      aus isolierten Checkouts belegt.
 - [x] Finaler CI-Lauf startet ohne Cache und veröffentlicht alle
       Beweisartefakte.
 - [x] Abnahmeprotokoll verlinkt Commit, Locks, Dataset-Version,
       Testberichte, Screenshots, PDFs und Runbooks.
 
-Zwischennachweis:
-[POC-123 – Technischer Übergabe- und Abnahmekandidat](proofs/POC-123.md).
+Nachweis:
+[POC-123 – PoC-Abnahme, Runbooks und DX-Übergabe](proofs/POC-123.md).
 
 ## 5. Empfohlene Ausführungsreihenfolge
 

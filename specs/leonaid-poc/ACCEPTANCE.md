@@ -1,14 +1,16 @@
 # LeonAid PoC – Abnahmeprotokoll
 
-Stand: 2026-07-27
+Stand: 2026-07-28
 
 ## Abnahmekandidat
 
 | Nachweis | Referenz |
 | --- | --- |
-| technisch abgenommener Code-Kandidat | Commit `45ce583d6c02752c80f3b0b10d86c41d06bdae89` |
+| technisch und fachlich abgenommener Code-Kandidat | Commit `bf3e65cdb781606ec053980e6b6c06224d3eba5f` |
 | vollständige Golden-Journey-Basis | Commit `ace42c1fc39857f1e6cb64b404d98bd8d93c3c5e` |
 | finaler Cold-CI-Lauf | [GitHub Actions #30308417145](https://github.com/BjoernSchotte/leonaid/actions/runs/30308417145), `cold_run=true`, erfolgreich |
+| finaler öffentlicher Main-CI-Lauf | [GitHub Actions #30326434174](https://github.com/BjoernSchotte/leonaid/actions/runs/30326434174), zwölf ausführende Jobs erfolgreich |
+| finale Dependency-Pins und SBOMs | [GitHub Actions #30326434156](https://github.com/BjoernSchotte/leonaid/actions/runs/30326434156), erfolgreich |
 | Implementierungsplan | [`PLAN.md`](PLAN.md) |
 | externe System- und Image-Locks | [`infra/locks`](../../infra/locks/README.md) |
 | Python- und Frontend-Locks | [`uv.lock`](../../uv.lock), [`bun.lock`](../../bun.lock) |
@@ -32,8 +34,9 @@ Stand: 2026-07-27
       Browserartefakte.
 - [x] Sämtliche harten PoC-Gates besitzen einen Nachweis.
 - [x] Keine bekannten P0-/P1-Defekte im bewiesenen PoC-Scope.
-- [ ] Dokumentierter Fresh-Checkout-Lauf durch eine unbeteiligte technische
-      Person protokolliert.
+- [x] Der Produktverantwortliche hat das zusätzliche personenbezogene
+      Fresh-Checkout-Gate für diesen PoC-Abschluss ausdrücklich aufgehoben;
+      Cold CI, Golden Journey und Restore bleiben technisch belegt.
 - [x] Finaler GitHub-Actions-Lauf mit `cold_run=true` grün und hier verlinkt.
 
 Nicht versionierte lokale Beweise liegen nach dem Lauf unter
@@ -60,7 +63,17 @@ Der Produktverantwortliche führt mindestens diesen Weg aus:
 8. Rechnung versenden, Vollzahlung erfassen und Dashboard prüfen.
 9. [`KNOWN-LIMITS.md`](KNOWN-LIMITS.md) als akzeptierte PoC-Grenze lesen.
 
-- [ ] Produktverantwortlicher nimmt diesen PoC-Schnitt ausdrücklich ab.
+- [x] Produktverantwortlicher nimmt diesen PoC-Schnitt ausdrücklich ab.
+
+Die ausdrückliche Freigabe erfolgte am 28. Juli 2026 mit „kannst abhaken /
+grünes Licht“. Sie umfasst den beschriebenen Krapfentaxi-PoC-Schnitt und die
+in [`KNOWN-LIMITS.md`](KNOWN-LIMITS.md) dokumentierten Grenzen. Der
+Produktverantwortliche hat zugleich entschieden, dass der zusätzliche
+personenbezogene Fresh-Checkout-Lauf für den PoC-Abschluss entfällt. Diese
+organisatorische Entscheidung wird nicht als tatsächlich durchgeführter Lauf
+ausgegeben. Die technische Wirkung ist durch den grünen Cold-CI-Lauf, den
+vollständig grünen öffentlichen Main-CI-Lauf und den isolierten
+Backup-/Restore-Nachweis abgedeckt.
 
 Die technische Fertigstellung ersetzt weder Produktivfreigabe noch Rechts-,
 Datenschutz-, Steuer- oder Betreiberfreigabe.

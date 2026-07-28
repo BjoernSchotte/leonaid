@@ -14,10 +14,11 @@ Ausgangsrechnungen. Er ersetzt die bisherigen, manuellen Excel-Listen.
 
 ## Status
 
-🟢 **Krapfentaxi-PoC technisch bewiesen.** Die vollständige Journey läuft
-ohne Mocks in Chromium, Firefox und WebKit sowie nach einem leeren Golden
-Reset. Offen sind die protokollierte Fresh-Checkout-Abnahme durch eine weitere
-technische Person und die ausdrückliche fachliche Produktabnahme.
+🟢 **Krapfentaxi-PoC vollständig bewiesen und fachlich abgenommen.** Die
+vollständige Journey läuft ohne Mocks in Chromium, Firefox und WebKit sowie
+nach einem leeren Golden Reset. Der Produktverantwortliche hat den
+beschriebenen PoC-Schnitt am 28. Juli 2026 freigegeben und das zusätzliche
+personenbezogene Fresh-Checkout-Gate für diesen PoC-Abschluss aufgehoben.
 
 ## Lizenz
 
