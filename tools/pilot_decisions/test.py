@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -18,10 +19,12 @@ def run(
     ready: bool = False,
     returncode: int = 0,
     marker: str,
+    arguments: tuple[str, ...] = (),
 ) -> None:
     command = [sys.executable, str(checker), str(root)]
     if ready:
         command.append("--ready")
+    command.extend(arguments)
     result = subprocess.run(command, check=False, capture_output=True, text=True)
     output = result.stdout + result.stderr
     if result.returncode != returncode or marker not in output:
@@ -71,15 +74,62 @@ def main() -> None:
         root,
         ready=True,
         returncode=2,
-        marker="pilot-doctor: BLOCKED",
+        marker="pilot-doctor: BLOCKED (pilot-release)",
     )
+    run(
+        checker,
+        root,
+        ready=True,
+        returncode=2,
+        marker="pilot-doctor: BLOCKED (pilot-deploy)",
+        arguments=("--gate", "pilot-deploy"),
+    )
+    json_response = subprocess.run(
+        [
+            sys.executable,
+            str(checker),
+            str(root),
+            "--ready",
+            "--gate",
+            "pilot-deploy",
+            "--json",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(json_response.stdout)
+    if (
+        json_response.returncode != 2
+        or payload["status"] != "blocked"
+        or payload["gate"] != "pilot-deploy"
+        or "PILOT-TAX-001" in payload["openDecisionIds"]
+        or "PILOT-OPS-001" not in payload["openDecisionIds"]
+    ):
+        raise AssertionError(
+            "gate-spezifischer JSON-Status ist nicht fail-closed oder "
+            "enthält noch nicht fällige Entscheidungen"
+        )
+    help_response = subprocess.run(
+        [sys.executable, str(checker), "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if help_response.returncode != 0 or "--gate" not in help_response.stdout:
+        raise AssertionError("pilot-doctor besitzt keine vollständige Hilfe")
 
     with tempfile.TemporaryDirectory() as temporary:
         fixtures = Path(temporary)
 
         accepted = fixtures / "accepted"
         write_register(accepted, accepted_register(canonical))
-        run(checker, accepted, ready=True, marker="pilot-doctor: OK")
+        run(
+            checker,
+            accepted,
+            ready=True,
+            marker="pilot-doctor: OK (pilot-release)",
+        )
 
         missing_owner = fixtures / "missing-owner"
         write_register(
@@ -137,12 +187,12 @@ def main() -> None:
             einvoice,
             ready=True,
             returncode=3,
-            marker="pilot-doctor: STOP",
+            marker="pilot-doctor: STOP (pilot-release)",
         )
 
     print(
-        "pilot-decisions-test: OK: open gate, accepted register and "
-        "four negative decision cases proven"
+        "pilot-decisions-test: OK: gate-specific text/JSON/help, accepted "
+        "register and four negative decision cases proven"
     )
 
 

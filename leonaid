@@ -60,7 +60,8 @@ Commands:
                     Prove pilot plan IDs, dependencies, criteria and proof links
   test-pilot-decisions
                     Prove the public pilot decision register and STOP rules
-  pilot-doctor      Validate readiness for productive pilot actions
+  pilot-doctor [--gate GATE] [--json]
+                    Validate readiness for productive pilot actions
   pilot-deploy      Deploy the productive pilot after pilot-doctor
   pilot-release     Release the productive pilot after pilot-doctor
   pilot-import      Import private pilot data after pilot-doctor
@@ -339,13 +340,13 @@ pilot_doctor() {
   docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_decisions/check.py /workspace --ready
+    python /workspace/tools/pilot_decisions/check.py /workspace --ready "$@"
 }
 
 pilot_future_command() {
   command_name=$1
   task=$2
-  pilot_doctor
+  pilot_doctor --gate "$command_name"
   future_command "$command_name" "$task"
 }
 
@@ -648,7 +649,10 @@ case "$command" in
       "$PYTHON_IMAGE" \
       python /workspace/tools/pilot_decisions/test.py /workspace
     ;;
-  pilot-doctor) pilot_doctor ;;
+  pilot-doctor)
+    shift
+    pilot_doctor "$@"
+    ;;
   pilot-deploy) pilot_future_command "$command" PILOT-043 ;;
   pilot-release) pilot_future_command "$command" PILOT-050 ;;
   pilot-import) pilot_future_command "$command" PILOT-010 ;;

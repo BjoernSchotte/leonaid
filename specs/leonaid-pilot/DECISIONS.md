@@ -15,6 +15,8 @@ erforderliche E-Rechnung oder vollständige Buchhaltung ist immer `stop`.
 
 Die offenen Werte sind Absicht. Sie dürfen nicht durch die Implementierung
 erraten oder anhand des synthetischen Golden Dataset übernommen werden.
+Die konkreten Fachfragen und sicheren Übergaberegeln stehen im
+[`DECISION-INTAKE.md`](DECISION-INTAKE.md).
 
 ## Gate-relevante Entscheidungen
 
@@ -53,4 +55,3 @@ und Produktverantwortung treffen die ihnen zugeordneten Entscheidungen. Die
 spätere Admin-Oberfläche bildet dieselben Felder als geführte
 Freigabeoberfläche ab; Zugangsdaten und Dokumentbytes werden dort nicht
 gespeichert.
-
