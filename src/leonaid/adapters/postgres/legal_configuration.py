@@ -272,8 +272,11 @@ class AsyncpgLegalConfigurationRepository:
                 number_prefix = $12,
                 number_width = $13,
                 payment_terms_days = $14,
-                confirmed_at = $15,
-                updated_at = $15
+                bank_account_holder = $15,
+                iban = $16,
+                bic = $17,
+                confirmed_at = $18,
+                updated_at = $18
             """,
             version.id,
             issuer.legal_name,
@@ -289,6 +292,9 @@ class AsyncpgLegalConfigurationRepository:
             configuration.number_prefix,
             configuration.number_width,
             configuration.payment_terms_days,
+            configuration.bank_account_holder,
+            configuration.iban,
+            configuration.bic,
             confirmed_at,
         )
 

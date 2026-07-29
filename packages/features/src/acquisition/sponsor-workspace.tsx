@@ -291,7 +291,7 @@ function SponsorList({
       </div>
       <div
         aria-label="Sponsoren nach Status filtern"
-        className="acq-tabs"
+        className="acq-tabs acq-tabs--status"
         role="tablist"
       >
         {(

@@ -21,6 +21,7 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.invoices import (
     Invoice,
     InvoiceIssuerSnapshot,
+    InvoicePaymentDetailsSnapshot,
     InvoiceProfile,
     InvoiceStatus,
     TaxTreatment,
@@ -91,6 +92,11 @@ def profile(
             tax_identifier="103/999/99999",
             email="finanzen@leonaid.invalid",
         ),
+        payment_details=InvoicePaymentDetailsSnapshot(
+            account_holder="Lions Hilfswerk LeonAid Golden e.V.",
+            iban="DE89 3704 0044 0532 0130 00",
+            bic="COBADEFFXXX",
+        ),
         tax_treatment=tax_treatment,
         tax_rate_basis_points=tax_rate_basis_points,
         tax_note=(
@@ -132,6 +138,11 @@ def test_small_business_invoice_keeps_exact_amount_and_due_date() -> None:
     assert invoice.gross == Money(10_800, "EUR")
     assert invoice.due_on == date(2026, 10, 26)
     assert invoice.payment_reference == "KT26-0004"
+    assert invoice.payment_details.payload() == {
+        "accountHolder": "Lions Hilfswerk LeonAid Golden e.V.",
+        "iban": "DE89370400440532013000",
+        "bic": "COBADEFFXXX",
+    }
     assert invoice.lines[0].payload() == {
         "description": "Krapfenbox",
         "quantity": 3,
@@ -143,6 +154,16 @@ def test_small_business_invoice_keeps_exact_amount_and_due_date() -> None:
         "grossMinor": 10_800,
         "currency": "EUR",
     }
+
+
+def test_invoice_profile_without_payment_details_is_fail_closed() -> None:
+    unconfigured = replace(profile(), payment_details=None)
+
+    assert not unconfigured.ready_to_issue
+    with pytest.raises(DomainInvariantError) as error:
+        issue(invoice_profile=unconfigured)
+
+    assert error.value.code == "invoice_profile_not_confirmed"
 
 
 def test_standard_vat_is_derived_from_gross_with_half_up_minor_units() -> None:

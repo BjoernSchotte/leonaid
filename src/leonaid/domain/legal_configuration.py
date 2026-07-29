@@ -9,12 +9,14 @@ from enum import StrEnum
 from uuid import UUID
 
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.invoices import InvoiceIssuerSnapshot, TaxTreatment
+from leonaid.domain.invoices import (
+    InvoiceIssuerSnapshot,
+    InvoicePaymentDetailsSnapshot,
+    TaxTreatment,
+)
 
 EVIDENCE_ID = re.compile(r"^[A-Z0-9][A-Z0-9._:-]{2,119}$")
 TEXT_VERSION = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
-IBAN = re.compile(r"^[A-Z]{2}[0-9A-Z]{13,32}$")
-BIC = re.compile(r"^[A-Z0-9]{8}(?:[A-Z0-9]{3})?$")
 NUMBER_PREFIX = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,23}$")
 
 
@@ -86,21 +88,22 @@ class LegalConfigurationDraft:
                 )
             object.__setattr__(self, field_name, normalized)
 
-        normalized_iban = "".join(self.iban.split()).upper()
-        if IBAN.fullmatch(normalized_iban) is None:
-            raise DomainInvariantError(
-                "legal_iban_invalid",
-                "Die IBAN besitzt kein gültiges Format.",
+        try:
+            payment_details = InvoicePaymentDetailsSnapshot(
+                account_holder=self.bank_account_holder,
+                iban=self.iban,
+                bic=self.bic,
             )
-        object.__setattr__(self, "iban", normalized_iban)
-        if self.bic:
-            normalized_bic = "".join(self.bic.split()).upper()
-            if BIC.fullmatch(normalized_bic) is None:
-                raise DomainInvariantError(
-                    "legal_bic_invalid",
-                    "Die BIC besitzt kein gültiges Format.",
-                )
-            object.__setattr__(self, "bic", normalized_bic)
+        except DomainInvariantError as error:
+            code = error.code.replace("invoice_payment_", "legal_", 1)
+            raise DomainInvariantError(code, error.message) from error
+        object.__setattr__(
+            self,
+            "bank_account_holder",
+            payment_details.account_holder,
+        )
+        object.__setattr__(self, "iban", payment_details.iban)
+        object.__setattr__(self, "bic", payment_details.bic)
 
         if self.tax_treatment is TaxTreatment.STANDARD_VAT:
             if not 1 <= self.tax_rate_basis_points <= 10_000:

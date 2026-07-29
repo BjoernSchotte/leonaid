@@ -2,8 +2,9 @@
 
 Stand: 2026-07-29  
 Ergebnis: technische Admin-, Versions- und Vier-Augen-Basis sowie die
-Public-Form-/Consent- und Rechnungsprofil-Integration sind bewiesen; reale
-Fachwerte und ihre Integration in den Datenschutzworkflow bleiben offen.
+Public-Form-/Consent-, Rechnungsprofil- und unveränderliche
+Zahlungsdaten-Integration sind bewiesen; reale Fachwerte und der produktive
+Datenschutzworkflow bleiben offen.
 
 ## Implementierter Vertrag
 
@@ -32,11 +33,21 @@ Fachwerte und ihre Integration in den Datenschutzworkflow bleiben offen.
   mit der aktiven Textversion und Status `confirmed`.
 - Die Aktivierung synchronisiert bestehende aktionsbezogene
   Rechnungsprofile atomar mit Träger, Steuerfall, Rechtstext, Zahlungsziel
-  und Nummernformat der freigegebenen Version. Der laufende Nummernstand
-  bleibt dabei unverändert.
+  und Nummernformat sowie Kontoinhaber, IBAN und BIC der freigegebenen
+  Version. Der laufende Nummernstand bleibt dabei unverändert.
 - Jede Rechnungsfreigabe prüft die unveränderliche Versionsbindung erneut.
   Ohne aktive Version oder bei veralteter Bindung bleibt die Freigabe
   fail-closed gesperrt.
+- Jede freigegebene Rechnung speichert Kontoinhaber, IBAN und BIC als
+  unveränderlichen Snapshot. Die Daten werden in der API, im
+  Charity-Admin-Detail und im real kompilierten Typst-PDF `invoice-v2`
+  identisch ausgegeben; die IBAN wird dort lesbar gruppiert.
+- PostgreSQL schützt den Zahlungsdatensnapshot gemeinsam mit Empfänger-,
+  Positions- und Rechtstextstand durch den bestehenden
+  Unveränderlichkeits-Trigger.
+- Migration `0026` übernimmt Zahlungsdaten nur aus der gebundenen oder
+  aktiven freigegebenen Rechtsgrundlage. Nicht ausdrücklich quarantänisierte
+  Altrechnungen ohne belastbare Quelle stoppen das Upgrade fail-closed.
 - [`LEGAL-CONFIGURATION-RUNBOOK.md`](../../../infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md)
   beschreibt fachlichen Schnitt, Rollen, sicheren Ablauf und verbleibende
   Abnahmegrenzen.
@@ -93,6 +104,22 @@ Version kontrolliert, prüft das deaktivierte Formular, stellt sie wieder her,
 weist eine veraltete Textversion ab und führt anschließend die drei realen
 Bestellwege gegen FastAPI, PostgreSQL und Twenty aus.
 
+Die unveränderliche Rechnungs- und Zahlungsdatenintegration wurde zusätzlich
+mit folgenden realen Verträgen ausgeführt:
+
+```text
+./leonaid test-invoices
+./leonaid test-typst
+tools/schema/test.sh
+```
+
+`test-invoices` prüft API, PostgreSQL-Snapshot, Unveränderlichkeits-Trigger,
+Dokumentversion 2 und das Charity-Admin-Detail. `test-typst` kompiliert vier
+Rechnungen mit dem gepinnten echten Typst 0.13.1, extrahiert den PDF-Text und
+vergleicht sechs gerenderte Seiten visuell mit den Golden-Baselines.
+`tools/schema/test.sh` beweist sowohl die leere Neuinstallation als auch das
+Upgrade des realen Legacy-Schemas.
+
 ## Bewusst offene Fach- und Integrationsgrenzen
 
 - Das Repository enthält absichtlich keine realen Träger-, Bank-, Steuer-
@@ -102,9 +129,6 @@ Bestellwege gegen FastAPI, PostgreSQL und Twenty aus.
   installationsweite Grundlage gebunden. Für neue Aktionen fehlt noch der
   geführte Prozess, einen konfliktfreien aktionsbezogenen Nummernkreis
   anzulegen.
-- Bankverbindung und Zahlungsinformationen sind noch nicht Teil des
-  unveränderlichen Rechnungssnapshots und des Typst-PDFs.
-- Public Form und Consent-Erfassung verwenden die aktivierte Version.
 - Public Form, Consent, Datenschutzexport und Erasure verwenden dieselbe
   aktivierte Version. Automatisierter Fristablauf, nachweisbare Löschläufe
   und reale Werte bleiben offen.

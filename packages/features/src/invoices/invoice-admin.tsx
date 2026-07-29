@@ -1052,6 +1052,19 @@ function InvoiceLedgerRow({
             {invoice.issuer.taxIdentifier}
           </address>
         </section>
+        <section data-testid={`invoice-payment-details-${invoice.id}`}>
+          <span>Zahlungsdaten bei Freigabe</span>
+          <strong>{invoice.paymentDetails.accountHolder}</strong>
+          <address>
+            IBAN {invoice.paymentDetails.iban.match(/.{1,4}/g)?.join(" ")}
+            {invoice.paymentDetails.bic ? (
+              <>
+                <br />
+                BIC {invoice.paymentDetails.bic}
+              </>
+            ) : null}
+          </address>
+        </section>
         <dl>
           <div>
             <dt>Leistungsdatum</dt>

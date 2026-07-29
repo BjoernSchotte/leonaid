@@ -14,6 +14,7 @@ from leonaid.domain.invoices import (
     Invoice,
     InvoiceIssuerSnapshot,
     InvoiceLineSnapshot,
+    InvoicePaymentDetailsSnapshot,
     TaxTreatment,
 )
 
@@ -57,6 +58,7 @@ class InvoiceDocumentSnapshot:
     service_on: date
     due_on: date
     issuer: InvoiceIssuerSnapshot
+    payment_details: InvoicePaymentDetailsSnapshot
     recipient: InvoiceRecipientSnapshot
     lines: tuple[InvoiceLineSnapshot, ...]
     tax_treatment: TaxTreatment
@@ -104,6 +106,7 @@ class InvoiceDocumentSnapshot:
             service_on=invoice.service_on,
             due_on=invoice.due_on,
             issuer=invoice.issuer,
+            payment_details=invoice.payment_details,
             recipient=invoice.recipient,
             lines=invoice.lines,
             tax_treatment=invoice.tax_treatment,
@@ -123,6 +126,7 @@ class InvoiceDocumentSnapshot:
             "serviceOn": self.service_on.isoformat(),
             "dueOn": self.due_on.isoformat(),
             "issuer": self.issuer.payload(),
+            "paymentDetails": self.payment_details.payload(),
             "recipient": self.recipient.payload(),
             "lines": [line.payload() for line in self.lines],
             "taxTreatment": self.tax_treatment.value,
@@ -154,6 +158,9 @@ class InvoiceDocumentSnapshot:
             due_on=date.fromisoformat(str(payload.get("dueOn"))),
             issuer=InvoiceIssuerSnapshot.from_payload(
                 _object(payload.get("issuer"), label="Rechnungsaussteller")
+            ),
+            payment_details=InvoicePaymentDetailsSnapshot.from_payload(
+                _object(payload.get("paymentDetails"), label="Zahlungsdaten")
             ),
             recipient=InvoiceRecipientSnapshot.from_payload(
                 _object(payload.get("recipient"), label="Rechnungsempfänger")

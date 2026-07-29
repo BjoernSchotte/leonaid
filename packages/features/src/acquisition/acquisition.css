@@ -814,6 +814,26 @@
     width: 100%;
   }
 
+  .acq-tabs--status {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-flow: row;
+  }
+
+  .acq-tabs--status button {
+    min-width: 0;
+    padding-inline: 0.35rem;
+    font-size: 0.78rem;
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
+  .acq-segment button {
+    padding-inline: 0.45rem;
+    font-size: 0.85rem;
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+
   .acq-form {
     grid-template-columns: 1fr;
   }

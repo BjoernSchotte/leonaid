@@ -27,6 +27,7 @@ from leonaid.domain.documents import (
 from leonaid.domain.invoices import (
     InvoiceIssuerSnapshot,
     InvoiceLineSnapshot,
+    InvoicePaymentDetailsSnapshot,
     TaxTreatment,
 )
 
@@ -69,6 +70,8 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                     invoice.service_on AS invoice_service_on,
                     invoice.due_on AS invoice_due_on,
                     invoice.issuer_snapshot AS invoice_issuer_snapshot,
+                    invoice.payment_details_snapshot
+                      AS invoice_payment_details_snapshot,
                     invoice.recipient_snapshot AS invoice_recipient_snapshot,
                     invoice.line_snapshot AS invoice_line_snapshot,
                     invoice.tax_treatment AS invoice_tax_treatment,
@@ -312,6 +315,12 @@ class AsyncpgGeneratedDocumentRepository(GeneratedDocumentRepository):
                 _json_object(
                     row["invoice_issuer_snapshot"],
                     label="Rechnungsaussteller-Snapshot",
+                )
+            ),
+            payment_details=InvoicePaymentDetailsSnapshot.from_payload(
+                _json_object(
+                    row["invoice_payment_details_snapshot"],
+                    label="Zahlungsdaten-Snapshot",
                 )
             ),
             recipient=InvoiceRecipientSnapshot.from_payload(

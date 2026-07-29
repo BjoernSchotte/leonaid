@@ -495,7 +495,8 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                         id, action_id, commitment_id, number, status,
                         issued_at, service_on, due_on, currency,
                         net_minor, tax_minor, gross_minor, issuer_snapshot,
-                        recipient_snapshot, line_snapshot, tax_treatment,
+                        payment_details_snapshot, recipient_snapshot,
+                        line_snapshot, tax_treatment,
                         tax_rate_basis_points, tax_note, payment_reference,
                         approved_by_user_id, document_version, idempotency_key
                     )
@@ -511,6 +512,11 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                           "countryCode":"DE",
                           "taxIdentifier":"POC022",
                           "email":"poc022@leonaid.invalid"
+                        }'::jsonb,
+                        '{
+                          "accountHolder":"Lions Club Beispielstadt",
+                          "iban":"DE89370400440532013000",
+                          "bic":"COBADEFFXXX"
                         }'::jsonb,
                         '{
                           "recipientName":"Musterwerk GmbH",

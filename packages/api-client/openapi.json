@@ -4641,6 +4641,37 @@
         "title": "InvoiceListResponse",
         "type": "object"
       },
+      "InvoicePaymentDetailsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accountHolder": {
+            "title": "Accountholder",
+            "type": "string"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "iban": {
+            "title": "Iban",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountHolder",
+          "iban",
+          "bic"
+        ],
+        "title": "InvoicePaymentDetailsResponse",
+        "type": "object"
+      },
       "InvoicePaymentResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4753,6 +4784,16 @@
             "title": "Nextinvoicenumber",
             "type": "string"
           },
+          "paymentDetails": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvoicePaymentDetailsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paymentTermsDays": {
             "maximum": 120.0,
             "minimum": 1.0,
@@ -4786,6 +4827,7 @@
         "required": [
           "legalConfigurationVersionId",
           "issuer",
+          "paymentDetails",
           "taxTreatment",
           "taxRateBasisPoints",
           "taxNote",
@@ -4912,6 +4954,9 @@
             "title": "Number",
             "type": "string"
           },
+          "paymentDetails": {
+            "$ref": "#/components/schemas/InvoicePaymentDetailsResponse"
+          },
           "paymentReference": {
             "title": "Paymentreference",
             "type": "string"
@@ -4967,6 +5012,7 @@
           "serviceOn",
           "dueOn",
           "issuer",
+          "paymentDetails",
           "recipient",
           "lines",
           "taxTreatment",

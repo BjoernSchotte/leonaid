@@ -115,7 +115,7 @@ def _artifact_inventory(root: Path) -> dict[str, dict[str, str]]:
     paths = {
         "compatibilityMatrix": root / "infra/upgrade/compatibility-matrix.json",
         "invoiceTemplate": (
-            root / "src/leonaid/adapters/typst/templates/invoice-v1.typ"
+            root / "src/leonaid/adapters/typst/templates/invoice-v2.typ"
         ),
         "openapi": root / "packages/api-client/openapi.json",
     }
@@ -151,7 +151,7 @@ def create_manifest(
             "coreAlembicHead": migrations[-1]["revision"],
             "goldenData": 1,
         },
-        "templates": {"invoice": "invoice-v1"},
+        "templates": {"invoice": "invoice-v2"},
         "migrations": migrations,
         "artifacts": _artifact_inventory(root),
         "requiredGates": list(REQUIRED_GATES),
@@ -216,7 +216,7 @@ def validate_manifest(
     )
     _require(schemas.get("goldenData") == 1, "Golden-Datensatzversion fehlt")
     _require(
-        value.get("templates") == {"invoice": "invoice-v1"},
+        value.get("templates") == {"invoice": "invoice-v2"},
         "Rechnungstemplate ist nicht gebunden",
     )
 

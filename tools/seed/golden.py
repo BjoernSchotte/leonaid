@@ -1463,11 +1463,13 @@ async def seed_operational_golden(
                 country_code, tax_identifier, email, tax_treatment,
                 tax_rate_basis_points, tax_note, number_prefix, next_number,
                 number_width, payment_terms_days, confirmed_at,
-                legal_configuration_version_id
+                legal_configuration_version_id,
+                bank_account_holder, iban, bic
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                $11, $12, $13, $14, $15, $16, $17, $18
+                $11, $12, $13, $14, $15, $16, $17, $18,
+                $19, $20, $21
             )
             """,
             profile["id"],
@@ -1488,6 +1490,9 @@ async def seed_operational_golden(
             profile["paymentTermsDays"],
             datetime.fromisoformat(str(profile["confirmedAt"])),
             GOLDEN_LEGAL_CONFIGURATION_ID,
+            "Lions Hilfswerk LeonAid Golden e.V.",
+            "DE89370400440532013000",
+            "COBADEFFXXX",
         )
 
     invoice_status = {
@@ -1521,6 +1526,11 @@ async def seed_operational_golden(
             "countryCode": recipient_source["country"],
             "email": None,
         }
+        payment_details_snapshot = {
+            "accountHolder": "Lions Hilfswerk LeonAid Golden e.V.",
+            "iban": "DE89370400440532013000",
+            "bic": "COBADEFFXXX",
+        }
         line_snapshot = [
             {
                 "description": offers[str(line["offerId"])]["name"],
@@ -1544,14 +1554,16 @@ async def seed_operational_golden(
             INSERT INTO invoice (
                 id, action_id, commitment_id, number, status, issued_at,
                 service_on, due_on, currency, net_minor, tax_minor,
-                gross_minor, issuer_snapshot, recipient_snapshot,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
                 document_version
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $10,
-                $11::jsonb, $12::json, $13::json, $14, 0, $15, $4, $16, 1
+                $11::jsonb, $12::jsonb, $13::json, $14::json, $15, 0,
+                $16, $4, $17, 2
             )
             """,
             invoice["id"],
@@ -1573,6 +1585,7 @@ async def seed_operational_golden(
             invoice["currency"],
             amount,
             json.dumps(issuer_snapshot, separators=(",", ":")),
+            json.dumps(payment_details_snapshot, separators=(",", ":")),
             json.dumps(recipient_snapshot, separators=(",", ":")),
             json.dumps(line_snapshot, separators=(",", ":")),
             tax_treatment[str(profile["taxTreatment"])],
@@ -1651,7 +1664,7 @@ async def seed_operational_golden(
             VALUES (
                 $1, $2, $3, $1, $4, $5,
                 'invoice_pdf', 'application/pdf', $6, $7,
-                $8, $9, $10, $11, $12, 1, 'available',
+                $8, $9, $10, $11, $12, 2, 'available',
                 $13, $13
             )
             """,

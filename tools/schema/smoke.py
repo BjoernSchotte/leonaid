@@ -369,7 +369,8 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             id, action_id, legal_name, street_line_1, postal_code, city,
             country_code, tax_identifier, email, tax_treatment,
             tax_rate_basis_points, tax_note, number_prefix, next_number,
-            number_width, payment_terms_days, confirmed_at
+            number_width, payment_terms_days, confirmed_at,
+            bank_account_holder, iban, bic
         )
         VALUES (
             '96000000-0000-4000-8000-000000000001', $1,
@@ -377,7 +378,9 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             'Augsburg', 'DE', '103/999/99999', 'finanzen@leonaid.invalid',
             'small_business', 0,
             'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-            'KT26-', 2, 4, 14, CURRENT_TIMESTAMP
+            'KT26-', 2, 4, 14, CURRENT_TIMESTAMP,
+            'Lions Hilfswerk LeonAid Golden e.V.',
+            'DE89370400440532013000', 'COBADEFFXXX'
         )
         """,
         ACTION,
@@ -398,7 +401,8 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         INSERT INTO invoice (
             id, action_id, commitment_id, number, status, issued_at,
             service_on, due_on, currency, net_minor, tax_minor,
-            gross_minor, issuer_snapshot, recipient_snapshot,
+            gross_minor, issuer_snapshot, payment_details_snapshot,
+            recipient_snapshot,
             line_snapshot, tax_treatment, tax_rate_basis_points,
             tax_note, payment_reference, approved_by_user_id,
             document_version, idempotency_key
@@ -409,11 +413,12 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             'issued', CURRENT_TIMESTAMP, '2026-11-15', '2026-11-29',
             'EUR', 7200, 0, 7200,
             '{"legalName":"Lions Hilfswerk LeonAid Golden e.V.","streetLine1":"Clubweg 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","taxIdentifier":"103/999/99999","email":"finanzen@leonaid.invalid"}'::jsonb,
+            '{"accountHolder":"Lions Hilfswerk LeonAid Golden e.V.","iban":"DE89370400440532013000","bic":"COBADEFFXXX"}'::jsonb,
             '{"recipientName":"Musterwerk GmbH","streetLine1":"Werkstraße 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
             '[{"description":"Krapfenbox","quantity":2,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":7200,"taxMinor":0,"grossMinor":7200,"currency":"EUR"}]'::jsonb,
             'small_business', 0,
             'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
-            'KT26-0001', $2, 1, 'poc090:schema:invoice'
+            'KT26-0001', $2, 2, 'poc090:schema:invoice'
         )
         """,
         ACTION,
@@ -436,7 +441,8 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             INSERT INTO invoice (
                 id, action_id, commitment_id, number, status, issued_at,
                 service_on, due_on, currency, net_minor, tax_minor,
-                gross_minor, issuer_snapshot, recipient_snapshot,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
                 document_version
@@ -445,7 +451,8 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
                 '90000000-0000-4000-8000-000000000002', action_id,
                 commitment_id, 'KT26-0002', status, issued_at,
                 service_on, due_on, currency, net_minor, tax_minor,
-                gross_minor, issuer_snapshot, recipient_snapshot,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, 'KT26-0002', approved_by_user_id,
                 document_version

@@ -126,7 +126,7 @@ verify_pdfs() {
     uv run --frozen --no-sync python tools/typst/verify_pdfs.py \
     /proof/rendered \
     /proof/pages \
-    --template src/leonaid/adapters/typst/templates/invoice-v1.typ \
+    --template src/leonaid/adapters/typst/templates/invoice-v2.typ \
     "$@"
 }
 

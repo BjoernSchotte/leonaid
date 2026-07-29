@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -32,6 +33,11 @@ KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 FINN_ID = UUID("10000000-0000-4000-8000-000000000007")
 SESSION_NAMESPACE = UUID("6a6a9df4-b543-4f3f-a603-75687dfcf87f")
+EXPECTED_PAYMENT_DETAILS = {
+    "accountHolder": "Lions Hilfswerk LeonAid Golden e.V.",
+    "iban": "DE89370400440532013000",
+    "bic": "COBADEFFXXX",
+}
 
 
 class ContractFailure(RuntimeError):
@@ -158,12 +164,22 @@ async def assert_database_result(
         """,
         str(invoice_id),
     )
+    payment_details = await connection.fetchval(
+        "SELECT payment_details_snapshot FROM invoice WHERE id = $1",
+        invoice_id,
+    )
     if (
         invoice_count != 1
         or profile_next != 5
         or commitment_status != "invoiced"
         or audit_count != 1
         or receipt_count != 2
+        or (
+            json.loads(payment_details)
+            if isinstance(payment_details, str)
+            else payment_details
+        )
+        != EXPECTED_PAYMENT_DETAILS
     ):
         raise ContractFailure(
             "Rechnung, Nummernkreis, Bestellstatus, Audit oder "
@@ -214,6 +230,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or context_value["profile"]["nextInvoiceNumber"] != "KT26-0004"
             or context_value["profile"]["legalConfigurationVersionId"]
             != "94000000-0000-4000-8000-000000000044"
+            or context_value["profile"]["paymentDetails"] != EXPECTED_PAYMENT_DETAILS
             or not context_value["profile"]["readyToIssue"]
         ):
             raise ContractFailure("Admin-Rechnungskontext ist unvollständig")
@@ -341,6 +358,10 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
         invoice_id = UUID(str(values[0]["id"]))
         issued_snapshot = values[0]["recipient"]
+        if values[0]["paymentDetails"] != EXPECTED_PAYMENT_DETAILS:
+            raise ContractFailure(
+                "Rechnung enthält nicht die freigegebenen Zahlungsdaten"
+            )
         if issued_snapshot["streetLine1"] != "Sonnenstraße 2":
             raise ContractFailure("Rechnung enthält nicht den erwarteten Snapshot")
         await assert_database_result(connection, invoice_id)
@@ -400,6 +421,31 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         )
         if persisted_street != "Sonnenstraße 2":
             raise ContractFailure("Unveränderlicher Snapshot wurde beschädigt")
+        try:
+            await connection.execute(
+                """
+                UPDATE invoice
+                SET payment_details_snapshot =
+                    jsonb_set(payment_details_snapshot, '{iban}', '"DE00000000000000000000"')
+                WHERE id = $1
+                """,
+                invoice_id,
+            )
+        except asyncpg.PostgresError:
+            pass
+        else:
+            raise ContractFailure("Datenbank erlaubte Änderung der Zahlungsdaten")
+        persisted_payment_details = await connection.fetchval(
+            "SELECT payment_details_snapshot FROM invoice WHERE id = $1",
+            invoice_id,
+        )
+        normalized_payment_details = (
+            json.loads(persisted_payment_details)
+            if isinstance(persisted_payment_details, str)
+            else persisted_payment_details
+        )
+        if normalized_payment_details != EXPECTED_PAYMENT_DETAILS:
+            raise ContractFailure("Zahlungsdaten-Snapshot wurde beschädigt")
 
         final_list = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoices",
@@ -416,7 +462,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
 
     print(
         "invoice-contract: OK: Fresh Login, Rollen, konkurrierende Freigabe, "
-        "Nummernkreis und Twenty-unabhängiger Snapshot"
+        "Nummernkreis sowie Twenty- und Konfigurations-unabhängiger Snapshot"
     )
 
 

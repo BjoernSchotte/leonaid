@@ -14,6 +14,11 @@
     "taxIdentifier": "103/999/99999",
     "email": "finanzen@leonaid.invalid"
   },
+  "paymentDetails": {
+    "accountHolder": "Lions Hilfswerk LeonAid Golden e.V.",
+    "iban": "DE89370400440532013000",
+    "bic": "COBADEFFXXX"
+  },
   "recipient": {
     "recipientName": "Bäckerei Sonnenseite KG",
     "streetLine1": "Sonnenstraße 2",

@@ -16,9 +16,9 @@ from leonaid.application.invoice_documents import (
 )
 
 TYPST_VERSION = "0.13.1"
-TEMPLATE_VERSION = "invoice-v1"
+TEMPLATE_VERSION = "invoice-v2"
 RENDER_VERSION = f"{TEMPLATE_VERSION}+typst-{TYPST_VERSION}"
-DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "invoice-v1.typ"
+DEFAULT_TEMPLATE = Path(__file__).with_name("templates") / "invoice-v2.typ"
 
 UNIT_LABELS = {
     "box": ("Box", "Boxen"),
@@ -46,6 +46,10 @@ def _unit_label(unit: str, quantity: int) -> str:
     return singular if quantity == 1 else plural
 
 
+def _iban_label(value: str) -> str:
+    return " ".join(value[index : index + 4] for index in range(0, len(value), 4))
+
+
 def render_payload(snapshot: InvoiceDocumentSnapshot) -> dict[str, object]:
     """Create renderer-only presentation data from the immutable snapshot."""
 
@@ -57,6 +61,10 @@ def render_payload(snapshot: InvoiceDocumentSnapshot) -> dict[str, object]:
         "serviceOn": _date_label(snapshot.service_on),
         "dueOn": _date_label(snapshot.due_on),
         "issuer": snapshot.issuer.payload(),
+        "paymentDetails": {
+            **snapshot.payment_details.payload(),
+            "iban": _iban_label(snapshot.payment_details.iban),
+        },
         "recipient": snapshot.recipient.payload(),
         "lines": [
             {

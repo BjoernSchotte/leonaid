@@ -294,7 +294,7 @@ async def assert_exact_bytes(
             or retrieved.content != golden
             or response.headers.get("content-type") != "application/pdf"
             or response.headers.get("x-document-sha256") != digest
-            or response.headers.get("x-document-version") != "1"
+            or response.headers.get("x-document-version") != "2"
         ):
             raise ContractFailure(
                 "PostgreSQL, RustFS, Golden-PDF und API sind nicht byteidentisch"

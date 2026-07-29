@@ -175,6 +175,19 @@
   #linebreak()
   Bitte überweisen Sie den Gesamtbetrag bis zum #data.dueOn unter Angabe der
   Zahlungsreferenz *#data.paymentReference*.
+  #v(2mm)
+  #grid(
+    columns: (24mm, 1fr),
+    column-gutter: 3mm,
+    row-gutter: 1mm,
+    [Kontoinhaber], [#data.paymentDetails.accountHolder],
+    [IBAN], [#data.paymentDetails.iban],
+    ..if data.paymentDetails.bic != none {
+      ([BIC], [#data.paymentDetails.bic])
+    } else {
+      ()
+    },
+  )
 ]
 
 #v(9mm)

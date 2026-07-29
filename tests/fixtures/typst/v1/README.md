@@ -1,6 +1,6 @@
 # Typst invoice layout references v1
 
-These PNG files are approved renders of the pinned `invoice-v1` template with
+These PNG files are approved renders of the pinned `invoice-v2` template with
 Typst 0.13.1 and PyMuPDF 1.26.3 at 144 dpi.
 
 - `KT26-0001-page-1.png` proves the normal one-page invoice.

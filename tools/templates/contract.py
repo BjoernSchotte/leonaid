@@ -236,7 +236,8 @@ async def insert_operational_source_data(
         INSERT INTO invoice (
             id, action_id, commitment_id, number, status, issued_at,
             service_on, due_on, currency, net_minor, tax_minor, gross_minor,
-            issuer_snapshot, recipient_snapshot, line_snapshot, tax_treatment,
+            issuer_snapshot, payment_details_snapshot, recipient_snapshot,
+            line_snapshot, tax_treatment,
             tax_rate_basis_points, tax_note, payment_reference,
             approved_by_user_id
         )
@@ -244,6 +245,7 @@ async def insert_operational_source_data(
             $1, $2, $3, 'TPL51-0001', 'issued', CURRENT_TIMESTAMP,
             CURRENT_DATE, CURRENT_DATE + 14, 'EUR', 3600, 0, 3600,
             '{"legalName":"Lions Hilfswerk LeonAid Test e.V.","streetLine1":"Testweg 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","taxIdentifier":"TEST","email":"test@leonaid.invalid"}'::jsonb,
+            '{"accountHolder":"Lions Hilfswerk LeonAid Test e.V.","iban":"DE89370400440532013000","bic":"COBADEFFXXX"}'::jsonb,
             '{"recipientName":"Operative Quelle GmbH","streetLine1":"Firmenweg 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
             '[{"description":"Krapfenbox","quantity":1,"unit":"box","unitPriceGrossMinor":3600,"taxRateBasisPoints":0,"netMinor":3600,"taxMinor":0,"grossMinor":3600,"currency":"EUR"}]'::jsonb,
             'small_business', 0, 'Kein Ausweis von Umsatzsteuer.',

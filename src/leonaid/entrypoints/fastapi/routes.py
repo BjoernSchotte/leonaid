@@ -251,6 +251,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvoiceListResponse,
     InvoicePaymentResponse,
     InvoiceProfileResponse,
+    InvoicePaymentDetailsResponse,
     InvoiceRecordResponse,
     InvoiceResponse,
     LegalConfigurationApprovalResponse,
@@ -1315,6 +1316,15 @@ def invoice_profile_response(profile: InvoiceProfile) -> InvoiceProfileResponse:
     return InvoiceProfileResponse(
         legal_configuration_version_id=profile.legal_configuration_version_id,
         issuer=invoice_issuer_response(profile),
+        payment_details=(
+            InvoicePaymentDetailsResponse(
+                account_holder=profile.payment_details.account_holder,
+                iban=profile.payment_details.iban,
+                bic=profile.payment_details.bic,
+            )
+            if profile.payment_details is not None
+            else None
+        ),
         tax_treatment=profile.tax_treatment.value,
         tax_rate_basis_points=profile.tax_rate_basis_points,
         tax_note=profile.tax_note,
@@ -1345,6 +1355,11 @@ def invoice_response(invoice: Invoice) -> InvoiceResponse:
             country_code=issuer.country_code,
             tax_identifier=issuer.tax_identifier,
             email=issuer.email,
+        ),
+        payment_details=InvoicePaymentDetailsResponse(
+            account_holder=invoice.payment_details.account_holder,
+            iban=invoice.payment_details.iban,
+            bic=invoice.payment_details.bic,
         ),
         recipient=CommitmentInvoiceRecipientResponse(
             recipient_name=recipient.recipient_name,

@@ -60,6 +60,7 @@ def _assert_expected_text(
     engine: str,
 ) -> None:
     presentation = render_payload(snapshot)
+    payment_details = cast(dict[str, object], presentation["paymentDetails"])
     expected = [
         "Rechnung",
         snapshot.number,
@@ -75,7 +76,11 @@ def _assert_expected_text(
         presentation["gross"],
         snapshot.tax_note,
         snapshot.payment_reference,
+        snapshot.payment_details.account_holder,
+        payment_details["iban"],
     ]
+    if snapshot.payment_details.bic is not None:
+        expected.append(snapshot.payment_details.bic)
     expected.extend(line.description for line in snapshot.lines)
     rendered_lines = cast(list[dict[str, object]], presentation["lines"])
     expected.extend(str(line["gross"]) for line in rendered_lines)

@@ -20,6 +20,8 @@ from leonaid.domain.errors import DomainInvariantError
 INVOICE_NUMBER = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,31}$")
 NUMBER_PREFIX = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,23}$")
 TAX_IDENTIFIER = re.compile(r"^[A-Z0-9 /.-]{3,32}$")
+IBAN = re.compile(r"^[A-Z]{2}[0-9A-Z]{13,32}$")
+BIC = re.compile(r"^[A-Z0-9]{8}(?:[A-Z0-9]{3})?$")
 
 
 class TaxTreatment(StrEnum):
@@ -135,6 +137,58 @@ class InvoiceIssuerSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class InvoicePaymentDetailsSnapshot:
+    account_holder: str
+    iban: str
+    bic: str | None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "account_holder",
+            _required(
+                self.account_holder,
+                code="invoice_payment_account_holder_empty",
+                label="Kontoinhaber",
+            ),
+        )
+        normalized_iban = "".join(self.iban.split()).upper()
+        if IBAN.fullmatch(normalized_iban) is None:
+            raise DomainInvariantError(
+                "invoice_payment_iban_invalid",
+                "Die IBAN besitzt kein gültiges Format.",
+            )
+        object.__setattr__(self, "iban", normalized_iban)
+        if self.bic is not None:
+            normalized_bic = "".join(self.bic.split()).upper()
+            if BIC.fullmatch(normalized_bic) is None:
+                raise DomainInvariantError(
+                    "invoice_payment_bic_invalid",
+                    "Die BIC besitzt kein gültiges Format.",
+                )
+            object.__setattr__(self, "bic", normalized_bic)
+
+    def payload(self) -> dict[str, str | None]:
+        return {
+            "accountHolder": self.account_holder,
+            "iban": self.iban,
+            "bic": self.bic,
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: dict[str, object],
+    ) -> InvoicePaymentDetailsSnapshot:
+        bic = payload.get("bic")
+        return cls(
+            account_holder=str(payload["accountHolder"]),
+            iban=str(payload["iban"]),
+            bic=str(bic) if bic is not None else None,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class InvoiceProfile:
     id: UUID
     action_id: UUID
@@ -148,6 +202,7 @@ class InvoiceProfile:
     payment_terms_days: int
     confirmed_at: datetime | None
     legal_configuration_version_id: UUID | None = None
+    payment_details: InvoicePaymentDetailsSnapshot | None = None
 
     def __post_init__(self) -> None:
         if self.tax_treatment is TaxTreatment.STANDARD_VAT:
@@ -202,6 +257,7 @@ class InvoiceProfile:
         return (
             self.confirmed_at is not None
             and self.legal_configuration_version_id is not None
+            and self.payment_details is not None
         )
 
 
@@ -292,6 +348,7 @@ class Invoice:
     service_on: date
     due_on: date
     issuer: InvoiceIssuerSnapshot
+    payment_details: InvoicePaymentDetailsSnapshot
     recipient: InvoiceRecipientSnapshot
     lines: tuple[InvoiceLineSnapshot, ...]
     tax_treatment: TaxTreatment
@@ -397,6 +454,12 @@ class Invoice:
                 "invoice_profile_not_confirmed",
                 "Der rechtliche Träger und Steuerfall müssen vor der Freigabe bestätigt sein.",
             )
+        payment_details = profile.payment_details
+        if payment_details is None:
+            raise DomainInvariantError(
+                "invoice_payment_details_missing",
+                "Vor der Freigabe müssen vollständige Zahlungsdaten bestätigt sein.",
+            )
         if profile.action_id != commitment.action_id:
             raise DomainInvariantError(
                 "invoice_profile_action_mismatch",
@@ -431,6 +494,7 @@ class Invoice:
             service_on=service_on,
             due_on=issued_at.date() + timedelta(days=profile.payment_terms_days),
             issuer=profile.issuer,
+            payment_details=payment_details,
             recipient=commitment.invoice_recipient,
             lines=lines,
             tax_treatment=profile.tax_treatment,

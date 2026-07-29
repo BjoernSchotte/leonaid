@@ -35,6 +35,7 @@ from leonaid.domain.invoices import (
     Invoice,
     InvoiceIssuerSnapshot,
     InvoiceLineSnapshot,
+    InvoicePaymentDetailsSnapshot,
     InvoiceProfile,
     InvoiceStatus,
     TaxTreatment,
@@ -500,7 +501,8 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             INSERT INTO invoice (
                 id, action_id, commitment_id, number, status, issued_at,
                 service_on, due_on, currency, net_minor, tax_minor,
-                gross_minor, issuer_snapshot, recipient_snapshot,
+                gross_minor, issuer_snapshot, payment_details_snapshot,
+                recipient_snapshot,
                 line_snapshot, tax_treatment, tax_rate_basis_points,
                 tax_note, payment_reference, approved_by_user_id,
                 document_version, idempotency_key, created_at, updated_at
@@ -508,10 +510,10 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             VALUES (
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
-                $12, $13::jsonb, $14::jsonb,
-                $15::jsonb, $16, $17,
-                $18, $19, $20,
-                1, $21, $6, $6
+                $12, $13::jsonb, $14::jsonb, $15::jsonb,
+                $16::jsonb, $17, $18,
+                $19, $20, $21,
+                2, $22, $6, $6
             )
             """,
             invoice.id,
@@ -527,6 +529,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             invoice.tax.amount_minor,
             invoice.gross.amount_minor,
             json.dumps(invoice.issuer.payload(), separators=(",", ":")),
+            json.dumps(invoice.payment_details.payload(), separators=(",", ":")),
             json.dumps(invoice.recipient.payload(), separators=(",", ":")),
             json.dumps(
                 [line.payload() for line in invoice.lines],
@@ -606,7 +609,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             uuid4(),
             document_id,
             INVOICE_DOCUMENT_RENDER_REQUESTED,
-            f"invoice-document:{document_id}:v1",
+            f"invoice-document:{document_id}:v2",
             json.dumps({"documentId": str(document_id)}, separators=(",", ":")),
             invoice.issued_at,
         )
@@ -673,6 +676,15 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             payment_terms_days=int(row["payment_terms_days"]),
             confirmed_at=row["confirmed_at"],
             legal_configuration_version_id=row["legal_configuration_version_id"],
+            payment_details=(
+                InvoicePaymentDetailsSnapshot(
+                    account_holder=str(row["bank_account_holder"]),
+                    iban=str(row["iban"]),
+                    bic=str(row["bic"]) if row["bic"] is not None else None,
+                )
+                if row["bank_account_holder"] is not None and row["iban"] is not None
+                else None
+            ),
         )
 
     @staticmethod
@@ -769,6 +781,12 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 _json_object(
                     row["issuer_snapshot"],
                     label="Rechnungsaussteller-Snapshot",
+                )
+            ),
+            payment_details=InvoicePaymentDetailsSnapshot.from_payload(
+                _json_object(
+                    row["payment_details_snapshot"],
+                    label="Zahlungsdaten-Snapshot",
                 )
             ),
             recipient=InvoiceRecipientSnapshot.from_payload(

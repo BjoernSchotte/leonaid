@@ -41,6 +41,11 @@ def test_renderer_payload_is_locale_stable_and_snapshot_only() -> None:
     assert payload["renderVersion"] == RENDER_VERSION
     assert payload["issuedOn"] == "30.06.2026"
     assert payload["gross"] == "360,00 EUR"
+    assert payload["paymentDetails"] == {
+        "accountHolder": "Lions Hilfswerk LeonAid Golden e.V.",
+        "iban": "DE89 3704 0044 0532 0130 00",
+        "bic": "COBADEFFXXX",
+    }
     assert payload["lines"] == [
         {
             "description": "Krapfenbox",

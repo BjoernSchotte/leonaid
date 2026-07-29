@@ -1069,9 +1069,16 @@ class InvoiceIssuerResponse(TransportModel):
     email: str
 
 
+class InvoicePaymentDetailsResponse(TransportModel):
+    account_holder: str
+    iban: str
+    bic: str | None
+
+
 class InvoiceProfileResponse(TransportModel):
     legal_configuration_version_id: UUID | None
     issuer: InvoiceIssuerResponse
+    payment_details: InvoicePaymentDetailsResponse | None
     tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
     tax_rate_basis_points: int = Field(ge=0, le=10_000)
     tax_note: str
@@ -1103,6 +1110,7 @@ class InvoiceResponse(TransportModel):
     service_on: date
     due_on: date
     issuer: InvoiceIssuerResponse
+    payment_details: InvoicePaymentDetailsResponse
     recipient: CommitmentInvoiceRecipientResponse
     lines: list[InvoiceLineResponse]
     tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
