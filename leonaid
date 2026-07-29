@@ -65,6 +65,7 @@ Commands:
                     Prove private pilot paths, manifests and public evidence
   test-pilot-deployment
                     Prove the merged production topology and fail-closed guards
+  test-pilot-backup Prove a real networked S3/Restic target and failures
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
@@ -810,6 +811,11 @@ case "$command" in
   test-pilot-deployment)
     require_docker
     /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
+    ;;
+  test-pilot-backup)
+    require_docker
+    /bin/sh "$root/tools/backup/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_backup/test.sh" "$root"
     ;;
   pilot-evidence-init)
     require_docker

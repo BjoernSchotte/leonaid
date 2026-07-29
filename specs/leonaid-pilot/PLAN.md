@@ -778,26 +778,29 @@ Akzeptanzkriterien:
 
 - [ ] Backupziel liegt außerhalb des Pilot-VPS und verwendet getrennte,
       rotierbare Credentials.
-- [ ] Core PostgreSQL, Twenty-Daten/-Konfiguration, RustFS-Objekte und
+- [x] Core PostgreSQL, Twenty-Daten/-Konfiguration, RustFS-Objekte und
       erforderliche Manifeste werden gemeinsam gesichert.
-- [ ] Zeitplan, Aufbewahrung, Prune, Integritätsprüfung, RPO und RTO sind
+- [x] Zeitplan, Aufbewahrung, Prune, Integritätsprüfung, RPO und RTO sind
       entschieden und überwacht.
 - [ ] Backupfehler alarmiert den Operator.
-- [ ] Restore verweigert Quellprojekt, nicht leeres Ziel und unbestätigte
+- [x] Restore verweigert Quellprojekt, nicht leeres Ziel und unbestätigte
       Umgebung.
-- [ ] Ein vollständiger Restore läuft regelmäßig in ein isoliertes Ziel und
+- [x] Ein vollständiger Restore läuft regelmäßig in ein isoliertes Ziel und
       prüft Golden-/Pilot-Summen sowie Dokument-SHAs.
-- [ ] Private Backupinhalte erscheinen nicht in Logs oder CI-Artefakten.
+- [x] Private Backupinhalte erscheinen nicht in Logs oder CI-Artefakten.
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-backup` verwendet das reale externe
+- [x] `./leonaid test-pilot-backup` verwendet das reale externe
       Restic-Testrepository und frische Zielvolumes.
-- [ ] Falsches Passwort, unvollständiger Snapshot, volles Ziel und
+- [x] Falsches Passwort, unvollständiger Snapshot, volles Ziel und
       Netzwerkunterbrechung werden real erzeugt.
-- [ ] Gemessenes RPO/RTO erfüllt das Register.
+- [x] Gemessenes RPO/RTO erfüllt das Register.
 - [ ] Operator führt einen dokumentierten Restore ohne Implementiererhilfe
       aus.
+
+Technischer Nachweis und verbleibende Betreibergrenze:
+[`proofs/PILOT-041.md`](proofs/PILOT-041.md)
 
 ### [ ] PILOT-042 Monitoring und reale Alarmkette aktivieren
 

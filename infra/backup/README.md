@@ -124,6 +124,22 @@ Repository im Test ist ausdrücklich nur ein isoliertes Modell; den
 physischen Off-VPS-Standort muss der jeweilige Betreiber zusätzlich durch
 seine Remote-Konfiguration und Infrastruktur belegen.
 
+Der Pilot-Gate kombiniert diesen vollständigen Restore mit einem echten
+netzgebundenen S3-Backend:
+
+```sh
+./leonaid test-pilot-backup
+```
+
+Das zusätzliche isolierte RustFS besitzt ein eigenes Netzwerk, Volume und
+rotierbare S3-Credentials. Restic initialisiert dort ein echtes
+S3-Repository, liest alle verschlüsselten Daten zur Integritätsprüfung und
+restauriert sie in ein frisches Ziel. Falsches Passwort, reale
+Netzunterbrechung, ein unvollständiger neuester Snapshot und die Rotation der
+S3-Zugangsdaten werden fail-closed geprüft. Dieser technische Remote-Vertrag
+ersetzt nicht den noch ausstehenden Betreibernachweis, dass das ausgewählte
+Produktiv-Repository physisch außerhalb des Pilot-VPS liegt.
+
 ## Schemaändernde Migrationen
 
 Schemaändernde Migrationen dürfen nur auf wegwerfbaren PoC-Datenbanken oder
