@@ -1023,9 +1023,7 @@ def public_action_route_response(
     legal_configuration: LegalConfigurationVersion | None = None,
 ) -> PublicActionRouteResponse:
     action = route.action
-    submissions_allowed = (
-        route.submissions_allowed and legal_configuration is not None
-    )
+    submissions_allowed = route.submissions_allowed and legal_configuration is not None
     return PublicActionRouteResponse(
         route_kind=route.route_kind.value,
         route_value=route.route_value,
@@ -1638,9 +1636,7 @@ async def resolve_public_action_alias(
         if route.submissions_allowed
         else None
     )
-    submissions_allowed = (
-        route.submissions_allowed and legal_configuration is not None
-    )
+    submissions_allowed = route.submissions_allowed and legal_configuration is not None
     response.headers["Cache-Control"] = (
         "private, no-store"
         if submissions_allowed
