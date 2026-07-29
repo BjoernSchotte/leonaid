@@ -112,7 +112,12 @@ async def prepare(
     ) as api:
         payload = await overview(api)
         states = dependency_states(payload)
-        if states != {"twenty": "ready", "rustfs": "ready", "mail": "ready"}:
+        if states != {
+            "twenty": "ready",
+            "rustfs": "ready",
+            "mail": "ready",
+            "worker": "ready",
+        }:
             raise ContractFailure(f"Startzustand nicht bereit: {states}")
         if payload.get("requestId") != CONTRACT_REQUEST_ID:
             raise ContractFailure("Korrelations-ID ging im API-Vertrag verloren")
@@ -131,7 +136,12 @@ async def prepare(
 
 
 async def expect_dependency(dependency: str) -> None:
-    expected = {"twenty": "ready", "rustfs": "ready", "mail": "ready"}
+    expected = {
+        "twenty": "ready",
+        "rustfs": "ready",
+        "mail": "ready",
+        "worker": "ready",
+    }
     expected[dependency] = "unavailable"
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),
@@ -141,7 +151,7 @@ async def expect_dependency(dependency: str) -> None:
         if live.status_code != 200:
             raise ContractFailure(f"Liveness fiel mit {dependency} aus")
         ready = await api.get("/health/ready")
-        expected_ready = 200 if dependency == "mail" else 503
+        expected_ready = 200 if dependency in {"mail", "worker"} else 503
         if ready.status_code != expected_ready:
             raise ContractFailure(
                 f"Readiness für {dependency}: HTTP {ready.status_code}, "
@@ -310,7 +320,10 @@ def parser() -> argparse.ArgumentParser:
     recovered = commands.add_parser("assert-recovered")
     recovered.add_argument("state", type=Path)
     dependency = commands.add_parser("expect-dependency")
-    dependency.add_argument("dependency", choices=("twenty", "rustfs", "mail"))
+    dependency.add_argument(
+        "dependency",
+        choices=("twenty", "rustfs", "mail", "worker"),
+    )
     return result
 
 

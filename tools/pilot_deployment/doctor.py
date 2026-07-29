@@ -54,6 +54,8 @@ SECRET_KEYS = (
 REQUIRED_ENVIRONMENT_KEYS = (
     "CADDY_ACME_EMAIL",
     "LEONAID_ALLOWED_ORIGINS",
+    "LEONAID_ALERT_WEBHOOK_URL_FILE",
+    "LEONAID_BACKUP_MANIFEST_PATH",
     "LEONAID_COMPOSE_PROJECT",
     "LEONAID_CORE_IMAGE",
     "LEONAID_DEPLOYMENT_STAGE",
@@ -63,6 +65,7 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "LEONAID_PUBLIC_IMAGE",
     "LEONAID_PWA_IMAGE",
     "LEONAID_RELEASE_COMMIT",
+    "LEONAID_MONITORED_DISK_PATH",
     "LEONAID_WEB_IMAGE",
     "MAIL_FROM",
     "MAIL_HEALTH_URL",
@@ -179,6 +182,27 @@ def validate_environment(
     repository = values["RESTIC_REPOSITORY"]
     if not repository.startswith(REMOTE_BACKUP_PREFIXES):
         raise DoctorError("backup_repository_not_external")
+
+    backup_path = Path(values["LEONAID_BACKUP_MANIFEST_PATH"])
+    require_external_path(backup_path, root, "backup_manifest")
+    alert_webhook_path = Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"])
+    require_private_file(alert_webhook_path, "alert_webhook_url_file")
+    require_external_path(alert_webhook_path, root, "alert_webhook_url_file")
+    try:
+        alert_webhook_url = alert_webhook_path.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise DoctorError("alert_webhook_url_unreadable") from error
+    parsed_alert_webhook = urlparse(alert_webhook_url)
+    if (
+        parsed_alert_webhook.scheme != "https"
+        or not parsed_alert_webhook.hostname
+        or forbidden_public_host(parsed_alert_webhook.hostname)
+    ):
+        raise DoctorError("alert_webhook_url_invalid")
+    monitored_disk_path = Path(values["LEONAID_MONITORED_DISK_PATH"])
+    if not monitored_disk_path.is_dir():
+        raise DoctorError("monitored_disk_path_missing")
+    require_external_path(monitored_disk_path, root, "monitored_disk_path")
 
     public_domain = values["LEONAID_PUBLIC_DOMAIN"].rstrip(".").casefold()
     crm_domain = values["TWENTY_PUBLIC_DOMAIN"].rstrip(".").casefold()

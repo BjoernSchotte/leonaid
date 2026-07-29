@@ -32,6 +32,23 @@ class HealthHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if self.path == "/metrics":
+            ready = time.monotonic() - last_database_success < 10
+            body = (
+                "# HELP leonaid_worker_ready Whether the durable worker can reach PostgreSQL.\n"
+                "# TYPE leonaid_worker_ready gauge\n"
+                f"leonaid_worker_ready {1 if ready else 0}\n"
+            ).encode()
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "text/plain; version=0.0.4; charset=utf-8",
+            )
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         self.respond(404, {"status": "not-found"})
 
     def respond(self, code: int, document: dict[str, object]) -> None:

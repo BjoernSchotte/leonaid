@@ -25,6 +25,7 @@ services:
       LEONAID_ALLOWED_ORIGINS: ${LEONAID_ALLOWED_ORIGINS:?LEONAID_ALLOWED_ORIGINS fehlt}
       TWENTY_ORIGIN: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL fehlt}
+      WORKER_HEALTH_URL: http://worker:8010/health/ready
       MAIL_TEST_API_URL: !reset null
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
@@ -68,6 +69,68 @@ services:
       SERVER_URL: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
       IS_EMAIL_VERIFICATION_REQUIRED: "true"
 
+  pilot-exporter:
+    image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["python", "-m", "leonaid.entrypoints.monitoring.exporter"]
+    environment:
+      PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
+      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_COMPOSE_PROJECT:?LEONAID_COMPOSE_PROJECT fehlt}
+      PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
+      PILOT_TLS_HOST: ${LEONAID_PUBLIC_DOMAIN:?LEONAID_PUBLIC_DOMAIN fehlt}
+      PILOT_TLS_PORT: "443"
+      PILOT_TLS_CA_FILE: ${LEONAID_TLS_CA_FILE:-}
+    volumes:
+      - ${LEONAID_BACKUP_MANIFEST_PATH:?LEONAID_BACKUP_MANIFEST_PATH fehlt}:/run/leonaid-monitor/backup-manifest.json:ro
+      - ${LEONAID_MONITORED_DISK_PATH:?LEONAID_MONITORED_DISK_PATH fehlt}:/run/leonaid-monitor/disk:ro
+    networks:
+      - edge
+      - telemetry
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8020/health/live', timeout=3)"
+      interval: 10s
+      timeout: 4s
+      retries: 20
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ../observability/pilot/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/pilot/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - telemetry
+    depends_on:
+      pilot-exporter:
+        condition: service_healthy
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ../observability/pilot/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ${LEONAID_ALERT_WEBHOOK_URL_FILE:?LEONAID_ALERT_WEBHOOK_URL_FILE fehlt}:/run/secrets/alert-webhook-url:ro
+      - alertmanager-data:/alertmanager
+    networks:
+      - telemetry
+
 volumes:
   caddy-data:
   caddy-config:
+  prometheus-data:
+  alertmanager-data:

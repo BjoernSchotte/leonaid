@@ -69,7 +69,7 @@ playwright_image="$PLAYWRIGHT_IMAGE"
 listmonk_image="$LISTMONK_IMAGE"
 otel_image="$OTEL_IMAGE"
 
-for system_id in python node twenty postgres redis rustfs seaweedfs mailpit caddy typst playwright listmonk otel; do
+for system_id in python node twenty postgres redis rustfs seaweedfs mailpit caddy typst playwright listmonk otel prometheus alertmanager; do
   eval "image=\${${system_id}_image}"
   docker run --rm \
     --user "$host_user_id:$host_group_id" \

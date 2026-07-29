@@ -82,7 +82,7 @@ if [ "${#integration_key}" -lt 32 ]; then
   exit 1
 fi
 
-compose up --detach --wait --wait-timeout 420 api
+compose up --detach --wait --wait-timeout 420 api worker
 
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof/pdfs" "${project}-api"
@@ -110,6 +110,13 @@ compose up --detach --wait --wait-timeout 180 rustfs
 
 compose stop mailpit
 contract expect-dependency mail
+compose start mailpit
+compose up --detach --wait --wait-timeout 120 mailpit
+
+compose stop worker
+contract expect-dependency worker
+
+compose stop mailpit
 contract create-failed-mail /proof/state.json
 
 compose run --rm --no-deps \
@@ -150,7 +157,7 @@ contract assert-recovered /proof/state.json
 compose logs --no-color api >"$proof/api.log"
 compose logs --no-color worker >"$proof/worker.log"
 
-for dependency in twenty rustfs mail; do
+for dependency in twenty rustfs mail worker; do
   if ! grep -F "\"dependency\":\"$dependency\"" "$proof/api.log" \
     | grep -F '"requestId":"poc114-browser-correlation"' >/dev/null; then
     echo "operations-test: ERROR: Browser-Korrelation zu $dependency fehlt" >&2

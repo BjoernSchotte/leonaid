@@ -66,8 +66,10 @@ class OperationsService:
         api_metrics: ApiMetrics,
         dependency_urls: dict[str, str],
     ) -> None:
-        if set(dependency_urls) != {"twenty", "rustfs", "mail"}:
-            raise ValueError("Twenty, RustFS und Mail müssen konfiguriert sein.")
+        if set(dependency_urls) != {"twenty", "rustfs", "mail", "worker"}:
+            raise ValueError(
+                "Twenty, RustFS, Mail und Worker müssen konfiguriert sein."
+            )
         self._pool = pool
         self._api_metrics = api_metrics
         self._dependency_urls = dict(dependency_urls)

@@ -42,7 +42,7 @@ test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
     await expect(page.getByTestId("operations-panel")).toBeVisible();
     await expect(page.locator("code")).toContainText(correlationId);
 
-    for (const dependency of ["twenty", "rustfs", "mail"]) {
+    for (const dependency of ["twenty", "rustfs", "mail", "worker"]) {
       await expect(
         page.locator(`[data-dependency="${dependency}"]`),
       ).toContainText("Bereit");

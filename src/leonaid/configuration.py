@@ -108,6 +108,10 @@ class Settings(BaseSettings):
         default=HttpUrl("http://mailpit:8025/mail/api/v1/info"),
         alias="MAIL_HEALTH_URL",
     )
+    worker_health_url: HttpUrl = Field(
+        default=HttpUrl("http://worker:8010/health/ready"),
+        alias="WORKER_HEALTH_URL",
+    )
     object_storage_endpoint_url: HttpUrl = Field(alias="OBJECT_STORAGE_ENDPOINT_URL")
     object_storage_access_key: SecretStr = Field(alias="OBJECT_STORAGE_ACCESS_KEY")
     object_storage_secret_key: SecretStr = Field(alias="OBJECT_STORAGE_SECRET_KEY")
@@ -218,6 +222,7 @@ class Settings(BaseSettings):
             "twentyHealthHost": self.twenty_health_url.host or "invalid",
             "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
             "mailHealthHost": self.mail_health_url.host or "invalid",
+            "workerHealthHost": self.worker_health_url.host or "invalid",
             "objectStorageHost": self.object_storage_endpoint_url.host or "invalid",
             "objectStorageBucket": self.object_storage_bucket,
         }

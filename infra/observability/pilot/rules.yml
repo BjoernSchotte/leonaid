@@ -1,0 +1,102 @@
+groups:
+  - name: leonaid-pilot
+    rules:
+      - alert: LeonAidBackupManifestInvalid
+        expr: leonaid_backup_manifest_valid != 1
+        for: 15s
+        labels:
+          severity: P0
+          owner: pilot-operations
+          category: backup
+        annotations:
+          summary: "LeonAid-Backupnachweis ist ungültig"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#backup"
+      - alert: LeonAidBackupStale
+        expr: leonaid_backup_age_seconds > 93600
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: backup
+        annotations:
+          summary: "LeonAid-Backup ist älter als 26 Stunden"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#backup"
+      - alert: LeonAidDependencyUnavailable
+        expr: leonaid_dependency_up == 0 and on() leonaid_maintenance_mode == 0
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: availability
+        annotations:
+          summary: "Eine LeonAid-Abhängigkeit ist nicht erreichbar"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#dependency"
+      - alert: LeonAidWorkerUnavailable
+        expr: leonaid_worker_ready != 1 and on() leonaid_maintenance_mode == 0
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: availability
+        annotations:
+          summary: "Der LeonAid-Worker ist nicht arbeitsfähig"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#worker"
+      - alert: LeonAidDeadLetterPresent
+        expr: leonaid_outbox_jobs{status="deadLetter"} > 0 and on() leonaid_maintenance_mode == 0
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: jobs
+        annotations:
+          summary: "LeonAid hat fehlgeschlagene Hintergrundjobs"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#dead-letter"
+      - alert: LeonAidDiskLow
+        expr: leonaid_monitored_disk_valid != 1 or leonaid_monitored_disk_free_ratio < 0.10
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: capacity
+        annotations:
+          summary: "Der freie Pilot-Datenträgerplatz ist kritisch"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#disk"
+      - alert: LeonAidCertificateInvalid
+        expr: leonaid_tls_certificate_valid != 1
+        for: 15s
+        labels:
+          severity: P0
+          owner: pilot-operations
+          category: security
+        annotations:
+          summary: "Das öffentliche TLS-Zertifikat ist ungültig"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#tls"
+      - alert: LeonAidCertificateExpiring
+        expr: leonaid_tls_certificate_expiry_seconds < 1209600
+        for: 15s
+        labels:
+          severity: P1
+          owner: pilot-operations
+          category: security
+        annotations:
+          summary: "Das öffentliche TLS-Zertifikat läuft in weniger als 14 Tagen ab"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#tls"
+      - alert: LeonAidApiErrors
+        expr: increase(leonaid_api_errors_total[5m]) >= 3 and on() leonaid_maintenance_mode == 0
+        labels:
+          severity: P2
+          owner: pilot-operations
+          category: application
+        annotations:
+          summary: "LeonAid meldet wiederholt interne API-Fehler"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#api"
+      - alert: LeonAidLoginFailures
+        expr: leonaid_login_failures_24h >= 10
+        for: 5m
+        labels:
+          severity: P2
+          owner: pilot-operations
+          category: security
+        annotations:
+          summary: "LeonAid verzeichnet auffällig viele fehlgeschlagene Logins"
+          runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#login"

@@ -1606,7 +1606,7 @@ class OperationalApiMetricsResponse(TransportModel):
 
 
 class OperationalDependencyResponse(TransportModel):
-    dependency: Literal["twenty", "rustfs", "mail"]
+    dependency: Literal["twenty", "rustfs", "mail", "worker"]
     status: Literal["ready", "unavailable"]
     latency_ms: float = Field(ge=0)
     request_id: str

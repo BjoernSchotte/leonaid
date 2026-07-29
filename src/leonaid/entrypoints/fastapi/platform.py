@@ -167,6 +167,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 "twenty": str(settings.twenty_health_url),
                 "rustfs": str(settings.rustfs_health_url),
                 "mail": str(settings.mail_health_url),
+                "worker": str(settings.worker_health_url),
             },
         )
         application.state.api_metrics = api_metrics

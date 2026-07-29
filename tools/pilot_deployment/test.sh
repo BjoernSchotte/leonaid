@@ -14,6 +14,7 @@ config="$workspace/compose.json"
 env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
 ca_file="$workspace/caddy-root.crt"
+alert_webhook_file="$workspace/alert-webhook-url"
 core_image="$build_project-api:latest"
 web_image="$build_project-web:latest"
 pwa_image="$build_project-pwa:latest"
@@ -52,6 +53,8 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 cp "$root/.env.local" "$env_file"
+printf '%s\n' "https://alerts.leonaid.org/pilot" >"$alert_webhook_file"
+chmod 600 "$alert_webhook_file"
 digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 {
   printf '%s\n' \
@@ -78,6 +81,9 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "MAIL_SMTP_MODE=starttls" \
     "MAIL_SMTP_USERNAME=pilot-smtp" \
     "RESTIC_REPOSITORY=s3:https://backup.leonaid.org/production-test" \
+    "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
+    "LEONAID_MONITORED_DISK_PATH=$workspace" \
+    "LEONAID_ALERT_WEBHOOK_URL_FILE=$alert_webhook_file" \
     "CORE_POSTGRES_PASSWORD=core-postgres-production-test-001" \
     "LEONAID_SECRET_KEY=leonaid-application-production-test-002" \
     "LEONAID_SESSION_ENCRYPTION_KEY=leonaid-session-production-test-003" \
@@ -101,6 +107,7 @@ docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
+  --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/validate.py /proof/compose.json
@@ -108,6 +115,7 @@ docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
+  --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
@@ -176,6 +184,7 @@ docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
+  --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/doctor_test.py \
@@ -191,6 +200,7 @@ docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
+  --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/doctor.py /workspace \
@@ -216,6 +226,7 @@ unsafe_output=$(docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
+  --volume "$workspace:$workspace:ro" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/doctor.py /workspace \

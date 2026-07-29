@@ -73,6 +73,7 @@ services:
       OBJECT_STORAGE_REGION: us-east-1
       OBJECT_STORAGE_PATH_STYLE: "true"
       MAIL_HEALTH_URL: http://mailpit:8025/mail/api/v1/info
+      WORKER_HEALTH_URL: http://worker:8010/health/ready
       MAIL_TEST_API_URL: http://mailpit:8025/mail
     volumes:
       - maintenance-state:/run/leonaid-maintenance:ro

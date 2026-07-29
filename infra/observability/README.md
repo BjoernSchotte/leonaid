@@ -66,3 +66,25 @@ Mailpit einzeln, prüft Liveness/Readiness, erzeugt bei ausgeschaltetem SMTP
 einen echten Login-Mail-Dead-Letter und verarbeitet ihn nach dem
 System-Admin-Klick in Chromium genau einmal. Bekannte PII-, Token- und
 Dokumentsignaturen werden anschließend gegen die gesammelten Logs geprüft.
+
+## Pilot-Monitoring
+
+Für den Pilot ergänzt das Compose-Profil `monitoring` den bestehenden
+Operations-Vertrag um:
+
+- Prometheus 3.13.0 für Scraping und zehn versionierte P0/P1/P2-Regeln;
+- Alertmanager 0.32.1 für Gruppierung, Deduplizierung und gelöste Meldungen;
+- einen kleinen LeonAid-Exporter für Backupalter, Kapazität und öffentliches
+  TLS ohne Docker-Socket oder privilegierten Container;
+- einen extern konfigurierten Webhook aus einer privaten 0600-Datei. Dieser
+  Kanal darf nicht vom LeonAid-Mailpfad abhängen.
+
+Beide Upstream-Images sind in `infra/locks/external-systems.lock` nach Tag und
+Multi-Arch-Digest fixiert. Prometheus und Alertmanager besitzen keine
+öffentlichen Hostports. Die Metrik-Endpunkte von API und Worker sind nur im
+internen `telemetry`-Netz erreichbar.
+
+Alarmtexte bestehen ausschließlich aus festen Zusammenfassungen, technischen
+Labels und Links auf [`RUNBOOKS.md`](RUNBOOKS.md). Wartungsmodus unterdrückt
+erwartete Verfügbarkeits-, Job- und API-Alarme, nicht aber Backup-, Kapazitäts-
+oder TLS-/Security-Alarme.

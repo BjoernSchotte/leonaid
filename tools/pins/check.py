@@ -23,6 +23,7 @@ IMAGE = re.compile(
 )
 HASH = re.compile(r"^sha256:[0-9a-f]{64}$")
 REQUIRED_SYSTEMS = {
+    "alertmanager",
     "alpine",
     "bun",
     "caddy",
@@ -32,6 +33,7 @@ REQUIRED_SYSTEMS = {
     "otel",
     "playwright",
     "postgres",
+    "prometheus",
     "python",
     "redis",
     "restic",

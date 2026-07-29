@@ -9,6 +9,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import PlainTextResponse
 
 from leonaid.application.acquisition import (
     AcquisitionParty,
@@ -81,6 +82,7 @@ from leonaid.application.identity import (
 )
 from leonaid.application.invitations import InvitationService
 from leonaid.application.operations import OperationsService
+from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.policies import require_system_admin
 from leonaid.application.privacy import OPEN_LEGAL_DECISIONS, PrivacyService
@@ -1992,6 +1994,26 @@ async def operations_overview(
             OperationalFailedJobResponse.model_validate(item)
             for item in snapshot.failed_jobs
         ],
+    )
+
+
+@router.get(
+    "/metrics",
+    include_in_schema=False,
+    response_class=PlainTextResponse,
+)
+async def prometheus_metrics(request: Request) -> PlainTextResponse:
+    snapshot = await operations_service(request).snapshot(
+        request_id=request_id(request),
+    )
+    body = render_operations_metrics(
+        snapshot,
+        maintenance_mode=request.app.state.maintenance_flag_path.is_file(),
+    )
+    return PlainTextResponse(
+        body,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
     )
 
 

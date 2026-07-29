@@ -5404,7 +5404,8 @@
             "enum": [
               "twenty",
               "rustfs",
-              "mail"
+              "mail",
+              "worker"
             ],
             "title": "Dependency",
             "type": "string"
