@@ -1,6 +1,7 @@
 # LeonAid Pilot – technischer Implementierungs- und Abnahmeplan
 
-Status: geplant; noch kein Pilot-Task ist implementiert oder bewiesen  
+Status: aktiv; Pilot-Infrastruktur vollständig bewiesen, technische
+Teilnachweise vorhanden, externe Pilotfreigaben noch offen
 Planbasis: Commit `18c324bb5b4947ea182d7a708ed44fff37359a9c` vom
 28. Juli 2026  
 Vorgänger:
@@ -335,26 +336,29 @@ Mindestens zu entscheiden:
 
 Akzeptanzkriterien:
 
-- [ ] Jede Entscheidung besitzt ID, Owner, Datum, Quelle, Status und
+- [x] Jede Entscheidung besitzt ID, Owner, Datum, Quelle, Status und
       spätestes Gate.
-- [ ] Entscheidungen mit rechtlicher Tragweite werden nicht allein von der
+- [x] Entscheidungen mit rechtlicher Tragweite werden nicht allein von der
       Implementierung getroffen.
-- [ ] Reale Namen, Verträge, Steuerunterlagen und Zugangsdaten bleiben im
+- [x] Reale Namen, Verträge, Steuerunterlagen und Zugangsdaten bleiben im
       privaten Evidence Store; das Register enthält nur Ergebnis und
       Referenz-ID.
-- [ ] `pilot-doctor` blockiert produktive Befehle bei offener
+- [x] `pilot-doctor` blockiert produktive Befehle bei offener
       gate-relevanter Entscheidung.
-- [ ] Eine erforderliche E-Rechnung oder vollständige Buchhaltung führt zu
+- [x] Eine erforderliche E-Rechnung oder vollständige Buchhaltung führt zu
       `STOP`, nicht zu einer stillen Erweiterung des ERP-light.
 
 Tests/Nachweise:
 
-- [ ] Contract-Test lehnt `open` für jede vor dem Pilot fällige Entscheidung
+- [x] Contract-Test lehnt `open` für jede vor dem Pilot fällige Entscheidung
       ab.
-- [ ] Negative Tests prüfen fehlenden Owner, fehlende Evidence-ID und
+- [x] Negative Tests prüfen fehlenden Owner, fehlende Evidence-ID und
       widersprüchliche Steuer-/Rechnungskonfiguration.
 - [ ] Produktverantwortlicher, Betrieb und erforderliche Fachstellen
       bestätigen das Register.
+
+Technischer Teilnachweis und verbleibende Fachfreigabe:
+[`proofs/PILOT-001.md`](proofs/PILOT-001.md)
 
 ### [ ] PILOT-002 Private Daten- und Evidence-Grenze beweisen
 

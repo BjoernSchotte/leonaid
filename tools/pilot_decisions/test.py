@@ -10,6 +10,63 @@ import tempfile
 from pathlib import Path
 
 REGISTER = "specs/leonaid-pilot/DECISIONS.md"
+EXPECTED_OPEN_BY_GATE = {
+    "pilot-deploy": {
+        "PILOT-MAIL-001",
+        "PILOT-OPS-001",
+        "PILOT-OPS-002",
+        "PILOT-OPS-004",
+        "PILOT-OPS-005",
+        "PILOT-OPS-006",
+        "PILOT-RUN-001",
+    },
+    "pilot-import": {
+        "PILOT-MAIL-001",
+        "PILOT-OPS-001",
+        "PILOT-OPS-002",
+        "PILOT-OPS-004",
+        "PILOT-OPS-005",
+        "PILOT-OPS-006",
+        "PILOT-PRIV-001",
+        "PILOT-RUN-001",
+    },
+    "pilot-backup": {
+        "PILOT-MAIL-001",
+        "PILOT-OPS-001",
+        "PILOT-OPS-002",
+        "PILOT-OPS-003",
+        "PILOT-OPS-004",
+        "PILOT-OPS-005",
+        "PILOT-OPS-006",
+        "PILOT-RUN-001",
+    },
+    "pilot-restore": {
+        "PILOT-MAIL-001",
+        "PILOT-OPS-001",
+        "PILOT-OPS-002",
+        "PILOT-OPS-003",
+        "PILOT-OPS-004",
+        "PILOT-OPS-005",
+        "PILOT-OPS-006",
+        "PILOT-RUN-001",
+    },
+    "pilot-release": {
+        "PILOT-INV-001",
+        "PILOT-INV-002",
+        "PILOT-LEG-001",
+        "PILOT-MAIL-001",
+        "PILOT-OPS-001",
+        "PILOT-OPS-002",
+        "PILOT-OPS-003",
+        "PILOT-OPS-004",
+        "PILOT-OPS-005",
+        "PILOT-OPS-006",
+        "PILOT-PRIV-001",
+        "PILOT-PRIV-002",
+        "PILOT-RUN-001",
+        "PILOT-TAX-001",
+    },
+}
 
 
 def run(
@@ -69,47 +126,41 @@ def main() -> None:
     canonical = (root / REGISTER).read_text(encoding="utf-8")
 
     run(checker, root, marker="pilot-decisions: OK: 14 Entscheidungen")
-    run(
-        checker,
-        root,
-        ready=True,
-        returncode=2,
-        marker="pilot-doctor: BLOCKED (pilot-release)",
-    )
-    run(
-        checker,
-        root,
-        ready=True,
-        returncode=2,
-        marker="pilot-doctor: BLOCKED (pilot-deploy)",
-        arguments=("--gate", "pilot-deploy"),
-    )
-    json_response = subprocess.run(
-        [
-            sys.executable,
-            str(checker),
-            str(root),
-            "--ready",
-            "--gate",
-            "pilot-deploy",
-            "--json",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    payload = json.loads(json_response.stdout)
-    if (
-        json_response.returncode != 2
-        or payload["status"] != "blocked"
-        or payload["gate"] != "pilot-deploy"
-        or "PILOT-TAX-001" in payload["openDecisionIds"]
-        or "PILOT-OPS-001" not in payload["openDecisionIds"]
-    ):
-        raise AssertionError(
-            "gate-spezifischer JSON-Status ist nicht fail-closed oder "
-            "enthält noch nicht fällige Entscheidungen"
+    for gate, expected_open in EXPECTED_OPEN_BY_GATE.items():
+        run(
+            checker,
+            root,
+            ready=True,
+            returncode=2,
+            marker=f"pilot-doctor: BLOCKED ({gate})",
+            arguments=("--gate", gate),
         )
+        json_response = subprocess.run(
+            [
+                sys.executable,
+                str(checker),
+                str(root),
+                "--ready",
+                "--gate",
+                gate,
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(json_response.stdout)
+        if (
+            json_response.returncode != 2
+            or payload["status"] != "blocked"
+            or payload["gate"] != gate
+            or set(payload["openDecisionIds"]) != expected_open
+            or payload["stopDecisionIds"]
+        ):
+            raise AssertionError(
+                f"{gate} ist nicht fail-closed oder enthält Entscheidungen "
+                f"aus dem falschen Gate: {payload}"
+            )
     help_response = subprocess.run(
         [sys.executable, str(checker), "--help"],
         check=False,
@@ -175,6 +226,57 @@ def main() -> None:
             marker="full accounting requirement must result in STOP",
         )
 
+        invoice_contradiction = fixtures / "invoice-contradiction"
+        contradictory_invoice = mutate(
+            canonical,
+            (
+                "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
+                "Freigabeverantwortung | Rechtlicher Träger und "
+                "Steuerberatung | 2026-07-28 | ADR-0002 | PENDING | open | "
+                "PENDING | pilot-release |"
+            ),
+            (
+                "| PILOT-INV-001 | Rechnung | Pflichtangaben und "
+                "Freigabeverantwortung | Rechtlicher Träger und "
+                "Steuerberatung | 2026-07-28 | ADR-0002 | "
+                "EVID-INV-APPROVAL-20260728 | accepted | confirmed | "
+                "pilot-release |"
+            ),
+        )
+        write_register(invoice_contradiction, contradictory_invoice)
+        run(
+            checker,
+            invoice_contradiction,
+            returncode=1,
+            marker="invoice approval contradicts open carrier or tax decision",
+        )
+
+        accounting = fixtures / "accounting-stop"
+        accounting_stop = mutate(
+            canonical,
+            (
+                "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
+                "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
+                "Träger | 2026-07-28 | ADR-0002 | PENDING | open | PENDING | "
+                "pilot-release |"
+            ),
+            (
+                "| PILOT-TAX-001 | Steuer | Steuerbehandlung der "
+                "Krapfentaxi-Leistung | Steuerberatung und rechtlicher "
+                "Träger | 2026-07-28 | ADR-0002 | "
+                "EVID-TAX-SCOPE-20260728 | stop | "
+                "full_accounting_required | pilot-release |"
+            ),
+        )
+        write_register(accounting, accounting_stop)
+        run(
+            checker,
+            accounting,
+            ready=True,
+            returncode=3,
+            marker="pilot-doctor: STOP (pilot-release)",
+        )
+
         einvoice = fixtures / "einvoice-stop"
         stop_text = mutate(
             accepted_register(canonical),
@@ -191,8 +293,9 @@ def main() -> None:
         )
 
     print(
-        "pilot-decisions-test: OK: gate-specific text/JSON/help, accepted "
-        "register and four negative decision cases proven"
+        "pilot-decisions-test: OK: five gate-specific text/JSON checks, "
+        "accepted register, both scope-STOP paths and five negative "
+        "decision cases proven"
     )
 
 
