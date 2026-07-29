@@ -71,6 +71,20 @@ protocol() {
     "$@"
 }
 
+expect_protocol_error() {
+  expected=$1
+  shift
+  if output=$("$@" 2>&1); then
+    echo "pilot-import-test: ERROR: erwarteter Fehler $expected blieb aus" >&2
+    return 1
+  fi
+  printf '%s\n' "$output"
+  if ! printf '%s\n' "$output" | grep -F "ERROR [$expected]" >/dev/null; then
+    echo "pilot-import-test: ERROR: erwartete Fehlerklasse $expected blieb aus" >&2
+    return 1
+  fi
+}
+
 provision() {
   compose run --rm --no-deps \
     --user "$host_user_id:$host_group_id" \
@@ -111,12 +125,12 @@ docker run --rm \
   --volume "${project}_twenty-server-data:/source:ro" \
   --volume "$backup:/backup" \
   "$ALPINE_IMAGE" \
-  tar -C /source -cf /backup/twenty-storage.tar .
+  sh -c "umask 077; tar -C /source -cf /backup/twenty-storage.tar .; chown $host_user_id:$host_group_id /backup/twenty-storage.tar"
 docker run --rm \
   --volume "${project}_rustfs-data:/source:ro" \
   --volume "$backup:/backup" \
   "$ALPINE_IMAGE" \
-  tar -C /source -cf /backup/rustfs-data.tar .
+  sh -c "umask 077; tar -C /source -cf /backup/rustfs-data.tar .; chown $host_user_id:$host_group_id /backup/rustfs-data.tar"
 run_python tools/pilot_import/test.py \
   write-backup-manifest "$container_workspace" leonaid-staging-golden
 
@@ -138,13 +152,10 @@ run_python tools/pilot_import/test.py \
   write-negative-manifests "$container_workspace"
 
 echo "pilot-import-test: ungeklärter Konflikt blockiert Apply vor dem ersten Write"
-if protocol apply \
+expect_protocol_error UNRESOLVED_CONFLICT protocol apply \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
-  --report "$container_workspace/.local/pilot/evidence/unresolved-apply.json"; then
-  echo "pilot-import-test: ERROR: ungeklärter Konflikt wurde angewendet" >&2
-  exit 1
-fi
+  --report "$container_workspace/.local/pilot/evidence/unresolved-apply.json"
 
 echo "pilot-import-test: paralleles Apply desselben Batches wird gesperrt"
 ready="$proof/lock-ready"
@@ -161,49 +172,38 @@ while [ ! -f "$ready" ]; do
   }
   sleep 0.05
 done
-if protocol apply \
+expect_protocol_error BATCH_APPLY_CONCURRENT protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
-  --report "$container_workspace/.local/pilot/evidence/concurrent.json"; then
-  echo "pilot-import-test: ERROR: konkurrierendes Apply wurde nicht gesperrt" >&2
-  exit 1
-fi
+  --report "$container_workspace/.local/pilot/evidence/concurrent.json"
 touch "$release"
 wait "$lock_pid"
 
 echo "pilot-import-test: manipulierter Fingerprint wird fail-closed abgewiesen"
-cp "$workspace/infra/twenty/import-mapping.json" "$proof/mapping.original.json"
-printf '\n' >>"$workspace/infra/twenty/import-mapping.json"
-if protocol apply \
+tampered_mapping="$workspace/infra/twenty/import-mapping-tampered.json"
+cp "$workspace/infra/twenty/import-mapping.json" "$tampered_mapping"
+printf '\n' >>"$tampered_mapping"
+expect_protocol_error APPROVAL_FINGERPRINT_MISMATCH protocol apply \
+  --mapping "$container_workspace/infra/twenty/import-mapping-tampered.json" \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
-  --report "$container_workspace/.local/pilot/evidence/tampered.json"; then
-  echo "pilot-import-test: ERROR: manipulierter Fingerprint wurde akzeptiert" >&2
-  exit 1
-fi
-mv "$proof/mapping.original.json" "$workspace/infra/twenty/import-mapping.json"
+  --report "$container_workspace/.local/pilot/evidence/tampered.json"
 
 echo "pilot-import-test: stale Resolution wird fail-closed abgewiesen"
-if protocol apply \
+expect_protocol_error STALE_RESOLUTION protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/stale-resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/manifest.json" \
-  --report "$container_workspace/.local/pilot/evidence/stale-resolution.json"; then
-  echo "pilot-import-test: ERROR: stale Resolution wurde akzeptiert" >&2
-  exit 1
-fi
+  --report "$container_workspace/.local/pilot/evidence/stale-resolution.json"
 
 echo "pilot-import-test: Recovery Point einer anderen Umgebung wird abgewiesen"
-if protocol apply \
+expect_protocol_error RECOVERY_POINT_TARGET_MISMATCH protocol apply \
   --resolutions "$container_workspace/.local/pilot/manifests/resolutions.json" \
   --approval "$container_workspace/.local/pilot/manifests/approval.json" \
   --backup-manifest "$container_workspace/.local/pilot/backups/wrong-target-manifest.json" \
-  --report "$container_workspace/.local/pilot/evidence/wrong-recovery.json"; then
-  echo "pilot-import-test: ERROR: falscher Recovery Point wurde akzeptiert" >&2
-  exit 1
-fi
+  --report "$container_workspace/.local/pilot/evidence/wrong-recovery.json"
 
 echo "pilot-import-test: freigegebener Apply schreibt exakt den Dry Run"
 protocol apply \
