@@ -14,10 +14,7 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
-from leonaid.application.public_orders import (
-    PRIVACY_NOTICE_VERSION,
-    PublicOrderTokenCodec,
-)
+from leonaid.application.public_orders import PublicOrderTokenCodec
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 ARCHIVED_ACTION_ID = UUID("20000000-0000-4000-8000-000000000002")
@@ -28,6 +25,11 @@ ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 COMMAND_NAMESPACE = UUID("5657756c-cd86-4800-8a47-153261f525ab")
 PUBLIC_REFERENCE = re.compile(r"^LA-[A-F0-9]{32}$")
+PRIVACY_NOTICE_VERSION = "public-order-golden-v1"
+PRIVACY_NOTICE_TEXT = (
+    "Wir verarbeiten Ihre Angaben ausschließlich zur Durchführung, "
+    "Abrechnung und Zustellung Ihrer Krapfentaxi-Bestellung."
+)
 
 
 class ContractFailure(RuntimeError):
@@ -124,6 +126,11 @@ async def public_context(
         or form.get("requireCompanyName") is not False
         or form.get("requireDeliveryAddress") is not True
         or form.get("requireBillingAddress") is not True
+        or form.get("privacyNoticeVersion") != PRIVACY_NOTICE_VERSION
+        or form.get("privacyNoticeText") != PRIVACY_NOTICE_TEXT
+        or form.get("legalBasis")
+        != "Vertragserfüllung für die öffentliche Golden-Bestellung."
+        or form.get("privacyContactEmail") != "datenschutz@leonaid.invalid"
     ):
         raise ContractFailure(
             "Public-Kontext besitzt keinen vollständigen Bestellvertrag"
@@ -368,7 +375,7 @@ async def assert_commitment(
         or str(evidence["text_version"]) != PRIVACY_NOTICE_VERSION
         or str(evidence["source"]) != "public_order_form"
         or str(evidence["evidence_kind"]) != "notice_acknowledgement"
-        or str(evidence["legal_basis_status"]) != "legal_review_pending"
+        or str(evidence["legal_basis_status"]) != "confirmed"
         or evidence["granted_at"] is None
         or (
             (evidence["twenty_company_id"] is None)
@@ -408,7 +415,68 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         people_before = await twenty_collection(twenty, "people")
         company_count_before = len(companies_before)
         person_count_before = len(people_before)
+
+        active_configuration_id = await connection.fetchval(
+            "SELECT active_version_id FROM legal_configuration_state"
+        )
+        if active_configuration_id is None:
+            raise ContractFailure("Golden Data besitzen keine aktive Rechtsgrundlage")
+        await connection.execute(
+            "UPDATE legal_configuration_state SET active_version_id = NULL"
+        )
+        disabled = await api.get(
+            "/api/v1/public/actions/alias/krapfentaxi",
+            headers={"X-Request-ID": "poc072:missing-legal-configuration"},
+        )
+        disabled.raise_for_status()
+        disabled_payload = disabled.json()
+        disabled_action = (
+            disabled_payload.get("action")
+            if isinstance(disabled_payload, dict)
+            else None
+        )
+        if (
+            not isinstance(disabled_action, dict)
+            or disabled_payload.get("submissionsAllowed") is not False
+            or disabled_action.get("orderForm") is not None
+            or disabled.headers.get("cache-control")
+            != "public, max-age=15, stale-while-revalidate=30"
+        ):
+            raise ContractFailure(
+                "Public-Formular blieb ohne aktive Rechtsgrundlage geöffnet"
+            )
+        await connection.execute(
+            """
+            UPDATE legal_configuration_state
+            SET active_version_id = $1
+            """,
+            active_configuration_id,
+        )
+
         token, _offering = await public_context(api)
+
+        stale_notice_body = order_body(
+            token=token,
+            command=command_id("stale-privacy-notice"),
+            company_name="Musterwerk GmbH",
+            given_name="Mara",
+            family_name="Muster",
+            email="mara.muster@musterwerk.leonaid.invalid",
+        )
+        stale_notice_body["privacyNoticeVersion"] = "public-order-stale-v0"
+        stale_notice = await submit(
+            api,
+            stale_notice_body,
+            label="stale-privacy-notice",
+            forwarded_for="203.0.113.71",
+        )
+        if (
+            stale_notice.status_code != 409
+            or error_code(stale_notice) != "public_order_privacy_notice_changed"
+        ):
+            raise ContractFailure(
+                "Veralteter Datenschutzhinweis wurde nicht fail-closed abgewiesen"
+            )
 
         existing_body = order_body(
             token=token,
@@ -766,7 +834,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         raise ContractFailure("Rate-Limit speichert keine pseudonymisierten Signale")
     print(
         "public-orders-contract: OK:",
-        "Firma/Person wiederverwendet oder exakt angelegt, serverseitiger Preis,",
+        "aktive Rechtsgrundlage, Firma/Person, serverseitiger Preis,",
         "Idempotenz, Archiv/Inaktivität, Spam/Rate und ActivityEvents bewiesen",
     )
 

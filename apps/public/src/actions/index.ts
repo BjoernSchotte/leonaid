@@ -100,7 +100,9 @@ export const server = {
       bindingOrderConfirmed: z.boolean().refine(Boolean, {
         message: "Bitte bestätige die verbindliche Bestellung.",
       }),
-      privacyNoticeVersion: z.literal("public-order-poc-2026-07"),
+      privacyNoticeVersion: z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
       website: optionalText(300),
     }),
     handler: async (input, context) => {

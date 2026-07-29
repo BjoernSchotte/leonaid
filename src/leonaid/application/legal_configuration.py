@@ -13,11 +13,14 @@ from leonaid.domain.legal_configuration import (
     EVIDENCE_ID,
     LegalConfigurationDraft,
     LegalConfigurationState,
+    LegalConfigurationVersion,
 )
 
 
 class LegalConfigurationRepository(Protocol):
     async def state(self) -> LegalConfigurationState: ...
+
+    async def active_configuration(self) -> LegalConfigurationVersion | None: ...
 
     async def save_draft(
         self,
@@ -71,6 +74,10 @@ class LegalConfigurationService:
     ) -> LegalConfigurationState:
         require_system_admin(actor)
         return await self._repository.state()
+
+    async def active_configuration(self) -> LegalConfigurationVersion | None:
+        """Return the active baseline for server-side fachliche consumers."""
+        return await self._repository.active_configuration()
 
     async def save_draft(
         self,

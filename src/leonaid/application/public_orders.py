@@ -41,9 +41,9 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.legal_configuration import LegalConfigurationVersion
 
 PUBLIC_ORDER_NAMESPACE = UUID("98694fa6-c472-4288-8cce-bc94d052a8a8")
-PRIVACY_NOTICE_VERSION = "public-order-poc-2026-07"
 TOKEN_VERSION = 1
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
@@ -226,10 +226,13 @@ class PublicOrderDraft:
                 "public_order_confirmation_required",
                 "Bestätige, dass du die Bestellung verbindlich absenden möchtest.",
             )
-        if self.privacy_notice_version != PRIVACY_NOTICE_VERSION:
-            raise Conflict(
-                "public_order_privacy_notice_changed",
-                "Die Datenschutzhinweise wurden aktualisiert. Lade die Seite neu.",
+        if not re.fullmatch(
+            r"^[a-z0-9][a-z0-9._-]{2,63}$",
+            self.privacy_notice_version,
+        ):
+            raise DomainInvariantError(
+                "public_order_privacy_notice_version_invalid",
+                "Die Version der Datenschutzhinweise ist ungültig.",
             )
 
     def request_hash(self, *, action_id: UUID, public_alias: str) -> str:
@@ -475,16 +478,22 @@ class PublicOrderRepository(Protocol):
     ) -> None: ...
 
 
+class PublicLegalConfigurationReader(Protocol):
+    async def active_configuration(self) -> LegalConfigurationVersion | None: ...
+
+
 class PublicOrderService:
     def __init__(
         self,
         repository: PublicOrderRepository,
         crm: CrmGateway,
         token_codec: PublicOrderTokenCodec,
+        legal_configuration: PublicLegalConfigurationReader,
     ) -> None:
         self._repository = repository
         self._crm = crm
         self._token_codec = token_codec
+        self._legal_configuration = legal_configuration
 
     def issue_access_token(
         self,
@@ -516,6 +525,22 @@ class PublicOrderService:
             expected_alias=public_alias,
             evaluated_at=moment,
         )
+        active_legal_configuration = (
+            await self._legal_configuration.active_configuration()
+        )
+        if active_legal_configuration is None:
+            raise Conflict(
+                "public_order_legal_configuration_missing",
+                "Bestellungen sind erst nach Freigabe der Datenschutzgrundlage möglich.",
+            )
+        if (
+            draft.privacy_notice_version
+            != active_legal_configuration.configuration.consent_text_version
+        ):
+            raise Conflict(
+                "public_order_privacy_notice_changed",
+                "Die Datenschutzhinweise wurden aktualisiert. Lade die Seite neu.",
+            )
         idempotency_key = f"public.order:{claims.action_id}:{command_id}"
         if not IDEMPOTENCY_KEY.fullmatch(idempotency_key):
             raise DomainInvariantError(

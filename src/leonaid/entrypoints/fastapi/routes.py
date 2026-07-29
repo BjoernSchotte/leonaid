@@ -1020,15 +1020,19 @@ def public_action_route_response(
     route: PublicActionRoute,
     *,
     access_token: str | None = None,
+    legal_configuration: LegalConfigurationVersion | None = None,
 ) -> PublicActionRouteResponse:
     action = route.action
+    submissions_allowed = (
+        route.submissions_allowed and legal_configuration is not None
+    )
     return PublicActionRouteResponse(
         route_kind=route.route_kind.value,
         route_value=route.route_value,
         route_path=route.route_path,
         canonical_path=route.canonical_path,
         availability=route.availability.value,
-        submissions_allowed=route.submissions_allowed,
+        submissions_allowed=submissions_allowed,
         action=(
             PublicCharityActionResponse(
                 id=action.id,
@@ -1091,8 +1095,24 @@ def public_action_route_response(
                         ),
                         allow_message=route.order_form.configuration.allow_message,
                         access_token=access_token,
+                        privacy_notice_version=(
+                            legal_configuration.configuration.consent_text_version
+                        ),
+                        privacy_notice_text=(
+                            legal_configuration.configuration.public_order_notice_text
+                        ),
+                        legal_basis=(
+                            legal_configuration.configuration.public_order_legal_basis
+                        ),
+                        privacy_contact_email=(
+                            legal_configuration.configuration.privacy_contact_email
+                        ),
                     )
-                    if route.order_form is not None and access_token is not None
+                    if (
+                        route.order_form is not None
+                        and access_token is not None
+                        and legal_configuration is not None
+                    )
                     else None
                 ),
             )
@@ -1613,17 +1633,29 @@ async def resolve_public_action_alias(
     response: Response,
 ) -> PublicActionRouteResponse:
     route = await action_service(request).resolve_public_alias(public_alias)
+    legal_configuration = (
+        await legal_configuration_service(request).active_configuration()
+        if route.submissions_allowed
+        else None
+    )
+    submissions_allowed = (
+        route.submissions_allowed and legal_configuration is not None
+    )
     response.headers["Cache-Control"] = (
         "private, no-store"
-        if route.submissions_allowed
+        if submissions_allowed
         else "public, max-age=15, stale-while-revalidate=30"
     )
     access_token = (
         public_order_tokens(request).issue(route.action.id, route.route_value)
-        if route.submissions_allowed and route.action is not None
+        if submissions_allowed and route.action is not None
         else None
     )
-    return public_action_route_response(route, access_token=access_token)
+    return public_action_route_response(
+        route,
+        access_token=access_token,
+        legal_configuration=legal_configuration,
+    )
 
 
 @router.get(

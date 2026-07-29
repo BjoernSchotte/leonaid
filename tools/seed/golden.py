@@ -29,6 +29,9 @@ DATASET_VERSION = "1.0.0"
 OBJECT_PREFIX = "golden/v1/invoices/"
 ASSIGNMENT_HISTORY_NAMESPACE = UUID("c79fe114-6758-4dcb-a049-4dc7b353a920")
 PUBLIC_ORDER_NAMESPACE = UUID("2cfebf83-5796-49d7-8c56-8dcb224f45ed")
+GOLDEN_LEGAL_CONFIGURATION_ID = UUID(
+    "94000000-0000-4000-8000-000000000044"
+)
 GOLDEN_ASSIGNMENT_CHANGED_AT = datetime(
     2026,
     7,
@@ -765,6 +768,84 @@ async def seed_identity(
                 """,
                 user["id"],
             )
+
+    await connection.execute(
+        """
+        UPDATE legal_configuration_state
+        SET revision = 1,
+            draft_version_id = NULL,
+            active_version_id = NULL,
+            updated_by_user_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        """
+    )
+    await connection.execute("DELETE FROM legal_configuration_approval")
+    await connection.execute("DELETE FROM legal_configuration_version")
+    await connection.execute(
+        "DELETE FROM audit_event WHERE entity_type = 'legal_configuration'"
+    )
+    await connection.execute(
+        """
+        INSERT INTO legal_configuration_version (
+            id, version, legal_name, street_line_1, postal_code,
+            city, country_code, tax_identifier, issuer_email,
+            bank_account_holder, iban, bic, tax_treatment,
+            tax_rate_basis_points, tax_note, number_prefix,
+            number_width, payment_terms_days,
+            public_order_legal_basis, public_order_notice_text,
+            consent_text_version, privacy_contact_email,
+            invoice_retention_days, commitment_retention_days,
+            contact_retention_days, consent_evidence_retention_days,
+            audit_retention_days, e_invoice_decision,
+            tax_evidence_id, privacy_evidence_id,
+            e_invoice_evidence_id, created_by_user_id, created_at
+        )
+        VALUES (
+            $1, 1, 'Lions Hilfswerk LeonAid Golden e.V.', 'Clubweg 1',
+            '86150', 'Augsburg', 'DE', '103/999/99999',
+            'finanzen@leonaid.invalid',
+            'Lions Hilfswerk LeonAid Golden e.V.',
+            'DE89370400440532013000', 'COBADEFFXXX',
+            'small_business', 0,
+            'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
+            'KT26-', 4, 14,
+            'Vertragserfüllung für die öffentliche Golden-Bestellung.',
+            'Wir verarbeiten Ihre Angaben ausschließlich zur Durchführung, '
+            'Abrechnung und Zustellung Ihrer Krapfentaxi-Bestellung.',
+            'public-order-golden-v1', 'datenschutz@leonaid.invalid',
+            3650, 3650, 730, 3650, 3650, 'not_required',
+            'STEUER-GOLDEN-V1', 'DATENSCHUTZ-GOLDEN-V1',
+            'ERECHNUNG-GOLDEN-V1', $2, $3
+        )
+        """,
+        GOLDEN_LEGAL_CONFIGURATION_ID,
+        UUID("10000000-0000-4000-8000-000000000001"),
+        GOLDEN_COMMITMENT_CREATED_AT,
+    )
+    await connection.execute(
+        """
+        INSERT INTO legal_configuration_approval (
+            version_id, approved_by_user_id, evidence_id, approved_at
+        )
+        VALUES ($1, $2, 'FREIGABE-GOLDEN-V1', $3)
+        """,
+        GOLDEN_LEGAL_CONFIGURATION_ID,
+        UUID("10000000-0000-4000-8000-000000000002"),
+        GOLDEN_COMMITMENT_CREATED_AT,
+    )
+    await connection.execute(
+        """
+        UPDATE legal_configuration_state
+        SET revision = 3,
+            draft_version_id = NULL,
+            active_version_id = $1,
+            updated_by_user_id = $2,
+            updated_at = $3
+        """,
+        GOLDEN_LEGAL_CONFIGURATION_ID,
+        UUID("10000000-0000-4000-8000-000000000001"),
+        GOLDEN_COMMITMENT_CREATED_AT,
+    )
 
     golden_feature_flag_ids = [
         feature_flag["id"] for feature_flag in dataset["featureFlags"]

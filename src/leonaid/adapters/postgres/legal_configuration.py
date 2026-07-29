@@ -31,6 +31,18 @@ class AsyncpgLegalConfigurationRepository:
         async with self._pool.acquire() as connection:
             return await self._state(connection)
 
+    async def active_configuration(self) -> LegalConfigurationVersion | None:
+        async with self._pool.acquire() as connection:
+            version_id = await connection.fetchval(
+                """
+                SELECT active_version_id
+                FROM legal_configuration_state
+                WHERE id = $1
+                """,
+                SINGLETON_ID,
+            )
+            return await self._version(connection, version_id)
+
     async def save_draft(
         self,
         *,

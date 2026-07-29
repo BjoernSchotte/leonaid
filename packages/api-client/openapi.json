@@ -2846,7 +2846,9 @@
             "type": "boolean"
           },
           "privacyNoticeVersion": {
-            "const": "public-order-poc-2026-07",
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$",
             "title": "Privacynoticeversion",
             "type": "string"
           },
@@ -7019,6 +7021,22 @@
             "title": "Introduction",
             "type": "string"
           },
+          "legalBasis": {
+            "title": "Legalbasis",
+            "type": "string"
+          },
+          "privacyContactEmail": {
+            "title": "Privacycontactemail",
+            "type": "string"
+          },
+          "privacyNoticeText": {
+            "title": "Privacynoticetext",
+            "type": "string"
+          },
+          "privacyNoticeVersion": {
+            "title": "Privacynoticeversion",
+            "type": "string"
+          },
           "requireBillingAddress": {
             "title": "Requirebillingaddress",
             "type": "boolean"
@@ -7064,7 +7082,11 @@
           "requireDeliveryAddress",
           "requireBillingAddress",
           "allowMessage",
-          "accessToken"
+          "accessToken",
+          "privacyNoticeVersion",
+          "privacyNoticeText",
+          "legalBasis",
+          "privacyContactEmail"
         ],
         "title": "PublicOrderFormResponse",
         "type": "object"

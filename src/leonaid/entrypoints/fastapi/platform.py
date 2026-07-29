@@ -229,8 +229,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             AsyncpgFeatureFlagRepository(pool),
             feature_flag_evaluator,
         )
+        legal_configuration_repository = AsyncpgLegalConfigurationRepository(pool)
         application.state.legal_configuration_service = LegalConfigurationService(
-            AsyncpgLegalConfigurationRepository(pool),
+            legal_configuration_repository,
             production=settings.environment == "production",
         )
         privacy_service = PrivacyService(
@@ -318,6 +319,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 AsyncpgPublicOrderRepository(pool),
                 crm_gateway,
                 public_order_tokens,
+                legal_configuration_repository,
             )
         else:
             application.state.acquisition_service = None

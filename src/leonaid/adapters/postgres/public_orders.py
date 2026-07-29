@@ -440,7 +440,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 $1, $2, $3, $4, $5, $6,
                 'public_order_fulfilment', 'email',
                 $7, 'public_order_form',
-                'notice_acknowledgement', 'legal_review_pending', $8
+                'notice_acknowledgement', 'confirmed', $8
             )
             """,
             uuid4(),

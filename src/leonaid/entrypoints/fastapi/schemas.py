@@ -743,6 +743,10 @@ class PublicOrderFormResponse(TransportModel):
     require_billing_address: bool
     allow_message: bool
     access_token: str
+    privacy_notice_version: str
+    privacy_notice_text: str
+    legal_basis: str
+    privacy_contact_email: str
 
 
 class PublicCharityActionResponse(TransportModel):
@@ -806,7 +810,11 @@ class CreatePublicOrderRequest(TransportModel):
     message: str | None = Field(default=None, max_length=1_000)
     privacy_acknowledged: bool
     binding_order_confirmed: bool
-    privacy_notice_version: Literal["public-order-poc-2026-07"]
+    privacy_notice_version: str = Field(
+        min_length=3,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9._-]{2,63}$",
+    )
     website: str | None = Field(default=None, max_length=300)
 
 

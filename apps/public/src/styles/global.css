@@ -413,6 +413,40 @@ select {
   line-height: 1.72;
 }
 
+.privacy-section__facts {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-xl) 0 0;
+  max-width: 56rem;
+}
+
+.privacy-section__facts div {
+  border-top: 1px solid var(--rule);
+  display: grid;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+}
+
+.privacy-section__facts dt {
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.privacy-section__facts dd {
+  color: var(--ink);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.privacy-section__facts a {
+  color: inherit;
+  text-decoration-color: var(--lions-blue-700);
+  text-underline-offset: 0.2em;
+}
+
 .offering-list {
   border-top: 1px solid var(--rule);
 }

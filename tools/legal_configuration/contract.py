@@ -144,6 +144,21 @@ async def seed_sessions(
 
 
 async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> None:
+    await connection.execute(
+        """
+        UPDATE legal_configuration_state
+        SET revision = 1,
+            draft_version_id = NULL,
+            active_version_id = NULL,
+            updated_by_user_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        """
+    )
+    await connection.execute("DELETE FROM legal_configuration_approval")
+    await connection.execute("DELETE FROM legal_configuration_version")
+    await connection.execute(
+        "DELETE FROM audit_event WHERE entity_type = 'legal_configuration'"
+    )
     tokens = await seed_sessions(connection, sessions_path)
     async with httpx.AsyncClient(
         base_url=require_env("API_BASE_URL").rstrip("/"),

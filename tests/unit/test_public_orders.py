@@ -7,9 +7,8 @@ from uuid import UUID
 import pytest
 
 from leonaid.application.commitments import CommitmentLineDraft
-from leonaid.application.errors import Conflict, PermissionDenied
+from leonaid.application.errors import PermissionDenied
 from leonaid.application.public_orders import (
-    PRIVACY_NOTICE_VERSION,
     PublicOrderDraft,
     PublicOrderPartyDraft,
     PublicOrderTokenCodec,
@@ -26,6 +25,7 @@ ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 OFFERING_ID = UUID("70000000-0000-4000-8000-000000000001")
 NOW = datetime(2026, 7, 26, 12, tzinfo=timezone.utc)
 SECRET = "public-order-unit-test-secret-at-least-32-characters"
+PRIVACY_NOTICE_VERSION = "public-order-poc-2026-07"
 
 
 def public_order() -> PublicOrderDraft:
@@ -152,8 +152,8 @@ def test_public_order_normalizes_party_and_hashes_material_fields() -> None:
             "public_order_confirmation_required",
         ),
         (
-            {"privacy_notice_version": "outdated"},
-            "public_order_privacy_notice_changed",
+            {"privacy_notice_version": "INVALID VERSION"},
+            "public_order_privacy_notice_version_invalid",
         ),
         (
             {
@@ -175,12 +175,7 @@ def test_public_order_requires_current_notices_confirmation_and_quote(
 ) -> None:
     order = public_order()
 
-    expected_error = (
-        Conflict
-        if code == "public_order_privacy_notice_changed"
-        else DomainInvariantError
-    )
-    with pytest.raises(expected_error) as captured:
+    with pytest.raises(DomainInvariantError) as captured:
         replace(order, **changes)
     assert captured.value.code == code
 

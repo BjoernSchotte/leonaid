@@ -358,7 +358,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                   <input
                     type="hidden"
                     name="privacyNoticeVersion"
-                    value="public-order-poc-2026-07"
+                    value={orderForm.privacyNoticeVersion}
                   />
 
                   <div
@@ -883,9 +883,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                           Ich habe die Hinweise zur Datenverarbeitung gelesen.
                         </strong>
                         <small id="privacyAcknowledged-help">
-                          Der genannte Träger verarbeitet Kontakt-, Bestell-,
-                          Liefer- und Rechnungsdaten ausschließlich zur
-                          Durchführung dieser Aktion.
+                          {orderForm.privacyNoticeText}
                         </small>
                         <span
                           id="privacyAcknowledged-error"
@@ -1004,14 +1002,37 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
       <p class="privacy-section__label">Datenschutz</p>
       <div>
         <h2 id="privacy-heading">Transparent, bevor Daten erhoben werden.</h2>
-        <p>
-          Für die Darstellung dieser Aktionsseite sind keine Anmeldung und keine
-          Marketing-Cookies erforderlich. Wenn du das Bestellformular absendest,
-          verarbeitet der genannte Träger die dort angegebenen Kontakt-,
-          Bestell-, Liefer- und Rechnungsdaten zur Durchführung dieser Aktion.
-          Pflichtfelder, Zweck und Bestätigungen werden direkt am Formular
-          erläutert.
-        </p>
+        {
+          orderForm ? (
+            <>
+              <p>{orderForm.privacyNoticeText}</p>
+              <dl class="privacy-section__facts">
+                <div>
+                  <dt>Rechtsgrundlage</dt>
+                  <dd>{orderForm.legalBasis}</dd>
+                </div>
+                <div>
+                  <dt>Verantwortlicher Kontakt</dt>
+                  <dd>
+                    <a href={`mailto:${orderForm.privacyContactEmail}`}>
+                      {orderForm.privacyContactEmail}
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Textversion</dt>
+                  <dd>{orderForm.privacyNoticeVersion}</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <p>
+              Für die Darstellung dieser Aktionsseite sind keine Anmeldung und
+              keine Marketing-Cookies erforderlich. Ein Bestellformular wird
+              erst nach Freigabe der Datenschutzgrundlage angeboten.
+            </p>
+          )
+        }
       </div>
     </div>
   </section>
