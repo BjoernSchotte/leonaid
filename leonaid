@@ -317,7 +317,7 @@ check_all() {
     python /workspace/tools/pilot_decisions/test.py /workspace
   docker run --rm \
     -e PYTHONPATH=/workspace:/workspace/src \
-    -e UV_CACHE_DIR=/workspace/.cache/uv \
+    -e UV_CACHE_DIR=/tmp/uv-cache \
     -e UV_LINK_MODE=copy \
     -v "$root:/workspace:ro" \
     -w /workspace \
