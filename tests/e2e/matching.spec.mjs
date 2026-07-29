@@ -162,15 +162,31 @@ test("Akquisiteurin prüft Neuanlage, Mehrdeutigkeit, Abbruch und Mehrfachzuordn
       fullPage: true,
     });
 
-    const createdResponse = page.waitForResponse(
-      (response) =>
+    const creationResponses = [];
+    const collectCreationResponse = async (response) => {
+      if (
         response.url().endsWith("/acquisition/sponsor-match/resolve") &&
         response.request().method() === "POST" &&
-        response.status() === 201,
-    );
+        response.status() === 201
+      ) {
+        creationResponses.push(await response.json());
+      }
+    };
+    page.on("response", collectCreationResponse);
     await page.getByTestId("sponsor-resolve").dblclick();
-    const created = await createdResponse;
-    const createdPayload = await created.json();
+    await expect
+      .poll(() => creationResponses.length, {
+        message: "Beide Antworten des echten Doppelklick-Retry abwarten",
+      })
+      .toBe(2);
+    page.off("response", collectCreationResponse);
+    expect(
+      new Set(creationResponses.map((payload) => payload.replayed)),
+    ).toEqual(new Set([false, true]));
+    const createdPayload = creationResponses.find(
+      (payload) => payload.replayed === false,
+    );
+    expect(createdPayload).toBeDefined();
     expect(createdPayload).toMatchObject({
       assignmentCreated: true,
       displayName: "POC063 Hafenlicht Logistik GmbH",
