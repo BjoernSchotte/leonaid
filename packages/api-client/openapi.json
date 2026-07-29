@@ -6364,6 +6364,223 @@
         "title": "OrderFormConfigurationResponse",
         "type": "object"
       },
+      "PilotDailyDependenciesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "ready": {
+            "minimum": 0.0,
+            "title": "Ready",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 1.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unavailable": {
+            "items": {
+              "enum": [
+                "twenty",
+                "rustfs",
+                "mail",
+                "worker"
+              ],
+              "type": "string"
+            },
+            "title": "Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ready",
+          "total",
+          "unavailable"
+        ],
+        "title": "PilotDailyDependenciesResponse",
+        "type": "object"
+      },
+      "PilotDailyMonitoringResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activeP0": {
+            "minimum": 0.0,
+            "title": "Activep0",
+            "type": "integer"
+          },
+          "activeP1": {
+            "minimum": 0.0,
+            "title": "Activep1",
+            "type": "integer"
+          },
+          "activeP2": {
+            "minimum": 0.0,
+            "title": "Activep2",
+            "type": "integer"
+          },
+          "backupAgeSeconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backupageseconds"
+          },
+          "backupStatus": {
+            "enum": [
+              "ready",
+              "critical",
+              "unavailable"
+            ],
+            "title": "Backupstatus",
+            "type": "string"
+          },
+          "diskFreeRatio": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diskfreeratio"
+          },
+          "diskStatus": {
+            "enum": [
+              "ready",
+              "critical",
+              "unavailable"
+            ],
+            "title": "Diskstatus",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "inactive",
+              "ready",
+              "attention",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tlsRemainingSeconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tlsremainingseconds"
+          },
+          "tlsStatus": {
+            "enum": [
+              "ready",
+              "critical",
+              "unavailable"
+            ],
+            "title": "Tlsstatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "backupStatus",
+          "diskStatus",
+          "tlsStatus",
+          "activeP0",
+          "activeP1",
+          "activeP2"
+        ],
+        "title": "PilotDailyMonitoringResponse",
+        "type": "object"
+      },
+      "PilotDailyReportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "api": {
+            "$ref": "#/components/schemas/OperationalApiMetricsResponse"
+          },
+          "checksumSha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Checksumsha256",
+            "type": "string"
+          },
+          "dependencies": {
+            "$ref": "#/components/schemas/PilotDailyDependenciesResponse"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "monitoring": {
+            "$ref": "#/components/schemas/PilotDailyMonitoringResponse"
+          },
+          "nextStep": {
+            "title": "Nextstep",
+            "type": "string"
+          },
+          "outbox": {
+            "$ref": "#/components/schemas/OperationalStatusCountsResponse"
+          },
+          "release": {
+            "title": "Release",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "leonaid.pilot.daily-report/v1",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "scope": {
+            "const": "technical-daily-check",
+            "title": "Scope",
+            "type": "string"
+          },
+          "stopReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stopreasons",
+            "type": "array"
+          },
+          "technicalStatus": {
+            "enum": [
+              "ready",
+              "attention",
+              "blocked"
+            ],
+            "title": "Technicalstatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "scope",
+          "generatedAt",
+          "release",
+          "technicalStatus",
+          "dependencies",
+          "monitoring",
+          "outbox",
+          "api",
+          "stopReasons",
+          "nextStep",
+          "checksumSha256"
+        ],
+        "title": "PilotDailyReportResponse",
+        "type": "object"
+      },
       "PlatformInformationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -15371,6 +15588,87 @@
           }
         },
         "summary": "Retry Operational Job",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/admin/pilot/reports/daily": {
+      "get": {
+        "operationId": "getPilotDailyReport",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotDailyReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Pilot Daily Report",
         "tags": [
           "operations"
         ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -91,6 +92,39 @@ async def overview(
     return payload
 
 
+async def daily_report(
+    api: httpx.AsyncClient,
+    *,
+    request_id: str,
+) -> dict[str, Any]:
+    response = await api.get(
+        "/api/v1/admin/pilot/reports/daily",
+        headers=session_headers(request_id=request_id),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ContractFailure("Tagesreport ist kein Objekt")
+    checksum = payload.get("checksumSha256")
+    content = dict(payload)
+    content.pop("checksumSha256", None)
+    expected_checksum = hashlib.sha256(
+        json.dumps(
+            content,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    if checksum != expected_checksum:
+        raise ContractFailure("Tagesreport-SHA ist nicht reproduzierbar")
+    if response.headers.get("X-Content-SHA256") != expected_checksum:
+        raise ContractFailure("Tagesreport-Header und Inhalt weichen ab")
+    if response.headers.get("Cache-Control") != "no-store":
+        raise ContractFailure("Tagesreport darf nicht gecacht werden")
+    return payload
+
+
 def dependency_states(payload: dict[str, Any]) -> dict[str, str]:
     dependencies = payload.get("dependencies")
     if not isinstance(dependencies, list):
@@ -128,12 +162,58 @@ async def prepare(
         ):
             raise ContractFailure("Abhängigkeitsprobes teilen nicht dieselbe ID")
 
+        report = await daily_report(
+            api,
+            request_id="pilot052-daily-contract",
+        )
+        if report.get("schemaVersion") != "leonaid.pilot.daily-report/v1":
+            raise ContractFailure("Tagesreport-Schemaversion fehlt")
+        if report.get("scope") != "technical-daily-check":
+            raise ContractFailure("Tagesreport behauptet einen falschen Scope")
+        if report.get("technicalStatus") != "blocked":
+            raise ContractFailure(
+                "Inaktives Pilot-Monitoring muss den Tagesreport blockieren"
+            )
+        if report.get("dependencies") != {
+            "ready": 4,
+            "total": 4,
+            "unavailable": [],
+        }:
+            raise ContractFailure("Tagesreport deckt Abhängigkeiten nicht korrekt ab")
+        expected_reasons = {
+            "monitoring_inactive",
+            "backup_unavailable",
+            "disk_unavailable",
+            "tls_unavailable",
+        }
+        reasons = report.get("stopReasons")
+        if not isinstance(reasons, list) or not expected_reasons.issubset(reasons):
+            raise ContractFailure(f"Tagesreport-Stopgründe unvollständig: {reasons}")
+        serialized_report = json.dumps(report, sort_keys=True).casefold()
+        forbidden_report = (
+            "klara.kern@",
+            "system-admin@",
+            "cookie",
+            "payload",
+            "token",
+            "actor",
+            "sponsor",
+        )
+        if any(value in serialized_report for value in forbidden_report):
+            raise ContractFailure("Tagesreport enthält Payload oder Identität")
+
         unauthorized = await api.get(
             "/api/v1/admin/operations",
             headers={"X-Request-ID": "poc114-anonymous"},
         )
         if unauthorized.status_code != 401:
             raise ContractFailure("Operations-Daten waren anonym lesbar")
+        anonymous_report = await api.get(
+            "/api/v1/admin/pilot/reports/daily",
+            headers={"X-Request-ID": "pilot052-daily-anonymous"},
+        )
+        if anonymous_report.status_code != 401:
+            raise ContractFailure("Tagesreport war anonym lesbar")
 
         probe = await api.post(
             "/api/v1/admin/support/probe",
@@ -221,6 +301,17 @@ async def expect_dependency(dependency: str) -> None:
         if states != expected:
             raise ContractFailure(
                 f"Ausfallsignal für {dependency} nicht trennscharf: {states}"
+            )
+        report = await daily_report(
+            api,
+            request_id=f"pilot052-daily-{dependency}-outage",
+        )
+        reason = f"dependency_{dependency}_unavailable"
+        if report.get("technicalStatus") != "blocked" or reason not in report.get(
+            "stopReasons", []
+        ):
+            raise ContractFailure(
+                f"Tagesreport blockierte {dependency}-Ausfall nicht: {report}"
             )
 
 

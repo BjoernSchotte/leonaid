@@ -22,7 +22,9 @@ from leonaid.application.operations import (
     OperationalAlert,
     OperationalCheck,
     OperationsSnapshot,
+    PilotDailyReport,
     RequestDiagnostic,
+    build_pilot_daily_report,
 )
 
 
@@ -117,6 +119,7 @@ class OperationsService:
         dependency_urls: dict[str, str],
         monitor_status_url: str | None,
         alertmanager_url: str | None,
+        release: str,
     ) -> None:
         if set(dependency_urls) != {"twenty", "rustfs", "mail", "worker"}:
             raise ValueError(
@@ -127,6 +130,13 @@ class OperationsService:
         self._dependency_urls = dict(dependency_urls)
         self._monitor_status_url = monitor_status_url
         self._alertmanager_url = alertmanager_url
+        self._release = release
+
+    async def daily_report(self, *, request_id: str) -> PilotDailyReport:
+        return build_pilot_daily_report(
+            await self.snapshot(request_id=request_id),
+            release=self._release,
+        )
 
     async def snapshot(self, *, request_id: str) -> OperationsSnapshot:
         dependency_result, monitoring = await asyncio.gather(

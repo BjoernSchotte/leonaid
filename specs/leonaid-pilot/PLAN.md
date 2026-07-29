@@ -998,6 +998,10 @@ Akzeptanzkriterien:
       unverändert.
 - [ ] Tägliche Betriebsprüfung deckt Backup, Alerts, Outbox, Speicher,
       Zertifikat und Abhängigkeiten ab.
+- [x] Der technische Tagesreport führt Backup, Alerts, Outbox, Speicher,
+      Zertifikat und alle vier Kernabhängigkeiten serverseitig zusammen,
+      bewertet sie mit stabilen Stop-Gründen und besitzt eine kanonische
+      SHA-256-Prüfsumme.
 - [ ] Reale Bestellungen, Rechnungen und Zahlungen bleiben fachlich
       nachvollziehbar und auditierbar.
 - [ ] Support- und Incidentfälle werden nach Runbook bearbeitet.
@@ -1009,11 +1013,17 @@ Akzeptanzkriterien:
 Tests/Nachweise:
 
 - [ ] Tägliche sanitizte Betriebsreports besitzen keine PII.
+- [x] Der Reportvertrag, der geschützte Download und die Darstellung wurden
+      ohne Mocks gegen PostgreSQL, Twenty, RustFS, Mailpit, Worker, API und
+      Web sowie mit gezielten Dienstausfällen bewiesen.
 - [ ] Mindestens ein realer interner und ein realer öffentlicher
       End-to-End-Vorgang wird fachlich bestätigt.
 - [ ] Backup-Restore-Smoke und Alarm-Canary laufen während des Pilotfensters.
 - [ ] Abschlussreport enthält Volumen, Fehlerraten, Supportfälle,
       Wiederanläufe und offene P2/P3 ohne Personenbezug.
+
+Technischer Teilnachweis und verbleibende Live-Gates:
+[`proofs/PILOT-052.md`](proofs/PILOT-052.md)
 
 ### [ ] PILOT-053 Pilot abnehmen und nächsten Produktmilestone entscheiden
 

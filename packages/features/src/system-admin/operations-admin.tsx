@@ -2,6 +2,8 @@ import {
   Alert02Icon,
   CheckmarkCircle02Icon,
   Clock01Icon,
+  Download04Icon,
+  File02Icon,
   RefreshIcon,
   ServerStack01Icon,
 } from "@hugeicons/core-free-icons";
@@ -14,6 +16,7 @@ import {
   type OperationalCheckResponse,
   type OperationalDependencyResponse,
   type OperationalFailedJobResponse,
+  type PilotDailyReportResponse,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
@@ -160,6 +163,186 @@ function FailedJobCard({
         {pending ? "Wird gestartet …" : "Sicher wiederholen"}
       </Button>
     </article>
+  );
+}
+
+const PILOT_STOP_REASON_LABELS: Record<string, string> = {
+  active_p0_alert: "Aktiver P0-Alarm",
+  active_p1_alert: "Aktiver P1-Alarm",
+  active_p2_alert: "Aktiver P2-Hinweis",
+  api_errors_observed: "API-Fehler seit Prozessstart beobachtet",
+  backup_critical: "Datensicherung ist zu alt",
+  backup_unavailable: "Datensicherung kann nicht geprüft werden",
+  dependency_mail_unavailable: "E-Mail-Dienst nicht erreichbar",
+  dependency_rustfs_unavailable: "Dateiablage nicht erreichbar",
+  dependency_twenty_unavailable: "CRM nicht erreichbar",
+  dependency_worker_unavailable: "Hintergrundjobs nicht erreichbar",
+  disk_critical: "Freier Speicher unterschreitet den Grenzwert",
+  disk_unavailable: "Speicherplatz kann nicht geprüft werden",
+  monitoring_inactive: "Pilot-Monitoring ist nicht aktiv",
+  monitoring_unavailable: "Pilot-Monitoring ist nicht erreichbar",
+  outbox_dead_letter: "Fehlgeschlagene Hintergrundjobs vorhanden",
+  tls_critical: "HTTPS-Zertifikat nähert sich dem Ablauf",
+  tls_unavailable: "HTTPS-Zertifikat kann nicht geprüft werden",
+};
+
+function downloadPilotDailyReport(report: PilotDailyReportResponse) {
+  const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `leonaid-pilot-daily-${report.generatedAt.slice(0, 10)}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function PilotDailyReportCard({
+  client,
+}: {
+  readonly client: LeonAidApiClient;
+}) {
+  const report = useMutation({
+    mutationFn: () => client.getPilotDailyReport(),
+  });
+  const error = report.error ? actionErrorMessage(report.error) : null;
+
+  return (
+    <section
+      aria-labelledby="pilot-daily-report-title"
+      className="pilot-daily-report"
+      data-testid="pilot-daily-report"
+    >
+      <header className="pilot-daily-report__header">
+        <div className="pilot-daily-report__heading-icon" aria-hidden="true">
+          <HugeiconsIcon icon={File02Icon} size={21} strokeWidth={1.8} />
+        </div>
+        <div>
+          <p className="feature-admin-header__eyebrow">
+            Pilotbetrieb · täglicher Nachweis
+          </p>
+          <h3 id="pilot-daily-report-title">
+            Technischen Tagesreport erstellen
+          </h3>
+          <p>
+            Prüft Abhängigkeiten, Backup, Alarme, Outbox, Speicher und
+            HTTPS-Zertifikat. Der Report enthält keine fachlichen oder
+            personenbezogenen Daten.
+          </p>
+        </div>
+        <Button
+          disabled={report.isPending}
+          onClick={() => report.mutate()}
+          variant="secondary"
+        >
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={RefreshIcon}
+            size={17}
+            strokeWidth={1.8}
+          />
+          {report.isPending ? "Wird geprüft …" : "Tagesreport erstellen"}
+        </Button>
+      </header>
+
+      {error && (
+        <StatusMessage tone="error">
+          <h3>Tagesreport konnte nicht erstellt werden</h3>
+          <p>{error.message}</p>
+        </StatusMessage>
+      )}
+
+      {report.data && (
+        <article
+          aria-live="polite"
+          className={`pilot-daily-report__result is-${report.data.technicalStatus}`}
+          data-testid="pilot-daily-report-result"
+        >
+          <div className="pilot-daily-report__result-header">
+            <div>
+              <span>Technische Tagesprüfung</span>
+              <h4>
+                {report.data.technicalStatus === "ready"
+                  ? "Technische Signale sind bereit"
+                  : report.data.technicalStatus === "attention"
+                    ? "Befunde benötigen Aufmerksamkeit"
+                    : "Pilot technisch nicht freigeben"}
+              </h4>
+            </div>
+            <strong>
+              {report.data.dependencies.ready}/{report.data.dependencies.total}{" "}
+              Dienste
+            </strong>
+          </div>
+
+          <dl className="pilot-daily-report__coverage">
+            <div>
+              <dt>Backup</dt>
+              <dd>{report.data.monitoring.backupStatus}</dd>
+            </div>
+            <div>
+              <dt>Alarmierung</dt>
+              <dd>{report.data.monitoring.status}</dd>
+            </div>
+            <div>
+              <dt>Outbox</dt>
+              <dd>{report.data.outbox.deadLetter} fehlgeschlagen</dd>
+            </div>
+            <div>
+              <dt>Speicher</dt>
+              <dd>{report.data.monitoring.diskStatus}</dd>
+            </div>
+            <div>
+              <dt>HTTPS</dt>
+              <dd>{report.data.monitoring.tlsStatus}</dd>
+            </div>
+            <div>
+              <dt>Release</dt>
+              <dd>{report.data.release}</dd>
+            </div>
+          </dl>
+
+          {report.data.stopReasons.length > 0 && (
+            <div className="pilot-daily-report__reasons">
+              <strong>Stopgründe und Hinweise</strong>
+              <ul>
+                {report.data.stopReasons.map((reason) => (
+                  <li key={reason}>
+                    {PILOT_STOP_REASON_LABELS[reason] ?? reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="pilot-daily-report__next">
+            <div>
+              <strong>Nächster Schritt</strong>
+              <p>{report.data.nextStep}</p>
+              <small title={report.data.checksumSha256}>
+                SHA-256 {report.data.checksumSha256.slice(0, 16)}… ·{" "}
+                {formatDate(report.data.generatedAt)}
+              </small>
+            </div>
+            <Button
+              onClick={() => downloadPilotDailyReport(report.data)}
+              variant="secondary"
+            >
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Download04Icon}
+                size={17}
+                strokeWidth={1.8}
+              />
+              JSON herunterladen
+            </Button>
+          </div>
+        </article>
+      )}
+    </section>
   );
 }
 
@@ -390,6 +573,8 @@ export function OperationsAdminPanel({
           </small>
         </article>
       </div>
+
+      <PilotDailyReportCard client={client} />
 
       <div className="operations-jobs">
         <div className="operations-jobs__heading">

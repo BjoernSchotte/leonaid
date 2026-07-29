@@ -9,7 +9,10 @@ from leonaid.application.operations import (
     ApiMetricSnapshot,
     DependencySignal,
     MonitoringSnapshot,
+    OperationalAlert,
+    OperationalCheck,
     OperationsSnapshot,
+    build_pilot_daily_report,
 )
 from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
 
@@ -81,6 +84,165 @@ def test_request_diagnostics_use_latest_duplicate_support_code() -> None:
     found = diagnostics.find("pilot-support-duplicate")
     assert found is not None
     assert found.route == "/api/v1/admin/support/probe"
+
+
+def test_pilot_daily_report_is_ready_only_with_complete_green_coverage() -> None:
+    report = build_pilot_daily_report(
+        OperationsSnapshot(
+            generated_at=datetime(2026, 7, 29, 10, 0, tzinfo=timezone.utc),
+            request_id="pilot052-daily-ready",
+            api=ApiMetricSnapshot(
+                requests=25,
+                errors=0,
+                average_latency_ms=12.5,
+            ),
+            dependencies=tuple(
+                DependencySignal(
+                    dependency=dependency,
+                    status="ready",
+                    latency_ms=2.0,
+                    request_id="pilot052-daily-ready",
+                    error_code=None,
+                )
+                for dependency in ("twenty", "rustfs", "mail", "worker")
+            ),
+            outbox={
+                "pending": 0,
+                "processing": 0,
+                "completed": 12,
+                "deadLetter": 0,
+            },
+            mail={
+                "pending": 0,
+                "processing": 0,
+                "completed": 4,
+                "deadLetter": 0,
+            },
+            login={
+                "challengesLast24h": 2,
+                "completionsLast24h": 2,
+                "failuresLast24h": 0,
+            },
+            failed_jobs=(),
+            monitoring=MonitoringSnapshot(
+                status="ready",
+                checks=(
+                    OperationalCheck(
+                        key="backup",
+                        status="ready",
+                        value=3_600,
+                    ),
+                    OperationalCheck(
+                        key="disk",
+                        status="ready",
+                        value=0.72,
+                    ),
+                    OperationalCheck(
+                        key="tls",
+                        status="ready",
+                        value=2_592_000,
+                    ),
+                ),
+                active_alerts=(),
+            ),
+        ),
+        release="pilot-release-sha",
+    )
+
+    assert report.technical_status == "ready"
+    assert report.stop_reasons == ()
+    assert report.dependencies.ready == 4
+    assert report.monitoring.backup_age_seconds == 3_600
+    assert report.release == "pilot-release-sha"
+
+
+def test_pilot_daily_report_blocks_on_missing_coverage_and_live_failures() -> None:
+    report = build_pilot_daily_report(
+        OperationsSnapshot(
+            generated_at=datetime(2026, 7, 29, 10, 0, tzinfo=timezone.utc),
+            request_id="pilot052-daily-blocked",
+            api=ApiMetricSnapshot(
+                requests=25,
+                errors=1,
+                average_latency_ms=12.5,
+            ),
+            dependencies=(
+                DependencySignal(
+                    dependency="twenty",
+                    status="unavailable",
+                    latency_ms=2.0,
+                    request_id="pilot052-daily-blocked",
+                    error_code="twenty_unavailable",
+                ),
+                *tuple(
+                    DependencySignal(
+                        dependency=dependency,
+                        status="ready",
+                        latency_ms=2.0,
+                        request_id="pilot052-daily-blocked",
+                        error_code=None,
+                    )
+                    for dependency in ("rustfs", "mail", "worker")
+                ),
+            ),
+            outbox={
+                "pending": 0,
+                "processing": 0,
+                "completed": 12,
+                "deadLetter": 1,
+            },
+            mail={
+                "pending": 0,
+                "processing": 0,
+                "completed": 4,
+                "deadLetter": 0,
+            },
+            login={
+                "challengesLast24h": 2,
+                "completionsLast24h": 2,
+                "failuresLast24h": 0,
+            },
+            failed_jobs=(),
+            monitoring=MonitoringSnapshot(
+                status="attention",
+                checks=(
+                    OperationalCheck(
+                        key="backup",
+                        status="critical",
+                        value=100_000,
+                    ),
+                    OperationalCheck(
+                        key="disk",
+                        status="ready",
+                        value=0.72,
+                    ),
+                ),
+                active_alerts=(
+                    OperationalAlert(
+                        name="LeonAidBackupStale",
+                        severity="P1",
+                        category="backup",
+                        summary="Datensicherung ist veraltet.",
+                        runbook_url="https://example.invalid/runbook",
+                    ),
+                ),
+            ),
+        ),
+        release="pilot-release-sha",
+    )
+
+    assert report.technical_status == "blocked"
+    assert report.dependencies.unavailable == ("twenty",)
+    assert report.stop_reasons == (
+        "dependency_twenty_unavailable",
+        "backup_critical",
+        "tls_unavailable",
+        "active_p1_alert",
+        "outbox_dead_letter",
+        "api_errors_observed",
+    )
+    assert report.monitoring.active_p1 == 1
+    assert report.monitoring.tls_status == "unavailable"
 
 
 def test_structured_event_contains_only_explicit_safe_fields() -> None:

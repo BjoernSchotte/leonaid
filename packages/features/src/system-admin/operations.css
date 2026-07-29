@@ -343,13 +343,151 @@
   gap: 0.2rem;
 }
 
+.pilot-daily-report {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--primary) 6%, transparent),
+      transparent 58%
+    ),
+    var(--surface-muted);
+}
+
+.pilot-daily-report__header,
+.pilot-daily-report__result-header,
+.pilot-daily-report__next {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.pilot-daily-report__header > div:nth-child(2),
+.pilot-daily-report__result-header > div,
+.pilot-daily-report__next > div {
+  display: grid;
+  flex: 1;
+  gap: 0.2rem;
+}
+
+.pilot-daily-report__header h3,
+.pilot-daily-report__header p,
+.pilot-daily-report__result h4,
+.pilot-daily-report__result p,
+.pilot-daily-report__reasons ul {
+  margin: 0;
+}
+
+.pilot-daily-report__header > div:nth-child(2) > p:last-child,
+.pilot-daily-report__next p,
+.pilot-daily-report__next small {
+  color: var(--muted);
+}
+
+.pilot-daily-report__heading-icon {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+
+.pilot-daily-report__result {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.pilot-daily-report__result.is-ready {
+  border-color: color-mix(in srgb, var(--success-text) 40%, var(--border));
+}
+
+.pilot-daily-report__result.is-attention {
+  border-color: color-mix(in srgb, var(--warning-text) 45%, var(--border));
+}
+
+.pilot-daily-report__result.is-blocked {
+  border-color: color-mix(in srgb, var(--danger-text) 45%, var(--border));
+}
+
+.pilot-daily-report__result-header {
+  justify-content: space-between;
+}
+
+.pilot-daily-report__result-header span,
+.pilot-daily-report__coverage dt,
+.pilot-daily-report__next small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.pilot-daily-report__result-header > strong {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
+.pilot-daily-report__coverage {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.pilot-daily-report__coverage > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.pilot-daily-report__coverage dd {
+  overflow: hidden;
+  margin: 0;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pilot-daily-report__reasons {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger-text) 7%, var(--surface));
+}
+
+.pilot-daily-report__reasons ul {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 1.2rem;
+}
+
+.pilot-daily-report__next {
+  align-items: flex-end;
+}
+
 .feature-admin-section-heading {
   padding-top: 1rem;
 }
 
 @media (max-width: 900px) {
   .operations-metrics,
-  .operations-monitoring-checks {
+  .operations-monitoring-checks,
+  .pilot-daily-report__coverage {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -359,15 +497,24 @@
   .operations-summary,
   .operations-job,
   .operations-monitoring__heading,
-  .operations-active-alert {
+  .operations-active-alert,
+  .pilot-daily-report__header,
+  .pilot-daily-report__result-header,
+  .pilot-daily-report__next {
     align-items: stretch;
     flex-direction: column;
   }
 
   .operations-dependencies,
   .operations-metrics,
-  .operations-monitoring-checks {
+  .operations-monitoring-checks,
+  .pilot-daily-report__coverage {
     grid-template-columns: 1fr;
+  }
+
+  .pilot-daily-report__header .ui-button,
+  .pilot-daily-report__next .ui-button {
+    width: 100%;
   }
 
   .operations-summary code {

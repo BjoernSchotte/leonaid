@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
@@ -285,6 +287,9 @@ from leonaid.entrypoints.fastapi.schemas import (
     OperationalStatusCountsResponse,
     OperationsOverviewResponse,
     PaginationQuery,
+    PilotDailyDependenciesResponse,
+    PilotDailyMonitoringResponse,
+    PilotDailyReportResponse,
     PlatformInformationResponse,
     PlatformStatusResponse,
     PrivacyConsentResponse,
@@ -2169,6 +2174,56 @@ async def operations_overview(
             ],
         ),
     )
+
+
+@router.get(
+    "/api/v1/admin/pilot/reports/daily",
+    operation_id="getPilotDailyReport",
+    response_model=PilotDailyReportResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["operations"],
+)
+async def pilot_daily_report(
+    request: Request,
+    response: Response,
+) -> PilotDailyReportResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_system_admin(actor)
+    report = await operations_service(request).daily_report(
+        request_id=request_id(request),
+    )
+    transport = PilotDailyReportResponse(
+        schema_version="leonaid.pilot.daily-report/v1",
+        scope="technical-daily-check",
+        generated_at=report.generated_at,
+        release=report.release,
+        technical_status=report.technical_status,
+        dependencies=PilotDailyDependenciesResponse.model_validate(report.dependencies),
+        monitoring=PilotDailyMonitoringResponse.model_validate(report.monitoring),
+        outbox=OperationalStatusCountsResponse.model_validate(report.outbox),
+        api=OperationalApiMetricsResponse.model_validate(report.api),
+        stop_reasons=list(report.stop_reasons),
+        next_step=report.next_step,
+        checksum_sha256="0" * 64,
+    )
+    canonical_content = json.dumps(
+        transport.model_dump(
+            by_alias=True,
+            exclude={"checksum_sha256"},
+            mode="json",
+        ),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    checksum = hashlib.sha256(canonical_content).hexdigest()
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Disposition"] = (
+        f'inline; filename="leonaid-pilot-daily-'
+        f'{report.generated_at.date().isoformat()}.json"'
+    )
+    response.headers["X-Content-SHA256"] = checksum
+    return transport.model_copy(update={"checksum_sha256": checksum})
 
 
 @router.post(

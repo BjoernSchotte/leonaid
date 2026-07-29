@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const baseUrl = process.env.LEONAID_E2E_BASE_URL;
 const artifactDirectory = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -54,6 +55,39 @@ test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
       ).toContainText("Bereit");
     }
 
+    const dailyReport = page.getByTestId("pilot-daily-report");
+    await expect(dailyReport).toBeVisible();
+    await dailyReport
+      .getByRole("button", { name: "Tagesreport erstellen" })
+      .click();
+    const dailyResult = dailyReport.getByTestId("pilot-daily-report-result");
+    await expect(dailyResult).toContainText("Pilot technisch nicht freigeben");
+    await expect(dailyResult).toContainText("4/4 Dienste");
+    await expect(dailyResult).toContainText("Pilot-Monitoring ist nicht aktiv");
+    await expect(dailyResult).toContainText("Nächster Schritt");
+    await expect(dailyResult).not.toContainText("klara.kern@");
+    await expect(dailyResult).not.toContainText("Payload");
+
+    const downloadPromise = page.waitForEvent("download");
+    await dailyResult
+      .getByRole("button", { name: "JSON herunterladen" })
+      .click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(
+      /^leonaid-pilot-daily-\d{4}-\d{2}-\d{2}\.json$/,
+    );
+    const downloadPath = await download.path();
+    expect(downloadPath).not.toBeNull();
+    const downloadedReport = JSON.parse(
+      await readFile(downloadPath, { encoding: "utf8" }),
+    );
+    expect(downloadedReport.schemaVersion).toBe(
+      "leonaid.pilot.daily-report/v1",
+    );
+    expect(downloadedReport.scope).toBe("technical-daily-check");
+    expect(downloadedReport.technicalStatus).toBe("blocked");
+    expect(JSON.stringify(downloadedReport)).not.toContain("klara.kern@");
+
     const supportPanel = page.getByTestId("support-diagnostics");
     await expect(supportPanel).toBeVisible();
     await supportPanel
@@ -104,6 +138,7 @@ test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByTestId("operations-panel")).toBeVisible();
+    await expect(page.getByTestId("pilot-daily-report")).toBeVisible();
     await expect(page.getByTestId("support-diagnostics")).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/operations-mobile.png`,

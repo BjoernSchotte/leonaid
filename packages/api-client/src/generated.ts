@@ -136,6 +136,9 @@ export type OperationalMonitoringResponse = { readonly activeAlerts: Array<Opera
 export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
 export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; };
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
+export type PilotDailyDependenciesResponse = { readonly ready: number; readonly total: number; readonly unavailable: Array<"twenty" | "rustfs" | "mail" | "worker">; };
+export type PilotDailyMonitoringResponse = { readonly activeP0: number; readonly activeP1: number; readonly activeP2: number; readonly backupAgeSeconds?: number | null; readonly backupStatus: "ready" | "critical" | "unavailable"; readonly diskFreeRatio?: number | null; readonly diskStatus: "ready" | "critical" | "unavailable"; readonly status: "inactive" | "ready" | "attention" | "unavailable"; readonly tlsRemainingSeconds?: number | null; readonly tlsStatus: "ready" | "critical" | "unavailable"; };
+export type PilotDailyReportResponse = { readonly api: OperationalApiMetricsResponse; readonly checksumSha256: string; readonly dependencies: PilotDailyDependenciesResponse; readonly generatedAt: string; readonly monitoring: PilotDailyMonitoringResponse; readonly nextStep: string; readonly outbox: OperationalStatusCountsResponse; readonly release: string; readonly schemaVersion: "leonaid.pilot.daily-report/v1"; readonly scope: "technical-daily-check"; readonly stopReasons: Array<string>; readonly technicalStatus: "ready" | "attention" | "blocked"; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type PrivacyConsentResponse = { readonly actionId: string | null; readonly channel: "email" | "phone" | "postal"; readonly commitmentId: string | null; readonly evidenceKind: "notice_acknowledgement" | "explicit_consent"; readonly grantedAt: string; readonly id: string; readonly legalBasisStatus: "legal_review_pending" | "confirmed"; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly revokedAt: string | null; readonly source: string; readonly textVersion: string; };
@@ -1158,6 +1161,16 @@ export class LeonAidApiClient {
     return this.request<OperationalJobRetryResponse>(
       `/api/v1/admin/operations/jobs/${encodeURIComponent(String(eventId))}/retry`,
       { method: "POST" },
+      options,
+    );
+  }
+
+  async getPilotDailyReport(
+    options: RequestOptions = {},
+  ): Promise<PilotDailyReportResponse> {
+    return this.request<PilotDailyReportResponse>(
+      "/api/v1/admin/pilot/reports/daily",
+      { method: "GET" },
       options,
     );
   }

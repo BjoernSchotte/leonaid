@@ -1817,6 +1817,40 @@ class OperationsOverviewResponse(TransportModel):
     monitoring: OperationalMonitoringResponse
 
 
+class PilotDailyDependenciesResponse(TransportModel):
+    ready: int = Field(ge=0)
+    total: int = Field(ge=1)
+    unavailable: list[Literal["twenty", "rustfs", "mail", "worker"]]
+
+
+class PilotDailyMonitoringResponse(TransportModel):
+    status: Literal["inactive", "ready", "attention", "unavailable"]
+    backup_status: Literal["ready", "critical", "unavailable"]
+    backup_age_seconds: float | None = Field(default=None, ge=0)
+    disk_status: Literal["ready", "critical", "unavailable"]
+    disk_free_ratio: float | None = Field(default=None, ge=0, le=1)
+    tls_status: Literal["ready", "critical", "unavailable"]
+    tls_remaining_seconds: float | None = Field(default=None, ge=0)
+    active_p0: int = Field(ge=0)
+    active_p1: int = Field(ge=0)
+    active_p2: int = Field(ge=0)
+
+
+class PilotDailyReportResponse(TransportModel):
+    schema_version: Literal["leonaid.pilot.daily-report/v1"]
+    scope: Literal["technical-daily-check"]
+    generated_at: datetime
+    release: str
+    technical_status: Literal["ready", "attention", "blocked"]
+    dependencies: PilotDailyDependenciesResponse
+    monitoring: PilotDailyMonitoringResponse
+    outbox: OperationalStatusCountsResponse
+    api: OperationalApiMetricsResponse
+    stop_reasons: list[str]
+    next_step: str
+    checksum_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class SupportRequestDiagnosticResponse(TransportModel):
     support_code: str = Field(min_length=8, max_length=128)
     occurred_at: datetime

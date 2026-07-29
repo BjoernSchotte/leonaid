@@ -40,6 +40,8 @@ Manifest, das zuvor mit exakt demselben SHA in Staging verifiziert wurde.
 Pilotnutzer, Rollenwechsel, Offboarding, datensparsames Feedback und die
 Support-Code-Strecke folgen dem
 [`ONBOARDING-SUPPORT-RUNBOOK.md`](ONBOARDING-SUPPORT-RUNBOOK.md).
+Der tägliche technische Pilotcheck und der sanitizte JSON-Report folgen dem
+[`LIVE-PILOT-RUNBOOK.md`](LIVE-PILOT-RUNBOOK.md).
 
 ## Compose- und Release-Prüfung
 

@@ -185,6 +185,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 if settings.pilot_alertmanager_url is not None
                 else None
             ),
+            release=settings.release_commit or settings.service_version,
         )
         application.state.api_metrics = api_metrics
         application.state.request_diagnostics = InMemoryRequestDiagnostics(
