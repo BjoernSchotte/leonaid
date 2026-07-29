@@ -478,7 +478,9 @@ class SessionService:
             f"nutze diesen Magic Link, um {purpose_text}:\n{link}\n\n"
             f"Alternativ kannst du den Code {code.value} verwenden.\n\n"
             f"Link und Code sind bis {challenge.expires_at.isoformat()} gültig "
-            "und können nur einmal verwendet werden."
+            "und können nur einmal verwendet werden.\n\n"
+            "Wenn du diese Anmeldung nicht angefordert hast oder Hilfe "
+            "brauchst, antworte auf diese E-Mail."
         )
         return PendingOutboxEvent(
             id=uuid5(LOGIN_MAIL_NAMESPACE, str(challenge.id)),

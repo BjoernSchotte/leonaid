@@ -124,6 +124,8 @@ services:
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-mailpit}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-1025}
       MAIL_FROM: ${MAIL_FROM:-LeonAid <noreply@leonaid.invalid>}
+      MAIL_ENVELOPE_FROM: ${MAIL_ENVELOPE_FROM:-bounces@leonaid.invalid}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-support@leonaid.invalid}
       MAIL_SMTP_MODE: ${MAIL_SMTP_MODE:-plain}
       MAIL_SMTP_USERNAME: ${MAIL_SMTP_USERNAME:-}
       MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}

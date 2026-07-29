@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "leonaid.mail-domain-expectation/v1",
+  "domain": "club-domain.example",
+  "dkimSelector": "SELECTED_PROVIDER_SELECTOR",
+  "dkimKeyType": "rsa",
+  "dmarcPolicy": "quarantine",
+  "envelopeFrom": "bounces@mail.club-domain.example",
+  "visibleFrom": "LeonAid <noreply@club-domain.example>",
+  "replyTo": "support@club-domain.example",
+  "spfRequiredTerms": [
+    "include:SELECTED_PROVIDER_SPF"
+  ]
+}

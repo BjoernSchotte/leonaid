@@ -68,3 +68,50 @@ def test_transport_holds_no_message_data_in_its_representation() -> None:
 
     assert "person@example.invalid" not in repr(transport())
     assert "vertraulich" not in repr(transport()).casefold()
+
+
+def test_transport_applies_configured_envelope_and_reply_identity() -> None:
+    configured = SmtpTransport(
+        host="mailpit",
+        port=1025,
+        sender="LeonAid <noreply@leonaid.invalid>",
+        envelope_from="bounces@leonaid.invalid",
+        reply_to="LeonAid Support <support@leonaid.invalid>",
+        mode="plain",
+        username=None,
+        password=None,
+        timeout_seconds=5,
+        verify_certificates=True,
+    )
+    message = EmailMessage()
+    message["From"] = configured.sender
+
+    configured._apply_identity_headers(message)
+
+    assert configured.envelope_from == "bounces@leonaid.invalid"
+    assert message["Reply-To"] == "LeonAid Support <support@leonaid.invalid>"
+
+
+def test_transport_rejects_conflicting_sender_and_reply_identity() -> None:
+    configured = SmtpTransport(
+        host="mailpit",
+        port=1025,
+        sender="LeonAid <noreply@leonaid.invalid>",
+        envelope_from="bounces@leonaid.invalid",
+        reply_to="support@leonaid.invalid",
+        mode="plain",
+        username=None,
+        password=None,
+        timeout_seconds=5,
+        verify_certificates=True,
+    )
+    wrong_sender = EmailMessage()
+    wrong_sender["From"] = "Angreifer <attacker@example.invalid>"
+    with raises(MailTransportError, match="mail_sender_identity_invalid"):
+        configured._apply_identity_headers(wrong_sender)
+
+    wrong_reply = EmailMessage()
+    wrong_reply["From"] = configured.sender
+    wrong_reply["Reply-To"] = "attacker@example.invalid"
+    with raises(MailTransportError, match="mail_reply_to_identity_invalid"):
+        configured._apply_identity_headers(wrong_reply)

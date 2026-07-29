@@ -132,6 +132,19 @@ async def wait_for_new_mail(
                 text = detail.get("Text") if isinstance(detail, dict) else None
                 if not isinstance(text, str):
                     raise ContractFailure("Mailpit-Nachricht enthält keinen Text")
+                if (
+                    recipient_addresses(detail.get("From"))
+                    != {"noreply@leonaid.invalid"}
+                    or recipient_addresses(detail.get("ReplyTo"))
+                    != {"support@leonaid.invalid"}
+                    or detail.get("Subject")
+                    not in {"Dein LeonAid-Login", "LeonAid-Anmeldung bestätigen"}
+                    or "antworte auf diese E-Mail" not in text
+                ):
+                    raise ContractFailure(
+                        "Login-Mail besitzt keine eindeutige Identität, "
+                        "Betreff- oder Supportführung"
+                    )
                 return text
         await asyncio.sleep(0.2)
     raise ContractFailure(f"Mail an {recipient} wurde nicht rechtzeitig zugestellt")

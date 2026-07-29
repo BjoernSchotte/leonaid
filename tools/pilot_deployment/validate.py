@@ -166,10 +166,17 @@ def validate(config: dict[str, Any]) -> None:
 
     mail_host = string_value(worker_environment, "MAIL_SMTP_HOST").casefold()
     mail_from = string_value(worker_environment, "MAIL_FROM").casefold()
+    mail_envelope_from = string_value(
+        worker_environment, "MAIL_ENVELOPE_FROM"
+    ).casefold()
+    mail_reply_to = string_value(worker_environment, "MAIL_REPLY_TO").casefold()
     if mail_host in {"mailpit", "localhost"} or mail_host.startswith("127."):
         raise DeploymentContractError("produktiver SMTP-Host ist lokal")
-    if ".invalid" in mail_from:
-        raise DeploymentContractError("produktiver Absender verwendet .invalid")
+    if any(
+        ".invalid" in identity
+        for identity in (mail_from, mail_envelope_from, mail_reply_to)
+    ):
+        raise DeploymentContractError("produktive Mailidentität verwendet .invalid")
     if worker_environment.get("MAIL_SMTP_MODE") == "plain":
         raise DeploymentContractError("produktiver SMTP-Transport ist unverschlüsselt")
     if worker_environment.get("MAIL_SMTP_VERIFY_CERTIFICATES") != "true":

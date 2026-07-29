@@ -604,21 +604,21 @@ Akzeptanzkriterien:
       fachlich bestätigt.
 - [ ] SPF, DKIM und DMARC werden für die Pilotdomain gesetzt und automatisiert
       gegen öffentliche DNS-Antworten geprüft.
-- [ ] Login- und Rechnungs-E-Mails besitzen getrennt verständliche Betreffe,
+- [x] Login- und Rechnungs-E-Mails besitzen getrennt verständliche Betreffe,
       Texte und Supporthinweise.
 - [ ] Bounce-/Complaint-Verhalten des Providers ist dokumentiert; permanente
       Fehler werden nicht endlos wiederholt.
 - [ ] Ein benannter Operator kann Zustellfehler erkennen, sicher retryen und
       einen betroffenen Benutzer informieren.
-- [ ] Mail-Runbook enthält Rotation, Provider-Ausfall und Rückkehr zu
+- [x] Mail-Runbook enthält Rotation, Provider-Ausfall und Rückkehr zu
       normalem Betrieb.
 
 Tests/Nachweise:
 
-- [ ] DNS-Contract prüft SPF, DKIM und DMARC über einen realen Resolver.
+- [x] DNS-Contract prüft SPF, DKIM und DMARC über einen realen Resolver.
 - [ ] Kontrolliertes externes Postfach empfängt Magic Link, Code,
       Einladung und Rechnung mit korrektem PDF.
-- [ ] MIME, Links, Absender, Reply-To, Message-ID und PDF-SHA werden geprüft.
+- [x] MIME, Links, Absender, Reply-To, Message-ID und PDF-SHA werden geprüft.
 - [ ] Manueller Zustellbarkeitssmoke dokumentiert mindestens zwei
       unterschiedliche Mailanbieter, ohne Adressen zu committen.
 

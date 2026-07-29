@@ -30,7 +30,7 @@ cleanup() {
       mail-contract-blackhole >&2 || true
   fi
   compose --profile dev-mail --profile mail-contract down \
-    --volumes --remove-orphans >/dev/null 2>&1 || true
+    --volumes --remove-orphans --rmi local >/dev/null 2>&1 || true
   rm -rf "$proof"
   exit "$status"
 }

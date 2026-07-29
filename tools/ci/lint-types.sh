@@ -28,7 +28,7 @@ run_python uv run --frozen --no-sync ruff check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
-  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_relay \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
@@ -39,7 +39,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
-  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_relay \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
@@ -50,7 +50,7 @@ run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \
-  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_relay \
+  tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_readiness tools/pilot_release tools/policy tools/storage \

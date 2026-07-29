@@ -36,6 +36,7 @@ def test_invoice_delivery_message_is_clear_and_snapshot_based() -> None:
         "Rechnungsbetrag: 360,00 €\n"
         "Zahlbar bis: 14.07.2026\n"
         "Verwendungszweck: KT26-0001\n\n"
+        "Bei Fragen zu dieser Rechnung antworten Sie bitte auf diese E-Mail.\n\n"
         "Vielen Dank für Ihre Unterstützung.\n\n"
         "Freundliche Grüße\n"
         "Lions Hilfswerk LeonAid Golden e.V."

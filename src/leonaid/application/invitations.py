@@ -451,7 +451,9 @@ class InvitationService:
             f"Alternativ kannst du für {invitation.email_snapshot} "
             f"den Code {code.value} verwenden.\n\n"
             f"Link und Code sind bis {invitation.expires_at.isoformat()} "
-            "gültig und können nur einmal verwendet werden."
+            "gültig und können nur einmal verwendet werden.\n\n"
+            "Wenn du Fragen zu dieser Einladung hast, antworte auf "
+            "diese E-Mail."
         )
         payload = self._mail_payload.protect(
             recipient=invitation.email_snapshot,

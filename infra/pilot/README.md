@@ -45,6 +45,9 @@ Der tägliche technische Pilotcheck und der sanitizte JSON-Report folgen dem
 Technisches Readiness-Dossier, privates Abnahmeprotokoll und ausdrückliche
 Milestoneentscheidung folgen dem
 [`PILOT-ACCEPTANCE-RUNBOOK.md`](PILOT-ACCEPTANCE-RUNBOOK.md).
+Produktive Absenderidentitäten, öffentlicher DNS-Check, Bounce-/Complaint-Weg,
+Rotation und Provider-Wiederanlauf folgen dem
+[`MAIL-RUNBOOK.md`](MAIL-RUNBOOK.md).
 
 ## Compose- und Release-Prüfung
 

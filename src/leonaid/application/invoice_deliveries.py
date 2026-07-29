@@ -240,6 +240,8 @@ class InvoiceDeliveryService:
             f"{cls._format_money(context.gross_minor, context.currency)}\n"
             f"Zahlbar bis: {context.due_on.strftime('%d.%m.%Y')}\n"
             f"Verwendungszweck: {context.payment_reference}\n\n"
+            "Bei Fragen zu dieser Rechnung antworten Sie bitte auf "
+            "diese E-Mail.\n\n"
             "Vielen Dank für Ihre Unterstützung.\n\n"
             "Freundliche Grüße\n"
             f"{context.issuer_name}"

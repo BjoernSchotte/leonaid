@@ -415,11 +415,14 @@ async def assert_mime_message(
     if (
         recipient_addresses(summary.get("To")) != {EXPECTED_RECIPIENT}
         or str(message["To"]).casefold() != EXPECTED_RECIPIENT
+        or str(message["From"]) != "LeonAid <noreply@leonaid.invalid>"
+        or str(message["Reply-To"]) != "support@leonaid.invalid"
         or str(message["Subject"]) != "Rechnung KT26-0004 · Krapfentaxi 2026"
         or str(message["Message-ID"]) != expected_message_id
         or plain is None
         or "Rechnungsbetrag: 108,00 €" not in plain.get_content()
         or "Verwendungszweck: KT26-0004" not in plain.get_content()
+        or "antworten Sie bitte auf diese E-Mail" not in plain.get_content()
         or len(attachments) != 1
         or attachments[0].get_content_type() != "application/pdf"
         or attachments[0].get_filename() != "Rechnung-KT26-0004.pdf"

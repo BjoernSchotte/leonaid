@@ -50,6 +50,9 @@ Commands:
   test-invoice-delivery
                     Prove durable SMTP delivery of the immutable invoice PDF
   test-mail-relay   Prove provider-neutral SMTP modes and safe failures
+  test-mail-domain  Prove public DNS resolution and mail-domain policy gates
+  mail-domain-check --expectation FILE [--json] [--report FILE]
+                    Check confirmed pilot identities, SPF, DKIM and DMARC
   test-invoice-settlements
                     Prove exact full payment, cancellation and immutable PDFs
   test-feature-flags
@@ -313,6 +316,15 @@ check_all() {
     "$PYTHON_IMAGE" \
     python /workspace/tools/pilot_decisions/test.py /workspace
   docker run --rm \
+    -e PYTHONPATH=/workspace:/workspace/src \
+    -e UV_CACHE_DIR=/workspace/.cache/uv \
+    -e UV_LINK_MODE=copy \
+    -v "$root:/workspace:ro" \
+    -w /workspace \
+    "$UV_IMAGE" \
+    uv run --frozen --no-sync \
+    python tools/mail_domain/test.py /workspace
+  docker run --rm \
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     /bin/sh /workspace/tools/pins/test.sh /workspace
@@ -338,7 +350,7 @@ check_all() {
     python3 /workspace/tools/pilot/boundary.py /workspace
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
@@ -347,7 +359,7 @@ check_all() {
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
-    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching tools/mail_relay \
+    tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
@@ -356,7 +368,7 @@ check_all() {
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
-    tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
+    tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release \
@@ -687,6 +699,126 @@ reset_systems() {
   echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"
 }
 
+mail_domain_check() (
+  require_docker
+  expectation=
+  report=
+  json_argument=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --expectation)
+        [ "$#" -ge 2 ] || {
+          echo "mail-domain-check: ERROR: --expectation benötigt einen Pfad" >&2
+          exit 64
+        }
+        expectation=$2
+        shift 2
+        ;;
+      --report)
+        [ "$#" -ge 2 ] || {
+          echo "mail-domain-check: ERROR: --report benötigt einen Pfad" >&2
+          exit 64
+        }
+        report=$2
+        shift 2
+        ;;
+      --json)
+        json_argument=--json
+        shift
+        ;;
+      *)
+        echo "mail-domain-check: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$expectation" ] || {
+    echo "mail-domain-check: BLOCKED: --expectation fehlt" >&2
+    exit 2
+  }
+  [ -f "$expectation" ] || {
+    echo "mail-domain-check: BLOCKED: Erwartungsdatei fehlt" >&2
+    exit 2
+  }
+  expectation=$(
+    CDPATH= cd -- "$(dirname -- "$expectation")" &&
+      pwd
+  )/$(basename -- "$expectation")
+  if [ -n "$report" ]; then
+    mkdir -p "$(dirname -- "$report")"
+    report=$(
+      CDPATH= cd -- "$(dirname -- "$report")" &&
+        pwd
+    )/$(basename -- "$report")
+  fi
+
+  private_workspace=$(mktemp -d)
+  cleanup_mail_domain_check() {
+    rm -rf "$private_workspace"
+  }
+  trap cleanup_mail_domain_check EXIT HUP INT TERM
+  cp "$expectation" "$private_workspace/expectation.json"
+
+  if [ -n "$json_argument" ] && [ -n "$report" ]; then
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/tmp/uv-cache \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace:ro" \
+      -v "$private_workspace:/private" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/check.py \
+      --expectation /private/expectation.json \
+      --json \
+      --report /private/report.json
+  elif [ -n "$json_argument" ]; then
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/tmp/uv-cache \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace:ro" \
+      -v "$private_workspace:/private" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/check.py \
+      --expectation /private/expectation.json \
+      --json
+  elif [ -n "$report" ]; then
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/tmp/uv-cache \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace:ro" \
+      -v "$private_workspace:/private" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/check.py \
+      --expectation /private/expectation.json \
+      --report /private/report.json
+  else
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/tmp/uv-cache \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace:ro" \
+      -v "$private_workspace:/private" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/check.py \
+      --expectation /private/expectation.json
+  fi
+
+  if [ -n "$report" ]; then
+    cp "$private_workspace/report.json" "$report"
+    chmod 600 "$report"
+  fi
+)
+
 command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
@@ -799,6 +931,61 @@ case "$command" in
     ;;
   test-mail-relay)
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
+    ;;
+  test-mail-domain)
+    require_docker
+    artifact_arguments=
+    if [ -n "${LEONAID_CI_ARTIFACT_DIR:-}" ]; then
+      case "$LEONAID_CI_ARTIFACT_DIR" in
+        "$root"/*)
+          artifact_relative=${LEONAID_CI_ARTIFACT_DIR#"$root/"}
+          ;;
+        .artifacts/*)
+          artifact_relative=$LEONAID_CI_ARTIFACT_DIR
+          ;;
+        *)
+          echo "mail-domain-test: ERROR: CI-Artefaktpfad muss unter .artifacts/ liegen" >&2
+          exit 64
+          ;;
+      esac
+      mkdir -p "$root/$artifact_relative"
+      artifact_arguments="--report /workspace/$artifact_relative/mail-domain-smoke.json"
+    fi
+    # shellcheck disable=SC2086
+    docker run --rm \
+      -e PYTHONPATH=/workspace:/workspace/src \
+      -e UV_CACHE_DIR=/workspace/.cache/uv \
+      -e UV_LINK_MODE=copy \
+      -v "$root:/workspace" \
+      -w /workspace \
+      "$UV_IMAGE" \
+      uv run --frozen --no-sync \
+      python tools/mail_domain/test.py /workspace $artifact_arguments
+    (
+      wrapper_proof=$(mktemp -d)
+      trap 'rm -rf "$wrapper_proof"' EXIT HUP INT TERM
+      mail_domain_check \
+        --expectation "$root/tests/fixtures/mail-domain/public-resolver-smoke-v1.json" \
+        --report "$wrapper_proof/mail-domain-readiness.json"
+      [ -s "$wrapper_proof/mail-domain-readiness.json" ] || {
+        echo "mail-domain-test: ERROR: privater Host-Report fehlt" >&2
+        exit 1
+      }
+      wrapper_report_mode=$(
+        ls -ld "$wrapper_proof/mail-domain-readiness.json"
+      )
+      case "$wrapper_report_mode" in
+        -rw-------*) ;;
+        *)
+          echo "mail-domain-test: ERROR: privater Host-Report ist nicht 0600" >&2
+          exit 1
+          ;;
+      esac
+    )
+    ;;
+  mail-domain-check)
+    shift
+    mail_domain_check "$@"
     ;;
   test-invoice-settlements)
     /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"

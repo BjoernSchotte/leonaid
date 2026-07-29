@@ -10,6 +10,8 @@ from urllib.request import urlopen
 from leonaid.adapters.mail.transport import MailTransportError, SmtpTransport
 
 MESSAGE_ID = "<pilot-mail-relay-contract@outbox.leonaid.invalid>"
+ENVELOPE_FROM = "bounces@leonaid.invalid"
+REPLY_TO = "LeonAid Support <support@leonaid.invalid>"
 
 
 def message(subject: str) -> EmailMessage:
@@ -42,6 +44,8 @@ def transport(
         password=password,
         timeout_seconds=timeout,
         verify_certificates=verify,
+        envelope_from=ENVELOPE_FROM,
+        reply_to=REPLY_TO,
     )
 
 
@@ -72,6 +76,40 @@ def message_count(api_url: str) -> int:
     return int(payload["total"])
 
 
+def latest_message(api_url: str) -> dict[str, object]:
+    with urlopen(
+        f"{api_url.rstrip('/')}/api/v1/message/latest",
+        timeout=5,
+    ) as response:
+        payload = json.load(response)
+    if not isinstance(payload, dict):
+        raise RuntimeError("Mailpit-Vertrag lieferte keine Nachricht.")
+    return payload
+
+
+def address(payload: object) -> str:
+    if not isinstance(payload, dict) or not isinstance(payload.get("Address"), str):
+        raise RuntimeError("Mailpit-Vertrag lieferte keine Mailadresse.")
+    return str(payload["Address"])
+
+
+def assert_delivery_identity(api_url: str) -> None:
+    payload = latest_message(api_url)
+    reply_to = payload.get("ReplyTo")
+    if (
+        address(payload.get("From")) != "noreply@leonaid.invalid"
+        or not isinstance(reply_to, list)
+        or len(reply_to) != 1
+        or address(reply_to[0]) != "support@leonaid.invalid"
+        or str(payload.get("ReturnPath", "")).strip("<>") != ENVELOPE_FROM
+        or str(payload.get("MessageID", "")).strip("<>") != MESSAGE_ID.strip("<>")
+    ):
+        raise RuntimeError(
+            "SMTP-Server empfing falsches From, Reply-To, "
+            "Envelope-From oder Message-ID."
+        )
+
+
 def main() -> None:
     plain_host = os.environ["MAIL_CONTRACT_PLAIN_HOST"]
     starttls_host = os.environ["MAIL_CONTRACT_STARTTLS_HOST"]
@@ -99,6 +137,7 @@ def main() -> None:
         raise RuntimeError(
             "Der erfolgreiche Retry wurde nicht exakt einmal angenommen."
         )
+    assert_delivery_identity(plain_api)
 
     # STARTTLS plus Authentifizierung läuft real gegen Mailpit. Für diesen
     # isolierten Positivtest ist dessen kurzlebiges Self-signed-Zertifikat
@@ -112,6 +151,7 @@ def main() -> None:
     ).send(message("STARTTLS und Authentifizierung"))
     if message_count(starttls_api) != before_starttls + 1:
         raise RuntimeError("STARTTLS-Mail wurde nicht genau einmal angenommen.")
+    assert_delivery_identity(starttls_api)
 
     transport(
         tls_host,
@@ -122,6 +162,7 @@ def main() -> None:
     ).send(message("Implizites TLS und Authentifizierung"))
     if message_count(tls_api) != before_tls + 1:
         raise RuntimeError("TLS-Mail wurde nicht genau einmal angenommen.")
+    assert_delivery_identity(tls_api)
 
     expect_failure(
         "mail_certificate_invalid",
@@ -159,6 +200,8 @@ def main() -> None:
             {
                 "authentication": "proven",
                 "certificateFailure": "proven",
+                "deliveryIdentities": "proven",
+                "envelopeFrom": "proven",
                 "implicitTls": "proven",
                 "providerLimit": "proven",
                 "retryAcceptedCount": 1,

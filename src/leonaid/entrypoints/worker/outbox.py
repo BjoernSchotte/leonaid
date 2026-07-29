@@ -95,6 +95,8 @@ async def build_worker(
         timeout_seconds=mail_settings.timeout_seconds,
         verify_certificates=mail_settings.verify_certificates,
         ca_file=mail_settings.ca_file,
+        envelope_from=mail_settings.envelope_from,
+        reply_to=mail_settings.reply_to,
     )
     handlers: dict[str, OutboxEventHandler] = {
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),

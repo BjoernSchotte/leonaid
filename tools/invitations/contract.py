@@ -168,6 +168,15 @@ async def wait_for_mail(
                     detail = detail_response.json()
                     if not isinstance(detail, dict):
                         raise ContractFailure("Mailpit-Nachricht ist kein Objekt")
+                    if recipient_addresses(detail.get("From")) != {
+                        "noreply@leonaid.invalid"
+                    } or recipient_addresses(detail.get("ReplyTo")) != {
+                        "support@leonaid.invalid"
+                    }:
+                        raise ContractFailure(
+                            "Einladungs-/Änderungsmail besitzt falsches "
+                            "From oder Reply-To"
+                        )
                     text = detail.get("Text")
                     if not isinstance(text, str):
                         raise ContractFailure("Mailpit-Nachricht enthält keinen Text")
@@ -179,8 +188,10 @@ async def wait_for_mail(
 def credentials_from_mail(text: str) -> tuple[str, str]:
     token = TOKEN_PATTERN.search(text)
     code = CODE_PATTERN.search(text)
-    if token is None or code is None:
-        raise ContractFailure("Einladungsmail enthält nicht Link und Code")
+    if token is None or code is None or "antworte auf diese E-Mail" not in text:
+        raise ContractFailure(
+            "Einladungsmail enthält nicht Link, Code und Supporthinweis"
+        )
     return token.group(1), code.group(1)
 
 

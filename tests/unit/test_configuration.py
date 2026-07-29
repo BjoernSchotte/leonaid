@@ -152,6 +152,8 @@ def test_mail_transport_settings_are_generic_and_secret_safe() -> None:
             "MAIL_SMTP_HOST": "smtp.provider.org",
             "MAIL_SMTP_PORT": "465",
             "MAIL_FROM": "LeonAid <postmaster@provider.org>",
+            "MAIL_ENVELOPE_FROM": "bounces@provider.org",
+            "MAIL_REPLY_TO": "support@provider.org",
             "MAIL_SMTP_MODE": "tls",
             "MAIL_SMTP_USERNAME": "smtp-user",
             "MAIL_SMTP_PASSWORD": "provider-secret",
@@ -167,6 +169,8 @@ def test_mail_transport_settings_are_generic_and_secret_safe() -> None:
         "authentication": "configured",
         "certificateVerification": "true",
         "customCertificateAuthority": "unconfigured",
+        "envelopeFrom": "configured",
+        "replyTo": "configured",
     }
     assert "provider-secret" not in repr(settings)
     assert "provider-secret" not in repr(settings.safe_summary())
@@ -178,6 +182,8 @@ def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
         "MAIL_SMTP_HOST": "smtp.provider.invalid",
         "MAIL_SMTP_PORT": "587",
         "MAIL_FROM": "LeonAid <postmaster@provider.invalid>",
+        "MAIL_ENVELOPE_FROM": "bounces@provider.invalid",
+        "MAIL_REPLY_TO": "support@provider.invalid",
     }
     with raises(ValidationError):
         MailTransportSettings.model_validate(
@@ -213,6 +219,31 @@ def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
                 "MAIL_FROM": "LeonAid <noreply@leonaid.invalid>",
                 "MAIL_SMTP_MODE": "starttls",
                 "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+            }
+        )
+
+
+def test_production_mail_requires_explicit_delivery_identities() -> None:
+    base = {
+        "LEONAID_ENV": "production",
+        "MAIL_SMTP_HOST": "smtp.provider.org",
+        "MAIL_SMTP_PORT": "587",
+        "MAIL_FROM": "LeonAid <postmaster@provider.org>",
+        "MAIL_SMTP_MODE": "starttls",
+        "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+    }
+    with raises(ValidationError, match="Envelope-From"):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_REPLY_TO": "support@provider.org",
+            }
+        )
+    with raises(ValidationError, match="Reply-To"):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_ENVELOPE_FROM": "bounces@provider.org",
             }
         )
 

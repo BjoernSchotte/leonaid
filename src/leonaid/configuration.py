@@ -281,6 +281,8 @@ class MailTransportSettings(BaseSettings):
     host: str = Field(min_length=1, alias="MAIL_SMTP_HOST")
     port: int = Field(ge=1, le=65535, alias="MAIL_SMTP_PORT")
     sender: str = Field(min_length=3, alias="MAIL_FROM")
+    envelope_from: str | None = Field(default=None, alias="MAIL_ENVELOPE_FROM")
+    reply_to: str | None = Field(default=None, alias="MAIL_REPLY_TO")
     mode: Literal["plain", "starttls", "tls"] = Field(
         default="starttls",
         alias="MAIL_SMTP_MODE",
@@ -299,7 +301,14 @@ class MailTransportSettings(BaseSettings):
     )
     ca_file: Path | None = Field(default=None, alias="MAIL_SMTP_CA_FILE")
 
-    @field_validator("username", "password", "ca_file", mode="before")
+    @field_validator(
+        "username",
+        "password",
+        "ca_file",
+        "envelope_from",
+        "reply_to",
+        mode="before",
+    )
     @classmethod
     def empty_mail_credentials_are_unconfigured(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -328,6 +337,21 @@ class MailTransportSettings(BaseSettings):
                 raise ValueError(
                     "Produktion erfordert eine Absenderadresse mit realer Domain."
                 )
+            for label, value in (
+                ("Envelope-From", self.envelope_from),
+                ("Reply-To", self.reply_to),
+            ):
+                address = parseaddr(value or "")[1]
+                domain = (
+                    address.rsplit("@", maxsplit=1)[1]
+                    if address.count("@") == 1
+                    else ""
+                )
+                if not domain or _is_forbidden_public_host(domain):
+                    raise ValueError(
+                        f"Produktion erfordert ein explizites {label} "
+                        "mit realer Domain."
+                    )
             if self.host.casefold() in {"mailpit", "localhost"}:
                 raise ValueError(
                     "Mailpit und Loopback-SMTP sind in Produktion verboten."
@@ -345,6 +369,12 @@ class MailTransportSettings(BaseSettings):
             "customCertificateAuthority": (
                 "configured" if self.ca_file is not None else "unconfigured"
             ),
+            "envelopeFrom": (
+                "configured"
+                if self.envelope_from is not None
+                else "derived-from-visible-sender"
+            ),
+            "replyTo": ("configured" if self.reply_to is not None else "unconfigured"),
         }
 
 

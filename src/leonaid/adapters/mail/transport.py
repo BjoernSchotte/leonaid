@@ -5,6 +5,7 @@ from __future__ import annotations
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Literal
 
@@ -33,6 +34,8 @@ class SmtpTransport:
         timeout_seconds: float,
         verify_certificates: bool,
         ca_file: Path | None = None,
+        envelope_from: str | None = None,
+        reply_to: str | None = None,
     ) -> None:
         if not host.strip() or port < 1 or not sender.strip():
             raise ValueError("SMTP-Konfiguration ist unvollständig.")
@@ -41,6 +44,13 @@ class SmtpTransport:
         self.host = host
         self.port = port
         self.sender = sender
+        sender_address = parseaddr(sender)[1]
+        self.envelope_from = envelope_from or sender_address
+        if self.envelope_from.count("@") != 1:
+            raise ValueError("SMTP-Envelope-From ist ungültig.")
+        if reply_to is not None and parseaddr(reply_to)[1].count("@") != 1:
+            raise ValueError("SMTP-Reply-To ist ungültig.")
+        self.reply_to = reply_to
         self.mode = mode
         self.username = username
         self._password = password
@@ -49,6 +59,7 @@ class SmtpTransport:
         self.ca_file = ca_file
 
     def send(self, message: EmailMessage) -> None:
+        self._apply_identity_headers(message)
         try:
             self._send(message)
         except MailTransportError:
@@ -145,7 +156,31 @@ class SmtpTransport:
     ) -> None:
         if self.username is not None and self._password is not None:
             smtp.login(self.username, self._password)
-        smtp.send_message(message)
+        smtp.send_message(message, from_addr=self.envelope_from)
+
+    def _apply_identity_headers(self, message: EmailMessage) -> None:
+        visible_from = message.get_all("From", [])
+        if visible_from != [self.sender]:
+            raise MailTransportError(
+                "mail_sender_identity_invalid",
+                retryable=False,
+            )
+        existing_reply_to = message.get_all("Reply-To", [])
+        if self.reply_to is None:
+            if existing_reply_to:
+                raise MailTransportError(
+                    "mail_reply_to_identity_invalid",
+                    retryable=False,
+                )
+            return
+        if not existing_reply_to:
+            message["Reply-To"] = self.reply_to
+            return
+        if existing_reply_to != [self.reply_to]:
+            raise MailTransportError(
+                "mail_reply_to_identity_invalid",
+                retryable=False,
+            )
 
     def _tls_context(self) -> ssl.SSLContext:
         if not self.verify_certificates:

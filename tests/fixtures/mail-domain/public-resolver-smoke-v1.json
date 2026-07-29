@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "leonaid.mail-domain-expectation/v1",
+  "domain": "proton.me",
+  "dkimSelector": "protonmail",
+  "dkimKeyType": "rsa",
+  "dmarcPolicy": "quarantine",
+  "envelopeFrom": "bounce@mailer.proton.me",
+  "visibleFrom": "LeonAid DNS Contract <noreply@proton.me>",
+  "replyTo": "support@proton.me",
+  "spfRequiredTerms": [
+    "include:_spf.protonmail.ch"
+  ]
+}
