@@ -169,6 +169,16 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 "mail": str(settings.mail_health_url),
                 "worker": str(settings.worker_health_url),
             },
+            monitor_status_url=(
+                str(settings.pilot_monitor_status_url)
+                if settings.pilot_monitor_status_url is not None
+                else None
+            ),
+            alertmanager_url=(
+                str(settings.pilot_alertmanager_url)
+                if settings.pilot_alertmanager_url is not None
+                else None
+            ),
         )
         application.state.api_metrics = api_metrics
         application.state.security_rate_limits = AsyncpgSecurityRateLimitRepository(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 
@@ -37,6 +37,29 @@ class FailedJob:
 
 
 @dataclass(frozen=True, slots=True)
+class OperationalCheck:
+    key: Literal["backup", "disk", "tls"]
+    status: Literal["ready", "critical"]
+    value: float
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalAlert:
+    name: str
+    severity: Literal["P0", "P1", "P2"]
+    category: str
+    summary: str
+    runbook_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class MonitoringSnapshot:
+    status: Literal["inactive", "ready", "attention", "unavailable"]
+    checks: tuple[OperationalCheck, ...]
+    active_alerts: tuple[OperationalAlert, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class OperationsSnapshot:
     generated_at: datetime
     request_id: str
@@ -46,6 +69,7 @@ class OperationsSnapshot:
     mail: dict[str, int]
     login: dict[str, int]
     failed_jobs: tuple[FailedJob, ...]
+    monitoring: MonitoringSnapshot
 
 
 class OperationsService(Protocol):

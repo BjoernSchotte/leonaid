@@ -26,6 +26,8 @@ services:
       TWENTY_ORIGIN: ${TWENTY_PUBLIC_BASE_URL:?TWENTY_PUBLIC_BASE_URL fehlt}
       MAIL_HEALTH_URL: ${MAIL_HEALTH_URL:?MAIL_HEALTH_URL fehlt}
       WORKER_HEALTH_URL: http://worker:8010/health/ready
+      PILOT_MONITOR_STATUS_URL: http://pilot-exporter:8020/status
+      PILOT_ALERTMANAGER_URL: http://alertmanager:9093
       MAIL_TEST_API_URL: !reset null
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}

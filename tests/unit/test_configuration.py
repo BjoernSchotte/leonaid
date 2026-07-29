@@ -68,6 +68,7 @@ def test_settings_are_typed_and_secret_safe() -> None:
         "rustfsHealthHost": "rustfs",
         "mailHealthHost": "mailpit",
         "workerHealthHost": "worker",
+        "pilotMonitoring": "unconfigured",
         "objectStorageHost": "rustfs",
         "objectStorageBucket": "leonaid",
     }
@@ -87,6 +88,24 @@ def test_allowed_origins_are_normalized_and_deduplicated() -> None:
         "http://localhost:8080",
         "https://portal.leonaid.invalid",
     )
+
+
+def test_pilot_monitoring_sources_must_be_configured_together() -> None:
+    with raises(ValidationError):
+        valid_settings(
+            PILOT_MONITOR_STATUS_URL="http://pilot-monitor-exporter:9108/status"
+        )
+    with raises(ValidationError):
+        valid_settings(PILOT_ALERTMANAGER_URL="http://alertmanager:9093")
+
+    settings = valid_settings(
+        PILOT_MONITOR_STATUS_URL="http://pilot-monitor-exporter:9108/status",
+        PILOT_ALERTMANAGER_URL="http://alertmanager:9093",
+    )
+
+    assert settings.pilot_monitor_status_url is not None
+    assert settings.pilot_alertmanager_url is not None
+    assert settings.safe_summary()["pilotMonitoring"] == "configured"
 
 
 def test_settings_reject_non_database_target() -> None:

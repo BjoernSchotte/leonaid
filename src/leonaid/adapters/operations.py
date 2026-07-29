@@ -6,7 +6,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 import asyncpg
@@ -16,6 +16,9 @@ from leonaid.application.operations import (
     ApiMetricSnapshot,
     DependencySignal,
     FailedJob,
+    MonitoringSnapshot,
+    OperationalAlert,
+    OperationalCheck,
     OperationsSnapshot,
 )
 
@@ -65,6 +68,8 @@ class OperationsService:
         *,
         api_metrics: ApiMetrics,
         dependency_urls: dict[str, str],
+        monitor_status_url: str | None,
+        alertmanager_url: str | None,
     ) -> None:
         if set(dependency_urls) != {"twenty", "rustfs", "mail", "worker"}:
             raise ValueError(
@@ -73,13 +78,18 @@ class OperationsService:
         self._pool = pool
         self._api_metrics = api_metrics
         self._dependency_urls = dict(dependency_urls)
+        self._monitor_status_url = monitor_status_url
+        self._alertmanager_url = alertmanager_url
 
     async def snapshot(self, *, request_id: str) -> OperationsSnapshot:
-        dependencies = await asyncio.gather(
-            *(
-                self._probe(name, url, request_id=request_id)
-                for name, url in self._dependency_urls.items()
-            )
+        dependency_result, monitoring = await asyncio.gather(
+            asyncio.gather(
+                *(
+                    self._probe(name, url, request_id=request_id)
+                    for name, url in self._dependency_urls.items()
+                )
+            ),
+            self._monitoring_snapshot(),
         )
         async with self._pool.acquire() as connection:
             outbox_rows = await connection.fetch(
@@ -132,7 +142,7 @@ class OperationsService:
             generated_at=datetime.now(timezone.utc),
             request_id=request_id,
             api=self._api_metrics.snapshot(),
-            dependencies=tuple(dependencies),
+            dependencies=tuple(dependency_result),
             outbox=self._status_counts(outbox_rows),
             mail=self._status_counts(mail_rows),
             login={
@@ -153,6 +163,7 @@ class OperationsService:
                 )
                 for row in failed_rows
             ),
+            monitoring=monitoring,
         )
 
     async def retry(
@@ -266,6 +277,113 @@ class OperationsService:
             flush=True,
         )
         return signal
+
+    async def _monitoring_snapshot(self) -> MonitoringSnapshot:
+        if self._monitor_status_url is None or self._alertmanager_url is None:
+            return MonitoringSnapshot(
+                status="inactive",
+                checks=(),
+                active_alerts=(),
+            )
+        try:
+            checks, alerts = await asyncio.gather(
+                self._monitor_checks(),
+                self._active_alerts(),
+            )
+        except (httpx.HTTPError, TypeError, ValueError):
+            return MonitoringSnapshot(
+                status="unavailable",
+                checks=(),
+                active_alerts=(),
+            )
+        attention = bool(alerts) or any(check.status != "ready" for check in checks)
+        return MonitoringSnapshot(
+            status="attention" if attention else "ready",
+            checks=checks,
+            active_alerts=alerts,
+        )
+
+    async def _monitor_checks(self) -> tuple[OperationalCheck, ...]:
+        assert self._monitor_status_url is not None
+        async with httpx.AsyncClient(timeout=3) as client:
+            response = await client.get(self._monitor_status_url)
+        response.raise_for_status()
+        document = response.json()
+        if not isinstance(document, dict):
+            raise ValueError("Monitoringstatus ist kein Objekt.")
+        definitions = (
+            ("backup", "ageSeconds"),
+            ("disk", "freeRatio"),
+            ("tls", "remainingSeconds"),
+        )
+        checks: list[OperationalCheck] = []
+        for key, value_key in definitions:
+            item = document.get(key)
+            if not isinstance(item, dict):
+                raise ValueError(f"Monitoringstatus für {key} fehlt.")
+            status = item.get("status")
+            value = item.get(value_key)
+            if (
+                status not in {"ready", "critical"}
+                or isinstance(value, bool)
+                or not isinstance(value, (int, float))
+            ):
+                raise ValueError(f"Monitoringstatus für {key} ist ungültig.")
+            checks.append(
+                OperationalCheck(
+                    key=cast(Literal["backup", "disk", "tls"], key),
+                    status=cast(Literal["ready", "critical"], status),
+                    value=float(value),
+                )
+            )
+        return tuple(checks)
+
+    async def _active_alerts(self) -> tuple[OperationalAlert, ...]:
+        assert self._alertmanager_url is not None
+        url = f"{self._alertmanager_url.rstrip('/')}/api/v2/alerts"
+        async with httpx.AsyncClient(timeout=3) as client:
+            response = await client.get(url)
+        response.raise_for_status()
+        document = response.json()
+        if not isinstance(document, list):
+            raise ValueError("Alertmanager-Antwort ist keine Liste.")
+        alerts: list[OperationalAlert] = []
+        for item in document[:50]:
+            if not isinstance(item, dict):
+                raise ValueError("Alertmanager-Eintrag ist ungültig.")
+            labels = item.get("labels")
+            annotations = item.get("annotations")
+            if not isinstance(labels, dict) or not isinstance(annotations, dict):
+                raise ValueError("Alertmanager-Metadaten fehlen.")
+            name = labels.get("alertname")
+            severity = labels.get("severity")
+            category = labels.get("category")
+            summary = annotations.get("summary")
+            runbook_url = annotations.get("runbook_url")
+            if (
+                not isinstance(name, str)
+                or not name.startswith("LeonAid")
+                or not isinstance(severity, str)
+                or severity not in {"P0", "P1", "P2"}
+                or not isinstance(category, str)
+                or len(category) > 64
+                or not isinstance(summary, str)
+                or len(summary) > 200
+                or not isinstance(runbook_url, str)
+                or not runbook_url.startswith("https://")
+                or len(runbook_url) > 500
+            ):
+                raise ValueError("Alertmanager-Inhalt verletzt den UI-Vertrag.")
+            alerts.append(
+                OperationalAlert(
+                    name=name,
+                    severity=cast(Literal["P0", "P1", "P2"], severity),
+                    category=category,
+                    summary=summary,
+                    runbook_url=runbook_url,
+                )
+            )
+        return tuple(sorted(alerts, key=lambda alert: (alert.severity, alert.name)))
 
     @staticmethod
     def _status_counts(rows: list[asyncpg.Record]) -> dict[str, int]:

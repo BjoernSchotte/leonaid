@@ -1,0 +1,29 @@
+rule_files:
+  - rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'leonaid_dependency_up{dependency="twenty"}'
+        values: "0x20"
+      - series: "leonaid_maintenance_mode"
+        values: "1x20"
+      - series: "leonaid_backup_manifest_valid"
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: LeonAidDependencyUnavailable
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: LeonAidBackupManifestInvalid
+        exp_alerts:
+          - exp_labels:
+              alertname: LeonAidBackupManifestInvalid
+              category: backup
+              owner: pilot-operations
+              severity: P0
+            exp_annotations:
+              summary: "LeonAid-Backupnachweis ist ungültig"
+              runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#backup"

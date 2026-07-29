@@ -1637,6 +1637,26 @@ class OperationalFailedJobResponse(TransportModel):
     manual_retry_count: int = Field(ge=0)
 
 
+class OperationalCheckResponse(TransportModel):
+    key: Literal["backup", "disk", "tls"]
+    status: Literal["ready", "critical"]
+    value: float
+
+
+class OperationalAlertResponse(TransportModel):
+    name: str
+    severity: Literal["P0", "P1", "P2"]
+    category: str
+    summary: str
+    runbook_url: str
+
+
+class OperationalMonitoringResponse(TransportModel):
+    status: Literal["inactive", "ready", "attention", "unavailable"]
+    checks: list[OperationalCheckResponse]
+    active_alerts: list[OperationalAlertResponse]
+
+
 class OperationsOverviewResponse(TransportModel):
     generated_at: datetime
     request_id: str
@@ -1646,6 +1666,7 @@ class OperationsOverviewResponse(TransportModel):
     mail: OperationalStatusCountsResponse
     login: OperationalLoginMetricsResponse
     failed_jobs: list[OperationalFailedJobResponse]
+    monitoring: OperationalMonitoringResponse
 
 
 class OperationalJobRetryResponse(TransportModel):

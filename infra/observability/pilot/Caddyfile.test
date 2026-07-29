@@ -1,0 +1,13 @@
+{
+	admin off
+}
+
+https://tls-probe:8443, https://localhost:8443 {
+	tls {
+		issuer internal {
+			lifetime 720h
+			sign_with_root
+		}
+	}
+	respond "ready" 200
+}

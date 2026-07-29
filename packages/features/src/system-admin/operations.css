@@ -66,7 +66,8 @@
 }
 
 .operations-dependencies,
-.operations-metrics {
+.operations-metrics,
+.operations-monitoring-checks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
@@ -105,6 +106,143 @@
 .operations-metrics small {
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+.operations-monitoring {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
+
+.operations-monitoring.is-ready {
+  border-color: color-mix(in srgb, var(--success-text) 35%, var(--border));
+}
+
+.operations-monitoring.is-attention,
+.operations-monitoring.is-unavailable {
+  border-color: color-mix(in srgb, var(--danger-text) 40%, var(--border));
+}
+
+.operations-monitoring__heading,
+.operations-active-alert,
+.operations-monitoring-check {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.operations-monitoring__heading {
+  justify-content: space-between;
+}
+
+.operations-monitoring__heading h3,
+.operations-monitoring__heading p {
+  margin: 0;
+}
+
+.operations-monitoring__heading > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.operations-monitoring__heading > div > p:last-child {
+  color: var(--muted);
+}
+
+.operations-monitoring__heading > span {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.operations-monitoring.is-ready .operations-monitoring__heading > span {
+  color: var(--success-text);
+}
+
+.operations-monitoring.is-attention .operations-monitoring__heading > span,
+.operations-monitoring.is-unavailable .operations-monitoring__heading > span {
+  color: var(--danger-text);
+}
+
+.operations-monitoring-checks {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.operations-monitoring-check {
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.operations-monitoring-check__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success-text) 9%, transparent);
+  color: var(--success-text);
+}
+
+.operations-monitoring-check.is-critical .operations-monitoring-check__icon {
+  background: color-mix(in srgb, var(--danger-text) 9%, transparent);
+  color: var(--danger-text);
+}
+
+.operations-monitoring-check > div:last-child {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.operations-monitoring-check span,
+.operations-monitoring-check small,
+.operations-active-alert small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.operations-active-alerts {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.operations-active-alert {
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger-text) 7%, var(--surface));
+}
+
+.operations-active-alert > span {
+  display: grid;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--danger-text);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.operations-active-alert > div {
+  display: grid;
+  flex: 1;
+  gap: 0.1rem;
+}
+
+.operations-active-alert a {
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .operations-metrics {
@@ -210,7 +348,8 @@
 }
 
 @media (max-width: 900px) {
-  .operations-metrics {
+  .operations-metrics,
+  .operations-monitoring-checks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -218,13 +357,16 @@
 @media (max-width: 680px) {
   .operations-panel__header,
   .operations-summary,
-  .operations-job {
+  .operations-job,
+  .operations-monitoring__heading,
+  .operations-active-alert {
     align-items: stretch;
     flex-direction: column;
   }
 
   .operations-dependencies,
-  .operations-metrics {
+  .operations-metrics,
+  .operations-monitoring-checks {
     grid-template-columns: 1fr;
   }
 

@@ -5370,6 +5370,45 @@
         "title": "NavigationItemResponse",
         "type": "object"
       },
+      "OperationalAlertResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "runbookUrl": {
+            "title": "Runbookurl",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "severity",
+          "category",
+          "summary",
+          "runbookUrl"
+        ],
+        "title": "OperationalAlertResponse",
+        "type": "object"
+      },
       "OperationalApiMetricsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5395,6 +5434,39 @@
           "averageLatencyMs"
         ],
         "title": "OperationalApiMetricsResponse",
+        "type": "object"
+      },
+      "OperationalCheckResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "enum": [
+              "backup",
+              "disk",
+              "tls"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "critical"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "status",
+          "value"
+        ],
+        "title": "OperationalCheckResponse",
         "type": "object"
       },
       "OperationalDependencyResponse": {
@@ -5562,6 +5634,42 @@
         "title": "OperationalLoginMetricsResponse",
         "type": "object"
       },
+      "OperationalMonitoringResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activeAlerts": {
+            "items": {
+              "$ref": "#/components/schemas/OperationalAlertResponse"
+            },
+            "title": "Activealerts",
+            "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/OperationalCheckResponse"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "inactive",
+              "ready",
+              "attention",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "checks",
+          "activeAlerts"
+        ],
+        "title": "OperationalMonitoringResponse",
+        "type": "object"
+      },
       "OperationalStatusCountsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5626,6 +5734,9 @@
           "mail": {
             "$ref": "#/components/schemas/OperationalStatusCountsResponse"
           },
+          "monitoring": {
+            "$ref": "#/components/schemas/OperationalMonitoringResponse"
+          },
           "outbox": {
             "$ref": "#/components/schemas/OperationalStatusCountsResponse"
           },
@@ -5642,7 +5753,8 @@
           "outbox",
           "mail",
           "login",
-          "failedJobs"
+          "failedJobs",
+          "monitoring"
         ],
         "title": "OperationsOverviewResponse",
         "type": "object"

@@ -10,6 +10,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   type LeonAidApiClient,
+  type OperationalAlertResponse,
+  type OperationalCheckResponse,
   type OperationalDependencyResponse,
   type OperationalFailedJobResponse,
 } from "@leonaid/api-client";
@@ -21,6 +23,7 @@ const DEPENDENCY_LABELS: Record<string, string> = {
   mail: "E-Mail",
   rustfs: "Dateiablage",
   twenty: "CRM",
+  worker: "Hintergrundjobs",
 };
 
 function formatDate(value: string) {
@@ -52,6 +55,70 @@ function DependencyCard({
         <strong>{ready ? "Bereit" : "Nicht erreichbar"}</strong>
       </div>
       <small>{dependency.latencyMs.toLocaleString("de-DE")} ms</small>
+    </article>
+  );
+}
+
+const CHECK_LABELS: Record<OperationalCheckResponse["key"], string> = {
+  backup: "Datensicherung",
+  disk: "Speicherplatz",
+  tls: "HTTPS-Zertifikat",
+};
+
+function formatCheckValue(check: OperationalCheckResponse) {
+  if (check.key === "backup") {
+    const hours = check.value / 3_600;
+    return hours < 1
+      ? "Vor weniger als einer Stunde"
+      : `Vor ${Math.round(hours).toLocaleString("de-DE")} Stunden`;
+  }
+  if (check.key === "disk") {
+    return `${Math.round(check.value * 100).toLocaleString("de-DE")} % frei`;
+  }
+  const days = Math.max(0, Math.floor(check.value / 86_400));
+  return `Noch ${days.toLocaleString("de-DE")} Tage gültig`;
+}
+
+function MonitoringCheckCard({
+  check,
+}: {
+  readonly check: OperationalCheckResponse;
+}) {
+  const ready = check.status === "ready";
+  return (
+    <article
+      className={`operations-monitoring-check ${
+        ready ? "is-ready" : "is-critical"
+      }`}
+      data-testid={`monitoring-check-${check.key}`}
+    >
+      <div className="operations-monitoring-check__icon" aria-hidden="true">
+        <HugeiconsIcon
+          icon={ready ? CheckmarkCircle02Icon : Alert02Icon}
+          size={20}
+          strokeWidth={1.8}
+        />
+      </div>
+      <div>
+        <span>{CHECK_LABELS[check.key]}</span>
+        <strong>{ready ? "In Ordnung" : "Handlung nötig"}</strong>
+        <small>{formatCheckValue(check)}</small>
+      </div>
+    </article>
+  );
+}
+
+function ActiveAlert({ alert }: { readonly alert: OperationalAlertResponse }) {
+  return (
+    <article className="operations-active-alert">
+      <span>{alert.severity}</span>
+      <div>
+        <strong>{alert.summary}</strong>
+        <small>{alert.category}</small>
+      </div>
+      <a href={alert.runbookUrl} rel="noreferrer" target="_blank">
+        Runbook öffnen
+      </a>
     </article>
   );
 }
@@ -151,6 +218,7 @@ export function OperationsAdminPanel({
     (item) => item.status === "ready",
   ).length;
   const failedJobs = overview.data.failedJobs;
+  const monitoring = overview.data.monitoring;
   const retryError = retry.error ? actionErrorMessage(retry.error) : null;
 
   return (
@@ -211,6 +279,63 @@ export function OperationsAdminPanel({
           <DependencyCard dependency={dependency} key={dependency.dependency} />
         ))}
       </div>
+
+      <section
+        aria-labelledby="monitoring-title"
+        className={`operations-monitoring is-${monitoring.status}`}
+        data-testid="monitoring-summary"
+      >
+        <div className="operations-monitoring__heading">
+          <div>
+            <p className="feature-admin-header__eyebrow">
+              Alarmierung · unabhängiger Kanal
+            </p>
+            <h3 id="monitoring-title">Pilot-Schutz</h3>
+            <p>
+              {monitoring.status === "ready"
+                ? "Backup, Speicherplatz und HTTPS-Zertifikat sind in Ordnung."
+                : monitoring.status === "attention"
+                  ? `${monitoring.activeAlerts.length} aktive ${
+                      monitoring.activeAlerts.length === 1
+                        ? "Meldung"
+                        : "Meldungen"
+                    } benötigen Aufmerksamkeit.`
+                  : monitoring.status === "unavailable"
+                    ? "Der Monitoringstatus ist gerade nicht erreichbar. Prüfe den separaten Alarmkanal."
+                    : "Das optionale Monitoring-Profil ist in dieser Umgebung nicht gestartet."}
+            </p>
+          </div>
+          <span>
+            {monitoring.status === "ready"
+              ? "Geschützt"
+              : monitoring.status === "attention"
+                ? "Prüfen"
+                : monitoring.status === "unavailable"
+                  ? "Nicht erreichbar"
+                  : "Nicht aktiv"}
+          </span>
+        </div>
+
+        {monitoring.checks.length > 0 && (
+          <div className="operations-monitoring-checks">
+            {monitoring.checks.map((check) => (
+              <MonitoringCheckCard check={check} key={check.key} />
+            ))}
+          </div>
+        )}
+
+        {monitoring.activeAlerts.length > 0 && (
+          <div
+            aria-label="Aktive Alarme"
+            className="operations-active-alerts"
+            data-testid="active-alerts"
+          >
+            {monitoring.activeAlerts.map((alert) => (
+              <ActiveAlert alert={alert} key={alert.name} />
+            ))}
+          </div>
+        )}
+      </section>
 
       <div aria-label="Betriebskennzahlen" className="operations-metrics">
         <article>

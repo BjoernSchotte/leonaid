@@ -4,6 +4,7 @@ from leonaid.adapters.operations import ApiMetrics, structured_event
 from leonaid.application.operations import (
     ApiMetricSnapshot,
     DependencySignal,
+    MonitoringSnapshot,
     OperationsSnapshot,
 )
 from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
@@ -79,6 +80,11 @@ def test_prometheus_metrics_are_bounded_and_payload_free() -> None:
             "failuresLast24h": 1,
         },
         failed_jobs=(),
+        monitoring=MonitoringSnapshot(
+            status="inactive",
+            checks=(),
+            active_alerts=(),
+        ),
     )
 
     rendered = render_operations_metrics(snapshot, maintenance_mode=True)

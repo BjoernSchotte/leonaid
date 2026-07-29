@@ -1,0 +1,114 @@
+services:
+  api:
+    environment:
+      PILOT_MONITOR_STATUS_URL: http://pilot-exporter:8020/status
+      PILOT_ALERTMANAGER_URL: http://alertmanager:9093
+
+  tls-probe:
+    image: docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    volumes:
+      - ../observability/pilot/Caddyfile.test:/etc/caddy/Caddyfile:ro
+      - alerting-caddy-data:/data
+    networks:
+      - telemetry
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-qO-", "https://localhost:8443"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  alert-sink:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.core
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["python", "-m", "leonaid.entrypoints.monitoring.sink"]
+    environment:
+      ALERT_SINK_EVENTS_PATH: /events/events.jsonl
+    volumes:
+      - ${LEONAID_ALERT_TEST_EVENTS_DIR:?LEONAID_ALERT_TEST_EVENTS_DIR fehlt}:/events
+    networks:
+      - telemetry
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/live', timeout=3)"
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  pilot-exporter:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.core
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["python", "-m", "leonaid.entrypoints.monitoring.exporter"]
+    environment:
+      PILOT_BACKUP_MANIFEST_PATH: /run/leonaid-monitor/backup-manifest.json
+      PILOT_BACKUP_SOURCE_PROJECT: ${LEONAID_ALERT_TEST_PROJECT:?LEONAID_ALERT_TEST_PROJECT fehlt}
+      PILOT_MONITORED_DISK_PATH: /run/leonaid-monitor/disk
+      PILOT_TLS_HOST: tls-probe
+      PILOT_TLS_PORT: "8443"
+      PILOT_TLS_CA_FILE: /caddy-data/caddy/pki/authorities/local/root.crt
+    volumes:
+      - ${LEONAID_ALERT_TEST_BACKUP_MANIFEST:?LEONAID_ALERT_TEST_BACKUP_MANIFEST fehlt}:/run/leonaid-monitor/backup-manifest.json:ro
+      - alerting-caddy-data:/caddy-data:ro
+    tmpfs:
+      - /run/leonaid-monitor/disk:size=16777216
+    networks:
+      - telemetry
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8020/health/live', timeout=3)"
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  prometheus:
+    image: docker.io/prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+    volumes:
+      - ../observability/pilot/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/pilot/rules.yml:/etc/prometheus/rules.yml:ro
+      - alerting-prometheus-data:/prometheus
+    networks:
+      - telemetry
+    depends_on:
+      pilot-exporter:
+        condition: service_healthy
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ../observability/pilot/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ../../tests/fixtures/monitoring/alert-webhook-url:/run/secrets/alert-webhook-url:ro
+      - alerting-alertmanager-data:/alertmanager
+    networks:
+      - telemetry
+    depends_on:
+      alert-sink:
+        condition: service_healthy
+
+volumes:
+  alerting-caddy-data:
+  alerting-prometheus-data:
+  alerting-alertmanager-data:

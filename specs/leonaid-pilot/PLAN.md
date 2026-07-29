@@ -809,29 +809,32 @@ Abhängigkeiten: PILOT-040, PILOT-041, PILOT-020
 
 Akzeptanzkriterien:
 
-- [ ] Metriken decken HTTP-Fehler/Latenz, Abhängigkeiten, Outbox/Dead Letter,
+- [x] Metriken decken HTTP-Fehler/Latenz, Abhängigkeiten, Outbox/Dead Letter,
       Loginfehler, Backupalter, Plattenplatz und Zertifikatsablauf ab.
-- [ ] Logs bleiben strukturiert, korreliert und payloadfrei.
-- [ ] Ein ausgewähltes reales Monitoring-/Alerting-System ist exakt gepinnt
+- [x] Logs bleiben strukturiert, korreliert und payloadfrei.
+- [x] Ein ausgewähltes reales Monitoring-/Alerting-System ist exakt gepinnt
       oder als externer Dienst vertraglich dokumentiert.
-- [ ] P0/P1/P2-Regeln besitzen Owner, Schwellwert, Deduplizierung,
+- [x] P0/P1/P2-Regeln besitzen Owner, Schwellwert, Deduplizierung,
       Eskalationskanal und Runbook-Link.
-- [ ] Alarmkanal ist nicht ausschließlich vom ausgefallenen LeonAid-Mailpfad
+- [x] Alarmkanal ist nicht ausschließlich vom ausgefallenen LeonAid-Mailpfad
       abhängig.
-- [ ] System-Admin-UI zeigt denselben Zustand verständlich, ohne Rohmetriken
+- [x] System-Admin-UI zeigt denselben Zustand verständlich, ohne Rohmetriken
       vorauszusetzen.
-- [ ] Wartungsmodus unterdrückt erwartete Alarme, aber niemals
+- [x] Wartungsmodus unterdrückt erwartete Alarme, aber niemals
       Backup-/Security-Alarme.
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-alerting` stoppt nacheinander Twenty, RustFS,
+- [x] `./leonaid test-pilot-alerting` stoppt nacheinander Twenty, RustFS,
       Mail und Worker und prüft echte Alarmzustellung plus Recovery.
-- [ ] Überfüllter Datenträger und veraltetes Backup werden in isolierter
+- [x] Überfüllter Datenträger und veraltetes Backup werden in isolierter
       Umgebung real simuliert.
-- [ ] Canary mit synthetischer PII beweist, dass Alarmtexte keine Payload
+- [x] Canary mit synthetischer PII beweist, dass Alarmtexte keine Payload
       enthalten.
 - [ ] Operator quittiert einen Alarm und führt das verlinkte Runbook aus.
+
+Technischer Nachweis und verbleibende Betreibergrenze:
+[`proofs/PILOT-042.md`](proofs/PILOT-042.md)
 
 ### [ ] PILOT-043 Release, Migration, Rollback und Wartungsfenster beweisen
 

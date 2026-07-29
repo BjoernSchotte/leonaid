@@ -66,6 +66,8 @@ Commands:
   test-pilot-deployment
                     Prove the merged production topology and fail-closed guards
   test-pilot-backup Prove a real networked S3/Restic target and failures
+  test-pilot-alerting
+                    Prove real Prometheus/Alertmanager delivery and recovery
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
@@ -317,7 +319,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
@@ -325,7 +327,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -333,7 +335,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_contract tools/pilot_decisions \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -816,6 +818,10 @@ case "$command" in
     require_docker
     /bin/sh "$root/tools/backup/test.sh" "$root"
     /bin/sh "$root/tools/pilot_backup/test.sh" "$root"
+    ;;
+  test-pilot-alerting)
+    require_docker
+    /bin/sh "$root/tools/pilot_alerting/test.sh" "$root"
     ;;
   pilot-evidence-init)
     require_docker

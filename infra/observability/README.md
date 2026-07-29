@@ -84,7 +84,24 @@ Multi-Arch-Digest fixiert. Prometheus und Alertmanager besitzen keine
 öffentlichen Hostports. Die Metrik-Endpunkte von API und Worker sind nur im
 internen `telemetry`-Netz erreichbar.
 
+Der System-Admin-Bereich `/admin/system` liest über dieselben internen Quellen
+einen semantischen Status für Backup, freien Speicher, TLS und aktive Alarme.
+Er zeigt verständliche Zustände, Priorität und Runbook statt PromQL oder
+Rohmetriken. Ohne gestartetes `monitoring`-Profil bleibt dieser Bereich
+explizit neutral auf „Nicht aktiv“.
+
 Alarmtexte bestehen ausschließlich aus festen Zusammenfassungen, technischen
 Labels und Links auf [`RUNBOOKS.md`](RUNBOOKS.md). Wartungsmodus unterdrückt
 erwartete Verfügbarkeits-, Job- und API-Alarme, nicht aber Backup-, Kapazitäts-
 oder TLS-/Security-Alarme.
+
+Der reale End-to-End-Nachweis läuft isoliert:
+
+```sh
+./leonaid test-pilot-alerting
+```
+
+Der Test validiert die produktiven Konfigurationen mit `promtool` und
+`amtool`, stoppt alle vier kritischen Dienste, erzwingt Backup- und
+Speicheralarme, prüft den semantischen Admin-Status gegen dieselben Quellen und
+verifiziert jeweils Alarmzustellung sowie Recovery.

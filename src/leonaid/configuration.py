@@ -112,6 +112,14 @@ class Settings(BaseSettings):
         default=HttpUrl("http://worker:8010/health/ready"),
         alias="WORKER_HEALTH_URL",
     )
+    pilot_monitor_status_url: HttpUrl | None = Field(
+        default=None,
+        alias="PILOT_MONITOR_STATUS_URL",
+    )
+    pilot_alertmanager_url: HttpUrl | None = Field(
+        default=None,
+        alias="PILOT_ALERTMANAGER_URL",
+    )
     object_storage_endpoint_url: HttpUrl = Field(alias="OBJECT_STORAGE_ENDPOINT_URL")
     object_storage_access_key: SecretStr = Field(alias="OBJECT_STORAGE_ACCESS_KEY")
     object_storage_secret_key: SecretStr = Field(alias="OBJECT_STORAGE_SECRET_KEY")
@@ -153,6 +161,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_boundary(self) -> Settings:
+        if (self.pilot_monitor_status_url is None) != (
+            self.pilot_alertmanager_url is None
+        ):
+            raise ValueError(
+                "Pilot-Monitoringstatus und Alertmanager müssen gemeinsam "
+                "konfiguriert sein."
+            )
         if self.environment != "production":
             return self
         if (
@@ -223,6 +238,11 @@ class Settings(BaseSettings):
             "rustfsHealthHost": self.rustfs_health_url.host or "invalid",
             "mailHealthHost": self.mail_health_url.host or "invalid",
             "workerHealthHost": self.worker_health_url.host or "invalid",
+            "pilotMonitoring": (
+                "configured"
+                if self.pilot_monitor_status_url is not None
+                else "unconfigured"
+            ),
             "objectStorageHost": self.object_storage_endpoint_url.host or "invalid",
             "objectStorageBucket": self.object_storage_bucket,
         }

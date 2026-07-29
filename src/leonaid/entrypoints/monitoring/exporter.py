@@ -20,6 +20,9 @@ REQUIRED_BACKUP_FILES = {
     "twenty.dump",
 }
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+BACKUP_MAX_AGE_SECONDS = 93_600
+DISK_MIN_FREE_RATIO = 0.10
+TLS_MIN_REMAINING_SECONDS = 1_209_600
 
 
 def _backup_metrics(path: Path, *, expected_project: str) -> tuple[int, float]:
@@ -74,6 +77,8 @@ def _certificate_metrics(
         with socket.create_connection((host, port), timeout=3) as connection:
             with context.wrap_socket(connection, server_hostname=host) as tls:
                 certificate = tls.getpeercert()
+        if certificate is None:
+            return 0, 0.0
         not_after = certificate.get("notAfter")
         if not isinstance(not_after, str):
             return 0, 0.0
@@ -85,7 +90,7 @@ def _certificate_metrics(
         return 0, 0.0
 
 
-def render_metrics() -> str:
+def collect_status() -> dict[str, Any]:
     backup_valid, backup_age = _backup_metrics(
         Path(os.environ["PILOT_BACKUP_MANIFEST_PATH"]),
         expected_project=os.environ["PILOT_BACKUP_SOURCE_PROJECT"],
@@ -98,29 +103,68 @@ def render_metrics() -> str:
         port=int(os.environ.get("PILOT_TLS_PORT", "443")),
         ca_file=os.environ.get("PILOT_TLS_CA_FILE") or None,
     )
+    return {
+        "checkedAt": datetime.now(timezone.utc).isoformat(),
+        "backup": {
+            "valid": bool(backup_valid),
+            "ageSeconds": backup_age,
+            "status": (
+                "ready"
+                if backup_valid and backup_age <= BACKUP_MAX_AGE_SECONDS
+                else "critical"
+            ),
+        },
+        "disk": {
+            "valid": bool(disk_valid),
+            "freeBytes": disk_free,
+            "freeRatio": disk_ratio,
+            "status": (
+                "ready"
+                if disk_valid and disk_ratio >= DISK_MIN_FREE_RATIO
+                else "critical"
+            ),
+        },
+        "tls": {
+            "valid": bool(certificate_valid),
+            "remainingSeconds": certificate_remaining,
+            "status": (
+                "ready"
+                if certificate_valid
+                and certificate_remaining >= TLS_MIN_REMAINING_SECONDS
+                else "critical"
+            ),
+        },
+    }
+
+
+def render_metrics() -> str:
+    status = collect_status()
+    backup = status["backup"]
+    disk = status["disk"]
+    tls = status["tls"]
     return "\n".join(
         (
             "# HELP leonaid_backup_manifest_valid Whether the latest backup manifest is complete and scoped.",
             "# TYPE leonaid_backup_manifest_valid gauge",
-            f"leonaid_backup_manifest_valid {backup_valid}",
+            f"leonaid_backup_manifest_valid {int(backup['valid'])}",
             "# HELP leonaid_backup_age_seconds Age of the latest complete cross-system backup.",
             "# TYPE leonaid_backup_age_seconds gauge",
-            f"leonaid_backup_age_seconds {backup_age:.3f}",
+            f"leonaid_backup_age_seconds {backup['ageSeconds']:.3f}",
             "# HELP leonaid_monitored_disk_valid Whether the configured data filesystem can be measured.",
             "# TYPE leonaid_monitored_disk_valid gauge",
-            f"leonaid_monitored_disk_valid {disk_valid}",
+            f"leonaid_monitored_disk_valid {int(disk['valid'])}",
             "# HELP leonaid_monitored_disk_free_bytes Free bytes on the pilot data filesystem.",
             "# TYPE leonaid_monitored_disk_free_bytes gauge",
-            f"leonaid_monitored_disk_free_bytes {disk_free}",
+            f"leonaid_monitored_disk_free_bytes {disk['freeBytes']}",
             "# HELP leonaid_monitored_disk_free_ratio Free fraction of the pilot data filesystem.",
             "# TYPE leonaid_monitored_disk_free_ratio gauge",
-            f"leonaid_monitored_disk_free_ratio {disk_ratio:.8f}",
+            f"leonaid_monitored_disk_free_ratio {disk['freeRatio']:.8f}",
             "# HELP leonaid_tls_certificate_valid Whether the public certificate chain and hostname validate.",
             "# TYPE leonaid_tls_certificate_valid gauge",
-            f"leonaid_tls_certificate_valid {certificate_valid}",
+            f"leonaid_tls_certificate_valid {int(tls['valid'])}",
             "# HELP leonaid_tls_certificate_expiry_seconds Seconds until the public certificate expires.",
             "# TYPE leonaid_tls_certificate_expiry_seconds gauge",
-            f"leonaid_tls_certificate_expiry_seconds {certificate_remaining:.3f}",
+            f"leonaid_tls_certificate_expiry_seconds {tls['remainingSeconds']:.3f}",
             "",
         )
     )
@@ -140,6 +184,18 @@ class MetricsHandler(BaseHTTPRequestHandler):
                 200,
                 render_metrics().encode(),
                 "text/plain; version=0.0.4; charset=utf-8",
+            )
+            return
+        if self.path == "/status":
+            self._respond(
+                200,
+                json.dumps(
+                    collect_status(),
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode(),
+                "application/json",
             )
             return
         self._respond(404, b'{"status":"not-found"}', "application/json")

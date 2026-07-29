@@ -248,11 +248,14 @@ from leonaid.entrypoints.fastapi.schemas import (
     MemberDirectoryResponse,
     MemberRoleChangeResponse,
     MemberStatusChangeResponse,
+    OperationalAlertResponse,
     OperationalApiMetricsResponse,
+    OperationalCheckResponse,
     OperationalDependencyResponse,
     OperationalFailedJobResponse,
     OperationalJobRetryResponse,
     OperationalLoginMetricsResponse,
+    OperationalMonitoringResponse,
     OperationalStatusCountsResponse,
     OperationsOverviewResponse,
     PaginationQuery,
@@ -1994,6 +1997,17 @@ async def operations_overview(
             OperationalFailedJobResponse.model_validate(item)
             for item in snapshot.failed_jobs
         ],
+        monitoring=OperationalMonitoringResponse(
+            status=snapshot.monitoring.status,
+            checks=[
+                OperationalCheckResponse.model_validate(item)
+                for item in snapshot.monitoring.checks
+            ],
+            active_alerts=[
+                OperationalAlertResponse.model_validate(item)
+                for item in snapshot.monitoring.active_alerts
+            ],
+        ),
     )
 
 
