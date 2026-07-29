@@ -48,7 +48,7 @@ async function openDocumentRow(page) {
   await expect(row.getByTestId("invoice-document")).toBeVisible();
   await expect(row.getByText("Rechnung-KT26-0001.pdf")).toBeVisible();
   await expect(row.getByTestId("invoice-document-metadata")).toContainText(
-    /PDF · .+ · Version 1 · erzeugt/,
+    /PDF · .+ · Version 2 · erzeugt/,
   );
   return row;
 }
