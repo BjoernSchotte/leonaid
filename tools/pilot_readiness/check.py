@@ -36,7 +36,14 @@ class ReadinessError(RuntimeError):
 
 def git(root: Path, *arguments: str, required: bool = True) -> str | None:
     result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
+        [
+            "git",
+            "-c",
+            f"safe.directory={root.resolve()}",
+            "-C",
+            str(root),
+            *arguments,
+        ],
         check=False,
         capture_output=True,
         text=True,
