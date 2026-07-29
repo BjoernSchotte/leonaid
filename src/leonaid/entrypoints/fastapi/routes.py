@@ -81,6 +81,7 @@ from leonaid.application.identity import (
     RoleAssignmentChange,
 )
 from leonaid.application.invitations import InvitationService
+from leonaid.application.legal_configuration import LegalConfigurationService
 from leonaid.application.operations import OperationsService
 from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
 from leonaid.application.platform import PlatformApplicationService
@@ -135,17 +136,30 @@ from leonaid.domain.commitments import (
 )
 from leonaid.domain.identity import AccountStatus, ActionRole, GlobalRole
 from leonaid.domain.invitations import InvitationStatus
-from leonaid.domain.invoices import Invoice, InvoiceProfile
+from leonaid.domain.invoices import (
+    Invoice,
+    InvoiceIssuerSnapshot,
+    InvoiceProfile,
+    TaxTreatment,
+)
 from leonaid.domain.invoice_settlements import (
     InvoiceCancellation,
     PaymentRecord,
 )
 from leonaid.domain.privacy import ConsentRecord, PrivacySubjectReport
+from leonaid.domain.legal_configuration import (
+    EInvoiceDecision,
+    LegalConfigurationDraft,
+    LegalConfigurationState,
+    LegalConfigurationVersion,
+    RetentionSchedule,
+)
 from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
     AcceptInvitationRequest,
+    ActivateLegalConfigurationRequest,
     ActionGoalRequest,
     ActionGoalResponse,
     ActionManagementResponse,
@@ -174,6 +188,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     AdministratorOptionResponse,
     ApiErrorResponse,
     AssignedAcquirerResponse,
+    ApproveLegalConfigurationRequest,
     AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
     AUTHENTICATED_ERROR_RESPONSES,
     BeneficiaryDraftRequest,
@@ -238,6 +253,12 @@ from leonaid.entrypoints.fastapi.schemas import (
     InvoiceProfileResponse,
     InvoiceRecordResponse,
     InvoiceResponse,
+    LegalConfigurationApprovalResponse,
+    LegalConfigurationStateResponse,
+    LegalConfigurationValuesResponse,
+    LegalConfigurationVersionResponse,
+    LegalIssuerResponse,
+    LegalRetentionResponse,
     CancelInvoiceRequest,
     ChangeMemberRoleRequest,
     ChangeMemberStatusRequest,
@@ -292,6 +313,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SetResponsibleAdministratorsRequest,
     ResolveSponsorMatchRequest,
     RevokePrivacyConsentRequest,
+    SaveLegalConfigurationDraftRequest,
     SponsorDraftRequest,
     SponsorMatchResponse,
     SponsorResolutionResponse,
@@ -435,6 +457,13 @@ def feature_flag_service(request: Request) -> FeatureFlagService:
 
 def privacy_service(request: Request) -> PrivacyService:
     return cast(PrivacyService, request.app.state.privacy_service)
+
+
+def legal_configuration_service(request: Request) -> LegalConfigurationService:
+    return cast(
+        LegalConfigurationService,
+        request.app.state.legal_configuration_service,
+    )
 
 
 def document_service(request: Request) -> GeneratedDocumentService:
@@ -651,6 +680,82 @@ def privacy_report_response(
         ],
         open_legal_decisions=list(OPEN_LEGAL_DECISIONS),
         generated_at=datetime.now(timezone.utc),
+    )
+
+
+def legal_configuration_version_response(
+    item: LegalConfigurationVersion,
+    *,
+    production: bool,
+) -> LegalConfigurationVersionResponse:
+    values = item.configuration
+    return LegalConfigurationVersionResponse(
+        id=item.id,
+        version=item.version,
+        values=LegalConfigurationValuesResponse(
+            issuer=LegalIssuerResponse.model_validate(values.issuer),
+            bank_account_holder=values.bank_account_holder,
+            iban=values.iban,
+            bic=values.bic,
+            tax_treatment=values.tax_treatment.value,
+            tax_rate_basis_points=values.tax_rate_basis_points,
+            tax_note=values.tax_note,
+            number_prefix=values.number_prefix,
+            number_width=values.number_width,
+            payment_terms_days=values.payment_terms_days,
+            public_order_legal_basis=values.public_order_legal_basis,
+            public_order_notice_text=values.public_order_notice_text,
+            consent_text_version=values.consent_text_version,
+            privacy_contact_email=values.privacy_contact_email,
+            retention=LegalRetentionResponse.model_validate(values.retention),
+            e_invoice_decision=values.e_invoice_decision.value,
+            tax_evidence_id=values.tax_evidence_id,
+            privacy_evidence_id=values.privacy_evidence_id,
+            e_invoice_evidence_id=values.e_invoice_evidence_id,
+            activation_blockers=list(values.activation_blockers(production=production)),
+        ),
+        created_by_user_id=item.created_by_user_id,
+        created_by_display_name=item.created_by_display_name,
+        created_at=item.created_at,
+    )
+
+
+def legal_configuration_state_response(
+    state: LegalConfigurationState,
+    *,
+    production: bool,
+) -> LegalConfigurationStateResponse:
+    return LegalConfigurationStateResponse(
+        revision=state.revision,
+        production=production,
+        draft=(
+            legal_configuration_version_response(
+                state.draft,
+                production=production,
+            )
+            if state.draft is not None
+            else None
+        ),
+        active=(
+            legal_configuration_version_response(
+                state.active,
+                production=production,
+            )
+            if state.active is not None
+            else None
+        ),
+        draft_approval=(
+            LegalConfigurationApprovalResponse(
+                approved_by_user_id=state.draft_approval.approved_by_user_id,
+                approved_by_display_name=(
+                    state.draft_approval.approved_by_display_name
+                ),
+                evidence_id=state.draft_approval.evidence_id,
+                approved_at=state.draft_approval.approved_at,
+            )
+            if state.draft_approval is not None
+            else None
+        ),
     )
 
 
@@ -2062,6 +2167,146 @@ async def retry_operational_job(
         status="pending",
         manual_retry_count=retried.manual_retry_count,
         request_id=request_id(request),
+    )
+
+
+@router.get(
+    "/api/v1/admin/legal/configuration",
+    operation_id="getLegalConfiguration",
+    response_model=LegalConfigurationStateResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["legal-configuration"],
+)
+async def get_legal_configuration(
+    request: Request,
+    response: Response,
+) -> LegalConfigurationStateResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = legal_configuration_service(request)
+    state = await service.state(actor)
+    response.headers["Cache-Control"] = "no-store"
+    return legal_configuration_state_response(
+        state,
+        production=service.production,
+    )
+
+
+@router.put(
+    "/api/v1/admin/legal/configuration/draft",
+    operation_id="saveLegalConfigurationDraft",
+    response_model=LegalConfigurationStateResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["legal-configuration"],
+)
+async def save_legal_configuration_draft(
+    body: SaveLegalConfigurationDraftRequest,
+    request: Request,
+    response: Response,
+) -> LegalConfigurationStateResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    issuer = body.issuer
+    service = legal_configuration_service(request)
+    state = await service.save_draft(
+        actor,
+        configuration=LegalConfigurationDraft(
+            issuer=InvoiceIssuerSnapshot(
+                legal_name=issuer.legal_name,
+                street_line_1=issuer.street_line_1,
+                postal_code=issuer.postal_code,
+                city=issuer.city,
+                country_code=issuer.country_code,
+                tax_identifier=issuer.tax_identifier,
+                email=issuer.email,
+            ),
+            bank_account_holder=body.bank_account_holder,
+            iban=body.iban,
+            bic=body.bic,
+            tax_treatment=TaxTreatment(body.tax_treatment),
+            tax_rate_basis_points=body.tax_rate_basis_points,
+            tax_note=body.tax_note,
+            number_prefix=body.number_prefix,
+            number_width=body.number_width,
+            payment_terms_days=body.payment_terms_days,
+            public_order_legal_basis=body.public_order_legal_basis,
+            public_order_notice_text=body.public_order_notice_text,
+            consent_text_version=body.consent_text_version,
+            privacy_contact_email=body.privacy_contact_email,
+            retention=RetentionSchedule(
+                invoice_days=body.retention.invoice_days,
+                commitment_days=body.retention.commitment_days,
+                contact_days=body.retention.contact_days,
+                consent_evidence_days=body.retention.consent_evidence_days,
+                audit_days=body.retention.audit_days,
+            ),
+            e_invoice_decision=EInvoiceDecision(body.e_invoice_decision),
+            tax_evidence_id=body.tax_evidence_id,
+            privacy_evidence_id=body.privacy_evidence_id,
+            e_invoice_evidence_id=body.e_invoice_evidence_id,
+        ),
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return legal_configuration_state_response(
+        state,
+        production=service.production,
+    )
+
+
+@router.post(
+    "/api/v1/admin/legal/configuration/draft/{version_id}/approval",
+    operation_id="approveLegalConfigurationDraft",
+    response_model=LegalConfigurationStateResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["legal-configuration"],
+)
+async def approve_legal_configuration_draft(
+    version_id: UUID,
+    body: ApproveLegalConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> LegalConfigurationStateResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    service = legal_configuration_service(request)
+    state = await service.approve(
+        actor,
+        version_id=version_id,
+        evidence_id=body.evidence_id,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return legal_configuration_state_response(
+        state,
+        production=service.production,
+    )
+
+
+@router.post(
+    "/api/v1/admin/legal/configuration/draft/{version_id}/activation",
+    operation_id="activateLegalConfigurationDraft",
+    response_model=LegalConfigurationStateResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["legal-configuration"],
+)
+async def activate_legal_configuration_draft(
+    version_id: UUID,
+    body: ActivateLegalConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> LegalConfigurationStateResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    service = legal_configuration_service(request)
+    state = await service.activate(
+        actor,
+        version_id=version_id,
+        expected_revision=body.expected_revision,
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return legal_configuration_state_response(
+        state,
+        production=service.production,
     )
 
 

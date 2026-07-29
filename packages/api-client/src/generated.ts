@@ -23,11 +23,13 @@ export type ActionManagementResponse = { readonly action: CharityActionResponse;
 export type ActionTemplateListResponse = { readonly items: Array<ActionTemplateSummaryResponse>; };
 export type ActionTemplateSnapshotResponse = { readonly copiedFromActionId: string | null; readonly displayName: string; readonly key: "blank" | "krapfentaxi"; readonly version: number; };
 export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly description: string; readonly displayName: string; readonly hasOrderForm: boolean; readonly key: "blank" | "krapfentaxi"; readonly offeringCount: number; readonly version: number; };
+export type ActivateLegalConfigurationRequest = { readonly expectedRevision: number; };
 export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
+export type ApproveLegalConfigurationRequest = { readonly evidenceId: string; readonly expectedRevision: number; };
 export type AssignedAcquirerResponse = { readonly displayName: string; readonly userId: string; };
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
@@ -105,6 +107,14 @@ export type InvoiceProfileResponse = { readonly confirmedAt: string | null; read
 export type InvoiceRecordResponse = { readonly buyerDisplayName: string; readonly cancellation: InvoiceCancellationResponse | null; readonly deliveries: Array<InvoiceDeliveryResponse>; readonly invoice: InvoiceResponse; readonly openMinor: number; readonly payment: InvoicePaymentResponse | null; };
 export type InvoiceResponse = { readonly actionId: string; readonly approvedByUserId: string; readonly commitmentId: string; readonly currency: string; readonly dueOn: string; readonly grossMinor: number; readonly id: string; readonly issuedAt: string; readonly issuer: InvoiceIssuerResponse; readonly lines: Array<InvoiceLineResponse>; readonly netMinor: number; readonly number: string; readonly paymentReference: string; readonly recipient: CommitmentInvoiceRecipientResponse; readonly replayed: boolean; readonly serviceOn: string; readonly status: "issued" | "sent" | "paid" | "cancelled"; readonly taxMinor: number; readonly taxNote: string; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type IssueInvoiceRequest = { readonly serviceOn: string; };
+export type LegalConfigurationApprovalResponse = { readonly approvedAt: string; readonly approvedByDisplayName: string; readonly approvedByUserId: string; readonly evidenceId: string; };
+export type LegalConfigurationStateResponse = { readonly active: LegalConfigurationVersionResponse | null; readonly draft: LegalConfigurationVersionResponse | null; readonly draftApproval: LegalConfigurationApprovalResponse | null; readonly production: boolean; readonly revision: number; };
+export type LegalConfigurationValuesResponse = { readonly activationBlockers: Array<string>; readonly bankAccountHolder: string; readonly bic: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId: string | null; readonly iban: string; readonly issuer: LegalIssuerResponse; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionResponse; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
+export type LegalConfigurationVersionResponse = { readonly createdAt: string; readonly createdByDisplayName: string; readonly createdByUserId: string; readonly id: string; readonly values: LegalConfigurationValuesResponse; readonly version: number; };
+export type LegalIssuerRequest = { readonly city: string; readonly countryCode?: string; readonly email: string; readonly legalName: string; readonly postalCode: string; readonly streetLine1: string; readonly taxIdentifier: string; };
+export type LegalIssuerResponse = { readonly city: string; readonly countryCode: string; readonly email: string; readonly legalName: string; readonly postalCode: string; readonly streetLine1: string; readonly taxIdentifier: string; };
+export type LegalRetentionRequest = { readonly auditDays: number; readonly commitmentDays: number; readonly consentEvidenceDays: number; readonly contactDays: number; readonly invoiceDays: number; };
+export type LegalRetentionResponse = { readonly auditDays: number; readonly commitmentDays: number; readonly consentEvidenceDays: number; readonly contactDays: number; readonly invoiceDays: number; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
 export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; readonly availableRoles: Array<"charity_admin" | "acquirer" | "finance_reader" | "driver">; };
@@ -151,6 +161,7 @@ export type RecordedAcquisitionActivityResponse = { readonly actionId: string; r
 export type RequestLoginRequest = { readonly email: string; };
 export type ResolveSponsorMatchRequest = { readonly commandId: string; readonly confirmExistingAssignments?: boolean; readonly expectedStatus: "no_match" | "single_match" | "ambiguous_match"; readonly selectedTwentyId?: string | null; readonly sponsor: SponsorDraftRequest; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
+export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly issuer: LegalIssuerRequest; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly revision: number; };
@@ -972,6 +983,63 @@ export class LeonAidApiClient {
       `/api/v1/admin/feature-flags/${encodeURIComponent(String(key))}`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getLegalConfiguration(
+    options: RequestOptions = {},
+  ): Promise<LegalConfigurationStateResponse> {
+    return this.request<LegalConfigurationStateResponse>(
+      "/api/v1/admin/legal/configuration",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveLegalConfigurationDraft(
+    body: SaveLegalConfigurationDraftRequest,
+    options: RequestOptions = {},
+  ): Promise<LegalConfigurationStateResponse> {
+    return this.request<LegalConfigurationStateResponse>(
+      "/api/v1/admin/legal/configuration/draft",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async activateLegalConfigurationDraft(
+    versionId: string,
+    body: ActivateLegalConfigurationRequest,
+    options: RequestOptions = {},
+  ): Promise<LegalConfigurationStateResponse> {
+    return this.request<LegalConfigurationStateResponse>(
+      `/api/v1/admin/legal/configuration/draft/${encodeURIComponent(String(versionId))}/activation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async approveLegalConfigurationDraft(
+    versionId: string,
+    body: ApproveLegalConfigurationRequest,
+    options: RequestOptions = {},
+  ): Promise<LegalConfigurationStateResponse> {
+    return this.request<LegalConfigurationStateResponse>(
+      `/api/v1/admin/legal/configuration/draft/${encodeURIComponent(String(versionId))}/approval`,
+      {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

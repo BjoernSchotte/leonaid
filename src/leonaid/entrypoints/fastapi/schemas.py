@@ -279,6 +279,125 @@ class PrivacyErasureResponse(TransportModel):
     completed_at: datetime
 
 
+class LegalIssuerRequest(TransportModel):
+    legal_name: str = Field(min_length=2, max_length=200)
+    street_line_1: str = Field(min_length=2, max_length=200)
+    postal_code: str = Field(min_length=2, max_length=20)
+    city: str = Field(min_length=2, max_length=120)
+    country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
+    tax_identifier: str = Field(min_length=2, max_length=80)
+    email: str = Field(min_length=3, max_length=320)
+
+
+class LegalRetentionRequest(TransportModel):
+    invoice_days: int = Field(ge=1, le=36_500)
+    commitment_days: int = Field(ge=1, le=36_500)
+    contact_days: int = Field(ge=1, le=36_500)
+    consent_evidence_days: int = Field(ge=1, le=36_500)
+    audit_days: int = Field(ge=1, le=36_500)
+
+
+class SaveLegalConfigurationDraftRequest(TransportModel):
+    expected_revision: int = Field(ge=1)
+    issuer: LegalIssuerRequest
+    bank_account_holder: str = Field(min_length=2, max_length=200)
+    iban: str = Field(min_length=15, max_length=40)
+    bic: str | None = Field(default=None, min_length=8, max_length=11)
+    tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
+    tax_rate_basis_points: int = Field(ge=0, le=10_000)
+    tax_note: str = Field(min_length=8, max_length=1_000)
+    number_prefix: str = Field(min_length=1, max_length=24)
+    number_width: int = Field(ge=3, le=8)
+    payment_terms_days: int = Field(ge=1, le=120)
+    public_order_legal_basis: str = Field(min_length=12, max_length=2_000)
+    public_order_notice_text: str = Field(min_length=40, max_length=10_000)
+    consent_text_version: str = Field(min_length=3, max_length=64)
+    privacy_contact_email: str = Field(min_length=3, max_length=320)
+    retention: LegalRetentionRequest
+    e_invoice_decision: Literal["pending", "not_required", "required"]
+    tax_evidence_id: str = Field(min_length=3, max_length=120)
+    privacy_evidence_id: str = Field(min_length=3, max_length=120)
+    e_invoice_evidence_id: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=120,
+    )
+
+
+class ApproveLegalConfigurationRequest(TransportModel):
+    evidence_id: str = Field(min_length=3, max_length=120)
+    expected_revision: int = Field(ge=1)
+
+
+class ActivateLegalConfigurationRequest(TransportModel):
+    expected_revision: int = Field(ge=1)
+
+
+class LegalIssuerResponse(TransportModel):
+    legal_name: str
+    street_line_1: str
+    postal_code: str
+    city: str
+    country_code: str
+    tax_identifier: str
+    email: str
+
+
+class LegalRetentionResponse(TransportModel):
+    invoice_days: int
+    commitment_days: int
+    contact_days: int
+    consent_evidence_days: int
+    audit_days: int
+
+
+class LegalConfigurationValuesResponse(TransportModel):
+    issuer: LegalIssuerResponse
+    bank_account_holder: str
+    iban: str
+    bic: str | None
+    tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
+    tax_rate_basis_points: int
+    tax_note: str
+    number_prefix: str
+    number_width: int
+    payment_terms_days: int
+    public_order_legal_basis: str
+    public_order_notice_text: str
+    consent_text_version: str
+    privacy_contact_email: str
+    retention: LegalRetentionResponse
+    e_invoice_decision: Literal["pending", "not_required", "required"]
+    tax_evidence_id: str
+    privacy_evidence_id: str
+    e_invoice_evidence_id: str | None
+    activation_blockers: list[str]
+
+
+class LegalConfigurationVersionResponse(TransportModel):
+    id: UUID
+    version: int
+    values: LegalConfigurationValuesResponse
+    created_by_user_id: UUID
+    created_by_display_name: str
+    created_at: datetime
+
+
+class LegalConfigurationApprovalResponse(TransportModel):
+    approved_by_user_id: UUID
+    approved_by_display_name: str
+    evidence_id: str
+    approved_at: datetime
+
+
+class LegalConfigurationStateResponse(TransportModel):
+    revision: int
+    production: bool
+    draft: LegalConfigurationVersionResponse | None
+    active: LegalConfigurationVersionResponse | None
+    draft_approval: LegalConfigurationApprovalResponse | None
+
+
 ActionRoleValue = Literal[
     "charity_admin",
     "acquirer",

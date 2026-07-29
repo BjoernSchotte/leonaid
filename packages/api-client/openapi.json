@@ -1091,6 +1091,21 @@
         "title": "ActionTemplateSummaryResponse",
         "type": "object"
       },
+      "ActivateLegalConfigurationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ],
+        "title": "ActivateLegalConfigurationRequest",
+        "type": "object"
+      },
       "ActivityFeedItemResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1336,6 +1351,28 @@
           "error"
         ],
         "title": "ApiErrorResponse",
+        "type": "object"
+      },
+      "ApproveLegalConfigurationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidenceId": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Evidenceid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidenceId",
+          "expectedRevision"
+        ],
+        "title": "ApproveLegalConfigurationRequest",
         "type": "object"
       },
       "AssignedAcquirerResponse": {
@@ -4945,6 +4982,443 @@
         "title": "IssueInvoiceRequest",
         "type": "object"
       },
+      "LegalConfigurationApprovalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "title": "Approvedat",
+            "type": "string"
+          },
+          "approvedByDisplayName": {
+            "title": "Approvedbydisplayname",
+            "type": "string"
+          },
+          "approvedByUserId": {
+            "format": "uuid",
+            "title": "Approvedbyuserid",
+            "type": "string"
+          },
+          "evidenceId": {
+            "title": "Evidenceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvedByUserId",
+          "approvedByDisplayName",
+          "evidenceId",
+          "approvedAt"
+        ],
+        "title": "LegalConfigurationApprovalResponse",
+        "type": "object"
+      },
+      "LegalConfigurationStateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegalConfigurationVersionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegalConfigurationVersionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "draftApproval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegalConfigurationApprovalResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "production": {
+            "title": "Production",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "production",
+          "draft",
+          "active",
+          "draftApproval"
+        ],
+        "title": "LegalConfigurationStateResponse",
+        "type": "object"
+      },
+      "LegalConfigurationValuesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "activationBlockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Activationblockers",
+            "type": "array"
+          },
+          "bankAccountHolder": {
+            "title": "Bankaccountholder",
+            "type": "string"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "consentTextVersion": {
+            "title": "Consenttextversion",
+            "type": "string"
+          },
+          "eInvoiceDecision": {
+            "enum": [
+              "pending",
+              "not_required",
+              "required"
+            ],
+            "title": "Einvoicedecision",
+            "type": "string"
+          },
+          "eInvoiceEvidenceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Einvoiceevidenceid"
+          },
+          "iban": {
+            "title": "Iban",
+            "type": "string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/LegalIssuerResponse"
+          },
+          "numberPrefix": {
+            "title": "Numberprefix",
+            "type": "string"
+          },
+          "numberWidth": {
+            "title": "Numberwidth",
+            "type": "integer"
+          },
+          "paymentTermsDays": {
+            "title": "Paymenttermsdays",
+            "type": "integer"
+          },
+          "privacyContactEmail": {
+            "title": "Privacycontactemail",
+            "type": "string"
+          },
+          "privacyEvidenceId": {
+            "title": "Privacyevidenceid",
+            "type": "string"
+          },
+          "publicOrderLegalBasis": {
+            "title": "Publicorderlegalbasis",
+            "type": "string"
+          },
+          "publicOrderNoticeText": {
+            "title": "Publicordernoticetext",
+            "type": "string"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/LegalRetentionResponse"
+          },
+          "taxEvidenceId": {
+            "title": "Taxevidenceid",
+            "type": "string"
+          },
+          "taxNote": {
+            "title": "Taxnote",
+            "type": "string"
+          },
+          "taxRateBasisPoints": {
+            "title": "Taxratebasispoints",
+            "type": "integer"
+          },
+          "taxTreatment": {
+            "enum": [
+              "standard_vat",
+              "small_business",
+              "tax_exempt"
+            ],
+            "title": "Taxtreatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "bankAccountHolder",
+          "iban",
+          "bic",
+          "taxTreatment",
+          "taxRateBasisPoints",
+          "taxNote",
+          "numberPrefix",
+          "numberWidth",
+          "paymentTermsDays",
+          "publicOrderLegalBasis",
+          "publicOrderNoticeText",
+          "consentTextVersion",
+          "privacyContactEmail",
+          "retention",
+          "eInvoiceDecision",
+          "taxEvidenceId",
+          "privacyEvidenceId",
+          "eInvoiceEvidenceId",
+          "activationBlockers"
+        ],
+        "title": "LegalConfigurationValuesResponse",
+        "type": "object"
+      },
+      "LegalConfigurationVersionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "createdByDisplayName": {
+            "title": "Createdbydisplayname",
+            "type": "string"
+          },
+          "createdByUserId": {
+            "format": "uuid",
+            "title": "Createdbyuserid",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "values": {
+            "$ref": "#/components/schemas/LegalConfigurationValuesResponse"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "values",
+          "createdByUserId",
+          "createdByDisplayName",
+          "createdAt"
+        ],
+        "title": "LegalConfigurationVersionResponse",
+        "type": "object"
+      },
+      "LegalIssuerRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "default": "DE",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "legalName": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Legalname",
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 20,
+            "minLength": 2,
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "taxIdentifier": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Taxidentifier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "taxIdentifier",
+          "email"
+        ],
+        "title": "LegalIssuerRequest",
+        "type": "object"
+      },
+      "LegalIssuerResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "countryCode": {
+            "title": "Countrycode",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "legalName": {
+            "title": "Legalname",
+            "type": "string"
+          },
+          "postalCode": {
+            "title": "Postalcode",
+            "type": "string"
+          },
+          "streetLine1": {
+            "title": "Streetline1",
+            "type": "string"
+          },
+          "taxIdentifier": {
+            "title": "Taxidentifier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalName",
+          "streetLine1",
+          "postalCode",
+          "city",
+          "countryCode",
+          "taxIdentifier",
+          "email"
+        ],
+        "title": "LegalIssuerResponse",
+        "type": "object"
+      },
+      "LegalRetentionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "auditDays": {
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Auditdays",
+            "type": "integer"
+          },
+          "commitmentDays": {
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Commitmentdays",
+            "type": "integer"
+          },
+          "consentEvidenceDays": {
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Consentevidencedays",
+            "type": "integer"
+          },
+          "contactDays": {
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Contactdays",
+            "type": "integer"
+          },
+          "invoiceDays": {
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Invoicedays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invoiceDays",
+          "commitmentDays",
+          "contactDays",
+          "consentEvidenceDays",
+          "auditDays"
+        ],
+        "title": "LegalRetentionRequest",
+        "type": "object"
+      },
+      "LegalRetentionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "auditDays": {
+            "title": "Auditdays",
+            "type": "integer"
+          },
+          "commitmentDays": {
+            "title": "Commitmentdays",
+            "type": "integer"
+          },
+          "consentEvidenceDays": {
+            "title": "Consentevidencedays",
+            "type": "integer"
+          },
+          "contactDays": {
+            "title": "Contactdays",
+            "type": "integer"
+          },
+          "invoiceDays": {
+            "title": "Invoicedays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invoiceDays",
+          "commitmentDays",
+          "contactDays",
+          "consentEvidenceDays",
+          "auditDays"
+        ],
+        "title": "LegalRetentionResponse",
+        "type": "object"
+      },
       "LoginDispatchResponse": {
         "additionalProperties": false,
         "properties": {
@@ -7181,6 +7655,166 @@
           "reason"
         ],
         "title": "RevokePrivacyConsentRequest",
+        "type": "object"
+      },
+      "SaveLegalConfigurationDraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "bankAccountHolder": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Bankaccountholder",
+            "type": "string"
+          },
+          "bic": {
+            "anyOf": [
+              {
+                "maxLength": 11,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bic"
+          },
+          "consentTextVersion": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Consenttextversion",
+            "type": "string"
+          },
+          "eInvoiceDecision": {
+            "enum": [
+              "pending",
+              "not_required",
+              "required"
+            ],
+            "title": "Einvoicedecision",
+            "type": "string"
+          },
+          "eInvoiceEvidenceId": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Einvoiceevidenceid"
+          },
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "iban": {
+            "maxLength": 40,
+            "minLength": 15,
+            "title": "Iban",
+            "type": "string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/LegalIssuerRequest"
+          },
+          "numberPrefix": {
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Numberprefix",
+            "type": "string"
+          },
+          "numberWidth": {
+            "maximum": 8.0,
+            "minimum": 3.0,
+            "title": "Numberwidth",
+            "type": "integer"
+          },
+          "paymentTermsDays": {
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Paymenttermsdays",
+            "type": "integer"
+          },
+          "privacyContactEmail": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Privacycontactemail",
+            "type": "string"
+          },
+          "privacyEvidenceId": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Privacyevidenceid",
+            "type": "string"
+          },
+          "publicOrderLegalBasis": {
+            "maxLength": 2000,
+            "minLength": 12,
+            "title": "Publicorderlegalbasis",
+            "type": "string"
+          },
+          "publicOrderNoticeText": {
+            "maxLength": 10000,
+            "minLength": 40,
+            "title": "Publicordernoticetext",
+            "type": "string"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/LegalRetentionRequest"
+          },
+          "taxEvidenceId": {
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Taxevidenceid",
+            "type": "string"
+          },
+          "taxNote": {
+            "maxLength": 1000,
+            "minLength": 8,
+            "title": "Taxnote",
+            "type": "string"
+          },
+          "taxRateBasisPoints": {
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Taxratebasispoints",
+            "type": "integer"
+          },
+          "taxTreatment": {
+            "enum": [
+              "standard_vat",
+              "small_business",
+              "tax_exempt"
+            ],
+            "title": "Taxtreatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "issuer",
+          "bankAccountHolder",
+          "iban",
+          "taxTreatment",
+          "taxRateBasisPoints",
+          "taxNote",
+          "numberPrefix",
+          "numberWidth",
+          "paymentTermsDays",
+          "publicOrderLegalBasis",
+          "publicOrderNoticeText",
+          "consentTextVersion",
+          "privacyContactEmail",
+          "retention",
+          "eInvoiceDecision",
+          "taxEvidenceId",
+          "privacyEvidenceId"
+        ],
+        "title": "SaveLegalConfigurationDraftRequest",
         "type": "object"
       },
       "SessionAuthenticationResponse": {
@@ -13295,6 +13929,414 @@
         "summary": "Update Feature Flag",
         "tags": [
           "feature-flags"
+        ]
+      }
+    },
+    "/api/v1/admin/legal/configuration": {
+      "get": {
+        "operationId": "getLegalConfiguration",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalConfigurationStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Legal Configuration",
+        "tags": [
+          "legal-configuration"
+        ]
+      }
+    },
+    "/api/v1/admin/legal/configuration/draft": {
+      "put": {
+        "operationId": "saveLegalConfigurationDraft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveLegalConfigurationDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalConfigurationStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Save Legal Configuration Draft",
+        "tags": [
+          "legal-configuration"
+        ]
+      }
+    },
+    "/api/v1/admin/legal/configuration/draft/{version_id}/activation": {
+      "post": {
+        "operationId": "activateLegalConfigurationDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateLegalConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalConfigurationStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Activate Legal Configuration Draft",
+        "tags": [
+          "legal-configuration"
+        ]
+      }
+    },
+    "/api/v1/admin/legal/configuration/draft/{version_id}/approval": {
+      "post": {
+        "operationId": "approveLegalConfigurationDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveLegalConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalConfigurationStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Approve Legal Configuration Draft",
+        "tags": [
+          "legal-configuration"
         ]
       }
     },

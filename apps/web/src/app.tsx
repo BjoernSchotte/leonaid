@@ -10,6 +10,7 @@ import {
   FeatureFlagAdminPage,
   FeatureFlagProvider,
   InvoiceAdminPage,
+  LegalConfigurationPage,
   ManageActionPage,
   MemberAdministrationPage,
   PrivacyAdminPage,
@@ -31,6 +32,7 @@ function route() {
   if (pathname === "/members") return { kind: "members" } as const;
   if (pathname === "/system") return { kind: "system" } as const;
   if (pathname === "/privacy") return { kind: "privacy" } as const;
+  if (pathname === "/legal") return { kind: "legal" } as const;
   if (pathname === "/system/ui") return { kind: "system-ui" } as const;
   if (pathname === "/orders") return { kind: "orders" } as const;
   if (pathname === "/invoices") return { kind: "invoices" } as const;
@@ -116,22 +118,24 @@ export function App({ client }: AppProps) {
                     ? "System"
                     : currentRoute.kind === "privacy"
                       ? "Datenschutz"
-                      : currentRoute.kind === "system-ui"
-                        ? "UI-Basis"
-                        : currentRoute.kind === "dashboard"
-                          ? (identity.data.actionMemberships.find(
-                              (item) =>
-                                item.role === "charity_admin" &&
-                                item.actionId ===
-                                  new URLSearchParams(
-                                    window.location.search,
-                                  ).get("action"),
-                            )?.actionName ??
-                            identity.data.actionMemberships.find(
-                              (item) => item.role === "charity_admin",
-                            )?.actionName ??
-                            "Charity-Übersicht")
-                          : "Alle Aktionen";
+                      : currentRoute.kind === "legal"
+                        ? "Organisation & Recht"
+                        : currentRoute.kind === "system-ui"
+                          ? "UI-Basis"
+                          : currentRoute.kind === "dashboard"
+                            ? (identity.data.actionMemberships.find(
+                                (item) =>
+                                  item.role === "charity_admin" &&
+                                  item.actionId ===
+                                    new URLSearchParams(
+                                      window.location.search,
+                                    ).get("action"),
+                              )?.actionName ??
+                              identity.data.actionMemberships.find(
+                                (item) => item.role === "charity_admin",
+                              )?.actionName ??
+                              "Charity-Übersicht")
+                            : "Alle Aktionen";
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
@@ -167,6 +171,8 @@ export function App({ client }: AppProps) {
           <FeatureFlagAdminPage client={client} />
         ) : currentRoute.kind === "privacy" ? (
           <PrivacyAdminPage client={client} />
+        ) : currentRoute.kind === "legal" ? (
+          <LegalConfigurationPage client={client} identity={identity.data} />
         ) : currentRoute.kind === "system-ui" ? (
           <UiSystemCatalogPage identity={identity.data} />
         ) : currentRoute.kind === "dashboard" ? (

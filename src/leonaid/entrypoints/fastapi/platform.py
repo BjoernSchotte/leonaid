@@ -41,6 +41,9 @@ from leonaid.adapters.postgres.invoice_settlements import (
 )
 from leonaid.adapters.postgres.invoices import AsyncpgInvoiceRepository
 from leonaid.adapters.postgres.invitations import AsyncpgInvitationRepository
+from leonaid.adapters.postgres.legal_configuration import (
+    AsyncpgLegalConfigurationRepository,
+)
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
@@ -81,6 +84,7 @@ from leonaid.application.invoice_deliveries import InvoiceDeliveryService
 from leonaid.application.invoice_settlements import InvoiceSettlementService
 from leonaid.application.invoices import InvoiceService
 from leonaid.application.invitations import InvitationService
+from leonaid.application.legal_configuration import LegalConfigurationService
 from leonaid.adapters.operations import (
     ApiMetrics,
     OperationsService,
@@ -224,6 +228,10 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.feature_flag_service = FeatureFlagService(
             AsyncpgFeatureFlagRepository(pool),
             feature_flag_evaluator,
+        )
+        application.state.legal_configuration_service = LegalConfigurationService(
+            AsyncpgLegalConfigurationRepository(pool),
+            production=settings.environment == "production",
         )
         privacy_service = PrivacyService(
             AsyncpgPrivacyRepository(

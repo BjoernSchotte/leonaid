@@ -874,7 +874,7 @@ Abhängigkeiten: PILOT-001, PILOT-002, PILOT-040, PILOT-043
 
 Akzeptanzkriterien:
 
-- [ ] Reale Trägerdaten werden ausschließlich über eine autorisierte,
+- [x] Reale Trägerdaten werden ausschließlich über eine autorisierte,
       auditierte Konfiguration gepflegt und nicht im Repository hinterlegt.
 - [ ] Rechnungsaussteller, Nummernkreis, Steuerfall, Pflichttexte,
       Zahlungsziel und Bank-/Kontaktangaben sind fachlich bestätigt.
@@ -886,12 +886,12 @@ Akzeptanzkriterien:
       Rechtsgrundlage.
 - [ ] Datenschutzexport und Erasure berücksichtigen reale Fristen,
       Sperrgründe und Twenty-/RustFS-Referenzen.
-- [ ] Preview und Vier-Augen-Freigabe verhindern versehentliche Verwendung
+- [x] Preview und Vier-Augen-Freigabe verhindern versehentliche Verwendung
       synthetischer Golden-Trägerdaten in Produktion.
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-legal-config` lehnt Golden-/`.invalid`-Werte,
+- [x] `./leonaid test-pilot-legal-config` lehnt Golden-/`.invalid`-Werte,
       offene Entscheidungen und widersprüchliche Fristen in Produktion ab.
 - [ ] Realer Staging-Beleg wird inhaltlich durch verantwortliche Fachperson
       abgenommen; nur dessen SHA/Evidence-ID wird versioniert.
@@ -899,6 +899,9 @@ Tests/Nachweise:
       gleichzeitiger Anonymisierung nicht aufbewahrungspflichtiger Daten.
 - [ ] Produktivfreigabe von Träger, Datenschutz und erforderlicher
       Steuerberatung ist protokolliert.
+
+Technischer Nachweis, Bedienrunbook und verbleibende Fach-/Integrationsgrenzen:
+[`proofs/PILOT-044.md`](proofs/PILOT-044.md)
 
 ## 11. M5 – Pilotdurchführung und Freigabe
 

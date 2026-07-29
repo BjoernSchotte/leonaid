@@ -312,6 +312,12 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
             (
                 NavigationItem("actions", "Charity-Aktionen", "/admin/actions", "web"),
                 NavigationItem("members", "Mitglieder", "/admin/members", "web"),
+                NavigationItem(
+                    "legal",
+                    "Organisation & Recht",
+                    "/admin/legal",
+                    "web",
+                ),
                 NavigationItem("privacy", "Datenschutz", "/admin/privacy", "web"),
                 NavigationItem("system", "System", "/admin/system", "web"),
             )

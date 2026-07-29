@@ -31,6 +31,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
             pathname === "/acquisition" ||
             pathname === "/activities" ||
             pathname === "/invoices" ||
+            pathname === "/legal" ||
             pathname === "/members" ||
             pathname === "/orders" ||
             pathname === "/privacy" ||

@@ -89,6 +89,10 @@ Commands:
                     Prove cross-persona UX, A11y and performance budgets
   test-security     Prove transport security, abuse limits and scan contracts
   test-privacy      Prove consent evidence, export, suppression and erasure
+  test-legal-configuration
+                    Prove versioned organization/legal forms and four-eyes activation
+  test-pilot-legal-config
+                    Alias for the PILOT-044 legal configuration proof
   backup            Create encrypted Core, Twenty and RustFS recovery point
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
@@ -324,7 +328,7 @@ check_all() {
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
+    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
@@ -332,7 +336,7 @@ check_all() {
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
-    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
+    tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
@@ -341,7 +345,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -887,6 +891,9 @@ case "$command" in
   test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;
   test-security) /bin/sh "$root/tools/security/test.sh" "$root" ;;
   test-privacy) /bin/sh "$root/tools/privacy/test.sh" "$root" ;;
+  test-legal-configuration|test-pilot-legal-config)
+    /bin/sh "$root/tools/legal_configuration/test.sh" "$root"
+    ;;
   backup) /bin/sh "$root/tools/backup/backup.sh" "$root" ;;
   restore) /bin/sh "$root/tools/backup/restore.sh" "$root" ;;
   test-backup) /bin/sh "$root/tools/backup/test.sh" "$root" ;;
