@@ -34,6 +34,10 @@ Die Datei darf weder in Logs noch in öffentliche CI-Artefakte gelangen.
 Container erhalten nur die für ihren Prozess benötigten Werte. Der öffentliche
 Evidence-Report enthält ausschließlich Status und Fehlercodes.
 
+Release, Migration, Promotion und Rollback folgen dem
+[`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Produktion akzeptiert nur ein
+Manifest, das zuvor mit exakt demselben SHA in Staging verifiziert wurde.
+
 ## Compose- und Release-Prüfung
 
 Vor einem Start wird die effektive Konfiguration erzeugt und geprüft:

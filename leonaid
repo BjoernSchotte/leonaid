@@ -68,6 +68,12 @@ Commands:
   test-pilot-backup Prove a real networked S3/Restic target and failures
   test-pilot-alerting
                     Prove real Prometheus/Alertmanager delivery and recovery
+  test-pilot-release
+                    Prove immutable promotion, migration failure and rollback
+  pilot-release-manifest <create|verify> [OPTIONS]
+                    Create or verify an immutable release manifest
+  pilot-release-record [OPTIONS]
+                    Append a sanitized staging/production release event
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
@@ -319,7 +325,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
@@ -327,7 +333,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync mypy \
@@ -335,7 +341,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
@@ -477,6 +483,25 @@ pilot_future_command() {
   task=$2
   pilot_doctor --gate "$command_name"
   future_command "$command_name" "$task"
+}
+
+pilot_release_manifest() {
+  [ "$#" -ge 1 ] || {
+    echo "pilot-release-manifest: ERROR: create oder verify fehlt" >&2
+    exit 64
+  }
+  action=$1
+  shift
+  case "$action" in
+    create|verify)
+      run_python python tools/pilot_release/manifest.py \
+        "$action" --root /workspace "$@"
+      ;;
+    *)
+      echo "pilot-release-manifest: ERROR: unbekannte Aktion '$action'" >&2
+      exit 64
+      ;;
+  esac
 }
 
 dev() {
@@ -822,6 +847,20 @@ case "$command" in
   test-pilot-alerting)
     require_docker
     /bin/sh "$root/tools/pilot_alerting/test.sh" "$root"
+    ;;
+  test-pilot-release)
+    require_docker
+    /bin/sh "$root/tools/pilot_release/test.sh" "$root"
+    ;;
+  pilot-release-manifest)
+    require_docker
+    shift
+    pilot_release_manifest "$@"
+    ;;
+  pilot-release-record)
+    require_docker
+    shift
+    run_python python tools/pilot_release/promotion.py "$@"
     ;;
   pilot-evidence-init)
     require_docker

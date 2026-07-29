@@ -18,8 +18,12 @@ env_file="$root/.env.local"
 proof=$(mktemp -d)
 repository="$proof/repository"
 password_file="$proof/restic-password"
-artifact_directory="$root/.artifacts/poc113"
+artifact_directory=${LEONAID_UPGRADE_ARTIFACT_DIR:-"$root/.artifacts/poc113"}
 integration_key=""
+release_commit=$(git -C "$root" rev-parse HEAD)
+release_ledger="$proof/release-ledger.jsonl"
+release_v1="$proof/release-v1.json"
+release_v2="$proof/release-v2.json"
 
 source_old() {
   LEONAID_HTTP_PORT="$source_http_port" \
@@ -111,6 +115,82 @@ verify_image() {
   actual=$(docker inspect --format '{{ .Config.Image }}' "$container")
   [ "$actual" = "$expected" ] ||
     fail "$container läuft mit $actual statt $expected"
+}
+
+create_release_manifest() {
+  release_id=$1
+  version=$2
+  twenty_image=$3
+  rustfs_image=$4
+  output=$5
+  images="$proof/images-$release_id.json"
+  api_id=$(docker image inspect --format '{{.Id}}' "${source_project}-api:latest")
+  web_id=$(docker image inspect --format '{{.Id}}' "${source_project}-web:latest")
+  pwa_id=$(docker image inspect --format '{{.Id}}' "${source_project}-pwa:latest")
+  public_id=$(docker image inspect --format '{{.Id}}' "${source_project}-public:latest")
+  docker run --rm \
+    --env "API_IMAGE=$api_id" \
+    --env "WEB_IMAGE=$web_id" \
+    --env "PWA_IMAGE=$pwa_id" \
+    --env "PUBLIC_IMAGE=$public_id" \
+    --env "TWENTY_RELEASE_IMAGE=$twenty_image" \
+    --env "RUSTFS_RELEASE_IMAGE=$rustfs_image" \
+    --env "POSTGRES_RELEASE_IMAGE=$POSTGRES_IMAGE" \
+    --env "REDIS_RELEASE_IMAGE=$REDIS_IMAGE" \
+    --env "CADDY_RELEASE_IMAGE=$CADDY_IMAGE" \
+    --env "IMAGE_OUTPUT=/proof/$(basename "$images")" \
+    --volume "$proof:/proof" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json,os,pathlib
+pathlib.Path(os.environ["IMAGE_OUTPUT"]).write_text(json.dumps({
+  "api":os.environ["API_IMAGE"],
+  "worker":os.environ["API_IMAGE"],
+  "web":os.environ["WEB_IMAGE"],
+  "pwa":os.environ["PWA_IMAGE"],
+  "public":os.environ["PUBLIC_IMAGE"],
+  "twenty-server":os.environ["TWENTY_RELEASE_IMAGE"],
+  "twenty-worker":os.environ["TWENTY_RELEASE_IMAGE"],
+  "rustfs":os.environ["RUSTFS_RELEASE_IMAGE"],
+  "core-postgres":os.environ["POSTGRES_RELEASE_IMAGE"],
+  "twenty-postgres":os.environ["POSTGRES_RELEASE_IMAGE"],
+  "twenty-redis":os.environ["REDIS_RELEASE_IMAGE"],
+  "proxy":os.environ["CADDY_RELEASE_IMAGE"]
+},sort_keys=True)+"\n",encoding="utf-8")'
+  docker run --rm \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/pilot_release/manifest.py create \
+      --root /workspace \
+      --release-id "$release_id" \
+      --version "$version" \
+      --git-commit "$release_commit" \
+      --deployment-mode test \
+      --images "/proof/$(basename "$images")" \
+      --output "/proof/$(basename "$output")"
+}
+
+record_release_event() {
+  manifest=$1
+  event=$2
+  result=$3
+  evidence_id=$4
+  occurred_at=$5
+  docker run --rm \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/pilot_release/promotion.py \
+      --manifest "/proof/$(basename "$manifest")" \
+      --ledger /proof/release-ledger.jsonl \
+      --event "$event" \
+      --result "$result" \
+      --evidence-id "$evidence_id" \
+      --occurred-at "$occurred_at"
 }
 
 run_plan_gate() {
@@ -305,6 +385,17 @@ chmod 600 "$password_file"
 
 run_plan_gate
 source_old build api public pwa web
+create_release_manifest \
+  pilot-release-v1 1.0.0 \
+  "$TWENTY_UPGRADE_SOURCE_IMAGE" "$RUSTFS_UPGRADE_SOURCE_IMAGE" \
+  "$release_v1"
+create_release_manifest \
+  pilot-release-v2 2.0.0 \
+  "$TWENTY_IMAGE" "$RUSTFS_IMAGE" \
+  "$release_v2"
+record_release_event \
+  "$release_v1" staging_started passed PILOT-043-STAGING-V1 \
+  2026-07-28T08:00:00Z
 source_old --profile dev-mail up --detach --wait --wait-timeout 420 \
   core-postgres rustfs mailpit twenty-server twenty-worker
 verify_image "${source_project}-twenty-server-1" "$TWENTY_UPGRADE_SOURCE_IMAGE"
@@ -339,6 +430,12 @@ run_dashboard_contract source
 snapshot_and_verify source pre-upgrade golden
 source_old up --detach --wait --wait-timeout 420 public pwa web proxy
 run_e2e "$source_project" before
+record_release_event \
+  "$release_v1" staging_verified passed PILOT-043-STAGING-V1 \
+  2026-07-28T08:10:00Z
+record_release_event \
+  "$release_v2" staging_started passed PILOT-043-STAGING-V2 \
+  2026-07-28T08:20:00Z
 
 LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
@@ -377,6 +474,9 @@ run_maintenance_contract source available
 run_dashboard_contract source
 snapshot_and_verify source post-upgrade golden
 run_e2e "$source_project" after
+record_release_event \
+  "$release_v2" staging_verified passed PILOT-043-STAGING-V2 \
+  2026-07-28T08:40:00Z
 
 restore_source_version
 rollback_old build api public pwa web
@@ -384,6 +484,41 @@ rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback failure-clone-before golden
 
+record_release_event \
+  "$release_v2" production_started passed PILOT-043-PRODUCTION-ATTEMPT-1 \
+  2026-07-28T09:00:00Z
+LEONAID_COMPOSE_PROJECT="$rollback_project" \
+  LEONAID_HTTP_PORT="$rollback_http_port" \
+  LEONAID_HTTPS_PORT="$rollback_https_port" \
+  TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
+  /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+if rollback_target run --rm --no-deps \
+  --entrypoint uv \
+  api run --frozen --no-sync alembic upgrade pilot_missing_revision \
+  >"$proof/core-migration-failure.log" 2>&1; then
+  fail "Absichtlich ungültige Core-Migration wurde akzeptiert"
+fi
+run_maintenance_contract rollback maintenance
+record_release_event \
+  "$release_v2" production_failed failed PILOT-043-MIGRATION-FAILURE \
+  2026-07-28T09:01:00Z
+
+rollback_target --profile dev-mail down --volumes --remove-orphans
+record_release_event \
+  "$release_v2" rollback_started passed PILOT-043-MIGRATION-ROLLBACK \
+  2026-07-28T09:02:00Z
+restore_source_version
+rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
+run_dashboard_contract rollback
+snapshot_and_verify rollback migration-failure-restored golden
+record_release_event \
+  "$release_v2" rollback_verified passed PILOT-043-MIGRATION-ROLLBACK \
+  2026-07-28T09:10:00Z
+
+record_release_event \
+  "$release_v2" production_started passed PILOT-043-PRODUCTION-ATTEMPT-2 \
+  2026-07-28T09:20:00Z
 LEONAID_COMPOSE_PROJECT="$rollback_project" \
   LEONAID_HTTP_PORT="$rollback_http_port" \
   LEONAID_HTTPS_PORT="$rollback_https_port" \
@@ -399,6 +534,12 @@ LEONAID_COMPOSE_PROJECT="$rollback_project" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
   LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$rollback_network_overlay" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
+rollback_target --profile dev-mail up --detach --wait --wait-timeout 420
+run_dashboard_contract rollback
+snapshot_and_verify rollback production-v2 golden
+record_release_event \
+  "$release_v2" production_verified passed PILOT-043-PRODUCTION-V2 \
+  2026-07-28T09:40:00Z
 rollback_target --profile dev-mail run --rm --no-deps \
   --env-from-file "$env_file" \
   --env MAIL_SMTP_HOST=mailpit \
@@ -417,14 +558,23 @@ if docker run --rm \
   /workspace/tests/fixtures/golden/v1 >/dev/null 2>&1; then
   fail "Absichtlich defektes Upgrade bestand den Golden-Contract"
 fi
+record_release_event \
+  "$release_v2" production_failed failed PILOT-043-POST-SMOKE-FAILURE \
+  2026-07-28T09:41:00Z
 
 rollback_target --profile dev-mail down --volumes --remove-orphans
+record_release_event \
+  "$release_v2" rollback_started passed PILOT-043-POST-SMOKE-ROLLBACK \
+  2026-07-28T09:42:00Z
 restore_source_version
 rollback_old build api public pwa web
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback rollback-restored golden
 run_e2e "$rollback_project" rollback
+record_release_event \
+  "$release_v2" rollback_verified passed PILOT-043-POST-SMOKE-ROLLBACK \
+  2026-07-28T09:50:00Z
 
 mkdir -p "$artifact_directory"
 cp "$proof"/upgrade-before.png \
@@ -432,8 +582,14 @@ cp "$proof"/upgrade-before.png \
   "$proof"/upgrade-rollback.png \
   "$proof"/pre-upgrade.json \
   "$proof"/post-upgrade.json \
+  "$proof"/migration-failure-restored.json \
+  "$proof"/production-v2.json \
   "$proof"/failed-upgrade.json \
     "$proof"/rollback-restored.json \
+    "$proof"/core-migration-failure.log \
+    "$proof"/release-v1.json \
+    "$proof"/release-v2.json \
+    "$proof"/release-ledger.jsonl \
     "$proof"/twenty-instance-upgrade-primary.log \
     "$proof"/twenty-instance-upgrade-failure-clone.log \
     "$proof"/twenty-upgrade-primary.log \
@@ -454,10 +610,13 @@ pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "maintenanceWriteBoundary":"passed",
   "postContract":"passed",
   "postE2e":"passed",
+  "sameManifestPromotion":"passed",
+  "coreMigrationFailureDetected":"passed",
   "failedUpgradeDetected":"passed",
-  "backupRollback":"passed"
+  "backupRollback":"passed",
+  "releaseLedger":"passed"
 },sort_keys=True,indent=2)+"\n")'
 
 echo "upgrade-test: OK: reale Twenty- und RustFS-Upgrades,"
 echo "upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade"
-echo "upgrade-test:     sowie Recovery eines absichtlich defekten Upgrades bewiesen"
+echo "upgrade-test:     sowie Manifest-Promotion, Migrationsfehler und Recovery bewiesen"

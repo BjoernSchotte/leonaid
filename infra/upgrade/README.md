@@ -98,3 +98,15 @@ RustFS 1.0.0-beta.11, prüft Contracts und Chromium vor/nach dem Upgrade,
 beschädigt einen separaten Zielklon absichtlich und restauriert ihn aus dem
 verschlüsselten Recovery Point. Geheimnisfreie Ergebnisse liegen unter
 `.artifacts/poc113/`.
+
+Der Pilot-Release-Nachweis ergänzt diesen Komponentenvertrag um ein
+unveränderliches Release-Manifest, identische Staging-/Produktionspromotion,
+einen real fehlgeschlagenen Alembic-Lauf und ein secretsfreies
+Promotion-Ledger:
+
+```sh
+./leonaid test-pilot-release
+```
+
+Die Betriebsstrecke ist in
+[`../pilot/RELEASE-RUNBOOK.md`](../pilot/RELEASE-RUNBOOK.md) beschrieben.

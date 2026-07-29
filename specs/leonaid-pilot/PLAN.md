@@ -843,26 +843,29 @@ Abhängigkeiten: PILOT-040, PILOT-041, PILOT-042
 
 Akzeptanzkriterien:
 
-- [ ] Release-Manifest bindet Git-Commit, Images/Digests,
+- [x] Release-Manifest bindet Git-Commit, Images/Digests,
       Schema-/Templateversionen und erforderliche Migrationen.
-- [ ] Staging erhält exakt dasselbe Manifest vor Produktion.
-- [ ] Deployment aktiviert bei inkompatiblen Änderungen Wartungsmodus,
+- [x] Staging erhält exakt dasselbe Manifest vor Produktion.
+- [x] Deployment aktiviert bei inkompatiblen Änderungen Wartungsmodus,
       erstellt Recovery Point und prüft Vorbedingungen.
-- [ ] Datenbank-, Twenty- und RustFS-Migrationen laufen fail-closed.
-- [ ] Smoke- und Readiness-Gates entscheiden automatisch über Freigabe.
-- [ ] Rollbackgrenze und Vorwärtsreparatur sind je Komponente dokumentiert.
-- [ ] Produktion baut keine Images und löst keine Abhängigkeiten neu auf.
+- [x] Datenbank-, Twenty- und RustFS-Migrationen laufen fail-closed.
+- [x] Smoke- und Readiness-Gates entscheiden automatisch über Freigabe.
+- [x] Rollbackgrenze und Vorwärtsreparatur sind je Komponente dokumentiert.
+- [x] Produktion baut keine Images und löst keine Abhängigkeiten neu auf.
 - [ ] Operator kann letzten freigegebenen Releasezustand ohne direkte
       Datenbankarbeit wiederherstellen.
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-release` promoted zwei reale Versionen durch
+- [x] `./leonaid test-pilot-release` promoted zwei reale Versionen durch
       Staging, erzeugt einen absichtlichen Migrationsfehler und rollt sauber
       zurück.
 - [ ] Golden Journey läuft vor und nach Upgrade/Rollback.
-- [ ] Audit/Releaseprotokoll enthält keine Secrets.
-- [ ] Recovery Point und alle Dokument-SHAs stimmen nach Rollback.
+- [x] Audit/Releaseprotokoll enthält keine Secrets.
+- [x] Recovery Point und alle Dokument-SHAs stimmen nach Rollback.
+
+Technischer Nachweis und verbleibende Betreiber-/Journey-Grenzen:
+[`proofs/PILOT-043.md`](proofs/PILOT-043.md)
 
 ### [ ] PILOT-044 Reale Träger-, Rechnungs- und Datenschutzkonfiguration freigeben
 
