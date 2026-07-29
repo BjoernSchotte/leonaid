@@ -42,6 +42,9 @@ Support-Code-Strecke folgen dem
 [`ONBOARDING-SUPPORT-RUNBOOK.md`](ONBOARDING-SUPPORT-RUNBOOK.md).
 Der tägliche technische Pilotcheck und der sanitizte JSON-Report folgen dem
 [`LIVE-PILOT-RUNBOOK.md`](LIVE-PILOT-RUNBOOK.md).
+Technisches Readiness-Dossier, privates Abnahmeprotokoll und ausdrückliche
+Milestoneentscheidung folgen dem
+[`PILOT-ACCEPTANCE-RUNBOOK.md`](PILOT-ACCEPTANCE-RUNBOOK.md).
 
 ## Compose- und Release-Prüfung
 

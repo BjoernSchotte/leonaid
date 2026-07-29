@@ -1039,6 +1039,10 @@ Akzeptanzkriterien:
       den Pilotumfang ausdrücklich ab.
 - [ ] Runbooks, Architektur, Datenmodell, API, Personas, bekannte Grenzen und
       Entscheidungsregister entsprechen dem real betriebenen Stand.
+- [x] Ein fail-closed Readiness-Dossier bewertet alle Tasks, offenen
+      Kriterien, Abhängigkeiten, Proof-Links, 16 Hard-Gates,
+      Pilotentscheidungen und den Git-Zustand, ohne externe Abnahmen als
+      erfüllt zu simulieren.
 - [ ] Finaler Cold-CI-Lauf und produktionsnahe Generalprobe veröffentlichen
       sanitizte Beweisartefakte.
 - [ ] Private Pilot-Evidence ist vollständig, zugriffsgeschützt und besitzt
@@ -1050,7 +1054,7 @@ Akzeptanzkriterien:
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-readiness` prüft sämtliche harten Gates und
+- [x] `./leonaid test-pilot-readiness` prüft sämtliche harten Gates und
       Proof-Links.
 - [ ] Finaler Docker-Cold-Run startet ohne Caches aus leerem Zustand.
 - [ ] Abnahmeprotokoll verlinkt Commit, Release-Manifest, Locks,
@@ -1058,6 +1062,9 @@ Tests/Nachweise:
       Beleg-SHAs und Runbooks.
 - [ ] Abschlusscommit ist auf `main`, Remote-CI terminal grün und das
       Arbeitsverzeichnis sauber.
+
+Technischer Teilnachweis und verbleibende Abnahme-Gates:
+[`proofs/PILOT-053.md`](proofs/PILOT-053.md)
 
 ## 12. Harte Pilot-Abnahmematrix
 
