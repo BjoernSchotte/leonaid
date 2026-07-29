@@ -736,31 +736,34 @@ In Scope:
 
 Akzeptanzkriterien:
 
-- [ ] Staging und Produktion besitzen getrennte Domains, Compose-Projekte,
+- [x] Staging und Produktion besitzen getrennte Domains, Compose-Projekte,
       Volumes, Buckets, Datenbanken, Secrets und Mailkonfigurationen.
-- [ ] Produktion exponiert ausschließlich Caddy auf 80/443; Datenbanken,
+- [x] Produktion exponiert ausschließlich Caddy auf 80/443; Datenbanken,
       Redis, RustFS und interne APIs besitzen keine öffentlichen Hostports.
 - [ ] Caddy verwendet öffentlich vertrauenswürdiges TLS, sichere Header,
       HSTS nach erfolgreichem Staging und dokumentierte Zertifikatserneuerung.
-- [ ] `LEONAID_ENV=production` verbietet Mailpit, `.invalid`-Absender,
+- [x] `LEONAID_ENV=production` verbietet Mailpit, `.invalid`-Absender,
       lokale Backupziele, Default-Secrets und Loopback-Public-URLs.
-- [ ] Secrets liegen außerhalb des Repositorys und werden mit
+- [x] Secrets liegen außerhalb des Repositorys und werden mit
       Least-Privilege in Container injiziert.
-- [ ] Images und externe Systeme bleiben tag- und digest-gepinnt.
-- [ ] `pilot-doctor` prüft DNS, TLS, Secrets, Uhrzeit, Speicherplatz,
+- [x] Images und externe Systeme bleiben tag- und digest-gepinnt.
+- [x] `pilot-doctor` prüft DNS, TLS, Secrets, Uhrzeit, Speicherplatz,
       Backupalter, Provider und alle Abhängigkeiten ohne Geheimnisse
       auszugeben.
-- [ ] Produktion wird ausschließlich aus einem freigegebenen Commit/Manifest
+- [x] Produktion wird ausschließlich aus einem freigegebenen Commit/Manifest
       aufgebaut; kein Live-Code-Mount.
 
 Tests/Nachweise:
 
-- [ ] Compose-Contract prüft Netzwerk- und Portgrenzen.
-- [ ] Test mit synthetischen unsicheren Produktionswerten muss fail-closed
+- [x] Compose-Contract prüft Netzwerk- und Portgrenzen.
+- [x] Test mit synthetischen unsicheren Produktionswerten muss fail-closed
       abbrechen.
 - [ ] TLS-/Header-Test läuft gegen die echte Stagingdomain.
-- [ ] `./leonaid test-pilot-deployment` startet eine produktionsähnliche
+- [x] `./leonaid test-pilot-deployment` startet eine produktionsähnliche
       isolierte Topologie aus leeren Volumes.
+
+Technischer Nachweis und verbleibende reale Staging-Grenze:
+[`proofs/PILOT-040.md`](proofs/PILOT-040.md)
 
 ### [ ] PILOT-041 Externes Backup und isolierten Restore betreiben
 

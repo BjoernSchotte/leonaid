@@ -52,6 +52,20 @@ DEPENDENCY_SECTIONS = (
     "optionalDependencies",
     "peerDependencies",
 )
+ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
+    Path("infra/pilot/compose.yml"): {
+        "LEONAID_CORE_IMAGE",
+        "LEONAID_PUBLIC_IMAGE",
+        "LEONAID_PWA_IMAGE",
+        "LEONAID_WEB_IMAGE",
+    },
+    Path("infra/pilot/compose.test.yml"): {
+        "LEONAID_TEST_CORE_IMAGE",
+        "LEONAID_TEST_PUBLIC_IMAGE",
+        "LEONAID_TEST_PWA_IMAGE",
+        "LEONAID_TEST_WEB_IMAGE",
+    },
+}
 
 
 class Problems:
@@ -440,7 +454,12 @@ def check_image_references(root: Path, problems: Problems) -> None:
         ):
             candidates.append(path)
     reference = re.compile(r"(?:^\s*image:\s*|^\s*FROM\s+)([^\s#]+)", re.IGNORECASE)
+    dynamic_reference = re.compile(
+        r"^\s*image:\s*\$\{(?P<variable>[A-Z][A-Z0-9_]*)"
+        r"(?::[^}]*)?\}\s*(?:#.*)?$"
+    )
     for path in candidates:
+        relative = path.relative_to(root)
         for line_number, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), 1
         ):
@@ -449,9 +468,16 @@ def check_image_references(root: Path, problems: Problems) -> None:
                 continue
             image = match.group(1)
             if "${" in image:
-                problems.add(
-                    f"{path}:{line_number}: image reference must be literal for pin audit"
+                dynamic_match = dynamic_reference.fullmatch(line)
+                allowed_variables = ALLOWED_DYNAMIC_IMAGE_VARIABLES.get(relative, set())
+                variable = (
+                    dynamic_match.group("variable") if dynamic_match is not None else ""
                 )
+                if variable not in allowed_variables:
+                    problems.add(
+                        f"{path}:{line_number}: image reference must be literal "
+                        "or an approved pilot release variable"
+                    )
             elif not IMAGE.fullmatch(image):
                 problems.add(
                     f"{path}:{line_number}: image reference is not tag+digest pinned: {image}"

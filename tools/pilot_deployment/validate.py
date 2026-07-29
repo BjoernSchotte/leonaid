@@ -49,12 +49,17 @@ def string_value(values: dict[str, Any], key: str) -> str:
 def validate_public_url(value: str, label: str) -> None:
     parsed = urlparse(value)
     host = (parsed.hostname or "").rstrip(".").casefold()
+    reserved_examples = ("example.com", "example.net", "example.org")
     if (
         parsed.scheme != "https"
         or not host
         or host == "localhost"
         or host.startswith("127.")
         or host.endswith((".localhost", ".invalid", ".test", ".example"))
+        or any(
+            host == candidate or host.endswith(f".{candidate}")
+            for candidate in reserved_examples
+        )
     ):
         raise DeploymentContractError(f"{label} ist keine produktive HTTPS-URL")
 

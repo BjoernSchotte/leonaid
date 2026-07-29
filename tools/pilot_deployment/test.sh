@@ -4,7 +4,7 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-project=${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-pilot040-contract}
+project=${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}
 runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-leonaid-pilot040-test}
 build_project=${LEONAID_PILOT_BUILD_PROJECT:-leonaid-pilot040-release}
 http_port=${LEONAID_PILOT_TEST_HTTP_PORT:-19080}
@@ -12,6 +12,8 @@ https_port=${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}
 workspace=$(mktemp -d)
 config="$workspace/compose.json"
 env_file="$workspace/production.env"
+backup_manifest="$workspace/backup-manifest.json"
+ca_file="$workspace/caddy-root.crt"
 core_image="$build_project-api:latest"
 web_image="$build_project-web:latest"
 pwa_image="$build_project-pwa:latest"
@@ -54,6 +56,8 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 {
   printf '%s\n' \
     "LEONAID_ENV=production" \
+    "LEONAID_DEPLOYMENT_STAGE=production" \
+    "LEONAID_COMPOSE_PROJECT=$project" \
     "LEONAID_SERVICE_VERSION=0.1.0" \
     "LEONAID_RELEASE_COMMIT=0123456789abcdef0123456789abcdef01234567" \
     "LEONAID_CORE_IMAGE=registry.example.org/leonaid/core@sha256:$digest" \
@@ -67,15 +71,24 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "TWENTY_PUBLIC_BASE_URL=https://crm.leonaid.org" \
     "CADDY_ACME_EMAIL=operations@leonaid.org" \
     "RUSTFS_BUCKET=leonaid-production-club-111" \
-    "MAIL_HEALTH_URL=https://status.leonaid.org/mail" \
+    "MAIL_HEALTH_URL=https://portal.leonaid.org/_health" \
     "MAIL_SMTP_HOST=smtp.leonaid.org" \
     "MAIL_SMTP_PORT=587" \
     "MAIL_FROM=LeonAid <noreply@leonaid.org>" \
     "MAIL_SMTP_MODE=starttls" \
     "MAIL_SMTP_USERNAME=pilot-smtp" \
-    "MAIL_SMTP_PASSWORD=pilot-smtp-password" \
-    "TWENTY_INTEGRATION_API_KEY=pilot-integration-key"
+    "RESTIC_REPOSITORY=s3:https://backup.leonaid.org/production-test" \
+    "CORE_POSTGRES_PASSWORD=core-postgres-production-test-001" \
+    "LEONAID_SECRET_KEY=leonaid-application-production-test-002" \
+    "LEONAID_SESSION_ENCRYPTION_KEY=leonaid-session-production-test-003" \
+    "MAIL_SMTP_PASSWORD=leonaid-smtp-production-test-004" \
+    "RUSTFS_ACCESS_KEY=leonaid-rustfs-access-production-test-005" \
+    "RUSTFS_SECRET_KEY=leonaid-rustfs-secret-production-test-006" \
+    "TWENTY_ACCESS_TOKEN_SECRET=twenty-access-production-test-007" \
+    "TWENTY_INTEGRATION_API_KEY=twenty-integration-production-test-008" \
+    "TWENTY_LOGIN_TOKEN_SECRET=twenty-login-production-test-009"
 } >>"$env_file"
+chmod 600 "$env_file"
 
 docker compose \
   --project-name "$project" \
@@ -143,4 +156,87 @@ curl --fail --silent --insecure \
   --resolve "$crm_url:$https_port:127.0.0.1" \
   "https://$crm_url:$https_port/healthz" | grep -q '"status":"ok"'
 
-echo "pilot-deployment-test: OK: Contract und produktionsähnlicher Leerstart bewiesen"
+proxy_id=$(runtime_compose ps --quiet proxy)
+runtime_compose exec --no-TTY proxy \
+  cat /data/caddy/pki/authorities/local/root.crt >"$ca_file"
+chmod 600 "$ca_file"
+docker run --rm \
+  --env "BACKUP_SOURCE_PROJECT=$project" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import datetime,json,os,pathlib
+pathlib.Path("/proof/backup-manifest.json").write_text(json.dumps({
+  "schemaVersion":1,
+  "createdAt":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+  "sourceProject":os.environ["BACKUP_SOURCE_PROJECT"],
+  "files":{"core.dump":{"sha256":"a"*64,"size":1}}
+},sort_keys=True)+"\n",encoding="utf-8")'
+
+docker run --rm \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof:ro" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/pilot_deployment/doctor_test.py \
+    /workspace \
+    /proof/production.env \
+    /proof/compose.json \
+    /proof/backup-manifest.json \
+    0123456789abcdef0123456789abcdef01234567
+
+echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
+docker run --rm \
+  --network "container:$proxy_id" \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof:ro" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/pilot_deployment/doctor.py /workspace \
+    --env-file /proof/production.env \
+    --compose-config /proof/compose.json \
+    --backup-manifest /proof/backup-manifest.json \
+    --expected-release-commit 0123456789abcdef0123456789abcdef01234567 \
+    --deployment-only \
+    --ca-file /proof/caddy-root.crt \
+    --resolve portal.leonaid.org=127.0.0.1:443 \
+    --resolve crm.leonaid.org=127.0.0.1:443 \
+    --disk-path /proof \
+    --minimum-free-bytes 1048576 \
+    --minimum-certificate-validity-hours 1
+
+unsafe_env="$workspace/unsafe.env"
+cp "$env_file" "$unsafe_env"
+sentinel=__THIS_SECRET_MUST_NEVER_APPEAR_123456789__
+printf '%s\n' "LEONAID_SECRET_KEY=$sentinel" >>"$unsafe_env"
+chmod 600 "$unsafe_env"
+set +e
+unsafe_output=$(docker run --rm \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof:ro" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/pilot_deployment/doctor.py /workspace \
+    --env-file /proof/unsafe.env \
+    --compose-config /proof/compose.json \
+    --backup-manifest /proof/backup-manifest.json \
+    --expected-release-commit 0123456789abcdef0123456789abcdef01234567 \
+    --deployment-only 2>&1)
+unsafe_status=$?
+set -e
+if [ "$unsafe_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: unsicheres Secret wurde akzeptiert" >&2
+  exit 1
+fi
+if printf '%s' "$unsafe_output" | grep -q "$sentinel"; then
+  echo "pilot-deployment-test: ERROR: Doctor hat ein Secret ausgegeben" >&2
+  exit 1
+fi
+if ! printf '%s' "$unsafe_output" | grep -q "secret_invalid:LEONAID_SECRET_KEY"; then
+  echo "pilot-deployment-test: ERROR: Secret-Fehler ist nicht diagnostizierbar" >&2
+  exit 1
+fi
+
+echo "pilot-deployment-test: OK: Contract, Leerstart und realer Deployment Doctor bewiesen"

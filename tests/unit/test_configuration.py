@@ -102,6 +102,7 @@ def test_production_settings_require_public_edges_and_separate_secrets() -> None
         {"LEONAID_RELEASE_COMMIT": "main"},
         {"LEONAID_PUBLIC_BASE_URL": "https://127.0.0.1"},
         {"LEONAID_PUBLIC_BASE_URL": "https://portal.leonaid.invalid"},
+        {"LEONAID_PUBLIC_BASE_URL": "https://portal.example.org"},
         {"LEONAID_TRUST_PROXY_HEADERS": "false"},
         {"LEONAID_ALLOWED_ORIGINS": "http://portal.leonaid.org"},
         {"MAIL_HEALTH_URL": "http://mailpit:8025/mail/api/v1/info"},
@@ -163,6 +164,16 @@ def test_production_mail_rejects_plaintext_and_disabled_verification() -> None:
             {
                 **base,
                 "MAIL_SMTP_MODE": "plain",
+                "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
+            }
+        )
+    with raises(ValidationError):
+        MailTransportSettings.model_validate(
+            {
+                **base,
+                "MAIL_SMTP_HOST": "smtp.example.org",
+                "MAIL_FROM": "LeonAid <noreply@example.org>",
+                "MAIL_SMTP_MODE": "starttls",
                 "MAIL_SMTP_VERIFY_CERTIFICATES": "true",
             }
         )

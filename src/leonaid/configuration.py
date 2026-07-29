@@ -28,8 +28,14 @@ def _is_forbidden_public_host(host: str | None) -> bool:
     if host is None:
         return True
     normalized = host.rstrip(".").casefold()
-    if normalized == "localhost" or normalized.endswith(
-        (".localhost", ".invalid", ".test", ".example")
+    reserved_examples = ("example.com", "example.net", "example.org")
+    if (
+        normalized == "localhost"
+        or normalized.endswith((".localhost", ".invalid", ".test", ".example"))
+        or any(
+            normalized == candidate or normalized.endswith(f".{candidate}")
+            for candidate in reserved_examples
+        )
     ):
         return True
     try:

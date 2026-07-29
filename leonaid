@@ -67,8 +67,8 @@ Commands:
                     Prove the merged production topology and fail-closed guards
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
-  pilot-doctor [--gate GATE] [--json]
-                    Validate readiness for productive pilot actions
+  pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
+                    Validate deployment and decisions for productive actions
   pilot-deploy      Deploy the productive pilot after pilot-doctor
   pilot-release     Release the productive pilot after pilot-doctor
   pilot-import      Import private pilot data after pilot-doctor
@@ -368,10 +368,105 @@ future_command() {
 
 pilot_doctor() {
   require_docker
+  env_file=
+  backup_manifest=
+  gate=pilot-release
+  json_argument=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-doctor: ERROR: --env-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      --backup-manifest)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-doctor: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          exit 64
+        }
+        backup_manifest=$2
+        shift 2
+        ;;
+      --gate)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-doctor: ERROR: --gate benötigt einen Wert" >&2
+          exit 64
+        }
+        gate=$2
+        shift 2
+        ;;
+      --json)
+        json_argument=--json
+        shift
+        ;;
+      *)
+        echo "pilot-doctor: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-doctor: BLOCKED: --env-file mit privater 0600-Konfiguration fehlt" >&2
+    exit 1
+  }
+  [ -n "$backup_manifest" ] || {
+    echo "pilot-doctor: BLOCKED: --backup-manifest des letzten Backups fehlt" >&2
+    exit 1
+  }
+  [ -f "$env_file" ] || {
+    echo "pilot-doctor: BLOCKED: Environment-Datei fehlt" >&2
+    exit 1
+  }
+  [ -f "$backup_manifest" ] || {
+    echo "pilot-doctor: BLOCKED: Backup-Manifest fehlt" >&2
+    exit 1
+  }
+  env_file=$(CDPATH= cd -- "$(dirname -- "$env_file")" && pwd)/$(basename -- "$env_file")
+  backup_manifest=$(
+    CDPATH= cd -- "$(dirname -- "$backup_manifest")" &&
+      pwd
+  )/$(basename -- "$backup_manifest")
+  project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$env_file" | tail -n 1)
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-doctor: BLOCKED: Compose-Projekt ist nicht umgebungsspezifisch" >&2
+      exit 1
+      ;;
+  esac
+  release_commit=$(git -C "$root" rev-parse HEAD)
+  config_file=$(mktemp)
+  trap 'rm -f "$config_file"' EXIT HUP INT TERM
+  docker compose \
+    --project-name "$project" \
+    --env-file "$env_file" \
+    --file "$root/infra/compose/compose.yml" \
+    --file "$root/infra/pilot/compose.yml" \
+    config --format json >"$config_file"
+  set +e
+  # shellcheck disable=SC2086
   docker run --rm \
-    -v "$root:/workspace:ro" \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$env_file:/doctor/production.env:ro" \
+    --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
+    --volume "$config_file:/doctor/compose.json:ro" \
+    --workdir /workspace \
     "$PYTHON_IMAGE" \
-    python /workspace/tools/pilot_decisions/check.py /workspace --ready "$@"
+    python tools/pilot_deployment/doctor.py /workspace \
+      --env-file /doctor/production.env \
+      --compose-config /doctor/compose.json \
+      --backup-manifest /doctor/backup-manifest.json \
+      --expected-release-commit "$release_commit" \
+      --gate "$gate" $json_argument
+  status=$?
+  set -e
+  rm -f "$config_file"
+  trap - EXIT HUP INT TERM
+  return "$status"
 }
 
 pilot_future_command() {
