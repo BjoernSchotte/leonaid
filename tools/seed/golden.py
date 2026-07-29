@@ -777,6 +777,13 @@ async def seed_identity(
             updated_at = CURRENT_TIMESTAMP
         """
     )
+    await connection.execute(
+        """
+        UPDATE invoice_profile
+        SET legal_configuration_version_id = NULL
+        WHERE legal_configuration_version_id IS NOT NULL
+        """
+    )
     await connection.execute("DELETE FROM legal_configuration_approval")
     await connection.execute("DELETE FROM legal_configuration_version")
     await connection.execute(
@@ -1455,11 +1462,12 @@ async def seed_operational_golden(
                 id, action_id, legal_name, street_line_1, postal_code, city,
                 country_code, tax_identifier, email, tax_treatment,
                 tax_rate_basis_points, tax_note, number_prefix, next_number,
-                number_width, payment_terms_days, confirmed_at
+                number_width, payment_terms_days, confirmed_at,
+                legal_configuration_version_id
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                $11, $12, $13, $14, $15, $16, $17
+                $11, $12, $13, $14, $15, $16, $17, $18
             )
             """,
             profile["id"],
@@ -1479,6 +1487,7 @@ async def seed_operational_golden(
             profile["numberWidth"],
             profile["paymentTermsDays"],
             datetime.fromisoformat(str(profile["confirmedAt"])),
+            GOLDEN_LEGAL_CONFIGURATION_ID,
         )
 
     invoice_status = {

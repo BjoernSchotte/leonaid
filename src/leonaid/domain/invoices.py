@@ -147,6 +147,7 @@ class InvoiceProfile:
     number_width: int
     payment_terms_days: int
     confirmed_at: datetime | None
+    legal_configuration_version_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.tax_treatment is TaxTreatment.STANDARD_VAT:
@@ -198,7 +199,10 @@ class InvoiceProfile:
 
     @property
     def ready_to_issue(self) -> bool:
-        return self.confirmed_at is not None
+        return (
+            self.confirmed_at is not None
+            and self.legal_configuration_version_id is not None
+        )
 
 
 @dataclass(frozen=True, slots=True)

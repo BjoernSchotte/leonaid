@@ -1058,6 +1058,7 @@ class InvoiceIssuerResponse(TransportModel):
 
 
 class InvoiceProfileResponse(TransportModel):
+    legal_configuration_version_id: UUID | None
     issuer: InvoiceIssuerResponse
     tax_treatment: Literal["standard_vat", "small_business", "tax_exempt"]
     tax_rate_basis_points: int = Field(ge=0, le=10_000)

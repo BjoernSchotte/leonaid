@@ -4737,6 +4737,18 @@
           "issuer": {
             "$ref": "#/components/schemas/InvoiceIssuerResponse"
           },
+          "legalConfigurationVersionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legalconfigurationversionid"
+          },
           "nextInvoiceNumber": {
             "title": "Nextinvoicenumber",
             "type": "string"
@@ -4772,6 +4784,7 @@
           }
         },
         "required": [
+          "legalConfigurationVersionId",
           "issuer",
           "taxTreatment",
           "taxRateBasisPoints",

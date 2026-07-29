@@ -227,6 +227,11 @@ class AsyncpgLegalConfigurationRepository:
                     draft_version_id=version_id,
                     activate=True,
                 )
+                await self._synchronize_invoice_profiles(
+                    connection,
+                    version=state.draft,
+                    confirmed_at=occurred_at,
+                )
                 await self._audit(
                     connection,
                     actor_user_id=actor_user_id,
@@ -240,6 +245,52 @@ class AsyncpgLegalConfigurationRepository:
                     },
                 )
                 return await self._state(connection)
+
+    @staticmethod
+    async def _synchronize_invoice_profiles(
+        connection: asyncpg.Connection[Any],
+        *,
+        version: LegalConfigurationVersion,
+        confirmed_at: datetime,
+    ) -> None:
+        configuration = version.configuration
+        issuer = configuration.issuer
+        await connection.execute(
+            """
+            UPDATE invoice_profile
+            SET legal_configuration_version_id = $1,
+                legal_name = $2,
+                street_line_1 = $3,
+                postal_code = $4,
+                city = $5,
+                country_code = $6,
+                tax_identifier = $7,
+                email = $8,
+                tax_treatment = $9,
+                tax_rate_basis_points = $10,
+                tax_note = $11,
+                number_prefix = $12,
+                number_width = $13,
+                payment_terms_days = $14,
+                confirmed_at = $15,
+                updated_at = $15
+            """,
+            version.id,
+            issuer.legal_name,
+            issuer.street_line_1,
+            issuer.postal_code,
+            issuer.city,
+            issuer.country_code,
+            issuer.tax_identifier,
+            issuer.email,
+            configuration.tax_treatment.value,
+            configuration.tax_rate_basis_points,
+            configuration.tax_note,
+            configuration.number_prefix,
+            configuration.number_width,
+            configuration.payment_terms_days,
+            confirmed_at,
+        )
 
     async def _locked_state(
         self,

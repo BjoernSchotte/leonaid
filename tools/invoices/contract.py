@@ -212,9 +212,41 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             context_value["actionName"] != "Krapfentaxi 2026"
             or not context_value["mayIssue"]
             or context_value["profile"]["nextInvoiceNumber"] != "KT26-0004"
+            or context_value["profile"]["legalConfigurationVersionId"]
+            != "94000000-0000-4000-8000-000000000044"
             or not context_value["profile"]["readyToIssue"]
         ):
             raise ContractFailure("Admin-Rechnungskontext ist unvollständig")
+
+        await connection.execute(
+            """
+            UPDATE invoice_profile
+            SET legal_configuration_version_id = NULL
+            WHERE action_id = $1
+            """,
+            ACTION_ID,
+        )
+        stale_profile = await issue(
+            api,
+            token=tokens["klara_fresh"],
+            idempotency_key="poc090:stale-legal-configuration",
+        )
+        if (
+            stale_profile.status_code != 409
+            or error_code(stale_profile) != "invoice_legal_configuration_stale"
+        ):
+            raise ContractFailure(
+                "Ungebundenes Rechnungsprofil wurde nicht fail-closed abgewiesen"
+            )
+        await connection.execute(
+            """
+            UPDATE invoice_profile
+            SET legal_configuration_version_id = $1
+            WHERE action_id = $2
+            """,
+            UUID("94000000-0000-4000-8000-000000000044"),
+            ACTION_ID,
+        )
 
         finance_context = await api.get(
             f"/api/v1/actions/{ACTION_ID}/invoice-context",

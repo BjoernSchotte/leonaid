@@ -1277,7 +1277,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
               </strong>
               <p>
                 {context.data?.profile?.readyToIssue
-                  ? `Nächste Nummer: ${context.data.profile.nextInvoiceNumber}`
+                  ? `Freigegebene Rechtsgrundlage aktiv · Nächste Nummer: ${context.data.profile.nextInvoiceNumber}`
                   : "Träger, Steuerfall und Nummernkreis müssen bestätigt werden."}
               </p>
             </div>

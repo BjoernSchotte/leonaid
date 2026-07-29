@@ -1311,6 +1311,7 @@ def invoice_issuer_response(profile: InvoiceProfile) -> InvoiceIssuerResponse:
 
 def invoice_profile_response(profile: InvoiceProfile) -> InvoiceProfileResponse:
     return InvoiceProfileResponse(
+        legal_configuration_version_id=profile.legal_configuration_version_id,
         issuer=invoice_issuer_response(profile),
         tax_treatment=profile.tax_treatment.value,
         tax_rate_basis_points=profile.tax_rate_basis_points,

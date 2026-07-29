@@ -154,6 +154,13 @@ async def prepare(connection: asyncpg.Connection[Any], sessions_path: Path) -> N
             updated_at = CURRENT_TIMESTAMP
         """
     )
+    await connection.execute(
+        """
+        UPDATE invoice_profile
+        SET legal_configuration_version_id = NULL
+        WHERE legal_configuration_version_id IS NOT NULL
+        """
+    )
     await connection.execute("DELETE FROM legal_configuration_approval")
     await connection.execute("DELETE FROM legal_configuration_version")
     await connection.execute(
@@ -316,6 +323,28 @@ async def assert_result(connection: asyncpg.Connection[Any]) -> None:
         raise ContractFailure("Audit enthält vertrauliche Konfigurationswerte")
 
     active_version_id = state["active_version_id"]
+    profile = await connection.fetchrow(
+        """
+        SELECT legal_configuration_version_id, legal_name, tax_treatment,
+               number_prefix, next_number, number_width, payment_terms_days
+        FROM invoice_profile
+        WHERE action_id = $1
+        """,
+        UUID("20000000-0000-4000-8000-000000000001"),
+    )
+    if (
+        profile is None
+        or profile["legal_configuration_version_id"] != active_version_id
+        or profile["legal_name"] != "Golden Förderverein e. V."
+        or profile["tax_treatment"] != "tax_exempt"
+        or profile["number_prefix"] != "KT"
+        or int(profile["next_number"]) != 4
+        or int(profile["number_width"]) != 5
+        or int(profile["payment_terms_days"]) != 14
+    ):
+        raise ContractFailure(
+            "Rechnungsprofil wurde nicht atomar an die aktive Version gebunden"
+        )
     approval = await connection.fetchrow(
         """
         SELECT approved_by_user_id, evidence_id

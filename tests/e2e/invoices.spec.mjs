@@ -164,6 +164,9 @@ test("Fresh Login schützt Freigabe und Finanzrolle sieht den Beleg unveränderl
     await expect(
       page.getByRole("heading", { name: "Rechnungen" }),
     ).toBeVisible();
+    await expect(page.getByTestId("invoice-profile")).toContainText(
+      "Freigegebene Rechtsgrundlage aktiv",
+    );
     await expect(page.getByTestId("invoice-row")).toHaveCount(4);
     await expect(page.getByTestId("invoice-totals")).toContainText("648,00");
     const issuedRow = page

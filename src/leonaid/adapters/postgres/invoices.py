@@ -323,6 +323,24 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 "Nummernkreis bestätigt werden.",
             )
         profile = self._profile_from_row(profile_row)
+        active_legal_configuration_id = await connection.fetchval(
+            """
+            SELECT active_version_id
+            FROM legal_configuration_state
+            FOR SHARE
+            """
+        )
+        if active_legal_configuration_id is None:
+            raise Conflict(
+                "invoice_legal_configuration_missing",
+                "Vor der Rechnungsfreigabe muss eine Rechtsgrundlage aktiviert werden.",
+            )
+        if profile.legal_configuration_version_id != active_legal_configuration_id:
+            raise Conflict(
+                "invoice_legal_configuration_stale",
+                "Das Rechnungsprofil entspricht nicht der aktiven "
+                "Träger- und Steuerkonfiguration.",
+            )
         line_rows = await connection.fetch(
             """
             SELECT
@@ -654,6 +672,7 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
             number_width=int(row["number_width"]),
             payment_terms_days=int(row["payment_terms_days"]),
             confirmed_at=row["confirmed_at"],
+            legal_configuration_version_id=row["legal_configuration_version_id"],
         )
 
     @staticmethod

@@ -2,8 +2,8 @@
 
 Stand: 2026-07-29  
 Ergebnis: technische Admin-, Versions- und Vier-Augen-Basis sowie die
-Public-Form-/Consent-Integration sind bewiesen; reale Fachwerte und ihre
-Integration in Rechnung und Datenschutzworkflow bleiben offen.
+Public-Form-/Consent- und Rechnungsprofil-Integration sind bewiesen; reale
+Fachwerte und ihre Integration in den Datenschutzworkflow bleiben offen.
 
 ## Implementierter Vertrag
 
@@ -30,6 +30,13 @@ Integration in Rechnung und Datenschutzworkflow bleiben offen.
 - Der Core weist ein bereits geöffnetes Formular nach einem Versionswechsel
   ab. Ein erfolgreicher Auftrag persistiert den geprüften Consent-Nachweis
   mit der aktiven Textversion und Status `confirmed`.
+- Die Aktivierung synchronisiert bestehende aktionsbezogene
+  Rechnungsprofile atomar mit Träger, Steuerfall, Rechtstext, Zahlungsziel
+  und Nummernformat der freigegebenen Version. Der laufende Nummernstand
+  bleibt dabei unverändert.
+- Jede Rechnungsfreigabe prüft die unveränderliche Versionsbindung erneut.
+  Ohne aktive Version oder bei veralteter Bindung bleibt die Freigabe
+  fail-closed gesperrt.
 - [`LEGAL-CONFIGURATION-RUNBOOK.md`](../../../infra/pilot/LEGAL-CONFIGURATION-RUNBOOK.md)
   beschreibt fachlichen Schnitt, Rollen, sicheren Ablauf und verbleibende
   Abnahmegrenzen.
@@ -68,9 +75,11 @@ Der Test verwendet keine Mocks:
    einen veralteten Revisionsstand zurück;
 7. bearbeitet Version 2 im echten Chromium, lässt sie durch die andere
    System-Administration freigeben und aktiviert sie;
-8. prüft Desktop, Mobilansicht, schwere Accessibility-Verstöße,
+8. prüft die atomare Synchronisierung des bestehenden Rechnungsprofils mit
+   der aktiven Version, ohne den laufenden Nummernstand zurückzusetzen;
+9. prüft Desktop, Mobilansicht, schwere Accessibility-Verstöße,
    Browserfehler, unveränderte Version 1 und die exakte Audit-Sequenz;
-9. entfernt das Testprojekt samt Containern, Netzen und Volumes.
+10. entfernt das Testprojekt samt Containern, Netzen und Volumes.
 
 Die sichtbare In-App-Browser-Prüfung hat dieselbe Seite zusätzlich im
 laufenden Entwicklungsstack nachvollziehbar geöffnet. Die öffentliche
@@ -89,9 +98,12 @@ Bestellwege gegen FastAPI, PostgreSQL und Twenty aus.
 - Das Repository enthält absichtlich keine realen Träger-, Bank-, Steuer-
   oder Datenschutzwerte. Diese müssen durch die zuständigen Rollen bestätigt
   und über die Admin-Oberfläche eingepflegt werden.
-- Das aktionsbezogene Rechnungsprofil ist weiterhin der aktive Vertrag der
-  Rechnungserzeugung. Seine Ableitung beziehungsweise Bestätigung gegen die
-  aktive installationsweite Grundlage ist noch offen.
+- Bestehende aktionsbezogene Rechnungsprofile sind an die aktive
+  installationsweite Grundlage gebunden. Für neue Aktionen fehlt noch der
+  geführte Prozess, einen konfliktfreien aktionsbezogenen Nummernkreis
+  anzulegen.
+- Bankverbindung und Zahlungsinformationen sind noch nicht Teil des
+  unveränderlichen Rechnungssnapshots und des Typst-PDFs.
 - Public Form und Consent-Erfassung verwenden die aktivierte Version.
   Datenschutzexport und Erasure verwenden die real bestätigten Fristen noch
   nicht.
