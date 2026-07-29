@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -14,9 +15,21 @@ REQUIRED_JOBS = {
     "golden-journey",
     "integration",
     "lint-types",
+    "pilot-cold-rehearsal",
     "security",
     "unit",
 }
+
+JOB_HEADER = re.compile(r"(?m)^  ([a-z0-9-]+):\n")
+
+
+def job_block(text: str, job: str) -> str:
+    marker = f"  {job}:\n"
+    start = text.find(marker)
+    if start < 0:
+        return ""
+    following = JOB_HEADER.search(text, start + len(marker))
+    return text[start : following.start() if following else len(text)]
 
 
 def check(path: Path) -> list[str]:
@@ -35,6 +48,15 @@ def check(path: Path) -> list[str]:
         problems.append("Integration/E2E verwenden nicht die lokalen Testpfade.")
     if "ci-artifact-probe" not in text:
         problems.append("Absichtlich fehlschlagender Probe-Branch fehlt.")
+    cold = job_block(text, "pilot-cold-rehearsal")
+    if "if: inputs.cold_run == true" not in cold:
+        problems.append("Finale Generalprobe ist nicht exklusiv an cold_run gebunden.")
+    if "docker system prune --all --volumes --force" not in cold:
+        problems.append("Cold-Run leert Docker-Systemzustand und Caches nicht.")
+    if "./leonaid test-pilot-rehearsal --synthetic" not in cold:
+        problems.append("Cold-Run führt die vollständige synthetische Generalprobe nicht aus.")
+    if "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR" not in cold:
+        problems.append("Cold-Run veröffentlicht den sanitizten Generalprobenbeleg nicht.")
     if "services:" in text:
         problems.append(
             "Workflow darf keine von Compose abweichenden Services definieren."
@@ -49,7 +71,10 @@ def main() -> None:
         for problem in problems:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
-    print("ci-workflow-contract: OK: neun getrennte Jobs und Failure-Artefakte")
+    print(
+        "ci-workflow-contract: OK: zehn getrennte Jobs, Cold-Rehearsal "
+        "und Failure-Artefakte"
+    )
 
 
 if __name__ == "__main__":

@@ -14,7 +14,18 @@ if [ "$mode" != "--synthetic" ]; then
   exit 78
 fi
 
-artifact_directory="$root/.artifacts/pilot050-synthetic"
+artifact_directory=${LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR:-"$root/.artifacts/pilot050-synthetic"}
+case "$artifact_directory" in
+  /*) ;;
+  *) artifact_directory="$root/$artifact_directory" ;;
+esac
+case "$artifact_directory" in
+  "$root"/.artifacts/*) ;;
+  *)
+    echo "pilot-rehearsal-test: ERROR: Evidence-Pfad muss unter .artifacts/ liegen" >&2
+    exit 64
+    ;;
+esac
 summary="$artifact_directory/summary.json"
 started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 release_commit=$(git -C "$root" rev-parse HEAD)

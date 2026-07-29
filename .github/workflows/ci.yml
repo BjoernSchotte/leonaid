@@ -252,6 +252,35 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  pilot-cold-rehearsal:
+    if: inputs.cold_run == true && inputs.artifact_probe != true
+    name: Pilot cold rehearsal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/pilot-cold-rehearsal
+      LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR: .artifacts/ci/pilot-cold-rehearsal/rehearsal
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove empty Docker state without caches
+        run: docker system prune --all --volumes --force
+      - name: Bootstrap locked Docker toolchains
+        run: ./leonaid bootstrap
+      - name: Run complete synthetic pilot rehearsal from empty state
+        run: >-
+          bash tools/ci/run-job.sh
+          pilot-cold-rehearsal
+          ./leonaid test-pilot-rehearsal --synthetic
+      - name: Publish sanitized cold-rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-pilot-cold-rehearsal
+          path: .artifacts/ci/pilot-cold-rehearsal
+          if-no-files-found: error
+          retention-days: 14
+
   artifact-probe:
     if: github.ref == 'refs/heads/ci-artifact-probe' || inputs.artifact_probe == true
     name: Artifact probe

@@ -80,6 +80,8 @@ provision() {
 
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose build api
+echo "crm-import-test: wartet auf die TCP-Bereitschaft von Postgres und Redis"
+compose up --detach --wait --wait-timeout 180 twenty-postgres twenty-redis
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision
 run_python tools/seed/golden.py seed-twenty /repo/tests/fixtures/golden/v1

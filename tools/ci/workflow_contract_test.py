@@ -31,8 +31,45 @@ def main() -> None:
             result.stdout + result.stderr
         ):
             raise AssertionError("Fehlender Artefakt-Upload wurde nicht abgewiesen.")
+        mutations = (
+            (
+                "if: inputs.cold_run == true && inputs.artifact_probe != true",
+                "if: inputs.artifact_probe != true",
+                "cold_run",
+            ),
+            (
+                "docker system prune --all --volumes --force",
+                "docker image ls",
+                "Docker-Systemzustand",
+            ),
+            (
+                "./leonaid test-pilot-rehearsal --synthetic",
+                "./leonaid test-unit",
+                "synthetische Generalprobe",
+            ),
+            (
+                "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR",
+                "REMOVED_REHEARSAL_ARTIFACT_DIR",
+                "Generalprobenbeleg",
+            ),
+        )
+        for old, new, expected in mutations:
+            broken.write_text(text.replace(old, new, 1), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(checker), str(broken)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 or expected not in (
+                result.stdout + result.stderr
+            ):
+                raise AssertionError(
+                    f"Cold-Run-Vertragsbruch {expected!r} wurde nicht abgewiesen."
+                )
     print(
-        "ci-workflow-contract-test: OK: neun Jobs und fehlender Upload werden geprüft"
+        "ci-workflow-contract-test: OK: zehn Jobs, Cold-Rehearsal und "
+        "fehlender Upload werden geprüft"
     )
 
 
