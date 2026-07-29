@@ -105,8 +105,9 @@ Bestellwege gegen FastAPI, PostgreSQL und Twenty aus.
 - Bankverbindung und Zahlungsinformationen sind noch nicht Teil des
   unveränderlichen Rechnungssnapshots und des Typst-PDFs.
 - Public Form und Consent-Erfassung verwenden die aktivierte Version.
-  Datenschutzexport und Erasure verwenden die real bestätigten Fristen noch
-  nicht.
+- Public Form, Consent, Datenschutzexport und Erasure verwenden dieselbe
+  aktivierte Version. Automatisierter Fristablauf, nachweisbare Löschläufe
+  und reale Werte bleiben offen.
 - Ein realer Staging-Beleg und die private Produktivfreigabe fehlen.
 
 PILOT-044 bleibt deshalb formal offen.

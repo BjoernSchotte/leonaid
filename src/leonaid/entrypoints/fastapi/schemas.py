@@ -244,10 +244,21 @@ class PrivacyReferenceResponse(TransportModel):
     label: str
 
 
+class PrivacyRetentionResponse(TransportModel):
+    legal_configuration_version_id: UUID
+    legal_configuration_version: int
+    invoice_days: int
+    commitment_days: int
+    contact_days: int
+    consent_evidence_days: int
+    audit_days: int
+
+
 class PrivacySubjectReportResponse(TransportModel):
     found: bool
     subject_email: str
     crm_deletion_status: Literal["pending_manual_review"]
+    retention: PrivacyRetentionResponse
     consents: list[PrivacyConsentResponse]
     suppressions: list[PrivacySuppressionResponse]
     references: list[PrivacyReferenceResponse]
@@ -268,6 +279,7 @@ class PrivacyErasureResponse(TransportModel):
     case_id: UUID
     subject_hash: str
     status: Literal["completed_with_retention"]
+    retention: PrivacyRetentionResponse
     anonymized_commitments: int
     cleared_activity_notes: int
     cleared_reminders: int

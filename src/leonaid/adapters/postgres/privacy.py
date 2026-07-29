@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.application.errors import Conflict
 from leonaid.application.privacy import PrivacyRepository
 from leonaid.domain.privacy import (
     ContactChannel,
@@ -19,14 +20,10 @@ from leonaid.domain.privacy import (
     PrivacyErasureResult,
     PrivacyPurpose,
     PrivacyReference,
+    PrivacyRetentionPolicy,
     PrivacySubjectReport,
     SuppressionEntry,
     subject_digest,
-)
-
-RETENTION_REASONS = (
-    "Ausgestellte Rechnungen bleiben als unveränderliche Belege erhalten.",
-    "Bereits erzeugte Rechnungs-PDFs bleiben der Rechnung zugeordnet.",
 )
 
 
@@ -90,6 +87,7 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
         connection: asyncpg.Connection[Any],
         normalized_email: str,
     ) -> PrivacySubjectReport:
+        retention = await AsyncpgPrivacyRepository._active_retention(connection)
         consents = await connection.fetch(
             """
             SELECT *
@@ -188,6 +186,7 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
         )
         return PrivacySubjectReport(
             normalized_recipient=normalized_email,
+            retention=retention,
             twenty_company_ids=tuple(sorted(company_ids)),
             twenty_person_ids=tuple(sorted(person_ids)),
             consents=tuple(_consent(row) for row in consents),
@@ -212,6 +211,42 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                 _reference(row, reference_type="activity", label_column="label")
                 for row in activities
             ),
+        )
+
+    @staticmethod
+    async def _active_retention(
+        connection: asyncpg.Connection[Any],
+    ) -> PrivacyRetentionPolicy:
+        row = await connection.fetchrow(
+            """
+            SELECT
+                version.id,
+                version.version,
+                version.invoice_retention_days,
+                version.commitment_retention_days,
+                version.contact_retention_days,
+                version.consent_evidence_retention_days,
+                version.audit_retention_days
+            FROM legal_configuration_state AS state
+            JOIN legal_configuration_version AS version
+              ON version.id = state.active_version_id
+            FOR SHARE OF state, version
+            """
+        )
+        if row is None:
+            raise Conflict(
+                "privacy_legal_configuration_missing",
+                "Vor Datenschutzvorgängen muss eine Rechtsgrundlage "
+                "mit Aufbewahrungsfristen aktiviert werden.",
+            )
+        return PrivacyRetentionPolicy(
+            legal_configuration_version_id=row["id"],
+            legal_configuration_version=int(row["version"]),
+            invoice_days=int(row["invoice_retention_days"]),
+            commitment_days=int(row["commitment_retention_days"]),
+            contact_days=int(row["contact_retention_days"]),
+            consent_evidence_days=int(row["consent_evidence_retention_days"]),
+            audit_days=int(row["audit_retention_days"]),
         )
 
     async def revoke_consent(
@@ -351,6 +386,13 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                 report = await self._subject_report(connection, normalized_email)
                 if not report.found:
                     return None
+                retention = report.retention
+                retention_reasons = (
+                    "Ausgestellte Rechnungen und ihre PDFs bleiben gemäß "
+                    f"freigegebener Frist {retention.invoice_days} Tage erhalten.",
+                    "Consent-Nachweise bleiben gemäß freigegebener Frist "
+                    f"{retention.consent_evidence_days} Tage nachvollziehbar.",
+                )
                 commitment_ids = [item.id for item in report.commitments]
                 company_ids = list(report.twenty_company_ids)
                 person_ids = list(report.twenty_person_ids)
@@ -465,13 +507,14 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                         cleared_reminders, revoked_consents,
                         retained_invoice_ids, retained_document_ids,
                         retention_reasons, open_decisions,
+                        legal_configuration_version_id, retention_schedule,
                         requested_at, completed_at
                     )
                     VALUES (
                         $1, $2, $3, 'completed_with_retention',
                         $4, $5, $6, $7,
                         $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb,
-                        $12, $12
+                        $12, $13::jsonb, $14, $14
                     )
                     """,
                     case_id,
@@ -480,8 +523,22 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     *counts,
                     json.dumps([str(item) for item in invoices]),
                     json.dumps([str(item) for item in documents]),
-                    json.dumps(RETENTION_REASONS, ensure_ascii=False),
+                    json.dumps(retention_reasons, ensure_ascii=False),
                     json.dumps(open_decisions, ensure_ascii=False),
+                    retention.legal_configuration_version_id,
+                    json.dumps(
+                        {
+                            "legalConfigurationVersion": (
+                                retention.legal_configuration_version
+                            ),
+                            "invoiceDays": retention.invoice_days,
+                            "commitmentDays": retention.commitment_days,
+                            "contactDays": retention.contact_days,
+                            "consentEvidenceDays": retention.consent_evidence_days,
+                            "auditDays": retention.audit_days,
+                        },
+                        separators=(",", ":"),
+                    ),
                     occurred_at,
                 )
                 await connection.execute(
@@ -515,13 +572,14 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                     case_id=case_id,
                     subject_hash=subject_hash,
                     status=ErasureStatus.COMPLETED_WITH_RETENTION,
+                    retention=retention,
                     anonymized_commitments=counts[0],
                     cleared_activity_notes=counts[1],
                     cleared_reminders=counts[2],
                     revoked_consents=counts[3],
                     retained_invoice_ids=invoices,
                     retained_document_ids=documents,
-                    retention_reasons=RETENTION_REASONS,
+                    retention_reasons=retention_reasons,
                     open_decisions=open_decisions,
                     completed_at=occurred_at,
                 )

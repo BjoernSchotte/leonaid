@@ -6556,6 +6556,9 @@
             "title": "Retainedinvoiceids",
             "type": "array"
           },
+          "retention": {
+            "$ref": "#/components/schemas/PrivacyRetentionResponse"
+          },
           "retentionReasons": {
             "items": {
               "type": "string"
@@ -6581,6 +6584,7 @@
           "caseId",
           "subjectHash",
           "status",
+          "retention",
           "anonymizedCommitments",
           "clearedActivityNotes",
           "clearedReminders",
@@ -6651,6 +6655,51 @@
         "title": "PrivacyReferenceResponse",
         "type": "object"
       },
+      "PrivacyRetentionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "auditDays": {
+            "title": "Auditdays",
+            "type": "integer"
+          },
+          "commitmentDays": {
+            "title": "Commitmentdays",
+            "type": "integer"
+          },
+          "consentEvidenceDays": {
+            "title": "Consentevidencedays",
+            "type": "integer"
+          },
+          "contactDays": {
+            "title": "Contactdays",
+            "type": "integer"
+          },
+          "invoiceDays": {
+            "title": "Invoicedays",
+            "type": "integer"
+          },
+          "legalConfigurationVersion": {
+            "title": "Legalconfigurationversion",
+            "type": "integer"
+          },
+          "legalConfigurationVersionId": {
+            "format": "uuid",
+            "title": "Legalconfigurationversionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legalConfigurationVersionId",
+          "legalConfigurationVersion",
+          "invoiceDays",
+          "commitmentDays",
+          "contactDays",
+          "consentEvidenceDays",
+          "auditDays"
+        ],
+        "title": "PrivacyRetentionResponse",
+        "type": "object"
+      },
       "PrivacySubjectReportResponse": {
         "additionalProperties": false,
         "properties": {
@@ -6689,6 +6738,9 @@
             "title": "References",
             "type": "array"
           },
+          "retention": {
+            "$ref": "#/components/schemas/PrivacyRetentionResponse"
+          },
           "subjectEmail": {
             "title": "Subjectemail",
             "type": "string"
@@ -6705,6 +6757,7 @@
           "found",
           "subjectEmail",
           "crmDeletionStatus",
+          "retention",
           "consents",
           "suppressions",
           "references",

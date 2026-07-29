@@ -286,6 +286,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacyErasureRequest,
     PrivacyErasureResponse,
     PrivacyReferenceResponse,
+    PrivacyRetentionResponse,
     PrivacySubjectReportResponse,
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
@@ -664,6 +665,7 @@ def privacy_report_response(
         found=report.found,
         subject_email=report.normalized_recipient,
         crm_deletion_status="pending_manual_review",
+        retention=PrivacyRetentionResponse.model_validate(report.retention),
         consents=[privacy_consent_response(item) for item in report.consents],
         suppressions=[
             PrivacySuppressionResponse(
@@ -2426,6 +2428,7 @@ async def erase_privacy_subject(
         case_id=result.case_id,
         subject_hash=result.subject_hash,
         status=result.status.value,
+        retention=PrivacyRetentionResponse.model_validate(result.retention),
         anonymized_commitments=result.anonymized_commitments,
         cleared_activity_notes=result.cleared_activity_notes,
         cleared_reminders=result.cleared_reminders,

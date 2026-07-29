@@ -52,6 +52,12 @@ test("System-Admin führt Auskunft, Sperre und Anonymisierung kontrolliert aus",
       subjectEmail,
     );
     await expect(page.getByText("KT26-0002", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("privacy-retention")).toContainText(
+      "Freigegebene Rechtsgrundlage · Version 1",
+    );
+    await expect(page.getByTestId("privacy-retention")).toContainText(
+      "Rechnungen & PDFs3650 Tage",
+    );
     await expect(
       page.getByRole("heading", {
         name: "Offene Entscheidungen – keine Rechtsannahmen",
@@ -100,7 +106,7 @@ test("System-Admin führt Auskunft, Sperre und Anonymisierung kontrolliert aus",
       .click();
     await expect(page.getByText("Anonymisierung abgeschlossen")).toBeVisible();
     await expect(
-      page.getByText(/Rechnung\(en\).*unverändert erhalten/),
+      page.getByText(/Rechnung\(en\).*3650 Tagen unverändert erhalten/),
     ).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });

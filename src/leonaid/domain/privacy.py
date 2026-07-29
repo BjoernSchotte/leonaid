@@ -121,8 +121,41 @@ class PrivacyReference:
 
 
 @dataclass(frozen=True, slots=True)
+class PrivacyRetentionPolicy:
+    legal_configuration_version_id: UUID
+    legal_configuration_version: int
+    invoice_days: int
+    commitment_days: int
+    contact_days: int
+    consent_evidence_days: int
+    audit_days: int
+
+    def __post_init__(self) -> None:
+        if self.legal_configuration_version < 1:
+            raise DomainInvariantError(
+                "privacy_retention_version_invalid",
+                "Die Version der Aufbewahrungsregeln ist ungültig.",
+            )
+        if any(
+            days < 1 or days > 36_500
+            for days in (
+                self.invoice_days,
+                self.commitment_days,
+                self.contact_days,
+                self.consent_evidence_days,
+                self.audit_days,
+            )
+        ):
+            raise DomainInvariantError(
+                "privacy_retention_days_invalid",
+                "Die freigegebenen Aufbewahrungsfristen sind ungültig.",
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class PrivacySubjectReport:
     normalized_recipient: str
+    retention: PrivacyRetentionPolicy
     twenty_company_ids: tuple[UUID, ...]
     twenty_person_ids: tuple[UUID, ...]
     consents: tuple[ConsentRecord, ...]
@@ -155,6 +188,7 @@ class PrivacyErasureResult:
     case_id: UUID
     subject_hash: str
     status: ErasureStatus
+    retention: PrivacyRetentionPolicy
     anonymized_commitments: int
     cleared_activity_notes: int
     cleared_reminders: int

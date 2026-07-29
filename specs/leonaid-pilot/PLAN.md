@@ -880,7 +880,7 @@ Akzeptanzkriterien:
       Zahlungsziel und Bank-/Kontaktangaben sind fachlich bestätigt.
 - [ ] E-Rechnungsentscheidung ist dokumentiert; erforderlicher zusätzlicher
       Scope blockiert den Pilot.
-- [ ] Aufbewahrungs-/Löschregeln sind konfigurierbar, versioniert und mit
+- [x] Aufbewahrungs-/Löschregeln sind konfigurierbar, versioniert und mit
       Rechnungssnapshots vereinbar.
 - [ ] Public-Form-Texte und Consent-Versionen entsprechen der bestätigten
       Rechtsgrundlage.
@@ -895,7 +895,7 @@ Tests/Nachweise:
       offene Entscheidungen und widersprüchliche Fristen in Produktion ab.
 - [ ] Realer Staging-Beleg wird inhaltlich durch verantwortliche Fachperson
       abgenommen; nur dessen SHA/Evidence-ID wird versioniert.
-- [ ] Privacy-Integration prüft Aufbewahren eines Rechnungs-Snapshots bei
+- [x] Privacy-Integration prüft Aufbewahren eines Rechnungs-Snapshots bei
       gleichzeitiger Anonymisierung nicht aufbewahrungspflichtiger Daten.
 - [ ] Produktivfreigabe von Träger, Datenschutz und erforderlicher
       Steuerberatung ist protokolliert.

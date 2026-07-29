@@ -12,12 +12,14 @@ from leonaid.domain.privacy import (
     ConsentRecord,
     LegalBasisStatus,
     PrivacyPurpose,
+    PrivacyRetentionPolicy,
     normalize_recipient,
     subject_digest,
 )
 
 NOW = datetime(2026, 7, 27, 12, tzinfo=timezone.utc)
 HMAC_SECRET = "privacy-test-secret-with-at-least-32-characters"
+LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
 
 
 def test_email_normalization_and_subject_hash_are_stable_without_raw_email() -> None:
@@ -61,3 +63,18 @@ def test_consent_rejects_revocation_before_evidence() -> None:
         )
 
     assert captured.value.code == "consent_revocation_before_grant"
+
+
+def test_retention_policy_rejects_unapproved_ranges() -> None:
+    with pytest.raises(DomainInvariantError) as captured:
+        PrivacyRetentionPolicy(
+            legal_configuration_version_id=LEGAL_CONFIGURATION_ID,
+            legal_configuration_version=1,
+            invoice_days=0,
+            commitment_days=3650,
+            contact_days=730,
+            consent_evidence_days=3650,
+            audit_days=3650,
+        )
+
+    assert captured.value.code == "privacy_retention_days_invalid"

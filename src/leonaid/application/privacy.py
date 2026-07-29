@@ -19,9 +19,8 @@ from leonaid.domain.privacy import (
 )
 
 OPEN_LEGAL_DECISIONS = (
-    "Rechtsgrundlage für öffentliche Bestellungen fachlich und rechtlich bestätigen.",
-    "Aufbewahrungs- und Löschfristen je Objektart verbindlich festlegen.",
     "Löschung im Twenty-CRM und Benachrichtigung von Empfängern operationalisieren.",
+    "Automatisierten Fristablauf und nachweisbare Löschläufe operationalisieren.",
 )
 
 

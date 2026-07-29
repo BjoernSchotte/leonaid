@@ -28,6 +28,7 @@ ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMPANY_ID = UUID("40000000-0000-4000-8000-000000000001")
 CONSENT_ID = UUID("d0000000-0000-4000-8000-000000000001")
 INVOICE_ID = UUID("90000000-0000-4000-8000-000000000002")
+LEGAL_CONFIGURATION_ID = UUID("94000000-0000-4000-8000-000000000044")
 EMAIL = "mara.muster@musterwerk.leonaid.invalid"
 SESSION_NAMESPACE = UUID("d7b23eb1-c615-4665-99e1-c35029b9c460")
 FOREIGN_CANARIES = (
@@ -156,6 +157,33 @@ async def prepare(
         base_url=require_env("API_BASE_URL").rstrip("/"),
         timeout=60,
     ) as api:
+        await connection.execute(
+            """
+            UPDATE legal_configuration_state
+            SET active_version_id = NULL
+            """
+        )
+        missing_configuration = await api.post(
+            "/api/v1/admin/privacy/lookup",
+            headers=headers(tokens["simone"]),
+            json={"email": EMAIL},
+        )
+        if (
+            missing_configuration.status_code != 409
+            or error_code(missing_configuration)
+            != "privacy_legal_configuration_missing"
+        ):
+            raise ContractFailure(
+                "Datenschutzvorgang lief ohne aktive Aufbewahrungsregeln"
+            )
+        await connection.execute(
+            """
+            UPDATE legal_configuration_state
+            SET active_version_id = $1
+            """,
+            LEGAL_CONFIGURATION_ID,
+        )
+
         lookup = await api.post(
             "/api/v1/admin/privacy/lookup",
             headers=headers(tokens["simone"]),
@@ -168,8 +196,18 @@ async def prepare(
             or payload.get("subjectEmail") != EMAIL
             or payload.get("crmDeletionStatus") != "pending_manual_review"
             or not payload.get("openLegalDecisions")
+            or payload.get("retention")
+            != {
+                "legalConfigurationVersionId": str(LEGAL_CONFIGURATION_ID),
+                "legalConfigurationVersion": 1,
+                "invoiceDays": 3650,
+                "commitmentDays": 3650,
+                "contactDays": 730,
+                "consentEvidenceDays": 3650,
+                "auditDays": 3650,
+            }
         ):
-            raise ContractFailure("Privacy-Lookup verschweigt PoC-Grenzen")
+            raise ContractFailure("Privacy-Lookup verschweigt Fristen oder PoC-Grenzen")
 
         export = await api.post(
             "/api/v1/admin/privacy/exports",
@@ -182,6 +220,7 @@ async def prepare(
             "attachment" not in export.headers.get("content-disposition", "")
             or any(canary in serialized for canary in FOREIGN_CANARIES)
             or str(INVOICE_ID) not in serialized
+            or str(LEGAL_CONFIGURATION_ID) not in serialized
         ):
             raise ContractFailure(
                 "Datenauskunft enthält fremde oder unvollständige Daten"
@@ -271,6 +310,17 @@ async def assert_result(
         or str(erasure["status"]) != "completed_with_retention"
         or erasure["subject_hash"] == EMAIL
         or EMAIL in json.dumps(dict(erasure), default=str)
+        or erasure["legal_configuration_version_id"] != LEGAL_CONFIGURATION_ID
+        or json.loads(erasure["retention_schedule"])
+        != {
+            "legalConfigurationVersion": 1,
+            "invoiceDays": 3650,
+            "commitmentDays": 3650,
+            "contactDays": 730,
+            "consentEvidenceDays": 3650,
+            "auditDays": 3650,
+        }
+        or "3650 Tage" not in erasure["retention_reasons"]
     ):
         raise ContractFailure("Löschprotokoll ist unvollständig oder enthält Roh-PII")
     audit_leak = await connection.fetchval(

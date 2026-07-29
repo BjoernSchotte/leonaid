@@ -1,5 +1,6 @@
 import {
   Alert02Icon,
+  Calendar03Icon,
   CheckmarkCircle02Icon,
   DatabaseExportIcon,
   Delete02Icon,
@@ -334,6 +335,48 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
             </section>
           </div>
 
+          <section
+            className="privacy-retention"
+            data-testid="privacy-retention"
+          >
+            <div className="privacy-panel__heading">
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Calendar03Icon}
+                size={20}
+              />
+              <div>
+                <h2>Aktive Aufbewahrungsregeln</h2>
+                <p>
+                  Freigegebene Rechtsgrundlage · Version{" "}
+                  {report.retention.legalConfigurationVersion}
+                </p>
+              </div>
+            </div>
+            <dl>
+              <div>
+                <dt>Rechnungen & PDFs</dt>
+                <dd>{report.retention.invoiceDays} Tage</dd>
+              </div>
+              <div>
+                <dt>Bestellungen</dt>
+                <dd>{report.retention.commitmentDays} Tage</dd>
+              </div>
+              <div>
+                <dt>Kontaktdaten</dt>
+                <dd>{report.retention.contactDays} Tage</dd>
+              </div>
+              <div>
+                <dt>Consent-Nachweise</dt>
+                <dd>{report.retention.consentEvidenceDays} Tage</dd>
+              </div>
+              <div>
+                <dt>Audit-Nachweise</dt>
+                <dd>{report.retention.auditDays} Tage</dd>
+              </div>
+            </dl>
+          </section>
+
           <section className="privacy-open-decisions">
             <HugeiconsIcon aria-hidden="true" icon={Alert02Icon} size={21} />
             <div>
@@ -410,7 +453,8 @@ export function PrivacyAdminPage({ client }: PrivacyAdminPageProps) {
           <p>
             {erasureResult.anonymizedCommitments} operative Bestellung(en)
             anonymisiert; {erasureResult.retainedInvoiceIds.length} Rechnung(en)
-            und {erasureResult.retainedDocumentIds.length} Dokument(e)
+            und {erasureResult.retainedDocumentIds.length} Dokument(e) gemäß
+            freigegebener Frist von {erasureResult.retention.invoiceDays} Tagen
             unverändert erhalten.
           </p>
         </StatusMessage>
