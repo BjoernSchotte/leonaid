@@ -8,6 +8,7 @@ import "./system-admin/feature-flags.css";
 import "./system-admin/legal-configuration.css";
 import "./system-admin/operations.css";
 import "./system-admin/privacy.css";
+import "./system-admin/support-diagnostics.css";
 import "./ui-system/ui-system.css";
 
 export * from "./acquisition/activity-workspace";
@@ -28,4 +29,5 @@ export * from "./system-admin/feature-flag-admin";
 export * from "./system-admin/legal-configuration";
 export * from "./system-admin/operations-admin";
 export * from "./system-admin/privacy-admin";
+export * from "./system-admin/support-diagnostics";
 export * from "./ui-system/ui-system-catalog";

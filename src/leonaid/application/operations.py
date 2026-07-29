@@ -72,6 +72,23 @@ class OperationsSnapshot:
     monitoring: MonitoringSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class RequestDiagnostic:
+    """A deliberately payload-free trace of one recent HTTP request."""
+
+    request_id: str
+    occurred_at: datetime
+    method: str
+    route: str
+    status_code: int
+    error_code: str | None
+    release: str
+
+
+class RequestDiagnostics(Protocol):
+    def find(self, request_id: str) -> RequestDiagnostic | None: ...
+
+
 class OperationsService(Protocol):
     async def snapshot(self, *, request_id: str) -> OperationsSnapshot: ...
 

@@ -961,7 +961,7 @@ Akzeptanzkriterien:
       Sperre und Sessionentzug anhand des Runbooks selbst aus.
 - [ ] Akquisiteur, Charity-Admin und Finanzen erledigen ihre Kernaufgaben
       ohne Datenbankwissen oder interne IDs.
-- [ ] Hilfetexte, Fehlermeldungen und Supportdiagnose nennen Auswirkung und
+- [x] Hilfetexte, Fehlermeldungen und Supportdiagnose nennen Auswirkung und
       nächsten Schritt.
 - [ ] Feedback wird ohne geheime oder unnötige personenbezogene Daten
       erfasst, priorisiert und einem Release zugeordnet.
@@ -972,11 +972,18 @@ Tests/Nachweise:
 
 - [ ] Moderierte Sessions mit mindestens einem Nutzer je interner Persona
       sind protokolliert.
-- [ ] Tastatur-, Zoom-, Screenreader- und Mobil-Smokes sind grün.
+- [x] Tastatur-, 200%-Zoom-, automatisierter A11y- und Mobil-Smoke sind
+      technisch grün.
+- [ ] VoiceOver- oder gleichwertiger echter Screenreader-Smoke ist mit einer
+      realen Pilotpersona protokolliert.
 - [ ] Ein unbeteiligter Operator führt Onboarding und Offboarding nur anhand
       der Dokumentation aus.
-- [ ] Supportübung korreliert einen Browserfehler bis zum Backend, ohne
+- [x] Technische Supportübung korreliert einen Browserfehler bis zum Backend,
+      ohne
       Payloadzugriff.
+
+Technischer Teilnachweis und verbleibende externe Gates:
+[`proofs/PILOT-051.md`](proofs/PILOT-051.md)
 
 ### [ ] PILOT-052 Begrenzten Live-Pilot sicher durchführen
 

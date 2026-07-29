@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections import deque
 from datetime import datetime, timezone
+from threading import Lock
 from time import perf_counter
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
@@ -20,6 +22,7 @@ from leonaid.application.operations import (
     OperationalAlert,
     OperationalCheck,
     OperationsSnapshot,
+    RequestDiagnostic,
 )
 
 
@@ -44,6 +47,50 @@ class ApiMetrics:
             errors=self._errors,
             average_latency_ms=round(average, 2),
         )
+
+
+class InMemoryRequestDiagnostics:
+    """Bounded, process-local support lookup without business payloads."""
+
+    def __init__(self, *, release: str, capacity: int = 2_000) -> None:
+        if capacity < 1:
+            raise ValueError("Der Diagnosepuffer benötigt mindestens einen Eintrag.")
+        self._release = release
+        self._entries: deque[RequestDiagnostic] = deque(maxlen=capacity)
+        self._lock = Lock()
+
+    def record(
+        self,
+        *,
+        request_id: str,
+        method: str,
+        route: str,
+        status_code: int,
+        error_code: str | None,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        entry = RequestDiagnostic(
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+            method=method,
+            route=route,
+            status_code=status_code,
+            error_code=error_code,
+            release=self._release,
+        )
+        with self._lock:
+            self._entries.append(entry)
+
+    def find(self, request_id: str) -> RequestDiagnostic | None:
+        with self._lock:
+            return next(
+                (
+                    entry
+                    for entry in reversed(self._entries)
+                    if entry.request_id == request_id
+                ),
+                None,
+            )
 
 
 def structured_event(event: str, **fields: str | int | float | bool | None) -> str:

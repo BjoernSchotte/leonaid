@@ -25,6 +25,7 @@ SIMONE_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_EMAIL = "klara.kern@leonaid.invalid"
 SESSION_NAMESPACE = UUID("7d2daf5e-1965-41c0-bbbb-3379585cf027")
 CONTRACT_REQUEST_ID = "poc114-contract-correlation"
+SUPPORT_PROBE_REQUEST_ID = "pilot051-support-contract"
 
 
 class ContractFailure(RuntimeError):
@@ -133,6 +134,65 @@ async def prepare(
         )
         if unauthorized.status_code != 401:
             raise ContractFailure("Operations-Daten waren anonym lesbar")
+
+        probe = await api.post(
+            "/api/v1/admin/support/probe",
+            headers=session_headers(request_id=SUPPORT_PROBE_REQUEST_ID),
+        )
+        if probe.status_code != 503:
+            raise ContractFailure(
+                f"Support-Probe lieferte HTTP {probe.status_code} statt 503"
+            )
+        probe_error = probe.json().get("error", {})
+        if probe_error != {
+            "code": "support_probe_failed",
+            "message": (
+                "Der kontrollierte Diagnosetest wurde wie vorgesehen "
+                "abgebrochen. Kopiere den Support-Code und prüfe ihn direkt "
+                "darunter."
+            ),
+            "requestId": SUPPORT_PROBE_REQUEST_ID,
+        }:
+            raise ContractFailure(f"Unsicherer Support-Probe-Vertrag: {probe_error}")
+
+        diagnostic = await api.get(
+            f"/api/v1/admin/support/requests/{SUPPORT_PROBE_REQUEST_ID}",
+            headers=session_headers(request_id="pilot051-support-lookup"),
+        )
+        diagnostic.raise_for_status()
+        support = diagnostic.json()
+        expected = {
+            "supportCode": SUPPORT_PROBE_REQUEST_ID,
+            "method": "POST",
+            "route": "/api/v1/admin/support/probe",
+            "statusCode": 503,
+            "errorCode": "support_probe_failed",
+            "outcome": "failed",
+        }
+        for key, value in expected.items():
+            if support.get(key) != value:
+                raise ContractFailure(
+                    f"Supportdiagnose {key}={support.get(key)!r}, erwartet {value!r}"
+                )
+        serialized = json.dumps(support, sort_keys=True).casefold()
+        forbidden = (
+            "klara.kern@",
+            "system-admin@",
+            "cookie",
+            "payload",
+            "token",
+            "actor",
+            "sponsor",
+        )
+        if any(value in serialized for value in forbidden):
+            raise ContractFailure("Supportdiagnose enthält Payload oder Identität")
+
+        anonymous_diagnostic = await api.get(
+            f"/api/v1/admin/support/requests/{SUPPORT_PROBE_REQUEST_ID}",
+            headers={"X-Request-ID": "pilot051-support-anonymous"},
+        )
+        if anonymous_diagnostic.status_code != 401:
+            raise ContractFailure("Supportdiagnose war anonym lesbar")
 
 
 async def expect_dependency(dependency: str) -> None:

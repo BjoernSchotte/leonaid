@@ -54,6 +54,37 @@ test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
       ).toContainText("Bereit");
     }
 
+    const supportPanel = page.getByTestId("support-diagnostics");
+    await expect(supportPanel).toBeVisible();
+    await supportPanel
+      .getByRole("button", { name: "Diagnose-Test starten" })
+      .click();
+    await expect(
+      supportPanel.getByRole("heading", {
+        name: "Kontrollierter Fehler wurde erzeugt",
+      }),
+    ).toBeVisible();
+    await expect(supportPanel.getByLabel("Support-Code")).toHaveValue(
+      correlationId,
+    );
+    await supportPanel
+      .getByRole("button", { name: "Sicher nachschlagen" })
+      .click();
+    const supportResult = supportPanel.getByTestId("support-diagnostic-result");
+    await expect(supportResult).toBeVisible();
+    await expect(supportResult).toContainText(
+      "Die Anfrage konnte nicht abgeschlossen werden.",
+    );
+    await expect(supportResult).toContainText(
+      "POST /api/v1/admin/support/probe",
+    );
+    await expect(supportResult).toContainText(
+      "HTTP 503 · support_probe_failed",
+    );
+    await expect(supportResult).not.toContainText("klara.kern@");
+    await expect(supportResult).not.toContainText("Cookie");
+    await expect(supportResult).not.toContainText("Payload");
+
     const retryButton = page.getByRole("button", {
       name: "Sicher wiederholen",
     });
@@ -73,6 +104,7 @@ test("System-Admin erkennt Ausfälle und wiederholt echten Mail-Job", async ({
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByTestId("operations-panel")).toBeVisible();
+    await expect(page.getByTestId("support-diagnostics")).toBeVisible();
     await page.screenshot({
       path: `${artifactDirectory}/operations-mobile.png`,
       fullPage: true,

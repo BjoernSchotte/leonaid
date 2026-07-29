@@ -1817,6 +1817,19 @@ class OperationsOverviewResponse(TransportModel):
     monitoring: OperationalMonitoringResponse
 
 
+class SupportRequestDiagnosticResponse(TransportModel):
+    support_code: str = Field(min_length=8, max_length=128)
+    occurred_at: datetime
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+    route: str
+    status_code: int = Field(ge=100, le=599)
+    error_code: str | None
+    outcome: Literal["successful", "rejected", "failed"]
+    impact: str
+    next_step: str
+    release: str
+
+
 class OperationalJobRetryResponse(TransportModel):
     id: UUID
     status: Literal["pending"]

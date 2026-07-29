@@ -87,6 +87,7 @@ from leonaid.application.invitations import InvitationService
 from leonaid.application.legal_configuration import LegalConfigurationService
 from leonaid.adapters.operations import (
     ApiMetrics,
+    InMemoryRequestDiagnostics,
     OperationsService,
     structured_event,
 )
@@ -126,6 +127,7 @@ def error_response(
     code: str,
     message: str,
 ) -> JSONResponse:
+    request.state.error_code = code
     return JSONResponse(
         status_code=status_code,
         content={
@@ -185,6 +187,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             ),
         )
         application.state.api_metrics = api_metrics
+        application.state.request_diagnostics = InMemoryRequestDiagnostics(
+            release=settings.release_commit or settings.service_version,
+        )
         application.state.security_rate_limits = AsyncpgSecurityRateLimitRepository(
             pool
         )
@@ -449,6 +454,19 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             request.app.state.api_metrics.record(
                 status_code=status_code,
                 latency_ms=latency_ms,
+            )
+            route = request.scope.get("route")
+            route_template = getattr(route, "path", None)
+            if not isinstance(route_template, str) or not route_template.startswith(
+                "/"
+            ):
+                route_template = "<unmatched>"
+            request.app.state.request_diagnostics.record(
+                request_id=request_id_for(request),
+                method=request.method,
+                route=route_template,
+                status_code=status_code,
+                error_code=getattr(request.state, "error_code", None),
             )
             entity_match = PATH_UUID.search(request.url.path)
             entity_id = entity_match.group(1) if entity_match else None

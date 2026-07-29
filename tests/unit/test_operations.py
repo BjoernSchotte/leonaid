@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 
-from leonaid.adapters.operations import ApiMetrics, structured_event
+from leonaid.adapters.operations import (
+    ApiMetrics,
+    InMemoryRequestDiagnostics,
+    structured_event,
+)
 from leonaid.application.operations import (
     ApiMetricSnapshot,
     DependencySignal,
@@ -20,6 +24,63 @@ def test_api_metrics_count_server_errors_and_average_real_values() -> None:
     assert snapshot.requests == 2
     assert snapshot.errors == 1
     assert snapshot.average_latency_ms == 20.0
+
+
+def test_request_diagnostics_keep_only_bounded_safe_metadata() -> None:
+    diagnostics = InMemoryRequestDiagnostics(release="pilot-release", capacity=2)
+    diagnostics.record(
+        request_id="pilot-support-first",
+        method="POST",
+        route="/api/v1/public/actions/{alias}/orders",
+        status_code=422,
+        error_code="request_invalid",
+    )
+    diagnostics.record(
+        request_id="pilot-support-second",
+        method="POST",
+        route="/api/v1/admin/support/probe",
+        status_code=503,
+        error_code="support_probe_failed",
+    )
+    diagnostics.record(
+        request_id="pilot-support-third",
+        method="GET",
+        route="/api/v1/admin/support/requests/{support_code}",
+        status_code=200,
+        error_code=None,
+    )
+
+    assert diagnostics.find("pilot-support-first") is None
+    found = diagnostics.find("pilot-support-second")
+    assert found is not None
+    assert found.route == "/api/v1/admin/support/probe"
+    assert found.status_code == 503
+    assert found.error_code == "support_probe_failed"
+    assert found.release == "pilot-release"
+    assert not hasattr(found, "payload")
+    assert not hasattr(found, "actor_user_id")
+
+
+def test_request_diagnostics_use_latest_duplicate_support_code() -> None:
+    diagnostics = InMemoryRequestDiagnostics(release="pilot-release")
+    diagnostics.record(
+        request_id="pilot-support-duplicate",
+        method="GET",
+        route="/health/live",
+        status_code=200,
+        error_code=None,
+    )
+    diagnostics.record(
+        request_id="pilot-support-duplicate",
+        method="POST",
+        route="/api/v1/admin/support/probe",
+        status_code=503,
+        error_code="support_probe_failed",
+    )
+
+    found = diagnostics.find("pilot-support-duplicate")
+    assert found is not None
+    assert found.route == "/api/v1/admin/support/probe"
 
 
 def test_structured_event_contains_only_explicit_safe_fields() -> None:

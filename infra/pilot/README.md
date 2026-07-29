@@ -37,6 +37,9 @@ Evidence-Report enthält ausschließlich Status und Fehlercodes.
 Release, Migration, Promotion und Rollback folgen dem
 [`RELEASE-RUNBOOK.md`](RELEASE-RUNBOOK.md). Produktion akzeptiert nur ein
 Manifest, das zuvor mit exakt demselben SHA in Staging verifiziert wurde.
+Pilotnutzer, Rollenwechsel, Offboarding, datensparsames Feedback und die
+Support-Code-Strecke folgen dem
+[`ONBOARDING-SUPPORT-RUNBOOK.md`](ONBOARDING-SUPPORT-RUNBOOK.md).
 
 ## Compose- und Release-Prüfung
 

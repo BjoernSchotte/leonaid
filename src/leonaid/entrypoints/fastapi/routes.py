@@ -70,7 +70,11 @@ from leonaid.application.actions import (
     PublicActionRoute,
     UpdateActionDetailsDraft,
 )
-from leonaid.application.errors import Conflict, DependencyUnavailable
+from leonaid.application.errors import (
+    Conflict,
+    DependencyUnavailable,
+    ResourceNotFound,
+)
 from leonaid.application.feature_flags import FeatureFlagService
 from leonaid.application.identity import (
     ROLE_LABELS,
@@ -82,7 +86,7 @@ from leonaid.application.identity import (
 )
 from leonaid.application.invitations import InvitationService
 from leonaid.application.legal_configuration import LegalConfigurationService
-from leonaid.application.operations import OperationsService
+from leonaid.application.operations import OperationsService, RequestDiagnostics
 from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
 from leonaid.application.platform import PlatformApplicationService
 from leonaid.application.policies import require_system_admin
@@ -319,6 +323,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     SponsorDraftRequest,
     SponsorMatchResponse,
     SponsorResolutionResponse,
+    SupportRequestDiagnosticResponse,
     TransitionCharityActionRequest,
     UpdateAcquisitionAssignmentRequest,
     UpdateActivityFeedItemRequest,
@@ -335,6 +340,10 @@ def platform_service(request: Request) -> PlatformApplicationService:
 
 def operations_service(request: Request) -> OperationsService:
     return cast(OperationsService, request.app.state.operations_service)
+
+
+def request_diagnostics(request: Request) -> RequestDiagnostics:
+    return cast(RequestDiagnostics, request.app.state.request_diagnostics)
 
 
 def public_order_tokens(request: Request) -> PublicOrderTokenCodec:
@@ -2159,6 +2168,85 @@ async def operations_overview(
                 for item in snapshot.monitoring.active_alerts
             ],
         ),
+    )
+
+
+@router.post(
+    "/api/v1/admin/support/probe",
+    operation_id="runSupportProbe",
+    response_model=ApiErrorResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["operations"],
+)
+async def run_support_probe(request: Request) -> ApiErrorResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_system_admin(actor)
+    raise DependencyUnavailable(
+        "support_probe_failed",
+        (
+            "Der kontrollierte Diagnosetest wurde wie vorgesehen abgebrochen. "
+            "Kopiere den Support-Code und prüfe ihn direkt darunter."
+        ),
+    )
+
+
+@router.get(
+    "/api/v1/admin/support/requests/{support_code}",
+    operation_id="getSupportRequestDiagnostic",
+    response_model=SupportRequestDiagnosticResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["operations"],
+)
+async def support_request_diagnostic(
+    support_code: str,
+    request: Request,
+    response: Response,
+) -> SupportRequestDiagnosticResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_system_admin(actor)
+    diagnostic = request_diagnostics(request).find(support_code)
+    if diagnostic is None:
+        raise ResourceNotFound(
+            "support_request_not_found",
+            (
+                "Zu diesem Support-Code gibt es im aktuellen Diagnosefenster "
+                "keinen Eintrag. Prüfe den Code oder wiederhole den Vorgang."
+            ),
+        )
+    outcome: Literal["successful", "rejected", "failed"]
+    if diagnostic.status_code >= 500:
+        outcome = "failed"
+        impact = "Die Anfrage konnte nicht abgeschlossen werden."
+        next_step = (
+            "Prüfe den Betriebsstatus und das Runbook zum genannten Fehlercode. "
+            "Wiederhole erst danach die betroffene Aktion."
+        )
+    elif diagnostic.status_code >= 400:
+        outcome = "rejected"
+        impact = "Die Anfrage wurde kontrolliert abgelehnt."
+        next_step = (
+            "Prüfe Berechtigung, Eingaben und Anmeldung. Es wurden keine "
+            "fachlichen Daten aus dieser Anfrage angezeigt."
+        )
+    else:
+        outcome = "successful"
+        impact = "Die Anfrage wurde erfolgreich verarbeitet."
+        next_step = "Es ist keine technische Maßnahme erforderlich."
+    response.headers["Cache-Control"] = "no-store"
+    return SupportRequestDiagnosticResponse(
+        support_code=diagnostic.request_id,
+        occurred_at=diagnostic.occurred_at,
+        method=cast(
+            Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+            diagnostic.method,
+        ),
+        route=diagnostic.route,
+        status_code=diagnostic.status_code,
+        error_code=diagnostic.error_code,
+        outcome=outcome,
+        impact=impact,
+        next_step=next_step,
+        release=diagnostic.release,
     )
 
 

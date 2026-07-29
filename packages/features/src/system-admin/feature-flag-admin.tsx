@@ -20,6 +20,7 @@ import {
   useLeonAidBooleanFlag,
 } from "../feature-flags/openfeature-provider";
 import { OperationsAdminPanel } from "./operations-admin";
+import { SupportDiagnosticsPanel } from "./support-diagnostics";
 
 export interface FeatureFlagAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -251,6 +252,7 @@ export function FeatureFlagAdminPage({ client }: FeatureFlagAdminPageProps) {
       )}
 
       <OperationsAdminPanel client={client} />
+      <SupportDiagnosticsPanel client={client} />
 
       <div className="feature-admin-section-heading" id="feature-flags">
         <p className="feature-admin-header__eyebrow">Kontrollierter Rollout</p>

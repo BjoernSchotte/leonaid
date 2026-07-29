@@ -176,6 +176,7 @@ export type SponsorDraftResponse = { readonly city: string | null; readonly comp
 export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
 export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCandidateResponse>; readonly input: SponsorDraftResponse; readonly normalizedKey: string; readonly partyKind: "company" | "person"; readonly status: "no_match" | "single_match" | "ambiguous_match"; };
 export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly contactTwentyId: string | null; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly replayed: boolean; readonly twentyId: string; };
+export type SupportRequestDiagnosticResponse = { readonly errorCode: string | null; readonly impact: string; readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; readonly nextStep: string; readonly occurredAt: string; readonly outcome: "successful" | "rejected" | "failed"; readonly release: string; readonly route: string; readonly statusCode: number; readonly supportCode: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
@@ -1218,6 +1219,27 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async runSupportProbe(
+    options: RequestOptions = {},
+  ): Promise<ApiErrorResponse> {
+    return this.request<ApiErrorResponse>(
+      "/api/v1/admin/support/probe",
+      { method: "POST" },
+      options,
+    );
+  }
+
+  async getSupportRequestDiagnostic(
+    supportCode: string,
+    options: RequestOptions = {},
+  ): Promise<SupportRequestDiagnosticResponse> {
+    return this.request<SupportRequestDiagnosticResponse>(
+      `/api/v1/admin/support/requests/${encodeURIComponent(String(supportCode))}`,
+      { method: "GET" },
       options,
     );
   }
