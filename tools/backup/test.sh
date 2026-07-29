@@ -68,6 +68,12 @@ trap cleanup EXIT HUP INT TERM
   echo "backup-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
   exit 1
 }
+docker run --rm \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/backup/manifest_test.py
 twenty_password=$(sed -n 's/^TWENTY_POSTGRES_PASSWORD=//p' "$env_file" | tail -n 1)
 [ -n "$twenty_password" ] || {
   echo "backup-test: ERROR: TWENTY_POSTGRES_PASSWORD fehlt" >&2

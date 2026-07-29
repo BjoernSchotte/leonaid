@@ -141,18 +141,12 @@ backup_root=$(find "$stage" -type f -name manifest.json -print | head -n 1)
 backup_root=$(dirname "$backup_root")
 
 docker run --rm \
-  -e "EXPECTED_SOURCE_PROJECT=$source_project" \
+  -e PYTHONPATH=/workspace \
+  -v "$root:/workspace:ro" \
   -v "$backup_root:/backup:ro" \
   "$PYTHON_IMAGE" \
-  python -c 'import hashlib,json,os,pathlib,sys
-p=pathlib.Path("/backup")
-m=json.loads((p/"manifest.json").read_text())
-if m.get("schemaVersion") != 1 or m.get("sourceProject") != os.environ["EXPECTED_SOURCE_PROJECT"]:
-    sys.exit("restore: Backup-Manifest gehört nicht zur erwarteten Quelle")
-for name,item in m.get("files",{}).items():
-    data=(p/name).read_bytes()
-    if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
-        sys.exit(f"restore: Prüfsumme weicht ab: {name}")'
+  python /workspace/tools/backup/manifest.py /backup \
+    --source-project "$source_project"
 
 for volume in twenty-server-data rustfs-data; do
   docker volume create \

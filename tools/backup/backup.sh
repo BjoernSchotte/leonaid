@@ -150,13 +150,11 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   tar -C /source -cf /backup/rustfs-data.tar .
 
-created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 docker run --rm \
-  -e "BACKUP_CREATED_AT=$created_at" \
   -e "BACKUP_SOURCE_PROJECT=$project" \
   -v "$stage:/backup" \
   "$PYTHON_IMAGE" \
-  python -c 'import hashlib,json,os,pathlib
+  python -c 'import datetime,hashlib,json,os,pathlib
 p=pathlib.Path("/backup")
 files={}
 for name in ("core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"):
@@ -164,7 +162,7 @@ for name in ("core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"):
     files[name]={"sha256":hashlib.sha256(data).hexdigest(),"size":len(data)}
 (p/"manifest.json").write_text(json.dumps({
     "schemaVersion":1,
-    "createdAt":os.environ["BACKUP_CREATED_AT"],
+    "createdAt":datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "sourceProject":os.environ["BACKUP_SOURCE_PROJECT"],
     "files":files,
 },sort_keys=True,indent=2)+"\n")'
