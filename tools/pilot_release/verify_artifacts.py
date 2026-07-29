@@ -50,13 +50,17 @@ def verify(root: Path, artifact_directory: Path) -> None:
     required_results = {
         "preContract",
         "preE2e",
+        "preGoldenJourney",
         "maintenanceWriteBoundary",
         "postContract",
         "postE2e",
+        "postGoldenJourney",
         "sameManifestPromotion",
         "coreMigrationFailureDetected",
         "failedUpgradeDetected",
         "backupRollback",
+        "rollbackGoldenJourney",
+        "rollbackJourneyEquivalent",
         "releaseLedger",
     }
     if result.get("result") != "passed" or any(
@@ -123,6 +127,20 @@ def verify(root: Path, artifact_directory: Path) -> None:
         raise InvalidEvidence("Dokument-SHAs drifteten beim Upgrade")
     if _documents(pre) != _documents(rollback):
         raise InvalidEvidence("Dokument-SHAs drifteten beim Rollback")
+
+    journey_before = _load_object(artifact_directory / "journey-before.normalized.json")
+    journey_after = _load_object(artifact_directory / "journey-after.normalized.json")
+    journey_rollback = _load_object(
+        artifact_directory / "journey-rollback.normalized.json"
+    )
+    if journey_before.get("round") != "round-1":
+        raise InvalidEvidence("Golden Journey vor Upgrade ist nicht Runde 1")
+    if journey_after.get("round") != "round-2":
+        raise InvalidEvidence("Golden Journey nach Upgrade ist nicht Runde 2")
+    if journey_rollback != journey_after:
+        raise InvalidEvidence(
+            "Golden Journey nach Rollback ist nicht fachlich identisch"
+        )
 
     failure_log = (artifact_directory / "core-migration-failure.log").read_text(
         encoding="utf-8"

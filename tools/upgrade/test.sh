@@ -332,6 +332,21 @@ snapshot_and_verify() {
 run_e2e() {
   project=$1
   phase=$2
+  case "$phase" in
+    before)
+      expected_order_count=6
+      expected_quantity="25 Boxen · 600 Stück"
+      expected_invoiced="504,00 €"
+      expected_outstanding="360,00 €"
+      ;;
+    after|rollback)
+      expected_order_count=12
+      expected_quantity="34 Boxen · 816 Stück"
+      expected_invoiced="720,00 €"
+      expected_outstanding="360,00 €"
+      ;;
+    *) fail "Unbekannte Browser-Smoke-Phase: $phase" ;;
+  esac
   docker run --rm \
     --network "${project}_edge" \
     --env CI=1 \
@@ -339,6 +354,10 @@ run_e2e() {
     --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof \
     --env "LEONAID_UPGRADE_PHASE=$phase" \
+    --env "LEONAID_UPGRADE_EXPECTED_ORDER_COUNT=$expected_order_count" \
+    --env "LEONAID_UPGRADE_EXPECTED_QUANTITY=$expected_quantity" \
+    --env "LEONAID_UPGRADE_EXPECTED_INVOICED=$expected_invoiced" \
+    --env "LEONAID_UPGRADE_EXPECTED_OUTSTANDING=$expected_outstanding" \
     --env KLARA_SESSION=poc101-10000000-0000-4000-8000-000000000002-server-session-token-value \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
@@ -353,6 +372,92 @@ run_e2e() {
     --reporter=line
   [ -s "$proof/upgrade-$phase.png" ] ||
     fail "Browsernachweis fehlt: upgrade-$phase.png"
+}
+
+run_full_golden_journey() {
+  mode=$1
+  project=$2
+  phase=$3
+  round_name=$4
+  case "$mode" in
+    source) runner=source_target ;;
+    rollback) runner=rollback_target ;;
+    *) fail "Unbekannter Golden-Journey-Modus: $mode" ;;
+  esac
+  artifact_path="journey-$phase"
+  session_file="sessions-$phase.env"
+  summary_file="journey-$phase.json"
+  normalized_file="journey-$phase.normalized.json"
+  mkdir -p "$proof/$artifact_path"
+
+  $runner run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
+    --env TWENTY_BASE_URL=http://twenty-server:3000 \
+    --env TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/golden_journey/contract.py \
+    prepare-sessions "$round_name" "/proof/$session_file"
+
+  session_mode=$(stat -c '%a' "$proof/$session_file" 2>/dev/null || \
+    stat -f '%Lp' "$proof/$session_file")
+  [ "$session_mode" = "600" ] ||
+    fail "Golden-Journey-Sitzungsdatei ist nicht Modus 600: $phase"
+
+  docker run --rm \
+    --network "${project}_edge" \
+    --env CI=1 \
+    --env HOME=/tmp \
+    --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_MAILPIT_URL=http://mailpit:8025/mail \
+    --env LEONAID_E2E_ARTIFACT_DIR="/proof/$artifact_path" \
+    --env LEONAID_GOLDEN_JOURNEY_ROUND="$round_name" \
+    --env-file "$proof/$session_file" \
+    --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" \
+    --workdir /workspace \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test \
+    --config=tests/e2e/pwa.config.mjs \
+    golden-journey.spec.mjs \
+    --project=chromium-390 \
+    --project=firefox-390 \
+    --project=webkit-390 \
+    --output="/proof/results-journey-$phase" \
+    --trace=retain-on-failure \
+    --reporter=line
+
+  $runner run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    --env-from-file "$env_file" \
+    --env API_BASE_URL=http://api:8000 \
+    --env MAIL_TEST_API_URL=http://mailpit:8025/mail \
+    --env TWENTY_BASE_URL=http://twenty-server:3000 \
+    --env TWENTY_INTEGRATION_API_KEY="$integration_key" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$proof:/proof" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/golden_journey/contract.py \
+    verify "$round_name" "/proof/$artifact_path" \
+    "/proof/$summary_file" "/proof/$normalized_file"
+
+  $runner run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --entrypoint python \
+    api -c 'import httpx
+response=httpx.delete("http://mailpit:8025/mail/api/v1/messages",timeout=20)
+response.raise_for_status()'
+
+  echo "upgrade-test: vollständige Golden Journey OK: $phase ($round_name)"
 }
 
 restore_source_version() {
@@ -428,8 +533,9 @@ source_old --profile dev-mail run --rm --no-deps \
   /proof/pdfs
 run_dashboard_contract source
 snapshot_and_verify source pre-upgrade golden
-source_old up --detach --wait --wait-timeout 420 public pwa web proxy
+source_old up --detach --wait --wait-timeout 420 worker public pwa web proxy
 run_e2e "$source_project" before
+run_full_golden_journey source "$source_project" before round-1
 record_release_event \
   "$release_v1" staging_verified passed PILOT-043-STAGING-V1 \
   2026-07-28T08:10:00Z
@@ -474,6 +580,7 @@ run_maintenance_contract source available
 run_dashboard_contract source
 snapshot_and_verify source post-upgrade golden
 run_e2e "$source_project" after
+run_full_golden_journey source "$source_project" after round-2
 record_release_event \
   "$release_v2" staging_verified passed PILOT-043-STAGING-V2 \
   2026-07-28T08:40:00Z
@@ -572,6 +679,15 @@ rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback rollback-restored golden
 run_e2e "$rollback_project" rollback
+run_full_golden_journey rollback "$rollback_project" rollback round-2
+if ! cmp -s \
+  "$proof/journey-after.normalized.json" \
+  "$proof/journey-rollback.normalized.json"; then
+  diff -u \
+    "$proof/journey-after.normalized.json" \
+    "$proof/journey-rollback.normalized.json" >&2 || true
+  fail "Golden Journey ist nach dem Rollback nicht fachlich identisch"
+fi
 record_release_event \
   "$release_v2" rollback_verified passed PILOT-043-POST-SMOKE-ROLLBACK \
   2026-07-28T09:50:00Z
@@ -591,10 +707,21 @@ cp "$proof"/upgrade-before.png \
     "$proof"/release-v2.json \
     "$proof"/release-ledger.jsonl \
     "$proof"/twenty-instance-upgrade-primary.log \
-    "$proof"/twenty-instance-upgrade-failure-clone.log \
-    "$proof"/twenty-upgrade-primary.log \
+  "$proof"/twenty-instance-upgrade-failure-clone.log \
+  "$proof"/twenty-upgrade-primary.log \
   "$proof"/twenty-upgrade-failure-clone.log \
+  "$proof"/journey-before.json \
+  "$proof"/journey-before.normalized.json \
+  "$proof"/journey-after.json \
+  "$proof"/journey-after.normalized.json \
+  "$proof"/journey-rollback.json \
+  "$proof"/journey-rollback.normalized.json \
   "$root/infra/upgrade/compatibility-matrix.json" \
+  "$artifact_directory/"
+cp -R \
+  "$proof"/journey-before \
+  "$proof"/journey-after \
+  "$proof"/journey-rollback \
   "$artifact_directory/"
 docker run --rm \
   -v "$artifact_directory:/artifacts" \
@@ -607,16 +734,21 @@ pathlib.Path("/artifacts/result.json").write_text(json.dumps({
   "target":{"twenty":"2.24.0","rustfs":"1.0.0-beta.11"},
   "preContract":"passed",
   "preE2e":"passed",
+  "preGoldenJourney":"passed",
   "maintenanceWriteBoundary":"passed",
   "postContract":"passed",
   "postE2e":"passed",
+  "postGoldenJourney":"passed",
   "sameManifestPromotion":"passed",
   "coreMigrationFailureDetected":"passed",
   "failedUpgradeDetected":"passed",
   "backupRollback":"passed",
+  "rollbackGoldenJourney":"passed",
+  "rollbackJourneyEquivalent":"passed",
   "releaseLedger":"passed"
 },sort_keys=True,indent=2)+"\n")'
 
 echo "upgrade-test: OK: reale Twenty- und RustFS-Upgrades,"
 echo "upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade"
+echo "upgrade-test:     vollständige Golden Journeys vor/nach Upgrade und Rollback"
 echo "upgrade-test:     sowie Manifest-Promotion, Migrationsfehler und Recovery bewiesen"

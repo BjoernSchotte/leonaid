@@ -1,9 +1,9 @@
 # PILOT-043 – Technischer Nachweis
 
-Stand: 2026-07-28
-Ergebnis: technische Release-, Migrations- und Rollbackbasis bewiesen;
-unabhängiger Operator-Smoke und vollständige Golden Journey je Releasegrenze
-bleiben offen.
+Stand: 2026-07-29
+Ergebnis: technische Release-, Migrations- und Rollbackbasis sowie die
+vollständige Krapfentaxi Golden Journey an allen Releasegrenzen bewiesen;
+der unabhängige Operator-Restore bleibt offen.
 
 ## Implementierter Vertrag
 
@@ -39,12 +39,14 @@ pilot-release-contract: OK: Manifestbindung, Drift, Staging-Promotion und
 secretsfreies Ledger bewiesen
 upgrade-test: OK: reale Twenty- und RustFS-Upgrades,
 upgrade-test:     Wartungsgrenze, Contract/E2E vor und nach dem Upgrade
+upgrade-test:     vollständige Golden Journeys vor/nach Upgrade und Rollback
 upgrade-test:     sowie Manifest-Promotion, Migrationsfehler und Recovery
-bewiesen
+                  bewiesen
 pilot-release-evidence: OK: Promotion, Migrationsfehler, Rollback und
 Dokument-SHAs bewiesen
 pilot-release-test: OK: zwei reale Releaseversionen, identische Promotion,
-pilot-release-test:     Migrationsfehler, Recovery und Rollback bewiesen
+pilot-release-test:     vollständige Golden Journeys, Migrationsfehler,
+pilot-release-test:     Recovery und Rollback bewiesen
 ```
 
 Der Test verwendet keine Mocks:
@@ -52,25 +54,34 @@ Der Test verwendet keine Mocks:
 1. baut die Testimages einmal vor der Releasegrenze und bindet ihre
    unveränderlichen Image-IDs;
 2. startet Release v1 mit Twenty 2.23.2 und RustFS 1.0.0-beta.10;
-3. provisioniert Twenty, rendert drei reale Typst-PDFs, seedet Golden Data
-   und prüft Dashboard sowie Chromium;
-4. erstellt einen verschlüsselten Restic-Recovery-Point und führt
-   `restic check` aus;
-5. aktiviert Wartungsmodus, stoppt Writer und migriert auf Twenty 2.24.0
+3. provisioniert Twenty, rendert drei reale Typst-PDFs, seedet Golden Data,
+   prüft Dashboard sowie Chromium und durchläuft anschließend die vollständige
+   Krapfentaxi Golden Journey in Chromium, Firefox und WebKit;
+4. verifiziert dabei Einladung und Passwortlos-Login, Akquisiteur-PWA,
+   Sponsor und Twenty-Zuordnung, Aktivität, interne Zusage, öffentliche
+   Bestellung, Feed, Rechnungsfreigabe, Typst-PDF, E-Mail-Versand,
+   Zahlung und Dashboard ohne direkten Datenbankeingriff;
+5. erstellt einen verschlüsselten Restic-Recovery-Point einschließlich des
+   ersten Journey-Fachstands und führt `restic check` aus;
+6. aktiviert Wartungsmodus, stoppt Writer und migriert auf Twenty 2.24.0
    sowie RustFS 1.0.0-beta.11;
-6. prüft Release v2 in Staging und protokolliert dessen Manifest-SHA;
-7. versucht denselben SHA in einem getrennten Produktionsprojekt, führt
+7. prüft Release v2 in Staging, durchläuft eine zweite vollständige
+   Mehrbrowser-Journey und protokolliert dessen Manifest-SHA;
+8. versucht denselben SHA in einem getrennten Produktionsprojekt, führt
    `alembic upgrade pilot_missing_revision` real aus und beweist Exit ungleich
    null sowie fortbestehende Schreibsperre;
-8. entfernt nur das exakte Zielprojekt, restauriert alle vier
-   Cross-System-Bestandteile und bestätigt den Golden-Stand;
-9. promoted denselben Manifest-SHA erneut, migriert erfolgreich und bestätigt
-   den Zielstand;
-10. verändert anschließend Core, Twenty, RustFS und Mailzustand bewusst,
+9. entfernt nur das exakte Zielprojekt, restauriert alle vier
+   Cross-System-Bestandteile und bestätigt den Golden- und Journey-Stand;
+10. promoted denselben Manifest-SHA erneut, migriert erfolgreich und bestätigt
+    den Zielstand;
+11. verändert anschließend Core, Twenty, RustFS und Mailzustand bewusst,
     erkennt den fachlichen Post-Smoke-Fehler und restauriert erneut;
-11. vergleicht Dokument-Objektschlüssel, Größen und SHA-256 vor Upgrade,
+12. durchläuft auf dem final zurückgerollten Release dieselbe zweite
+    Krapfentaxi-Journey in Chromium, Firefox und WebKit und vergleicht das
+    normalisierte Fachresultat bytegenau mit dem Nach-Upgrade-Ergebnis;
+13. vergleicht Dokument-Objektschlüssel, Größen und SHA-256 vor Upgrade,
     nach Upgrade und nach Rollback;
-12. entfernt beide isolierten Compose-Projekte, Netzwerke und Volumes.
+14. entfernt beide isolierten Compose-Projekte, Netzwerke und Volumes.
 
 Lokale, ignorierte Belege liegen unter `.artifacts/pilot043/`, darunter:
 
@@ -81,6 +92,11 @@ Lokale, ignorierte Belege liegen unter `.artifacts/pilot043/`, darunter:
   fachlichem Rollback;
 - unveränderte Dokumentmanifeste;
 - Chromium-Screenshots vor/nach Upgrade und nach Rollback;
+- je Releasegrenze drei vollständige Journey-Zusammenfassungen, sechs
+  Rollen-Screenshots und drei echte Typst-Rechnungs-PDFs;
+- `journey-before.normalized.json`, `journey-after.normalized.json` und
+  `journey-rollback.normalized.json`; Nach-Upgrade und Nach-Rollback sind
+  bytegleich;
 - secretsfreie Twenty-Migrationslogs und `result.json`.
 
 ## Zusätzlich wiederverwendete harte Gates
@@ -96,8 +112,7 @@ Lokale, ignorierte Belege liegen unter `.artifacts/pilot043/`, darunter:
 
 - Ein unabhängiger Operator muss den letzten freigegebenen Zustand allein
   anhand des Runbooks und ohne Implementiererhilfe restaurieren.
-- Der bestehende Releasegrenzentest bedient einen realen Chromium-Dashboard-
-  und Dokument-Smoke. Die **vollständige** Krapfentaxi Golden Journey je
-  Releasegrenze bleibt für die produktionsnahe Generalprobe offen; der
-  eigenständige Mehrbrowser-Nachweis aus PILOT-050 wird nicht durch einen
-  kleineren Test ersetzt.
+- PILOT-050 bleibt als produktionsnahe Generalprobe mit realen Providern,
+  externem Backup, DNS/TLS, kontrolliertem Pilotdatensatz und unabhängigen
+  Operatorhandlungen offen. Der hier bewiesene synthetische Mehrbrowserpfad
+  ersetzt diese externen Betriebs- und Freigabegrenzen nicht.

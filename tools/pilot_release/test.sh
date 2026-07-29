@@ -28,4 +28,5 @@ docker run --rm \
     /workspace /workspace/.artifacts/pilot043
 
 echo "pilot-release-test: OK: zwei reale Releaseversionen, identische Promotion,"
-echo "pilot-release-test:     Migrationsfehler, Recovery und Rollback bewiesen"
+echo "pilot-release-test:     vollständige Golden Journeys, Migrationsfehler,"
+echo "pilot-release-test:     Recovery und Rollback bewiesen"

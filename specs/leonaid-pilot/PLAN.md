@@ -860,11 +860,11 @@ Tests/Nachweise:
 - [x] `./leonaid test-pilot-release` promoted zwei reale Versionen durch
       Staging, erzeugt einen absichtlichen Migrationsfehler und rollt sauber
       zurück.
-- [ ] Golden Journey läuft vor und nach Upgrade/Rollback.
+- [x] Golden Journey läuft vor und nach Upgrade/Rollback.
 - [x] Audit/Releaseprotokoll enthält keine Secrets.
 - [x] Recovery Point und alle Dokument-SHAs stimmen nach Rollback.
 
-Technischer Nachweis und verbleibende Betreiber-/Journey-Grenzen:
+Technischer Nachweis und verbleibende Betreibergrenze:
 [`proofs/PILOT-043.md`](proofs/PILOT-043.md)
 
 ### [ ] PILOT-044 Reale Träger-, Rechnungs- und Datenschutzkonfiguration freigeben
