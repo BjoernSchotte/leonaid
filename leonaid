@@ -24,6 +24,7 @@ Commands:
                     Run the real Twenty CRM gateway contract
   test-crm-import   Prove the Golden XLSX import against an empty real Twenty
   test-identity     Prove accounts, roles, sessions and persona navigation
+  test-user-admin   Prove complete user administration through real UI
   test-invitations  Prove invitation permissions, link/code and real delivery
   test-sessions     Prove 90-day sessions, fresh login and immediate revocation
   test-policy       Prove central row-level policies against PostgreSQL/Twenty
@@ -70,6 +71,8 @@ Commands:
                     Prove real Prometheus/Alertmanager delivery and recovery
   test-pilot-release
                     Prove immutable promotion, migration failure and rollback
+  test-pilot-rehearsal --synthetic
+                    Prove the full local rehearsal without claiming external gates
   pilot-release-manifest <create|verify> [OPTIONS]
                     Create or verify an immutable release manifest
   pilot-release-record [OPTIONS]
@@ -759,6 +762,7 @@ case "$command" in
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
+  test-user-admin) /bin/sh "$root/tools/user_admin/test.sh" "$root" ;;
   test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;
   test-sessions) /bin/sh "$root/tools/sessions/test.sh" "$root" ;;
   test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
@@ -855,6 +859,10 @@ case "$command" in
   test-pilot-release)
     require_docker
     /bin/sh "$root/tools/pilot_release/test.sh" "$root"
+    ;;
+  test-pilot-rehearsal)
+    require_docker
+    /bin/sh "$root/tools/pilot_rehearsal/test.sh" "$root" "${2:-}"
     ;;
   pilot-release-manifest)
     require_docker

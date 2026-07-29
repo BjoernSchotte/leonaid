@@ -932,13 +932,19 @@ Akzeptanzkriterien:
 Tests/Nachweise:
 
 - [ ] `./leonaid test-pilot-rehearsal` ist aus leerem Zustand grün.
-- [ ] Automatisierte synthetische Journey läuft in Chromium, Firefox und
+- [x] `./leonaid test-pilot-rehearsal --synthetic` ist aus leerem Zustand
+      auf realen isolierten Diensten grün und erklärt ausdrücklich keine
+      Produktionsbereitschaft.
+- [x] Automatisierte synthetische Journey läuft in Chromium, Firefox und
       WebKit.
-- [ ] Kritische Operatorstrecken werden zusätzlich sichtbar im
+- [x] Kritische Operatorstrecken werden zusätzlich sichtbar im
       In-App-Browser ausgeführt.
 - [ ] Private reale Evidence und öffentlicher sanitizter Summenproof sind
       vollständig.
 - [ ] P0/P1-Befunde sind geschlossen; P2 besitzt Owner und Pilotentscheid.
+
+Technischer synthetischer Nachweis und verbleibende externe Gates:
+[`proofs/PILOT-050.md`](proofs/PILOT-050.md)
 
 ### [ ] PILOT-051 Pilotnutzer onboarden und Supportfähigkeit beweisen
 

@@ -5,7 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=leonaid-poc042-test
+project=${LEONAID_SESSION_TEST_PROJECT:-leonaid-poc042-test}
 port=18088
 https_port=18448
 env_file="$root/.env.local"

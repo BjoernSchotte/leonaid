@@ -4,7 +4,7 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 
-project=leonaid-poc033-test
+project=${LEONAID_CRM_IMPORT_TEST_PROJECT:-leonaid-poc033-test}
 port=18085
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
