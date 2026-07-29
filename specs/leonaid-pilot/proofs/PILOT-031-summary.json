@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "leonaid.pilot-import-proof-summary/v1",
+  "scope": "synthetic-golden-structure-on-real-services",
+  "services": {
+    "corePostgres": "real",
+    "rustfs": "real",
+    "twenty": "real"
+  },
+  "dryRun": {
+    "new": 1,
+    "update": 2,
+    "unchanged": 0,
+    "conflict": 0,
+    "rejected": 1
+  },
+  "apply": {
+    "writes": 3
+  },
+  "verify": {
+    "new": 0,
+    "update": 0,
+    "unchanged": 3,
+    "conflict": 0,
+    "rejected": 1
+  },
+  "negativeGates": [
+    "UNRESOLVED_CONFLICT",
+    "BATCH_APPLY_CONCURRENT",
+    "APPROVAL_FINGERPRINT_MISMATCH",
+    "STALE_RESOLUTION",
+    "RECOVERY_POINT_TARGET_MISMATCH"
+  ],
+  "restore": "pre-apply-state-recovered",
+  "dockerCleanup": {
+    "containers": 0,
+    "networks": 0,
+    "volumes": 0
+  },
+  "containsPersonalData": false
+}

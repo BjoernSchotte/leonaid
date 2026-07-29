@@ -643,20 +643,20 @@ Akzeptanzkriterien:
 - [ ] Fehlen stabile Source-IDs, wird eine fachlich stabile,
       wiederholbare Schlüsselstrategie definiert; Zeilennummern oder
       veränderliche Reihenfolge sind verboten.
-- [ ] Fuzzy Matches werden nur als Kandidaten gemeldet und niemals
+- [x] Fuzzy Matches werden nur als Kandidaten gemeldet und niemals
       automatisch zusammengeführt.
-- [ ] Dry Run schreibt nicht nach Twenty oder Core.
-- [ ] Report enthält pro Zeile Status, stabilen Fehlercode und Kandidaten,
+- [x] Dry Run schreibt nicht nach Twenty oder Core.
+- [x] Report enthält pro Zeile Status, stabilen Fehlercode und Kandidaten,
       aber öffentliche Summen enthalten keine Personenwerte.
 
 Tests/Nachweise:
 
 - [ ] Synthetische Strukturfixture prüft jede reale Spalten-/Formatvariante.
-- [ ] Absichtlich beschädigte Kopien prüfen fehlende Header, Formeln,
+- [x] Absichtlich beschädigte Kopien prüfen fehlende Header, Formeln,
       doppelte IDs, ungültige E-Mail und mehrdeutige Matches.
-- [ ] Dry Run gegen einen realen staging-Twenty-Snapshot erzeugt
+- [x] Dry Run gegen einen realen staging-Twenty-Snapshot erzeugt
       reproduzierbare Counts.
-- [ ] Zweiter Dry Run mit identischem Fingerprint ist bytegleich bis auf
+- [x] Zweiter Dry Run mit identischem Fingerprint ist bytegleich bis auf
       zulässige Laufmetadaten.
 
 STOP:
@@ -689,12 +689,16 @@ Akzeptanzkriterien:
 
 Tests/Nachweise:
 
-- [ ] `./leonaid test-pilot-import` führt Dry Run, Apply, Wiederholung und
+- [x] `./leonaid test-pilot-import` führt Dry Run, Apply, Wiederholung und
       Restore gegen isolierte reale Dienste aus.
-- [ ] Concurrency-Test verhindert paralleles Apply desselben Batches.
-- [ ] Manipulierter Fingerprint und unaufgelöster Konflikt werden
+- [x] Concurrency-Test verhindert paralleles Apply desselben Batches.
+- [x] Manipulierter Fingerprint und unaufgelöster Konflikt werden
       fail-closed abgewiesen.
-- [ ] Sanitizter Summenreport wird im Proof verlinkt.
+- [x] Sanitizter Summenreport wird im Proof verlinkt.
+
+Technische Nachweise und verbleibende reale Daten-/Staginggrenzen:
+[`proofs/PILOT-030.md`](proofs/PILOT-030.md) und
+[`proofs/PILOT-031.md`](proofs/PILOT-031.md)
 
 ### [ ] PILOT-032 Produktionsimport kontrolliert durchführen
 
@@ -723,6 +727,9 @@ Tests/Nachweise:
 - [ ] Zweiter `verify`-Lauf meldet null ungeklärte Konflikte und null
       technische Duplikate.
 - [ ] Wiederanlauf der Anwendung und alle Pilot-Persona-Smokes sind grün.
+
+Vorbereiteter technischer Vertrag und verbleibende Produktionsgrenze:
+[`proofs/PILOT-032.md`](proofs/PILOT-032.md)
 
 ## 10. M4 – Produktiver Single-Host-Betrieb
 

@@ -69,6 +69,7 @@ Commands:
                     Prove private pilot paths, manifests and public evidence
   test-pilot-deployment
                     Prove the merged production topology and fail-closed guards
+  test-pilot-import Prove private Dry Run, approval, Apply, Verify and Restore
   test-pilot-backup Prove a real networked S3/Restic target and failures
   test-pilot-alerting
                     Prove real Prometheus/Alertmanager delivery and recovery
@@ -90,7 +91,8 @@ Commands:
                     Validate deployment and decisions for productive actions
   pilot-deploy      Deploy the productive pilot after pilot-doctor
   pilot-release     Release the productive pilot after pilot-doctor
-  pilot-import      Import private pilot data after pilot-doctor
+  pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
+                    Run the private, fingerprint-bound pilot import
   pilot-backup      Back up productive pilot data after pilot-doctor
   pilot-restore     Restore productive pilot data after pilot-doctor
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
@@ -353,7 +355,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
@@ -362,7 +364,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
@@ -371,7 +373,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_release \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release \
     tools/pilot_readiness \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade packages/testkit
@@ -514,6 +516,83 @@ pilot_future_command() {
   task=$2
   pilot_doctor --gate "$command_name"
   future_command "$command_name" "$task"
+}
+
+pilot_import() {
+  require_docker
+  [ "$#" -ge 2 ] || {
+    echo "pilot-import: ERROR: Nutzung: ./leonaid pilot-import <dry-run|apply|verify> SOURCE --env-file FILE --manifest FILE --mapping FILE --batch-id ID --target-environment ENV --sheet NAME --report FILE" >&2
+    exit 64
+  }
+  mode=$1
+  case "$mode" in
+    dry-run|apply|verify) ;;
+    *)
+      echo "pilot-import: ERROR: Modus muss dry-run, apply oder verify sein" >&2
+      exit 64
+      ;;
+  esac
+  env_file=
+  backup_manifest=
+  target_environment=
+  previous=
+  for argument in "$@"; do
+    case "$previous" in
+      --env-file) env_file=$argument ;;
+      --backup-manifest) backup_manifest=$argument ;;
+      --target-environment) target_environment=$argument ;;
+    esac
+    previous=$argument
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-import: ERROR: --env-file fehlt" >&2
+    exit 64
+  }
+  [ -f "$env_file" ] || {
+    echo "pilot-import: ERROR: Environment-Datei fehlt" >&2
+    exit 1
+  }
+  if [ "$mode" = apply ] || [ "$mode" = verify ]; then
+    [ -n "$backup_manifest" ] || {
+      echo "pilot-import: ERROR: --backup-manifest fehlt für $mode" >&2
+      exit 64
+    }
+    pilot_doctor \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --gate pilot-import
+  fi
+  project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$env_file" | tail -n 1)
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-import: BLOCKED: Compose-Projekt ist nicht staging-/produktionsspezifisch" >&2
+      exit 1
+      ;;
+  esac
+  [ -n "$target_environment" ] || {
+    echo "pilot-import: ERROR: --target-environment fehlt" >&2
+    exit 64
+  }
+  if [ "$project" != "leonaid-$target_environment" ]; then
+    echo "pilot-import: BLOCKED: Zielumgebung stimmt nicht mit LEONAID_COMPOSE_PROJECT überein" >&2
+    exit 1
+  fi
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  docker compose \
+    --project-name "$project" \
+    --env-file "$env_file" \
+    --file "$root/infra/compose/compose.yml" \
+    --file "$root/infra/pilot/compose.yml" \
+    run --rm --no-deps --no-build \
+    --user "$host_user_id:$host_group_id" \
+    --env PYTHONPATH=/repo/src:/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$root/.local:/repo/.local" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/pilot_import/protocol.py "$@" --root /repo
 }
 
 pilot_release_manifest() {
@@ -1046,6 +1125,10 @@ case "$command" in
     require_docker
     /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
     ;;
+  test-pilot-import)
+    require_docker
+    /bin/sh "$root/tools/pilot_import/test.sh" "$root"
+    ;;
   test-pilot-backup)
     require_docker
     /bin/sh "$root/tools/backup/test.sh" "$root"
@@ -1130,7 +1213,10 @@ case "$command" in
     ;;
   pilot-deploy) pilot_future_command "$command" PILOT-043 ;;
   pilot-release) pilot_future_command "$command" PILOT-050 ;;
-  pilot-import) pilot_future_command "$command" PILOT-010 ;;
+  pilot-import)
+    shift
+    pilot_import "$@"
+    ;;
   pilot-backup) pilot_future_command "$command" PILOT-040 ;;
   pilot-restore) pilot_future_command "$command" PILOT-040 ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;

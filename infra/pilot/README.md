@@ -48,6 +48,8 @@ Milestoneentscheidung folgen dem
 Produktive Absenderidentitäten, öffentlicher DNS-Check, Bounce-/Complaint-Weg,
 Rotation und Provider-Wiederanlauf folgen dem
 [`MAIL-RUNBOOK.md`](MAIL-RUNBOOK.md).
+Der einmalige Excel-Intake, Dry Run, Konfliktentscheidungen, Vier-Augen-Apply
+und Verify folgen dem [`IMPORT-RUNBOOK.md`](IMPORT-RUNBOOK.md).
 
 ## Compose- und Release-Prüfung
 

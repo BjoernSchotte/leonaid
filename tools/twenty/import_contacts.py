@@ -6,11 +6,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import os
+import re
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass, replace
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -37,6 +40,7 @@ from leonaid.application.sponsor_matching import (
 
 JsonObject = dict[str, Any]
 ImportMode = Literal["dry-run", "apply"]
+OPAQUE_ACTOR_ID = re.compile(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$")
 
 
 class ImportFailure(RuntimeError):
@@ -79,7 +83,15 @@ class RowPlan:
     applied: bool = False
 
     def to_json(self) -> JsonObject:
-        return asdict(self)
+        payload = asdict(self)
+        payload["error_code"] = f"ROW_{self.status.value.upper()}"
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class ImportResolution:
+    decision: Literal["use-existing", "create-new"]
+    target_twenty_id: UUID | None
 
 
 def require_env(name: str) -> str:
@@ -118,9 +130,84 @@ def load_mapping(path: Path) -> JsonObject:
     return value
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def load_resolutions(path: Path | None) -> dict[str, ImportResolution]:
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ImportFailure(f"Resolution-Datei ist nicht lesbar: {path}") from error
+    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+        raise ImportFailure("Resolution-Datei besitzt nicht schemaVersion 1")
+    decisions = payload.get("decisions")
+    if not isinstance(decisions, list):
+        raise ImportFailure("Resolution-Datei enthält keine decisions-Liste")
+    result: dict[str, ImportResolution] = {}
+    for item in decisions:
+        if not isinstance(item, dict):
+            raise ImportFailure("Resolution-Entscheidung ist kein Objekt")
+        source_id = item.get("sourceId")
+        decision = item.get("decision")
+        if not isinstance(source_id, str):
+            raise ImportFailure("Resolution-Entscheidung enthält keine sourceId")
+        try:
+            normalized_source_id = str(UUID(source_id))
+        except ValueError as error:
+            raise ImportFailure("Resolution-sourceId ist keine UUID") from error
+        if normalized_source_id in result:
+            raise ImportFailure("Resolution-sourceId ist doppelt")
+        if decision not in {"use-existing", "create-new"}:
+            raise ImportFailure("Resolution-decision ist ungültig")
+        decided_by = item.get("decidedBy")
+        if (
+            not isinstance(decided_by, str)
+            or OPAQUE_ACTOR_ID.fullmatch(decided_by) is None
+        ):
+            raise ImportFailure("Resolution-decidedBy ist keine opake Actor-ID")
+        decided_at = item.get("decidedAt")
+        if not isinstance(decided_at, str):
+            raise ImportFailure("Resolution-decidedAt fehlt")
+        try:
+            parsed_decision_time = datetime.fromisoformat(
+                decided_at.replace("Z", "+00:00")
+            )
+        except ValueError as error:
+            raise ImportFailure(
+                "Resolution-decidedAt ist kein ISO-8601-Zeitpunkt"
+            ) from error
+        if parsed_decision_time.tzinfo is None:
+            raise ImportFailure("Resolution-decidedAt benötigt eine Zeitzone")
+        raw_target = item.get("targetTwentyId")
+        target: UUID | None = None
+        if decision == "use-existing":
+            if not isinstance(raw_target, str):
+                raise ImportFailure("use-existing benötigt eine targetTwentyId")
+            try:
+                target = UUID(raw_target)
+            except ValueError as error:
+                raise ImportFailure(
+                    "Resolution-targetTwentyId ist keine UUID"
+                ) from error
+        elif raw_target is not None:
+            raise ImportFailure("create-new darf keine targetTwentyId besitzen")
+        result[normalized_source_id] = ImportResolution(
+            decision=decision,
+            target_twenty_id=target,
+        )
+    return result
+
+
 def xlsx_rows(path: Path, sheet_name: str) -> tuple[list[str], list[list[object]]]:
     try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        workbook = load_workbook(path, read_only=True, data_only=False)
     except (OSError, ValueError) as error:
         raise ImportFailure(f"Excel-Datei ist nicht lesbar: {path}") from error
     try:
@@ -130,7 +217,18 @@ def xlsx_rows(path: Path, sheet_name: str) -> tuple[list[str], list[list[object]
                 + ", ".join(workbook.sheetnames)
             )
         worksheet = workbook[sheet_name]
-        values = list(worksheet.iter_rows(values_only=True))
+        values: list[tuple[object, ...]] = []
+        for row in worksheet.iter_rows():
+            formulas = [
+                cell.coordinate
+                for cell in row
+                if getattr(cell, "data_type", None) == "f"
+            ]
+            if formulas:
+                raise ImportFailure(
+                    "Formeln sind im Importblatt verboten: " + ", ".join(formulas)
+                )
+            values.append(tuple(cell.value for cell in row))
     finally:
         workbook.close()
     if not values:
@@ -288,9 +386,16 @@ def merged_address(row: ImportRow, existing: PostalAddress | None) -> PostalAddr
 
 
 class ContactImporter:
-    def __init__(self, gateway: TwentyCrmGateway, *, mode: ImportMode) -> None:
+    def __init__(
+        self,
+        gateway: TwentyCrmGateway,
+        *,
+        mode: ImportMode,
+        resolutions: dict[str, ImportResolution] | None = None,
+    ) -> None:
         self._gateway = gateway
         self._mode = mode
+        self._resolutions = resolutions or {}
 
     async def process(self, row: ImportRow) -> RowPlan:
         if row.validation_errors:
@@ -317,11 +422,45 @@ class ContactImporter:
             candidate_company_query(row.company_name),
             correlation_id=correlation,
         )
-        matches = tuple(
+        exact_matches = tuple(
             record
             for record in found
             if normalize_name(record.data.name) == normalize_name(row.company_name)
         )
+        resolution = self._resolutions.get(str(row.source_id))
+        if resolution is not None and resolution.decision == "create-new":
+            matches: tuple[CompanyRecord, ...] = ()
+        elif resolution is not None:
+            candidate_ids = {record.twenty_id for record in found}
+            if resolution.target_twenty_id not in candidate_ids:
+                raise ImportFailure(
+                    f"Resolution für Zeile {row.row_number} verweist nicht auf "
+                    "einen gemeldeten Firmenkandidaten"
+                )
+            selected = await self._gateway.get_company(
+                resolution.target_twenty_id,
+                correlation_id=f"{correlation}:resolution",
+            )
+            if selected is None:
+                raise ImportFailure(
+                    f"Resolution für Zeile {row.row_number} verweist auf "
+                    "eine fehlende Firma"
+                )
+            matches = (selected,)
+        else:
+            matches = exact_matches
+        if not matches and found and resolution is None:
+            return RowPlan(
+                row_number=row.row_number,
+                source_id=str(row.source_id),
+                record_type=row.record_type,
+                status=RowStatus.CONFLICT,
+                message="ähnliche Firmen benötigen eine explizite Entscheidung",
+                candidates=tuple(
+                    company_candidate(record)
+                    for record in sorted(found, key=lambda item: str(item.twenty_id))
+                ),
+            )
         if len(matches) > 1:
             return RowPlan(
                 row_number=row.row_number,
@@ -329,7 +468,13 @@ class ContactImporter:
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
                 message="mehrere Firmen besitzen denselben normalisierten Namen",
-                candidates=tuple(company_candidate(record) for record in matches),
+                candidates=tuple(
+                    company_candidate(record)
+                    for record in sorted(
+                        matches,
+                        key=lambda item: str(item.twenty_id),
+                    )
+                ),
             )
         if not matches:
             if self._mode == "apply":
@@ -437,7 +582,7 @@ class ContactImporter:
             family_name=row.family_name,
             correlation_id=correlation,
         )
-        matches = tuple(
+        exact_matches = tuple(
             record
             for record in people
             if normalize_name(record.data.given_name) == normalize_name(row.given_name)
@@ -445,6 +590,40 @@ class ContactImporter:
             == normalize_name(row.family_name)
             and (company is None or record.data.company_twenty_id == company.twenty_id)
         )
+        resolution = self._resolutions.get(str(row.source_id))
+        if resolution is not None and resolution.decision == "create-new":
+            matches: tuple[PersonRecord, ...] = ()
+        elif resolution is not None:
+            candidate_ids = {record.twenty_id for record in people}
+            if resolution.target_twenty_id not in candidate_ids:
+                raise ImportFailure(
+                    f"Resolution für Zeile {row.row_number} verweist nicht auf "
+                    "einen gemeldeten Personenkandidaten"
+                )
+            selected = await self._gateway.get_person(
+                resolution.target_twenty_id,
+                correlation_id=f"{correlation}:resolution",
+            )
+            if selected is None:
+                raise ImportFailure(
+                    f"Resolution für Zeile {row.row_number} verweist auf "
+                    "eine fehlende Person"
+                )
+            matches = (selected,)
+        else:
+            matches = exact_matches
+        if not matches and people and resolution is None:
+            return RowPlan(
+                row_number=row.row_number,
+                source_id=str(row.source_id),
+                record_type=row.record_type,
+                status=RowStatus.CONFLICT,
+                message="ähnliche Personen benötigen eine explizite Entscheidung",
+                candidates=tuple(
+                    person_candidate(record)
+                    for record in sorted(people, key=lambda item: str(item.twenty_id))
+                ),
+            )
         if len(matches) > 1:
             return RowPlan(
                 row_number=row.row_number,
@@ -452,7 +631,13 @@ class ContactImporter:
                 record_type=row.record_type,
                 status=RowStatus.CONFLICT,
                 message="mehrere Personen besitzen denselben Namensschlüssel",
-                candidates=tuple(person_candidate(record) for record in matches),
+                candidates=tuple(
+                    person_candidate(record)
+                    for record in sorted(
+                        matches,
+                        key=lambda item: str(item.twenty_id),
+                    )
+                ),
             )
         company_id = company.twenty_id if company else None
         if not matches:
@@ -539,12 +724,19 @@ def save_report(
     sheet: str,
     mode: ImportMode,
     plans: list[RowPlan],
+    mapping: Path,
+    resolutions: Path | None,
 ) -> None:
     counts = Counter(plan.status.value for plan in plans)
     report = {
         "schemaVersion": 1,
         "mode": mode,
         "source": source.name,
+        "sourceSha256": sha256_file(source),
+        "mappingSha256": sha256_file(mapping),
+        "resolutionSha256": (
+            sha256_file(resolutions) if resolutions is not None else None
+        ),
         "sheet": sheet,
         "summary": {status.value: counts[status.value] for status in RowStatus},
         "appliedCount": sum(1 for plan in plans if plan.applied),
@@ -559,10 +751,21 @@ def save_report(
 
 
 async def run(arguments: argparse.Namespace) -> None:
-    mapping = load_mapping(arguments.mapping.resolve())
+    mapping_path = arguments.mapping.resolve()
+    resolution_path = (
+        arguments.resolutions.resolve() if arguments.resolutions is not None else None
+    )
+    mapping = load_mapping(mapping_path)
+    resolutions = load_resolutions(resolution_path)
     sheet = arguments.sheet or str(mapping["defaultSheet"])
     source = arguments.source.resolve()
     rows = load_rows(source, sheet, mapping)
+    row_source_ids = {str(row.source_id) for row in rows if row.source_id is not None}
+    unused_resolutions = sorted(set(resolutions) - row_source_ids)
+    if unused_resolutions:
+        raise ImportFailure(
+            "Resolution-Datei enthält Source-IDs außerhalb der Quelldatei"
+        )
     settings = TwentyGatewaySettings(
         base_url=require_env("TWENTY_BASE_URL"),
         api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
@@ -571,7 +774,11 @@ async def run(arguments: argparse.Namespace) -> None:
     )
     mode = cast(ImportMode, arguments.command)
     async with TwentyCrmGateway(settings) as gateway:
-        importer = ContactImporter(gateway, mode=mode)
+        importer = ContactImporter(
+            gateway,
+            mode=mode,
+            resolutions=resolutions,
+        )
         plans = [await importer.process(row) for row in rows]
     save_report(
         arguments.report.resolve(),
@@ -579,6 +786,8 @@ async def run(arguments: argparse.Namespace) -> None:
         sheet=sheet,
         mode=mode,
         plans=plans,
+        mapping=mapping_path,
+        resolutions=resolution_path,
     )
     counts = Counter(plan.status.value for plan in plans)
     print(
@@ -598,6 +807,7 @@ def parser() -> argparse.ArgumentParser:
         command_parser.add_argument("source", type=Path)
         command_parser.add_argument("--sheet")
         command_parser.add_argument("--mapping", type=Path, default=default_mapping)
+        command_parser.add_argument("--resolutions", type=Path)
         command_parser.add_argument("--report", type=Path, required=True)
     return result
 
