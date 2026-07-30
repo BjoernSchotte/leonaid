@@ -1,6 +1,6 @@
 # PILOT-050 – Synthetischer technischer Nachweis
 
-Stand: 2026-07-29  
+Stand: 2026-07-30
 Ergebnis: Die vollständige Krapfentaxi-Generalprobe ist auf realen,
 isolierten Diensten und aus leerem Zustand technisch bewiesen. Sie ersetzt
 bewusst nicht die noch offenen externen Provider-, Echtdaten-, Betreiber- und
@@ -80,6 +80,54 @@ status: passed
 
 Nach dem Lauf waren keine `pilot050`-Container, -Volumes oder -Netzwerke mehr
 vorhanden.
+
+## Cache-freier Remote-CI-Nachweis
+
+Der technische Vertrag wurde auf Commit
+`cac3f9833fc2fe206339acdb1221c08e170b2c54` zusätzlich durch den manuell
+ausgelösten, cache-freien
+[GitHub-Actions-Lauf 30513894673](https://github.com/BjoernSchotte/leonaid/actions/runs/30513894673)
+bewiesen. Der Job `Pilot cold rehearsal` (Job-ID `90779482805`) lief vom
+`2026-07-30T04:27:00Z` bis `2026-07-30T05:19:50Z` und endete nach 52 Minuten
+und 50 Sekunden mit `success`. Auch alle regulären Unit-, Build-, Lint-/Type-,
+Security-, Contract-, Integrations- und Browserjobs desselben Laufs waren
+terminal grün.
+
+Der Runner entfernte vor dem Bootstrap den gesamten Docker-Buildcache und
+belegte einen leeren Zustand. Die vollständige synthetische Generalprobe
+erzeugte danach erneut:
+
+- 47 Core-Tabellen, 99 Twenty-Tabellen und drei RustFS-Objekte;
+- einen bytegenauen, verschlüsselten Fresh-Volume-Restore mit `RPO=9 s` und
+  `RTO=104 s`;
+- reale Twenty- und RustFS-Upgrades, einen absichtlichen
+  Produktionsmigrationsfehler sowie Recovery und Rollback;
+- identische Golden Journeys vor und nach Upgrade sowie nach Rollback in
+  Chromium, Firefox und WebKit.
+
+Das veröffentlichte Artefakt `ci-pilot-cold-rehearsal` enthält ausschließlich
+`summary.txt`, `rehearsal/summary.json` und `command.log`. Der
+Evidence-Sanitizer prüfte im Job den Summenbeleg und anschließend das gesamte
+öffentliche Artefakt. Eine unabhängige Prüfung des heruntergeladenen
+Artefakts ergab ebenfalls:
+
+```text
+ci-artifact-sanitize: OK: 3 Artefakte geprüft, 0 Secret-Vorkommen redigiert
+```
+
+Die SHA-256-Prüfsummen des veröffentlichten Standes sind:
+
+```text
+c9a87f267907dca8e7516463ad2a95175972f6d01ca3e2cb2d84e75304419d2f  summary.txt
+a92e884bb8d11602b11f360e843d762132e8aa73679976d7f68d2e80b7c4d251  rehearsal/summary.json
+18569bee42dbf8a00013bd4f2237ebf840b48b1209b8787fa6f6e445dbe608ba  command.log
+```
+
+Der JSON-Summenbeleg bleibt bewusst fail-closed: `mode=synthetic`,
+`status=passed`, `realServices=true`, `productionReadiness=false`,
+`dataset=golden-v1`; die fünf externen Gates bleiben `open`. Der Remote-Lauf
+schließt deshalb den technischen Cold-CI-Teilnachweis, aber weder
+`PILOT-050` noch die reale Produktionsfreigabe.
 
 ## Sichtbarer In-App-Browser-Nachweis
 

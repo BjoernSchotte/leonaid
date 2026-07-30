@@ -1054,7 +1054,7 @@ Akzeptanzkriterien:
       Kriterien, Abhängigkeiten, Proof-Links, 16 Hard-Gates,
       Pilotentscheidungen und den Git-Zustand, ohne externe Abnahmen als
       erfüllt zu simulieren.
-- [ ] Finaler Cold-CI-Lauf und produktionsnahe Generalprobe veröffentlichen
+- [x] Finaler Cold-CI-Lauf und produktionsnahe Generalprobe veröffentlichen
       sanitizte Beweisartefakte.
 - [ ] Private Pilot-Evidence ist vollständig, zugriffsgeschützt und besitzt
       eine festgelegte Aufbewahrung.
@@ -1067,7 +1067,7 @@ Tests/Nachweise:
 
 - [x] `./leonaid test-pilot-readiness` prüft sämtliche harten Gates und
       Proof-Links.
-- [ ] Finaler Docker-Cold-Run startet ohne Caches aus leerem Zustand.
+- [x] Finaler Docker-Cold-Run startet ohne Caches aus leerem Zustand.
 - [ ] Abnahmeprotokoll verlinkt Commit, Release-Manifest, Locks,
       Golden-Version, private Evidence-IDs, CI, Restore, Screenshots,
       Beleg-SHAs und Runbooks.
