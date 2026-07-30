@@ -129,6 +129,7 @@ create_release_manifest() {
   pwa_id=$(docker image inspect --format '{{.Id}}' "${source_project}-pwa:latest")
   public_id=$(docker image inspect --format '{{.Id}}' "${source_project}-public:latest")
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --env "API_IMAGE=$api_id" \
     --env "WEB_IMAGE=$web_id" \
     --env "PWA_IMAGE=$pwa_id" \
@@ -157,6 +158,7 @@ pathlib.Path(os.environ["IMAGE_OUTPUT"]).write_text(json.dumps({
   "proxy":os.environ["CADDY_RELEASE_IMAGE"]
 },sort_keys=True)+"\n",encoding="utf-8")'
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --env PYTHONPATH=/workspace \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
@@ -179,6 +181,7 @@ record_release_event() {
   evidence_id=$4
   occurred_at=$5
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --env PYTHONPATH=/workspace \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
@@ -203,6 +206,7 @@ run_plan_gate() {
     infra/locks/external-systems.lock
   cp "$root/infra/upgrade/compatibility-matrix.json" "$proof/invalid-matrix.json"
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v "$proof:/proof" \
     "$PYTHON_IMAGE" \
     python -c 'import json,pathlib
@@ -482,6 +486,7 @@ rollback_old --profile dev-mail down \
   --volumes --remove-orphans >/dev/null 2>&1 || true
 mkdir -p "$repository"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$proof:/proof" \
   "$PYTHON_IMAGE" \
   python -c 'import pathlib,secrets
@@ -724,6 +729,7 @@ cp -R \
   "$proof"/journey-rollback \
   "$artifact_directory/"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$artifact_directory:/artifacts" \
   "$PYTHON_IMAGE" \
   python -c 'import json,pathlib
