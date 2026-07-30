@@ -58,6 +58,8 @@ Der Start ist fertig, wenn `dev: OK` und `golden-seed: OK` erscheinen.
 `seed` provisioniert das deklarative Twenty-Schema und einen verifizierten
 Least-Privilege-Key, startet API und Worker mit diesem Key neu und spielt
 danach Golden Data idempotent in die realen Systeme ein.
+Für eine isolierte Schema-/Key-Wartung ohne Golden Seed bleibt
+`./leonaid provision-twenty` als expliziter Operatorbefehl verfügbar.
 
 | Oberfläche         | Lokale Adresse                      |
 | ------------------ | ----------------------------------- |
