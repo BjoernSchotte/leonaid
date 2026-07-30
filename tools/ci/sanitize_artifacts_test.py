@@ -130,6 +130,26 @@ def main() -> None:
         if (artifacts / "trace.zip").stat().st_mode & 0o777 != 0o640:
             raise AssertionError("Trace-ZIP verlor beim Redigieren ihre Dateirechte")
 
+        timestamp_artifacts = workspace / "timestamp-artifacts"
+        timestamp_artifacts.mkdir()
+        (timestamp_artifacts / "restic.log").write_text(
+            "restoring snapshot at 2026-07-30 04:06:49.055375279 +0000 UTC\n"
+            "installed fastapi==0.116.1\n"
+            "2026-07-30T04:06:49.055375279Z next log line\n",
+            encoding="utf-8",
+        )
+        timestamp_result = run_sanitizer(
+            sanitizer,
+            timestamp_artifacts,
+            env_file,
+            proof,
+        )
+        if timestamp_result.returncode != 0:
+            raise AssertionError(
+                "Zeitstempel-Nanosekunden wurden als Telefonnummer abgewiesen: "
+                f"{timestamp_result.stdout}{timestamp_result.stderr}"
+            )
+
         private_canary = b"PII_NAME_CANARY_Erika-Mustermann"
         cases = {
             "private.txt": private_canary,
@@ -145,6 +165,9 @@ def main() -> None:
                 "trace.trace",
                 b'{"email":"real.person@example.org"}',
             ),
+            "private-phone-local.txt": b"Kontakt: 089 12345678",
+            "private-phone-plus49.txt": b"Kontakt: +49 89 12345678",
+            "private-phone-0049.txt": b"Kontakt: 0049 (89) 12345678",
         }
         for name, payload in cases.items():
             assert_rejected(

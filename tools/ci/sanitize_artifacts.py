@@ -51,8 +51,8 @@ EMAIL_PATTERN = re.compile(
     rb"(?![A-Za-z0-9.-])"
 )
 PHONE_PATTERN = re.compile(
-    rb"(?<!\w)(?:\+49|0049|0)[1-9][0-9]{1,4}"
-    rb"(?:[\s()/.-]*[0-9]){6,12}(?!\w)"
+    rb"(?<![\w.])(?:\+49|0049|0)[ \t()/.-]*[1-9][0-9]{1,4}"
+    rb"(?:[ \t()/.-]*[0-9]){6,12}(?!\w)"
 )
 PRIVATE_CANARY_PATTERN = re.compile(
     rb"(?:PII|PRIVATE|INVOICE|DOCUMENT|SECRET|TOKEN)"
