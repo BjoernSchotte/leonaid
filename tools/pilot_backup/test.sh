@@ -50,6 +50,7 @@ write_credentials() {
   access_key=$1
   secret_key=$2
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --env "AWS_ACCESS_KEY_ID=$access_key" \
     --env "AWS_SECRET_ACCESS_KEY=$secret_key" \
     --volume "$workspace:/proof" \
@@ -88,8 +89,10 @@ restic_run() {
   password_path=$1
   shift
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --network "$network" \
     --env-file "$credentials_file" \
+    --env RESTIC_CACHE_DIR=/tmp/restic-cache \
     --env "RESTIC_REPOSITORY=$repository" \
     --env RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
     --volume "$password_path:/run/secrets/restic-password:ro" \
@@ -101,8 +104,10 @@ restic_timeout_run() {
   timeout_seconds=$1
   shift
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --network "$network" \
     --env-file "$credentials_file" \
+    --env RESTIC_CACHE_DIR=/tmp/restic-cache \
     --env "RESTIC_REPOSITORY=$repository" \
     --env RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
     --volume "$password_file:/run/secrets/restic-password:ro" \
@@ -125,6 +130,7 @@ access_key=pilot-backup-initial-access-001
 secret_key=pilot-backup-initial-secret-001
 write_credentials "$access_key" "$secret_key"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --volume "$workspace:/proof" \
   "$PYTHON_IMAGE" \
   python -c 'import pathlib,secrets
@@ -152,6 +158,7 @@ s3.create_bucket(Bucket='$bucket')"
 
 mkdir -p "$payload" "$incomplete"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --env "BACKUP_SOURCE_PROJECT=$source_project" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
