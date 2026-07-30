@@ -54,9 +54,13 @@ def check(path: Path) -> list[str]:
     if "docker system prune --all --volumes --force" not in cold:
         problems.append("Cold-Run leert Docker-Systemzustand und Caches nicht.")
     if "./leonaid test-pilot-rehearsal --synthetic" not in cold:
-        problems.append("Cold-Run führt die vollständige synthetische Generalprobe nicht aus.")
+        problems.append(
+            "Cold-Run führt die vollständige synthetische Generalprobe nicht aus."
+        )
     if "LEONAID_PILOT_REHEARSAL_ARTIFACT_DIR" not in cold:
-        problems.append("Cold-Run veröffentlicht den sanitizten Generalprobenbeleg nicht.")
+        problems.append(
+            "Cold-Run veröffentlicht den sanitizten Generalprobenbeleg nicht."
+        )
     if "services:" in text:
         problems.append(
             "Workflow darf keine von Compose abweichenden Services definieren."
