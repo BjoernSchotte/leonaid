@@ -121,12 +121,15 @@ def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> Non
                 )
 
     if isolated_test_mode:
-        if sorted((service, target) for service, target, _ in published) != [
-            ("proxy", 80),
-            ("proxy", 443),
-        ] or any(
-            host_port < 1 for _, _, host_port in published
-        ) or any(host != "127.0.0.1" for host in published_hosts):
+        if (
+            sorted((service, target) for service, target, _ in published)
+            != [
+                ("proxy", 80),
+                ("proxy", 443),
+            ]
+            or any(host_port < 1 for _, _, host_port in published)
+            or any(host != "127.0.0.1" for host in published_hosts)
+        ):
             raise DeploymentContractError(
                 "isolierter Test darf nur Caddys Zielports 80/443 veröffentlichen"
             )
