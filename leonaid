@@ -94,8 +94,11 @@ Commands:
   pilot-release     Release the productive pilot after pilot-doctor
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
-  pilot-backup      Back up productive pilot data after pilot-doctor
-  pilot-restore     Restore productive pilot data after pilot-doctor
+  pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
+                    Back up the productive pilot and publish a fresh manifest
+  pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
+                --password-file FILE --confirm RESTORE:TARGET
+                    Restore into an explicitly confirmed fresh pilot project
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -510,7 +513,9 @@ pilot_doctor() {
     return 1
   }
   config_file=$(mktemp)
-  trap 'rm -f "$config_file"' EXIT HUP INT TERM
+  doctor_input_directory=$(mktemp -d)
+  cp "$backup_manifest" "$doctor_input_directory/backup-manifest.json"
+  trap 'rm -f "$config_file"; rm -rf "$doctor_input_directory"' EXIT HUP INT TERM
   pilot_compose_config "$project" "$env_file" "$config_file"
   set +e
   test_network=${LEONAID_PILOT_TEST_DOCTOR_NETWORK:-}
@@ -522,6 +527,7 @@ pilot_doctor() {
       *)
         echo "pilot-doctor: BLOCKED: Testdiagnose ist nur in isolierten Testprojekten zulässig" >&2
         rm -f "$config_file"
+        rm -rf "$doctor_input_directory"
         trap - EXIT HUP INT TERM
         return 1
         ;;
@@ -529,11 +535,13 @@ pilot_doctor() {
     if [ -z "$test_network" ] || [ -z "$test_ca_file" ] || [ -z "$test_decisions_file" ]; then
       echo "pilot-doctor: BLOCKED: Testdiagnose benötigt Netzwerk, CA und Entscheidungsregister" >&2
       rm -f "$config_file"
+      rm -rf "$doctor_input_directory"
       trap - EXIT HUP INT TERM
       return 1
     fi
     test_ca_file=$(pilot_absolute_file pilot-doctor "$test_ca_file") || {
       rm -f "$config_file"
+      rm -rf "$doctor_input_directory"
       trap - EXIT HUP INT TERM
       return 1
     }
@@ -541,6 +549,7 @@ pilot_doctor() {
       pilot_absolute_file pilot-doctor "$test_decisions_file"
     ) || {
       rm -f "$config_file"
+      rm -rf "$doctor_input_directory"
       trap - EXIT HUP INT TERM
       return 1
     }
@@ -555,7 +564,7 @@ pilot_doctor() {
       --volume "$root:/workspace:ro" \
       --volume "$test_decisions_file:/workspace/specs/leonaid-pilot/DECISIONS.md:ro" \
       --volume "$env_file:/doctor/production.env:ro" \
-      --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
+      --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
       --volume "$test_ca_file:/doctor/ca.crt:ro" \
       --volume "$alert_webhook_file:$alert_webhook_file:ro" \
@@ -565,7 +574,7 @@ pilot_doctor() {
       python tools/pilot_deployment/doctor.py /workspace \
         --env-file /doctor/production.env \
         --compose-config /doctor/compose.json \
-        --backup-manifest /doctor/backup-manifest.json \
+        --backup-manifest /doctor/input/backup-manifest.json \
         --expected-release-commit "$release_commit" \
         --gate "$gate" \
         --isolated-test-mode \
@@ -581,7 +590,7 @@ pilot_doctor() {
       --env PYTHONPATH=/workspace \
       --volume "$root:/workspace:ro" \
       --volume "$env_file:/doctor/production.env:ro" \
-      --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
+      --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
       --volume "$alert_webhook_file:$alert_webhook_file:ro" \
       --volume "$monitored_disk_path:$monitored_disk_path:ro" \
@@ -590,13 +599,14 @@ pilot_doctor() {
       python tools/pilot_deployment/doctor.py /workspace \
         --env-file /doctor/production.env \
         --compose-config /doctor/compose.json \
-        --backup-manifest /doctor/backup-manifest.json \
+        --backup-manifest /doctor/input/backup-manifest.json \
         --expected-release-commit "$release_commit" \
         --gate "$gate" $json_argument
   fi
   status=$?
   set -e
   rm -f "$config_file"
+  rm -rf "$doctor_input_directory"
   trap - EXIT HUP INT TERM
   return "$status"
 }
@@ -824,6 +834,271 @@ pilot_deploy() {
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
   echo "pilot-deploy: OK: $project läuft exakt aus dem verifizierten Release-Manifest"
+}
+
+pilot_backup() {
+  require_docker
+  env_file=
+  backup_manifest=
+  password_file=
+  credentials_file=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-backup: ERROR: --env-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      --backup-manifest)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-backup: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          exit 64
+        }
+        backup_manifest=$2
+        shift 2
+        ;;
+      --password-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-backup: ERROR: --password-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        password_file=$2
+        shift 2
+        ;;
+      --credentials-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-backup: ERROR: --credentials-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        credentials_file=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-backup: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-backup: ERROR: --env-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$backup_manifest" ] || {
+    echo "pilot-backup: ERROR: --backup-manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$password_file" ] || {
+    echo "pilot-backup: ERROR: --password-file fehlt" >&2
+    exit 64
+  }
+  env_file=$(pilot_absolute_file pilot-backup "$env_file")
+  backup_manifest=$(pilot_absolute_file pilot-backup "$backup_manifest")
+  password_file=$(pilot_absolute_file pilot-backup "$password_file")
+  if [ -n "$credentials_file" ]; then
+    credentials_file=$(pilot_absolute_file pilot-backup "$credentials_file")
+  fi
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  repository=$(pilot_environment_value RESTIC_REPOSITORY "$env_file")
+  configured_manifest=$(
+    pilot_environment_value LEONAID_BACKUP_MANIFEST_PATH "$env_file"
+  )
+  configured_manifest=$(
+    pilot_absolute_file pilot-backup "$configured_manifest"
+  )
+  [ "$configured_manifest" = "$backup_manifest" ] || {
+    echo "pilot-backup: BLOCKED: --backup-manifest weicht von der Environment-Konfiguration ab" >&2
+    exit 1
+  }
+  pilot_doctor \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --gate pilot-backup
+  backup_overlay_secondary=
+  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+    backup_overlay_secondary=$(pilot_test_overlay "$project")
+  fi
+  LEONAID_ENV_FILE="$env_file" \
+    LEONAID_COMPOSE_PROJECT="$project" \
+    LEONAID_BACKUP_REPOSITORY="$repository" \
+    LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
+    LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
+    LEONAID_BACKUP_MANIFEST_OUTPUT="$backup_manifest" \
+    LEONAID_BACKUP_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY="$backup_overlay_secondary" \
+    LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
+    /bin/sh "$root/tools/backup/backup.sh" "$root"
+  manifest_check_directory=$(mktemp -d)
+  cp "$backup_manifest" "$manifest_check_directory/backup-manifest.json"
+  if docker run --rm \
+    --env "EXPECTED_PROJECT=$project" \
+    --volume "$manifest_check_directory:/pilot:ro" \
+    "$PYTHON_IMAGE" \
+    python -c 'import json,os,pathlib
+value=json.loads(pathlib.Path("/pilot/backup-manifest.json").read_text(encoding="utf-8"))
+assert value.get("schemaVersion")==1
+assert value.get("sourceProject")==os.environ["EXPECTED_PROJECT"]
+assert set(value.get("files",{}))=={
+  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
+}'; then
+    rm -rf "$manifest_check_directory"
+  else
+    status=$?
+    rm -rf "$manifest_check_directory"
+    return "$status"
+  fi
+  pilot_doctor \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --gate pilot-backup
+  echo "pilot-backup: OK: $project ist verschlüsselt gesichert und das Doctor-Manifest ist aktuell"
+}
+
+pilot_restore() {
+  require_docker
+  env_file=
+  backup_manifest=
+  target_env_file=
+  password_file=
+  credentials_file=
+  confirm=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --env-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      --backup-manifest)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          exit 64
+        }
+        backup_manifest=$2
+        shift 2
+        ;;
+      --target-env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --target-env-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        target_env_file=$2
+        shift 2
+        ;;
+      --password-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --password-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        password_file=$2
+        shift 2
+        ;;
+      --credentials-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --credentials-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        credentials_file=$2
+        shift 2
+        ;;
+      --confirm)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-restore: ERROR: --confirm benötigt einen Wert" >&2
+          exit 64
+        }
+        confirm=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-restore: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-restore: ERROR: --env-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$backup_manifest" ] || {
+    echo "pilot-restore: ERROR: --backup-manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$target_env_file" ] || {
+    echo "pilot-restore: ERROR: --target-env-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$password_file" ] || {
+    echo "pilot-restore: ERROR: --password-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$confirm" ] || {
+    echo "pilot-restore: ERROR: --confirm fehlt" >&2
+    exit 64
+  }
+  env_file=$(pilot_absolute_file pilot-restore "$env_file")
+  backup_manifest=$(pilot_absolute_file pilot-restore "$backup_manifest")
+  target_env_file=$(pilot_absolute_file pilot-restore "$target_env_file")
+  password_file=$(pilot_absolute_file pilot-restore "$password_file")
+  if [ -n "$credentials_file" ]; then
+    credentials_file=$(pilot_absolute_file pilot-restore "$credentials_file")
+  fi
+  source_project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  target_project=$(
+    pilot_environment_value LEONAID_COMPOSE_PROJECT "$target_env_file"
+  )
+  repository=$(pilot_environment_value RESTIC_REPOSITORY "$env_file")
+  target_repository=$(
+    pilot_environment_value RESTIC_REPOSITORY "$target_env_file"
+  )
+  [ "$repository" = "$target_repository" ] || {
+    echo "pilot-restore: BLOCKED: Quell- und Zielkonfiguration verwenden verschiedene Backup-Repositories" >&2
+    exit 1
+  }
+  case "$target_project" in
+    leonaid-restore-*) ;;
+    *)
+      echo "pilot-restore: BLOCKED: Zielprojekt muss leonaid-restore-<name> heißen" >&2
+      exit 1
+      ;;
+  esac
+  [ "$confirm" = "RESTORE:$target_project" ] || {
+    echo "pilot-restore: BLOCKED: --confirm muss exakt RESTORE:$target_project sein" >&2
+    exit 1
+  }
+  pilot_doctor \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --gate pilot-restore
+  restore_overlay_secondary=
+  if [ -n "${LEONAID_PILOT_TEST_RESTORE_OVERLAY:-}" ]; then
+    restore_overlay_secondary=${LEONAID_PILOT_TEST_RESTORE_OVERLAY}
+    case "$source_project" in
+      leonaid-production-test|leonaid-staging-test) ;;
+      *)
+        echo "pilot-restore: BLOCKED: Test-Restore-Overlay ist nur für isolierte Testprojekte zulässig" >&2
+        exit 1
+        ;;
+    esac
+  fi
+  LEONAID_ENV_FILE="$target_env_file" \
+    LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
+    LEONAID_RESTORE_PROJECT="$target_project" \
+    LEONAID_RESTORE_CONFIRM="$confirm" \
+    LEONAID_BACKUP_REPOSITORY="$repository" \
+    LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
+    LEONAID_BACKUP_CREDENTIALS_FILE="$credentials_file" \
+    LEONAID_BACKUP_ALLOW_LOCAL_TEST="${LEONAID_PILOT_TEST_ALLOW_LOCAL_BACKUP:-false}" \
+    LEONAID_RESTORE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+    LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$restore_overlay_secondary" \
+    LEONAID_RESTORE_NO_BUILD=true \
+    LEONAID_RESTORE_PROFILE=none \
+    /bin/sh "$root/tools/backup/restore.sh" "$root"
+  echo "pilot-restore: OK: $source_project wurde buildfrei nach $target_project restauriert"
 }
 
 pilot_import() {
@@ -1528,8 +1803,14 @@ case "$command" in
     shift
     pilot_import "$@"
     ;;
-  pilot-backup) pilot_future_command "$command" PILOT-040 ;;
-  pilot-restore) pilot_future_command "$command" PILOT-040 ;;
+  pilot-backup)
+    shift
+    pilot_backup "$@"
+    ;;
+  pilot-restore)
+    shift
+    pilot_restore "$@"
+    ;;
   test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
   test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
   test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;

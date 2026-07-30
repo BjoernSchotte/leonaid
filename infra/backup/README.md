@@ -49,6 +49,24 @@ Recovery-Test modellieren.
 
 ## Backup ausführen
 
+Für eine Pilotinstallation ist ausschließlich der manifestgebundene
+Operatorbefehl vorgesehen. Er führt den vollständigen Pilot Doctor vor und
+nach der Sicherung aus und ersetzt das konfigurierte Doctor-Manifest erst
+nach erfolgreichem Restic-Datencheck:
+
+```sh
+./leonaid pilot-backup \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env
+```
+
+Der Manifestpfad muss exakt `LEONAID_BACKUP_MANIFEST_PATH` aus der
+Environment-Datei entsprechen.
+
+Der folgende generische Befehl bleibt für die lokale PoC-Entwicklung:
+
 ```sh
 export LEONAID_COMPOSE_PROJECT=leonaid
 export LEONAID_BACKUP_REPOSITORY='s3:s3.eu-central-1.example.invalid/leonaid'
@@ -76,6 +94,22 @@ den Exit-Trap ebenfalls wieder.
 Der Restore überschreibt nie eine bestehende Compose-Umgebung. Zielnamen
 müssen `leonaid-restore-<name>` entsprechen, dürfen keine Container oder
 Volumes besitzen und verlangen eine exakte Bestätigung.
+
+Der Pilot-Restore verwendet ein separates Ziel-Environment mit demselben
+externen Repository und ausschließlich bereits freigegebene Images. Auf dem
+Ziel wird nie gebaut:
+
+```sh
+./leonaid pilot-restore \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --target-env-file /etc/leonaid/restore-drill-2026-07.env \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env \
+  --confirm RESTORE:leonaid-restore-drill-2026-07
+```
+
+Der folgende generische Restore bleibt für die lokale PoC-Entwicklung:
 
 ```sh
 export LEONAID_BACKUP_SOURCE_PROJECT=leonaid
@@ -129,6 +163,7 @@ netzgebundenen S3-Backend:
 
 ```sh
 ./leonaid test-pilot-backup
+./leonaid test-pilot-deployment
 ```
 
 Das zusätzliche isolierte RustFS besitzt ein eigenes Netzwerk, Volume und
@@ -139,6 +174,13 @@ Netzunterbrechung, ein unvollständiger neuester Snapshot und die Rotation der
 S3-Zugangsdaten werden fail-closed geprüft. Dieser technische Remote-Vertrag
 ersetzt nicht den noch ausstehenden Betreibernachweis, dass das ausgewählte
 Produktiv-Repository physisch außerhalb des Pilot-VPS liegt.
+
+`test-pilot-deployment` beweist ergänzend den vollständigen Operatorweg:
+Doctor, Backup, frisch publiziertes Manifest und buildfreier Restore in ein
+unabhängiges Pilot-Ziel. Eindeutige Probe-Daten werden in beiden
+PostgreSQL-Datenbanken sowie in beiden Datei-Volumes bytegenau wiedergefunden.
+Der Test entfernt Quell-, Ziel- und Backup-Projekt samt Netzwerken und Volumes
+auch bei Fehlern.
 
 ## Schemaändernde Migrationen
 

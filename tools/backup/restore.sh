@@ -14,7 +14,9 @@ credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
 compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_RESTORE_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY:-}
-env_file="$root/.env.local"
+env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
+restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
+restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
 stage=$(mktemp -d)
 
 fail() {
@@ -22,7 +24,7 @@ fail() {
   exit 1
 }
 
-[ -f "$env_file" ] || fail ".env.local fehlt"
+[ -f "$env_file" ] || fail "Environment-Datei fehlt"
 [ -n "$source_project" ] || fail "LEONAID_BACKUP_SOURCE_PROJECT fehlt"
 [ -n "$target_project" ] || fail "LEONAID_RESTORE_PROJECT fehlt"
 [ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
@@ -214,7 +216,20 @@ compose exec -T twenty-postgres pg_restore \
   <"$backup_root/twenty.dump"
 
 if [ "${LEONAID_RESTORE_START_APP:-true}" = "true" ]; then
-  compose --profile dev-mail up --build --detach --wait --wait-timeout 420
+  if [ "$restore_no_build" = "true" ]; then
+    if [ "$restore_profile" = "none" ]; then
+      compose up --no-build --pull missing \
+        --detach --wait --wait-timeout 420
+    else
+      compose --profile "$restore_profile" up --no-build --pull missing \
+        --detach --wait --wait-timeout 420
+    fi
+  elif [ "$restore_profile" = "none" ]; then
+    compose up --build --detach --wait --wait-timeout 420
+  else
+    compose --profile "$restore_profile" up --build \
+      --detach --wait --wait-timeout 420
+  fi
 fi
 
 echo "restore: OK: $source_project wurde nach $target_project wiederhergestellt"

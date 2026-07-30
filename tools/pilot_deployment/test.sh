@@ -9,15 +9,27 @@ runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-$project}
 build_project=${LEONAID_PILOT_BUILD_PROJECT:-leonaid-pilot040-release}
 http_port=${LEONAID_PILOT_TEST_HTTP_PORT:-19080}
 https_port=${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}
+restore_http_port=${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-19081}
+restore_https_port=${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-19444}
 workspace=$(mktemp -d)
+manifest_proof_directory=$(mktemp -d)
 config="$workspace/compose.json"
 env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
 release_manifest="$workspace/release-manifest.json"
 drifted_release_manifest="$workspace/drifted-release-manifest.json"
 accepted_decisions="$workspace/accepted-decisions.md"
+target_env_file="$workspace/restore.env"
+restic_password_file="$workspace/restic-password"
+wrong_restic_password_file="$workspace/wrong-restic-password"
+backup_credentials_file="$workspace/backup-s3.env"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
+operator_backup_project=leonaid-pilot-operator-backup
+operator_backup_container="$operator_backup_project-rustfs"
+operator_backup_volume="$operator_backup_project-rustfs-data"
+operator_backup_bucket=leonaid-pilot-operator
+restore_project=leonaid-restore-pilot-operator
 core_image_tag="$build_project-api:latest"
 web_image_tag="$build_project-web:latest"
 pwa_image_tag="$build_project-pwa:latest"
@@ -44,21 +56,133 @@ runtime_compose() {
     "$@"
 }
 
+restore_compose() {
+  LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
+  LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
+  LEONAID_TEST_CORE_IMAGE="$core_image" \
+  LEONAID_TEST_WEB_IMAGE="$web_image" \
+  LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+  LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+  docker compose \
+    --project-name "$restore_project" \
+    --env-file "$target_env_file" \
+    --file "$root/infra/compose/compose.yml" \
+    --file "$root/infra/pilot/compose.yml" \
+    --file "$root/infra/pilot/compose.test.yml" \
+    "$@"
+}
+
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
     echo "pilot-deployment-test: Diagnose der fehlgeschlagenen Services:" >&2
     runtime_compose ps >&2 || true
     runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
+    if [ -f "$backup_manifest" ]; then
+      docker run --rm \
+        --volume "$backup_manifest:/proof/manifest.json:ro" \
+        "$PYTHON_IMAGE" \
+        python -c 'import hashlib,json,pathlib
+p=pathlib.Path("/proof/manifest.json")
+data=p.read_bytes()
+try:
+    value=json.loads(data)
+    result="valid" if isinstance(value,dict) else "not-object"
+except (UnicodeDecodeError,json.JSONDecodeError):
+    result="invalid-json"
+print(
+    "pilot-deployment-test: backup-manifest "
+    f"bytes={len(data)} sha256={hashlib.sha256(data).hexdigest()} json={result}"
+)' >&2 || true
+    fi
   fi
   runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
+  docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
   docker image rm \
     "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" \
     >/dev/null 2>&1 || true
+  rm -rf "$manifest_proof_directory"
   rm -rf "$workspace"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
+
+docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
+docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
+docker volume create \
+  --label "com.docker.compose.project=$operator_backup_project" \
+  "$operator_backup_volume" >/dev/null
+backup_access_key=pilot-operator-backup-access-001
+backup_secret_key=pilot-operator-backup-secret-002
+docker run --detach \
+  --name "$operator_backup_container" \
+  --label "com.docker.compose.project=$operator_backup_project" \
+  --env "RUSTFS_ACCESS_KEY=$backup_access_key" \
+  --env "RUSTFS_SECRET_KEY=$backup_secret_key" \
+  --volume "$operator_backup_volume:/data" \
+  --health-cmd 'curl --fail http://localhost:9000/health' \
+  --health-interval 2s \
+  --health-timeout 2s \
+  --health-retries 30 \
+  "$RUSTFS_IMAGE" /data >/dev/null
+attempts=0
+while [ "$attempts" -lt 60 ]; do
+  backup_health=$(
+    docker inspect --format '{{.State.Health.Status}}' \
+      "$operator_backup_container" 2>/dev/null || true
+  )
+  [ "$backup_health" = "healthy" ] && break
+  attempts=$((attempts + 1))
+  sleep 1
+done
+[ "$backup_health" = "healthy" ] || {
+  echo "pilot-deployment-test: ERROR: Operator-Backupziel wurde nicht bereit" >&2
+  exit 1
+}
+backup_ip=$(
+  docker inspect \
+    --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+    "$operator_backup_container"
+)
+[ -n "$backup_ip" ] || {
+  echo "pilot-deployment-test: ERROR: Operator-Backupziel hat keine IP" >&2
+  exit 1
+}
+backup_repository="s3:http://$backup_ip:9000/$operator_backup_bucket"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import pathlib,secrets
+pathlib.Path("/proof/restic-password").write_text(secrets.token_urlsafe(48)+"\n")
+pathlib.Path("/proof/wrong-restic-password").write_text("too-short\n")
+pathlib.Path("/proof/backup-s3.env").write_text(
+  "AWS_ACCESS_KEY_ID=pilot-operator-backup-access-001\n"
+  "AWS_SECRET_ACCESS_KEY=pilot-operator-backup-secret-002\n"
+  "AWS_DEFAULT_REGION=us-east-1\n"
+  "AWS_REGION=us-east-1\n"
+)'
+chmod 600 \
+  "$restic_password_file" \
+  "$wrong_restic_password_file" \
+  "$backup_credentials_file"
+docker run --rm \
+  --env "AWS_ACCESS_KEY_ID=$backup_access_key" \
+  --env "AWS_SECRET_ACCESS_KEY=$backup_secret_key" \
+  --volume "$root:/workspace:ro" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  /workspace/.venv/bin/python -c "import boto3
+s3=boto3.client(
+  's3',
+  endpoint_url='http://$backup_ip:9000',
+  aws_access_key_id='$backup_access_key',
+  aws_secret_access_key='$backup_secret_key',
+  region_name='us-east-1',
+)
+s3.create_bucket(Bucket='$operator_backup_bucket')"
 
 cp "$root/.env.local" "$env_file"
 printf '%s\n' "https://alerts.leonaid.org/pilot" >"$alert_webhook_file"
@@ -90,7 +214,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "MAIL_REPLY_TO=support@leonaid.org" \
     "MAIL_SMTP_MODE=starttls" \
     "MAIL_SMTP_USERNAME=pilot-smtp" \
-    "RESTIC_REPOSITORY=s3:https://backup.leonaid.org/production-test" \
+    "RESTIC_REPOSITORY=$backup_repository" \
     "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
     "LEONAID_MONITORED_DISK_PATH=$workspace" \
     "LEONAID_ALERT_WEBHOOK_URL_FILE=$alert_webhook_file" \
@@ -352,5 +476,149 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
     --backup-manifest "$backup_manifest" \
     --release-manifest "$release_manifest"
 
+echo "pilot-deployment-test: beweist Operator-Backup und buildfreien Restore"
+runtime_compose exec -T core-postgres psql \
+  --username "${CORE_POSTGRES_USER:-leonaid}" \
+  --dbname "${CORE_POSTGRES_DB:-leonaid}" \
+  --command "CREATE TABLE pilot_operator_probe (value text NOT NULL); INSERT INTO pilot_operator_probe VALUES ('core-operator-backup');"
+runtime_compose exec -T twenty-postgres psql \
+  --username "${TWENTY_POSTGRES_USER:-twenty}" \
+  --dbname "${TWENTY_POSTGRES_DB:-default}" \
+  --command "CREATE TABLE public.pilot_operator_probe (value text NOT NULL); INSERT INTO public.pilot_operator_probe VALUES ('twenty-operator-backup');"
+docker run --rm \
+  --volume "${project}_rustfs-data:/data" \
+  "$ALPINE_IMAGE" \
+  sh -eu -c 'printf "%s\n" "rustfs-operator-backup" > /data/pilot-operator-probe'
+docker run --rm \
+  --volume "${project}_twenty-server-data:/data" \
+  "$ALPINE_IMAGE" \
+  sh -eu -c 'printf "%s\n" "twenty-storage-operator-backup" > /data/pilot-operator-probe'
+set +e
+wrong_backup_output=$(
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+    LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    "$root/leonaid" pilot-backup \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --password-file "$wrong_restic_password_file" \
+      --credentials-file "$backup_credentials_file" 2>&1
+)
+wrong_backup_status=$?
+set -e
+if [ "$wrong_backup_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: zu kurzes Restic-Passwort wurde akzeptiert" >&2
+  exit 1
+fi
+if ! printf '%s' "$wrong_backup_output" |
+  grep -Fq "Restic-Passwort muss mindestens 24 Zeichen"; then
+  echo "pilot-deployment-test: ERROR: Passwortablehnung ist nicht diagnostizierbar" >&2
+  exit 1
+fi
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+  LEONAID_TEST_CORE_IMAGE="$core_image" \
+  LEONAID_TEST_WEB_IMAGE="$web_image" \
+  LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+  LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+  "$root/leonaid" pilot-backup \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --password-file "$restic_password_file" \
+    --credentials-file "$backup_credentials_file"
+cp "$backup_manifest" "$manifest_proof_directory/manifest.json"
+docker run --rm \
+  --env "EXPECTED_PROJECT=$project" \
+  --volume "$manifest_proof_directory:/proof:ro" \
+  "$PYTHON_IMAGE" \
+  python -c 'import json,os,pathlib
+value=json.loads(pathlib.Path("/proof/manifest.json").read_text(encoding="utf-8"))
+assert value["sourceProject"]==os.environ["EXPECTED_PROJECT"]
+assert set(value["files"])=={
+  "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
+}'
+
+cp "$env_file" "$target_env_file"
+printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" >>"$target_env_file"
+chmod 600 "$target_env_file"
+set +e
+wrong_restore_output=$(
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+    LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+    LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+    LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
+    LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    "$root/leonaid" pilot-restore \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --target-env-file "$target_env_file" \
+      --password-file "$restic_password_file" \
+      --credentials-file "$backup_credentials_file" \
+      --confirm "RESTORE:wrong-target" 2>&1
+)
+wrong_restore_status=$?
+set -e
+if [ "$wrong_restore_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: falsche Restore-Bestätigung wurde akzeptiert" >&2
+  exit 1
+fi
+if ! printf '%s' "$wrong_restore_output" |
+  grep -Fq "muss exakt RESTORE:$restore_project sein"; then
+  echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
+  exit 1
+fi
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+  LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
+  LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
+  LEONAID_TEST_CORE_IMAGE="$core_image" \
+  LEONAID_TEST_WEB_IMAGE="$web_image" \
+  LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+  LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+  "$root/leonaid" pilot-restore \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --target-env-file "$target_env_file" \
+    --password-file "$restic_password_file" \
+    --credentials-file "$backup_credentials_file" \
+    --confirm "RESTORE:$restore_project"
+restore_compose exec -T core-postgres psql \
+  --username "${CORE_POSTGRES_USER:-leonaid}" \
+  --dbname "${CORE_POSTGRES_DB:-leonaid}" \
+  --tuples-only --no-align \
+  --command "SELECT value FROM pilot_operator_probe" |
+  grep -Fx "core-operator-backup" >/dev/null
+restore_compose exec -T twenty-postgres psql \
+  --username "${TWENTY_POSTGRES_USER:-twenty}" \
+  --dbname "${TWENTY_POSTGRES_DB:-default}" \
+  --tuples-only --no-align \
+  --command "SELECT value FROM public.pilot_operator_probe" |
+  grep -Fx "twenty-operator-backup" >/dev/null
+docker run --rm \
+  --volume "${restore_project}_rustfs-data:/data:ro" \
+  "$ALPINE_IMAGE" \
+  grep -Fx "rustfs-operator-backup" /data/pilot-operator-probe >/dev/null
+docker run --rm \
+  --volume "${restore_project}_twenty-server-data:/data:ro" \
+  "$ALPINE_IMAGE" \
+  grep -Fx "twenty-storage-operator-backup" /data/pilot-operator-probe >/dev/null
+
 echo "pilot-deployment-test: OK: Contract, Leerstart und realer Deployment Doctor bewiesen"
 echo "pilot-deployment-test: OK: Operator-Deploy ist manifestgebunden, fail-closed und buildfrei"
+echo "pilot-deployment-test: OK: Operator-Backup/Restore erhält vier reale Datenkomponenten"

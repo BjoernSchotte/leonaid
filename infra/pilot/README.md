@@ -82,6 +82,37 @@ verwendet ausschließlich `up --no-build --pull missing`, wartet auf alle
 Healthchecks und führt danach den vollständigen Deployment Doctor aus. Ein
 Manifest-/Compose-Drift erreicht den Start nicht.
 
+## Backup und Restore
+
+Produktive Sicherungen laufen ebenfalls ausschließlich durch einen
+Doctor-geschützten Operatorbefehl:
+
+```sh
+./leonaid pilot-backup \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env
+```
+
+Ein Recovery Drill benötigt ein frisches `leonaid-restore-*`-Projekt, ein
+separates Ziel-Environment und die exakte Bestätigung. Der Zielstart ist
+buildfrei:
+
+```sh
+./leonaid pilot-restore \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --target-env-file /etc/leonaid/restore-drill-2026-07.env \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env \
+  --confirm RESTORE:leonaid-restore-drill-2026-07
+```
+
+Quell- und Ziel-Environment müssen dasselbe externe Restic-Repository
+referenzieren. Bestehende Zielcontainer oder -volumes sowie eine abweichende
+Bestätigung blockieren den Restore vor einer Mutation.
+
 ## Deployment Doctor
 
 Für eine reine Diagnose und danach vor jedem weiteren produktiven Gate:

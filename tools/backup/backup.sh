@@ -10,7 +10,11 @@ repository=${LEONAID_BACKUP_REPOSITORY:-}
 password_file=${LEONAID_BACKUP_PASSWORD_FILE:-}
 credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
 compose_file="$root/infra/compose/compose.yml"
-env_file="$root/.env.local"
+compose_overlay=${LEONAID_BACKUP_COMPOSE_OVERLAY:-}
+compose_overlay_secondary=${LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY:-}
+env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
+manifest_output=${LEONAID_BACKUP_MANIFEST_OUTPUT:-}
+manifest_output_tmp=
 stage=$(mktemp -d)
 writers_stopped=false
 restart_services=""
@@ -20,22 +24,73 @@ fail() {
   exit 1
 }
 
-[ -f "$env_file" ] || fail ".env.local fehlt"
+[ -f "$env_file" ] || fail "Environment-Datei fehlt"
 [ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
 [ -n "$password_file" ] || fail "LEONAID_BACKUP_PASSWORD_FILE fehlt"
+if [ -n "$compose_overlay" ]; then
+  compose_overlay=$(cd "$(dirname "$compose_overlay")" && pwd)/$(basename "$compose_overlay")
+  case "$compose_overlay" in
+    "$root"/*) ;;
+    *) fail "Backup-Compose-Overlay muss innerhalb des Repositories liegen" ;;
+  esac
+  [ -f "$compose_overlay" ] || fail "Backup-Compose-Overlay fehlt"
+fi
+if [ -n "$compose_overlay_secondary" ]; then
+  [ -n "$compose_overlay" ] ||
+    fail "Sekundäres Backup-Compose-Overlay benötigt ein primäres Overlay"
+  compose_overlay_secondary=$(
+    cd "$(dirname "$compose_overlay_secondary")" &&
+      pwd
+  )/$(basename "$compose_overlay_secondary")
+  case "$compose_overlay_secondary" in
+    "$root"/*) ;;
+    *) fail "Sekundäres Backup-Compose-Overlay muss im Repository liegen" ;;
+  esac
+  [ -f "$compose_overlay_secondary" ] ||
+    fail "Sekundäres Backup-Compose-Overlay fehlt"
+fi
+if [ -n "$manifest_output" ]; then
+  case "$manifest_output" in
+    /*) ;;
+    *) fail "Backup-Manifest-Ausgabe muss absolut sein" ;;
+  esac
+  [ -d "$(dirname "$manifest_output")" ] ||
+    fail "Verzeichnis für Backup-Manifest-Ausgabe fehlt"
+  manifest_output_tmp="$manifest_output.tmp.$$"
+fi
 
 compose() {
-  docker compose \
-    --project-name "$project" \
-    --env-file "$env_file" \
-    --file "$compose_file" \
-    "$@"
+  if [ -n "$compose_overlay_secondary" ]; then
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$compose_overlay" \
+      --file "$compose_overlay_secondary" \
+      "$@"
+  elif [ -n "$compose_overlay" ]; then
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$compose_overlay" \
+      "$@"
+  else
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      "$@"
+  fi
 }
 
 cleanup() {
   status=$?
   if [ "$writers_stopped" = "true" ] && [ -n "$restart_services" ]; then
     compose start $restart_services >/dev/null 2>&1 || true
+  fi
+  if [ -n "$manifest_output_tmp" ]; then
+    rm -f "$manifest_output_tmp"
   fi
   rm -rf "$stage"
   exit "$status"
@@ -188,5 +243,12 @@ restic_run forget \
   --keep-yearly 3 \
   --prune
 restic_run check --read-data
+if [ -n "$manifest_output" ]; then
+  umask 077
+  cp "$stage/manifest.json" "$manifest_output_tmp"
+  chmod 600 "$manifest_output_tmp"
+  mv "$manifest_output_tmp" "$manifest_output"
+  manifest_output_tmp=
+fi
 
 echo "backup: OK: $project konsistent, verschlüsselt und integritätsgeprüft"

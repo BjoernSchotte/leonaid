@@ -2,9 +2,10 @@
 
 Task-ID: `PILOT-041`
 
-Nachweisdatum: 29. Juli 2026
+Nachweisdatum: 30. Juli 2026
 
-Status: technischer Recovery- und S3-Vertrag bewiesen, Betreiberdrill offen
+Status: technischer Recovery-, S3- und Operator-CLI-Vertrag bewiesen,
+Betreiberdrill offen
 
 ## Ergebnis
 
@@ -15,6 +16,9 @@ Der Pilot kombiniert zwei reale, komplementäre Verträge:
    restauriert alles in frische Compose-Volumes.
 2. `tools/pilot_backup/test.sh` überträgt ein vollständiges Recovery-Manifest
    verschlüsselt in ein separat gestartetes, netzgebundenes RustFS-S3-Ziel.
+3. `tools/pilot_deployment/test.sh` führt den produktionsnahen Operatorweg mit
+   vollem Doctor, echtem S3-Backup und buildfreiem Restore in ein unabhängiges
+   Zielprojekt aus.
 
 Der neue zentrale Manifestprüfer verlangt exakt alle vier
 Cross-System-Bestandteile. Ein Manifest, das nur die tatsächlich vorhandenen
@@ -77,6 +81,35 @@ Dieser Test verwendet keine Test-Doubles:
 Nach den Tests waren jeweils null Container, Netzwerke und Volumes der
 Projekte `leonaid-poc112-source`, `leonaid-restore-poc112` und
 `leonaid-pilot041-s3` vorhanden.
+
+## Manifestgebundener Operator-Nachweis
+
+```text
+pilot-doctor: OK (pilot-backup): Deployment und Entscheidungen sind freigegeben
+backup: OK: leonaid-production-test konsistent, verschlüsselt und
+integritätsgeprüft
+pilot-backup: OK: leonaid-production-test ist verschlüsselt gesichert und
+das Doctor-Manifest ist aktuell
+backup-manifest: OK: vier Cross-System-Bestandteile bytegenau
+restore: OK: leonaid-production-test wurde nach
+leonaid-restore-pilot-operator wiederhergestellt
+pilot-restore: OK: leonaid-production-test wurde buildfrei nach
+leonaid-restore-pilot-operator restauriert
+pilot-deployment-test: OK: Operator-Backup/Restore erhält vier reale
+Datenkomponenten
+```
+
+Der positive Durchlauf legt eindeutige Probe-Daten in Core PostgreSQL,
+Twenty PostgreSQL, dem RustFS-Volume und dem Twenty-Dateivolume an. Nach dem
+Restore werden alle vier Inhalte im frischen Zielprojekt geprüft. Ein zu
+kurzes/falsches Passwort und eine falsche `RESTORE:<ziel>`-Bestätigung werden
+vorher negativ bewiesen. Der Restore verwendet ausschließlich
+`--no-build --pull missing`.
+
+Nach dem Volltest waren null Container der Projekte
+`leonaid-production-test`, `leonaid-restore-pilot-operator` und
+`leonaid-pilot-operator-backup` vorhanden. Die zugehörigen Testnetzwerke,
+Volumes und lokal gebauten Release-Images wurden ebenfalls entfernt.
 
 ## Offene formale Gates
 

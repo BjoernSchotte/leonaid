@@ -804,6 +804,9 @@ Tests/Nachweise:
 
 - [x] `./leonaid test-pilot-backup` verwendet das reale externe
       Restic-Testrepository und frische Zielvolumes.
+- [x] `./leonaid test-pilot-deployment` beweist den vollständigen
+      Doctor-geschützten Operatorweg für Backup und buildfreien Restore mit
+      echten Probe-Daten in beiden Datenbanken und Dateiablagen.
 - [x] Falsches Passwort, unvollständiger Snapshot, volles Ziel und
       Netzwerkunterbrechung werden real erzeugt.
 - [x] Gemessenes RPO/RTO erfüllt das Register.
