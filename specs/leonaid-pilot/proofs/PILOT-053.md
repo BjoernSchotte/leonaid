@@ -56,10 +56,10 @@ beziehungsweise einen Vertragsfehler.
 
 Der aktuelle echte Report weist sämtliche 16 Hard-Gates als blockiert aus,
 listet die offenen Pilotentscheidungs-IDs und unterscheidet fehlende von
-technischen Teilproofs. Während der Implementierung ist zusätzlich der
-Arbeitsbaum korrekt als nicht sauber markiert. Der Remote-CI-Report wird auf
-dem gepushten Commit erneut erzeugt und darf diesen Git-Blocker nicht
-enthalten.
+technischen Teilproofs. Auf Commit
+`24a6dc4441f9a2c95db3ab6e81ae6c6432cd79fd` meldet er zugleich `main`,
+einen sauberen Arbeitsbaum und Gleichstand mit `origin/main`. Damit ist der
+Repositoryzustand kein Readiness-Blocker mehr.
 
 ## Finaler cache-freier CI-Teilnachweis
 
@@ -85,6 +85,24 @@ Damit sind die beiden technischen Kriterien „sanitizte Beweisartefakte aus
 finalem Cold-CI-Lauf“ und „Docker-Cold-Start ohne Caches aus leerem Zustand“
 bewiesen. Sie ersetzen keine reale Generalprobe, private Evidence oder
 Abnahme.
+
+## Letzter Main- und Remote-CI-Baseline-Nachweis
+
+Der
+[GitHub-Actions-Lauf 30568363863](https://github.com/BjoernSchotte/leonaid/actions/runs/30568363863)
+auf Commit `24a6dc4441f9a2c95db3ab6e81ae6c6432cd79fd` endete am
+2026-07-30 terminal mit `success`. Erfolgreich waren Security, Build, Unit,
+Lint/Types, Contract, die reale Service-Integration sowie die Browser-Gates
+für Aktionen, Public Web, Identität, Rechnungen, Akquise und die vollständige
+Golden Journey. Der Integrationsjob lief 38 Minuten und 48 Sekunden gegen die
+realen gepinnten Testdienste.
+
+Zum selben Zeitpunkt waren lokales `HEAD` und `origin/main` identisch und der
+Arbeitsbaum sauber. Das belegt einen grünen technischen Zwischenstand. Das
+finale Kriterium „Abschlusscommit auf `main`, Remote-CI terminal grün und
+Arbeitsverzeichnis sauber“ bleibt bis zum tatsächlichen Abschluss aller
+Pilot-Gates offen. Der Baseline-Nachweis ersetzt weder das private
+Abnahmeprotokoll noch die noch offenen externen Pilot-Gates.
 
 ## Bewusst offene Gates
 
