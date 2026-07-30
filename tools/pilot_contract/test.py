@@ -68,6 +68,23 @@ def main() -> None:
         if len(payload["tasks"]) != 21 or len(payload["hard_gates"]) != 16:
             raise AssertionError("pilot contract baseline count drifted")
 
+        decision_intake = (root / "specs/leonaid-pilot/DECISION-INTAKE.md").read_text(
+            encoding="utf-8"
+        )
+        doctor_examples = decision_intake.split("./leonaid pilot-doctor")[1:]
+        if len(doctor_examples) != 4:
+            raise AssertionError(
+                "decision intake must contain four pilot-doctor examples"
+            )
+        for example in doctor_examples:
+            command = example.split("./leonaid pilot-doctor", 1)[0]
+            required_arguments = ("--env-file", "--backup-manifest", "--gate")
+            if not all(argument in command for argument in required_arguments):
+                raise AssertionError(
+                    "every pilot-doctor example must pass private environment, "
+                    "backup manifest and gate"
+                )
+
         missing_proof = workspace / "missing-proof"
         copy_fixture(root, missing_proof)
         traceability = missing_proof / "specs/leonaid-pilot/TRACEABILITY.md"

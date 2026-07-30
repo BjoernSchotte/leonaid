@@ -134,12 +134,34 @@ Registerwert nach Bestätigung: `confirmed`.
 
 ## Technische Vorprüfung
 
+Die Vorprüfung benötigt die private, nur für den Operator lesbare
+Environment-Datei der Zielumgebung und das Manifest des letzten externen
+Backups. Die folgenden Pfade sind Beispiele und werden durch die tatsächlichen
+Operatorpfade ersetzt:
+
 ```sh
-./leonaid pilot-doctor --gate pilot-deploy
-./leonaid pilot-doctor --gate pilot-import
-./leonaid pilot-doctor --gate pilot-release
-./leonaid pilot-doctor --gate pilot-release --json
+LEONAID_PILOT_ENV_FILE=/etc/leonaid/staging.env
+LEONAID_PILOT_BACKUP_MANIFEST=/var/lib/leonaid/evidence/latest-backup-manifest.json
+
+./leonaid pilot-doctor \
+  --env-file "$LEONAID_PILOT_ENV_FILE" \
+  --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
+  --gate pilot-deploy
+./leonaid pilot-doctor \
+  --env-file "$LEONAID_PILOT_ENV_FILE" \
+  --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
+  --gate pilot-import
+./leonaid pilot-doctor \
+  --env-file "$LEONAID_PILOT_ENV_FILE" \
+  --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
+  --gate pilot-release
+./leonaid pilot-doctor \
+  --env-file "$LEONAID_PILOT_ENV_FILE" \
+  --backup-manifest "$LEONAID_PILOT_BACKUP_MANIFEST" \
+  --gate pilot-release \
+  --json
 ```
 
-Exit-Code `2` bedeutet offene Entscheidung, `3` bedeutet `STOP`. Nur
-Exit-Code `0` gibt das gewählte Gate frei.
+Exit-Code `1` bedeutet einen technischen oder Konfigurationsblocker, `2`
+eine offene Entscheidung und `3` eine `STOP`-Entscheidung. Nur Exit-Code `0`
+gibt das gewählte Gate frei.
