@@ -89,7 +89,8 @@ Commands:
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
                     Validate deployment and decisions for productive actions
-  pilot-deploy      Deploy the productive pilot after pilot-doctor
+  pilot-deploy --env-file FILE --backup-manifest FILE --release-manifest FILE
+                    Deploy the manifest-bound pilot without a live build
   pilot-release     Release the productive pilot after pilot-doctor
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
@@ -480,30 +481,119 @@ pilot_doctor() {
       ;;
   esac
   release_commit=$(git -C "$root" rev-parse HEAD)
+  alert_webhook_file=$(
+    pilot_environment_value LEONAID_ALERT_WEBHOOK_URL_FILE "$env_file"
+  )
+  monitored_disk_path=$(
+    pilot_environment_value LEONAID_MONITORED_DISK_PATH "$env_file"
+  )
+  case "$alert_webhook_file" in
+    /*) ;;
+    *)
+      echo "pilot-doctor: BLOCKED: Alert-Webhook-Pfad muss absolut sein" >&2
+      return 1
+      ;;
+  esac
+  case "$monitored_disk_path" in
+    /*) ;;
+    *)
+      echo "pilot-doctor: BLOCKED: Monitoring-Pfad muss absolut sein" >&2
+      return 1
+      ;;
+  esac
+  [ -f "$alert_webhook_file" ] || {
+    echo "pilot-doctor: BLOCKED: Alert-Webhook-Datei fehlt" >&2
+    return 1
+  }
+  [ -d "$monitored_disk_path" ] || {
+    echo "pilot-doctor: BLOCKED: Monitoring-Pfad fehlt" >&2
+    return 1
+  }
   config_file=$(mktemp)
   trap 'rm -f "$config_file"' EXIT HUP INT TERM
-  docker compose \
-    --project-name "$project" \
-    --env-file "$env_file" \
-    --file "$root/infra/compose/compose.yml" \
-    --file "$root/infra/pilot/compose.yml" \
-    config --format json >"$config_file"
+  pilot_compose_config "$project" "$env_file" "$config_file"
   set +e
-  # shellcheck disable=SC2086
-  docker run --rm \
-    --env PYTHONPATH=/workspace \
-    --volume "$root:/workspace:ro" \
-    --volume "$env_file:/doctor/production.env:ro" \
-    --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
-    --volume "$config_file:/doctor/compose.json:ro" \
-    --workdir /workspace \
-    "$PYTHON_IMAGE" \
-    python tools/pilot_deployment/doctor.py /workspace \
-      --env-file /doctor/production.env \
-      --compose-config /doctor/compose.json \
-      --backup-manifest /doctor/backup-manifest.json \
-      --expected-release-commit "$release_commit" \
-      --gate "$gate" $json_argument
+  test_network=${LEONAID_PILOT_TEST_DOCTOR_NETWORK:-}
+  test_ca_file=${LEONAID_PILOT_TEST_CA_FILE:-}
+  test_decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
+  if [ -n "$test_network$test_ca_file$test_decisions_file" ]; then
+    case "$project" in
+      leonaid-production-test|leonaid-staging-test) ;;
+      *)
+        echo "pilot-doctor: BLOCKED: Testdiagnose ist nur in isolierten Testprojekten zulässig" >&2
+        rm -f "$config_file"
+        trap - EXIT HUP INT TERM
+        return 1
+        ;;
+    esac
+    if [ -z "$test_network" ] || [ -z "$test_ca_file" ] || [ -z "$test_decisions_file" ]; then
+      echo "pilot-doctor: BLOCKED: Testdiagnose benötigt Netzwerk, CA und Entscheidungsregister" >&2
+      rm -f "$config_file"
+      trap - EXIT HUP INT TERM
+      return 1
+    fi
+    test_ca_file=$(pilot_absolute_file pilot-doctor "$test_ca_file") || {
+      rm -f "$config_file"
+      trap - EXIT HUP INT TERM
+      return 1
+    }
+    test_decisions_file=$(
+      pilot_absolute_file pilot-doctor "$test_decisions_file"
+    ) || {
+      rm -f "$config_file"
+      trap - EXIT HUP INT TERM
+      return 1
+    }
+    portal_domain=$(pilot_environment_value LEONAID_PUBLIC_DOMAIN "$env_file")
+    crm_domain=$(pilot_environment_value TWENTY_PUBLIC_DOMAIN "$env_file")
+    # Test-only: same real TLS endpoints and decision parser, isolated inside
+    # the proxy network namespace. Product projects cannot activate this path.
+    # shellcheck disable=SC2086
+    docker run --rm \
+      --network "$test_network" \
+      --env PYTHONPATH=/workspace \
+      --volume "$root:/workspace:ro" \
+      --volume "$test_decisions_file:/workspace/specs/leonaid-pilot/DECISIONS.md:ro" \
+      --volume "$env_file:/doctor/production.env:ro" \
+      --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
+      --volume "$config_file:/doctor/compose.json:ro" \
+      --volume "$test_ca_file:/doctor/ca.crt:ro" \
+      --volume "$alert_webhook_file:$alert_webhook_file:ro" \
+      --volume "$monitored_disk_path:$monitored_disk_path:ro" \
+      --workdir /workspace \
+      "$PYTHON_IMAGE" \
+      python tools/pilot_deployment/doctor.py /workspace \
+        --env-file /doctor/production.env \
+        --compose-config /doctor/compose.json \
+        --backup-manifest /doctor/backup-manifest.json \
+        --expected-release-commit "$release_commit" \
+        --gate "$gate" \
+        --isolated-test-mode \
+        --ca-file /doctor/ca.crt \
+        --resolve "$portal_domain=127.0.0.1:443" \
+        --resolve "$crm_domain=127.0.0.1:443" \
+        --disk-path /workspace \
+        --minimum-free-bytes 1048576 \
+        --minimum-certificate-validity-hours 1 $json_argument
+  else
+    # shellcheck disable=SC2086
+    docker run --rm \
+      --env PYTHONPATH=/workspace \
+      --volume "$root:/workspace:ro" \
+      --volume "$env_file:/doctor/production.env:ro" \
+      --volume "$backup_manifest:/doctor/backup-manifest.json:ro" \
+      --volume "$config_file:/doctor/compose.json:ro" \
+      --volume "$alert_webhook_file:$alert_webhook_file:ro" \
+      --volume "$monitored_disk_path:$monitored_disk_path:ro" \
+      --workdir /workspace \
+      "$PYTHON_IMAGE" \
+      python tools/pilot_deployment/doctor.py /workspace \
+        --env-file /doctor/production.env \
+        --compose-config /doctor/compose.json \
+        --backup-manifest /doctor/backup-manifest.json \
+        --expected-release-commit "$release_commit" \
+        --gate "$gate" $json_argument
+  fi
   status=$?
   set -e
   rm -f "$config_file"
@@ -516,6 +606,224 @@ pilot_future_command() {
   task=$2
   pilot_doctor --gate "$command_name"
   future_command "$command_name" "$task"
+}
+
+pilot_environment_value() {
+  key=$1
+  file=$2
+  sed -n "s/^${key}=//p" "$file" | tail -n 1
+}
+
+pilot_absolute_file() {
+  label=$1
+  path=$2
+  [ -n "$path" ] || {
+    echo "$label: ERROR: Pfad fehlt" >&2
+    return 64
+  }
+  [ -f "$path" ] || {
+    echo "$label: ERROR: Datei fehlt" >&2
+    return 1
+  }
+  directory=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd)
+  printf '%s/%s\n' "$directory" "$(basename -- "$path")"
+}
+
+pilot_test_overlay() {
+  project=$1
+  overlay=${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}
+  [ -n "$overlay" ] || return 1
+  case "$project" in
+    leonaid-production-test|leonaid-staging-test) ;;
+    *)
+      echo "pilot: BLOCKED: Test-Overlay ist nur für isolierte Testprojekte zulässig" >&2
+      return 1
+      ;;
+  esac
+  case "$overlay" in
+    "$root"/*) ;;
+    *)
+      echo "pilot: BLOCKED: Test-Overlay muss innerhalb des Repositories liegen" >&2
+      return 1
+      ;;
+  esac
+  [ -f "$overlay" ] || {
+    echo "pilot: BLOCKED: Test-Overlay fehlt" >&2
+    return 1
+  }
+  printf '%s\n' "$overlay"
+}
+
+pilot_compose_config() {
+  project=$1
+  env_file=$2
+  output=$3
+  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+    overlay=$(pilot_test_overlay "$project") || return
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$overlay" \
+      config --format json >"$output"
+  else
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      config --format json >"$output"
+  fi
+}
+
+pilot_compose_up() {
+  project=$1
+  env_file=$2
+  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+    overlay=$(pilot_test_overlay "$project") || return
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$overlay" \
+      up --detach --no-build --pull missing --wait --wait-timeout 420
+  else
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      up --detach --no-build --pull missing --wait --wait-timeout 420
+  fi
+}
+
+pilot_decision_gate() {
+  project=$1
+  gate=$2
+  decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
+  if [ -n "$decisions_file" ]; then
+    case "$project" in
+      leonaid-production-test|leonaid-staging-test) ;;
+      *)
+        echo "pilot-doctor: BLOCKED: Testentscheidungen sind nur in isolierten Testprojekten zulässig" >&2
+        return 1
+        ;;
+    esac
+    decisions_file=$(pilot_absolute_file pilot-doctor "$decisions_file")
+    docker run --rm \
+      --env PYTHONPATH=/workspace \
+      --volume "$root:/workspace:ro" \
+      --volume "$decisions_file:/workspace/specs/leonaid-pilot/DECISIONS.md:ro" \
+      --workdir /workspace \
+      "$PYTHON_IMAGE" \
+      python tools/pilot_decisions/check.py /workspace \
+        --ready --gate "$gate"
+  else
+    docker run --rm \
+      --env PYTHONPATH=/workspace \
+      --volume "$root:/workspace:ro" \
+      --workdir /workspace \
+      "$PYTHON_IMAGE" \
+      python tools/pilot_decisions/check.py /workspace \
+        --ready --gate "$gate"
+  fi
+}
+
+pilot_verify_release_manifest() {
+  manifest=$1
+  compose_config=$2
+  expected_commit=$3
+  docker run --rm \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$manifest:/pilot/release-manifest.json:ro" \
+    --volume "$compose_config:/pilot/compose.json:ro" \
+    --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/pilot_release/manifest.py verify \
+      --root /workspace \
+      --manifest /pilot/release-manifest.json \
+      --expected-commit "$expected_commit" \
+      --compose-config /pilot/compose.json
+}
+
+pilot_deploy() {
+  require_docker
+  env_file=
+  backup_manifest=
+  release_manifest=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-deploy: ERROR: --env-file benötigt einen Pfad" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      --backup-manifest)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-deploy: ERROR: --backup-manifest benötigt einen Pfad" >&2
+          exit 64
+        }
+        backup_manifest=$2
+        shift 2
+        ;;
+      --release-manifest)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-deploy: ERROR: --release-manifest benötigt einen Pfad" >&2
+          exit 64
+        }
+        release_manifest=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-deploy: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-deploy: ERROR: --env-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$backup_manifest" ] || {
+    echo "pilot-deploy: ERROR: --backup-manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$release_manifest" ] || {
+    echo "pilot-deploy: ERROR: --release-manifest fehlt" >&2
+    exit 64
+  }
+  env_file=$(pilot_absolute_file pilot-deploy "$env_file")
+  backup_manifest=$(pilot_absolute_file pilot-deploy "$backup_manifest")
+  release_manifest=$(pilot_absolute_file pilot-deploy "$release_manifest")
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-deploy: BLOCKED: Compose-Projekt ist nicht umgebungsspezifisch" >&2
+      exit 1
+      ;;
+  esac
+  release_commit=$(git -C "$root" rev-parse HEAD)
+  config_file=$(mktemp)
+  trap 'rm -f "$config_file"' EXIT HUP INT TERM
+  pilot_compose_config "$project" "$env_file" "$config_file"
+  pilot_verify_release_manifest \
+    "$release_manifest" "$config_file" "$release_commit"
+  pilot_decision_gate "$project" pilot-deploy
+  pilot_compose_up "$project" "$env_file"
+  pilot_doctor \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --gate pilot-deploy
+  rm -f "$config_file"
+  trap - EXIT HUP INT TERM
+  echo "pilot-deploy: OK: $project läuft exakt aus dem verifizierten Release-Manifest"
 }
 
 pilot_import() {
@@ -1211,7 +1519,10 @@ case "$command" in
     shift
     pilot_doctor "$@"
     ;;
-  pilot-deploy) pilot_future_command "$command" PILOT-043 ;;
+  pilot-deploy)
+    shift
+    pilot_deploy "$@"
+    ;;
   pilot-release) pilot_future_command "$command" PILOT-050 ;;
   pilot-import)
     shift

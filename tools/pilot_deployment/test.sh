@@ -5,7 +5,7 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 project=${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}
-runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-leonaid-pilot040-test}
+runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-$project}
 build_project=${LEONAID_PILOT_BUILD_PROJECT:-leonaid-pilot040-release}
 http_port=${LEONAID_PILOT_TEST_HTTP_PORT:-19080}
 https_port=${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}
@@ -13,12 +13,20 @@ workspace=$(mktemp -d)
 config="$workspace/compose.json"
 env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
+release_manifest="$workspace/release-manifest.json"
+drifted_release_manifest="$workspace/drifted-release-manifest.json"
+accepted_decisions="$workspace/accepted-decisions.md"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
-core_image="$build_project-api:latest"
-web_image="$build_project-web:latest"
-pwa_image="$build_project-pwa:latest"
-public_image="$build_project-public:latest"
+core_image_tag="$build_project-api:latest"
+web_image_tag="$build_project-web:latest"
+pwa_image_tag="$build_project-pwa:latest"
+public_image_tag="$build_project-public:latest"
+core_image="$core_image_tag"
+web_image="$web_image_tag"
+pwa_image="$pwa_image_tag"
+public_image="$public_image_tag"
+release_commit=$(git -C "$root" rev-parse HEAD)
 
 runtime_compose() {
   LEONAID_PILOT_TEST_HTTP_PORT="$http_port" \
@@ -45,7 +53,7 @@ cleanup() {
   fi
   runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   docker image rm \
-    "$core_image" "$web_image" "$pwa_image" "$public_image" \
+    "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" \
     >/dev/null 2>&1 || true
   rm -rf "$workspace"
   exit "$status"
@@ -62,7 +70,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_DEPLOYMENT_STAGE=production" \
     "LEONAID_COMPOSE_PROJECT=$project" \
     "LEONAID_SERVICE_VERSION=0.1.0" \
-    "LEONAID_RELEASE_COMMIT=0123456789abcdef0123456789abcdef01234567" \
+    "LEONAID_RELEASE_COMMIT=$release_commit" \
     "LEONAID_CORE_IMAGE=registry.example.org/leonaid/core@sha256:$digest" \
     "LEONAID_WEB_IMAGE=registry.example.org/leonaid/web@sha256:$digest" \
     "LEONAID_PWA_IMAGE=registry.example.org/leonaid/pwa@sha256:$digest" \
@@ -194,7 +202,7 @@ docker run --rm \
     /proof/production.env \
     /proof/compose.json \
     /proof/backup-manifest.json \
-    0123456789abcdef0123456789abcdef01234567
+    "$release_commit"
 
 echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
 docker run --rm \
@@ -209,7 +217,7 @@ docker run --rm \
     --env-file /proof/production.env \
     --compose-config /proof/compose.json \
     --backup-manifest /proof/backup-manifest.json \
-    --expected-release-commit 0123456789abcdef0123456789abcdef01234567 \
+    --expected-release-commit "$release_commit" \
     --deployment-only \
     --ca-file /proof/caddy-root.crt \
     --resolve portal.leonaid.org=127.0.0.1:443 \
@@ -235,7 +243,7 @@ unsafe_output=$(docker run --rm \
     --env-file /proof/unsafe.env \
     --compose-config /proof/compose.json \
     --backup-manifest /proof/backup-manifest.json \
-    --expected-release-commit 0123456789abcdef0123456789abcdef01234567 \
+    --expected-release-commit "$release_commit" \
     --deployment-only 2>&1)
 unsafe_status=$?
 set -e
@@ -252,4 +260,97 @@ if ! printf '%s' "$unsafe_output" | grep -q "secret_invalid:LEONAID_SECRET_KEY";
   exit 1
 fi
 
+echo "pilot-deployment-test: beweist den manifestgebundenen Operator-Deploy"
+core_image=$(docker image inspect --format '{{.Id}}' "$core_image_tag")
+web_image=$(docker image inspect --format '{{.Id}}' "$web_image_tag")
+pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
+public_image=$(docker image inspect --format '{{.Id}}' "$public_image_tag")
+runtime_compose config --format json >"$config"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof" \
+  --workdir /workspace \
+  "$PYTHON_IMAGE" \
+  python tools/pilot_release/manifest.py create \
+    --root /workspace \
+    --release-id pilot-deploy-test \
+    --version 0.1.0-test \
+    --git-commit "$release_commit" \
+    --deployment-mode test \
+    --compose-config /proof/compose.json \
+    --output /proof/release-manifest.json
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$root:/workspace:ro" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import pathlib
+source=pathlib.Path("/workspace/specs/leonaid-pilot/DECISIONS.md")
+target=pathlib.Path("/proof/accepted-decisions.md")
+lines=[]
+for line in source.read_text(encoding="utf-8").splitlines():
+    if line.startswith("| PILOT-"):
+        cells=[cell.strip() for cell in line.strip().strip("|").split("|")]
+        decision_id=cells[0]
+        cells[6]="EVID-TEST-"+decision_id.removeprefix("PILOT-")
+        cells[7]="accepted"
+        cells[8]=(
+            "small_business" if decision_id=="PILOT-TAX-001"
+            else "not_required" if decision_id=="PILOT-INV-002"
+            else "confirmed"
+        )
+        line="| "+" | ".join(cells)+" |"
+    lines.append(line)
+target.write_text("\n".join(lines)+"\n",encoding="utf-8")
+target.chmod(0o600)'
+cp "$release_manifest" "$drifted_release_manifest"
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$workspace:/proof" \
+  "$PYTHON_IMAGE" \
+  python -c 'import json,pathlib
+p=pathlib.Path("/proof/drifted-release-manifest.json")
+value=json.loads(p.read_text(encoding="utf-8"))
+value["images"]["api"]="sha256:"+"b"*64
+p.write_text(json.dumps(value,sort_keys=True,indent=2)+"\n",encoding="utf-8")'
+set +e
+drift_output=$(
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+    LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    "$root/leonaid" pilot-deploy \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --release-manifest "$drifted_release_manifest" 2>&1
+)
+drift_status=$?
+set -e
+if [ "$drift_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: Manifest-/Compose-Drift wurde deployed" >&2
+  exit 1
+fi
+if ! printf '%s' "$drift_output" |
+  grep -Fq "Manifest-Images weichen"; then
+  echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
+  exit 1
+fi
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+  LEONAID_TEST_CORE_IMAGE="$core_image" \
+  LEONAID_TEST_WEB_IMAGE="$web_image" \
+  LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+  LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+  "$root/leonaid" pilot-deploy \
+    --env-file "$env_file" \
+    --backup-manifest "$backup_manifest" \
+    --release-manifest "$release_manifest"
+
 echo "pilot-deployment-test: OK: Contract, Leerstart und realer Deployment Doctor bewiesen"
+echo "pilot-deployment-test: OK: Operator-Deploy ist manifestgebunden, fail-closed und buildfrei"

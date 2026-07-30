@@ -66,22 +66,25 @@ docker compose \
 
 Der Vertrag blockiert Builds auf dem Zielsystem, ungepinnte Images,
 Live-Code-Mounts, zusätzliche Hostports, öffentliche Datennetze,
-Loopback-URLs, Mailpit und Default-Secrets. Ein Start erfolgt nur aus den
-bereits publizierten Digests:
+Loopback-URLs, Mailpit und Default-Secrets. Der Operator startet oder
+aktualisiert die Umgebung ausschließlich mit dem gebundenen Release-Manifest:
 
 ```sh
-docker compose \
-  --project-name leonaid-staging-club-111 \
+./leonaid pilot-deploy \
   --env-file /etc/leonaid/staging.env \
-  --file infra/compose/compose.yml \
-  --file infra/pilot/compose.yml \
-  up --detach --no-build --wait --wait-timeout 420
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --release-manifest .local/pilot/evidence/release-2026.1.0.json
 ```
+
+Der Befehl verifiziert vor dem Start Checkout, Manifest, effektive
+Compose-Images und alle für `pilot-deploy` fälligen Entscheidungen. Er
+verwendet ausschließlich `up --no-build --pull missing`, wartet auf alle
+Healthchecks und führt danach den vollständigen Deployment Doctor aus. Ein
+Manifest-/Compose-Drift erreicht den Start nicht.
 
 ## Deployment Doctor
 
-Nach dem ersten kontrollierten Staging-Start und danach vor jedem produktiven
-Gate:
+Für eine reine Diagnose und danach vor jedem weiteren produktiven Gate:
 
 ```sh
 ./leonaid pilot-doctor \

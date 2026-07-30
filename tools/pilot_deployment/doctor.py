@@ -140,6 +140,7 @@ def validate_environment(
     env_file: Path,
     compose_config: dict[str, Any],
     expected_release_commit: str,
+    isolated_test_mode: bool = False,
 ) -> str:
     require_private_file(env_file, "environment_file")
     require_external_path(env_file, root, "environment_file")
@@ -223,7 +224,7 @@ def validate_environment(
     if forbidden_public_host(values["MAIL_SMTP_HOST"]):
         raise DoctorError("smtp_host_invalid")
 
-    validate(compose_config)
+    validate(compose_config, isolated_test_mode=isolated_test_mode)
     return project
 
 
@@ -469,6 +470,11 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="nur Infrastruktur diagnostizieren; autorisiert keine produktive Aktion",
     )
+    result.add_argument(
+        "--isolated-test-mode",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     result.add_argument("--resolve", action="append", default=[])
     result.add_argument("--ca-file", type=Path)
     result.add_argument("--disk-path", type=Path, default=Path("/"))
@@ -504,6 +510,7 @@ def main() -> int:
             env_file=arguments.env_file,
             compose_config=compose_config,
             expected_release_commit=arguments.expected_release_commit,
+            isolated_test_mode=arguments.isolated_test_mode,
         )
         validate_backup(
             arguments.backup_manifest,

@@ -26,6 +26,7 @@ REQUIRED_SERVICES = {
 }
 PRIVATE_NETWORKS = {"core-data", "crm-data", "mail-data", "storage-data", "telemetry"}
 IMAGE_DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
+LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 FULL_COMMIT = re.compile(r"[0-9a-f]{40}$")
 
 
@@ -64,7 +65,7 @@ def validate_public_url(value: str, label: str) -> None:
         raise DeploymentContractError(f"{label} ist keine produktive HTTPS-URL")
 
 
-def validate(config: dict[str, Any]) -> None:
+def validate(config: dict[str, Any], *, isolated_test_mode: bool = False) -> None:
     project = string_value(config, "name")
     if project == "leonaid" or not project.startswith("leonaid-"):
         raise DeploymentContractError("Compose-Projekt ist nicht umgebungsspezifisch")
@@ -74,6 +75,7 @@ def validate(config: dict[str, Any]) -> None:
         raise DeploymentContractError("aktive Service-Menge weicht vom Pilot-Core ab")
 
     published: list[tuple[str, int, int]] = []
+    published_hosts: list[str] = []
     for service_name, raw_service in services.items():
         service = object_value(raw_service, f"services.{service_name}")
         if "build" in service:
@@ -81,7 +83,9 @@ def validate(config: dict[str, Any]) -> None:
                 f"{service_name} enthält einen produktiven Build"
             )
         image = string_value(service, "image")
-        if IMAGE_DIGEST.search(image) is None:
+        if IMAGE_DIGEST.search(image) is None and not (
+            isolated_test_mode and LOCAL_IMAGE_ID.fullmatch(image) is not None
+        ):
             raise DeploymentContractError(f"{service_name} ist nicht digest-gepinnt")
         for raw_port in service.get("ports", []):
             port = object_value(raw_port, f"{service_name}.ports")
@@ -92,6 +96,7 @@ def validate(config: dict[str, Any]) -> None:
                     int(port.get("published", 0)),
                 )
             )
+            published_hosts.append(str(port.get("host_ip", "")))
         for raw_volume in service.get("volumes", []):
             volume = object_value(raw_volume, f"{service_name}.volumes")
             if volume.get("type") != "bind":
@@ -100,7 +105,14 @@ def validate(config: dict[str, Any]) -> None:
             target = str(volume.get("target", ""))
             if (
                 service_name != "proxy"
-                or not source.endswith("/infra/pilot/Caddyfile")
+                or not source.endswith(
+                    (
+                        "/infra/pilot/Caddyfile",
+                        "/infra/pilot/Caddyfile.test",
+                    )
+                    if isolated_test_mode
+                    else ("/infra/pilot/Caddyfile",)
+                )
                 or target != "/etc/caddy/Caddyfile"
                 or volume.get("read_only") is not True
             ):
@@ -108,7 +120,17 @@ def validate(config: dict[str, Any]) -> None:
                     f"{service_name} enthält einen nicht freigegebenen Bind-Mount"
                 )
 
-    if sorted(published) != [("proxy", 80, 80), ("proxy", 443, 443)]:
+    if isolated_test_mode:
+        if sorted((service, target) for service, target, _ in published) != [
+            ("proxy", 80),
+            ("proxy", 443),
+        ] or any(
+            host_port < 1 for _, _, host_port in published
+        ) or any(host != "127.0.0.1" for host in published_hosts):
+            raise DeploymentContractError(
+                "isolierter Test darf nur Caddys Zielports 80/443 veröffentlichen"
+            )
+    elif sorted(published) != [("proxy", 80, 80), ("proxy", 443, 443)]:
         raise DeploymentContractError("nur Caddy darf exakt 80/443 veröffentlichen")
 
     networks = object_value(config.get("networks"), "networks")

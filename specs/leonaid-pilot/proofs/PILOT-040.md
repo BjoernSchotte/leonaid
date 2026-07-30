@@ -2,7 +2,7 @@
 
 Task-ID: `PILOT-040`
 
-Nachweisdatum: 29. Juli 2026
+Nachweisdatum: 30. Juli 2026
 
 Status: technische Topologie und Doctor bewiesen, reale Stagingdomain offen
 
@@ -26,6 +26,10 @@ reproduzierbar:
   Hostname und Vertrauenskette geprüft werden.
 - Der Betriebsablauf, die TLS-Erneuerung und die verbleibende reale
   Staging-Grenze sind in `infra/pilot/README.md` dokumentiert.
+- `./leonaid pilot-deploy` bindet Checkout, effektive Compose-Konfiguration
+  und zwölf Images an dasselbe Release-Manifest, prüft die fälligen
+  Entscheidungen vor dem Start, verwendet ausschließlich `--no-build` und
+  verlangt danach einen grünen vollständigen Doctor.
 
 ## Deployment Doctor
 
@@ -65,6 +69,8 @@ pilot-deployment-doctor: OK: DNS, TLS, Secrets, Uhrzeit, Speicher,
 Backup und Abhängigkeiten
 pilot-deployment-test: OK: Contract, Leerstart und realer Deployment
 Doctor bewiesen
+pilot-deployment-test: OK: Operator-Deploy ist manifestgebunden,
+fail-closed und buildfrei
 ```
 
 Der Test verwendet keine Test-Doubles:
@@ -80,6 +86,9 @@ Der Test verwendet keine Test-Doubles:
 - Er mutiert reale Environment-, Compose- und Manifest-Dateien für
   Port-, Build-, Mount-, Image-, URL-, Secret-, Stage-, Commit-,
   Backupziel- und Backupalter-Fehler.
+- Er erzeugt aus der tatsächlich gestarteten Konfiguration ein unveränderliches
+  Test-Release-Manifest, weist einen abweichenden Image-SHA vor dem Start ab
+  und führt danach den echten Operatorbefehl erfolgreich aus.
 
 Ein erster Lauf deckte zusätzlich eine reale Uhrabweichung zwischen
 macOS-Host und OrbStack-VM auf. Das Backupmanifest wird deshalb korrekt im
@@ -88,7 +97,7 @@ Provider-`Date`-Vergleich als strenger Clock-Skew-Check aktiv.
 
 ## Ressourcen- und UI-Grenze
 
-Das isolierte Projekt heißt `leonaid-pilot040-test`. Nach jedem erfolgreichen
+Das isolierte Projekt heißt `leonaid-production-test`. Nach jedem erfolgreichen
 und fehlgeschlagenen Lauf waren jeweils null Container, Netzwerke und Volumes
 mit diesem Projektlabel vorhanden. Auch alle vier temporären
 `leonaid-pilot040-release-*`-Images wurden entfernt. Der kanonische

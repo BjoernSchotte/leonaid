@@ -62,13 +62,26 @@ bindet zusätzlich:
 `production` akzeptiert kein lokales Image, keinen schwebenden Tag und keinen
 Digest ohne Tag. Eine abweichende Migration, ein verändertes Template oder
 eine Differenz zwischen Manifest und Compose blockiert vor dem ersten Write.
+Der technische Start/Reconcile erfolgt danach ausschließlich so:
+
+```sh
+./leonaid pilot-deploy \
+  --env-file /etc/leonaid/staging.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --release-manifest .local/pilot/evidence/release-2026.1.0.json
+```
+
+`pilot-deploy` prüft die fälligen Entscheidungen vor dem Start, verwendet
+kein `build`, wartet auf den realen Healthzustand und führt anschließend den
+vollständigen Doctor gegen die laufende Umgebung aus.
 
 ## 2. Staging
 
-1. `./leonaid pilot-doctor` mit Staging-Environment und aktuellem
-   Backupmanifest ausführen.
-2. Manifest verifizieren und `staging_started` protokollieren.
-3. Images mit `docker compose pull` beziehen; niemals bauen.
+1. Manifest verifizieren und `staging_started` protokollieren.
+2. `./leonaid pilot-deploy` mit Staging-Environment, aktuellem
+   Backupmanifest und genau diesem Release-Manifest ausführen.
+3. Den erfolgreichen vollständigen Doctor aus dem Deploy-Protokoll
+   festhalten.
 4. Wartungsmodus aktivieren und die Schreibsperre mit
    `tools/upgrade/contract.py maintenance` prüfen.
 5. Frischen verschlüsselten Recovery Point erzeugen und `restic check`
