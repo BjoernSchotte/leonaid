@@ -71,6 +71,8 @@ restic_run() {
     if [ -n "$credentials_file" ]; then
       [ -f "$credentials_file" ] || fail "Backup-Credentials-Datei fehlt"
       docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -e RESTIC_CACHE_DIR=/tmp/restic-cache \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
         -e RESTIC_REPOSITORY=/repository \
         --env-file "$credentials_file" \
@@ -80,6 +82,8 @@ restic_run() {
         "$RESTIC_IMAGE" "$restic_command" "$@"
     else
       docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -e RESTIC_CACHE_DIR=/tmp/restic-cache \
         -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
         -e RESTIC_REPOSITORY=/repository \
         -v "$password_file:/run/secrets/restic-password:ro" \
