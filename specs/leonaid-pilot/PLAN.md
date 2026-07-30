@@ -874,6 +874,10 @@ Tests/Nachweise:
 - [x] `./leonaid test-pilot-release` promoted zwei reale Versionen durch
       Staging, erzeugt einen absichtlichen Migrationsfehler und rollt sauber
       zurück.
+- [x] `./leonaid test-pilot-deployment` beweist den realen Operatorbefehl
+      `pilot-release`: Produktion ohne identische Staging-Promotion wird vor
+      Mutation abgewiesen; der positive Pfad erzwingt Backup,
+      Wartungsmodus, explizite Migrationen und buildfreien Zielstart.
 - [x] Golden Journey läuft vor und nach Upgrade/Rollback.
 - [x] Audit/Releaseprotokoll enthält keine Secrets.
 - [x] Recovery Point und alle Dokument-SHAs stimmen nach Rollback.

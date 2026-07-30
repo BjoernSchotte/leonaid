@@ -17,6 +17,7 @@ config="$workspace/compose.json"
 env_file="$workspace/production.env"
 backup_manifest="$workspace/backup-manifest.json"
 release_manifest="$workspace/release-manifest.json"
+release_ledger="$workspace/release-ledger.jsonl"
 drifted_release_manifest="$workspace/drifted-release-manifest.json"
 accepted_decisions="$workspace/accepted-decisions.md"
 target_env_file="$workspace/restore.env"
@@ -520,6 +521,57 @@ if ! printf '%s' "$wrong_backup_output" |
   echo "pilot-deployment-test: ERROR: Passwortablehnung ist nicht diagnostizierbar" >&2
   exit 1
 fi
+
+echo "pilot-deployment-test: beweist den vollständigen Operator-Release"
+set +e
+missing_staging_output=$(
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+    LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
+    LEONAID_TEST_CORE_IMAGE="$core_image" \
+    LEONAID_TEST_WEB_IMAGE="$web_image" \
+    LEONAID_TEST_PWA_IMAGE="$pwa_image" \
+    LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
+    "$root/leonaid" pilot-release \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --release-manifest "$release_manifest" \
+      --ledger "$release_ledger" \
+      --password-file "$restic_password_file" \
+      --credentials-file "$backup_credentials_file" \
+      --evidence-id PILOT-043-OPERATOR-NEGATIVE \
+      --occurred-at 2026-07-30T12:00:00Z 2>&1
+)
+missing_staging_status=$?
+set -e
+if [ "$missing_staging_status" -eq 0 ]; then
+  echo "pilot-deployment-test: ERROR: Produktion ohne Staging-Promotion wurde akzeptiert" >&2
+  exit 1
+fi
+if ! printf '%s' "$missing_staging_output" |
+  grep -Fq "Produktion erfordert dasselbe in Staging verifizierte Manifest"; then
+  echo "pilot-deployment-test: ERROR: fehlende Staging-Promotion ist nicht diagnostizierbar" >&2
+  exit 1
+fi
+[ ! -e "$release_ledger" ] || {
+  echo "pilot-deployment-test: ERROR: abgelehnter Release hat das Ledger verändert" >&2
+  exit 1
+}
+"$root/leonaid" pilot-release-record \
+  --manifest "$release_manifest" \
+  --ledger "$release_ledger" \
+  --event staging_started \
+  --result passed \
+  --evidence-id PILOT-043-STAGING-OPERATOR \
+  --occurred-at 2026-07-30T12:01:00Z
+"$root/leonaid" pilot-release-record \
+  --manifest "$release_manifest" \
+  --ledger "$release_ledger" \
+  --event staging_verified \
+  --result passed \
+  --evidence-id PILOT-043-STAGING-OPERATOR \
+  --occurred-at 2026-07-30T12:02:00Z
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
@@ -528,11 +580,28 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
   LEONAID_TEST_PWA_IMAGE="$pwa_image" \
   LEONAID_TEST_PUBLIC_IMAGE="$public_image" \
-  "$root/leonaid" pilot-backup \
+  "$root/leonaid" pilot-release \
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
+    --release-manifest "$release_manifest" \
+    --ledger "$release_ledger" \
     --password-file "$restic_password_file" \
-    --credentials-file "$backup_credentials_file"
+    --credentials-file "$backup_credentials_file" \
+    --evidence-id PILOT-043-PRODUCTION-OPERATOR \
+    --occurred-at 2026-07-30T12:03:00Z
+docker run --rm \
+  --volume "$workspace:/proof:ro" \
+  "$PYTHON_IMAGE" \
+  python -c 'import json,pathlib
+records=[
+  json.loads(line)
+  for line in pathlib.Path("/proof/release-ledger.jsonl").read_text().splitlines()
+]
+assert [record["event"] for record in records]==[
+  "staging_started","staging_verified",
+  "production_started","production_verified",
+]
+assert len({record["manifestSha256"] for record in records})==1'
 cp "$backup_manifest" "$manifest_proof_directory/manifest.json"
 docker run --rm \
   --env "EXPECTED_PROJECT=$project" \
@@ -621,4 +690,5 @@ docker run --rm \
 
 echo "pilot-deployment-test: OK: Contract, Leerstart und realer Deployment Doctor bewiesen"
 echo "pilot-deployment-test: OK: Operator-Deploy ist manifestgebunden, fail-closed und buildfrei"
+echo "pilot-deployment-test: OK: Operator-Release erzwingt Staging, Backup, Wartung und Migrationen"
 echo "pilot-deployment-test: OK: Operator-Backup/Restore erhält vier reale Datenkomponenten"

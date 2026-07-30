@@ -9,7 +9,9 @@ action=${1:-}
 project=${LEONAID_COMPOSE_PROJECT:-leonaid}
 compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_MAINTENANCE_COMPOSE_OVERLAY:-}
-env_file="$root/.env.local"
+compose_overlay_secondary=${LEONAID_MAINTENANCE_COMPOSE_OVERLAY_SECONDARY:-}
+env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
+no_build=${LEONAID_MAINTENANCE_NO_BUILD:-false}
 state_volume="${project}_maintenance-state"
 
 fail() {
@@ -26,9 +28,31 @@ if [ -n "$compose_overlay" ]; then
   esac
   [ -f "$compose_overlay" ] || fail "Maintenance-Compose-Overlay fehlt"
 fi
+if [ -n "$compose_overlay_secondary" ]; then
+  [ -n "$compose_overlay" ] ||
+    fail "Sekundäres Maintenance-Overlay benötigt ein primäres Overlay"
+  compose_overlay_secondary=$(
+    cd "$(dirname "$compose_overlay_secondary")" &&
+      pwd
+  )/$(basename "$compose_overlay_secondary")
+  case "$compose_overlay_secondary" in
+    "$root"/*) ;;
+    *) fail "Sekundäres Maintenance-Overlay muss im Repository liegen" ;;
+  esac
+  [ -f "$compose_overlay_secondary" ] ||
+    fail "Sekundäres Maintenance-Overlay fehlt"
+fi
 
 compose() {
-  if [ -n "$compose_overlay" ]; then
+  if [ -n "$compose_overlay_secondary" ]; then
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$compose_file" \
+      --file "$compose_overlay" \
+      --file "$compose_overlay_secondary" \
+      "$@"
+  elif [ -n "$compose_overlay" ]; then
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
@@ -60,8 +84,13 @@ case "$action" in
     ;;
   disable)
     volume_exists || fail "Wartungsvolume fehlt"
-    compose up --detach --wait --wait-timeout 420 \
-      twenty-server twenty-worker worker >/dev/null
+    if [ "$no_build" = "true" ]; then
+      compose up --detach --no-build --pull missing --wait --wait-timeout 420 \
+        twenty-server twenty-worker worker >/dev/null
+    else
+      compose up --detach --wait --wait-timeout 420 \
+        twenty-server twenty-worker worker >/dev/null
+    fi
     docker run --rm \
       -v "$state_volume:/state" \
       "$ALPINE_IMAGE" \

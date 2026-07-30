@@ -91,7 +91,9 @@ Commands:
                     Validate deployment and decisions for productive actions
   pilot-deploy --env-file FILE --backup-manifest FILE --release-manifest FILE
                     Deploy the manifest-bound pilot without a live build
-  pilot-release     Release the productive pilot after pilot-doctor
+  pilot-release --env-file FILE --backup-manifest FILE --release-manifest FILE
+                --ledger FILE --password-file FILE --evidence-id ID
+                    Release staging/production with backup and explicit migrations
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
@@ -709,6 +711,29 @@ pilot_compose_up() {
   fi
 }
 
+pilot_compose_command() {
+  project=$1
+  env_file=$2
+  shift 2
+  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+    overlay=$(pilot_test_overlay "$project") || return
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$overlay" \
+      "$@"
+  else
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      "$@"
+  fi
+}
+
 pilot_decision_gate() {
   project=$1
   gate=$2
@@ -954,6 +979,395 @@ assert set(value.get("files",{}))=={
     --backup-manifest "$backup_manifest" \
     --gate pilot-backup
   echo "pilot-backup: OK: $project ist verschlüsselt gesichert und das Doctor-Manifest ist aktuell"
+}
+
+pilot_record_release_event() (
+  set -e
+  release_manifest=$1
+  ledger=$2
+  event=$3
+  result=$4
+  evidence_id=$5
+  occurred_at=$6
+  manifest_directory=$(mktemp -d)
+  cp "$release_manifest" "$manifest_directory/release-manifest.json"
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  ledger_directory=$(dirname -- "$ledger")
+  ledger_name=$(basename -- "$ledger")
+  trap 'rm -rf "$manifest_directory"' EXIT HUP INT TERM
+  status=0
+  docker run --rm \
+    --user "$host_user_id:$host_group_id" \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$manifest_directory:/release:ro" \
+    --volume "$ledger_directory:/ledger" \
+    --workdir /workspace \
+    "$PYTHON_IMAGE" \
+    python tools/pilot_release/promotion.py \
+      --manifest /release/release-manifest.json \
+      --ledger "/ledger/$ledger_name" \
+      --event "$event" \
+      --result "$result" \
+      --evidence-id "$evidence_id" \
+      --occurred-at "$occurred_at" || status=$?
+  exit "$status"
+)
+
+pilot_release_record() {
+  release_manifest=
+  ledger=
+  event=
+  result=
+  evidence_id=
+  occurred_at=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --manifest|--ledger|--event|--result|--evidence-id|--occurred-at)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-release-record: ERROR: $1 benötigt einen Wert" >&2
+          exit 64
+        }
+        option=$1
+        value=$2
+        shift 2
+        case "$option" in
+          --manifest) release_manifest=$value ;;
+          --ledger) ledger=$value ;;
+          --event) event=$value ;;
+          --result) result=$value ;;
+          --evidence-id) evidence_id=$value ;;
+          --occurred-at) occurred_at=$value ;;
+        esac
+        ;;
+      *)
+        echo "pilot-release-record: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$release_manifest" ] || {
+    echo "pilot-release-record: ERROR: --manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$ledger" ] || {
+    echo "pilot-release-record: ERROR: --ledger fehlt" >&2
+    exit 64
+  }
+  [ -n "$event" ] || {
+    echo "pilot-release-record: ERROR: --event fehlt" >&2
+    exit 64
+  }
+  [ -n "$result" ] || {
+    echo "pilot-release-record: ERROR: --result fehlt" >&2
+    exit 64
+  }
+  [ -n "$evidence_id" ] || {
+    echo "pilot-release-record: ERROR: --evidence-id fehlt" >&2
+    exit 64
+  }
+  [ -n "$occurred_at" ] || {
+    echo "pilot-release-record: ERROR: --occurred-at fehlt" >&2
+    exit 64
+  }
+  release_manifest=$(
+    pilot_absolute_file pilot-release-record "$release_manifest"
+  )
+  case "$ledger" in
+    /*) ;;
+    *) ledger="$root/$ledger" ;;
+  esac
+  ledger_directory=$(dirname -- "$ledger")
+  [ -d "$ledger_directory" ] || {
+    echo "pilot-release-record: ERROR: Ledger-Verzeichnis fehlt" >&2
+    exit 1
+  }
+  ledger="$(
+    CDPATH= cd -- "$ledger_directory" &&
+      pwd
+  )/$(basename -- "$ledger")"
+  pilot_record_release_event \
+    "$release_manifest" "$ledger" "$event" "$result" \
+    "$evidence_id" "$occurred_at"
+}
+
+pilot_release_migrate() (
+  set -e
+  project=$1
+  env_file=$2
+  release_manifest=$3
+  manifest_directory=$(mktemp -d)
+  trap 'rm -rf "$manifest_directory"' EXIT HUP INT TERM
+  cp "$release_manifest" "$manifest_directory/release-manifest.json"
+  core_head=$(
+    docker run --rm \
+      --volume "$manifest_directory:/release:ro" \
+      "$PYTHON_IMAGE" \
+      python -c 'import json,pathlib
+value=json.loads(pathlib.Path("/release/release-manifest.json").read_text())
+print(value["schemas"]["coreAlembicHead"])'
+  )
+  rm -rf "$manifest_directory"
+  trap - EXIT HUP INT TERM
+  case "$core_head" in
+    [0-9][0-9][0-9][0-9]) ;;
+    *)
+      echo "pilot-release: BLOCKED: Core-Migrationsziel ist ungültig" >&2
+      return 1
+      ;;
+  esac
+
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --force-recreate \
+    --wait --wait-timeout 420 rustfs
+  pilot_compose_command "$project" "$env_file" \
+    up --detach --no-build --pull missing --force-recreate \
+    --wait --wait-timeout 420 twenty-server
+  pilot_compose_command "$project" "$env_file" stop twenty-server >/dev/null
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
+    command:prod run-instance-commands
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps --pull missing --entrypoint yarn twenty-server \
+    command:prod upgrade
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps --pull missing --entrypoint uv api \
+    run --frozen --no-sync alembic upgrade "$core_head"
+  current_revision=$(
+    pilot_compose_command "$project" "$env_file" \
+      run --rm --no-deps --pull missing --entrypoint uv api \
+      run --frozen --no-sync alembic current
+  )
+  echo "$current_revision" | grep -F "$core_head" >/dev/null || {
+    echo "pilot-release: BLOCKED: Core-Schema entspricht nicht dem Manifest-Head" >&2
+    return 1
+  }
+  echo "pilot-release: OK: RustFS, Twenty und Core wurden explizit auf das Manifestziel migriert"
+)
+
+pilot_release() {
+  require_docker
+  env_file=
+  backup_manifest=
+  release_manifest=
+  ledger=
+  password_file=
+  credentials_file=
+  evidence_id=
+  occurred_at=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-release: ERROR: $1 benötigt einen Wert" >&2
+          exit 64
+        }
+        option=$1
+        value=$2
+        shift 2
+        case "$option" in
+          --env-file) env_file=$value ;;
+          --backup-manifest) backup_manifest=$value ;;
+          --release-manifest) release_manifest=$value ;;
+          --ledger) ledger=$value ;;
+          --password-file) password_file=$value ;;
+          --credentials-file) credentials_file=$value ;;
+          --evidence-id) evidence_id=$value ;;
+          --occurred-at) occurred_at=$value ;;
+        esac
+        ;;
+      *)
+        echo "pilot-release: ERROR: unbekannte Option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-release: ERROR: --env-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$backup_manifest" ] || {
+    echo "pilot-release: ERROR: --backup-manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$release_manifest" ] || {
+    echo "pilot-release: ERROR: --release-manifest fehlt" >&2
+    exit 64
+  }
+  [ -n "$ledger" ] || {
+    echo "pilot-release: ERROR: --ledger fehlt" >&2
+    exit 64
+  }
+  [ -n "$password_file" ] || {
+    echo "pilot-release: ERROR: --password-file fehlt" >&2
+    exit 64
+  }
+  [ -n "$evidence_id" ] || {
+    echo "pilot-release: ERROR: --evidence-id fehlt" >&2
+    exit 64
+  }
+  env_file=$(pilot_absolute_file pilot-release "$env_file")
+  backup_manifest=$(pilot_absolute_file pilot-release "$backup_manifest")
+  release_manifest=$(pilot_absolute_file pilot-release "$release_manifest")
+  password_file=$(pilot_absolute_file pilot-release "$password_file")
+  if [ -n "$credentials_file" ]; then
+    credentials_file=$(pilot_absolute_file pilot-release "$credentials_file")
+  fi
+  case "$ledger" in
+    /*) ;;
+    *)
+      echo "pilot-release: ERROR: --ledger muss absolut sein" >&2
+      exit 64
+      ;;
+  esac
+  ledger_directory=$(dirname -- "$ledger")
+  [ -d "$ledger_directory" ] || {
+    echo "pilot-release: ERROR: Ledger-Verzeichnis fehlt" >&2
+    exit 1
+  }
+  ledger="$(
+    CDPATH= cd -- "$ledger_directory" &&
+      pwd
+  )/$(basename -- "$ledger")"
+  [ -n "$occurred_at" ] ||
+    occurred_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  case "$project" in
+    leonaid-staging*)
+      started_event=staging_started
+      verified_event=staging_verified
+      failed_event=
+      ;;
+    leonaid-production*)
+      started_event=production_started
+      verified_event=production_verified
+      failed_event=production_failed
+      ;;
+    *)
+      echo "pilot-release: BLOCKED: Projekt ist weder Staging noch Produktion" >&2
+      exit 1
+      ;;
+  esac
+
+  release_commit=$(git -C "$root" rev-parse HEAD)
+  config_file=$(mktemp)
+  trap 'rm -f "$config_file"' EXIT HUP INT TERM
+  pilot_compose_config "$project" "$env_file" "$config_file"
+  pilot_verify_release_manifest \
+    "$release_manifest" "$config_file" "$release_commit"
+  (
+    set -e
+    pilot_doctor \
+      --env-file "$env_file" \
+      --backup-manifest "$backup_manifest" \
+      --gate pilot-release
+  )
+  pilot_record_release_event \
+    "$release_manifest" "$ledger" "$started_event" passed \
+    "$evidence_id" "$occurred_at"
+
+  maintenance_attempted=false
+  maintenance_disabled=false
+  set +e
+  if [ -n "$credentials_file" ]; then
+    (
+      set -e
+      pilot_backup \
+        --env-file "$env_file" \
+        --backup-manifest "$backup_manifest" \
+        --password-file "$password_file" \
+        --credentials-file "$credentials_file"
+    )
+    status=$?
+  else
+    (
+      set -e
+      pilot_backup \
+        --env-file "$env_file" \
+        --backup-manifest "$backup_manifest" \
+        --password-file "$password_file"
+    )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    maintenance_overlay_secondary=
+    if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+      maintenance_overlay_secondary=$(pilot_test_overlay "$project")
+    fi
+    maintenance_attempted=true
+    LEONAID_ENV_FILE="$env_file" \
+      LEONAID_COMPOSE_PROJECT="$project" \
+      LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+      LEONAID_MAINTENANCE_COMPOSE_OVERLAY_SECONDARY="$maintenance_overlay_secondary" \
+      LEONAID_MAINTENANCE_NO_BUILD=true \
+      /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
+    status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    (
+      set -e
+      pilot_release_migrate "$project" "$env_file" "$release_manifest"
+    )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    (
+      set -e
+      pilot_deploy \
+        --env-file "$env_file" \
+        --backup-manifest "$backup_manifest" \
+        --release-manifest "$release_manifest"
+    )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ]; then
+    LEONAID_ENV_FILE="$env_file" \
+      LEONAID_COMPOSE_PROJECT="$project" \
+      LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$root/infra/pilot/compose.yml" \
+      LEONAID_MAINTENANCE_COMPOSE_OVERLAY_SECONDARY="$maintenance_overlay_secondary" \
+      LEONAID_MAINTENANCE_NO_BUILD=true \
+      /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
+    status=$?
+    if [ "$status" -eq 0 ]; then
+      maintenance_disabled=true
+    fi
+  fi
+  if [ "$status" -eq 0 ]; then
+    (
+      set -e
+      pilot_doctor \
+        --env-file "$env_file" \
+        --backup-manifest "$backup_manifest" \
+        --gate pilot-release
+    )
+    status=$?
+  fi
+  set -e
+  if [ "$status" -ne 0 ]; then
+    if [ -n "$failed_event" ]; then
+      pilot_record_release_event \
+        "$release_manifest" "$ledger" "$failed_event" failed \
+        "$evidence_id" "$occurred_at" || true
+    fi
+    rm -f "$config_file"
+    trap - EXIT HUP INT TERM
+    if [ "$maintenance_attempted" = false ]; then
+      echo "pilot-release: BLOCKED: Release vor dem Wartungsmodus fehlgeschlagen" >&2
+    elif [ "$maintenance_disabled" = true ]; then
+      echo "pilot-release: BLOCKED: Nachprüfung nach beendetem Wartungsmodus fehlgeschlagen" >&2
+    else
+      echo "pilot-release: BLOCKED: Wartungsmodus wird nicht automatisch aufgehoben; Zustand prüfen" >&2
+    fi
+    return "$status"
+  fi
+  pilot_record_release_event \
+    "$release_manifest" "$ledger" "$verified_event" passed \
+    "$evidence_id" "$occurred_at"
+  rm -f "$config_file"
+  trap - EXIT HUP INT TERM
+  echo "pilot-release: OK: $project ist manifestgebunden, migriert und freigegeben"
 }
 
 pilot_restore() {
@@ -1330,6 +1744,14 @@ seed_systems() {
     /repo/tests/fixtures/golden/v1 \
     /repo/.artifacts/golden-v1/invoices
   generate_test_logins
+}
+
+seed_development() {
+  require_docker
+  provision_twenty
+  compose --profile dev-mail up --detach --force-recreate \
+    --wait --wait-timeout 420 api worker
+  seed_systems
 }
 
 snapshot_systems() {
@@ -1777,7 +2199,7 @@ case "$command" in
   pilot-release-record)
     require_docker
     shift
-    run_python python tools/pilot_release/promotion.py "$@"
+    pilot_release_record "$@"
     ;;
   pilot-evidence-init)
     require_docker
@@ -1798,7 +2220,10 @@ case "$command" in
     shift
     pilot_deploy "$@"
     ;;
-  pilot-release) pilot_future_command "$command" PILOT-050 ;;
+  pilot-release)
+    shift
+    pilot_release "$@"
+    ;;
   pilot-import)
     shift
     pilot_import "$@"
@@ -1833,7 +2258,7 @@ case "$command" in
     shift
     import_crm "$@"
     ;;
-  seed) seed_systems ;;
+  seed) seed_development ;;
   snapshot) snapshot_systems "${2:-golden-v1.json}" ;;
   reset) reset_systems ;;
   help|-h|--help) usage ;;

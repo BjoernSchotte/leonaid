@@ -62,7 +62,9 @@ bindet zusätzlich:
 `production` akzeptiert kein lokales Image, keinen schwebenden Tag und keinen
 Digest ohne Tag. Eine abweichende Migration, ein verändertes Template oder
 eine Differenz zwischen Manifest und Compose blockiert vor dem ersten Write.
-Der technische Start/Reconcile erfolgt danach ausschließlich so:
+`pilot-deploy` ist der technische, manifestgebundene Start/Reconcile ohne
+Migration. Er kann für den ersten Staging-Aufbau und die fachliche
+Vorabnahme verwendet werden:
 
 ```sh
 ./leonaid pilot-deploy \
@@ -75,42 +77,39 @@ Der technische Start/Reconcile erfolgt danach ausschließlich so:
 kein `build`, wartet auf den realen Healthzustand und führt anschließend den
 vollständigen Doctor gegen die laufende Umgebung aus.
 
+Die eigentliche Promotion erfolgt ausschließlich mit `pilot-release`. Der
+Befehl verifiziert Manifest und Doctor, schreibt das Started-Ereignis,
+erzeugt einen frischen verschlüsselten Recovery Point, aktiviert den
+Wartungsmodus, führt die expliziten Twenty- und Core-Migrationen aus, startet
+buildfrei und hebt den Wartungsmodus erst nach grünem Abschluss-Doctor auf.
+`--evidence-id` ist die Referenz auf den privaten, bereits abgeschlossenen
+fachlichen Browser-/Dokumentnachweis für genau diesen Manifest-SHA; der
+Befehl selbst simuliert keine menschliche Abnahme.
+
 ## 2. Staging
 
-1. Manifest verifizieren und `staging_started` protokollieren.
-2. `./leonaid pilot-deploy` mit Staging-Environment, aktuellem
-   Backupmanifest und genau diesem Release-Manifest ausführen.
-3. Den erfolgreichen vollständigen Doctor aus dem Deploy-Protokoll
-   festhalten.
-4. Wartungsmodus aktivieren und die Schreibsperre mit
-   `tools/upgrade/contract.py maintenance` prüfen.
-5. Frischen verschlüsselten Recovery Point erzeugen und `restic check`
-   erfolgreich abschließen.
-6. RustFS-Zielimage starten.
-7. Twenty-Zielserver einmal bootstrappen, stoppen und anschließend
-   `command:prod run-instance-commands` sowie `command:prod upgrade`
-   fail-closed ausführen.
-8. Core über `alembic upgrade <Manifest-Head>` migrieren.
-9. Alle Services mit `up --detach --no-build --wait` starten.
-10. Readiness, Golden Snapshot, Dokument-SHAs und vollständige Golden Journey
-    prüfen.
-11. Erst danach Wartungsmodus deaktivieren und `staging_verified`
-    protokollieren.
-
-Beispiel für das öffentliche, personenbezugsfreie Ereignis:
+1. Mit `pilot-deploy` das freigegebene Manifest erstmals in Staging
+   bereitstellen.
+2. Vollständige Golden Journey, relevante Dokumente und fachliche
+   Konfiguration prüfen; den privaten Beleg fest mit Manifest-SHA und
+   Evidence-ID verbinden.
+3. Anschließend die technische Promotion desselben Manifests ausführen:
 
 ```sh
-./leonaid pilot-release-record \
-  --manifest .local/pilot/evidence/release-2026.1.0.json \
-  --ledger .local/pilot/evidence/release-ledger.jsonl \
-  --event staging_verified \
-  --result passed \
+./leonaid pilot-release \
+  --env-file /etc/leonaid/staging.env \
+  --backup-manifest /var/lib/leonaid/evidence/staging-backup-manifest.json \
+  --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
+  --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env \
   --evidence-id PILOT-RELEASE-STAGING-2026-01 \
-  --occurred-at 2026-01-15T19:00:00Z
 ```
 
-Das Ledger enthält nur Sequenz, Zeitpunkt, Release-ID, Manifest-SHA,
-Ereignis, Ergebnis und externe Evidence-ID.
+Der Befehl erzwingt die oben beschriebene Reihenfolge und protokolliert
+`staging_started` sowie erst nach dem grünen Abschluss-Doctor
+`staging_verified`. Das Ledger enthält nur Sequenz, Zeitpunkt, Release-ID,
+Manifest-SHA, Ereignis, Ergebnis und externe Evidence-ID.
 
 ## 3. Produktion
 
@@ -130,11 +129,28 @@ Produktion baut keine Images und führt keine ungebundene Migration `head`
 aus. Zielrevision, Dateien und SHAs stammen aus dem bereits verifizierten
 Manifest.
 
+```sh
+./leonaid pilot-release \
+  --env-file /etc/leonaid/production.env \
+  --backup-manifest /var/lib/leonaid/evidence/production-backup-manifest.json \
+  --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
+  --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env \
+  --evidence-id PILOT-RELEASE-PRODUCTION-2026-01
+```
+
+Fehlt im Ledger das `staging_verified` desselben Manifest-SHA, endet der
+Befehl vor Started-Ereignis, Backup, Wartungsmodus und Deployment.
+
 ## 4. Fehler und Rollback
 
 Bei einem Fehler:
 
-1. Wartungsmodus aktiv lassen.
+1. Falls der Wartungsmodus bereits angefordert wurde, dessen Zustand prüfen
+   und ihn aktiv lassen. Ein Fehler vor dem Backup aktiviert ihn nicht; ein
+   fehlgeschlagener Abschluss-Doctor kann nach bereits beendetem
+   Wartungsmodus auftreten und wird ausdrücklich so gemeldet.
 2. `production_failed` mit stabiler Fehlerklasse und privater Evidence-ID
    protokollieren; keine Logs oder Payloads ins öffentliche Ledger kopieren.
 3. Fehlerhaftes Projekt stoppen. Keine manuelle Datenkorrektur durchführen.

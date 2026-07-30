@@ -106,6 +106,8 @@ def record_event(
         "evidenceId": evidence_id,
     }
     ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.touch(mode=0o600, exist_ok=True)
+    ledger.chmod(0o600)
     with ledger.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, sort_keys=True) + "\n")
     return record

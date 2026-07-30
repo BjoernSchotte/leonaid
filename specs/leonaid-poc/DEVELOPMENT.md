@@ -32,7 +32,7 @@ vorhandenen Secrets.
 | `./leonaid test-e2e`            | alle implementierten echten Browserjourneys ausführen                       |
 | `./leonaid test-typst`          | Rechnungs-PDFs mit realem Typst, PostgreSQL und zwei PDF-Engines prüfen     |
 | `./leonaid test-operations`     | echte Abhängigkeitsausfälle, sichere Logs und Admin-Job-Retry prüfen        |
-| `./leonaid seed`                | Golden Dataset v1 idempotent in reale Systeme einspielen                    |
+| `./leonaid seed`                | Twenty provisionieren und Golden Dataset v1 idempotent einspielen           |
 | `./leonaid snapshot [NAME]`     | geheimnisfreien kanonischen Systemzustand schreiben                         |
 | `./leonaid reset`               | markierte lokale Testumgebung sicher zurücksetzen                           |
 

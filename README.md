@@ -51,11 +51,13 @@ der ignorierten Datei `.env.local` unter `TWENTY_BOOTSTRAP_EMAIL` und
 
 ```sh
 ./leonaid dev
-./leonaid provision-twenty
 ./leonaid seed
 ```
 
 Der Start ist fertig, wenn `dev: OK` und `golden-seed: OK` erscheinen.
+`seed` provisioniert das deklarative Twenty-Schema und einen verifizierten
+Least-Privilege-Key, startet API und Worker mit diesem Key neu und spielt
+danach Golden Data idempotent in die realen Systeme ein.
 
 | Oberfläche         | Lokale Adresse                      |
 | ------------------ | ----------------------------------- |

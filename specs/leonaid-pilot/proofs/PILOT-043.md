@@ -1,6 +1,6 @@
 # PILOT-043 – Technischer Nachweis
 
-Stand: 2026-07-29
+Stand: 2026-07-30
 Ergebnis: technische Release-, Migrations- und Rollbackbasis sowie die
 vollständige Krapfentaxi Golden Journey an allen Releasegrenzen bewiesen;
 der unabhängige Operator-Restore bleibt offen.
@@ -20,6 +20,11 @@ der unabhängige Operator-Restore bleibt offen.
   personenbezugsfreies JSONL-Ledger. Ein Produktionsereignis wird nur
   akzeptiert, wenn exakt derselbe Manifest-SHA vorher in Staging verifiziert
   wurde.
+- `./leonaid pilot-release` ist die reale Operatorstrecke: Manifest- und
+  Doctor-Gate, sequenzielles Ledger, frischer verschlüsselter Recovery Point,
+  Wartungsmodus, explizite Twenty-/Alembic-Migrationen, buildfreier Deploy
+  und Abschluss-Doctor. Fehler nach Aktivierung heben den Wartungsmodus nicht
+  automatisch auf.
 - [`infra/pilot/RELEASE-RUNBOOK.md`](../../../infra/pilot/RELEASE-RUNBOOK.md)
   beschreibt Build-/Zielgrenze, Wartungsmodus, Recovery Point,
   Migrationsreihenfolge, Smokes und komponentengerechten Restore ohne SQL.
@@ -30,6 +35,7 @@ Ausgeführt:
 
 ```text
 ./leonaid test-pilot-release
+./leonaid test-pilot-deployment
 ```
 
 Ergebnis:
@@ -47,6 +53,10 @@ Dokument-SHAs bewiesen
 pilot-release-test: OK: zwei reale Releaseversionen, identische Promotion,
 pilot-release-test:     vollständige Golden Journeys, Migrationsfehler,
 pilot-release-test:     Recovery und Rollback bewiesen
+pilot-deployment-test: OK: Operator-Release erzwingt Staging, Backup,
+Wartung und Migrationen
+pilot-deployment-test: OK: Operator-Backup/Restore erhält vier reale
+Datenkomponenten
 ```
 
 Der Test verwendet keine Mocks:
@@ -82,6 +92,23 @@ Der Test verwendet keine Mocks:
 13. vergleicht Dokument-Objektschlüssel, Größen und SHA-256 vor Upgrade,
     nach Upgrade und nach Rollback;
 14. entfernt beide isolierten Compose-Projekte, Netzwerke und Volumes.
+
+Der zusätzliche Deployment-Test startet den produktionsähnlichen
+Operatorpfad real. Er weist Produktion ohne vorheriges
+`staging_verified` desselben Manifest-SHA vor jeder Ledger-Mutation ab,
+protokolliert anschließend die Staging-Freigabe, führt `pilot-release` mit
+echtem Backup, Wartungsmodus, Twenty-Kommandos, Alembic-Head und buildfreiem
+Deploy aus und prüft die exakte Ereignisfolge bis `production_verified`.
+Danach restauriert er Core PostgreSQL, Twenty, RustFS und Mailzustand in ein
+frisches Projekt und räumt alle Testressourcen ab.
+
+Als sichtbarer Zusatznachweis wurde derselbe lokale Krapfentaxi-Pfad im
+In-App-Browser ausgeführt: Eine bislang unbekannte Firma wurde über das
+öffentliche Formular in Twenty angelegt; eine weitere öffentliche Bestellung
+der bereits Anna zugeordneten Musterwerk GmbH erschien unmittelbar als
+ungelesene Aktivität in der mobilen Akquisiteur-PWA. Dabei wurde außerdem
+behoben und real nachgewiesen, dass `./leonaid seed` vor dem Golden Seed den
+Twenty-Schlüssel provisioniert und API/Worker damit neu startet.
 
 Lokale, ignorierte Belege liegen unter `.artifacts/pilot043/`, darunter:
 

@@ -82,6 +82,26 @@ verwendet ausschließlich `up --no-build --pull missing`, wartet auf alle
 Healthchecks und führt danach den vollständigen Deployment Doctor aus. Ein
 Manifest-/Compose-Drift erreicht den Start nicht.
 
+Die vollständige technische Promotion mit frischem Backup, Wartungsmodus,
+expliziten Twenty-/Core-Migrationen und sequenziellem Release-Ledger läuft
+über:
+
+```sh
+./leonaid pilot-release \
+  --env-file /etc/leonaid/staging.env \
+  --backup-manifest /var/lib/leonaid/evidence/latest-backup-manifest.json \
+  --release-manifest /var/lib/leonaid/evidence/release-2026.1.0.json \
+  --ledger /var/lib/leonaid/evidence/release-ledger.jsonl \
+  --password-file /secure/leonaid/restic-password \
+  --credentials-file /secure/leonaid/restic-backend.env \
+  --evidence-id PILOT-RELEASE-STAGING-2026-01
+```
+
+Die Evidence-ID referenziert den privaten fachlichen Browser- und
+Dokumentnachweis für denselben Manifest-SHA; sie ersetzt ihn nicht.
+Produktion wird vor jeder Mutation blockiert, solange genau dieser SHA nicht
+als `staging_verified` im Ledger steht.
+
 ## Backup und Restore
 
 Produktive Sicherungen laufen ebenfalls ausschließlich durch einen

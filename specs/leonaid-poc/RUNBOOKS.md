@@ -22,9 +22,11 @@ Start und Readiness:
 ```sh
 ./leonaid doctor
 ./leonaid dev
-./leonaid provision-twenty
 ./leonaid seed
 ```
+
+`seed` provisioniert Twenty und startet API/Worker mit dem frisch
+verifizierten Integrationsschlüssel neu, bevor Golden Data eingespielt wird.
 
 Danach müssen `http://127.0.0.1:8080/_health` und
 `http://127.0.0.1:8080/api/health/ready` erfolgreich antworten. Der
