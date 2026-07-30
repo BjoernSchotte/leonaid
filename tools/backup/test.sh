@@ -87,6 +87,7 @@ target_compose --profile dev-mail down \
 
 mkdir -p "$repository"
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$proof:/proof" \
   "$PYTHON_IMAGE" \
   python -c 'import secrets,pathlib
@@ -161,6 +162,7 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
 backup_finished=$(date +%s)
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$proof:/proof" \
   "$PYTHON_IMAGE" \
   python -c 'import pathlib
