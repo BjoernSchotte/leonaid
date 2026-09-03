@@ -67,6 +67,37 @@ async function expectByteIdenticalDownload(row) {
   expect(downloaded).toEqual(golden);
 }
 
+async function expectStableTopLevelPreview(context, row) {
+  const crashes = [];
+  context.on("page", (candidate) => {
+    candidate.on("crash", () => crashes.push(candidate.url()));
+  });
+  const previewLink = row.getByTestId("preview-document");
+  const previewHref = await previewLink.getAttribute("href");
+  expect(previewHref).toMatch(
+    /^\/api\/v1\/actions\/.+\/documents\/.+\/download\?inline=true$/,
+  );
+
+  const response = await context.request.get(
+    new URL(previewHref, baseUrl).toString(),
+  );
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+  expect(response.headers()["content-disposition"]).toContain("inline");
+  expect((await response.body()).subarray(0, 5).toString()).toBe("%PDF-");
+
+  const previewPromise = context.waitForEvent("page");
+  await previewLink.click();
+  const preview = await previewPromise;
+  await preview.waitForURL(new URL(previewHref, baseUrl).toString());
+  await expect(preview.locator('embed[type="application/pdf"]')).toBeVisible();
+  // The native PDF renderer paints outside the page DOM and has no DOM-ready event.
+  await preview.waitForTimeout(1_000);
+  expect(preview.isClosed()).toBe(false);
+  expect(crashes).toEqual([]);
+  return preview;
+}
+
 test("Charity-Admin findet, öffnet und lädt das Typst-PDF byteidentisch", async ({
   browser,
 }) => {
@@ -85,15 +116,7 @@ test("Charity-Admin findet, öffnet und lädt das Typst-PDF byteidentisch", asyn
     await expect(row.getByText("Bereit")).toBeVisible();
     await expectByteIdenticalDownload(row);
 
-    const previewPromise = context.waitForEvent("page");
-    await row.getByTestId("preview-document").click();
-    const preview = await previewPromise;
-    const previewFrame = preview.locator("iframe");
-    await expect(previewFrame).toHaveAttribute("src", /^blob:/);
-    await expect(previewFrame).toHaveAttribute(
-      "title",
-      "Vorschau Rechnung-KT26-0001.pdf",
-    );
+    const preview = await expectStableTopLevelPreview(context, row);
     await preview.close();
 
     await page.screenshot({
@@ -129,6 +152,12 @@ test("Finanzrolle sieht den Beleg mobil, Akquise und Fremdaktion erhalten keine 
     await expect(row.getByTestId("preview-document")).toBeVisible();
     await expect(row.getByTestId("download-document")).toBeVisible();
     await expectByteIdenticalDownload(row);
+    const preview = await expectStableTopLevelPreview(financeContext, row);
+    await preview.screenshot({
+      path: `${artifactDirectory}/document-finance-pdf-preview.png`,
+      fullPage: true,
+    });
+    await preview.close();
     await financePage.screenshot({
       path: `${artifactDirectory}/document-finance-mobile.png`,
       fullPage: true,
@@ -164,10 +193,9 @@ test("Finanzrolle sieht den Beleg mobil, Akquise und Fremdaktion erhalten keine 
   const acquirerPage = await acquirerContext.newPage();
   try {
     await acquirerPage.goto(`${baseUrl}/admin/invoices`);
+    await acquirerPage.waitForURL(`${baseUrl}/app/`);
     await expect(
-      acquirerPage.getByText(
-        "Noch keine Charity-Aktion für Finanzen verfügbar",
-      ),
+      acquirerPage.getByRole("heading", { name: "Guten Tag, Anna." }),
     ).toBeVisible();
     await expect(acquirerPage.getByTestId("invoice-document")).toHaveCount(0);
     const companyDocuments = await acquirerContext.request.get(

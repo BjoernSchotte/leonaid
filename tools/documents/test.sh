@@ -119,9 +119,9 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test \
-  --config=tests/e2e/pwa.config.mjs \
+  --config=tests/e2e/documents.config.mjs \
   documents.spec.mjs \
-  --project=chromium-1440 \
+  --project=chromium-pdf \
   --output=/tmp/leonaid-document-results \
   --trace=retain-on-failure \
   --reporter=line
@@ -129,6 +129,7 @@ docker run --rm \
 for screenshot in \
   document-admin-desktop.png \
   document-finance-mobile.png \
+  document-finance-pdf-preview.png \
   document-acquirer-denied.png; do
   if [ ! -s "$proof/$screenshot" ]; then
     echo "document-test: ERROR: Browsernachweis fehlt: $screenshot" >&2

@@ -147,7 +147,7 @@ function InvoiceDocumentPanel({
   readonly client: LeonAidApiClient;
   readonly record?: GeneratedDocumentRecordResponse;
 }) {
-  const [busy, setBusy] = useState<"download" | "preview">();
+  const [busy, setBusy] = useState<"download">();
   const [errorMessage, setErrorMessage] = useState<string>();
   const generated = record?.document;
 
@@ -217,51 +217,25 @@ function InvoiceDocumentPanel({
   const filename = availableDocument.filename ?? "Rechnung.pdf";
   const createdAt =
     availableDocument.availableAt ?? availableDocument.createdAt;
+  const previewHref = `/api/v1/actions/${encodeURIComponent(
+    actionId,
+  )}/documents/${encodeURIComponent(availableDocument.id)}/download?inline=true`;
 
-  async function provideDocument(mode: "download" | "preview") {
-    const previewWindow =
-      mode === "preview" ? window.open("about:blank", "_blank") : null;
-    if (mode === "preview" && !previewWindow) {
-      setErrorMessage(
-        "Die Vorschau wurde vom Browser blockiert. Erlaube Pop-ups für LeonAid und versuche es erneut.",
-      );
-      return;
-    }
-    if (previewWindow) {
-      previewWindow.opener = null;
-      previewWindow.document.title = "PDF wird geladen …";
-    }
-    setBusy(mode);
+  async function downloadDocument() {
+    setBusy("download");
     setErrorMessage(undefined);
     try {
       const blob = await client.downloadGeneratedDocument(
         actionId,
         availableDocument.id,
-        { inline: mode === "preview" },
       );
       const objectUrl = URL.createObjectURL(blob);
-      if (previewWindow) {
-        const previewDocument = previewWindow.document;
-        previewDocument.title = filename;
-        previewDocument.body.replaceChildren();
-        previewDocument.body.style.margin = "0";
-        previewDocument.body.style.background = "#171717";
-        const frame = previewDocument.createElement("iframe");
-        frame.src = objectUrl;
-        frame.title = `Vorschau ${filename}`;
-        frame.style.width = "100vw";
-        frame.style.height = "100vh";
-        frame.style.border = "0";
-        previewDocument.body.append(frame);
-      } else {
-        const anchor = globalThis.document.createElement("a");
-        anchor.href = objectUrl;
-        anchor.download = filename;
-        anchor.click();
-      }
+      const anchor = globalThis.document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch (error) {
-      previewWindow?.close();
       setErrorMessage(
         error instanceof ApiError &&
           error.detail.code === "generated_document_storage_missing"
@@ -293,24 +267,25 @@ function InvoiceDocumentPanel({
       </div>
       <span className="invoice-document__status">Bereit</span>
       <div className="invoice-document__actions">
-        <Button
+        <a
+          className="ui-button ui-button--primary"
           data-testid="preview-document"
-          disabled={busy !== undefined}
-          icon={
-            <HugeiconsIcon icon={FileViewIcon} size={18} strokeWidth={1.8} />
-          }
-          onClick={() => void provideDocument("preview")}
-          variant="primary"
+          href={previewHref}
+          rel="noopener noreferrer"
+          target="_blank"
         >
-          {busy === "preview" ? "PDF wird geöffnet …" : "PDF öffnen"}
-        </Button>
+          <span className="ui-button__icon">
+            <HugeiconsIcon icon={FileViewIcon} size={18} strokeWidth={1.8} />
+          </span>
+          <span>PDF öffnen</span>
+        </a>
         <Button
           data-testid="download-document"
           disabled={busy !== undefined}
           icon={
             <HugeiconsIcon icon={Download04Icon} size={18} strokeWidth={1.8} />
           }
-          onClick={() => void provideDocument("download")}
+          onClick={() => void downloadDocument()}
           variant="secondary"
         >
           {busy === "download" ? "Download läuft …" : "Herunterladen"}
