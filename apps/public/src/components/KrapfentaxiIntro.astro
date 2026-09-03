@@ -43,9 +43,7 @@ const date = (value: string) => dates.format(new Date(`${value}T00:00:00Z`));
       alt="Lions Krapfentaxi"
       loading="eager"
     />
-    <p class="taxi-hero__welcome">
-      {isArchive ? "Gemeinsam Gutes bewirkt" : "Süße Freude. Guter Zweck."}
-    </p>
+    {isArchive && <p class="taxi-hero__welcome">Gemeinsam Gutes bewirkt</p>}
     <h1 id="taxi-title" data-testid="public-action-name">{action.name}</h1>
     <p class="taxi-hero__tagline">
       Eine kleine Geste für dein Team. Eine große Hilfe vor Ort.
