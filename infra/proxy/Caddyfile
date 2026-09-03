@@ -34,6 +34,9 @@
 		}
 	}
 
+	@slashless_service_roots path /app /admin /crm /mail /mailing
+	redir @slashless_service_roots {path}/ 308
+
 	handle_path /app/* {
 		import leonaid_headers
 		reverse_proxy pwa:3000
