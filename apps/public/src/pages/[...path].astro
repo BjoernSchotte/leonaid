@@ -4,6 +4,8 @@ import { actions } from "astro:actions";
 import PublicAction from "../components/PublicAction.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
+import { isKrapfentaxiAction } from "../lib/presentation";
+import taxiHero from "../assets/krapfentaxi/hero.webp";
 
 const rawPath = Astro.params.path ?? "";
 const publicOrderResult = Astro.getActionResult(actions.createPublicOrder);
@@ -98,7 +100,11 @@ if (forwardedProtocol === "http" || forwardedProtocol === "https") {
   publicOrigin.protocol = `${forwardedProtocol}:`;
 }
 const canonicalUrl = new URL(canonicalPath || "/", publicOrigin).href;
-const imageUrl = new URL("/community-routes.png", publicOrigin).href;
+const isKrapfentaxi = isKrapfentaxiAction(route);
+const imageUrl = new URL(
+  isKrapfentaxi ? taxiHero.src : "/community-routes.png",
+  publicOrigin,
+).href;
 const robots =
   state === "action" || state === "home" ? "index,follow" : "noindex,follow";
 ---
@@ -109,6 +115,13 @@ const robots =
   imageUrl={imageUrl}
   robots={robots}
   title={title}
+  isKrapfentaxi={isKrapfentaxi}
+  canOrder={Boolean(
+    route?.submissionsAllowed &&
+      route.action?.orderForm &&
+      route.availability !== "archive",
+  )}
+  carrierName={route?.action?.carrierName}
 >
   {
     state === "action" && route ? (

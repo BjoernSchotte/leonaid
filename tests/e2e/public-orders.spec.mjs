@@ -21,9 +21,15 @@ async function openOrderForm(page) {
   });
   expect(response?.status()).toBe(200);
   expect(response?.headers()["cache-control"]).toContain("no-store");
+  await expect(page.locator("body")).toHaveClass("taxi-site");
+  await expect(page.locator(".taxi-hero__logo")).toBeVisible();
   await page.getByRole("link", { name: "Jetzt bestellen" }).click();
   const form = page.locator("[data-order-form]");
   await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute("method", "POST");
+  await expect(
+    page.locator('form[action*="lions-krapfentaxi.de"]'),
+  ).toHaveCount(0);
   await expect(form.getByText("Menge und Bestellwert")).toBeVisible();
   await expect(
     form.getByText("Eine bestehende Firma wird automatisch erkannt."),

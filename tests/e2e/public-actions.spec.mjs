@@ -76,8 +76,29 @@ test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Eng
   );
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     "content",
-    `${baseUrl}/community-routes.png`,
+    new RegExp(`/_astro/hero\\.[^/]+\\.webp$`),
   );
+  await expect(page.locator("body")).toHaveClass("taxi-site");
+  await expect(page.locator(".taxi-hero__logo")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Aktionsnavigation" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Unsere Krapfenbäckerei/ }),
+  ).toBeVisible();
+  const unloadedImages = await page
+    .locator("img")
+    .evaluateAll((images) =>
+      images
+        .filter(
+          (image) =>
+            image.loading !== "lazy" &&
+            (!image.complete || image.naturalWidth === 0),
+        )
+        .map((image) => image.src),
+    );
+  expect(unloadedImages).toEqual([]);
+  await expect(page.locator('img[src*="lions-krapfentaxi.de"]')).toHaveCount(0);
   await expect(page.locator("script")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await expectTouchTargets(page);
@@ -104,6 +125,10 @@ test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Eng
     "Krapfenbox",
   );
   await expect(page.locator("form")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Jetzt bestellen" })).toHaveCount(
+    0,
+  );
+  await expect(page.locator("body")).toHaveClass("taxi-site");
   await expect(page.locator("script")).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
@@ -120,6 +145,7 @@ test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Eng
   ).toBeVisible();
   await expect(page.getByText("Krapfentaxi 2027")).toHaveCount(0);
   await expect(page.locator("form")).toHaveCount(0);
+  await expect(page.locator(".taxi-hero")).toHaveCount(0);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
     "content",
     "noindex,follow",

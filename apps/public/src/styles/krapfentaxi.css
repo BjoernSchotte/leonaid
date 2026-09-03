@@ -1,0 +1,356 @@
+/* The source site's identity, scoped to Krapfentaxi. The shared form stays intact. */
+.taxi-site {
+  --taxi-night: #172a31;
+  --taxi-paper: #fffaf3;
+  --taxi-accent: #cb0046;
+  --taxi-accent-hover: #a70039;
+  --font-display: var(--font-body);
+}
+
+.taxi-site section[id] {
+  scroll-margin-top: 6rem;
+}
+
+.taxi-site .site-header {
+  background: var(--taxi-night);
+  color: var(--taxi-paper);
+  border-bottom: 1px solid #405058;
+}
+
+.taxi-site .site-header__inner {
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  padding-block: 0.4rem;
+}
+
+.taxi-site .site-header__home {
+  gap: 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.taxi-site .site-header__home img {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.taxi-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2rem;
+}
+
+.taxi-nav a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.taxi-nav a:hover {
+  color: var(--lions-gold-300);
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+
+.taxi-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-items: center;
+  min-height: min(48rem, 90svh);
+  padding-block: clamp(2.5rem, 6vw, 4.5rem);
+  color: var(--taxi-paper);
+  background: var(--taxi-night);
+  text-align: center;
+}
+
+.taxi-hero__image,
+.taxi-hero__shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.taxi-hero__image {
+  object-fit: cover;
+  object-position: 62% center;
+}
+
+.taxi-hero__shade {
+  background: linear-gradient(180deg, #14252e66, #14252eb3 65%, #14252ef2);
+}
+
+.taxi-hero__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.taxi-hero__logo {
+  width: clamp(10rem, 23vw, 18rem);
+  height: auto;
+  filter: drop-shadow(0 0.6rem 1rem #172a3180);
+}
+
+.taxi-hero__welcome {
+  margin: 1.3rem 0 0.6rem;
+  font-size: clamp(1rem, 2.5vw, 1.5rem);
+  font-weight: 650;
+}
+
+.taxi-hero h1 {
+  max-width: 22ch;
+  margin: 0;
+  font-size: clamp(2.2rem, 6vw, 5rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.taxi-hero__tagline {
+  max-width: 39ch;
+  margin: 1rem 0 1.7rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.taxi-site .taxi-button,
+.taxi-site .order-submit {
+  border-radius: 2rem;
+  color: var(--taxi-paper);
+  background: var(--taxi-accent);
+}
+
+.taxi-site .taxi-button {
+  min-height: 3.25rem;
+  padding-inline: 1.8rem;
+}
+
+.taxi-site .taxi-button:hover,
+.taxi-site .order-submit:hover:not(:disabled) {
+  background: var(--taxi-accent-hover);
+}
+
+.taxi-hero__archive {
+  margin: 1.2rem 0 0;
+  font-size: 0.85rem;
+}
+
+.taxi-story,
+.taxi-bakery {
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+}
+
+.taxi-story__grid {
+  display: grid;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.taxi-story__brand img {
+  width: min(65%, 19rem);
+  margin-inline: auto;
+  height: auto;
+}
+
+.taxi-story__copy h2,
+.taxi-site .section-intro h2,
+.taxi-site .impact-section h2,
+.taxi-site .order-section__intro h2,
+.taxi-site .privacy-section h2 {
+  max-width: 25ch;
+  margin: 0;
+  font-size: clamp(1.9rem, 3.7vw, 3.1rem);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.taxi-story__copy p:not(.eyebrow) {
+  max-width: 60ch;
+  margin: 1.25rem 0 0;
+  color: var(--ink-muted);
+  line-height: 1.8;
+}
+
+.taxi-story__copy .taxi-story__lead {
+  color: var(--ink);
+  font-size: 1.15rem;
+}
+
+.taxi-story__copy .text-link {
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.taxi-facts {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: clamp(2.5rem, 6vw, 4.5rem);
+  padding-block: 1.75rem;
+  border-block: 1px solid var(--rule);
+}
+
+.taxi-facts dt {
+  margin-bottom: 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.taxi-facts dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.taxi-bakery {
+  background: var(--surface);
+}
+
+.taxi-bakery__logo {
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: #fff;
+  border-radius: 0.5rem;
+}
+
+.taxi-bakery__logo img {
+  width: 100%;
+  height: auto;
+}
+
+.taxi-site .offerings-section,
+.taxi-site .impact-section,
+.taxi-site .order-section,
+.taxi-site .privacy-section {
+  padding-block: clamp(3.5rem, 7vw, 6rem);
+}
+
+.taxi-site .offerings-section__grid,
+.taxi-site .impact-section__grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+}
+
+.taxi-site .section-intro,
+.taxi-site .impact-section__title,
+.taxi-site .order-section__intro {
+  text-align: center;
+}
+
+.taxi-site .section-intro h2,
+.taxi-site .section-intro > p,
+.taxi-site .impact-section h2,
+.taxi-site .order-section__intro h2,
+.taxi-site .order-section__intro > p {
+  margin-inline: auto;
+}
+
+.taxi-site .offering-list {
+  width: min(100%, 48rem);
+  margin-inline: auto;
+}
+
+.taxi-site .order-section {
+  background: var(--canvas-deep);
+}
+
+.taxi-site .order-guide {
+  top: 6rem;
+  background: var(--taxi-night);
+}
+
+.taxi-site .order-surface {
+  border-radius: 0.65rem;
+  overflow: clip;
+  box-shadow: none;
+}
+
+.taxi-site .form-field input,
+.taxi-site .form-field textarea,
+.taxi-site .quantity-control input {
+  border-radius: 0.3rem;
+  font-size: 1rem;
+}
+
+.taxi-site .impact-section {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.taxi-site .impact-section .eyebrow,
+.taxi-site .beneficiary-list li > span {
+  color: var(--ink-muted);
+}
+
+.taxi-site .beneficiary-list {
+  display: grid;
+  gap: 1.5rem;
+  border: 0;
+}
+
+.taxi-site .beneficiary-list li {
+  display: block;
+  padding: 2rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  background: var(--canvas);
+}
+
+.taxi-site .beneficiary-list h3 {
+  margin-top: 0.9rem;
+  font-size: 1.3rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.taxi-site .beneficiary-list p {
+  color: var(--ink-muted);
+  margin-top: 0.75rem;
+}
+
+.taxi-site .site-footer {
+  color: var(--taxi-paper);
+  background: var(--taxi-night);
+}
+
+.taxi-site .site-footer p {
+  color: #d3dce0;
+}
+
+@media (min-width: 48rem) {
+  .taxi-site .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .taxi-story__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(3rem, 8vw, 7rem);
+  }
+
+  .taxi-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
+
+  .taxi-site .beneficiary-list {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .taxi-site .eyebrow,
+  .taxi-site .privacy-section__label {
+    color: var(--lions-gold-300);
+  }
+}

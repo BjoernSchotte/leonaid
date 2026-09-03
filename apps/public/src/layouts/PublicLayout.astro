@@ -2,6 +2,9 @@
 import "@fontsource-variable/instrument-sans/wght.css";
 import "@fontsource-variable/newsreader/wght.css";
 import "../styles/global.css";
+import "../styles/krapfentaxi.css";
+import { Image } from "astro:assets";
+import taxiLogo from "../assets/krapfentaxi/logo.png";
 
 import PublicMark from "../components/PublicMark.astro";
 
@@ -11,6 +14,9 @@ interface Props {
   imageUrl: string;
   robots?: string;
   title: string;
+  isKrapfentaxi?: boolean;
+  canOrder?: boolean;
+  carrierName?: string;
 }
 
 const {
@@ -19,6 +25,9 @@ const {
   imageUrl,
   robots = "index,follow",
   title,
+  isKrapfentaxi = false,
+  canOrder = false,
+  carrierName,
 } = Astro.props;
 ---
 
@@ -38,16 +47,21 @@ const {
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta property="og:locale" content="de_DE" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="LeonAid" />
+    <meta
+      property="og:site_name"
+      content={isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid"}
+    />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={imageUrl} />
-    <meta property="og:image:width" content="1729" />
-    <meta property="og:image:height" content="910" />
+    <meta property="og:image:width" content={isKrapfentaxi ? "1568" : "1729"} />
+    <meta property="og:image:height" content={isKrapfentaxi ? "1024" : "910"} />
     <meta
       property="og:image:alt"
-      content="Abstrakte Wege verbinden eine lokale Gemeinschaft."
+      content={isKrapfentaxi
+        ? "Ein Löwe im Krapfentaxi vor der Würzburger Residenz."
+        : "Abstrakte Wege verbinden eine lokale Gemeinschaft."}
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
@@ -55,14 +69,44 @@ const {
     <meta name="twitter:image" content={imageUrl} />
     <title>{title}</title>
   </head>
-  <body>
+  <body class:list={[{ "taxi-site": isKrapfentaxi }]}>
     <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
     <header class="site-header">
       <div class="site-shell site-header__inner">
-        <a class="site-header__home" href="/" aria-label="LeonAid Startseite">
-          <PublicMark />
+        <a
+          class="site-header__home"
+          href={isKrapfentaxi ? "#start" : "/"}
+          aria-label={isKrapfentaxi
+            ? "Krapfentaxi – zum Seitenanfang"
+            : "LeonAid Startseite"}
+        >
+          {
+            isKrapfentaxi ? (
+              <>
+                <>
+                  <Image src={taxiLogo} width={64} alt="" />
+                  <span>Lions Krapfentaxi</span>
+                </>
+              </>
+            ) : (
+              <PublicMark />
+            )
+          }
         </a>
-        <span class="site-header__promise">Lions helfen vor Ort</span>
+        {
+          isKrapfentaxi ? (
+            <nav class="taxi-nav" aria-label="Aktionsnavigation">
+              <a href="#das-krapfentaxi">Das Krapfentaxi</a>
+              <a href={canOrder ? "#bestellen" : "#angebote"}>
+                {canOrder ? "Bestellen" : "Angebote"}
+              </a>
+              <a href="#wirkung">Wem wir helfen</a>
+              <a href="#datenschutz">Datenschutz</a>
+            </nav>
+          ) : (
+            <span class="site-header__promise">Lions helfen vor Ort</span>
+          )
+        }
       </div>
     </header>
     <main id="main-content" tabindex="-1">
@@ -72,8 +116,22 @@ const {
       <div class="site-shell site-footer__inner">
         <PublicMark label="LeonAid – Engagement transparent gemacht" />
         <p>
-          Eine öffentliche Aktionsseite des durchführenden Lions Clubs. LeonAid
-          macht Engagement nachvollziehbar.
+          {
+            isKrapfentaxi ? (
+              <>
+                Gemeinsam für den guten Zweck.
+                <br />
+                {carrierName}
+                <br />
+                Diese Aktionsseite wird mit LeonAid bereitgestellt.
+              </>
+            ) : (
+              <>
+                Eine öffentliche Aktionsseite des durchführenden Lions Clubs.
+                LeonAid macht Engagement nachvollziehbar.
+              </>
+            )
+          }
         </p>
       </div>
     </footer>

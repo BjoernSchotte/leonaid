@@ -8,6 +8,8 @@ import type {
 } from "@leonaid/api-client";
 
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
+import KrapfentaxiIntro from "./KrapfentaxiIntro.astro";
+import { isKrapfentaxiAction } from "../lib/presentation";
 
 interface OrderActionResult {
   data?: PublicOrderResultResponse;
@@ -21,6 +23,7 @@ interface Props {
 
 const { orderResult, route } = Astro.props;
 const action = route.action;
+const isKrapfentaxi = isKrapfentaxiAction(route);
 
 if (!action) {
   throw new Error("Eine veröffentlichte Aktionsseite benötigt Aktionsdaten.");
@@ -86,63 +89,78 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   class:list={["action-page", { "action-page--archive": isArchive }]}
   data-public-state={route.availability}
 >
-  <section class="action-hero">
-    <div class="site-shell action-hero__grid">
-      <div class="action-hero__copy">
-        <p class="eyebrow">
-          {isArchive ? "Dauerhaftes Archiv" : "Jetzt aktiv"}
-          <span aria-hidden="true">·</span>
-          {action.carrierName}
-        </p>
-        <h1 data-testid="public-action-name">{action.name}</h1>
-        <p class="action-hero__lead">{action.purpose}</p>
-        <div class="action-hero__actions">
-          <a class="primary-link" href={orderForm ? "#bestellen" : "#angebote"}>
-            {
-              isArchive
-                ? "Angebote der Aktion"
-                : orderForm
-                  ? "Jetzt bestellen"
-                  : "Angebote ansehen"
-            }
-            <span aria-hidden="true">↓</span>
-          </a>
-          <a class="text-link" href="#wirkung">Wem die Aktion hilft</a>
-        </div>
-        <dl class="action-facts" aria-label="Aktionsdaten">
-          <div>
-            <dt>Zeitraum</dt>
-            <dd>
-              <time datetime={action.startsOn}
-                >{publicDate(action.startsOn)}</time
+  {
+    isKrapfentaxi ? (
+      <KrapfentaxiIntro route={route} />
+    ) : (
+      <section class="action-hero">
+        <div class="site-shell action-hero__grid">
+          <div class="action-hero__copy">
+            <p class="eyebrow">
+              {isArchive ? "Dauerhaftes Archiv" : "Jetzt aktiv"}
+              <span aria-hidden="true">·</span>
+              {action.carrierName}
+            </p>
+            <h1 data-testid="public-action-name">{action.name}</h1>
+            <p class="action-hero__lead">{action.purpose}</p>
+            <div class="action-hero__actions">
+              <a
+                class="primary-link"
+                href={orderForm ? "#bestellen" : "#angebote"}
               >
-              <span aria-hidden="true">–</span>
-              <time datetime={action.endsOn}>{publicDate(action.endsOn)}</time>
-            </dd>
+                {isArchive
+                  ? "Angebote der Aktion"
+                  : orderForm
+                    ? "Jetzt bestellen"
+                    : "Angebote ansehen"}
+                <span aria-hidden="true">↓</span>
+              </a>
+              <a class="text-link" href="#wirkung">
+                Wem die Aktion hilft
+              </a>
+            </div>
+            <dl class="action-facts" aria-label="Aktionsdaten">
+              <div>
+                <dt>Zeitraum</dt>
+                <dd>
+                  <time datetime={action.startsOn}>
+                    {publicDate(action.startsOn)}
+                  </time>
+                  <span aria-hidden="true">–</span>
+                  <time datetime={action.endsOn}>
+                    {publicDate(action.endsOn)}
+                  </time>
+                </dd>
+              </div>
+              <div>
+                <dt>Dauerhafte Adresse</dt>
+                <dd data-testid="public-canonical-path">
+                  {route.canonicalPath}
+                </dd>
+              </div>
+            </dl>
           </div>
-          <div>
-            <dt>Dauerhafte Adresse</dt>
-            <dd data-testid="public-canonical-path">{route.canonicalPath}</dd>
-          </div>
-        </dl>
-      </div>
-      <figure class="action-hero__visual" aria-hidden="true">
-        <img
-          src="/community-routes.webp"
-          alt=""
-          width="1440"
-          height="758"
-          fetchpriority="high"
-          decoding="async"
-        />
-        <figcaption>
-          <span>{isArchive ? "Abgeschlossen" : "Gemeinsam unterwegs"}</span>
-          <strong>{action.beneficiaries.length}</strong>
-          {action.beneficiaries.length === 1 ? "Begünstigter" : "Begünstigte"}
-        </figcaption>
-      </figure>
-    </div>
-  </section>
+          <figure class="action-hero__visual" aria-hidden="true">
+            <img
+              src="/community-routes.webp"
+              alt=""
+              width="1440"
+              height="758"
+              fetchpriority="high"
+              decoding="async"
+            />
+            <figcaption>
+              <span>{isArchive ? "Abgeschlossen" : "Gemeinsam unterwegs"}</span>
+              <strong>{action.beneficiaries.length}</strong>
+              {action.beneficiaries.length === 1
+                ? "Begünstigter"
+                : "Begünstigte"}
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+    )
+  }
 
   {
     isArchive && (
