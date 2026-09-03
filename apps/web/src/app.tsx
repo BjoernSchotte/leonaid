@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -22,6 +23,22 @@ import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
+}
+
+function RedirectToOperationalApp() {
+  useEffect(() => {
+    window.location.replace("/app/");
+  }, []);
+
+  return (
+    <main className="ui-main">
+      <div aria-live="polite" className="action-loading" role="status">
+        <span aria-hidden="true" />
+        <h1>Akquise-App wird geöffnet</h1>
+        <p>Du wirst zu deinem persönlichen Arbeitsbereich weitergeleitet.</p>
+      </div>
+    </main>
+  );
 }
 
 function route() {
@@ -94,6 +111,10 @@ export function App({ client }: AppProps) {
         </StatusMessage>
       </main>
     );
+  }
+
+  if (!identity.data.navigation.some((item) => item.surface === "web")) {
+    return <RedirectToOperationalApp />;
   }
 
   const currentRoute = route();

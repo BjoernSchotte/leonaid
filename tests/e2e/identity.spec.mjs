@@ -123,6 +123,39 @@ test("Akquisiteur erhält auf dem Smartphone nur seine Akquise-Aufgaben", async 
   }
 });
 
+test("Reiner Akquisiteur wird aus dem Backoffice in seine PWA geleitet", async ({
+  browser,
+}) => {
+  const { context, page } = await sessionPage(
+    browser,
+    personas.acquirer,
+    "/admin/",
+    { width: 1280, height: 900 },
+  );
+  try {
+    await page.waitForURL(`${baseUrl}/app/`);
+    await expect(
+      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Charity-Aktion" }),
+    ).toContainText("Krapfentaxi 2026");
+    await expect(page.locator('[data-nav-key="overview-web"]')).toHaveCount(0);
+
+    await page.goto(`${baseUrl}/admin/members`);
+    await page.waitForURL(`${baseUrl}/app/`);
+    await expect(
+      page.getByRole("heading", { name: "Guten Tag, Anna." }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/acquirer-admin-redirect.png`,
+      fullPage: true,
+    });
+  } finally {
+    await context.close();
+  }
+});
+
 test("System-Admin erkennt seinen globalen, aktionsunabhängigen Bereich", async ({
   browser,
 }) => {
@@ -268,28 +301,23 @@ test("Charity-Admin sieht mobil nur Mitglieder und Rollen eigener Aktionen", asy
   }
 });
 
-for (const [persona, token] of [
-  ["Akquisiteur", personas.acquirer],
-  ["Finanzen", personas.finance],
-]) {
-  test(`${persona} erhält auch über eine direkte URL keinen Mitgliederzugriff`, async ({
+test("Finanzen erhält auch über eine direkte URL keinen Mitgliederzugriff", async ({
+  browser,
+}) => {
+  const { context, page } = await sessionPage(
     browser,
-  }) => {
-    const { context, page } = await sessionPage(
-      browser,
-      token,
-      "/admin/members",
-      { width: 1024, height: 800 },
-    );
-    try {
-      await expect(
-        page.getByRole("heading", {
-          name: "Mitglieder konnten nicht geladen werden",
-        }),
-      ).toBeVisible();
-      await expect(page.getByTestId("member-card")).toHaveCount(0);
-    } finally {
-      await context.close();
-    }
-  });
-}
+    personas.finance,
+    "/admin/members",
+    { width: 1024, height: 800 },
+  );
+  try {
+    await expect(
+      page.getByRole("heading", {
+        name: "Mitglieder konnten nicht geladen werden",
+      }),
+    ).toBeVisible();
+    await expect(page.getByTestId("member-card")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});

@@ -108,6 +108,7 @@ docker run --rm \
 for screenshot in \
   charity-admin-desktop.png \
   acquirer-mobile.png \
+  acquirer-admin-redirect.png \
   system-members-desktop.png \
   charity-members-mobile.png \
   role-charity-scope.png \
@@ -125,6 +126,7 @@ chmod 700 "$root/.local/pilot" "$root/.local/pilot/evidence" "$artifact_director
 for screenshot in \
   charity-admin-desktop.png \
   acquirer-mobile.png \
+  acquirer-admin-redirect.png \
   system-members-desktop.png \
   charity-members-mobile.png \
   role-charity-scope.png \

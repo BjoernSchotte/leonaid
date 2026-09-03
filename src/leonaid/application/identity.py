@@ -302,11 +302,22 @@ def paginate_member_directory(
 
 
 def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    action_roles = {membership.role for membership in principal.action_memberships}
+    has_web_access = (
+        principal.is_system_admin
+        or GlobalRole.FINANCE_READER in principal.global_roles
+        or GlobalRole.FINANCE_MANAGER in principal.global_roles
+        or ActionRole.CHARITY_ADMIN in action_roles
+        or ActionRole.FINANCE_READER in action_roles
+    )
     items: list[NavigationItem] = [
-        NavigationItem("overview-web", "Übersicht", "/admin/", "web"),
         NavigationItem("overview-pwa", "Übersicht", "/app/", "pwa"),
     ]
-    action_roles = {membership.role for membership in principal.action_memberships}
+    if has_web_access:
+        items.insert(
+            0,
+            NavigationItem("overview-web", "Übersicht", "/admin/", "web"),
+        )
     if principal.is_system_admin:
         items.extend(
             (

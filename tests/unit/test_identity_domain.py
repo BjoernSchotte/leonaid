@@ -17,6 +17,7 @@ from leonaid.application.identity import (
     MemberDirectoryMembership,
     MemberDirectoryQuery,
     RoleAssignmentChange,
+    navigation_for,
     paginate_member_directory,
 )
 from leonaid.adapters.postgres.identity import (
@@ -269,6 +270,74 @@ def test_principal_keeps_global_and_action_roles_separate() -> None:
         {ActionRole.FINANCE_READER}
     )
     assert principal.is_system_admin is False
+
+
+def test_navigation_keeps_pure_acquirer_out_of_backoffice() -> None:
+    acquirer = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=frozenset(),
+        action_memberships=(
+            ActionMembership(
+                id=UUID("21000000-0000-4000-8000-000000000020"),
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+                user_id=KLARA_ID,
+                role=ActionRole.ACQUIRER,
+                active_from=NOW,
+            ),
+        ),
+    )
+
+    navigation = navigation_for(acquirer)
+
+    assert not any(item.surface == "web" for item in navigation)
+    assert {(item.surface, item.key) for item in navigation} >= {
+        ("pwa", "overview-pwa"),
+        ("pwa", "sponsors"),
+        ("pwa", "activities"),
+        ("pwa", "commitment"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("global_roles", "action_role"),
+    (
+        (frozenset({GlobalRole.SYSTEM_ADMIN}), None),
+        (frozenset({GlobalRole.FINANCE_READER}), None),
+        (frozenset(), ActionRole.CHARITY_ADMIN),
+        (frozenset(), ActionRole.FINANCE_READER),
+    ),
+)
+def test_navigation_keeps_backoffice_overview_for_authorized_roles(
+    global_roles: frozenset[GlobalRole],
+    action_role: ActionRole | None,
+) -> None:
+    memberships = (
+        (
+            ActionMembership(
+                id=UUID("21000000-0000-4000-8000-000000000021"),
+                action_id=ACTIVE_ACTION_ID,
+                action_name="Krapfentaxi 2026",
+                user_id=KLARA_ID,
+                role=action_role,
+                active_from=NOW,
+            ),
+        )
+        if action_role is not None
+        else ()
+    )
+    principal = IdentityPrincipal(
+        account=account(AccountStatus.ACTIVE),
+        global_roles=global_roles,
+        action_memberships=memberships,
+    )
+
+    navigation = navigation_for(principal)
+
+    assert any(
+        item.surface == "web" and item.key == "overview-web"
+        for item in navigation
+    )
 
 
 def test_role_management_matrix_separates_global_and_action_scopes() -> None:
