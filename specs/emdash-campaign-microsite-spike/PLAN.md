@@ -1268,7 +1268,12 @@ Dependencies: EMS-030 successful
       This does not complete the schema migration/export/type-generation gate,
       global action uniqueness, media/social images, complete native rich-field
       UX, safe public rendering, or Charity admission.
-- [ ] Add a versioned EmDash seed defining a `campaign_pages` collection.
+- [x] Add a versioned EmDash seed defining a `campaign_pages` collection.
+      Version 1 covers the bounded non-media contract above. The operator-only
+      installer serializes concurrent installation, preserves matching schema
+      and content, and rejects incompatible metadata or version drift without
+      repair. This does not install the remaining media fields or global action
+      uniqueness constraint. See [schema lifecycle](SCHEMA.md).
 - [ ] Include an immutable, required, unique `action_id` UUID field and a
       display-only cached action name if needed for editor usability.
 - [ ] Define typed, bounded fields for hero content, content blocks, FAQ,
@@ -1276,8 +1281,23 @@ Dependencies: EMS-030 successful
 - [ ] Keep Core-owned values out of this schema.
 - [ ] Restrict arbitrary HTML, script, iframe, external asset, and unsafe URL
       fields. Render Portable Text through EmDash's supported safe renderer.
-- [ ] Add a deterministic `schema_version` and an export command that produces a
+- [x] Add a deterministic `schema_version` and an export command that produces a
       reviewable, secret-free seed without live content or personal data.
+      `./leonaid export-campaign-schema` passed and emits only version and seed
+      metadata from source in a pinned, network-isolated container. Actual
+      EmDash seed validation and real PostgreSQL installation passed in
+      `schema-runtime`, project `leonaid-emdash-tmp-e7z9sutkyl`: three concurrent
+      installers created the collection once; repeated installation preserved
+      content, field metadata and version; field-rule/version drift was rejected
+      without repair. The complete `campaign-runtime` regression then passed
+      using this installer in `leonaid-emdash-tmp-8n6qinvpnb`, including editorial
+      writes, concurrency, attribution, publication, rollback, revocation,
+      sanitized errors, TLS and closed bootstrap after restart/database failure.
+      Both projects exposed no host ports and removed their owned resources.
+      `./leonaid check` passed on `9e4d667` (208 unit tests, 242 Python source-file
+      checks, API parity, frontend/CMS checks including 27 CMS files, formatting
+      and privacy/policy gates; unchanged tree). Pilot operator wiring, physical
+      constraint auditing, schema upgrades and restore integration remain open.
 - [ ] Add synthetic Golden records for at least two actions and two Charity
       Admins with non-overlapping membership.
 
