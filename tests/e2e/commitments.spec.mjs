@@ -122,6 +122,58 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   await expect(page.getByTestId("commitment-preview-total")).toHaveText(
     "36,00 €",
   );
+  // Switching buyers must not carry another recipient's private delivery data.
+  const buyerSelect = page.getByTestId("commitment-sponsor");
+  const originalBuyer = await buyerSelect.inputValue();
+  const otherBuyer = await buyerSelect
+    .locator("option")
+    .evaluateAll(
+      (options, selected) =>
+        options.find((option) => option.value && option.value !== selected)
+          ?.value,
+      originalBuyer,
+    );
+  expect(otherBuyer).toBeTruthy();
+  await page.locator("#delivery-streetLine1").fill("Private Lieferadresse 99");
+  await page.locator("#delivery-contact").fill("Kontakt des ersten Bestellers");
+  await page.locator("#delivery-phone").fill("+49 931 99999");
+  await page
+    .locator("#delivery-instructions")
+    .fill("Vertraulicher Zugangshinweis");
+  await page.locator("#delivery-date").selectOption("2026-10-01");
+  await page
+    .locator("#delivery-window")
+    .selectOption("90000000-0000-4000-8000-000000000081");
+  await page
+    .getByLabel("Rechnungsadresse entspricht der Lieferadresse")
+    .uncheck();
+  await page.getByTestId("commitment-street").fill("Private Rechnung 99");
+  await page.locator("#commitment-email").fill("privat@beispiel.invalid");
+  await buyerSelect.selectOption(otherBuyer);
+  await expect(page.locator("#delivery-streetLine1")).toHaveValue("");
+  await expect(page.locator("#delivery-contact")).toHaveValue("");
+  await expect(page.locator("#delivery-phone")).toHaveValue("");
+  await expect(page.locator("#delivery-instructions")).toHaveValue("");
+  await expect(page.locator("#delivery-date")).toHaveValue("");
+  await expect(
+    page.getByLabel("Rechnungsadresse entspricht der Lieferadresse"),
+  ).toBeChecked();
+  await page
+    .getByLabel("Rechnungsadresse entspricht der Lieferadresse")
+    .uncheck();
+  await expect(page.getByTestId("commitment-street")).toHaveValue("");
+  await expect(page.locator("#commitment-email")).not.toHaveValue(
+    "privat@beispiel.invalid",
+  );
+  await buyerSelect.selectOption(originalBuyer);
+  await expect(page.getByTestId("commitment-party")).toContainText(
+    "Musterwerk GmbH",
+  );
+  await expect(page.locator("#delivery-streetLine1")).toHaveValue("");
+  await expect(
+    page.getByLabel("Rechnungsadresse entspricht der Lieferadresse"),
+  ).toBeChecked();
+
   await page.getByTestId("commitment-quantity").fill("2");
   await page.locator("#delivery-streetLine1").fill("Lieferstraße 8");
   const sameAddress = page.getByLabel(
@@ -250,9 +302,7 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   };
   await page.route(submissionPattern, loseResponse);
   await page.getByTestId("commitment-save-ready").click();
-  await expect(
-    page.getByText(/Die Serverantwort ist unklar/),
-  ).toBeVisible();
+  await expect(page.getByText(/Die Serverantwort ist unklar/)).toBeVisible();
   await page.locator("#delivery-streetLine1").fill("Geänderte Lieferstraße 12");
   await page.getByTestId("commitment-save-ready").click();
   await expect(

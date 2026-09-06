@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Buyer-switch isolation in acquisition capture — 2026-09-06
+
+Extended the real acquisition browser journey to fill delivery address/contact/phone/instructions, choose a window and enter separate invoice street/email, then switch to another authorized sponsor and back. The UI clears private delivery and invoice drafts, resets date selection and restores address reuse; previous values do not reappear on return. Existing implementation passed without a source change. The same journey then creates the normal order and proves retirement/retry recovery.
+
+`./leonaid test-commitments` exited 0 for isolated project `leonaid-362a-delivery-commitments-20260906m`, ports 18263/18663 and the worktree subnet override. Eleven checks passed in 35.9 seconds (16 intentional skips); admin API and PostgreSQL agree on 10 orders, 31 boxes/744 pieces and EUR 1,116.00. Own test resources were cleaned up. This closes the buyer-switch evidence gap; action-switch and full cross-surface/EmDash acceptance remain open.
+
 ## Direct In-App public form review — 2026-09-06
 
 The isolated public-order gate exited 0 with project `leonaid-362a-delivery-review-20260906`, ports 18265/18665 and the worktree network override. The opt-in `LEONAID_PUBLIC_ORDER_TEST_KEEP_FOR_REVIEW=1` now retains only a successful test stack for direct review; default and failed runs still clean up automatically. Temporary proof files are removed in both cases.
