@@ -1,0 +1,51 @@
+services:
+  cms-db-operator:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: leonaid
+      PGUSER: leonaid
+      PGPASSWORD: ${CORE_POSTGRES_PASSWORD}
+      CMS_POSTGRES_PASSWORD: ${CMS_POSTGRES_PASSWORD:?bootstrap CMS secrets first}
+    volumes: [../..:/workspace:ro]
+    working_dir: /workspace
+    networks: [cms-data]
+    command: [node, tools/emdash_spike/service-provision.mjs]
+  cms-storage-operator:
+    image: ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e
+    environment:
+      PYTHONPATH: /workspace
+      RUSTFS_ENDPOINT_URL: http://rustfs:9000
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      CMS_S3_ACCESS_KEY_ID: leonaid-emdash
+      CMS_S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY:?bootstrap CMS secrets first}
+    volumes: [../..:/workspace:ro]
+    working_dir: /workspace
+    networks: [storage-data]
+    command:
+      [
+        uv,
+        run,
+        --frozen,
+        --no-sync,
+        python,
+        -m,
+        tools.emdash_spike.provision_rustfs,
+      ]
+  cms-probe:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: emdash
+      PGUSER: emdash
+      PGPASSWORD: ${CMS_POSTGRES_PASSWORD}
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: emdash-media
+      S3_ACCESS_KEY_ID: leonaid-emdash
+      S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY}
+      S3_REGION: us-east-1
+    volumes: [../..:/workspace:ro]
+    working_dir: /workspace
+    networks: [edge, cms-data, storage-data]
+    command: [node, tools/emdash_spike/service-proof.mjs]

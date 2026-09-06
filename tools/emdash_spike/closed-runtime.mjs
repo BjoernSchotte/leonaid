@@ -51,7 +51,10 @@ try {
         `${method} ${path} must remain closed`,
       );
       assert.equal(response.headers.get("cache-control"), "no-store");
-      assert.equal(await response.text(), "CMS access is not enabled");
+      assert.equal(
+        await response.text(),
+        path === "/health/ready" ? "unavailable" : "CMS access is not enabled",
+      );
     }
   }
   console.log(

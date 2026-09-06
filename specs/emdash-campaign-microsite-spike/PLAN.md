@@ -516,9 +516,9 @@ Dependencies: EMS-000
 - [x] Configure `@astrojs/node` in standalone server mode.
 - [ ] Configure EmDash with a persistent database, RustFS S3 storage, a fixed
       `EMDASH_SITE_URL`, and the public origin's Astro `security.allowedDomains`.
-- [ ] Bind the runtime to `0.0.0.0` only inside the container; do not publish a
+- [x] Bind the runtime to `0.0.0.0` only inside the container; do not publish a
       host port from Compose.
-- [ ] Add `/health/ready` that checks process readiness and database access but
+- [x] Add `/health/ready` that checks process readiness and database access but
       does not expose setup status, versions, paths, or credentials.
 - [ ] Separate process liveness from readiness and bootstrap completion. Caddy
       and existing Core services must start and remain usable when the CMS is
@@ -552,6 +552,21 @@ write other buckets. Content survives container recreation. Verify provisioning
 both from empty volumes and against an already initialized Core database.
 Both frontends' assets load without cross-routing or 404s; setup is denied from
 first boot; Core login/API and existing order routes work with the CMS stopped.
+
+Partial service checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case service-runtime` passed using the actual base
+Compose service and production image in a unique project with no published
+ports. Separate operator jobs provision PostgreSQL/RustFS and run real EmDash
+migrations before HTTP startup. The runtime runs non-root with only CMS-scoped
+credentials; its actual EmDash S3 adapter reads retained media. SQL and media
+survive CMS recreation. Stopping PostgreSQL leaves `/health/live` at 200 and
+changes `/health/ready` to a bounded, sanitized 503; restarting it restores 200.
+Setup UI/API remain denied throughout. The harness cleans up only its own
+project resources. Bootstrap produces the versioned EmDash encryption-key
+format and preserves existing key bytes when converting the initial hex format.
+This is not the full `service-isolation` or `route-ownership` gate: pilot wiring,
+cross-Twenty denial, proxy/browser routing, resource limits and Core login/order
+availability during CMS failure remain unverified and open.
 
 ### EMS-020 — Implement same-origin LeonAid authentication
 
