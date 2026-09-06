@@ -392,7 +392,7 @@ Dependencies: none
 - [x] Record the resolved package tarball integrity and license in the existing
       dependency-lock mechanism.
 - [x] Confirm compatibility with Astro 7.1.3 and the pinned Node 22 runtime.
-- [ ] Configure EmDash's PostgreSQL adapter and pin its required driver.
+- [x] Configure EmDash's PostgreSQL adapter and pin its required driver.
       Provision a dedicated database and role on the existing `core-postgres`
       server according to section 4.1, including existing-volume upgrades.
 - [ ] Use a dedicated RustFS bucket and least-privilege credentials for EmDash
@@ -432,6 +432,15 @@ checks, formatting, dependency/API/privacy/policy checks, and an unchanged
 working tree. Linked-worktree Git metadata is mounted read-only into the two
 Git-based test containers. This is not a substitute for any live integration
 gate in the remaining tasks.
+
+PostgreSQL checkpoint: `./leonaid test-emdash-spike --case postgres` passed on
+6 September 2026 against the pinned PostgreSQL image in a fresh uniquely named
+Compose project with no host ports. The operator module provisions the dedicated
+database/role, preserves initialized Core data, refuses unexpected ownership and
+privileged preexisting roles, and proves denied Core connections and role/database
+creation. The actual EmDash adapter runs all migrations idempotently. After a
+database restart the test verifies existing Core/CMS rows and migration state
+before reapplying provisioning. CMS service wiring and RustFS proofs remain open.
 
 ### EMS-010 — Create the isolated EmDash Astro service
 

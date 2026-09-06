@@ -12,6 +12,7 @@ and public campaign delivery remain unproven.
 - Astro `7.1.3`, Node `22.23.0`, Bun `1.2.19`: existing repository versions.
 - Node adapter `11.0.2`, React adapter `5.0.7`, React/React DOM `19.2.8`.
 - PostgreSQL driver `pg@8.16.3` (MIT). Real PostgreSQL proof is still pending.
+- `kysely@0.29.5` is explicitly pinned for the real EmDash migration proof.
 - The S3 adapter imports packages not declared by EmDash itself. Explicitly add
   `@aws-sdk/client-s3@3.1127.0` and `@aws-sdk/s3-request-presigner@3.1127.0`
   (Apache-2.0); omission failed the first production build.
@@ -23,7 +24,17 @@ and public campaign delivery remain unproven.
 Use a dedicated `emdash` database and non-superuser role on the isolated
 installation's existing Core PostgreSQL server. Use a private CMS-only RustFS
 bucket with scoped credentials. No SQLite fallback and no Core database access.
-Provisioning and SQL/media recovery proofs remain outstanding.
+PostgreSQL provisioning is proven; RustFS provisioning and SQL/media recovery
+proofs remain outstanding.
+
+`tools/emdash_spike/provision-postgres.mjs` is operator-only. Its CLI requires
+`CMS_PROVISION_DATABASE_URL` and `CMS_POSTGRES_PASSWORD`; Core DB/owner default
+to the existing `leonaid` names and can be supplied explicitly. Run it only in
+an operator container on the selected installation's database network, never
+inside the CMS HTTP service. It checks ownership/role state before mutation,
+serializes provisioning with a PostgreSQL advisory lock, and preserves explicit
+Core-owner access while removing PUBLIC access to Core. Unexpected additional
+active Core clients require operator review. No Core tables are modified.
 
 No marketplace, native third-party, or sandboxed plugins are authorized. No
 `workerd` runtime is planned. Before adding any HTTP route, deny setup and editor
@@ -67,3 +78,12 @@ dependency, build, database, browser, authorization and recovery gates.
   passed independently before the complete suite.
 - The running-container/port inventory before and after the checkpoint matched;
   the existing LeonAid stack on 8080/8443 was not restarted or reconfigured.
+- `./leonaid test-emdash-spike --case postgres`: passed on fresh volumes and
+  again after restart. The real EmDash PostgreSQL adapter applies migrations
+  twice with no pending migrations. Core and CMS rows persist; the CMS login
+  cannot connect to Core, create a database, create a privileged role or switch
+  to the Core role. Unsafe existing role attributes and wrong ownership are
+  rejected. The operator remains separate from the eventual CMS runtime.
+- The PostgreSQL test creates a unique Compose project with internal `cms-data`
+  and `core-data` networks and its own volume, checks for project collisions
+  before startup, publishes no ports, and cleans only its own resources.
