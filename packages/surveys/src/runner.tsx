@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Model } from "survey-core";
-import { createSurveyModel } from "./model";
+import { createSurveyModel, restoreSurveyAnswers } from "./model";
 import { Survey } from "survey-react-ui";
 import "survey-core/i18n/german";
 import type {
@@ -103,7 +103,7 @@ export class SaveCoordinator {
         if (!this.dirty) {
           this.restoring = true;
           try {
-            this.model.data = structuredClone(result.value.answers);
+            restoreSurveyAnswers(this.model, result.value.answers);
           } finally {
             this.restoring = false;
           }
@@ -169,8 +169,7 @@ export function SurveyRunner({ participation, adapter }: RunnerProps) {
     const model = createSurveyModel(participation.version.definition);
     model.locale = "de";
     model.textUpdateMode = "onTyping";
-    model.clearInvisibleValues = "onHidden";
-    model.data = structuredClone(participation.response.answers);
+    restoreSurveyAnswers(model, participation.response.answers);
     if (participation.response.currentPage) {
       const page = model.getPageByName(participation.response.currentPage);
       if (page?.isVisible) model.currentPage = page;

@@ -2,7 +2,7 @@
 
 Date: 2026-09-06. Status: partial; full validation parity remains open. This is not a completed survey module.
 
-## Checked items: 010.1, 010.4, 010.A2–A5
+## Checked items: 010.1, 010.4, 010.T2, 010.A2–A5
 
 The implementation provides typed FastAPI endpoints and a PostgreSQL transaction
 adapter for draft creation/loading/saving, immutable publication, public
@@ -186,3 +186,75 @@ The valid three-unit emoji/text answer then completes through the actual UI.
 
 The comparison verifier now also independently validates every definition before
 comparing answers and rejects missing, stale or duplicate named fixture results.
+
+
+## Hidden-page chains and canonical restoration
+
+Baseline `28b8a89`. The actual SurveyJS 3.0.3 probe exposed a missing case:
+`clearInvisibleValues = "onHidden"` leaves answers intact when the containing page
+becomes invisible. A later page referring to one of those answers stayed visible,
+and reopening the first page reused stale values. The shared model factory now
+uses `onHiddenContainer`, so editor preview and public runner agree on page-level
+cleanup as well as question-level cleanup.
+
+SurveyJS also defers initially hidden values until completion. The new
+`restoreSurveyAnswers` helper normalizes empty/null/empty-array values before
+loading and clears invisible question/container answers in questionnaire order.
+The supported profile only permits preceding-answer references, so that ordered
+pass also clears downstream branches. The helper is used for initial restoration
+and acknowledged server snapshots; existing save-event suppression remains active.
+No server validation rule was weakened and no dependency was added.
+
+The shared comparison now has 88 named fixtures. Six new cases in
+`validation-cases.json`, using `conditional-pages.json`, cover complete visible
+chains, hidden pages with stale answers, hidden invalid values, missing/empty
+required details and incomplete downstream answers. Expected canonical answers,
+visible question IDs and completion validity are explicit. The verifier compares
+actual server-cleaned snapshots and actual model data rather than using obsolete
+raw answers for valid-state relevance; invalid-input visibility remains diagnostic.
+Duplicate client-result names now fail rather than being overwritten in a map.
+
+`./leonaid test-surveys-core` exited zero: 88 actual SurveyJS/Python comparisons,
+23 Python tests and three save-coordinator tests with 17 assertions. The earlier
+new empty-detail case failed until empty values were normalized before model
+loading; SurveyJS's clearValue does not remove that already-empty representation.
+Web/package TypeScript and Ruff checks for the changed Python tools passed in
+pinned runtimes.
+
+Live runner proof: `./leonaid test-surveys-runner`, project
+`leonaid-surveys-833458328-59796`, passed all five Chromium scenarios in 19.7s
+following real migration, API/PostgreSQL foundation and response-contract checks.
+The new “hidden pages clear chained answers through edits, direct saves and
+restoration” test fills a four-page chain, returns to the initial answer, hides
+both dependent pages and verifies persisted cleanup. A direct PUT containing
+stale hidden answers is accepted only after server cleanup; the stored snapshot
+contains neither stale branch. Reload restores the last page with zero PUTs,
+reopening the branch produces empty required fields, and completion stores only
+fresh branch answers plus the preserved closing answer. All API writes are real;
+no persistence or authorization endpoint is mocked.
+
+This closes the specified browser verification scope of **010.T2** together with
+the already-passing “acknowledged text survives closing mid-page and hidden follow-up
+is removed” test (010.A3/010.A4), which checks no-blur saving, a fresh browser
+context, back/forward navigation and reload. It does not establish all malformed
+input/coercion parity or select the final validation architecture: 010.2, 010.3,
+010.T1 and 010.A1 remain open.
+
+
+A separate read-only probe identified the next unresolved parity boundary:
+programmatic `model.data` can contain boolean/object values in text/number fields,
+a string for a numeric choice, duplicate checkbox values, or an invalid ISO date
+while SurveyJS `validate()` returns true for those optional questions. The server
+already rejects these supplied nonempty values. This is not permission to weaken
+server validation or evidence of full parity; additional client profile checks
+and named negative fixtures are required before 010.A1 can be checked.
+
+
+Editor regression for the shared factory change: `./leonaid test-surveys-editor`,
+project `leonaid-surveys-833458328-60609`, passed all seven Chromium scenarios in
+1.2 minutes. This includes both sample questionnaires, guided preview, keyboard
+focus, import preservation and draft recovery. No new layout or theme claim is
+made by this model-only regression. Both live commands used fresh isolated
+volumes/networks and no host ports; both commands exited zero with verified
+teardown. Raw artifacts remain local and ignored. 010.T2 is checked against this
+commit's runner/fixture changes and the linked existing 010.A3/010.A4 evidence.

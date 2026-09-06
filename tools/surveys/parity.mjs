@@ -1,4 +1,7 @@
-import { createSurveyModel } from "../../packages/surveys/src/model.ts";
+import {
+  createSurveyModel,
+  restoreSurveyAnswers,
+} from "../../packages/surveys/src/model.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 const fixture = new URL("../../tests/fixtures/surveys/", import.meta.url);
 const cases = JSON.parse(
@@ -9,9 +12,10 @@ const results = cases.map((item) => {
     item.definition ??
       JSON.parse(readFileSync(new URL(`${item.fixture}.json`, fixture))),
   );
-  model.data = item.answers;
+  restoreSurveyAnswers(model, item.answers);
   return {
     name: item.name,
+    answers: model.data,
     completeValid: model.validate(),
     visible: model
       .getAllQuestions()

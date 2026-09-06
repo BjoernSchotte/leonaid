@@ -237,7 +237,6 @@ export function SurveyEditor({
               ? "h3"
               : "h4";
       });
-      model.clearInvisibleValues = "onHidden";
       setPreview(model);
     } catch {
       setError(

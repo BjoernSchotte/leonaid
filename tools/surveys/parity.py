@@ -11,7 +11,9 @@ from leonaid.domain.surveys.validation import (
 )
 
 fixtures = Path("tests/fixtures/surveys")
-client_results = {row["name"]: row for row in json.loads(Path(sys.argv[1]).read_text())}
+client_rows = json.loads(Path(sys.argv[1]).read_text())
+client_results = {row["name"]: row for row in client_rows}
+assert len(client_results) == len(client_rows), "Duplicate client result"
 failures = []
 cases = json.loads((fixtures / "validation-cases.json").read_text())
 assert len({case["name"] for case in cases}) == len(cases), "Duplicate fixture name"
@@ -28,19 +30,36 @@ for case in cases:
         valid = True
     except DomainInvariantError:
         valid = False
+    if "expectedComplete" in case:
+        assert valid == case["expectedComplete"], f"{case['name']}: expected completion"
     if valid != client_results[case["name"]]["completeValid"]:
         failures.append(
             f"{case['name']}: server={valid}, client={client_results[case['name']]['completeValid']}"
         )
+    try:
+        clean = validate_answers(definition, case["answers"], complete=False)
+    except DomainInvariantError:
+        # Invalid supplied values cannot enter persistence. Their visibility is
+        # diagnostic only; valid states use the actual server-cleaned snapshot.
+        clean = case["answers"]
+    if "expectedAnswers" in case:
+        assert clean == case["expectedAnswers"], f"{case['name']}: server cleanup"
+        assert client_results[case["name"]]["answers"] == case["expectedAnswers"], (
+            f"{case['name']}: client cleanup"
+        )
+    if "expectedVisible" in case:
+        assert client_results[case["name"]]["visible"] == case["expectedVisible"], (
+            f"{case['name']}: expected relevance"
+        )
     visible, preceding = [], set()
     for page in definition["pages"]:
         page_visible = "visibleIf" not in page or condition(
-            page["visibleIf"], case["answers"], preceding
+            page["visibleIf"], clean, preceding
         )
         for question in page["elements"]:
             if page_visible and (
                 "visibleIf" not in question
-                or condition(question["visibleIf"], case["answers"], preceding)
+                or condition(question["visibleIf"], clean, preceding)
             ):
                 visible.append(question["name"])
             preceding.add(question["name"])

@@ -541,7 +541,7 @@ Implementation tasks:
 Test implementation and verification tasks:
 
 - [ ] **010.T1** Run identical supported-definition/answer fixtures through SurveyJS and the server validator; exercise forged values, incomplete saves, atomic completion and short-timeout resumption through the real API/database. Acceptance: **010.A1, 010.A2, 010.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
-- [ ] **010.T2** Add browser tests for text saved without blur, closing and restoring a fresh browser context, and conditional follow-up removal across navigation and reload. Acceptance: **010.A3, 010.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **010.T2** Add browser tests for text saved without blur, closing and restoring a fresh browser context, and conditional follow-up removal across navigation and reload. Acceptance: **010.A3, 010.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 

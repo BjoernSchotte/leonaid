@@ -19,7 +19,7 @@ async def main():
         headers={"Cookie": f"__Host-leonaid_session={token}"},
     ) as client:
         entries = []
-        for fixture in ["krapfentaxi", "golf", "validation-boundaries"]:
+        for fixture in ["krapfentaxi", "golf", "validation-boundaries", "conditional-pages"]:
             survey_id = str(uuid4())
             definition = json.loads(
                 Path(f"tests/fixtures/surveys/{fixture}.json").read_text()

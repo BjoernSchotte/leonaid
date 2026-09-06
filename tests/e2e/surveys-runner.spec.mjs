@@ -226,3 +226,134 @@ test("minimum length, Unicode and case-insensitive conditions use persisted prof
   ).toBeVisible();
   await context.close();
 });
+
+test("hidden pages clear chained answers through edits, direct saves and restoration", async ({
+  browser,
+}) => {
+  const id = process.env.SURVEY_CONDITIONAL_PAGES_ID;
+  if (!id) throw new Error("Conditional-page fixture required");
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  const input = (name) => page.locator(`[data-name=${name}] input[type=text]`);
+  const next = () =>
+    page.getByRole("button", { name: "Weiter", exact: true }).click();
+  const back = () =>
+    page.getByRole("button", { name: "Zurück", exact: true }).click();
+  const choice = (name) =>
+    page
+      .locator("[data-name=topic]")
+      .getByRole("radio", { name, exact: true })
+      .press("Space");
+  try {
+    await page.goto(`${baseURL}/surveys/${id}`);
+    await page.getByRole("button", { name: "Umfrage beginnen" }).click();
+    await choice("Ja");
+    await next();
+    await input("detail").fill("Ursprüngliches Anliegen");
+    await page
+      .locator("[data-name=explanation] textarea")
+      .fill("Alte Ergänzung");
+    await next();
+    await input("followup").fill("Alte Nachfrage");
+    await next();
+    await input("closing").fill("Abschluss bleibt erhalten");
+    await saved(page);
+    const pid = new URL(page.url()).searchParams.get("participation");
+    const path = `/api/v1/public/surveys/${id}/participations/${pid}`;
+    const read = () =>
+      page.evaluate(async (path) => (await fetch(path)).json(), path);
+    expect((await read()).response.answers).toEqual({
+      topic: "yes",
+      detail: "Ursprüngliches Anliegen",
+      explanation: "Alte Ergänzung",
+      followup: "Alte Nachfrage",
+      closing: "Abschluss bleibt erhalten",
+    });
+    await back();
+    await back();
+    await back();
+    await choice("Nein");
+    await saved(page);
+    expect((await read()).response.answers).toEqual({
+      topic: "no",
+      closing: "Abschluss bleibt erhalten",
+    });
+    await next();
+    await expect(input("closing")).toHaveValue("Abschluss bleibt erhalten");
+    await expect(input("followup")).toHaveCount(0);
+    await saved(page);
+    // A client bypassing UI cleanup still cannot reintroduce hidden data on the server.
+    const direct = await page.evaluate(async (path) => {
+      const before = await (await fetch(path)).json();
+      const result = await fetch(path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operationId: crypto.randomUUID(),
+          expectedRevision: before.response.revision,
+          currentPage: "end",
+          answers: {
+            ...before.response.answers,
+            detail: "Injected stale",
+            explanation: "Injected stale",
+            followup: "Injected stale",
+          },
+        }),
+      });
+      return { status: result.status, after: await (await fetch(path)).json() };
+    }, path);
+    expect(direct.status).toBe(200);
+    expect(direct.after.response.answers).toEqual({
+      topic: "no",
+      closing: "Abschluss bleibt erhalten",
+    });
+    let restoredWrites = 0;
+    const countWrites = (request) => {
+      if (
+        request.method() === "PUT" &&
+        request.url().includes(`/participations/${pid}`)
+      )
+        restoredWrites++;
+    };
+    page.on("request", countWrites);
+    await page.reload();
+    await expect(input("closing")).toHaveValue("Abschluss bleibt erhalten");
+    await saved(page);
+    await page.waitForTimeout(650);
+    expect(restoredWrites).toBe(0);
+    page.off("request", countWrites);
+    expect((await read()).response.currentPage).toBe("end");
+    await back();
+    await choice("Ja");
+    await next();
+    await expect(input("detail")).toHaveValue("");
+    await expect(page.locator("[data-name=explanation]")).toHaveCount(0);
+    await next();
+    await expect(page.locator("[data-name=detail] .sd-error")).toBeVisible();
+    await input("detail").fill("Neues Anliegen");
+    await expect(page.locator("[data-name=explanation] textarea")).toHaveValue(
+      "",
+    );
+    await next();
+    await expect(input("followup")).toHaveValue("");
+    await input("followup").fill("Neue Nachfrage");
+    await next();
+    await saved(page);
+    await page
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Vielen Dank für Ihre Rückmeldung." }),
+    ).toBeVisible();
+    const completed = (await read()).response;
+    expect(completed.status).toBe("completed");
+    expect(completed.answers).toEqual({
+      topic: "yes",
+      detail: "Neues Anliegen",
+      followup: "Neue Nachfrage",
+      closing: "Abschluss bleibt erhalten",
+    });
+  } finally {
+    await context.close();
+  }
+});

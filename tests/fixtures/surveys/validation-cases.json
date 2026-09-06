@@ -2439,5 +2439,129 @@
         "y"
       ]
     }
+  },
+  {
+    "name": "chain-all-visible",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "yes",
+      "detail": "help",
+      "explanation": "more",
+      "followup": "follow",
+      "closing": "end"
+    },
+    "expectedAnswers": {
+      "topic": "yes",
+      "detail": "help",
+      "explanation": "more",
+      "followup": "follow",
+      "closing": "end"
+    },
+    "expectedVisible": [
+      "topic",
+      "detail",
+      "explanation",
+      "followup",
+      "closing"
+    ],
+    "expectedComplete": true
+  },
+  {
+    "name": "chain-hidden-page-stale",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "no",
+      "detail": "stale",
+      "explanation": "stale",
+      "followup": "stale",
+      "closing": "end"
+    },
+    "expectedAnswers": {
+      "topic": "no",
+      "closing": "end"
+    },
+    "expectedVisible": [
+      "topic",
+      "closing"
+    ],
+    "expectedComplete": true
+  },
+  {
+    "name": "chain-hidden-invalid-data",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "no",
+      "detail": {
+        "forged": true
+      },
+      "explanation": 42,
+      "followup": [
+        "old"
+      ]
+    },
+    "expectedAnswers": {
+      "topic": "no"
+    },
+    "expectedVisible": [
+      "topic",
+      "closing"
+    ],
+    "expectedComplete": true
+  },
+  {
+    "name": "chain-missing-detail",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "yes",
+      "followup": "stale"
+    },
+    "expectedAnswers": {
+      "topic": "yes"
+    },
+    "expectedVisible": [
+      "topic",
+      "detail",
+      "closing"
+    ],
+    "expectedComplete": false
+  },
+  {
+    "name": "chain-empty-detail",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "yes",
+      "detail": "",
+      "explanation": "old",
+      "followup": "old"
+    },
+    "expectedAnswers": {
+      "topic": "yes"
+    },
+    "expectedVisible": [
+      "topic",
+      "detail",
+      "closing"
+    ],
+    "expectedComplete": false
+  },
+  {
+    "name": "chain-incomplete-followup",
+    "fixture": "conditional-pages",
+    "answers": {
+      "topic": "yes",
+      "detail": "Request"
+    },
+    "expectedAnswers": {
+      "topic": "yes",
+      "detail": "Request"
+    },
+    "expectedVisible": [
+      "topic",
+      "detail",
+      "explanation",
+      "followup",
+      "closing"
+    ],
+    "expectedComplete": false
   }
 ]
