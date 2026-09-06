@@ -35,6 +35,37 @@ Schema or version drift fails closed and remains untouched. Do not use a generic
 versions need reviewed migrations, backup and rollback evidence. This metadata
 comparison is not a complete physical PostgreSQL index/constraint audit.
 
+## Generated field types
+
+```sh
+./leonaid export-campaign-types
+```
+
+This command prints deterministic TypeScript from the same source collection;
+it never writes the checkout. Review and apply its output to
+`apps/campaign-site/src/campaign-fields.generated.ts` when changing the schema.
+The pinned Node container has no network and mounts the checkout read-only.
+The generator reads schema source, not credentials, content or a live database.
+No development server, HTTP typegen endpoint, CMS token or new dependency is
+required. This is LeonAid's build-time field generator, not EmDash's dev-server
+module augmentation.
+
+The generated interface describes stored field shapes, including absent/null
+optional values, nested repeaters and the closed theme union. It does not make
+an arbitrary CMS record safe to render: runtime authorization, immutable binding
+checks and the stricter `campaignEditorial` validation remain mandatory. Core
+UUID validity, text lengths and link safety cannot be inferred from TypeScript
+string types. Content IDs, revision metadata and operational Core data are not
+part of this field-only interface.
+
+`./leonaid check` rejects stale generated output and compiles actual positive and
+negative consumer fixtures. The real PostgreSQL schema proof generates the same
+types from `SchemaRegistry.getCollectionWithFields()` after installation and
+checks exact equality with both the source-generated and committed output.
+Collection field ordering does not change the output; unsupported field types
+fail explicitly instead of silently widening to `any` or `unknown`. New media
+fields require extending both generation and verification when they are admitted.
+
 ## Evidence boundary
 
 ```sh
@@ -49,6 +80,6 @@ The runtime regression exercises the same installer before real CMS/Core HTTP
 operations. Both use collision-checked project-specific networks and volumes,
 publish no host ports, and clean only owned resources.
 
-This does not complete EMS-040: global action uniqueness, media fields,
-generated TypeScript types and the complete `content-model` gate remain open.
+This does not complete EMS-040: global action uniqueness, media fields
+and the complete `content-model` gate remain open.
 Pilot/release operator wiring and upgrade/restore integration also remain open.

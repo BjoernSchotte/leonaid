@@ -1300,6 +1300,26 @@ Dependencies: EMS-030 successful
       constraint auditing, schema upgrades and restore integration remain open.
 - [ ] Add synthetic Golden records for at least two actions and two Charity
       Admins with non-overlapping membership.
+- [x] Generate and compile TypeScript field types for the installed version 1
+      collection. `./leonaid export-campaign-types` prints deterministic,
+      source-derived output; `campaign-fields.generated.ts` is checked in and
+      `./leonaid check` rejects drift. The generator preserves optional/null
+      fields, required nested properties and the theme union, and explicitly
+      rejects unsupported field types. Actual compiler fixtures accept valid
+      records and require errors for missing action bindings, invalid themes,
+      malformed repeater fields and undeclared Core/media fields. This is a
+      field-shape interface, not runtime validation or an authorization grant.
+      `schema-runtime` passed on `854fe0e` in isolated project
+      `leonaid-emdash-tmp-1rndj92nkv`, proving generated output matches the actual
+      installed EmDash/PostgreSQL registry, the source schema and committed
+      types, including reordered fields. Compiler and prior concurrent install,
+      content preservation and drift-denial proofs passed in the same run.
+      No host ports were exposed; owned containers, networks and volume were
+      removed. `./leonaid check` passed on the same commit: 208 unit tests,
+      242 Python source-file checks, API parity, frontend/CMS checks including
+      28 CMS files, generated-type/negative-compiler proofs, formatting and
+      privacy/policy gates; unchanged worktree. Full `content-model` acceptance,
+      global action uniqueness and media fields remain open.
 
 Verification:
 
