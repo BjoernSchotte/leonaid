@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Booking/retirement concurrency checkpoint — 2026-09-06
+
+A deterministic real PostgreSQL race exposed a correctness bug: acquisition creation starts a Serializable transaction before waiting for the action lock. Schedule saves lock that action but update the separate delivery configuration row. After retirement committed, a waiting booking could therefore retain its earlier snapshot and accept the retired window. The pre-fix live proof reproduced an invalid persisted review-ready order.
+
+`select_order_window` now locks the versioned delivery configuration row after the action row. PostgreSQL rejects a stale Serializable snapshot on this row, allowing the existing bounded acquisition transaction retry to read current configuration and return `delivery_window_unavailable`. The action/configuration lock order is shared with schedule writes.
+
+`tools/delivery/concurrency.py` delegates every SQL operation to the real repositories and connections, pausing once immediately after an actual action-row lock. A third PostgreSQL connection observes `pg_blocking_pids` before releasing either transaction; timing sleeps do not stand in for lock evidence. Both forced orders pass: retirement-first rejects the new booking with zero persisted rows; booking-first commits exactly one order, allows retirement afterward, preserves the selected time snapshot and returns the same order on exact replay. All other foundation migration, schedule, action-default and order tests pass. Ruff, Mypy over 112 source files and 212 unit tests pass. The proof creates and removes only its own ephemeral database/network, without host ports or shared volumes.
+
+Scope: this deterministic race uses the acquisition repository. The public repository uses the same selection helper under Read Committed; its own forced concurrent booking/retirement proof remains open. The full `./leonaid test-public-orders` regression also passes on the shared helper change: real Core/Twenty contract, JavaScript/no-JavaScript browser success and rejection/recovery, exact retry after a lost response, and exactly three persisted browser orders. It used its own Compose project (`20260906g`), ports 18265/18665 and subnet override. This checkpoint does not complete legacy order repair/review/invoice guards, all admin and form edge cases, EmDash integration or final visual acceptance.
+
 ## Public error recovery and retry checkpoint — 2026-09-06
 
 Public Astro forms now retain submitted buyer, delivery, billing, quantity, contact, instructions, message and consent values on server rejection, including without JavaScript. Retention is request-local; no browser storage or CMS record is introduced. Consent is retained only for the same privacy version. Textarea content is escaped without template indentation changing its value. The server-rendered quantity/value preview uses retained quantities and current Core prices. Address length limits now match the transport contract, and delivery options sit inside the delivery fieldset.

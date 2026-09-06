@@ -35,6 +35,16 @@ async def select_order_window(
     now: datetime,
 ) -> dict[str, str] | None:
     """Caller holds the action row lock until the order is committed."""
+    # Schedule saves lock the action but update the configuration row, not the
+    # action itself. A SERIALIZABLE booking that waited on the action can still
+    # have a pre-save snapshot. Locking the versioned row forces PostgreSQL to
+    # abort that stale snapshot so the caller retries with the current schedule.
+    # Keep lock order consistent: action first, configuration second.
+    await connection.fetchval(
+        "SELECT revision FROM action_delivery_configuration "
+        "WHERE action_id = $1 FOR SHARE",
+        action_id,
+    )
     configuration = await read_configuration(connection, action_id)
     if configuration.enabled and complete and (recipient is None or window_id is None):
         raise DomainInvariantError(
