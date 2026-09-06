@@ -1,6 +1,6 @@
 # Acquisition orders: delivery details, delivery windows, and beneficiaries
 
-Status: Implementation in progress; foundation proven, end-to-end acceptance pending.
+Status: Core and existing-channel implementation verified; integrated EmDash implementation and acceptance pending.
 Date: 2026-09-06
 
 ## Outcome and scope
@@ -199,7 +199,7 @@ Dependencies: DEL-01–05.
 - [ ] Run relevant domain, repository, API contract, component, and browser checks.
 - [x] Inspect the implemented mobile dashboard and ordering UI in the In-App Browser using synthetic data; compare collapsed goal-card height before/after at 360, 390, and 430 px widths. Evidence: direct mobile dashboard, acquisition draft and public order checkpoints in `PROGRESS.md`; integrated EmDash remains a separate item below.
 - [x] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow. Evidence: mobile In-App, dashboard, acquisition, admin completion and public field accessibility checkpoints in `PROGRESS.md`; integrated EmDash remains separately open.
-- [ ] Record commands/results and remaining limitations in this spec directory before marking implementation complete.
+- [x] Record commands/results and remaining limitations in this spec directory before marking implementation complete. Evidence: `PROGRESS.md` and `ACCEPTANCE.md`; continue updating them during the remaining EmDash integration.
 - [ ] Prove the same configured action works through Anna's form, the existing public renderer, and the EmDash campaign renderer on the integrated baseline. An unfinished EmDash renderer leaves this acceptance item open.
 
 Use one synthetic action for this cross-surface acceptance: configure two delivery days with three windows each in Charity Admin, then add a third day with a different count. Refresh Anna's form and the public form and compare their effective requirements and available windows with the saved admin configuration. Submit one order through each entry channel and verify their delivery, separate/reused billing, contact, instructions, and selected-window snapshots in administrator review and PostgreSQL. Repeat the public journey through the integrated EmDash canonical route and alias, with and without JavaScript. Finally retire a window after both forms have loaded: both must reject the stale selection, preserve unrelated input, and permit an explicit replacement selection. No CMS publication or site rebuild may be needed for these operational changes.

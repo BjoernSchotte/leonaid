@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Integration dependency and remaining acceptance clarified — 2026-09-06
+
+Revalidated the actual EmDash worktree at `67d64b1`: scoped editorial workflows have progressed, but no public campaign renderer exists and every EMS-050 renderer task remains unchecked. Updated ACCEPTANCE.md to remove stale claims that the existing same-action order journey or completion recovery had not been recorded. The remaining integrated scope is now an explicit sequence covering actual serving-app transport, canonical/alias JS/no-JS orders, live policy/retirement recovery, editorial independence, protection/rollback and combined visual acceptance.
+
+No source was imported from or changed in the active parallel worktree. Core and legacy-renderer completion is not a substitute for the required campaign integration. This checkpoint records the dependency and integration path; it is not a new runtime proof or a declaration that the goal is complete.
+
 ## Public field accessibility and final local contract audit — 2026-09-06
 
 Expanded the existing public order browser journey before submission: open separate billing, verify 15 delivery/invoice inputs and selectors are at least 44px in both dimensions, and run Axe against the form with WCAG 2/2.1/2.2 A/AA tags at normal and 200% root text size. No critical/serious violations occur. Restore the default address toggle and normal text size, then run the original real order/retry journeys. The full public gate in isolated project `leonaid-362a-delivery-public-20260906aa`, ports 18265/18665 and worktree subnet override, passed all scenarios and final PostgreSQL verification.
