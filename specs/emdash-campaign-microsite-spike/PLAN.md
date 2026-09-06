@@ -883,6 +883,10 @@ Charity runtime admission, concurrent-write races, revision attribution and
 browser editing remain pending. The title-only mutation policy must be expanded
 as the full planned editorial schema and operation-specific proofs land; it is
 not a replacement for the required editable Krapfentaxi microsite.
+Quality checkpoint: `./leonaid check` passed at `d05378f` with 208 unit tests,
+242 Python source-file type checks, all frontend/CMS checks, formatting and
+API/privacy/policy gates; worktree unchanged. The separate
+`authorization-surface` regression passed all 1,866 real HTTPS requests.
 
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
