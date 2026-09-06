@@ -799,6 +799,22 @@ handlers; full HTTP isolation, immutable bindings and revisions remain pending.
 type checks, frontend/CMS type and formatting checks, API/privacy/policy gates,
 and the 186-route inventory guard; the committed worktree remained unchanged.
 
+Item/revision primitive checkpoint (6 September 2026): the same real
+`campaign-content` proof now stages revisions through EmDash's actual
+`ContentRepository.updateDraftAware` and verifies own/foreign item reads,
+revision lists and direct revision-ID reads for both campaigns. Foreign and
+unknown IDs return identical static `NOT_FOUND` envelopes. System Admin can
+read both campaigns' revisions. Only canonical ULID item IDs are accepted by
+these editor primitives; slug lookup is explicitly denied. Authorization reads
+only the stored parent binding before upstream hydration, holding PostgreSQL
+shared row locks through the read transaction. Revision authorization joins its
+stored collection/entry relationship, never a caller-supplied parent or revision
+JSON. HTTP wiring, concurrency fault injection, write authorization, trashed
+content and immutable-binding enforcement are still open; this does not admit
+Charity users to the runtime.
+
+- [x] Prove own/foreign item and revision read primitives against real EmDash
+      content and revisions, with indistinguishable foreign/unknown responses.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

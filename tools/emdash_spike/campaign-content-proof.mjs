@@ -5,8 +5,14 @@ import { Kysely } from "kysely";
 import { createDialect } from "emdash/db/postgres";
 import { runMigrations } from "emdash/db";
 import { applySeed } from "emdash/seed";
+import { ContentRepository } from "emdash";
 import { provisionPostgres } from "./provision-postgres.mjs";
-import { listCampaignContent } from "../../apps/campaign-site/src/auth/campaign-content.mjs";
+import {
+  listCampaignContent,
+  getCampaignContent,
+  listCampaignRevisions,
+  getCampaignRevision,
+} from "../../apps/campaign-site/src/auth/campaign-content.mjs";
 
 const admin = new pg.Pool({ connectionTimeoutMillis: 3000 });
 const password = randomBytes(32).toString("hex");
@@ -46,6 +52,7 @@ try {
           slug: "campaign_pages",
           label: "Campaign pages",
           titleField: "title",
+          supports: ["drafts", "revisions"],
           fields: [
             {
               slug: "action_id",
@@ -84,6 +91,78 @@ try {
     return result.data;
   };
   assert.equal((await list(system)).total, 4);
+  const entries = (await list(system)).items;
+  const repository = new ContentRepository(database);
+  for (const entry of entries) {
+    await repository.updateDraftAware("campaign_pages", entry.id, {
+      data: { title: `${entry.data.title} revised` },
+    });
+  }
+  const missing = await getCampaignContent(
+    database,
+    actor(a),
+    "campaign_pages",
+    "00000000000000000000000000",
+  );
+  assert.equal(missing.error.code, "NOT_FOUND");
+  assert.deepEqual(
+    await getCampaignRevision(database, actor(a), "00000000000000000000000000"),
+    missing,
+  );
+  assert.deepEqual(
+    await getCampaignContent(database, actor(a), "campaign_pages", "entry-0"),
+    missing,
+  );
+  for (const entry of entries) {
+    const owner = actor(entry.data.action_id);
+    const foreign = actor(entry.data.action_id === a ? b : a);
+    const own = await getCampaignContent(
+      database,
+      owner,
+      "campaign_pages",
+      entry.id,
+    );
+    assert.equal(own.success, true);
+    assert.equal(own.data.item.id, entry.id);
+    assert.deepEqual(
+      await getCampaignContent(database, foreign, "campaign_pages", entry.id),
+      missing,
+    );
+    const revisions = await listCampaignRevisions(
+      database,
+      owner,
+      "campaign_pages",
+      entry.id,
+    );
+    assert.equal(revisions.success, true);
+    assert.ok(revisions.data.total > 0);
+    assert.deepEqual(
+      await listCampaignRevisions(
+        database,
+        foreign,
+        "campaign_pages",
+        entry.id,
+      ),
+      missing,
+    );
+    for (const revision of revisions.data.items) {
+      const ownRevision = await getCampaignRevision(
+        database,
+        owner,
+        revision.id,
+      );
+      assert.equal(ownRevision.success, true);
+      assert.equal(ownRevision.data.item.entryId, entry.id);
+      assert.deepEqual(
+        await getCampaignRevision(database, foreign, revision.id),
+        missing,
+      );
+      assert.equal(
+        (await getCampaignRevision(database, system, revision.id)).success,
+        true,
+      );
+    }
+  }
   for (const action of [a, b]) {
     const profile = actor(action);
     const first = await list(profile, { limit: 1 });
@@ -117,7 +196,7 @@ try {
     /campaign_access_denied/,
   );
   console.log(
-    "campaign-content: real PostgreSQL/EmDash two-campaign lists, counts, cursors, search and hostile binding filters passed; HTTP admission remains closed",
+    "campaign-content: real PostgreSQL/EmDash two-campaign lists, counts, cursors, search, hostile filters, item reads and revision reads passed; HTTP admission remains closed",
   );
 } finally {
   await database.destroy();
