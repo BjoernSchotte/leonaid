@@ -909,6 +909,9 @@ pass. The temporary font-download build failure was retried only after its
 process terminated and its project was cleaned. Multi-instance/load testing,
 late-write-failure injection and other mutation operations remain open; this
 closes the demonstrated title-update race, not the whole authorization gate.
+Quality checkpoint: `./leonaid check` passed at `9aebff0`: 208 unit tests,
+242 Python source-file type checks, all frontend/CMS checks, formatting,
+API/privacy/policy and route-inventory guards; worktree unchanged.
 
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
