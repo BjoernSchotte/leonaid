@@ -169,9 +169,9 @@ a substitute for completing an individual task.
   Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
   E2E: **050.S3, 050.S5**.
 
-- [ ] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement.
+- [x] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement.
 
-  Acceptance criteria: **050.A1, 050.A4**.
+  Acceptance criteria: **050.A1, 050.A4**. [Accepted evidence](proofs/SURV-050.md#process-restart-and-untransmitted-tab-loss).
   Integration / supporting checks: **050.S1**.
   E2E: **050.S4**.
 

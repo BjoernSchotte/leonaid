@@ -113,6 +113,12 @@ fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/restart.py prepare
+  compose restart api worker
+  compose up --detach --no-deps --wait --wait-timeout 90 api worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/restart.py recover
   cp "$proof/surveys-mid-page.png" "$artifact/"
 fi
 compose down --volumes --remove-orphans

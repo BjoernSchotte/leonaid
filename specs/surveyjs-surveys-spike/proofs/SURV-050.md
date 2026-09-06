@@ -7,12 +7,12 @@ checks. This is an incremental proof; SURV-050 is not fully accepted.
 
 | Task | Required acceptance | Delivery / named evidence | Acceptance / remaining gap |
 |---|---|---|---|
-| 050.1 | A3, A5 | Existing runner and [SURV-010 browser proof](SURV-010.md#browser-autosave-and-recovery-proof) | Full runner acceptance remains open |
-| 050.2 | A1, A4 | Revision/idempotency plus real two-tab ordering and lost-completion acknowledgement below | Delivered; A4 passed, A1 still requires the full API-restart matrix |
+| 050.1 | A3, A5 | Multipage runner, offline/reconnect and tab-loss evidence below; existing A5 journey | Delivered; direct criteria pass, work-package S2 analysis regression remains open |
+| 050.2 | A1, A4 | Real two-tab ordering, lost acknowledgement and API/worker restart below | Accepted: both criteria and S1/S4 pass |
 | 050.3 | A2, A5 | Timeout settings APIs, snapshot preservation, real classification worker and effective-status view; `tools/surveys/timeouts.py prepare/recover` | Backend delivery proven; A2 remains open for actual analysis integration under SURV-070 |
-| 050.4 | A3, A4, A5 | Existing protected restore and [SURV-020 reload evidence](SURV-020.md#browser-rendering-and-restoration-disposition) | Full conflict/recovery acceptance remains open |
-| 050.T1 | A1, A2 | Real worker stop/restart, settings/replay checks and delayed classification below | Partial: complete restart/concurrency and analysis coverage remain open |
-| 050.T2 | A3, A4, A5 | Eight runner browser scenarios; A4 and existing A5 proven | Full A3 unsent-tab-closure reconciliation remains open |
+| 050.4 | A3, A4, A5 | Protected restore, fresh-context/tab-loss recovery, two-tab reload and [SURV-020 restore suppression](SURV-020.md#browser-rendering-and-restoration-disposition) | Delivered; direct criteria pass, work-package S2 analysis regression remains open |
+| 050.T1 | A1, A2 | API/worker restart, ordering/replay and timeout checks below | Partial: A1 passes; A2 analysis consumer remains open |
+| 050.T2 | A3, A4, A5 | Eight actual-browser scenarios including tab loss, two tabs, lost acknowledgement and partial resumption | Passed: A3/A4/A5 and S3/S4/S5 reconciled |
 
 ## Implementation contract
 
@@ -159,3 +159,51 @@ Supporting checks passed:
 This bounded proof does not close 050.A1's API-restart contract or 050.A2's
 analysis-consumer integration. It does not claim that untransmitted edits
 survive destroying a browser tab. Full SURV-050/spike acceptance remains open.
+
+## Process restart and untransmitted tab loss
+
+Baseline: `d075678`; this commit adds tests and evidence only, with no product
+code change. `./leonaid test-surveys-runner` exited **0** in isolated project
+`leonaid-surveys-833458328-99927`, using the pinned images in
+`infra/locks/images.env`. All eight Chromium tests passed in **28.3s**, followed
+by direct SQL verification, a real API/worker restart and persisted replay checks.
+The harness used fresh synthetic fixtures, unused explicit subnets and no host
+ports. Its container, volume and network teardown completed successfully.
+
+**050.A1 / 050.S1:** `tools/surveys/restart.py prepare/recover` runs around
+`compose restart api worker`; the harness waits until both restarted services
+are healthy. It creates exactly two participations, one completed and one still
+open. Before and after restart it verifies exact replay of start/save operations,
+rejects stale reordered requests and changed-payload operation-key reuse, and
+asserts that replaying an old successful save never rewinds the actual response.
+The already completed participation returns the identical completion snapshot;
+a new completion key and a late edit are rejected without mutation. The open
+participation restores the winning snapshot, accepts a new answer and completes.
+SQL checks exact answers, revisions, timestamps, exactly two participation rows
+and one completion ledger entry per participation. Synthetic state containing
+resume credentials remains temporary and is removed after verification.
+
+This complements the previous live two-tab delayed-write proof and closes A1;
+it does not claim coverage of arbitrary failures outside the stated contract.
+
+**050.A3 / 050.S3:** the named browser test **offline edits stay pending and retry
+successfully after reconnect** now also captures an authenticated browser state,
+disconnects again and types an untransmitted marker. The visible error says the
+changes remain in the open window. It then destroys that browser context and
+opens a fresh one with the retained resume cookie. Only the previously confirmed
+text is restored; the unsent marker is absent and the save indicator correctly
+refers to the restored server snapshot. No client persistence of unsent edits is
+implied. This test runs at the existing mobile viewport (390 × 844).
+
+**050.A5 / 050.S5:** the same passing run retains **acknowledged text survives
+closing mid-page and hidden follow-up is removed**, including a fresh-context
+restore, short-timeout partial status and completion of the same participation.
+Together with the prior two-tab/lost-acknowledgement proof, this reconciles all
+050.T2 browser requirements. 050.1 and 050.4 now record delivered implementation;
+050.2 also passes its complete task-acceptance checklist. The broader acceptance
+matrix for 050.1/050.4 still includes the open S2 work-package regression gate.
+
+Ruff checking of `tools/surveys/restart.py` and `git diff --check` passed. No new
+dependency or license change was introduced. 050.A2, 050.S2 and 050.T1 remain open
+until SURV-070 proves actual analysis queries with delayed classification. This
+prevents claiming all of SURV-050 or the complete spike is finished.

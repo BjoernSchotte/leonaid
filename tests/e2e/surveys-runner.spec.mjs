@@ -256,7 +256,37 @@ test("offline edits stay pending and retry successfully after reconnect", async 
   await expect(
     page.locator("[data-name=delivery_feedback] textarea"),
   ).toHaveValue("Unterwegs ohne Netz ergänzt");
+  const resumeUrl = page.url();
+  const session = await context.storageState();
+  await context.setOffline(true);
+  await page
+    .locator("[data-name=delivery_feedback] textarea")
+    .fill("Unsent text must not be restored");
+  await expect(page.locator("[data-save-state]")).toHaveAttribute(
+    "data-save-state",
+    "error",
+  );
+  await expect(page.locator("[data-save-state]")).toContainText(
+    "in diesem geöffneten Fenster",
+  );
   await context.close();
+  const restored = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    storageState: session,
+  });
+  try {
+    const fresh = await restored.newPage();
+    await fresh.goto(resumeUrl);
+    await expect(
+      fresh.locator("[data-name=delivery_feedback] textarea"),
+    ).toHaveValue("Unterwegs ohne Netz ergänzt");
+    await expect(fresh.locator("[data-save-state]")).toHaveAttribute(
+      "data-save-state",
+      "saved",
+    );
+  } finally {
+    await restored.close();
+  }
 });
 
 test("minimum length, Unicode and case-insensitive conditions use persisted profile rules", async ({

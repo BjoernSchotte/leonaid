@@ -60,11 +60,13 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 
 ## SURV-050 — Runner and recovery
 
-- [ ] **050.S1 · Integration · 050.T1 → 050.A1:** Duplicate/reorder saves and retry completion across API/worker restarts; older writes cannot replace newer data, completed state is terminal and retries create no second logical completion.
+Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#process-restart-and-untransmitted-tab-loss).
+
+- [x] **050.S1 · Integration · 050.T1 → 050.A1:** Duplicate/reorder saves and retry completion across API/worker restarts; older writes cannot replace newer data, completed state is terminal and retries create no second logical completion.
 - [ ] **050.S2 · Integration · 050.T1 → 050.A2:** Exercise default/override timeout snapshots, unchanged requests and delayed worker classification; only server-observed answer changes extend inactivity and classification never removes responses.
-- [ ] **050.S3 · E2E · 050.T2 → 050.A3:** Disconnect mid-page, type and reconnect; pending status remains truthful and acknowledged answers survive reload. Verify that tab closure does not promise recovery of unsent memory-only edits.
+- [x] **050.S3 · E2E · 050.T2 → 050.A3:** Disconnect mid-page, type and reconnect; pending status remains truthful and acknowledged answers survive reload. Verify that tab closure does not promise recovery of unsent memory-only edits.
 - [x] **050.S4 · E2E · 050.T2 → 050.A4:** Edit one participation in two tabs, delay requests and lose the completion acknowledgement; show conflicts, preserve newer data and finish with exactly one completed participation after retry. [Evidence](proofs/SURV-050.md#two-tab-ordering-and-lost-completion-acknowledgement).
-- [ ] **050.S5 · E2E · 050.T2 → 050.A5:** Abandon a multipage survey, expire the short timeout and resume with valid access; previous answers and identity remain intact and completion succeeds.
+- [x] **050.S5 · E2E · 050.T2 → 050.A5:** Abandon a multipage survey, expire the short timeout and resume with valid access; previous answers and identity remain intact and completion succeeds.
 
 ## SURV-060 — Module and permissions
 
