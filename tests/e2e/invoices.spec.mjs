@@ -110,6 +110,7 @@ function sessionCookie(value) {
 test("Fresh Login schützt Freigabe und Finanzrolle sieht den Beleg unveränderlich", async ({
   browser,
 }) => {
+  let adminCookies;
   const adminContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     ignoreHTTPSErrors: true,
@@ -200,6 +201,7 @@ test("Fresh Login schützt Freigabe und Finanzrolle sieht den Beleg unveränderl
       fullPage: false,
     });
   } finally {
+    adminCookies = await adminContext.cookies();
     await adminContext.close();
   }
 
@@ -236,4 +238,177 @@ test("Fresh Login schützt Freigabe und Finanzrolle sieht den Beleg unveränderl
   } finally {
     await financeContext.close();
   }
+  await completeDeliveryInBrowser(browser, adminCookies);
 });
+
+async function completeDeliveryInBrowser(browser, cookies) {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 390, height: 844 },
+  });
+  await context.addCookies(cookies);
+  try {
+    const root = `${baseUrl}/api/v1/actions/20000000-0000-4000-8000-000000000001`;
+    const listing = await context.request.get(`${root}/commitments`);
+    expect(listing.ok()).toBeTruthy();
+    const source = (await listing.json()).items[0].commitment;
+    const created = await context.request.post(`${root}/commitments`, {
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      data: {
+        source: "admin",
+        readyForReview: false,
+        buyer: source.buyer,
+        lines: source.lines.map((line) => ({
+          offeringId: line.offeringId,
+          quantity: 1,
+          unit: line.unit,
+        })),
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const order = await created.json();
+    const configResponse = await context.request.get(`${root}/delivery`);
+    const config = await configResponse.json();
+    delete config.actionId;
+    const slot = crypto.randomUUID();
+    config.enabled = true;
+    config.windows.push({
+      id: slot,
+      deliveryOn: "2026-10-02",
+      startsAt: "09:00",
+      endsAt: "11:00",
+      retired: false,
+    });
+    expect(
+      (await context.request.put(`${root}/delivery`, { data: config })).ok(),
+    ).toBeTruthy();
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/admin/orders`);
+    const row = page.locator(`[data-commitment-id="${order.id}"]`);
+    await row.getByRole("button", { name: "Lieferdaten ergänzen" }).click();
+    const form = row.getByTestId("delivery-completion");
+    await form
+      .getByLabel("Firma / Empfänger", { exact: true })
+      .fill("Lieferkontakt UI");
+    await form
+      .getByLabel("Straße und Hausnummer", { exact: true })
+      .fill("Lieferweg 4");
+    await form.getByLabel("PLZ", { exact: true }).fill("86150");
+    await form.getByLabel("Ort", { exact: true }).fill("Augsburg");
+    await form
+      .getByLabel("Liefertag", { exact: true })
+      .selectOption("2026-10-02");
+    await form
+      .getByLabel("Lieferzeitfenster", { exact: true })
+      .selectOption(slot);
+    await form
+      .getByLabel("Abteilung / Lieferhinweise (optional)")
+      .fill("Abteilung UI\nStock 4");
+    await form
+      .getByLabel("Rechnungsadresse entspricht der Lieferadresse")
+      .uncheck();
+    await form
+      .getByLabel("Rechnungsempfänger", { exact: true })
+      .fill("Rechnung UI");
+    await form
+      .getByLabel("Straße und Hausnummer (Rechnung)", { exact: true })
+      .fill("Rechnungsweg 8");
+    await form.getByLabel("PLZ (Rechnung)", { exact: true }).fill("86150");
+    await form.getByLabel("Ort (Rechnung)", { exact: true }).fill("Augsburg");
+    await form
+      .getByLabel("Rechnungs-E-Mail", { exact: true })
+      .fill("invoice-ui@example.invalid");
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-testid="delivery-completion"]')
+      .analyze();
+    expect(
+      accessibility.violations.filter((v) =>
+        ["critical", "serious"].includes(v.impact),
+      ),
+    ).toEqual([]);
+    const overflow = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="delivery-completion"] *')]
+        .filter(
+          (element) =>
+            element.getBoundingClientRect().right > window.innerWidth + 1,
+        )
+        .map((element) => ({
+          tag: element.tagName,
+          class: element.className,
+          right: element.getBoundingClientRect().right,
+        })),
+    );
+    expect(overflow).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBeTruthy();
+    await page.screenshot({
+      path: `${artifactDirectory}/invoice-delivery-completion.png`,
+      fullPage: true,
+    });
+    const concurrentlySaved = await context.request.post(
+      `${root}/commitments/${order.id}/delivery-completion`,
+      {
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        data: {
+          expectedVersion: order.deliveryCompletionVersion,
+          windowId: slot,
+          deliveryRecipient: {
+            recipientName: "Parallel gespeichert",
+            streetLine1: "Parallelweg 1",
+            postalCode: "86150",
+            city: "Augsburg",
+            countryCode: "DE",
+          },
+          invoiceRecipient: {
+            recipientName: "Parallel Rechnung",
+            streetLine1: "Parallelweg 2",
+            postalCode: "86150",
+            city: "Augsburg",
+            countryCode: "DE",
+          },
+        },
+      },
+    );
+    expect(concurrentlySaved.ok()).toBeTruthy();
+    await form
+      .getByRole("button", { name: "Ergänzen und prüfbereit speichern" })
+      .click();
+    await expect(form.getByRole("alert")).toContainText("inzwischen geändert");
+    await expect(
+      form.getByLabel("Firma / Empfänger", { exact: true }),
+    ).toHaveValue("Lieferkontakt UI");
+    await form
+      .getByRole("button", { name: "Aktuelle Angaben vergleichen" })
+      .click();
+    await expect(
+      form.getByRole("region", { name: "Gespeicherte Angaben" }),
+    ).toContainText("Parallel gespeichert");
+    await form
+      .getByRole("button", {
+        name: "Eigene Eingaben auf diesen Stand übernehmen",
+      })
+      .click();
+    await form
+      .getByRole("button", { name: "Ergänzen und prüfbereit speichern" })
+      .click();
+    await expect(form).toHaveCount(0);
+    await expect(row).toContainText("Prüfbereit");
+    await row
+      .getByText("Liefer- und Rechnungsdaten ansehen", { exact: true })
+      .click();
+    await expect(row).toContainText("Abteilung UI");
+    const savedListing = await context.request.get(`${root}/commitments`);
+    const saved = (await savedListing.json()).items.find(
+      (item) => item.commitment.id === order.id,
+    ).commitment;
+    expect(saved.invoiceRecipient.recipientName).toBe("Rechnung UI");
+    expect(saved.invoiceRecipient.streetLine1).toBe("Rechnungsweg 8");
+    expect(saved.deliveryWindowId).toBe(slot);
+    expect(saved.totalMinor).toBe(order.totalMinor);
+  } finally {
+    await context.close();
+  }
+}

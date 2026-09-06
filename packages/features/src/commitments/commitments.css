@@ -1,5 +1,6 @@
 .commitment-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(1.1rem, 2.4vw, 1.8rem);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -544,11 +545,14 @@
 
 .commitment-ledger {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   border-block: 1px solid var(--border);
 }
 
 .commitment-ledger-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 0.85rem;
   padding: 1rem 0.2rem;
@@ -604,6 +608,9 @@
 
 .commitment-ledger-row__action {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
   align-items: center;
 }
 
@@ -986,4 +993,30 @@
   min-height: 44px;
   padding-block: 0.7rem;
   cursor: pointer;
+}
+
+.commitment-delivery-completion {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 1.25rem;
+}
+.commitment-delivery-completion > fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.commitment-delivery-completion .ui-button {
+  white-space: normal;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 44px;
+}
+.commitment-delivery-completion input,
+.commitment-delivery-completion select,
+.commitment-delivery-completion textarea {
+  min-width: 0;
+  max-width: 100%;
 }

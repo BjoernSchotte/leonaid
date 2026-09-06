@@ -1,5 +1,17 @@
 # Implementation evidence
 
+## Administrator completion form checkpoint — 2026-09-06
+
+Draft and review-ready rows in the administrator order list now open an inline delivery/billing completion form. It reuses the shared delivery inputs and effective capture definition, supports address reuse or separate billing with independent invoice email, and hides draft deferral. Already booked window IDs/times remain fixed. Inputs are disabled during submission; known rejections and unknown outcomes retain the established command-key rules.
+
+The editor freezes the version seen when opened. A conflict keeps local inputs, offers a read of current saved details, and requires an explicit comparison/acceptance step before using the newer version. Its pending form is not silently rebased by a background list refresh. Only one completion form is open in the list at a time.
+
+The extended real `./leonaid test-invoices` gate passed: create a separate synthetic draft through the API, complete it in the administrator UI at 390 px with different delivery/billing addresses and multiline notes, check Axe for critical/serious findings, check document and element boundaries for horizontal overflow, perform a real competing HTTP completion while the form is open, prove rejection/input retention, compare the saved state explicitly, resubmit, and read the correct recipients/window and unchanged total back through the API. The existing invoice browser gate and repaired-order-to-issued-invoice HTTP proof also pass. The mobile screenshot was inspected. Feature type checking, focused Python lint/type checks and diff whitespace checks pass.
+
+The live iterations exposed an incorrect test route, unconstrained mobile grid tracks and duplicate alert semantics; these were corrected before the successful final run (`leonaid-362a-delivery-invoice-20260906g`, ports 18266/18666, dedicated subnet override). Cleanup completed. The HTTP fixture now preserves the window booked by the UI scenario when adding its own window.
+
+Remaining: the editor currently loads its effective definition through capture context, whose action-status gate needs reconciliation for completion on completed actions. Broader zero-window/policy-change/unknown-outcome recovery, focus after closing/saving, text zoom and integrated In-App Browser acceptance remain open. EmDash parity and the remaining plan items are not marked complete by this checkpoint.
+
 ## Delivery completion HTTP and invoice checkpoint — 2026-09-06
 
 The completion service is now wired into FastAPI at `POST /api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion`, with action-manager authorization, validated typed input, Idempotency-Key handling and no-store responses. Internal commitment responses expose `deliveryCompletionVersion` for optimistic edits. OpenAPI and the TypeScript client were regenerated from the source schemas.

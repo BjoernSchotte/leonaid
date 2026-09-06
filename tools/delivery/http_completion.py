@@ -40,13 +40,14 @@ async def main() -> None:
                 "timezone": "Europe/Berlin",
                 "revision": current.json()["revision"],
                 "windows": [
+                    *current.json()["windows"],
                     {
                         "id": window,
                         "deliveryOn": "2026-10-01",
                         "startsAt": "09:00",
                         "endsAt": "11:00",
                         "retired": False,
-                    }
+                    },
                 ],
             }
             response = await client.put(

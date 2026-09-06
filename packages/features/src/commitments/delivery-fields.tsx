@@ -41,7 +41,11 @@ export function DeliveryFields({
   onWindow,
   deferred,
   onDeferred,
+  allowDefer = true,
+  showSchedule = true,
 }: {
+  allowDefer?: boolean;
+  showSchedule?: boolean;
   definition: DeliveryOrderFormResponse;
   value: DeliveryDraft;
   onChange: (value: DeliveryDraft) => void;
@@ -67,14 +71,16 @@ export function DeliveryFields({
       <legend>
         <span>3</span>Lieferung
       </legend>
-      <label className="commitment-delivery-toggle">
-        <input
-          type="checkbox"
-          checked={deferred}
-          onChange={(e) => onDeferred(e.target.checked)}
-        />
-        Lieferdaten später ergänzen (nur Entwurf)
-      </label>
+      {allowDefer && (
+        <label className="commitment-delivery-toggle">
+          <input
+            type="checkbox"
+            checked={deferred}
+            onChange={(e) => onDeferred(e.target.checked)}
+          />
+          Lieferdaten später ergänzen (nur Entwurf)
+        </label>
+      )}
       {!deferred && (
         <>
           <div className="commitment-recipient-grid">
@@ -101,50 +107,51 @@ export function DeliveryFields({
               </div>
             ))}
           </div>
-          {!dates.length ? (
-            <p role="status">
-              Keine Lieferfenster verfügbar. Du kannst einen Entwurf speichern
-              und die Lieferung später ergänzen.
-            </p>
-          ) : (
-            <div className="commitment-recipient-grid">
-              <div className="commitment-field">
-                <label htmlFor="delivery-date">Liefertag</label>
-                <select
-                  id="delivery-date"
-                  required={definition.requireWindow}
-                  value={date}
-                  onChange={(e) => onDate(e.target.value)}
-                >
-                  <option value="">Tag auswählen</option>
-                  {dates.map((d) => (
-                    <option key={d} value={d}>
-                      {deliveryDate(d)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="commitment-field">
-                <label htmlFor="delivery-window">Lieferzeitfenster</label>
-                <select
-                  id="delivery-window"
-                  required={definition.requireWindow}
-                  value={windowId}
-                  onChange={(e) => onWindow(e.target.value)}
-                >
-                  <option value="">Zeitfenster auswählen</option>
-                  {definition.windows
-                    .filter((w) => w.deliveryOn === date)
-                    .map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.startsAt.slice(0, 5)}–{w.endsAt.slice(0, 5)} Uhr
+          {showSchedule &&
+            (!dates.length ? (
+              <p role="status">
+                Keine Lieferfenster verfügbar. Du kannst einen Entwurf speichern
+                und die Lieferung später ergänzen.
+              </p>
+            ) : (
+              <div className="commitment-recipient-grid">
+                <div className="commitment-field">
+                  <label htmlFor="delivery-date">Liefertag</label>
+                  <select
+                    id="delivery-date"
+                    required={definition.requireWindow}
+                    value={date}
+                    onChange={(e) => onDate(e.target.value)}
+                  >
+                    <option value="">Tag auswählen</option>
+                    {dates.map((d) => (
+                      <option key={d} value={d}>
+                        {deliveryDate(d)}
                       </option>
                     ))}
-                </select>
-                <small>Zeitzone: {definition.timezone}</small>
+                  </select>
+                </div>
+                <div className="commitment-field">
+                  <label htmlFor="delivery-window">Lieferzeitfenster</label>
+                  <select
+                    id="delivery-window"
+                    required={definition.requireWindow}
+                    value={windowId}
+                    onChange={(e) => onWindow(e.target.value)}
+                  >
+                    <option value="">Zeitfenster auswählen</option>
+                    {definition.windows
+                      .filter((w) => w.deliveryOn === date)
+                      .map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.startsAt.slice(0, 5)}–{w.endsAt.slice(0, 5)} Uhr
+                        </option>
+                      ))}
+                  </select>
+                  <small>Zeitzone: {definition.timezone}</small>
+                </div>
               </div>
-            </div>
-          )}
+            ))}
           {definition.allowContact && (
             <div className="commitment-recipient-grid">
               <div className="commitment-field">

@@ -19,6 +19,7 @@ import type {
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { DeliveryDetails } from "./delivery-fields";
+import { DeliveryCompletion } from "./delivery-completion";
 
 import { actionErrorMessage } from "../action-admin/errors";
 
@@ -267,6 +268,10 @@ function InvoiceReview({
 }
 
 function CommitmentRow({
+  client,
+  completionOpen,
+  onToggleCompletion,
+  onCompleted,
   context,
   error,
   issuing,
@@ -275,6 +280,10 @@ function CommitmentRow({
   record,
   reviewOpen,
 }: {
+  readonly client: LeonAidApiClient;
+  readonly completionOpen: boolean;
+  readonly onToggleCompletion: () => void;
+  readonly onCompleted: () => void;
   readonly context?: InvoiceContextResponse;
   readonly error?: string;
   readonly issuing: boolean;
@@ -326,6 +335,15 @@ function CommitmentRow({
         {formatMoney(commitment.totalMinor, commitment.currency)}
       </strong>
       <div className="commitment-ledger-row__action">
+        {["draft", "review_ready"].includes(commitment.status) && (
+          <Button
+            variant="secondary"
+            aria-expanded={completionOpen}
+            onClick={onToggleCompletion}
+          >
+            Lieferdaten ergänzen
+          </Button>
+        )}
         {commitment.status === "review_ready" ? (
           <Button
             aria-expanded={reviewOpen}
@@ -354,6 +372,14 @@ function CommitmentRow({
           )}
         </details>
       )}
+      {completionOpen && (
+        <DeliveryCompletion
+          client={client}
+          order={commitment}
+          onSaved={onCompleted}
+          onCancel={onToggleCompletion}
+        />
+      )}
       {reviewOpen && context ? (
         <InvoiceReview
           context={context}
@@ -372,6 +398,7 @@ export function CommitmentAdminPage({
   client,
   identity,
 }: CommitmentAdminPageProps) {
+  const [completionId, setCompletionId] = useState("");
   const memberships = useMemo(
     () =>
       identity.actionMemberships.filter(
@@ -625,6 +652,20 @@ export function CommitmentAdminPage({
             <section aria-label="Bestellliste" className="commitment-ledger">
               {visible.map((record) => (
                 <CommitmentRow
+                  client={client}
+                  completionOpen={completionId === record.commitment.id}
+                  onToggleCompletion={() => {
+                    setCompletionId(
+                      completionId === record.commitment.id
+                        ? ""
+                        : record.commitment.id,
+                    );
+                    setSelectedCommitmentId("");
+                  }}
+                  onCompleted={() => {
+                    setCompletionId("");
+                    void commitments.refetch();
+                  }}
                   context={invoiceContext.data}
                   error={
                     selectedCommitmentId === record.commitment.id
