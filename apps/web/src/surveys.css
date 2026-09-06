@@ -1,0 +1,131 @@
+.surveys-module {
+  max-width: 92rem;
+  margin: 0 auto;
+  color: var(--foreground);
+}
+.surveys-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.surveys-heading h1 {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  line-height: 1.15;
+  margin: 0.7rem 0;
+}
+.surveys-heading p,
+.surveys-settings p {
+  max-width: 65ch;
+  line-height: 1.6;
+}
+.surveys-module input,
+.surveys-module select {
+  min-height: 44px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--background);
+  color: inherit;
+  font: inherit;
+  max-width: 100%;
+}
+.surveys-module label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+.surveys-filters,
+.surveys-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.surveys-filters label:first-child {
+  flex: 1;
+}
+.surveys-filters {
+  margin-bottom: 1.5rem;
+}
+.surveys-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+}
+.surveys-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.surveys-list a {
+  font-weight: 650;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+.surveys-list p {
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0;
+}
+.surveys-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.surveys-settings {
+  border-block: 1px solid var(--border);
+  padding: 1rem 0;
+  margin: 1.5rem 0;
+}
+.surveys-settings summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+  font-weight: 650;
+}
+.surveys-settings form,
+.surveys-create {
+  display: grid;
+  gap: 1rem;
+  max-width: 38rem;
+}
+.surveys-settings button,
+.surveys-create button {
+  justify-self: start;
+}
+.surveys-management {
+  margin-bottom: 2rem;
+}
+.surveys-confirm,
+.surveys-error,
+.surveys-empty {
+  padding: 1rem 0;
+  line-height: 1.6;
+}
+.surveys-error {
+  color: var(--destructive);
+}
+.surveys-module :focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .surveys-heading {
+    flex-direction: column;
+  }
+  .surveys-filters {
+    display: grid;
+  }
+  .surveys-list li {
+    align-items: flex-start;
+  }
+}

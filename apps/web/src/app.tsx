@@ -46,7 +46,7 @@ function route() {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
   if (pathname === "/surveys" || pathname === "/surveys/new")
-    return { kind: "surveys" } as const;
+    return { kind: "surveys", createNew: pathname.endsWith("/new") } as const;
   const surveyMatch = pathname.match(/^\/surveys\/([0-9a-f-]{36})$/);
   if (surveyMatch)
     return { kind: "surveys", surveyId: surveyMatch[1] } as const;
@@ -119,7 +119,12 @@ export function App({ client }: AppProps) {
     );
   }
 
-  if (!identity.data.navigation.some((item) => item.surface === "web")) {
+  if (
+    route().kind !== "surveys" &&
+    !identity.data.navigation.some(
+      (item) => item.surface === "web" && item.key !== "surveys",
+    )
+  ) {
     return <RedirectToOperationalApp />;
   }
 
@@ -181,6 +186,8 @@ export function App({ client }: AppProps) {
         {currentRoute.kind === "surveys" ? (
           <SurveysPage
             client={client}
+            identity={identity.data}
+            createNew={"createNew" in currentRoute && currentRoute.createNew}
             surveyId={
               "surveyId" in currentRoute ? currentRoute.surveyId : undefined
             }

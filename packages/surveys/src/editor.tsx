@@ -51,11 +51,15 @@ export interface SurveyEditorProps {
   draft: Draft;
   adapter: AuthoringAdapter;
   onPublished?: (version: PublishedVersion) => void;
+  canPublish?: boolean;
+  onSaveStateChange?: (state: string) => void;
 }
 export function SurveyEditor({
   draft,
   adapter,
   onPublished,
+  canPublish = true,
+  onSaveStateChange,
 }: SurveyEditorProps) {
   const [, render] = useState(0);
   const root = useRef<HTMLElement>(null);
@@ -83,6 +87,10 @@ export function SurveyEditor({
       ),
     };
   }, [loadedDraft, adapter]);
+  useEffect(
+    () => onSaveStateChange?.(saves.state),
+    [saves.state, onSaveStateChange],
+  );
   const doc = history.document;
   const issues = compatibilityIssues(doc);
   const page = doc.pages.find((p) => p.name === pageId) ?? doc.pages[0];
@@ -445,11 +453,13 @@ export function SurveyEditor({
         >
           Vorschau
         </button>
-        <button type="button" disabled={busy} onClick={() => void publish()}>
-          {publication.current
-            ? "Veröffentlichung erneut prüfen"
-            : "Veröffentlichen"}
-        </button>
+        {canPublish && (
+          <button type="button" disabled={busy} onClick={() => void publish()}>
+            {publication.current
+              ? "Veröffentlichung erneut prüfen"
+              : "Veröffentlichen"}
+          </button>
+        )}
       </header>
       {notice && <p role="status">{notice}</p>}
       {error && (

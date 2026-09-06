@@ -522,7 +522,7 @@ proof together. The acceptance IDs and required outcomes remain authoritative.
   does not resolve unproven client/server semantics.
 - [x] **Package gate:** accept 020.A1–020.A4 using the packed independent
   consumer before claiming that the package is reusable outside LeonAid.
-- [ ] **Module gate:** complete the deferred 030.A4 lifecycle journey after
+- [x] **Module gate:** complete the deferred 030.A4 lifecycle journey after
   SURV-060 supplies the member UI; backend-only evidence cannot close this item.
 - [ ] **Analysis gate:** accept SURV-070 against hand-calculated fixtures before
   using its snapshots as the reference values for SURV-080 export acceptance.
@@ -626,14 +626,14 @@ Implementation tasks:
 Test implementation and verification tasks:
 
 - [ ] **030.T1** Test migrations from empty and baseline databases, all lifecycle edges, simultaneous draft/publish writes, close/submit races, version binding and response-free duplication. Acceptance: **030.A1, 030.A2, 030.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
-- [ ] **030.T2** Automate create, publish, end, archive, trash and restore through the member UI; compare persisted lifecycle state and verify public access remains closed after restoration. Acceptance: **030.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **030.T2** Automate create, publish, end, archive, trash and restore through the member UI; compare persisted lifecycle state and verify public access remains closed after restoration. Acceptance: **030.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. [Member UI and PostgreSQL evidence](proofs/SURV-060.md).
 
 Acceptance criteria:
 
 - [ ] **030.A1 — Integration:** migrations work on an empty database and an existing baseline fixture; lifecycle transition tests cover every allowed and forbidden edge in section 5.
 - [x] **030.A2 — Integration:** simultaneous draft saves/publications cannot lose edits or create inconsistent published versions; close/submit races obey the documented transaction cutoff.
 - [x] **030.A3 — Integration:** publishing v2 leaves existing v1 participations bound to v1; new participations use v2, and duplication includes no responses or access credentials.
-- [ ] **030.A4 — E2E:** after SURV-060 UI integration, create, publish, end, archive, trash and restore a survey; UI state matches the API and restoration never silently reopens participation.
+- [x] **030.A4 — E2E:** after SURV-060 UI integration, create, publish, end, archive, trash and restore a survey; UI state matches the API and restoration never silently reopens participation. [Evidence](proofs/SURV-060.md).
 
 ### SURV-040 — Visual questionnaire editor
 
@@ -693,7 +693,7 @@ Dependencies: SURV-030, SURV-050. Supplies the lifecycle UI needed to finish 030
 
 Implementation tasks:
 
-- [ ] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls. Acceptance: **060.A4, 060.A5**.
+- [x] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls. Acceptance: **060.A4, 060.A5**. [Delivery and scoped browser evidence](proofs/SURV-060.md); full persona coverage and timeout/test-data acceptance remain open.
 - [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions. Acceptance: **060.A1, 060.A4**.
 - [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
 - [ ] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis. Acceptance: **060.A5**.

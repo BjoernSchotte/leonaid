@@ -57,7 +57,7 @@ export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<
 export type ConfirmEmailChangeRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
 export type CorrectInvitationAddressRequest = { readonly email: string; };
-export type Create = { readonly definition: Record<string, unknown>; readonly inactivityTimeoutSeconds?: number | null; readonly operationId: string; readonly title: string; };
+export type Create = { readonly actionId?: string | null; readonly definition: Record<string, unknown>; readonly inactivityTimeoutSeconds?: number | null; readonly operationId: string; readonly title: string; };
 export type CreateAcquisitionAssignmentRequest = { readonly acquirerUserId: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly templateKey: "blank" | "krapfentaxi"; readonly templateVersion?: number | null; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
@@ -187,12 +187,17 @@ export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCand
 export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly contactTwentyId: string | null; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly replayed: boolean; readonly twentyId: string; };
 export type Start = { readonly operationId: string; readonly resumeSecret: string; };
 export type SupportRequestDiagnosticResponse = { readonly errorCode: string | null; readonly impact: string; readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; readonly nextStep: string; readonly occurredAt: string; readonly outcome: "successful" | "rejected" | "failed"; readonly release: string; readonly route: string; readonly statusCode: number; readonly supportCode: string; };
+export type SurveyActionOption = { readonly id: string; readonly name: string; };
 export type SurveyDiagnostic = { readonly code: string; readonly message: string; readonly path: string; readonly severity: "error" | "warning" | "information"; };
 export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
+export type SurveyListResponse = { readonly actions: Array<SurveyActionOption>; readonly items: Array<SurveySummaryResponse>; readonly total: number; };
 export type SurveyParticipationResponse = { readonly id: string; readonly inactivityTimeoutSeconds: number; readonly response: SurveyResponseSnapshot; readonly version: SurveyVersionResponse; };
 export type SurveyResponseSnapshot = { readonly answers: Record<string, unknown>; readonly completedAt: string | null; readonly currentPage: string | null; readonly diagnostics: Array<SurveyDiagnostic>; readonly lastAnswerChangedAt: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; readonly versionId: string; };
-export type SurveySummaryResponse = { readonly deletedAt: string | null; readonly endsAt: string | null; readonly id: string; readonly inactivityTimeoutSeconds: number | null; readonly publishedVersionId: string | null; readonly revision: number; readonly status: "draft" | "active" | "ended" | "archived" | "deleted"; readonly title: string; };
+export type SurveySummaryResponse = { readonly actionId: string | null; readonly capabilities?: Array<string>; readonly deletedAt: string | null; readonly endsAt: string | null; readonly id: string; readonly inactivityTimeoutSeconds: number | null; readonly ownerUserId: string; readonly publishedVersionId: string | null; readonly revision: number; readonly status: "draft" | "active" | "ended" | "archived" | "deleted"; readonly title: string; };
+export type SurveyTimeoutSettings = { readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number | null; readonly operationId: string; };
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
+export type TimeoutSettings = { readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number; readonly operationId: string; };
+export type TimeoutSettingsResponse = { readonly inactivityTimeoutSeconds: number; readonly revision: number; };
 export type Transition = { readonly action: "end" | "archive" | "unarchive" | "trash" | "restore"; readonly expectedRevision: number; readonly operationId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
@@ -1644,6 +1649,54 @@ export class LeonAidApiClient {
     );
   }
 
+  async getSurveySettings(
+    options: RequestOptions = {},
+  ): Promise<TimeoutSettingsResponse> {
+    return this.request<TimeoutSettingsResponse>(
+      "/api/v1/survey-settings",
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateSurveySettings(
+    body: TimeoutSettings,
+    options: RequestOptions = {},
+  ): Promise<TimeoutSettingsResponse> {
+    return this.request<TimeoutSettingsResponse>(
+      "/api/v1/survey-settings",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listSurveys(
+    queryParameters: { readonly status?: "draft" | "active" | "ended" | "archived" | "deleted" | null; readonly search?: string; readonly offset?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<SurveyListResponse> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.status !== undefined && queryParameters.status !== null) {
+      searchParameters.set("status", String(queryParameters.status));
+    }
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/surveys" + (queryString ? `?${queryString}` : "");
+    return this.request<SurveyListResponse>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async getSurvey(
     surveyId: string,
     options: RequestOptions = {},
@@ -1739,6 +1792,22 @@ export class LeonAidApiClient {
       `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/publish`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async updateSurveyTimeout(
+    surveyId: string,
+    body: SurveyTimeoutSettings,
+    options: RequestOptions = {},
+  ): Promise<SurveySummaryResponse> {
+    return this.request<SurveySummaryResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/settings`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

@@ -3,7 +3,7 @@
 from typing import Any, Literal, Self, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request, Response, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from leonaid.application.surveys import SurveyService
@@ -61,6 +61,9 @@ class Duplicate(Mutation):
 class SurveySummaryResponse(SurveyInput):
     id: str
     title: str
+    actionId: str | None
+    ownerUserId: str
+    capabilities: list[str] = Field(default_factory=list)
     status: Literal["draft", "active", "ended", "archived", "deleted"]
     revision: int
     publishedVersionId: str | None
@@ -83,6 +86,21 @@ class Create(DefinitionInput):
     operationId: str = Field(min_length=1, max_length=128)
     title: str = Field(min_length=1, max_length=240, pattern=r"\S")
     inactivityTimeoutSeconds: int | None = Field(default=None, ge=1, le=604800)
+    actionId: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    )
+
+
+class SurveyActionOption(SurveyInput):
+    id: str
+    name: str
+
+
+class SurveyListResponse(SurveyInput):
+    items: list[SurveySummaryResponse]
+    total: int
+    actions: list[SurveyActionOption]
 
 
 class DraftSave(Mutation, DefinitionInput):
@@ -164,6 +182,21 @@ async def author(
 
 def cookie_name(participation_id: UUID | str) -> str:
     return f"__Host-survey_{participation_id}"
+
+
+@router.get("/surveys", operation_id="listSurveys", response_model=SurveyListResponse)
+async def list_surveys(
+    request: Request,
+    response: Response,
+    status: Literal["draft", "active", "ended", "archived", "deleted"] | None = None,
+    search: str = Query(default="", max_length=240),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    return await service(request).list_surveys(principal, status, search, offset)
 
 
 @router.get(

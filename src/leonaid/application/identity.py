@@ -312,6 +312,7 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     )
     items: list[NavigationItem] = [
         NavigationItem("overview-pwa", "Übersicht", "/app/", "pwa"),
+        NavigationItem("surveys", "Umfragen", "/admin/surveys", "web"),
     ]
     if has_web_access:
         items.insert(

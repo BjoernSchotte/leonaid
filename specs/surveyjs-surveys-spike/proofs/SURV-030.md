@@ -63,3 +63,17 @@ this run proves fresh migration only. 030.A4 requires the member lifecycle UI
 from SURV-060. Full persona/permission coverage, automatic scheduled closure,
 retention/permanent deletion and invitations remain their respective later work.
 No work package or entire spike completion is claimed by this evidence.
+
+## Member lifecycle UI acceptance
+
+The later [SURV-060 evidence](SURV-060.md) closes the earlier 030.A4 gap and
+030.T2: `./leonaid test-surveys-lifecycle` ran successfully as
+`leonaid-surveys-833458328-88804` against the real member/public hosts, API and
+PostgreSQL. `member manages lifecycle and timeout through the real module`
+created, published, ended, archived, trashed and restored a survey through the
+UI at 1440 × 1000. Reload and an independent SQL verification retained ended
+state; the public endpoint rejected access and the start control stayed absent.
+The command also reran the existing lifecycle/race contract and verified its
+isolated teardown. The proof includes the synthetic rendered lifecycle state.
+030.S4 is reconciled to this named test. Baseline-upgrade acceptance 030.A1 and
+the remaining broader permission/retention work stay open.

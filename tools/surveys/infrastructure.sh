@@ -48,6 +48,8 @@ fi
 if [ "$mode" = lifecycle ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/module.py seed
 fi
 if [ "$mode" = runner ]; then
   compose stop worker
@@ -73,6 +75,9 @@ if [ "$mode" = runner ]; then
   validator_check recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = lifecycle ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
+fi
 if [ "$mode" = editor ]; then
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
@@ -88,6 +93,11 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = lifecycle ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/module.py verify
+  cp "$proof"/surveys-module-*.png "$artifact/"
+fi
 cp "$proof/surveys-public.png" "$artifact/"
 if [ "$mode" = editor ]; then
   cp "$proof/surveys-editor.png" "$artifact/"

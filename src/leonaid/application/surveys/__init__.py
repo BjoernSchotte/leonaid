@@ -7,6 +7,9 @@ from leonaid.domain.identity import IdentityPrincipal
 
 
 class SurveyRepository(Protocol):
+    async def list_surveys(
+        self, actor: IdentityPrincipal, status: str | None, search: str, offset: int
+    ) -> dict[str, Any]: ...
     async def settings(
         self, actor: IdentityPrincipal, body: dict[str, Any] | None
     ) -> dict[str, Any]: ...
@@ -31,6 +34,11 @@ class SurveyRepository(Protocol):
 class SurveyService:
     def __init__(self, repository: SurveyRepository):
         self.repository = repository
+
+    async def list_surveys(
+        self, actor: IdentityPrincipal, status: str | None, search: str, offset: int
+    ) -> dict[str, Any]:
+        return await self.repository.list_surveys(actor, status, search, offset)
 
     async def settings(
         self, actor: IdentityPrincipal, body: dict[str, Any] | None

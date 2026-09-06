@@ -15,6 +15,7 @@ from leonaid.adapters.surveyjs_validation import validate_answers
 
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.policies import may_manage_action
 from leonaid.domain.surveys import (
     Capability,
     SurveyStatus,
@@ -63,6 +64,8 @@ def survey_payload(row: Any) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
         "title": row["title"],
+        "actionId": str(row["action_id"]) if row["action_id"] else None,
+        "ownerUserId": str(row["owner_user_id"]),
         "status": row["status"],
         "revision": row["revision"],
         "publishedVersionId": str(row["published_version_id"])
@@ -89,6 +92,78 @@ def version_payload(row: Any) -> dict[str, Any]:
 class AsyncpgSurveyRepository:
     def __init__(self, pool: asyncpg.Pool[Any]):
         self.pool = pool
+
+    @staticmethod
+    def _capabilities(
+        actor: IdentityPrincipal, row: Any, grants: frozenset[Capability]
+    ) -> list[str]:
+        return [
+            str(cap)
+            for cap in Capability
+            if may_access_survey(
+                actor,
+                owner_user_id=row["owner_user_id"],
+                action_id=row["action_id"],
+                capability=cap,
+                grants=grants,
+            )
+        ]
+
+    async def list_surveys(
+        self, actor: IdentityPrincipal, status: str | None, search: str, offset: int
+    ) -> dict[str, Any]:
+        if not actor.account.can_authenticate:
+            raise PermissionDenied("forbidden", "Kein Zugriff.")
+        actions = list({m.action_id for m in actor.action_memberships})
+        managed = [action for action in actions if may_manage_action(actor, action)]
+        where = """WHERE ($1::boolean OR s.action_id=ANY($2::uuid[]) OR
+            ((s.action_id IS NULL OR s.action_id=ANY($3::uuid[])) AND
+            (s.owner_user_id=$4 OR EXISTS(SELECT 1 FROM survey_grant g WHERE g.survey_id=s.id AND g.user_id=$4))))
+            AND ($5::text IS NULL OR s.status=$5) AND strpos(lower(s.title),lower($6))>0"""
+        values = (
+            actor.is_system_admin,
+            managed,
+            actions,
+            actor.account.id,
+            status,
+            search,
+        )
+        async with (
+            self.pool.acquire() as conn,
+            conn.transaction(isolation="repeatable_read", readonly=True),
+        ):
+            total = await conn.fetchval(
+                "SELECT count(*) FROM survey s " + where, *values
+            )
+            rows = await conn.fetch(
+                "SELECT s.*, ARRAY(SELECT capability FROM survey_grant g WHERE g.survey_id=s.id AND g.user_id=$4) AS actor_grants FROM survey s "
+                + where
+                + " ORDER BY s.created_at DESC,s.id LIMIT 50 OFFSET $7",
+                *values,
+                offset,
+            )
+            items = []
+            for row in rows:
+                capabilities = self._capabilities(
+                    actor, row, frozenset(Capability(c) for c in row["actor_grants"])
+                )
+                if not capabilities:
+                    raise PermissionDenied(
+                        "forbidden", "Zugriff konnte nicht bestätigt werden."
+                    )
+                items.append({**survey_payload(row), "capabilities": capabilities})
+            action_rows = await conn.fetch(
+                "SELECT id,name FROM charity_action WHERE $1::boolean OR id=ANY($2::uuid[]) ORDER BY name,id",
+                actor.is_system_admin,
+                managed,
+            )
+            return {
+                "items": items,
+                "total": total,
+                "actions": [
+                    {"id": str(r["id"]), "name": r["name"]} for r in action_rows
+                ],
+            }
 
     async def classify_overdue(self, limit: int = 1000) -> int:
         """Bounded repeatable sweep; locked writes are retried on the next sweep."""
@@ -213,12 +288,22 @@ class AsyncpgSurveyRepository:
                 if not actor.account.can_authenticate:
                     raise PermissionDenied("forbidden", "Kein Zugriff.")
                 validate_definition(body["definition"])
+                action_id = UUID(body["actionId"]) if body.get("actionId") else None
+                if action_id is not None and (
+                    not may_manage_action(actor, action_id)
+                    or not await conn.fetchval(
+                        "SELECT EXISTS(SELECT 1 FROM charity_action WHERE id=$1)",
+                        action_id,
+                    )
+                ):
+                    raise ResourceNotFound("not_found", "Aktion nicht gefunden.")
                 await conn.execute(
-                    "INSERT INTO survey(id,title,owner_user_id,inactivity_timeout_seconds) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING",
+                    "INSERT INTO survey(id,title,owner_user_id,inactivity_timeout_seconds,action_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING",
                     survey_id,
                     body["title"],
                     actor.account.id,
                     body.get("inactivityTimeoutSeconds"),
+                    action_id,
                 )
             survey = await self._survey(conn, survey_id)
             grants = frozenset(
@@ -230,6 +315,11 @@ class AsyncpgSurveyRepository:
                 )
             )
             capability = Capability.DESIGN
+            if operation == "summary":
+                capabilities = self._capabilities(actor, survey, grants)
+                if not capabilities:
+                    raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
+                return {**survey_payload(survey), "capabilities": capabilities}
             if (
                 operation == "publish"
                 or operation == "transition"
@@ -250,8 +340,6 @@ class AsyncpgSurveyRepository:
                 grants=grants,
             ):
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
-            if operation == "summary":
-                return survey_payload(survey)
             if operation == "settings":
                 if survey["status"] == "deleted":
                     raise Conflict("closed", "Umfrage ist gelöscht.")
