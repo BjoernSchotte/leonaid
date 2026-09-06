@@ -42,8 +42,13 @@ placeholder collections/IDs, so it complements rather than replaces this test.
 Canonical System Admin editor/list HTML routes under
 `/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
 fixed-origin and current Core session checks. Anonymous navigation returns to
-Core login with that validated local path. APIs remain the data-access boundary;
-no other collection or creation page is opened. The narrow `auth/me` POST admits
+Core login with that validated local path. APIs remain the data-access boundary.
+The same boundary now admits the native `campaign_pages/new` page; no other
+collection is opened. Creation accepts empty `bylines` and an optional slug only
+when it exactly equals `data.action_id`, then drops those immutable echoes before
+the guarded creator. The technical System Admin flow currently enters Core UUID
+and internal slug manually; campaign-aware LeonAid navigation remains pending.
+The narrow `auth/me` POST admits
 only upstream's own-user `dismissWelcome` action, with Origin and request-marker
 checks. This changes neither identity nor permissions and creates no session.
 The surface test expects HTTP 400 for the System Admin's empty preference body,

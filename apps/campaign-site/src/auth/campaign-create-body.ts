@@ -9,8 +9,15 @@ const input = z
         title: z.string().trim().min(1).max(400),
       })
       .strict(),
+    // Native create submits empty bylines and the operator-entered internal
+    // slug. These may only echo our fixed defaults, never change metadata.
+    bylines: z.array(z.never()).max(0).optional(),
+    slug: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => value.slug === undefined || value.slug === value.data.action_id,
+  );
 
 // Check raw input before upstream parsing can discard unknown metadata keys.
 // Bound the stream itself, not only the untrusted Content-Length header.
@@ -31,7 +38,7 @@ export async function campaignCreateBody(request: Request) {
       JSON.parse(Buffer.concat(chunks).toString("utf8")),
     );
     if (!parsed.success) throw new CoreIdentityError(403);
-    return parsed.data;
+    return { data: parsed.data.data };
   } catch {
     throw new CoreIdentityError(403);
   } finally {

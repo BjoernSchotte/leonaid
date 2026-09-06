@@ -154,6 +154,9 @@ if [ "$mode" != auth ]; then
     editor_probe
     compose up --no-deps --build --detach --wait mailpit worker
     editor_probe --login
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-create-browser-proof.mjs
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     browser_probe --revoked
     editor_probe --revoked

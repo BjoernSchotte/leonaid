@@ -103,6 +103,8 @@ if (
       { ...body, status: "published" },
       { ...body, authorId: "untrusted" },
       { ...body, slug: "untrusted" },
+      { ...body, slug: "20000000-0000-4000-8000-000000000001" },
+      { ...body, bylines: [{ bylineId: "untrusted" }] },
       { ...body, translationOf: "untrusted" },
       { ...body, locale: "fr" },
       { ...body, seo: {} },

@@ -2,7 +2,7 @@
 // IDs are canonical EmDash ULIDs; public slugs are resolved separately by Core.
 const id = "[0-9A-HJKMNP-TV-Z]{26}";
 const editor = new RegExp(
-  `^/_emdash/admin/content/campaign_pages(?:/${id})?/?$`,
+  `^/_emdash/admin/content/campaign_pages(?:/(?:${id}|new))?/?$`,
 );
 export function isCampaignEditorRoute(path, method) {
   return method === "GET" && editor.test(path);

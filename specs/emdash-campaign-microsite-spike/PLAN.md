@@ -1126,6 +1126,19 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       failure checks and owned-resource cleanup.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
       reports the referenced action as publishable under existing Core rules.
+- [x] Prove the native System Admin campaign creation page in Chromium, Firefox
+      and WebKit, including actual form POST, draft author attribution, canonical
+      editor navigation, duplicate rejection and subsequent autosave/reload.
+      Evidence (6 September 2026): `admin-browser` passed in isolated project
+      `leonaid-emdash-tmp-b68pwnyvfw`, using a different real Core campaign per
+      browser. Anonymous new-page navigation retained its Core login return
+      path; Charity access remained denied. Existing SMTP login/fresh-login,
+      editor, revocation and TLS restart/database-failure regressions also
+      passed; the no-host-port stack removed only its owned resources.
+      The native body may echo only empty bylines and the exact Core UUID slug;
+      server-side authorization and draft defaults remain authoritative. This
+      is a technical System Admin workflow with manual UUID/slug entry, not
+      completion of campaign-aware LeonAid navigation or Charity onboarding.
 - [x] Gate canonical System Admin CMS publish requests on a fresh authenticated
       Core action read. Expose Core's existing `is_published_at` result as the
       derived `isPublished` response field and regenerate the typed API contract.
