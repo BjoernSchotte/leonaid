@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## No-JavaScript reload preserves the complete failed-navigation POST — 2026-09-06
+
+Extended the accepted-response-loss browser scenario with direct page reload before exercising history Back. After the actual server acceptance and deliberate response abort, reload repeats a byte-identical POST: the test compares the entire request body to the original, including command ID, latest invoice-city correction and multiline delivery instructions. No input is re-entered for this path. The returned success reference equals the originally accepted reference. The existing history-Back recovery then also runs and returns that same order; PostgreSQL still finds exactly the three intended browser orders.
+
+The first proof attempt used LF for a raw HTML form transport comparison; HTML serializes textarea line breaks as CRLF. The corrected test asserts the complete identical body and the expected CRLF transport value. Application persistence continues to normalize line endings as previously proven.
+
+`./leonaid test-public-orders` exited 0 in isolated project `leonaid-362a-delivery-public-20260906x`, ports 18265/18665 and worktree network override. The expanded original order journey passed in 21.8 seconds; policy, cross-surface/admin and final PostgreSQL checks pass. Own stack was cleaned up. This proves latest-input preservation for direct reload/retry without JavaScript in Chromium. Browser history Back still restores an earlier form state, as documented separately; it is not the same recovery operation. Mobile In-App and EmDash acceptance remain open.
+
 ## No-JavaScript accepted-response loss and history retry — 2026-09-06
 
 The new real browser test accepts the no-JavaScript order through the actual Astro/Core path, extracts its successful reference, then aborts only the browser response. Returning through browser history previously regenerated the command identity and could create a duplicate. A deterministic successor on an error page did not solve the GET history reload, so that abandoned change is not retained.

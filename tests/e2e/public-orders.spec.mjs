@@ -304,8 +304,10 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     .locator('input[name="commandId"]')
     .inputValue();
   let acceptedNoJsReference;
+  let acceptedNoJsBody;
   const loseNoJsResponse = async (route) => {
     if (route.request().method() !== "POST") return route.continue();
+    acceptedNoJsBody = route.request().postData();
     const accepted = await route.fetch();
     expect(accepted.ok()).toBeTruthy();
     const acceptedHtml = await accepted.text();
@@ -320,6 +322,24 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
   ]);
   expect(acceptedNoJsReference).toBeTruthy();
   await noJsPage.unroute("**/*", loseNoJsResponse);
+  // Reload repeats the original navigation POST, including its latest values.
+  // No form fields are refilled for this recovery path.
+  const reloadPost = noJsPage.waitForRequest(
+    (request) => request.method() === "POST",
+  );
+  await noJsPage.reload();
+  const replayedPost = await reloadPost;
+  expect(replayedPost.postData()).toBe(acceptedNoJsBody);
+  const replayBody = new URLSearchParams(replayedPost.postData());
+  expect(replayBody.get("commandId")).toBe(retryCommand);
+  expect(replayBody.get("invoiceCity")).toBe("Augsburg");
+  expect(replayBody.get("deliveryInstructions")).toBe(
+    "Abteilung Bildung\r\nEingang links <b>Hinweis</b>",
+  );
+  await expect(noJsPage.locator("[data-order-success]")).toBeVisible();
+  await expect(noJsPage.locator("[data-order-reference]")).toHaveText(
+    acceptedNoJsReference,
+  );
   await noJsPage.goBack();
   await expect(form).toBeVisible();
   await expect(form.locator('input[name="commandId"]')).toHaveValue(
