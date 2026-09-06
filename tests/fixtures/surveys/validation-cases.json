@@ -42,7 +42,9 @@
         "course": 2,
         "catering": 1
       },
-      "improvements": ["food"],
+      "improvements": [
+        "food"
+      ],
       "food_feedback": "More vegetarian options",
       "handicap": 10
     }
@@ -68,8 +70,613 @@
         "course": 2,
         "catering": 1
       },
-      "improvements": ["schedule"],
+      "improvements": [
+        "schedule"
+      ],
       "food_feedback": "obsolete"
+    }
+  },
+  {
+    "name": "text-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "text-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "hello"
+    }
+  },
+  {
+    "name": "text-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "toolong"
+    }
+  },
+  {
+    "name": "comment-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "comment-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "hello"
+    }
+  },
+  {
+    "name": "comment-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "isRequired": true,
+              "maxLength": 5,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "toolong"
+    }
+  },
+  {
+    "name": "number-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": -1
+    }
+  },
+  {
+    "name": "number-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 0
+    }
+  },
+  {
+    "name": "number-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 10
+    }
+  },
+  {
+    "name": "number-boundary-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 11
+    }
+  },
+  {
+    "name": "date-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31",
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2025-12-31"
+    }
+  },
+  {
+    "name": "date-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31",
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2026-01-01"
+    }
+  },
+  {
+    "name": "date-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31",
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2026-12-31"
+    }
+  },
+  {
+    "name": "date-boundary-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31",
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2027-01-01"
+    }
+  },
+  {
+    "name": "choice-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "radiogroup",
+              "choices": [
+                "a",
+                "b"
+              ],
+              "isRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "choice-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "radiogroup",
+              "choices": [
+                "a",
+                "b"
+              ],
+              "isRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "a"
+    }
+  },
+  {
+    "name": "dropdown-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "dropdown",
+              "choices": [
+                "a",
+                "b"
+              ],
+              "isRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "dropdown-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "dropdown",
+              "choices": [
+                "a",
+                "b"
+              ],
+              "isRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "b"
+    }
+  },
+  {
+    "name": "checkbox-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "checkbox",
+              "choices": [
+                "a",
+                "b",
+                "c"
+              ],
+              "minSelectedChoices": 2,
+              "maxSelectedChoices": 2,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": []
+    }
+  },
+  {
+    "name": "checkbox-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "checkbox",
+              "choices": [
+                "a",
+                "b",
+                "c"
+              ],
+              "minSelectedChoices": 2,
+              "maxSelectedChoices": 2,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        "a"
+      ]
+    }
+  },
+  {
+    "name": "checkbox-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "checkbox",
+              "choices": [
+                "a",
+                "b",
+                "c"
+              ],
+              "minSelectedChoices": 2,
+              "maxSelectedChoices": 2,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  {
+    "name": "checkbox-boundary-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "checkbox",
+              "choices": [
+                "a",
+                "b",
+                "c"
+              ],
+              "minSelectedChoices": 2,
+              "maxSelectedChoices": 2,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        "a",
+        "b",
+        "c"
+      ]
+    }
+  },
+  {
+    "name": "matrix-boundary-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isRequired": true,
+              "isAllRowRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    }
+  },
+  {
+    "name": "matrix-boundary-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isRequired": true,
+              "isAllRowRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1
+      }
+    }
+  },
+  {
+    "name": "matrix-boundary-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isRequired": true,
+              "isAllRowRequired": true,
+              "name": "answer"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1,
+        "b": 2
+      }
     }
   }
 ]

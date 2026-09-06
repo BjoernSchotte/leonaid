@@ -308,7 +308,11 @@ def validate_answers(
                 continue
             value = answers.get(name)
             if value is None or value == "" or value == []:
-                if complete and q.get("isRequired"):
+                if complete and (
+                    q.get("isRequired")
+                    or q["type"] == "checkbox"
+                    and q.get("minSelectedChoices", 0) > 0
+                ):
                     fail("invalid_response", name)
                 continue
             kind = q["type"]

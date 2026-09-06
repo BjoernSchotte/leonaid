@@ -67,3 +67,24 @@ def test_matrix_and_multiselect_cannot_smuggle_types():
     ]:
         with pytest.raises(DomainInvariantError):
             validate_answers(definition, answers, complete=False)
+
+
+def test_empty_multiselect_with_minimum_is_partial_only():
+    definition = {
+        "pages": [
+            {
+                "name": "page",
+                "elements": [
+                    {
+                        "type": "checkbox",
+                        "name": "choices",
+                        "choices": ["a", "b"],
+                        "minSelectedChoices": 2,
+                    }
+                ],
+            }
+        ]
+    }
+    assert validate_answers(definition, {"choices": []}, complete=False) == {}
+    with pytest.raises(DomainInvariantError):
+        validate_answers(definition, {"choices": []}, complete=True)

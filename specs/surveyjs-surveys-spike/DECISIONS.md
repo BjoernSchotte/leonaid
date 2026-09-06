@@ -2,7 +2,7 @@
 
 Date: 2026-09-06
 
-Status: planning direction accepted by the user; implementation not started
+Status: implementation authorized and in progress; acceptance tracked in PLAN.md
 
 This register separates accepted direction, concrete planning defaults and
 technical choices to resolve during the spike. It grants no production, live
@@ -23,7 +23,7 @@ email campaign or package publication approval.
 | D-09 | Staged capability profile rather than an unsupported promise of full SurveyJS compatibility. |
 | D-10 | Separate open anonymous and attributable personal invitation modes. |
 | D-11 | Independent package demo; newsletter system is not a prerequisite. |
-| D-12 | This task creates planning documents only; no implementation, license changes or publication. |
+| D-12 | The initial planning-only boundary was superseded by the user's instruction to implement and prove the plan, with incremental pushes to the draft PR. Own license selection, package publication and production operation remain separate decisions. |
 | D-13 | Documents and slug are English: `specs/surveyjs-surveys-spike/`. |
 | D-14 | Commercial dependencies are excluded; third-party software added for this module/package must be permissive OSS. OFL-1.1 font assets are allowed with their notices. See [DEPENDENCIES.md](DEPENDENCIES.md). |
 

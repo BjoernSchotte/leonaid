@@ -48,10 +48,10 @@ secret is not stored in cleartext in operation records or returned in JSON.
   and the Python validator: final validity and visibility matched. The comparison
   caught and corrected an erroneous shared namespace for page/question names.
 
-Reproduce the comparison by running `tools/surveys/parity.mjs OUTPUT.json` in
-the pinned Node container, then `tools/surveys/parity.py OUTPUT.json` in the
-pinned Python container with `PYTHONPATH=/workspace/src`. Inputs are committed
-in `tests/fixtures/surveys/validation-cases.json`; outputs stay local.
+Reproduce the current comparison with `./leonaid test-surveys-core`. It runs
+the actual runner model factory in the pinned Bun container, then the Python
+comparison and regression tests in the pinned Python container. Inputs are
+committed in `tests/fixtures/surveys/validation-cases.json`; outputs stay local.
 
 These seven cases do not establish parity for every initial capability, every
 condition or every malformed input. The Python validator is still a candidate;
@@ -105,3 +105,41 @@ and no horizontal overflow. This is not a full accessibility audit. SurveyJS
 fontless CSS uses host fonts. Browser rendering is the current baseline; the
 independent packed demo, configurable translations and SSR evaluation remain open.
 No editor, analytics, exports or entire work-package acceptance is claimed.
+
+
+## Expanded boundary comparison
+
+The comparison now includes 32 cases: the original seven plus short/long text
+length, numeric/date bounds, required radio/dropdown, checkbox cardinality and
+required matrix boundaries. `./leonaid test-surveys-core` passed all 32 actual
+SurveyJS/runner versus Python comparisons, 16 Python tests and three queue tests.
+The package TypeScript check also passed.
+
+The expanded tests exposed four differences, retained as regression cases:
+SurveyJS's native input constraints did not reject programmatically supplied
+text beyond maxLength or checkbox selections beyond maxSelectedChoices. The
+runner model factory now adds completion validation for those upper bounds.
+The server previously allowed an empty checkbox answer at completion despite
+minSelectedChoices; it now rejects completion while still accepting partial saves.
+
+These results cover the enumerated boundary fixtures, not arbitrary SurveyJS
+JSON or all profile semantics. Minimum text lengths, Unicode boundaries,
+conditional-expression combinations and malformed inputs still require expanded
+coverage before 010.2, 010.3 or 010.A1 can be checked. Comparing runner validation
+includes our explicit model hooks; it is not a claim about bare SurveyJS behavior.
+
+`./leonaid test-surveys-runner` then rebuilt the corrected model/backend in
+`leonaid-surveys-833458328-15993`: real API/database contracts passed and all
+three Chromium browser tests passed in 10.8 seconds. This regression run uses
+the original two survey examples; the additional boundary comparison runs in
+actual library/domain runtimes, not as 32 separate HTTP scenarios.
+
+The first regression wrapper exited 127 after successful tests/teardown because
+the CLI script was edited while the shell was running it. A repeat against the
+unchanged CLI, project `leonaid-surveys-833458328-16951`, passed all three browser
+tests in 12.5 seconds. The first wrapper exit is not treated as a passing gate.
+
+A direct SurveyJS 3.0.3 metadata probe also confirmed that a question-level
+`minLength: 3` is discarded during serialization and a one-character answer is
+accepted by bare SurveyJS. Explicit client mapping for that profile rule remains
+required and is not covered by the newly passing upper-bound checks.

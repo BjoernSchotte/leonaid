@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Model } from "survey-core";
+import { createSurveyModel } from "./model";
 import { Survey } from "survey-react-ui";
 import "survey-core/i18n/german";
 import type {
@@ -165,7 +166,7 @@ export class SaveCoordinator {
 export function SurveyRunner({ participation, adapter }: RunnerProps) {
   const [, render] = useState(0);
   const { model, saves } = useMemo(() => {
-    const model = new Model(structuredClone(participation.version.definition));
+    const model = createSurveyModel(participation.version.definition);
     model.locale = "de";
     model.textUpdateMode = "onTyping";
     model.clearInvisibleValues = "onHidden";

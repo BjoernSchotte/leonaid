@@ -2,7 +2,7 @@
 
 Date: 2026-09-06
 
-Status: target scope; **none of these capabilities has yet been proven by this spike**
+Status: target scope; partial runner/server evidence exists in [SURV-010](proofs/SURV-010.md), but no capability is accepted across all four layers yet.
 
 Own license decision: **UNDEFINED**
 

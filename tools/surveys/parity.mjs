@@ -1,12 +1,13 @@
-import { Model } from "survey-core";
+import { createSurveyModel } from "../../packages/surveys/src/model.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 const fixture = new URL("../../tests/fixtures/surveys/", import.meta.url);
 const cases = JSON.parse(
   readFileSync(new URL("validation-cases.json", fixture)),
 );
 const results = cases.map((item) => {
-  const model = new Model(
-    JSON.parse(readFileSync(new URL(`${item.fixture}.json`, fixture))),
+  const model = createSurveyModel(
+    item.definition ??
+      JSON.parse(readFileSync(new URL(`${item.fixture}.json`, fixture))),
   );
   model.data = item.answers;
   return {
