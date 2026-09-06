@@ -10,6 +10,7 @@ __pycache__/
 node_modules/
 apps/*/dist/
 apps/*/.astro/
+apps/*/.emdash/
 .cache/
 
 # Generated proof artifacts

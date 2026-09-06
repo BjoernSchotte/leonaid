@@ -74,7 +74,8 @@ docker run --rm \
   python /workspace/tools/handoff/check.py /workspace
 run_bun bun run typecheck
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-  .github apps/public apps/pwa apps/web packages/api-client packages/features \
+  .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features \
+  tools/emdash_spike/*.mjs \
   packages/ui tests/contract tests/e2e package.json playwright.config.mjs \
   .prettierrc.json
 
