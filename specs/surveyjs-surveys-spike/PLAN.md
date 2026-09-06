@@ -458,6 +458,48 @@ long sleeps. Network fault injection is allowed; it must not replace the server.
 Unit/component tests complement these checks and cannot substitute for them.
 All scenario tests assert outcomes, including persisted state and negative cases.
 
+### Task completion and test traceability
+
+Use the stable task IDs in implementation commits and test descriptions. Keep
+implementation (`xxx.n`), test delivery/execution (`xxx.Tn`) and acceptance
+(`xxx.An`) separate. An implemented feature with a failing or missing integration
+or E2E test remains unaccepted. A work package is complete only when all its
+implementation, test and acceptance checkboxes are checked.
+
+For each test task, turn the listed scenarios into individually named tests;
+one successful smoke journey cannot stand in for the other scenarios. Its proof
+must contain this checklist, completed with actual results:
+
+- [ ] Link every referenced acceptance ID to its test file and test name.
+- [ ] Record the tested commit, exact command, dependency/image versions and exit code.
+- [ ] Assert the visible outcome and the authoritative persisted state where applicable.
+- [ ] Exercise the specified rejection, concurrency and recovery cases, not just success.
+- [ ] Record Docker project isolation and successful cleanup of that run's resources.
+- [ ] Link sanitized failure/success artifacts; record manual observations separately.
+- [ ] Leave failed, skipped or unimplemented criteria open with a concrete reason.
+
+The following suite allocation is an implementation target. Reuse existing
+tests where they already prove a scenario; proposed files are not evidence of
+implementation. Integration tests may live in the existing Docker harness, but
+their named scenarios and acceptance mapping must be discoverable from the proof.
+
+| Work package | Integration / contract suite responsibility | Browser E2E suite responsibility |
+|---|---|---|
+| SURV-000 | DTO/error fixtures, persona seeds, clean migration and dependency rejection | `surveys-infrastructure.spec.mjs`: both hosts, member session, diagnostics and cleanup |
+| SURV-010 | Shared validation fixtures, real partial/final writes and timeout resumption | `surveys-runner.spec.mjs`: text without blur, fresh-context restore and hidden-answer cleanup |
+| SURV-020 | Packed consumer installation, real adapter, bundle/import/license boundaries | Proposed `surveys-package.spec.mjs`: independent host, theme/translation and hydration |
+| SURV-030 | Baseline/empty migrations, all lifecycle edges, publication and closing races | Proposed `surveys-lifecycle.spec.mjs`: create through restore, with public access checks |
+| SURV-040 | Draft roundtrip, stable IDs, unsupported definitions and stale revisions | `surveys-editor.spec.mjs`, `surveys-authoring.spec.mjs`, `surveys-import-recovery.spec.mjs`, `surveys-accessibility.spec.mjs`: structural editing, both examples, recovery and keyboard authoring |
+| SURV-050 | Duplicate/reordered writes, terminal completion, timeout snapshots and worker restart | `surveys-runner.spec.mjs`: offline/reconnect, two tabs, lost acknowledgement, abandon/resume |
+| SURV-060 | Persona/resource denial matrix, invitation retries/revocation and identity separation | Proposed `surveys-module.spec.mjs`: navigation, Mailpit invitation, timeout settings and test-data isolation |
+| SURV-070 | Hand-calculated aggregate fixtures, version/status filters and raw-data denial | Proposed `surveys-analytics.spec.mjs`: filters, chart/table agreement, empty states and restricted views |
+| SURV-080 | Real worker/storage exports, parsed values, formula safety, retry and download revocation | Proposed `surveys-exports.spec.mjs`: all four downloads, job states and permission denial; separate PDF/XLSX render review |
+| SURV-090 | Deletion races, interrupted cleanup, real backup restore and limits/log inspection | Proposed `surveys-deletion.spec.mjs`: open respondent during trash, rejected saves and closed restoration |
+| SURV-100 | Aggregate gate, repeat clean-stack run, packed consumer and affected regressions | Proposed `surveys-journeys.spec.mjs`: both complete sample journeys on desktop and mobile |
+
+Test filenames may change during implementation; update this mapping and the
+proof together. The acceptance IDs and required outcomes remain authoritative.
+
 ### SURV-000 — Contracts, dependency selection and test infrastructure
 
 Dependencies: none.
