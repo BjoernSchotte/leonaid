@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { handleContentCreate } from "emdash";
 import { requireCampaignBindings } from "./campaign-bindings.mjs";
+import { validCampaignEditorial } from "./campaign-editorial.mjs";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const reject = (code) => ({
@@ -29,13 +30,7 @@ export async function createCampaignContent(
     typeof body !== "object" ||
     Array.isArray(body) ||
     Object.keys(body).some((key) => key !== "data") ||
-    !data ||
-    typeof data !== "object" ||
-    Array.isArray(data) ||
-    Object.keys(data).some((key) => !["title", "action_id"].includes(key)) ||
-    typeof data.title !== "string" ||
-    !data.title.trim() ||
-    data.title.length > 400 ||
+    !validCampaignEditorial(data) ||
     typeof data.action_id !== "string" ||
     !uuid.test(data.action_id) ||
     resolvedAction?.id !== data.action_id
@@ -67,7 +62,7 @@ export async function createCampaignContent(
       WHERE action_id=${data.action_id} LIMIT 1`.execute(transaction);
     if (existing.rows.length) return reject("CONFLICT");
     const result = await create(transaction, "campaign_pages", {
-      data: { action_id: data.action_id, title: data.title.trim() },
+      data: { ...data, title: data.title.trim() },
       slug: data.action_id,
       status: "draft",
       authorId: cmsUserId,

@@ -470,6 +470,39 @@ if (
     data: {
       title: `${entry.data.title} HTTP edit`,
       action_id: entry.data.action_id,
+      hero_title: "Krapfentaxi supports local projects",
+      hero_summary: "Synthetic bounded editorial introduction.",
+      body: [
+        {
+          _type: "block",
+          _key: "story",
+          style: "normal",
+          markDefs: [],
+          children: [
+            {
+              _type: "span",
+              _key: "text",
+              text: "A synthetic campaign story.",
+              marks: ["strong"],
+            },
+          ],
+        },
+      ],
+      faq: [
+        {
+          question: "How does it work?",
+          answer: "Ordering remains in LeonAid Core.",
+        },
+      ],
+      partners: [
+        {
+          name: "Synthetic partner",
+          description: "Supports the campaign",
+          website: "https://example.invalid/partner",
+        },
+      ],
+      theme: "krapfentaxi",
+      seo_description: "Synthetic campaign description.",
     },
   };
   for (const options of [
@@ -483,6 +516,56 @@ if (
       body,
       ...options,
     });
+  for (const data of [
+    { ...body.data, hero_title: "x".repeat(181) },
+    { ...body.data, hero_summary: "x".repeat(1201) },
+    { ...body.data, seo_description: "x".repeat(321) },
+    { ...body.data, theme: "unreviewed" },
+    { ...body.data, price: 1 },
+    {
+      ...body.data,
+      body: [
+        { _type: "html", _key: "html", html: "<script>alert(1)</script>" },
+      ],
+    },
+    {
+      ...body.data,
+      body: [
+        {
+          ...body.data.body[0],
+          markDefs: [
+            { _type: "link", _key: "link", href: "javascript:alert(1)" },
+          ],
+        },
+      ],
+    },
+    {
+      ...body.data,
+      body: [
+        {
+          ...body.data.body[0],
+          markDefs: [
+            { _type: "link", _key: "link", href: "//attacker.invalid" },
+          ],
+        },
+      ],
+    },
+    { ...body.data, faq: [{ question: "Question", answer: "x".repeat(2401) }] },
+    {
+      ...body.data,
+      faq: Array.from({ length: 21 }, () => ({
+        question: "Question",
+        answer: "Answer",
+      })),
+    },
+    {
+      ...body.data,
+      partners: [{ name: "Partner", website: "data:text/html,unsafe" }],
+    },
+    { ...body.data, partners: [{ name: "Partner", price: 1 }] },
+    { ...body.data, hero_image: { id: "unscoped" } },
+  ])
+    await call(path, 403, { method: "PUT", body: { ...body, data } });
   await call(path, 403, {
     method: "PUT",
     body: {
@@ -531,6 +614,16 @@ if (
   assert.equal(savedRevision.data.item.authorId, identity.data.id);
   assert.equal(after.data.item.authorId, before.data.item.authorId);
   assert.equal(after.data.item.data.title, body.data.title);
+  for (const field of [
+    "hero_title",
+    "hero_summary",
+    "body",
+    "faq",
+    "partners",
+    "theme",
+    "seo_description",
+  ])
+    assert.deepEqual(after.data.item.data[field], body.data[field]);
   assert.equal(after.data.item.liveData.title, entry.data.title);
   assert.equal(after.data.item.status, "published");
   assert.equal(

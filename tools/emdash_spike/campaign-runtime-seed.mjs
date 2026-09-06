@@ -4,6 +4,7 @@ import { createDialect } from "emdash/db/postgres";
 import { applySeed } from "emdash/seed";
 import { ContentRepository, handleContentList } from "emdash";
 import { installCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
+import { campaignCollection } from "../../apps/campaign-site/src/campaign-schema.mjs";
 
 const database = new Kysely({
   dialect: createDialect({
@@ -18,24 +19,7 @@ try {
     database,
     {
       version: "1",
-      collections: [
-        {
-          slug: "campaign_pages",
-          label: "Campaign pages",
-          titleField: "title",
-          supports: ["drafts", "revisions"],
-          fields: [
-            {
-              slug: "action_id",
-              label: "Core action",
-              type: "string",
-              required: true,
-              indexed: true,
-            },
-            { slug: "title", label: "Title", type: "text", searchable: true },
-          ],
-        },
-      ],
+      collections: [campaignCollection],
       content: {
         campaign_pages: [1, 1, 2, 2].map((action, index) => ({
           id: `proof-${index}`,

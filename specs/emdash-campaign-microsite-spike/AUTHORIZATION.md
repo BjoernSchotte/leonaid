@@ -23,9 +23,15 @@ completed bootstrap, valid HTTPS origin and a current Core System Admin session.
 Request-local handlers enforce the campaign-read primitives before upstream
 data access. Unknown item IDs prove the wrapper's static `NOT_FOUND` response.
 All Charity users remain denied; positive Charity HTTP isolation is not yet
-claimed. A canonical item PUT now permits only System Admin title-draft edits
+claimed. A canonical item PUT now permits only System Admin editorial-draft edits
 with a revision token, valid Origin and `X-EmDash-Request: 1`. It rejects binding
-changes, metadata, publication and other editorial fields pending their proofs.
+changes, metadata and direct publication. The versioned editorial contract allows
+title, hero heading/introduction, bounded Portable Text, FAQ, partners, a fixed
+theme enum and SEO description. Unknown fields and nested properties, executable
+blocks/custom marks, unsafe links and media references are rejected. Aggregate
+editorial JSON is limited to 60 KiB; raw create requests are limited to 64 KiB.
+Core pricing, orders, lifecycle and legal configuration are never CMS fields.
+Media, public safe rendering and full native rich-field UX remain separate gates.
 The native editor may echo the exact stored slug and locale, but cannot change
 either. Its `skipRevision` hint is validated as a boolean and normalized to
 `false`: every accepted autosave retains a new attributed draft revision.
@@ -207,7 +213,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/comments/[collection]/[contentId]` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/content/[collection]` | GET, POST | core | campaign_pages: System Admin GET and bounded draft-only POST; otherwise denied | Current Core action, mapped author, serialized create and list/count filters |
-| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked title-draft PUT only | Stored action_id; immutable proposed binding; narrow draft field policy |
+| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked bounded editorial-draft PUT only | Stored action_id; immutable proposed binding; strict editorial field policy |
 | `/_emdash/api/content/[collection]/[id]/compare` | GET | core | campaign_pages canonical ULID: System Admin only | Stored parent action_id and exact live/draft revision parent bindings |
 | `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | campaign_pages canonical ULID: System Admin only; atomic pointer clear | Stored parent action_id; unchanged live content and history |
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |

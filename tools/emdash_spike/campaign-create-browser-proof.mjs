@@ -75,6 +75,13 @@ for (const [index, [name, engine]] of engines.entries()) {
     const submit = async (status) => {
       assert.equal((await page.goto(origin + newPath)).status(), 200);
       await page.locator("#field-title").fill(title);
+      await page.locator("#field-hero_title").fill("A campaign with a purpose");
+      await page
+        .locator("#field-hero_summary")
+        .fill("Synthetic introduction from the native editor.");
+      await page
+        .locator("#field-seo_description")
+        .fill("Synthetic campaign search description.");
       await expect(page.locator("#field-action_id")).toHaveValue(action);
       await expect(
         page.getByPlaceholder("my-post-slug", { exact: true }),
@@ -88,7 +95,13 @@ for (const [index, [name, engine]] of engines.entries()) {
       const response = await pending;
       assert.equal(response.status(), status);
       const submitted = response.request().postDataJSON();
-      assert.deepEqual(submitted.data, { title, action_id: action });
+      assert.deepEqual(submitted.data, {
+        title,
+        action_id: action,
+        hero_title: "A campaign with a purpose",
+        hero_summary: "Synthetic introduction from the native editor.",
+        seo_description: "Synthetic campaign search description.",
+      });
       assert.equal(submitted.slug, action);
       assert.deepEqual(submitted.bylines, []);
       return response.json();
@@ -143,6 +156,15 @@ for (const [index, [name, engine]] of engines.entries()) {
     const stored = (await json(`${apiRoot}/${created.item.id}`)).item;
     assert.equal(stored.status, "draft");
     assert.equal(stored.data.action_id, action);
+    assert.equal(stored.data.hero_title, "A campaign with a purpose");
+    assert.equal(
+      stored.data.hero_summary,
+      "Synthetic introduction from the native editor.",
+    );
+    assert.equal(
+      stored.data.seo_description,
+      "Synthetic campaign search description.",
+    );
     for (const query of [
       "campaign=invalid",
       `campaign=${action}&campaign=${action}`,

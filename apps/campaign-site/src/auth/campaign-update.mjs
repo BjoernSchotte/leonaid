@@ -1,12 +1,13 @@
 import { getCampaignContent } from "./campaign-content.mjs";
+import { validCampaignEditorial } from "./campaign-editorial.mjs";
 
 const denied = () => ({
   success: /** @type {const} */ (false),
   error: { code: "FORBIDDEN", message: "Campaign update denied" },
 });
 
-// First admitted editor mutation: title draft updates. Rich editorial fields,
-// media, mutable metadata and creation stay closed until their own proofs.
+// Admit only the bounded editorial contract. Media and mutable metadata remain
+// closed; campaign binding is immutable even when echoed by the native editor.
 // The caller retains the ORIGINAL runtime updater (schema, hooks and revisions).
 export async function authorizeCampaignUpdate(
   database,
@@ -39,16 +40,7 @@ export async function authorizeCampaignUpdate(
   if (body.skipRevision !== undefined && typeof body.skipRevision !== "boolean")
     return denied();
   const data = body.data;
-  if (
-    !data ||
-    typeof data !== "object" ||
-    Array.isArray(data) ||
-    Object.keys(data).some((key) => !["title", "action_id"].includes(key)) ||
-    typeof data.title !== "string" ||
-    !data.title.trim() ||
-    data.title.length > 400
-  )
-    return denied();
+  if (!validCampaignEditorial(data)) return denied();
   if (
     Object.hasOwn(data, "action_id") &&
     data.action_id !== existing.data.item.data.action_id
