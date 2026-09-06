@@ -460,6 +460,11 @@ All scenario tests assert outcomes, including persisted state and negative cases
 
 ### Task completion and test traceability
 
+The [implementation acceptance checklist](IMPLEMENTATION-TASKS.md) assigns every
+implementation task its own acceptance gate and required integration/E2E scenarios.
+Use its checkboxes for task-level acceptance; the delivery checkboxes below continue to
+record implementation progress. Keep both views consistent when changing scope.
+
 The [scenario checklist](TEST-SCENARIOS.md) breaks the integration and E2E test
 tasks into individually checkable execution units with explicit expected results.
 Use it together with the implementation tasks below: each scenario identifies
