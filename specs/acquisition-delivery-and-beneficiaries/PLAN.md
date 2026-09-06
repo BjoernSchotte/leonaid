@@ -184,9 +184,9 @@ Dependencies: DEL-02; DEL-03 provides usable configured test actions.
 
 Dependencies: independent of DEL-01–04; requires its own dashboard contract/client regeneration.
 
-- [ ] Extend `src/leonaid/application/dashboard.py`, `src/leonaid/adapters/postgres/dashboard.py`, and response mapping with authorized beneficiaries.
-- [ ] Add the compact row/disclosure in `packages/features/src/dashboard/dashboard.tsx` and `dashboard.css`.
-- [ ] Verify no-beneficiary, single/multiple, long-name, missing-goal, and action-switch states.
+- [x] Extend `src/leonaid/application/dashboard.py`, `src/leonaid/adapters/postgres/dashboard.py`, and response mapping with authorized beneficiaries.
+- [x] Add the compact row/disclosure in `packages/features/src/dashboard/dashboard.tsx` and `dashboard.css`.
+- [x] Verify no-beneficiary, single/multiple, long-name, missing-goal, and action-switch states. Evidence: beneficiary checkpoint in `PROGRESS.md`; final integrated In-App Browser acceptance remains under DEL-06.
 
 ### DEL-06 — Integration and visual acceptance
 

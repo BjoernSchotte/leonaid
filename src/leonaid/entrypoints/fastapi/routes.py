@@ -948,6 +948,15 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
         )
 
     return DashboardResponse(
+        beneficiaries=[
+            BeneficiaryResponse(
+                id=item.id,
+                organization_name=item.organization_name,
+                public_description=item.public_description,
+                sort_order=item.sort_order,
+            )
+            for item in snapshot.beneficiaries
+        ],
         action_id=snapshot.action_id,
         action_name=snapshot.action_name,
         goal=DashboardGoalResponse(

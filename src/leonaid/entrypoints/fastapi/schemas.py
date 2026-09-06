@@ -1318,6 +1318,7 @@ class DashboardMetricDefinitionResponse(TransportModel):
 
 
 class DashboardResponse(TransportModel):
+    beneficiaries: list[BeneficiaryResponse]
     action_id: UUID
     action_name: str
     goal: DashboardGoalResponse

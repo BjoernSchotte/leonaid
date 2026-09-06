@@ -3382,6 +3382,13 @@
             "title": "Actionname",
             "type": "string"
           },
+          "beneficiaries": {
+            "items": {
+              "$ref": "#/components/schemas/BeneficiaryResponse"
+            },
+            "title": "Beneficiaries",
+            "type": "array"
+          },
           "charityAdmin": {
             "anyOf": [
               {
@@ -3409,6 +3416,7 @@
           }
         },
         "required": [
+          "beneficiaries",
           "actionId",
           "actionName",
           "goal",

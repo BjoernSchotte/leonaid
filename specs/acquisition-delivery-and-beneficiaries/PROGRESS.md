@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Beneficiary dashboard checkpoint — 2026-09-06
+
+The authorized dashboard snapshot now reads the selected action's beneficiaries in the same repeatable-read transaction as its metrics. The response contains IDs, organization names, public descriptions, and stable display order. The existing service role gate still conceals unrelated actions; no administrator-only request is added to Anna's interface.
+
+A compact row inside the goal card shows the first beneficiary directly. Multiple entries show `+N weitere`; the native disclosure exposes every full name and description, including long names. It is keyed by action ID so switching actions resets expansion. No beneficiaries produces no row; missing goal configuration does not suppress beneficiaries.
+
+`./leonaid test-dashboard` passed against an isolated real CRM/Core stack: SQL records match the dashboard projection, unrelated-role access is concealed, and a synthetic zero-beneficiary action returns an empty list. All four browser scenarios pass. Added geometry checks at 360/390/430 px prove the goal-card height increase is at most 64 CSS pixels and there is no horizontal overflow. Tests cover one/multiple/long names, keyboard expansion, 200% root text sizing, missing goal, empty list, action switching and Axe checks. The 360 px screenshot was visually inspected. All frontend type checks, Mypy over 111 source files, focused Ruff, and 212 unit tests pass; OpenAPI/client regenerated.
+
+The test uses its own Compose project, loopback ports 18264/18664, and an optional subnet override; no foreign resources were changed. Public Astro/EmDash forms, legacy completion/review safeguards, remaining order edge cases and final integrated In-App Browser acceptance are still open. The parallel EmDash branch is at `a4d1977` with authentication source, but still no public campaign renderer.
+
 ## Acquisition delivery capture checkpoint — 2026-09-06
 
 Anna's capture form consumes the Core delivery definition for address/window requirements, optional contact/instructions, and field limits. It offers date-grouped explicit window selection, clears selection when the date changes, and supports delivery-address reuse for billing with an independent invoice email. The separate billing draft survives toggling; submission derives reused billing from the current delivery address. Buyer changes clear delivery details. An explicit deferral option keeps missing delivery data draft-only; draft submission also permits a missing window while server validation still checks any supplied address block.

@@ -10,6 +10,7 @@ from typing import Protocol, TypeVar
 from uuid import UUID
 
 from leonaid.application.policies import concealed_resource
+from leonaid.domain.actions import Beneficiary
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 
 StatusValue = TypeVar("StatusValue", bound=str)
@@ -126,6 +127,7 @@ class DashboardSnapshot:
     acquirer: AcquirerDashboard | None
     charity_admin: CharityAdminDashboard | None
     generated_at: datetime
+    beneficiaries: tuple[Beneficiary, ...] = ()
 
 
 class DashboardRepository(Protocol):

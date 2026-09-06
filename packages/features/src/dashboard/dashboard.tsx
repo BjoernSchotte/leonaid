@@ -84,6 +84,39 @@ function definition(
   return dashboard.metricDefinitions.find((item) => item.key === key);
 }
 
+function BeneficiaryMotivation({
+  dashboard,
+}: {
+  readonly dashboard: DashboardResponse;
+}) {
+  const items = dashboard.beneficiaries ?? [];
+  if (!items.length) return null;
+  return (
+    <details
+      key={dashboard.actionId}
+      className="dashboard-beneficiaries"
+      data-testid="dashboard-beneficiaries"
+    >
+      <summary>
+        <span className="dashboard-beneficiaries__name">
+          Für: {items[0].organizationName}
+        </span>
+        <span className="dashboard-beneficiaries__more">
+          {items.length > 1 ? `+${items.length - 1} weitere` : "Details"}
+        </span>
+      </summary>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            <strong>{item.organizationName}</strong>
+            {item.publicDescription && <p>{item.publicDescription}</p>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function GoalProgress({
   dashboard,
 }: {
@@ -157,6 +190,7 @@ function GoalProgress({
       <p className="dashboard-goal__spoken" data-testid="goal-status">
         {spokenStatus}
       </p>
+      <BeneficiaryMotivation dashboard={dashboard} />
     </section>
   );
 }
