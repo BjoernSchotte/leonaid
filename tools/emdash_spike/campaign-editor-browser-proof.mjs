@@ -49,6 +49,18 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       await page.goto(origin + editorRoot);
       await page.waitForURL("**/login?returnTo=**");
       assert.equal((await context.request.get(origin + apiRoot)).status(), 401);
+      const handoffPath =
+        "/_emdash/admin/campaigns/20000000-0000-4000-8000-000000000003";
+      const handoff = await context.request.get(origin + handoffPath, {
+        maxRedirects: 0,
+      });
+      assert.equal(handoff.status(), 303);
+      assert.equal(
+        new URL(handoff.headers().location, origin).searchParams.get(
+          "returnTo",
+        ),
+        handoffPath,
+      );
     } else {
       const entries = await json(apiRoot);
       const entry = entries.items.find(

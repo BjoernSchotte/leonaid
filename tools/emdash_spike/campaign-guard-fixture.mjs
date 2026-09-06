@@ -1,4 +1,6 @@
 import { Kysely, sql } from "kysely";
+import assert from "node:assert/strict";
+import { handleContentDelete } from "emdash";
 import { createDialect } from "emdash/db/postgres";
 import { requireCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
 
@@ -12,7 +14,19 @@ const database = new Kysely({
   }),
 });
 try {
-  if (process.argv[2] === "fail-create") {
+  if (process.argv[2] === "trash-created") {
+    await requireCampaignBindings(database);
+    const entries = await sql`SELECT id FROM public.ec_campaign_pages
+      WHERE action_id='20000000-0000-4000-8000-000000000003'
+      AND deleted_at IS NULL`.execute(database);
+    assert.equal(entries.rows.length, 1);
+    const result = await handleContentDelete(
+      database,
+      "campaign_pages",
+      entries.rows[0].id,
+    );
+    assert.equal(result.success, true);
+  } else if (process.argv[2] === "fail-create") {
     await sql`CREATE FUNCTION public.synthetic_reject_create() RETURNS trigger
       LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'LEONAID_SYNTHETIC_CREATE_LOG_CANARY'; END $$`.execute(
       database,

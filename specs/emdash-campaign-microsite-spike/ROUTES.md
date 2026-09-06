@@ -44,6 +44,22 @@ their distinct endpoint ownership first. Route assignment does not authorize
 an operation: the default-deny/authentication/authorization layer must still
 cover every exposed CMS handler.
 
+## Core campaign editor entry
+
+`GET /_emdash/admin/campaigns/<Core UUID>` is the stable, same-origin editor
+entry point for a selected Core action. It requires completed bootstrap, the
+fixed secure origin and current System Admin identity, then rechecks the action
+through Core and checks the persisted CMS binding under bounded database locks.
+It redirects to the canonical native editor for one active CMS row or to the
+campaign-prefilled native new form when no row exists. It never creates content
+on GET. Ambiguous bindings and trashed rows return a static 409 instead of choosing
+an arbitrary row or offering a conflicting new draft. Unknown Core targets and
+dependency failures remain closed; no external redirect target is accepted.
+
+This server entry point does not yet add a LeonAid navigation control, a campaign
+chooser, Back navigation, or Charity admission. It is separate from public
+canonical URL/alias resolution, which remains Core's responsibility.
+
 ## Form transport decision for the new renderer
 
 Keep the existing `apps/public` Astro Actions intact. The campaign renderer will

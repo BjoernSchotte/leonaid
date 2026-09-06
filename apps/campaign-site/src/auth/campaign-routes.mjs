@@ -5,8 +5,11 @@ const editor = new RegExp(
   `^/_emdash/admin/content/campaign_pages(?:/(?:${id}|new))?/?$`,
 );
 export function isCampaignEditorRoute(path, method) {
-  return method === "GET" && editor.test(path);
+  return method === "GET" && (editor.test(path) || handoff.test(path));
 }
+
+const handoff =
+  /^\/_emdash\/admin\/campaigns\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/;
 
 export function isCampaignCreateRoute(path, method) {
   return method === "POST" && path === "/_emdash/api/content/campaign_pages";

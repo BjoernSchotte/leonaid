@@ -26,8 +26,30 @@ for (const [index, [name, engine]] of engines.entries()) {
       httpOnly: true,
       sameSite: "Lax",
     });
+    if (process.argv.includes("--trashed")) {
+      await context.addCookies([cookie(tokens.system)]);
+      const response = await context.request.get(
+        origin +
+          "/_emdash/admin/campaigns/20000000-0000-4000-8000-000000000003",
+        { maxRedirects: 0 },
+      );
+      assert.equal(response.status(), 409);
+      assert.equal(response.headers()["cache-control"], "no-store");
+      assert.deepEqual(await response.json(), {
+        error: { code: "CAMPAIGN_BINDING_CONFLICT" },
+      });
+      console.log(
+        `campaign-handoff-browser: OK: ${name}: real trashed content reserves the campaign binding`,
+      );
+      await context.close();
+      continue;
+    }
     const action = `20000000-0000-4000-8000-${String([3, 41, 42][index]).padStart(12, "0")}`;
     const newPath = editorRoot + "/new?campaign=" + action;
+    const handoffPath = "/_emdash/admin/campaigns/" + action;
+    await page.goto(origin + handoffPath);
+    await page.waitForURL("**/login?returnTo=**");
+    assert.equal(new URL(page.url()).searchParams.get("returnTo"), handoffPath);
     await page.goto(origin + newPath);
     await page.waitForURL("**/login?returnTo=**");
     assert.equal(new URL(page.url()).searchParams.get("returnTo"), newPath);
@@ -39,6 +61,17 @@ for (const [index, [name, engine]] of engines.entries()) {
       return (await response.json()).data;
     };
     const before = await json(apiRoot);
+    const resolve = async (path) => {
+      const response = await context.request.get(origin + path, {
+        maxRedirects: 0,
+      });
+      assert.equal(response.headers()["cache-control"], "no-store");
+      return response;
+    };
+    const uncreated = await resolve(handoffPath);
+    assert.equal(uncreated.status(), 303);
+    assert.equal(uncreated.headers().location, newPath);
+    assert.equal((await json(apiRoot)).total, before.total);
     const submit = async (status) => {
       assert.equal((await page.goto(origin + newPath)).status(), 200);
       await page.locator("#field-title").fill(title);
@@ -70,6 +103,31 @@ for (const [index, [name, engine]] of engines.entries()) {
       (await json("/_emdash/api/auth/me")).id,
     );
     assert.equal((await json(apiRoot)).total, before.total + 1);
+    const existing = await resolve(handoffPath);
+    assert.equal(existing.status(), 303);
+    assert.equal(existing.headers().location, editorPath);
+    await page.goto(origin + handoffPath);
+    await page.waitForURL((url) => url.pathname === editorPath);
+    await expect(page.locator("#field-title")).toHaveValue(title);
+    const ambiguous = await resolve(
+      "/_emdash/admin/campaigns/20000000-0000-4000-8000-000000000001",
+    );
+    assert.equal(ambiguous.status(), 409);
+    assert.deepEqual(await ambiguous.json(), {
+      error: { code: "CAMPAIGN_BINDING_CONFLICT" },
+    });
+    assert.equal(
+      (
+        await resolve(
+          "/_emdash/admin/campaigns/20000000-0000-4000-8000-999999999999",
+        )
+      ).status(),
+      503,
+    );
+    assert.equal(
+      (await context.request.post(origin + handoffPath)).status(),
+      503,
+    );
     await submit(409);
     assert.equal((await json(apiRoot)).total, before.total + 1);
     await page.goto(origin + editorPath);
@@ -99,6 +157,7 @@ for (const [index, [name, engine]] of engines.entries()) {
     await context.addCookies([cookie(tokens.charity)]);
     assert.equal((await page.goto(origin + editorRoot + "/new")).status(), 403);
     assert.equal((await page.goto(origin + newPath)).status(), 403);
+    assert.equal((await page.goto(origin + handoffPath)).status(), 403);
     await context.close();
     console.log(
       `campaign-create-browser: OK: ${name}: native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Charity denial`,

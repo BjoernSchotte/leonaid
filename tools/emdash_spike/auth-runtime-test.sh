@@ -157,6 +157,9 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/campaign-create-browser-proof.mjs
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs trash-created
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-create-browser-proof.mjs --trashed
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     browser_probe --revoked
     editor_probe --revoked
