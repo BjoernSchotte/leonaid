@@ -3,7 +3,10 @@ import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
 import { CoreIdentityError } from "./auth/core-identity";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
-import { isCampaignReadRoute } from "./auth/campaign-routes.mjs";
+import {
+  isCampaignReadRoute,
+  isCampaignUpdateRoute,
+} from "./auth/campaign-routes.mjs";
 import {
   bootstrapIsArmed,
   requireArmedBootstrap,
@@ -75,7 +78,11 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
   const adminRead =
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
-  if ((adminHome || adminRead) && request.method === "GET") {
+  const campaignUpdate = isCampaignUpdateRoute(url.pathname, request.method);
+  if (
+    ((adminHome || adminRead) && request.method === "GET") ||
+    campaignUpdate
+  ) {
     try {
       if (import.meta.env.DEV || request.headers.has("Authorization"))
         throw new Error();
@@ -87,6 +94,8 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       if (!setupManifest) await requireCompletedBootstrap(bootstrapDirectory);
       if (!hasSecurePublicOrigin(request))
         return new Response("Invalid CMS origin", { status: 403, headers });
+      if (campaignUpdate && request.headers.get("X-EmDash-Request") !== "1")
+        return new Response("Invalid CMS request", { status: 403, headers });
       const identity = await authenticate(request);
       if (setupManifest)
         await requireArmedBootstrap(bootstrapDirectory, identity.subject);

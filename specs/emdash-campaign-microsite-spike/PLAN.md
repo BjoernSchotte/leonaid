@@ -859,6 +859,31 @@ Quality checkpoint: `./leonaid check` passed at `e90adda` with 208 unit tests,
 242 Python source-file type checks, all frontend/CMS checks, formatting,
 API/privacy/policy and route-inventory guards; worktree unchanged.
 
+Title-draft editing checkpoint (6 September 2026): the production
+`campaign-runtime` proof now seeds published entries with staged drafts and
+verifies both representations. Inspection found the previous lower-level content
+getter omitted EmDash's runtime draft hydration; the request-local wrapper now
+authorizes the stored parent, then calls the original runtime getter, validating
+the hydrated action binding before returning it. GET exposes the latest draft
+and unchanged `liveData`, rather than silently returning the older live title.
+
+Canonical item PUT currently admits only System Admin title-draft updates with
+an opaque `_rev` token. It retains the original EmDash runtime updater, including
+schema validation and draft/revision handling. Real HTTPS tests prove one new
+revision, save/read consistency, unchanged published title/status, stale-token
+409 with no extra revision, and denied anonymous/Charity, bad Origin, missing
+request marker, binding changes, metadata and missing-token requests without
+mutation. Missing guards and revoked sessions deny PUT as well as GET. The
+`campaign-content` proof checks own/foreign update authorization using actual
+EmDash records and pure actor-policy inputs. Both isolated projects publish no
+ports and clean their owned resources.
+
+This is not general editor completion: rich fields, media, create/publication,
+Charity runtime admission, concurrent-write races, revision attribution and
+browser editing remain pending. The title-only mutation policy must be expanded
+as the full planned editorial schema and operation-specific proofs land; it is
+not a replacement for the required editable Krapfentaxi microsite.
+
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
 - [x] Wire the four read primitives into request-local EmDash handlers and
@@ -867,6 +892,9 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [x] Add and prove operator-installed PostgreSQL invariants for immutable
       content/action IDs and revision-parent bindings, plus check-only runtime
       refusal when their exact definitions are missing, changed or disabled.
+- [x] Preserve upstream draft hydration and admit System Admin title-draft PUTs
+      through the original runtime updater, with real HTTP save/read/revision
+      proof, unchanged published values and stale-revision rejection.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

@@ -40,7 +40,7 @@ try {
         campaign_pages: [1, 1, 2, 2].map((action, index) => ({
           id: `proof-${index}`,
           slug: `proof-${index}`,
-          status: "draft",
+          status: "published",
           data: {
             action_id: `20000000-0000-4000-8000-00000000000${action}`,
             title: `synthetic campaign ${action} story ${index}`,

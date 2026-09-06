@@ -9,3 +9,8 @@ const revision = new RegExp(`^/_emdash/api/revisions/${id}$`);
 export function isCampaignReadRoute(path, method) {
   return method === "GET" && (content.test(path) || revision.test(path));
 }
+
+const update = new RegExp(`^/_emdash/api/content/campaign_pages/${id}$`);
+export function isCampaignUpdateRoute(path, method) {
+  return method === "PUT" && update.test(path);
+}

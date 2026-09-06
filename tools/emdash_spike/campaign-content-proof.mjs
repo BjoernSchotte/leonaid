@@ -6,6 +6,7 @@ import { createDialect } from "emdash/db/postgres";
 import { runMigrations } from "emdash/db";
 import { applySeed } from "emdash/seed";
 import { ContentRepository } from "emdash";
+import { authorizeCampaignUpdate } from "../../apps/campaign-site/src/auth/campaign-update.mjs";
 import {
   installCampaignBindings,
   requireCampaignBindings,
@@ -179,6 +180,48 @@ try {
     );
     assert.equal(own.success, true);
     assert.equal(own.data.item.id, entry.id);
+    const update = {
+      _rev: own.data._rev,
+      data: { title: "allowed draft edit", action_id: entry.data.action_id },
+    };
+    assert.equal(
+      await authorizeCampaignUpdate(
+        database,
+        owner,
+        "campaign_pages",
+        entry.id,
+        update,
+      ),
+      null,
+    );
+    assert.deepEqual(
+      await authorizeCampaignUpdate(
+        database,
+        foreign,
+        "campaign_pages",
+        entry.id,
+        update,
+      ),
+      missing,
+    );
+    assert.equal(
+      (
+        await authorizeCampaignUpdate(
+          database,
+          owner,
+          "campaign_pages",
+          entry.id,
+          {
+            ...update,
+            data: {
+              ...update.data,
+              action_id: entry.data.action_id === a ? b : a,
+            },
+          },
+        )
+      ).error.code,
+      "FORBIDDEN",
+    );
     assert.deepEqual(
       await getCampaignContent(database, foreign, "campaign_pages", entry.id),
       missing,

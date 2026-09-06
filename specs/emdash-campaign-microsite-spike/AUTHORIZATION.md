@@ -22,8 +22,14 @@ The `campaign-runtime` proof additionally exercises admitted GETs for the exact
 completed bootstrap, valid HTTPS origin and a current Core System Admin session.
 Request-local handlers enforce the campaign-read primitives before upstream
 data access. Unknown item IDs prove the wrapper's static `NOT_FOUND` response.
-All Charity users and all write methods remain denied; positive Charity HTTP
-isolation is not yet claimed. The inventory surface probe uses non-admitted
+All Charity users remain denied; positive Charity HTTP isolation is not yet
+claimed. A canonical item PUT now permits only System Admin title-draft edits
+with a revision token, valid Origin and `X-EmDash-Request: 1`. It rejects binding
+changes, metadata, publication and other editorial fields pending their proofs.
+The original runtime updater remains responsible for schema validation and
+revision storage. The original runtime getter is retained after the scoped
+parent check so current draft data and published `liveData` are both preserved.
+The inventory surface probe uses non-admitted
 placeholder collections/IDs, so it complements rather than replaces this test.
 
 The admitted read routes additionally require exact, enabled PostgreSQL binding
@@ -123,7 +129,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/comments/[collection]/[contentId]` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/content/[collection]` | GET, POST | core | GET campaign_pages: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | GET campaign_pages canonical ULID: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked title-draft PUT only | Stored action_id; immutable proposed binding; narrow draft field policy |
 | `/_emdash/api/content/[collection]/[id]/compare` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
