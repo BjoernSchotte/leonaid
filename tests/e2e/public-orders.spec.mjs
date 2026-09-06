@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
@@ -143,6 +144,31 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
   };
 
   let form = await openOrderForm(page);
+  await form.locator('input[name="billingSameAsDelivery"]').uncheck();
+  for (const field of [
+    "deliveryRecipientName", "deliveryStreetLine1", "deliveryPostalCode",
+    "deliveryCity", "deliveryCountryCode", "deliveryWindowId",
+    "deliveryContactName", "deliveryContactPhone", "deliveryInstructions",
+    "invoiceRecipientName", "invoiceStreetLine1", "invoicePostalCode",
+    "invoiceCity", "invoiceCountryCode", "invoiceEmail",
+  ]) {
+    const bounds = await form.locator(`[name="${field}"]`).boundingBox();
+    expect(bounds, field).not.toBeNull();
+    expect(bounds.height, field).toBeGreaterThanOrEqual(44);
+    expect(bounds.width, field).toBeGreaterThanOrEqual(44);
+  }
+  for (const fontSize of ["16px", "32px"]) {
+    await page.evaluate((value) => { document.documentElement.style.fontSize = value; }, fontSize);
+    const accessibility = await new AxeBuilder({ page })
+      .include("[data-order-form]")
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(accessibility.violations.filter(({ impact }) =>
+      ["critical", "serious"].includes(impact),
+    )).toEqual([]);
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  await form.locator('input[name="billingSameAsDelivery"]').check();
   await page.screenshot({
     path: `${artifactDirectory}/public-order-form-mobile.png`,
     fullPage: true,

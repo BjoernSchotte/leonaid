@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Public field accessibility and final local contract audit — 2026-09-06
+
+Expanded the existing public order browser journey before submission: open separate billing, verify 15 delivery/invoice inputs and selectors are at least 44px in both dimensions, and run Axe against the form with WCAG 2/2.1/2.2 A/AA tags at normal and 200% root text size. No critical/serious violations occur. Restore the default address toggle and normal text size, then run the original real order/retry journeys. The full public gate in isolated project `leonaid-362a-delivery-public-20260906aa`, ports 18265/18665 and worktree subnet override, passed all scenarios and final PostgreSQL verification.
+
+A fresh `./leonaid test-unit` passed all 213 tests in 1.98 seconds. Re-read invoice issuance's `invoice_delivery_incomplete` guard, shared order-window selection, and the successful real HTTP completion-to-invoice assertions. Together with existing both-channel create/read/replay and deferred-draft evidence, this closes DEL-02's remaining creation/readback/transitions/completion/idempotency item.
+
+The local DEL-06 accessibility item is now supported across dashboard, capture, administration and public ordering by the recorded geometry, keyboard, touch, focus, Axe and direct In-App checks. Integrated EmDash rendering remains explicitly unproven; the parallel checkout at `3ef958d` still has no public order renderer. Remaining public renderer-transition and cross-renderer acceptance must run on that actual implementation when available, including canonical/alias routes with/without JavaScript and editorial independence.
+
 ## Completion context load failure is recoverable — 2026-09-06
 
 Found and corrected an initial-load failure gap in the administrator completion form: a failed delivery-context query displayed an error alongside an indefinite loading message, with no explicit retry or close action. The error now offers a disabled-while-fetching Retry planning button, hides the contradictory loading message, and permits closing the form even before a definition is available. Existing delivery/invoice state remains in the component during refetch.

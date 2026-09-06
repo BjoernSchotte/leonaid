@@ -158,7 +158,7 @@ Dependencies: DEL-01.
 
 - [x] Add authorized schedule reads/writes and revision conflict handling. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [x] Wire effective form definitions through action persistence, admin configuration, capture context, public projections, and server validation for both order channels. Evidence: Core contract audit in `PROGRESS.md` (2026-09-06).
-- [ ] Extend internal/public order creation, readback, review transitions, legacy-order completion, and idempotency.
+- [x] Extend internal/public order creation, readback, review transitions, legacy-order completion, and idempotency. Evidence: fresh foundation/order/race proofs, both-channel API/PostgreSQL readback, deferred draft, and successful completion-to-invoice HTTP/browser checks in `PROGRESS.md`.
 - [x] Implement transactional availability checks and protect referenced windows from mutation. Evidence: both acquisition/public booking-retirement races and reference protection in `PROGRESS.md`.
 - [x] Regenerate API client and prove action/party authorization remains enforced. Evidence: Core contract audit in `PROGRESS.md` (2026-09-06).
 
@@ -198,7 +198,7 @@ Dependencies: DEL-01–05.
 
 - [ ] Run relevant domain, repository, API contract, component, and browser checks.
 - [x] Inspect the implemented mobile dashboard and ordering UI in the In-App Browser using synthetic data; compare collapsed goal-card height before/after at 360, 390, and 430 px widths. Evidence: direct mobile dashboard, acquisition draft and public order checkpoints in `PROGRESS.md`; integrated EmDash remains a separate item below.
-- [ ] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow.
+- [x] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow. Evidence: mobile In-App, dashboard, acquisition, admin completion and public field accessibility checkpoints in `PROGRESS.md`; integrated EmDash remains separately open.
 - [ ] Record commands/results and remaining limitations in this spec directory before marking implementation complete.
 - [ ] Prove the same configured action works through Anna's form, the existing public renderer, and the EmDash campaign renderer on the integrated baseline. An unfinished EmDash renderer leaves this acceptance item open.
 
