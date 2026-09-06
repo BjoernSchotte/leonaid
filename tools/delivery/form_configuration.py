@@ -59,6 +59,7 @@ async def prove_form_configuration(pool: asyncpg.Pool[Any], actor: UUID) -> None
         assert form.require_window == config.enabled
         assert form.windows == []
         if key == "blank":
+            await prove_non_delivery_order(pool, identifier, actor, now)
             continue
         window = DeliveryWindow(
             uuid4(), identifier, date(2027, 2, 5), time(9), time(11)
@@ -103,4 +104,78 @@ async def prove_form_configuration(pool: asyncpg.Pool[Any], actor: UUID) -> None
         assert (await schedules.get(identifier)).enabled
     print(
         "delivery-form: PASS: persisted Krapfentaxi/blank defaults, effective fields, available windows, period protection"
+    )
+
+
+async def prove_non_delivery_order(
+    pool: asyncpg.Pool[Any], action_id: UUID, actor: UUID, now: datetime
+) -> None:
+    from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+    from leonaid.application.commitments import CommitmentDraft, CommitmentLineDraft
+    from leonaid.domain.commitments import (
+        BuyerSnapshot,
+        Commitment,
+        CommitmentPartyKind,
+        CommitmentSource,
+        CommitmentStatus,
+        InvoiceRecipientSnapshot,
+    )
+    from leonaid.domain.action_templates import OfferingUnit
+
+    offering = uuid4()
+    async with pool.acquire() as connection:
+        await connection.execute(
+            "INSERT INTO charity_action_capability(action_id, capability) VALUES ($1, 'ordering') ON CONFLICT DO NOTHING",
+            action_id,
+        )
+        await connection.execute(
+            """INSERT INTO offering(id, action_id, code, name, status, unit, unit_price_minor, currency, allowed_quantity_units)
+            VALUES ($1, $2, 'sponsor', 'Synthetic sponsorship', 'active', 'sponsoring', 500, 'EUR', ARRAY['sponsoring'])""",
+            offering,
+            action_id,
+        )
+    draft = CommitmentDraft(
+        buyer=BuyerSnapshot(CommitmentPartyKind.COMPANY, uuid4(), "Synthetic sponsor"),
+        invoice_recipient=InvoiceRecipientSnapshot(
+            "Sponsor invoice", "Testweg 1", "00000", "Teststadt"
+        ),
+        delivery_recipient=None,
+        lines=(CommitmentLineDraft(offering, 1, OfferingUnit.SPONSORING),),
+        delivery_window_id=None,
+    )
+    repository = AsyncpgCommitmentRepository(pool)
+    key = str(uuid4())
+
+    async def create() -> Commitment:
+        return await repository.create(
+            action_id=action_id,
+            actor_user_id=actor,
+            source=CommitmentSource.ADMIN,
+            status=CommitmentStatus.REVIEW_READY,
+            draft=draft,
+            idempotency_key=key,
+            request_hash=draft.fingerprint(
+                action_id=action_id,
+                source=CommitmentSource.ADMIN,
+                status=CommitmentStatus.REVIEW_READY,
+            ),
+            request_id="non-delivery-proof",
+            occurred_at=now,
+        )
+
+    saved = await create()
+    replay = await create()
+    assert saved.status is CommitmentStatus.REVIEW_READY
+    assert (
+        saved.total.amount_minor == 500
+        and saved.invoice_recipient == draft.invoice_recipient
+    )
+    assert replay.id == saved.id and replay.replayed
+    async with pool.acquire() as connection:
+        loaded = await repository._get(connection, saved.id, replayed=False)
+    assert loaded.delivery_recipient is None
+    assert loaded.delivery_window_id is None and loaded.delivery_window_snapshot is None
+    assert loaded.lines == saved.lines and loaded.total == saved.total
+    print(
+        "non-delivery-order: PASS: persisted blank action, sponsorship pricing, review-ready create/readback and exact replay without delivery fields"
     )

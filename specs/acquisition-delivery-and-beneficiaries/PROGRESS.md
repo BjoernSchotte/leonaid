@@ -1,6 +1,13 @@
 # Implementation evidence
 
 
+## Non-delivery sponsorship order regression — 2026-09-06
+
+Expanded `tools/delivery/form_configuration.py` beyond checking the blank template's disabled default. It now uses a real persisted blank action, enables ordering, inserts a synthetic sponsoring offering and creates a review-ready admin order with a billing recipient but no delivery recipient/window. Real PostgreSQL readback preserves null delivery fields and the priced line/total. Exact command replay returns the same order ID.
+
+`LEONAID_DELIVERY_FOUNDATION_SUBNET=172.30.81.0/24 sh tools/delivery/test-foundation.sh` exited 0; the new `non-delivery-order` proof and all existing migration, order, concurrency, history and form proofs pass. The sponsorship total is EUR 5.00 and billing stays unchanged. Ruff/Mypy pass. The test used its own ephemeral database/network without host ports and cleaned its resources. ACCEPTANCE.md now records this concrete regression evidence; broader integrated channel/template coverage remains open.
+
+
 ## Acquisition retry after accepted order and HTTP server failure — 2026-09-06
 
 Fixed Anna's changed-payload retry guard to treat HTTP 5xx responses as an unknown submission outcome, alongside network failures and incomplete idempotency receipts. Previously a typed server error allowed a changed payload to rotate the command key, potentially duplicating an order already accepted before the response failed. The UI now explains the uncertain outcome and requests an unchanged retry.
