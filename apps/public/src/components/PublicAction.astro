@@ -45,17 +45,17 @@ const postedText = (name: string, fallback = "") => {
   const value = posted?.get(name);
   return typeof value === "string" ? value : fallback;
 };
-const knownRejection = [
-  "BAD_REQUEST",
-  "UNPROCESSABLE_CONTENT",
-  "FORBIDDEN",
-  "TOO_MANY_REQUESTS",
-].includes(orderResult?.error?.code ?? "");
+// Keep one command identity for the entire no-JavaScript form journey,
+// including browser history reloads. Rejected validation writes no order.
 const previousCommand = postedText("commandId");
-const commandId =
-  !knownRejection && /^[0-9a-f-]{36}$/i.test(previousCommand)
-    ? previousCommand
+const routeCommand = Astro.url.searchParams.get("orderAttempt") ?? "";
+const commandId = /^[0-9a-f-]{36}$/i.test(previousCommand)
+  ? previousCommand
+  : /^[0-9a-f-]{36}$/i.test(routeCommand)
+    ? routeCommand
     : crypto.randomUUID();
+const formAction = new URL(String(actions.createPublicOrder), Astro.url);
+formAction.searchParams.set("orderAttempt", commandId);
 const postedQuantity = (id: string, fallback: string) => {
   const index = posted?.getAll("offeringId").indexOf(id) ?? -1;
   const value = index >= 0 ? posted?.getAll("quantity")[index] : undefined;
@@ -396,7 +396,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                 </section>
 
                 <form
-                  action={actions.createPublicOrder}
+                  action={`${formAction.pathname}${formAction.search}`}
                   method="POST"
                   class="order-form"
                   data-order-form

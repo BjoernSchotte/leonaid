@@ -286,7 +286,7 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
   await expect(
     form.locator('textarea[name="deliveryInstructions"]'),
   ).toHaveValue("Abteilung Bildung\nEingang links <b>Hinweis</b>");
-  await expect(form.locator('input[name="commandId"]')).not.toHaveValue(
+  await expect(form.locator('input[name="commandId"]')).toHaveValue(
     rejectedCommand,
   );
   await expect(form.locator("[data-order-preview-total]")).toContainText(
@@ -300,6 +300,38 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     fullPage: true,
   });
   await form.locator('input[name="invoiceCity"]').fill("Augsburg");
+  const retryCommand = await form
+    .locator('input[name="commandId"]')
+    .inputValue();
+  let acceptedNoJsReference;
+  const loseNoJsResponse = async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const accepted = await route.fetch();
+    expect(accepted.ok()).toBeTruthy();
+    const acceptedHtml = await accepted.text();
+    acceptedNoJsReference = acceptedHtml.match(/LA-[A-F0-9]{32}/)?.[0];
+    expect(acceptedNoJsReference).toBeTruthy();
+    await route.abort("failed");
+  };
+  await noJsPage.route("**/*", loseNoJsResponse);
+  await Promise.allSettled([
+    noJsPage.waitForNavigation(),
+    form.locator('button[type="submit"]').click(),
+  ]);
+  expect(acceptedNoJsReference).toBeTruthy();
+  await noJsPage.unroute("**/*", loseNoJsResponse);
+  await noJsPage.goBack();
+  await expect(form).toBeVisible();
+  await expect(form.locator('input[name="commandId"]')).toHaveValue(
+    retryCommand,
+  );
+  // Browser history restores the earlier invalid POST state, not the last
+  // correction. Re-enter that correction while preserving the attempt identity.
+  await expect(form.locator('input[name="invoiceCity"]')).toHaveValue(" ");
+  await form.locator('input[name="invoiceCity"]').fill("Augsburg");
+  await expect(
+    form.locator('textarea[name="deliveryInstructions"]'),
+  ).toHaveValue("Abteilung Bildung\nEingang links <b>Hinweis</b>");
   await Promise.all([
     noJsPage.waitForNavigation(),
     form.locator('button[type="submit"]').click(),
@@ -311,6 +343,7 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
       await noJsSuccess.locator("[data-order-reference]").textContent()
     ).trim(),
   };
+  expect(submitted.reference).toBe(acceptedNoJsReference);
   proof.orders.push({
     scenario: "person-without-company",
     publicReference: submitted.reference,

@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## No-JavaScript accepted-response loss and history retry — 2026-09-06
+
+The new real browser test accepts the no-JavaScript order through the actual Astro/Core path, extracts its successful reference, then aborts only the browser response. Returning through browser history previously regenerated the command identity and could create a duplicate. A deterministic successor on an error page did not solve the GET history reload, so that abandoned change is not retained.
+
+Active order pages now establish an opaque random `orderAttempt` in their GET URL, and the form action carries it forward. The hidden command keeps that identity across server-rendered validation errors and history reloads. Initial GETs without a valid attempt redirect to the same route with the identifier; order POSTs never redirect. Canonical metadata remains unchanged and no personal data is encoded in the identifier. A known validation rejection creates no order, so its corrected no-JavaScript POST can safely retain the same identity; changed payloads after acceptance remain protected by Core idempotency comparison.
+
+Important limitation: Chromium history restores the earlier invalid POST form, including its invalid invoice-city value, rather than the last correction before the lost response. The test explicitly corrects that field again; preserved instructions and command identity are asserted. Resubmission returns exactly the original accepted reference, and the database still contains exactly the three expected browser orders. This proves duplicate prevention, not complete latest-input restoration after a browser navigation failure. That retention limitation remains open.
+
+Final `./leonaid test-public-orders` run `leonaid-362a-delivery-public-20260906v`, ports 18265/18665 and worktree subnet override exited 0. All existing policy/integration/admin and PostgreSQL checks pass, including the integrated journey in 4.9 seconds. Earlier runs s/t/u exposed the identity and history-state issues described above. Own test stacks were cleaned up. Final mobile In-App and EmDash acceptance remain open.
+
 ## Acquisition action-switch isolation — 2026-09-06
 
 Extended the disposable acquisition fixture after its existing authorization contract: transition the third Golden action through scheduled to active and authorize Anna there without assigning any sponsors or offerings. The browser explicitly selects the original action in the sponsor workspace, fills private delivery fields, selects a window and enables deferred delivery, switches to the empty second action and verifies that saving is disabled. Returning to the original action clears street, contact, instructions, date and deferred mode and restores address reuse. It then completes the existing regular order/retry journey. No production change was needed for this tested path.
