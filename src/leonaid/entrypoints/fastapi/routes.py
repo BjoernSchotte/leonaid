@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from leonaid.application.delivery import DeliveryService
+from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
+from leonaid.entrypoints.fastapi.schemas import (
+    DeliveryConfigurationRequest,
+    DeliveryConfigurationResponse,
+    DeliveryWindowRequest,
+)
+
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -4284,3 +4292,68 @@ async def confirm_email_change(
         )
     response.headers["Cache-Control"] = "no-store"
     return EmailChangeConfirmationResponse.model_validate(confirmed)
+
+
+def delivery_configuration_response(
+    value: DeliveryConfiguration,
+) -> DeliveryConfigurationResponse:
+    return DeliveryConfigurationResponse(
+        action_id=value.action_id,
+        enabled=value.enabled,
+        timezone=value.timezone,
+        revision=value.revision,
+        windows=[
+            DeliveryWindowRequest.model_validate(window) for window in value.windows
+        ],
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery",
+    operation_id="getDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["delivery"],
+)
+async def get_delivery_configuration(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    result = await service.get(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery",
+    operation_id="saveDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["delivery"],
+)
+async def save_delivery_configuration(
+    action_id: UUID,
+    body: DeliveryConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    result = await service.save(
+        actor,
+        DeliveryConfiguration(
+            action_id=action_id,
+            enabled=body.enabled,
+            timezone=body.timezone,
+            revision=body.revision,
+            windows=tuple(
+                DeliveryWindow(action_id=action_id, **window.model_dump())
+                for window in body.windows
+            ),
+        ),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)

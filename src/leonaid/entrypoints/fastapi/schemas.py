@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
@@ -32,6 +32,25 @@ class TransportModel(BaseModel):
 class PlatformStatusResponse(TransportModel):
     service: str = Field(examples=["leonaid-api"])
     status: Literal["live"] = Field(examples=["live"])
+
+
+class DeliveryWindowRequest(TransportModel):
+    id: UUID
+    delivery_on: date
+    starts_at: time
+    ends_at: time
+    retired: bool = False
+
+
+class DeliveryConfigurationRequest(TransportModel):
+    enabled: bool
+    timezone: str = Field(default="Europe/Berlin", min_length=1, max_length=100)
+    revision: int = Field(ge=1)
+    windows: list[DeliveryWindowRequest]
+
+
+class DeliveryConfigurationResponse(DeliveryConfigurationRequest):
+    action_id: UUID
 
 
 class PlatformInformationResponse(TransportModel):
