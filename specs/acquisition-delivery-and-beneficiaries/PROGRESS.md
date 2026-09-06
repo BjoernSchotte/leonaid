@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Completion context, focus and zoom checkpoint — 2026-09-06
+
+Added authenticated `GET /api/v1/actions/{action_id}/delivery/order-form`, projecting the same Core delivery definition with private/no-store caching. It uses existing delivery read authorization and is independent of the new-order capture status gate. The completion UI now consumes this route, so a completed action does not prevent loading its effective delivery rules. New-order capture gates are unchanged.
+
+The editor focuses its heading when opened, returns focus to the row trigger when closed/saved, and falls back to the page heading if the saved order leaves the active filter. The conflict comparison now includes the complete stored invoice address and email. The no-window message distinguishes completion from optional draft capture.
+
+The full isolated invoice gate passed with the synthetic action actually transitioned to `completed` through the authorized API before the browser completion. The test verifies the new no-store projection, open/close/save focus, 200% root text sizing without document overflow, and the existing mobile completion, conflict/reconciliation, API persistence and actual invoice issuance proofs. All frontend type checks, Python Mypy and 212 unit tests pass. Project `leonaid-362a-delivery-invoice-20260906h` used ports 18266/18666 and the dedicated subnet override, with successful cleanup.
+
+Evidence boundary: this proves completed action status with a still-future configured window. It does not solve missing delivery information after all delivery times have elapsed. A product clarification is pending on explicit administrative confirmation of a historical configured window; until resolved, elapsed-window validation remains unchanged. Other recovery/admin/EmDash and final integrated visual acceptance items remain open.
+
 ## Administrator completion form checkpoint — 2026-09-06
 
 Draft and review-ready rows in the administrator order list now open an inline delivery/billing completion form. It reuses the shared delivery inputs and effective capture definition, supports address reuse or separate billing with independent invoice email, and hides draft deferral. Already booked window IDs/times remain fixed. Inputs are disabled during submission; known rejections and unknown outcomes retain the established command-key rules.

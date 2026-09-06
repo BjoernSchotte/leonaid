@@ -51,14 +51,18 @@ export function DeliveryCompletion({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const message = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
   const attempt = useRef<
     { payload: string; key: string; unknown: boolean } | undefined
   >(undefined);
   const context = useQuery({
     queryKey: ["completion-context", order.actionId],
-    queryFn: () => client.getCommitmentCaptureContext(order.actionId),
+    queryFn: () => client.getDeliveryOrderForm(order.actionId),
   });
-  const definition = context.data?.delivery;
+  const definition = context.data;
   useEffect(() => {
     if (error) message.current?.focus();
   }, [error]);
@@ -126,7 +130,9 @@ export function DeliveryCompletion({
         }
       }}
     >
-      <h3>Liefer- und Rechnungsdaten ergänzen</h3>
+      <h3 ref={heading} tabIndex={-1}>
+        Liefer- und Rechnungsdaten ergänzen
+      </h3>
       <p>
         Nach dem Speichern ist die Bestellung prüfbereit. Mengen und Preise
         bleiben unverändert.
@@ -163,7 +169,11 @@ export function DeliveryCompletion({
           <DeliveryDetails commitment={comparison} />
           <p>
             Rechnung: {comparison.invoiceRecipient?.recipientName},{" "}
-            {comparison.invoiceRecipient?.streetLine1}
+            {comparison.invoiceRecipient?.streetLine1},{" "}
+            {comparison.invoiceRecipient?.postalCode}{" "}
+            {comparison.invoiceRecipient?.city},{" "}
+            {comparison.invoiceRecipient?.countryCode} ·{" "}
+            {comparison.invoiceRecipient?.email}
           </p>
           <Button
             type="button"
@@ -218,10 +228,8 @@ export function DeliveryCompletion({
               onClick={async () => {
                 const result = await context.refetch();
                 if (
-                  result.data?.delivery &&
-                  !result.data.delivery.windows.some(
-                    (item) => item.id === windowId,
-                  )
+                  result.data &&
+                  !result.data.windows.some((item) => item.id === windowId)
                 ) {
                   setWindowId("");
                   setDate("");

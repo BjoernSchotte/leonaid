@@ -50,6 +50,16 @@ const sourceLabels = {
   public_form: "Öffentliches Formular",
 } as const;
 
+function focusCompletionTrigger(id: string) {
+  requestAnimationFrame(() => {
+    const target =
+      document.querySelector<HTMLElement>(
+        `[data-commitment-id="${id}"] [data-completion-toggle]`,
+      ) ?? document.querySelector<HTMLElement>(".commitment-page--admin h1");
+    target?.focus();
+  });
+}
+
 function formatMoney(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
     currency,
@@ -338,6 +348,7 @@ function CommitmentRow({
         {["draft", "review_ready"].includes(commitment.status) && (
           <Button
             variant="secondary"
+            data-completion-toggle
             aria-expanded={completionOpen}
             onClick={onToggleCompletion}
           >
@@ -481,7 +492,7 @@ export function CommitmentAdminPage({
       <header className="commitment-page__header commitment-page__header--admin">
         <div>
           <p className="commitment-eyebrow">Bestellarbeitsvorrat</p>
-          <h1>Bestellungen prüfen</h1>
+          <h1 tabIndex={-1}>Bestellungen prüfen</h1>
           <p>
             Entwürfe, prüfbereite Eingänge und fakturierte Bestellungen in einer
             belastbaren Sicht.
@@ -661,10 +672,13 @@ export function CommitmentAdminPage({
                         : record.commitment.id,
                     );
                     setSelectedCommitmentId("");
+                    if (completionId === record.commitment.id)
+                      focusCompletionTrigger(record.commitment.id);
                   }}
-                  onCompleted={() => {
+                  onCompleted={async () => {
                     setCompletionId("");
-                    void commitments.refetch();
+                    await commitments.refetch();
+                    focusCompletionTrigger(record.commitment.id);
                   }}
                   context={invoiceContext.data}
                   error={

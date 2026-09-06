@@ -282,11 +282,38 @@ async function completeDeliveryInBrowser(browser, cookies) {
     expect(
       (await context.request.put(`${root}/delivery`, { data: config })).ok(),
     ).toBeTruthy();
+    const actionResponse = await context.request.get(root);
+    const action = await actionResponse.json();
+    const completedAction = await context.request.post(`${root}/transitions`, {
+      data: { revision: action.revision, targetStatus: "completed" },
+    });
+    expect(completedAction.ok()).toBeTruthy();
+    expect((await completedAction.json()).status).toBe("completed");
+    const definitionResponse = await context.request.get(
+      `${root}/delivery/order-form`,
+    );
+    expect(definitionResponse.ok()).toBeTruthy();
+    expect(definitionResponse.headers()["cache-control"]).toContain("no-store");
+    expect(
+      (await definitionResponse.json()).windows.some(
+        (item) => item.id === slot,
+      ),
+    ).toBeTruthy();
     const page = await context.newPage();
     await page.goto(`${baseUrl}/admin/orders`);
     const row = page.locator(`[data-commitment-id="${order.id}"]`);
     await row.getByRole("button", { name: "Lieferdaten ergänzen" }).click();
     const form = row.getByTestId("delivery-completion");
+    await expect(
+      form.getByRole("heading", {
+        name: "Liefer- und Rechnungsdaten ergänzen",
+      }),
+    ).toBeFocused();
+    await form.getByRole("button", { name: "Ergänzung schließen" }).click();
+    await expect(
+      row.getByRole("button", { name: "Lieferdaten ergänzen" }),
+    ).toBeFocused();
+    await row.getByRole("button", { name: "Lieferdaten ergänzen" }).click();
     await form
       .getByLabel("Firma / Empfänger", { exact: true })
       .fill("Lieferkontakt UI");
@@ -344,6 +371,20 @@ async function completeDeliveryInBrowser(browser, cookies) {
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBeTruthy();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBeTruthy();
+    await expect(
+      form.getByRole("button", { name: "Ergänzen und prüfbereit speichern" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "";
+    });
     await page.screenshot({
       path: `${artifactDirectory}/invoice-delivery-completion.png`,
       fullPage: true,
@@ -396,6 +437,9 @@ async function completeDeliveryInBrowser(browser, cookies) {
       .click();
     await expect(form).toHaveCount(0);
     await expect(row).toContainText("Prüfbereit");
+    await expect(
+      row.getByRole("button", { name: "Lieferdaten ergänzen" }),
+    ).toBeFocused();
     await row
       .getByText("Liefer- und Rechnungsdaten ansehen", { exact: true })
       .click();

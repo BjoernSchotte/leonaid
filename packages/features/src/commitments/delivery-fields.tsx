@@ -110,8 +110,9 @@ export function DeliveryFields({
           {showSchedule &&
             (!dates.length ? (
               <p role="status">
-                Keine Lieferfenster verfügbar. Du kannst einen Entwurf speichern
-                und die Lieferung später ergänzen.
+                {allowDefer
+                  ? "Keine Lieferfenster verfügbar. Du kannst einen Entwurf speichern und die Lieferung später ergänzen."
+                  : "Keine Lieferfenster verfügbar. Bitte die Lieferplanung prüfen und anschließend aktualisieren."}
               </p>
             ) : (
               <div className="commitment-recipient-grid">

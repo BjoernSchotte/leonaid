@@ -766,6 +766,17 @@ export class LeonAidApiClient {
     );
   }
 
+  async getDeliveryOrderForm(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<DeliveryOrderFormResponse> {
+    return this.request<DeliveryOrderFormResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery/order-form`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async setCharityActionDetails(
     actionId: string,
     body: UpdateActionDetailsRequest,

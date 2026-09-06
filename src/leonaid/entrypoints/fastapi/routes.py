@@ -4450,6 +4450,25 @@ async def get_delivery_configuration(
     return delivery_configuration_response(result)
 
 
+@router.get(
+    "/api/v1/actions/{action_id}/delivery/order-form",
+    operation_id="getDeliveryOrderForm",
+    response_model=DeliveryOrderFormResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["delivery"],
+)
+async def get_delivery_order_form(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> DeliveryOrderFormResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    configuration = await service.get(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_order_form_response(configuration)
+
+
 @router.put(
     "/api/v1/actions/{action_id}/delivery",
     operation_id="saveDeliveryConfiguration",
