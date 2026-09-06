@@ -975,6 +975,11 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       `campaign-content` and `campaign-runtime` passed with real PostgreSQL,
       Core sessions and verified TLS (6 September 2026). Positive Charity HTTP
       access, new-content workflows and the full editor remain pending.
+      The `authorization-surface` regression passed all 1,866 HTTPS requests.
+      All three isolated proof projects removed their own resources and exposed
+      no host ports. `./leonaid check` passed at `e22e918`: 208 unit tests,
+      242 Python source-file type checks, all frontend/CMS checks, formatting,
+      API/privacy/policy and inventory guards; worktree unchanged.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and
