@@ -1,0 +1,76 @@
+{
+  "title": "Wie war Ihr Krapfentaxi?",
+  "showProgressBar": "top",
+  "pages": [
+    {
+      "name": "delivery",
+      "elements": [
+        {
+          "type": "rating",
+          "name": "delivery_rating",
+          "title": "Wie zufrieden sind Sie mit der Lieferung?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "isRequired": true
+        },
+        {
+          "type": "comment",
+          "name": "delivery_feedback",
+          "title": "Was können wir verbessern?",
+          "visibleIf": "{delivery_rating} <= 2",
+          "maxLength": 1000
+        }
+      ]
+    },
+    {
+      "name": "experience",
+      "elements": [
+        {
+          "type": "radiogroup",
+          "name": "freshness",
+          "title": "Wie frisch waren die Krapfen?",
+          "choices": [
+            {
+              "value": "fresh",
+              "text": "Frisch"
+            },
+            {
+              "value": "average",
+              "text": "Durchschnittlich"
+            },
+            {
+              "value": "stale",
+              "text": "Nicht frisch"
+            }
+          ],
+          "isRequired": true
+        },
+        {
+          "type": "comment",
+          "name": "notes",
+          "title": "Ihre Hinweise",
+          "maxLength": 2000
+        }
+      ]
+    },
+    {
+      "name": "recommendation",
+      "elements": [
+        {
+          "type": "rating",
+          "name": "nps",
+          "title": "Wie wahrscheinlich empfehlen Sie uns weiter?",
+          "rateMin": 0,
+          "rateMax": 10,
+          "isRequired": true
+        },
+        {
+          "type": "text",
+          "name": "nickname",
+          "title": "Optionaler Name",
+          "maxLength": 80
+        }
+      ]
+    }
+  ]
+}

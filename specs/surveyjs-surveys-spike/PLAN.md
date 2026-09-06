@@ -468,7 +468,7 @@ Implementation tasks:
 Acceptance criteria:
 
 - [ ] **000.A1 — Contract:** every write defines authorization, invalid-input behavior, concurrency behavior and persistence outcome; fixtures cover all C-01–C-15 capabilities.
-- [ ] **000.A2 — Integration:** a clean test stack migrates/seeds successfully; a test client reaches the real API and verifies a database roundtrip, with isolated teardown.
+- [x] **000.A2 — Integration:** a clean test stack migrates/seeds successfully; a test client reaches the real API and verifies a database roundtrip, with isolated teardown. [Evidence](proofs/SURV-000.md).
 - [ ] **000.A3 — E2E infrastructure:** Playwright reaches both UI hosts, authenticates a synthetic member and opens a public route; failures retain useful sanitized diagnostics and fail the command.
 - [x] **000.A4 — Dependencies:** automated inventory rejects a prohibited or unknown dependency in a negative fixture; no commercial SurveyJS packages are selected and own license remains UNDEFINED. [Evidence](proofs/SURV-000.md).
 

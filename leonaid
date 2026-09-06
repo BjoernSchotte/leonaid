@@ -115,6 +115,8 @@ Commands:
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
+  test-surveys-infrastructure
+                    Prove survey migration and UI foundations in a fresh isolated stack
   test-surveys-dependencies
                     Verify the pinned survey dependency and asset license boundary
   test-unit         Run unit tests with Golden Data domain objects
@@ -1991,6 +1993,7 @@ case "$command" in
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
+  test-surveys-infrastructure) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" ;;
   test-surveys-dependencies) run_bun bun tools/surveys/dependencies.mjs ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
   test-user-admin) /bin/sh "$root/tools/user_admin/test.sh" "$root" ;;
