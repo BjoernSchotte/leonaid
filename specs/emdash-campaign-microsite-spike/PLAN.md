@@ -784,6 +784,22 @@ Dependencies: EMS-020, EMS-070
 
 This is the decisive feasibility task.
 
+Campaign-list primitive checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case campaign-content` passed against the pinned
+PostgreSQL image and actual EmDash migrations, seed API and content-list handler.
+Four real draft records across two synthetic campaigns prove scoped items,
+totals, cursor pagination, foreign-title search and hostile action-filter
+override. System Admin sees all four; empty and Driver-only memberships deny.
+EmDash requires an indexed `string` field for `action_id`; `text` is not
+indexable. The proof publishes no ports and removes only its unique project's
+resources. Actor profiles here are pure policy inputs, not proof of Core HTTP
+authentication. The primitive is not yet wired into the request-local CMS
+handlers; full HTTP isolation, immutable bindings and revisions remain pending.
+
+- [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
+      records: both campaigns, total counts, cursor pagination, search and
+      overriding hostile caller-supplied action filters. HTTP integration and
+      the complete operation policy remain open.
 - [x] Capture the pinned core/built-in/MCP HTTP route inventory, including actual
       exported methods and source hashes, and prove the current closed policy
       for every CMS-routed row with System Admin, Charity Admin and anonymous

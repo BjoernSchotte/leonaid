@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface) ;;
+  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
 
@@ -61,6 +61,7 @@ if [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" bootstrap
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" browser
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" surface
+  /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root"
   echo "emdash-spike: INCOMPLETE: database, auth, isolation, rendering and recovery gates are pending" >&2
   exit 2
 fi
@@ -93,4 +94,7 @@ if [ "$test_case" = admin-browser ]; then
 fi
 if [ "$test_case" = authorization-surface ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" surface
+fi
+if [ "$test_case" = campaign-content ]; then
+  /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root"
 fi
