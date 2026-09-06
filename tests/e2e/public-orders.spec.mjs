@@ -651,7 +651,7 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
     await expect(annaPage.locator("#delivery-instructions")).toBeVisible();
     await expect(publicPage.locator("#deliveryContactName")).toBeVisible();
     await expect(publicPage.locator("#deliveryInstructions")).toBeVisible();
-    const selectedWindow = configuration.windows.find(
+    let selectedWindow = configuration.windows.find(
       (window) => window.deliveryOn === "2026-10-03",
     );
     for (const [field, value] of Object.entries({
@@ -673,17 +673,6 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
     await annaPage
       .locator("#commitment-email")
       .fill("integration-rechnung@leonaid.invalid");
-    const acceptedAnna = annaPage.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith(`/actions/${actionId}/commitments`),
-    );
-    await annaPage.getByTestId("commitment-save-ready").click();
-    const annaResponse = await acceptedAnna;
-    expect(annaResponse.status(), await annaResponse.text()).toBe(201);
-    const annaOrder = await annaResponse.json();
-    expect(annaOrder.deliveryWindowId).toBe(selectedWindow.id);
-    expect(annaOrder.invoiceRecipient.streetLine1).toBe("Lieferweg 31");
     const publicForm = publicPage.locator("[data-order-form]");
     await fillOrder(publicForm, {
       email: "integration-bestellung@leonaid.invalid",
@@ -718,6 +707,95 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
     })) {
       await publicForm.locator(`#${field}`).fill(value);
     }
+    const retiredWindowId = selectedWindow.id;
+    const beforeOrders = await (
+      await admin.request.get(
+        `${baseUrl}/api/v1/actions/${actionId}/commitments`,
+      )
+    ).json();
+    await thirdDay.getByLabel("Zur Auswahl", { exact: true }).uncheck();
+    const retiredResponse = adminPage.waitForResponse(
+      (response) =>
+        response.url() === scheduleUrl && response.request().method() === "PUT",
+    );
+    await editor
+      .getByRole("button", { name: "Lieferplanung speichern" })
+      .click();
+    expect((await retiredResponse).status()).toBe(200);
+    const rejectedAnna = annaPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/actions/${actionId}/commitments`),
+    );
+    await annaPage.getByTestId("commitment-save-ready").click();
+    expect((await (await rejectedAnna).json()).error.code).toBe(
+      "delivery_window_unavailable",
+    );
+    await expect(
+      annaPage.getByText(/Dieses Lieferfenster ist nicht mehr verfügbar/),
+    ).toBeVisible();
+    await publicForm.locator('button[type="submit"]').click();
+    await expect(publicForm.locator("[data-form-message]")).toContainText(
+      /Liefer/,
+    );
+    await expect(annaPage.locator("#delivery-streetLine1")).toHaveValue(
+      "Lieferweg 31",
+    );
+    await expect(annaPage.locator("#delivery-instructions")).toHaveValue(
+      "Abteilung Integration\nEingang links",
+    );
+    await expect(publicForm.locator("#deliveryStreetLine1")).toHaveValue(
+      "Lieferweg 31",
+    );
+    await expect(publicForm.locator("#deliveryInstructions")).toHaveValue(
+      "Abteilung Integration\nEingang links",
+    );
+    await expect(publicForm.locator("#invoiceStreetLine1")).toHaveValue(
+      "Rechnungsweg 32",
+    );
+    await expect(
+      publicForm.locator('input[name="privacyAcknowledged"]'),
+    ).toBeChecked();
+    const afterRejections = await (
+      await admin.request.get(
+        `${baseUrl}/api/v1/actions/${actionId}/commitments`,
+      )
+    ).json();
+    expect(afterRejections.items).toHaveLength(beforeOrders.items.length);
+    await annaPage
+      .getByRole("button", { name: "Lieferfenster neu laden" })
+      .click();
+    await publicPage
+      .getByRole("button", { name: "Lieferfenster aktualisieren" })
+      .click();
+    await expect(
+      publicForm.locator(
+        `#deliveryWindowId option[value="${retiredWindowId}"]`,
+      ),
+    ).toHaveCount(0);
+    await expect(publicForm.locator("#deliveryWindowId")).toHaveValue("");
+    selectedWindow = configuration.windows.find(
+      (window) => window.deliveryOn === "2026-10-02",
+    );
+    await annaPage
+      .locator("#delivery-date")
+      .selectOption(selectedWindow.deliveryOn);
+    await expect(annaPage.locator("#delivery-window")).toHaveValue("");
+    await annaPage.locator("#delivery-window").selectOption(selectedWindow.id);
+    await publicForm
+      .locator("#deliveryWindowId")
+      .selectOption(selectedWindow.id);
+    const acceptedAnna = annaPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/actions/${actionId}/commitments`),
+    );
+    await annaPage.getByTestId("commitment-save-ready").click();
+    const annaResponse = await acceptedAnna;
+    expect(annaResponse.status(), await annaResponse.text()).toBe(201);
+    const annaOrder = await annaResponse.json();
+    expect(annaOrder.deliveryWindowId).toBe(selectedWindow.id);
+    expect(annaOrder.invoiceRecipient.streetLine1).toBe("Lieferweg 31");
     const publicOrder = await submitOrder(publicForm);
     const adminOrdersResponse = await admin.request.get(
       `${baseUrl}/api/v1/actions/${actionId}/commitments`,
@@ -754,6 +832,8 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
           annaOrderId: annaOrder.id,
           publicReference: publicOrder.reference,
           selectedWindow,
+          retiredWindowId,
+          rejectedOrderCountUnchanged: true,
           channels: ["admin", "acquisition", "public"],
         },
         null,

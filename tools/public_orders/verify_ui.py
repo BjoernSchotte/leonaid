@@ -79,7 +79,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             or delivery["instructions"] != "Abteilung Integration\nEingang links"
             or delivery["streetLine1"] != "Lieferweg 31"
             or str(row["delivery_window_id"]) != shared["selectedWindow"]["id"]
-            or window["deliveryOn"] != "2026-10-03"
+            or window["deliveryOn"] != shared["selectedWindow"]["deliveryOn"]
             or billing["streetLine1"]
             != ("Lieferweg 31" if row["source"] == "acquisition" else "Rechnungsweg 32")
         ):

@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Retirement after both order forms selected the same window — 2026-09-06
+
+The shared 3/3/1 journey now fills both forms and selects the third-day window before retiring it through the Admin editor. Anna receives `delivery_window_unavailable`; the public form presents delivery feedback. Both preserve their delivery address and multiline notes, and public separate billing and privacy acknowledgement remain intact. Admin order-list counts before and after the two rejected submissions are equal.
+
+Both users explicitly refresh availability, the retired public option disappears, and no replacement is selected automatically. They explicitly choose a second-day window and complete their original orders. Admin readback and PostgreSQL verify both saved selections and delivery/billing snapshots against that replacement. No service rebuild or CMS publication takes place between configuration, rejection and recovery.
+
+`./leonaid test-public-orders` exited 0 on isolated project `leonaid-362a-delivery-public-20260906p`, ports 18265/18665 and worktree network override. Existing order journeys pass, policy checks passed in 11.2 seconds and the integrated configuration/rejection/recovery/order journey passed in 6.1 seconds. Final PostgreSQL verification passes and own stack was cleaned up. Administrator UI detail inspection, exact mobile In-App acceptance and EmDash renderer acceptance remain open.
+
 ## Both orders persisted after shared Admin configuration — 2026-09-06
 
 Continued the same-action 3/3/1 browser journey with an actual review-ready acquisition order and an anonymous public order selecting the third day's configured window. Both use identical delivery address, optional contact/phone and multiline instructions. Anna keeps address reuse enabled; the public buyer supplies a separate billing address. Admin list API readback proves exactly two matching integration orders, identical server-derived delivery-window snapshots and the intended different billing streets. The final PostgreSQL verifier independently locates the acquisition order by returned ID and the public order by success reference and checks both snapshots.
