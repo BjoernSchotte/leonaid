@@ -4,8 +4,8 @@ import {
   CoreIdentityError,
   readCoreIdentity,
   requireCoreCampaign,
-} from "../../../../auth/core-identity";
-import { requireCampaignBindings } from "../../../../auth/campaign-bindings.mjs";
+} from "./core-identity";
+import { requireCampaignBindings } from "./campaign-bindings.mjs";
 
 // Stable Core-facing entry point. Public campaign slugs never select CMS rows.
 // This GET performs no content mutation; creation still requires native Save.

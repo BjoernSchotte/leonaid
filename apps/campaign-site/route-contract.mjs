@@ -24,6 +24,16 @@ export default function routeContract() {
   return {
     name: "leonaid-campaign-route-contract",
     hooks: {
+      "astro:config:setup": ({ injectRoute }) => {
+        // Astro does not discover underscored filesystem route directories.
+        // Register this reserved-prefix endpoint explicitly, like EmDash does.
+        injectRoute({
+          pattern: "/_emdash/admin/campaigns/[actionId]",
+          entrypoint: new URL("./src/auth/campaign-handoff.ts", import.meta.url)
+            .pathname,
+          prerender: false,
+        });
+      },
       "astro:config:done": ({ config }) => {
         output = new URL("route-inventory.json", config.outDir);
         assert.equal(config.build.assets, "_campaign-assets");
@@ -42,6 +52,12 @@ export default function routeContract() {
         });
         assert.ok(
           inventory.some(({ pattern }) => pattern === "/_emdash/image"),
+        );
+        assert.ok(
+          inventory.some(
+            ({ pattern }) => pattern === "/_emdash/admin/campaigns/[actionId]",
+          ),
+          "Core campaign handoff route missing from the production route inventory",
         );
       },
       "astro:build:done": async () => {
