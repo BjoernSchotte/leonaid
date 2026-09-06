@@ -16,7 +16,11 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 # Docker assigns immutable IDs. Cleanup uses only resources created by this run.
 # No shared Compose project, host port, persistent volume or existing container.
-network=$(docker network create --internal --label leonaid.proof=delivery-foundation \
+set --
+if [ -n "${LEONAID_DELIVERY_FOUNDATION_SUBNET:-}" ]; then
+  set -- --subnet "$LEONAID_DELIVERY_FOUNDATION_SUBNET"
+fi
+network=$(docker network create "$@" --internal --label leonaid.proof=delivery-foundation \
   "leonaid-delivery-$(basename "$scratch" | tr '[:upper:]' '[:lower:]')")
 database=$(docker run -d --network "$network" --network-alias delivery-db \
   --label leonaid.proof=delivery-foundation \

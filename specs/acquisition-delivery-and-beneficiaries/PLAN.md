@@ -146,17 +146,17 @@ Proposed names below are implementation targets, not existing API guarantees.
 
 Dependencies: none.
 
-- [ ] Implement delivery configuration/window invariants and snapshot extensions.
+- [x] Implement delivery configuration/window invariants and snapshot extensions. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [ ] Extend typed order-form definitions, template defaults, and existing action-instance compatibility; establish one authoritative delivery policy for both entry channels.
-- [ ] Add schema migration, reference constraints, old-snapshot defaults, and fixtures.
-- [ ] Define retirement, timezone immutability once booked, and action-date-edit validation against existing delivery dates.
+- [x] Add schema migration, reference constraints, old-snapshot defaults, and fixtures. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
+- [x] Define retirement, timezone immutability once booked, and action-date-edit validation against existing delivery dates. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [ ] Prove old orders still load without invented delivery data and non-delivery commitments remain unaffected.
 
 ### DEL-02 — Backend administration and order contracts
 
 Dependencies: DEL-01.
 
-- [ ] Add authorized schedule reads/writes and revision conflict handling.
+- [x] Add authorized schedule reads/writes and revision conflict handling. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [ ] Wire effective form definitions through action persistence, admin configuration, capture context, public projections, and server validation for both order channels.
 - [ ] Extend internal/public order creation, readback, review transitions, legacy-order completion, and idempotency.
 - [x] Implement transactional availability checks and protect referenced windows from mutation. Evidence: both acquisition/public booking-retirement races and reference protection in `PROGRESS.md`.
@@ -166,7 +166,7 @@ Dependencies: DEL-01.
 
 Dependencies: DEL-02.
 
-- [ ] Add delivery configuration to `packages/features/src/action-admin/manage-action.tsx` and a focused section/component alongside `manage-sections.tsx`.
+- [x] Add delivery configuration to `packages/features/src/action-admin/manage-action.tsx` and a focused section/component alongside `manage-sections.tsx`. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [ ] Support date/window add, edit, copy, retire, validation, empty state, and unsaved revision-conflict recovery.
 - [ ] Explain referenced-window restrictions and no-available-window state in German UI copy.
 - [ ] Show the effective order-form delivery section in the Charity Admin backend, including required address/window fields and optional contact/instructions; changes must govern both Anna's form and the public form.
