@@ -42,6 +42,8 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
 compose up --no-deps --build --detach public campaign-site
 compose up --no-deps --detach --wait proxy
 compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
+# Public CA certificate only, never the signing key. The CMS runs as Node UID.
+chmod 644 "$proof/root.crt"
 compose cp "$proof/root.crt" campaign-site:/tmp/proxy-root.crt
 compose exec -T --env NODE_EXTRA_CA_CERTS=/tmp/proxy-root.crt campaign-site node /proof/proxy-proof.mjs
 compose stop campaign-site

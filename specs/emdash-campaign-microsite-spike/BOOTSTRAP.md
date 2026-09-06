@@ -42,7 +42,8 @@ state complete.
 Caddy is the public ingress; the CMS has no published port. CMS HTTP paths now
 redirect to HTTPS locally. Caddy overwrites forwarded host/protocol/client-IP
 headers and removes `Forwarded`. The application checks the canonical HTTPS
-host and explicit Origin. This does not claim isolation from compromised peer
+host and explicit Origin. Both Caddy configurations require TLS SNI and HTTP Host
+to match. This does not claim isolation from compromised peer
 containers on the shared Edge network; that trust boundary and the final pilot
 origin configuration still need the complete EMS-070 review.
 

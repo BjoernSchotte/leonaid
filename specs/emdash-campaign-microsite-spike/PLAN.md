@@ -970,6 +970,15 @@ general editor/login navigation, pilot runtime origin configuration, complete
 proxy trust review and fresh-volume recovery remain open. The new durable state
 must be included in EMS-080 before any pilot activation.
 
+Regression/quality checkpoint: `./leonaid check` passed at `6325d98` with
+208 unit tests, 242 Python source-file type checks, all frontend/CMS checks,
+format/API/privacy/policy gates and an unchanged worktree. `auth-runtime` passed
+again. `proxy-routing` now uses verified HTTPS, byte-checks 50 CMS assets and
+proves public login/assets survive CMS shutdown; its copied public CA certificate
+needed readable permissions for the unprivileged Node probe (no CA key is copied).
+`closed-runtime` also passed all 18 default-deny requests without a database or
+network. The pilot Caddy configuration passed offline adaptation/validation.
+
 ### EMS-080 — Extend backup, restore, upgrade, observability, and operator UX
 
 Dependencies: EMS-050, EMS-070
