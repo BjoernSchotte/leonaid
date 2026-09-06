@@ -888,6 +888,28 @@ below describe their historical evidence; this checkpoint supersedes their
 blanket Charity-denial status for the bounded admitted operations only.
 No production or other-checkout activation is authorized.
 
+Quality and regression evidence for `67d64b1`:
+
+- `./leonaid check` passed with 208 unit tests, 242 Python source-file checks,
+  29 CMS files, all frontend/API/type-generation/format/privacy/policy gates and
+  an unchanged committed worktree.
+- `campaign-runtime` passed in `leonaid-emdash-tmp-swxk9crn6w`, including six
+  real PostgreSQL lock-wait/Core-logout races, same-revision concurrency,
+  publication lifecycle checks, deferred-commit rollback, missing binding guards,
+  uniqueness, creation conflicts, revocation and sanitized failure signals.
+- `authorization-surface` passed all 1,866 real HTTPS requests in
+  `leonaid-emdash-tmp-qlegeicrvn` under the new identity/manifest policy.
+- `admin-browser` passed in `leonaid-emdash-tmp-q4ce7e7udw`: System Admin
+  dashboard and native editor, real SMTP login/fresh-login/logout, native creation,
+  duplicate and trashed-binding denial, and revoked navigation/API access in
+  Chromium, Firefox and WebKit. Finance-only negative actors remain denied;
+  positive/foreign Charity checks live in the dedicated prerequisite above.
+
+Every complete live command also passed restart/database-failure bootstrap
+closure and removed only its own containers, networks, volumes and transient
+synthetic sessions. No proof published host ports. These regressions do not
+close the explicitly pending full-spike gates.
+
 Campaign-list primitive checkpoint (6 September 2026):
 `./leonaid test-emdash-spike --case campaign-content` passed against the pinned
 PostgreSQL image and actual EmDash migrations, seed API and content-list handler.

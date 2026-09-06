@@ -395,14 +395,16 @@ must both be checked and the binding must remain immutable.
   initiating HTTP route is protected. Core publication/lifecycle checks are still
   required before enabling scheduling and public delivery.
 - The per-request `locals.emdash` object is freshly constructed in upstream
-  `src/astro/middleware.ts`; its methods are bound to the shared runtime. A future
-  enforcement layer must never mutate that shared runtime across requests.
+  `src/astro/middleware.ts`; its methods are bound to the shared runtime. The
+  implemented wrappers modify only this request-local object, never the shared
+  runtime across requests.
 - `handleContentList` supports server-injected indexed `fieldFilters`, including
   membership (`in`) filters. This can constrain list/count queries, but does not
   automatically protect item lookups, revisions, references, media or publication.
-- A standard Astro middleware after EmDash authentication is a candidate for
-  request-scoped enforcement. Its ordering and complete operation coverage need
-  real tests before any Charity access is enabled. No broad fork is approved.
+- Astro middleware after EmDash authentication now enforces the bounded
+  editorial operations. Each additional operation still needs its own real
+  positive/negative campaign-data proof before admission. No broad fork is
+  approved by the existing prerequisite evidence.
 
 ## Remaining proof obligations
 
