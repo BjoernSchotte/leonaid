@@ -855,6 +855,9 @@ schema provisioning must install them after `campaign_pages` exists; so far that
 sequence is wired into the isolated fixture operator. Runtime never installs or
 repairs them. HTTP writes, creator authorization, the full editorial schema and
 restore/upgrade integration remain pending.
+Quality checkpoint: `./leonaid check` passed at `e90adda` with 208 unit tests,
+242 Python source-file type checks, all frontend/CMS checks, formatting,
+API/privacy/policy and route-inventory guards; worktree unchanged.
 
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
@@ -1147,6 +1150,8 @@ Dependencies: EMS-050, EMS-070
       into a freshly provisioned EmDash database owned by its dedicated role;
       never restore EmDash tables into the Core database. Verify role grants and
       cross-database denial again after recovery.
+      Restore and verify the exact enabled campaign binding functions/triggers;
+      missing or altered guards must leave campaign HTTP access closed.
 - [ ] Version the backup manifest inventory: `tools/backup/manifest.py` currently
       requires schema version 1 and an exact four-file set. Define an explicit
       legacy restore path for pre-CMS backups without silently treating a missing
