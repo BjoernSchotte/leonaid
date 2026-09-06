@@ -665,6 +665,9 @@ Suspension denies the next request. Both successful profile responses and
 401 header gap found by this proof was fixed in the common error response.
 All temporary resources were removed. This closes only the minimal Core profile
 extension, not the CMS adapter, stable account mapping or shared-login gate.
+`./leonaid check` passed at commit `9274123`: 208 unit tests, 241 Python
+type-checked source files, generated API parity, frontend/CMS type and format
+checks, privacy/policy checks and an unchanged worktree.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
