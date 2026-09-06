@@ -38,7 +38,7 @@ def test_timeout_boundary_and_completed_response_are_independent():
         effective_response_status(
             "partial", now=start + timedelta(seconds=31), **kwargs
         )
-        == "in_progress"
+        == "partial"
     )
 
 
@@ -77,4 +77,30 @@ def test_explicit_grant_does_not_escape_action_membership():
     assert not may_access_survey(principal, action_id=UUID(int=3), **kwargs)
     assert not may_access_survey(
         principal, action_id=None, **{**kwargs, "capability": Capability.READ_RESPONSES}
+    )
+
+
+def test_accepted_answer_change_is_the_resumption_boundary():
+    now = datetime(2026, 9, 6, tzinfo=timezone.utc)
+    assert (
+        effective_response_status(
+            "in_progress",
+            created_at=now,
+            last_answer_changed_at=now,
+            timeout_seconds=30,
+            now=now,
+        )
+        == "in_progress"
+    )
+    # A persisted partial marker (including survey closure) is sticky until a write
+    # changes the stored status. Merely reading never resumes the participation.
+    assert (
+        effective_response_status(
+            "partial",
+            created_at=now,
+            last_answer_changed_at=now,
+            timeout_seconds=30,
+            now=now,
+        )
+        == "partial"
     )

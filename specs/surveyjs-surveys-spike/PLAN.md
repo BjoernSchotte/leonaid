@@ -534,12 +534,14 @@ Acceptance criteria:
 
 ### SURV-030 — Lifecycle, migrations and immutable versions
 
+Current backend evidence: [SURV-030](proofs/SURV-030.md). Lifecycle UI acceptance remains open.
+
 Dependencies: SURV-010.
 
 Implementation tasks:
 
 - [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys. Acceptance: **030.A1, 030.A4**.
-- [ ] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers. Acceptance: **030.A2, 030.A3**.
+- [x] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers. Acceptance: **030.A2, 030.A3**.
 - [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions. Acceptance: **030.A1, 030.A2, 030.A4**.
 
 Test implementation and verification tasks:
@@ -550,8 +552,8 @@ Test implementation and verification tasks:
 Acceptance criteria:
 
 - [ ] **030.A1 — Integration:** migrations work on an empty database and an existing baseline fixture; lifecycle transition tests cover every allowed and forbidden edge in section 5.
-- [ ] **030.A2 — Integration:** simultaneous draft saves/publications cannot lose edits or create inconsistent published versions; close/submit races obey the documented transaction cutoff.
-- [ ] **030.A3 — Integration:** publishing v2 leaves existing v1 participations bound to v1; new participations use v2, and duplication includes no responses or access credentials.
+- [x] **030.A2 — Integration:** simultaneous draft saves/publications cannot lose edits or create inconsistent published versions; close/submit races obey the documented transaction cutoff.
+- [x] **030.A3 — Integration:** publishing v2 leaves existing v1 participations bound to v1; new participations use v2, and duplication includes no responses or access credentials.
 - [ ] **030.A4 — E2E:** after SURV-060 UI integration, create, publish, end, archive, trash and restore a survey; UI state matches the API and restoration never silently reopens participation.
 
 ### SURV-040 — Visual questionnaire editor

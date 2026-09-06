@@ -40,9 +40,13 @@ compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
-if [ "$mode" = responses ] || [ "$mode" = runner ]; then
+if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/responses.py
+fi
+if [ "$mode" = lifecycle ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = runner ]; then

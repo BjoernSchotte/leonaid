@@ -76,6 +76,7 @@ export type DashboardReminderResponse = { readonly overdue: number; readonly tod
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
+export type Duplicate = { readonly expectedRevision: number; readonly operationId: string; readonly targetSurveyId: string; readonly title: string; };
 export type EmailChangeConfirmationResponse = { readonly revokedSessionCount: number; readonly status: "confirmed"; };
 export type EmailChangeDispatchResponse = { readonly changeId: string; readonly status: "pending"; };
 export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
@@ -189,7 +190,9 @@ export type SurveyDiagnostic = { readonly code: string; readonly message: string
 export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
 export type SurveyParticipationResponse = { readonly id: string; readonly inactivityTimeoutSeconds: number; readonly response: SurveyResponseSnapshot; readonly version: SurveyVersionResponse; };
 export type SurveyResponseSnapshot = { readonly answers: Record<string, unknown>; readonly completedAt: string | null; readonly currentPage: string | null; readonly diagnostics: Array<SurveyDiagnostic>; readonly lastAnswerChangedAt: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; readonly versionId: string; };
+export type SurveySummaryResponse = { readonly deletedAt: string | null; readonly endsAt: string | null; readonly id: string; readonly inactivityTimeoutSeconds: number | null; readonly publishedVersionId: string | null; readonly revision: number; readonly status: "draft" | "active" | "ended" | "archived" | "deleted"; readonly title: string; };
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
+export type Transition = { readonly action: "end" | "archive" | "unarchive" | "trash" | "restore"; readonly expectedRevision: number; readonly operationId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
@@ -1640,6 +1643,17 @@ export class LeonAidApiClient {
     );
   }
 
+  async getSurvey(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveySummaryResponse> {
+    return this.request<SurveySummaryResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async createSurvey(
     surveyId: string,
     body: Create,
@@ -1683,6 +1697,22 @@ export class LeonAidApiClient {
     );
   }
 
+  async duplicateSurvey(
+    surveyId: string,
+    body: Duplicate,
+    options: RequestOptions = {},
+  ): Promise<SurveySummaryResponse> {
+    return this.request<SurveySummaryResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/duplicate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async publishSurvey(
     surveyId: string,
     body: Mutation,
@@ -1690,6 +1720,22 @@ export class LeonAidApiClient {
   ): Promise<SurveyVersionResponse> {
     return this.request<SurveyVersionResponse>(
       `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async transitionSurvey(
+    surveyId: string,
+    body: Transition,
+    options: RequestOptions = {},
+  ): Promise<SurveySummaryResponse> {
+    return this.request<SurveySummaryResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/transition`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

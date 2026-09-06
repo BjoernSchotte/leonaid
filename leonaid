@@ -115,6 +115,7 @@ Commands:
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
+  test-surveys-lifecycle
   test-surveys-core
   test-surveys-runner
                     Prove browser autosave, partial resume and reconnect with real services
@@ -1998,6 +1999,7 @@ case "$command" in
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
+  test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
   test-surveys-core)
     mkdir -p "$root/.artifacts/surveys"
     run_bun bun tools/surveys/parity.mjs .artifacts/surveys/parity.json

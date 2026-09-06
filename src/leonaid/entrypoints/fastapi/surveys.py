@@ -30,6 +30,28 @@ class Mutation(SurveyInput):
     expectedRevision: int = Field(ge=1)
 
 
+class Transition(Mutation):
+    action: Literal["end", "archive", "unarchive", "trash", "restore"]
+
+
+class Duplicate(Mutation):
+    targetSurveyId: str = Field(
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    )
+    title: str = Field(min_length=1, max_length=240, pattern=r"\S")
+
+
+class SurveySummaryResponse(SurveyInput):
+    id: str
+    title: str
+    status: Literal["draft", "active", "ended", "archived", "deleted"]
+    revision: int
+    publishedVersionId: str | None
+    inactivityTimeoutSeconds: int | None
+    endsAt: str | None
+    deletedAt: str | None
+
+
 class DefinitionInput(SurveyInput):
     definition: dict[str, Any]
 
@@ -134,6 +156,40 @@ def cookie_name(participation_id: UUID | str) -> str:
 )
 async def create(survey_id: UUID, body: Create, request: Request) -> dict[str, Any]:
     return await author(request, survey_id, "create", body.model_dump())
+
+
+@router.get(
+    "/surveys/{survey_id}",
+    operation_id="getSurvey",
+    response_model=SurveySummaryResponse,
+)
+async def summary(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "summary", {})
+
+
+@router.post(
+    "/surveys/{survey_id}/transition",
+    operation_id="transitionSurvey",
+    response_model=SurveySummaryResponse,
+)
+async def transition(
+    survey_id: UUID, body: Transition, request: Request
+) -> dict[str, Any]:
+    return await author(request, survey_id, "transition", body.model_dump())
+
+
+@router.post(
+    "/surveys/{survey_id}/duplicate",
+    operation_id="duplicateSurvey",
+    response_model=SurveySummaryResponse,
+)
+async def duplicate(
+    survey_id: UUID, body: Duplicate, request: Request
+) -> dict[str, Any]:
+    return await author(request, survey_id, "duplicate", body.model_dump())
 
 
 @router.get(

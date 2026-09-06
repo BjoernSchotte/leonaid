@@ -15,6 +15,8 @@ from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFo
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.surveys import (
     Capability,
+    SurveyStatus,
+    require_transition,
     effective_response_status,
     may_access_survey,
 )
@@ -53,6 +55,21 @@ def snapshot(row: Any) -> dict[str, Any]:
         else None,
         "completedAt": row["completed_at"].isoformat() if row["completed_at"] else None,
         "diagnostics": [],
+    }
+
+
+def survey_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": str(row["id"]),
+        "title": row["title"],
+        "status": row["status"],
+        "revision": row["revision"],
+        "publishedVersionId": str(row["published_version_id"])
+        if row["published_version_id"]
+        else None,
+        "inactivityTimeoutSeconds": row["inactivity_timeout_seconds"],
+        "endsAt": row["ends_at"].isoformat() if row["ends_at"] else None,
+        "deletedAt": row["deleted_at"].isoformat() if row["deleted_at"] else None,
     }
 
 
@@ -148,9 +165,19 @@ class AsyncpgSurveyRepository:
                     actor.account.id,
                 )
             )
-            capability = (
-                Capability.PUBLISH if operation == "publish" else Capability.DESIGN
-            )
+            capability = Capability.DESIGN
+            if (
+                operation == "publish"
+                or operation == "transition"
+                and body["action"] == "end"
+            ):
+                capability = Capability.PUBLISH
+            elif operation == "transition":
+                capability = (
+                    Capability.DELETE
+                    if body["action"] in {"trash", "restore"}
+                    else Capability.ARCHIVE
+                )
             if not may_access_survey(
                 actor,
                 owner_user_id=survey["owner_user_id"],
@@ -159,6 +186,10 @@ class AsyncpgSurveyRepository:
                 grants=grants,
             ):
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
+            if operation == "summary":
+                return survey_payload(survey)
+            if operation in {"transition", "duplicate"}:
+                return await self._lifecycle(conn, actor, survey, operation, body)
             if survey["status"] in {"ended", "archived", "deleted"}:
                 raise Conflict("closed", "Umfrage ist geschlossen.")
             if operation == "draft":
@@ -240,6 +271,109 @@ class AsyncpgSurveyRepository:
                     )
                     result = version_payload(version)
             return await self._record(conn, survey_id, scope, body, result)
+
+    async def _lifecycle(
+        self,
+        conn: Any,
+        actor: IdentityPrincipal,
+        survey: Any,
+        operation: str,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        survey_id = survey["id"]
+        scope = f"author:{actor.account.id}:{operation}"
+        replay = await self._replay(conn, survey_id, scope, body)
+        if replay is not None:
+            return replay
+        if survey["revision"] != body["expectedRevision"]:
+            raise Conflict(
+                "revision_conflict", "Die Umfrage wurde zwischenzeitlich geändert."
+            )
+        if operation == "transition":
+            action = body["action"]
+            if action == "restore":
+                if survey["status"] != "deleted":
+                    raise Conflict(
+                        "survey_transition_invalid",
+                        "Diese Umfrage ist nicht wiederherstellbar.",
+                    )
+                target = (
+                    SurveyStatus.ENDED
+                    if survey["published_version_id"]
+                    else SurveyStatus.DRAFT
+                )
+            else:
+                target = {
+                    "end": SurveyStatus.ENDED,
+                    "unarchive": SurveyStatus.ENDED,
+                    "archive": SurveyStatus.ARCHIVED,
+                    "trash": SurveyStatus.DELETED,
+                }[action]
+                if action == "unarchive" and survey["status"] != "archived":
+                    raise Conflict(
+                        "survey_transition_invalid",
+                        "Nur archivierte Umfragen können aus dem Archiv geholt werden.",
+                    )
+                if action == "end" and survey["status"] != "active":
+                    raise Conflict(
+                        "survey_transition_invalid",
+                        "Nur aktive Umfragen können beendet werden.",
+                    )
+            require_transition(
+                SurveyStatus(survey["status"]),
+                target,
+                has_published_version=survey["published_version_id"] is not None,
+            )
+            row = await conn.fetchrow(
+                """UPDATE survey SET status=$2, revision=revision+1, updated_at=clock_timestamp(),
+                deleted_at=CASE WHEN $2='deleted' THEN clock_timestamp() ELSE NULL END,
+                ends_at=CASE WHEN status='active' THEN clock_timestamp() ELSE ends_at END
+                WHERE id=$1 RETURNING *""",
+                survey_id,
+                str(target),
+            )
+            if survey["status"] == "active":
+                await conn.execute(
+                    "UPDATE survey_participation SET status='partial' WHERE survey_id=$1 AND status='in_progress'",
+                    survey_id,
+                )
+            result = survey_payload(row)
+        else:
+            if survey["status"] == "deleted":
+                raise Conflict("closed", "Gelöschte Umfragen zuerst wiederherstellen.")
+            target_id = UUID(body["targetSurveyId"])
+            if target_id == survey_id:
+                raise Conflict(
+                    "revision_conflict", "Die Kopie benötigt eine eigene ID."
+                )
+            # Copy an immutable publication if present; never copy collected data or grants.
+            definition = (
+                await conn.fetchval(
+                    "SELECT definition FROM survey_version WHERE id=$1",
+                    survey["published_version_id"],
+                )
+                if survey["published_version_id"]
+                else await conn.fetchval(
+                    "SELECT definition FROM survey_draft WHERE survey_id=$1", survey_id
+                )
+            )
+            row = await conn.fetchrow(
+                """INSERT INTO survey(id,title,owner_user_id,inactivity_timeout_seconds)
+                VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING RETURNING *""",
+                target_id,
+                body["title"],
+                actor.account.id,
+                survey["inactivity_timeout_seconds"],
+            )
+            if row is None:
+                raise Conflict("revision_conflict", "Die Ziel-ID ist bereits vergeben.")
+            await conn.execute(
+                "INSERT INTO survey_draft(survey_id,definition) VALUES($1,$2::jsonb)",
+                target_id,
+                definition,
+            )
+            result = survey_payload(row)
+        return await self._record(conn, survey_id, scope, body, result)
 
     async def participate(
         self,

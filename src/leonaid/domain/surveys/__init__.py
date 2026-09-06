@@ -62,7 +62,7 @@ def effective_response_status(
             require_aware(value, "survey timestamp")
     if not 1 <= timeout_seconds <= 604800:
         raise DomainInvariantError("survey_timeout_invalid", "Ungültiger Zeitraum.")
-    if status == "completed":
+    if status in {"completed", "partial"}:
         return status
     if status not in {"in_progress", "partial"}:
         raise DomainInvariantError(
