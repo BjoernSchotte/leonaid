@@ -13,6 +13,14 @@ const integrity =
 assert.equal(manifest.private, true);
 assert.equal(manifest.dependencies.emdash, "0.36.0");
 assert.equal(manifest.dependencies.pg, "8.16.3");
+assert.equal(manifest.dependencies.sharp, "0.35.3");
+const sharpEntry = require.resolve("sharp");
+const sharpManifest = JSON.parse(
+  await readFile(new URL("../package.json", `file://${sharpEntry}`), "utf8"),
+);
+assert.equal(sharpManifest.version, "0.35.3");
+assert.equal(sharpManifest.license, "Apache-2.0");
+assert.match(lock, /"sharp@0\.35\.3"/);
 assert.match(lock, /"emdash@0\.36\.0"/);
 assert.ok(
   lock.includes(integrity),

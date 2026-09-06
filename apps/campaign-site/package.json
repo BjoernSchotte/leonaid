@@ -19,7 +19,8 @@
     "kysely": "0.29.5",
     "pg": "8.16.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@types/pg": "8.16.0",

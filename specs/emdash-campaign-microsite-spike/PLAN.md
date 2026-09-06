@@ -1400,6 +1400,40 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Implement and prove private raster-upload staging against actual RustFS,
+      independently of HTTP admission. The already locked Sharp 0.35.3 is now an
+      explicit CMS dependency; its version/license and frozen install are checked.
+      `campaign-image.mjs` accepts only PNG/JPEG/WebP byte signatures with matching
+      decoded formats, at most 8 MiB, 16 million pixels and 8192 pixels per axis.
+      It rejects animation, truncated images and MIME mismatches, permits one
+      decode per process without an unbounded queue, applies a five-second
+      processing timeout, honors EXIF orientation, and re-encodes without original
+      metadata or appended content. Only normalized bytes are stored; original
+      uploads are not retained. SHA-256 identifies the normalized stored bytes.
+      `campaign-media-upload.mjs` records an actual upstream upload attempt before
+      PUT, writes a fresh private object key and conditionally links it under a
+      media-row lock. It does not mark media ready or publish it. Repeated PUTs
+      replace only the staged object; cleanup must first prove the old key is
+      unreferenced. Failed/ambiguous cleanup remains in the durable attempt ledger.
+      Evidence (7 September 2026):
+      `./leonaid test-emdash-spike --case campaign-media-upload` passed in project
+      `leonaid-emdash-tmp-8ov4zanmbu` with real EmDash repositories/S3 adapter,
+      PostgreSQL and scoped private RustFS credentials. It proved byte/hash
+      readback, stripped metadata and appended script text, actual two-frame
+      WebP rejection, size/pixel/dimension/MIME/truncation denial, foreign-policy
+      no-write checks, repeated-upload cleanup, actual PostgreSQL failure after
+      object upload with compensation, actual IAM denial with a retained cleanup
+      ledger, and retained private bytes/bindings after database/storage restart.
+      Anonymous direct S3 reads returned 403 before and after restart. The probe
+      had no root credentials or full-workspace/env-file mount; every service had
+      no host port, and all owned containers/networks/volumes were removed.
+      An earlier failed run exposed identical test animation frames collapsing
+      to one frame; two distinct frames were independently verified before rerun.
+      This is still a lower-level policy-input/storage proof. Native HTTP/editor
+      upload, bounded request streaming and storage transport timeouts, fresh
+      Core checks after upload lock waits, final confirmation, cleanup scheduling,
+      preview/public delivery and restore remain open. Do not enable media HTTP
+      routes or mark the full media/campaign-isolation gates complete from this.
 - [x] Implement the campaign-media ownership database prerequisite without
       admitting the global upstream media routes. `auth/campaign-media.mjs`
       installs a separately versioned, immutable media-to-Core-action binding;

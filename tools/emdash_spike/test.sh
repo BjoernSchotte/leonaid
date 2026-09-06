@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding) ;;
+  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
 
@@ -71,6 +71,7 @@ if [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" media
+  /bin/sh "$root/tools/emdash_spike/campaign-media-upload-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" content
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" isolation
   echo "emdash-spike: INCOMPLETE: database, auth, isolation, rendering and recovery gates are pending" >&2
@@ -114,6 +115,9 @@ if [ "$test_case" = schema-runtime ]; then
 fi
 if [ "$test_case" = campaign-media-binding ]; then
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" media
+fi
+if [ "$test_case" = campaign-media-upload ]; then
+  /bin/sh "$root/tools/emdash_spike/campaign-media-upload-test.sh" "$root"
 fi
 if [ "$test_case" = campaign-runtime ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" content
