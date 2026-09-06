@@ -169,11 +169,36 @@ test("acknowledged text survives closing mid-page and hidden follow-up is remove
     .press("Space");
   await page.locator("[data-name=notes] textarea").fill("Notiz auf Seite zwei");
   await saved(page);
-  await page.reload();
+  const restoreWrites = [];
+  const trackRestore = (request) => {
+    if (["POST", "PUT", "PATCH"].includes(request.method()))
+      restoreWrites.push(request.method());
+  };
+  page.on("request", trackRestore);
+  const shell = await page.reload();
+  expect(shell.headers()["cache-control"]).toBe("no-store");
+  const html = await shell.text();
+  expect(html).toContain("Fragebogen wird geladen");
+  expect(html).not.toContain("Notiz auf Seite zwei");
   await expect(page.locator("[data-name=notes] textarea")).toHaveValue(
     "Notiz auf Seite zwei",
   );
   expect((await read()).response.currentPage).toBe("experience");
+  const cache = await page.evaluate(
+    async ({ surveyId, participationId }) => {
+      const response = await fetch(
+        `/api/v1/public/surveys/${surveyId}/participations/${participationId}`,
+      );
+      return {
+        status: response.status,
+        control: response.headers.get("cache-control"),
+      };
+    },
+    { surveyId, participationId },
+  );
+  expect(cache).toEqual({ status: 200, control: "no-store" });
+  expect(restoreWrites).toEqual([]);
+  page.off("request", trackRestore);
   await page.getByRole("button", { name: "Zurück", exact: true }).click();
   await expect(page.locator("[data-name=delivery_feedback]")).toHaveCount(0);
   await page.getByRole("button", { name: "Weiter", exact: true }).click();

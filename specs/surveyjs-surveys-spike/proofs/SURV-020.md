@@ -10,10 +10,10 @@ and the complete work package remain open.
 |---|---|---|---|
 | 020.1 | A1, A2, A3 | Separate existing entrypoints; new runner locale/messages | Partial: editor-wide translation and analytics entrypoint remain open |
 | 020.2 | A1, A3 | Actual tarball installed in clean `/consumer`; real SQLite adapter; two browser phases | Delivered and accepted |
-| 020.3 | A3, A4 | Host token overrides, English runner, browser mounting/restoration | Partial: complete host theme/SSR disposition remains open |
+| 020.3 | A3, A4 | Host token overrides, English runner, browser mounting/restoration; T-07 disposition below | Delivered and accepted |
 | 020.4 | A2 | Packed file allowlist, MIT inventory, retained software/OFL notices, bundle source-map inspection | Delivered and accepted for current shipped entrypoints |
 | 020.T1 | A1, A2 | `apps/surveys-demo/inspect.mjs` and actual persisted external consumer | Passed |
-| 020.T2 | A3, A4 | `tests/e2e/surveys-package.spec.mjs` | Independent host scenarios pass; full host/SSR acceptance remains open |
+| 020.T2 | A3, A4 | `tests/e2e/surveys-package.spec.mjs` and Astro reload assertions below | Passed for the selected browser-mounted path |
 
 ## Reproducible isolated command
 
@@ -109,3 +109,66 @@ matrix correction and completion. The command verified isolated teardown with
 no host ports. Existing defaults remain compatible while the independent host
 uses explicit English locale/messages. This is not full editor translation or
 SSR acceptance.
+
+## Browser rendering and restoration disposition
+
+Revision: `e9ec59f` plus this commit's browser assertions, rendering probe and
+decision record. No product runtime code changed in this increment.
+
+`./leonaid test-surveys-package` ran as `surveys-package-833458328-80870` and
+exited **0**. Its two Chromium phases passed in 3.0s and 1.3s at the desktop/mobile
+viewports recorded above, with an actual backend restart between phases. The
+restoration test additionally inspected the original HTML response: the empty
+mount point was present and both synthetic saved answer strings were absent.
+An authenticated response fetch returned HTTP 200 and `Cache-Control: no-store`.
+The restored snapshot and server write counter matched the pre-restart values;
+the browser recorded no POST/PUT/PATCH while restoring. Completion and subsequent
+reload retained the same identity and answers. Existing host-theme and English
+validation/message assertions passed in the first phase.
+
+`./leonaid test-surveys-runner` ran as `leonaid-surveys-833458328-80893` and exited **0**.
+All seven Chromium scenarios passed in 24.9s. The named
+`acknowledged text survives closing mid-page and hidden follow-up is removed`
+scenario now inspects the real Astro reload response: HTTP HTML has `no-store`,
+contains the loading shell and omits the persisted second-page note. The browser
+then displays that exact note from the authorized API, whose response also has
+`no-store`. Reload records no POST/PUT/PATCH. The same scenario also verifies
+fresh-context restoration, a 650ms observation without autosave, timeout
+resumption and hidden-answer cleanup against persisted state. The harness again
+passed its real migrations, response contracts, all 192 API/PostgreSQL cases and
+stopped/paused-validator rejection and recovery checks.
+
+The independent run published no host ports, used its own explicit subnet and
+removed its container, volume and network. The LeonAid harness used seven
+currently unused explicit subnets and no host ports; it verified complete
+container, volume and network teardown before exiting successfully.
+
+The standalone investigation command was:
+
+```sh
+rtk proxy docker run --rm \
+  -v "$PWD:/workspace" -w /workspace \
+  docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 \
+  sh -c 'bun tools/surveys/rendering-probe.ts .artifacts/surveys-package/rendering-probe.json > .artifacts/surveys-package/rendering-probe.log 2>&1'
+```
+
+It exited **0** and reported `rendered: true`, `bytes: 3091`,
+`questionPresent: true`, `privateAnswerPresent: false`, `adapterCalls: 0`.
+The probe uses only synthetic data and the installed pinned React 19.2.8 /
+SurveyJS 3.0.3. A successful `renderToString` invocation does not establish
+SSR answer fidelity or framework hydration. T-07 therefore selects the tested
+browser-mounted path in both hosts; SSR remains outside the chosen spike path.
+No new visual review or broader authoring accessibility claim is made here.
+
+Scenario reconciliation:
+
+| Scenario | Named evidence | Result |
+|---|---|---|
+| 020.S1 | Packed install/inspection plus both `surveys-package.spec.mjs` tests and real SQLite writes/restart | Passed |
+| 020.S2 | `apps/surveys-demo/inspect.mjs`, packed inventory and retained notice checks documented above | Passed |
+| 020.S3 | `packed consumer saves a multipage response in its own host` and completion in the second phase | Passed |
+| 020.S4 | `packed consumer restores after backend restart without an extra save`, Astro reload assertions, and T-07 probe/disposition | Passed, including verified harness teardown |
+
+This closes 020.3, 020.T2 and 020.A4 with verified cleanup. The package gate's
+four acceptance criteria now pass. The editor-wide translation and analytics entrypoint work in
+020.1 remains open; the overall work package and spike are not complete.

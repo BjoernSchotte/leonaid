@@ -33,10 +33,12 @@ decompose the plan; they do not replace any of its acceptance requirements.
 
 ## SURV-020 — Independent package
 
-- [ ] **020.S1 · Integration · 020.T1 → 020.A1:** Install the packed artifact outside workspace resolution and save/load through the independent host's real adapter; no LeonAid internal import is required.
-- [ ] **020.S2 · Bundle check · 020.T1 → 020.A2:** Inspect packed files and respondent bundle; editor code and commercial components are absent, and required software/font notices are present.
-- [ ] **020.S3 · E2E · 020.T2 → 020.A3:** Submit a multipage questionnaire with host translations and styling; translated validation/save messages appear and adjacent host controls retain their styles.
-- [ ] **020.S4 · E2E · 020.T2 → 020.A4:** Reload and restore in the chosen rendering mode; no unintended write or duplicate participation occurs, private state is not publicly cached, and the observed SSR/browser-only boundary is documented.
+Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-restoration-disposition).
+
+- [x] **020.S1 · Integration · 020.T1 → 020.A1:** Install the packed artifact outside workspace resolution and save/load through the independent host's real adapter; no LeonAid internal import is required.
+- [x] **020.S2 · Bundle check · 020.T1 → 020.A2:** Inspect packed files and respondent bundle; editor code and commercial components are absent, and required software/font notices are present.
+- [x] **020.S3 · E2E · 020.T2 → 020.A3:** Submit a multipage questionnaire with host translations and styling; translated validation/save messages appear and adjacent host controls retain their styles.
+- [x] **020.S4 · E2E · 020.T2 → 020.A4:** Reload and restore in the chosen rendering mode; no unintended write or duplicate participation occurs, private state is not publicly cached, and the observed SSR/browser-only boundary is documented.
 
 ## SURV-030 — Lifecycle and versions
 

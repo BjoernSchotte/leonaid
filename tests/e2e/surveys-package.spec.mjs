@@ -70,7 +70,11 @@ test("packed consumer restores after backend restart without an extra save", asy
     if (["POST", "PUT", "PATCH"].includes(request.method()))
       writes.push(request.method());
   });
-  await page.goto(baseURL);
+  const shell = await page.goto(baseURL);
+  const html = await shell.text();
+  expect(html).toContain('<div id="app"></div>');
+  expect(html).not.toContain("Independent respondent");
+  expect(html).not.toContain("More community events");
   await expect(page.locator("[data-name=feedback] textarea")).toHaveValue(
     "More community events",
   );
@@ -79,6 +83,15 @@ test("packed consumer restores after backend restart without an extra save", asy
     diagnostics: await (await fetch("/api/diagnostics")).json(),
   }));
   expect(restored).toEqual(before);
+  expect(writes).toEqual([]);
+  const cache = await page.evaluate(async () => {
+    const response = await fetch("/api/participation");
+    return {
+      status: response.status,
+      control: response.headers.get("cache-control"),
+    };
+  });
+  expect(cache).toEqual({ status: 200, control: "no-store" });
   expect(writes).toEqual([]);
   await page.getByRole("button", { name: "Complete", exact: true }).click();
   await expect(

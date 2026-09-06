@@ -520,7 +520,7 @@ proof together. The acceptance IDs and required outcomes remain authoritative.
 - [x] **Validation gate:** accept 010.A1 before treating the initial capability
   profile as authoritative. A working editor or passing happy-path browser test
   does not resolve unproven client/server semantics.
-- [ ] **Package gate:** accept 020.A1–020.A4 using the packed independent
+- [x] **Package gate:** accept 020.A1–020.A4 using the packed independent
   consumer before claiming that the package is reusable outside LeonAid.
 - [ ] **Module gate:** complete the deferred 030.A4 lifecycle journey after
   SURV-060 supplies the member UI; backend-only evidence cannot close this item.
@@ -596,20 +596,20 @@ Implementation tasks:
 
 - [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration. Acceptance: **020.A1, 020.A2, 020.A3**.
 - [x] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof. Acceptance: **020.A1, 020.A3**. [Evidence](proofs/SURV-020.md).
-- [ ] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary. Acceptance: **020.A3, 020.A4**.
+- [x] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary. Acceptance: **020.A3, 020.A4**.
 - [x] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling. Acceptance: **020.A2**. [Evidence](proofs/SURV-020.md).
 
 Test implementation and verification tasks:
 
 - [x] **020.T1** Install the packed artifact into a clean external consumer, save/load through its real adapter, and inspect dependency, bundle and license boundaries including font notices. Acceptance: **020.A1, 020.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Evidence](proofs/SURV-020.md).
-- [ ] **020.T2** Exercise the independent demo with host translations/styles; verify adjacent controls, reload/hydration, and absence of restoration-triggered writes or duplicate participations. Acceptance: **020.A3, 020.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **020.T2** Exercise the independent demo with host translations/styles; verify adjacent controls, reload/hydration, and absence of restoration-triggered writes or duplicate participations. Acceptance: **020.A3, 020.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
 - [x] **020.A1 — Integration:** a clean external consumer installs the packed artifact and uses its adapter to save/load a real response; no LeonAid internal package imports resolve transitively. [Evidence](proofs/SURV-020.md).
 - [x] **020.A2 — Bundle:** the respondent entrypoint excludes editor code; distribution inspection finds no commercial SurveyJS component and retains all required software/font notices. [Evidence](proofs/SURV-020.md).
 - [x] **020.A3 — E2E:** the standalone demo renders and submits a questionnaire with its own styling/translations; adjacent host controls retain their styles. [Evidence](proofs/SURV-020.md).
-- [ ] **020.A4 — E2E:** restoration/hydration creates no unintended save or duplicate participation; browser-only fallback or proven SSR is documented, with no public caching of private state.
+- [x] **020.A4 — E2E:** restoration/hydration creates no unintended save or duplicate participation; browser-only fallback or proven SSR is documented, with no public caching of private state.
 
 ### SURV-030 — Lifecycle, migrations and immutable versions
 

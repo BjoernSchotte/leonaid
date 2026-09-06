@@ -60,6 +60,25 @@ must be recorded without silently changing the accepted product direction.
 | T-06 | Server-side chart generation for XLSX and Typst reports | SURV-080 | Shared aggregate data, no private browser screenshots as report pipeline. |
 | T-07 | SurveyJS 3 token mapping and SSR/hydration behavior in Astro/React | SURV-000/020 | Isolated styling, no duplicate autosave on hydration, no public caching of private participation content. |
 
+### T-07 respondent rendering disposition
+
+The spike uses browser mounting in both the Astro public host and the packed
+independent consumer. Astro returns a loading shell with `Cache-Control: no-store`;
+authorized response data is fetched after browser startup. The independent host
+also returns an empty mount point and loads private response data from its
+`no-store` API. Restoration initializes the model before autosave subscriptions.
+The host owns its token overrides and runner locale/messages.
+
+`tools/surveys/rendering-probe.ts` evaluates `SurveyRunner` with React
+`renderToString` and synthetic data under pinned Bun, React and SurveyJS versions.
+It produces question markup without calling persistence, but the saved synthetic
+answer marker is absent from that markup. This is a bounded compatibility probe,
+not proof of SSR answer fidelity or Astro hydration. No production SSR path is
+selected; future SSR adoption requires a separate answer-fidelity/hydration test.
+The browser fallback is explicitly allowed by the plan and retains the same
+authoritative persistence/validation adapter. Host browser evidence is recorded
+in [SURV-020](proofs/SURV-020.md#browser-rendering-and-restoration-disposition).
+
 ## T-02 implementation selection — shared SurveyJS-Core adapter
 
 Select the isolated JavaScript adapter using the same `createSurveyModel`,
