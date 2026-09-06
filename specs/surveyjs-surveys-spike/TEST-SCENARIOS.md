@@ -72,7 +72,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 
 - [ ] **060.S1 · Integration · 060.T1 → 060.A1:** Exercise the persona/resource matrix against lists, counts and direct read/write routes; foreign IDs and unauthorized operations reveal no protected data and change no state. Anonymous answers have no CRM/order association.
 - [ ] **060.S2 · Integration · 060.T1 → 060.A2:** Retry invitation processing and expire/revoke access; one logical invitation remains, invalid access is rejected and seeded credentials appear in neither captured logs nor exports.
-- [ ] **060.S3 · E2E · 060.T2 → 060.A3:** Send an invitation from the member UI through the real worker, retrieve it from Mailpit and complete its linked questionnaire; a revoked invitation subsequently fails.
+- [x] **060.S3 · E2E · 060.T2 → 060.A3:** Send an invitation from the member UI through the real worker, retrieve it from Mailpit and complete its linked questionnaire; a revoked invitation subsequently fails. [Evidence](proofs/SURV-060.md#personal-invitations).
 - [ ] **060.S4 · E2E · 060.T2 → 060.A4:** Navigate action-linked and standalone surveys with different personas; visible actions match permissions and direct navigation/API calls cannot bypass them.
 - [ ] **060.S5 · E2E · 060.T2 → 060.A5:** Change the timeout in the backend UI; a new participation uses it and an existing participation retains its effective setting. Preview/test responses remain excluded from collected-response analysis.
 

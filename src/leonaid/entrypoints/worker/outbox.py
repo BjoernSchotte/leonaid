@@ -17,6 +17,7 @@ import asyncpg
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.mail.survey_smtp import SurveyInvitationSmtpHandler
 from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
@@ -99,6 +100,13 @@ async def build_worker(
         reply_to=mail_settings.reply_to,
     )
     handlers: dict[str, OutboxEventHandler] = {
+        "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
+            pool,
+            transport=mail_transport,
+            secure_payload=SecureMailPayload(
+                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+            ),
+        ),
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
         "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
             repository=AsyncpgGeneratedDocumentRepository(pool),

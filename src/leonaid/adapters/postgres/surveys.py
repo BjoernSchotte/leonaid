@@ -5,13 +5,15 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timezone, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 import asyncpg
 
 from leonaid.adapters.surveyjs_validation import validate_answers
+from leonaid.adapters.mail.secure_payload import SecureMailPayload
 
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.identity import IdentityPrincipal
@@ -68,6 +70,7 @@ def survey_payload(row: Any) -> dict[str, Any]:
         "actionId": str(row["action_id"]) if row["action_id"] else None,
         "ownerUserId": str(row["owner_user_id"]),
         "status": row["status"],
+        "accessMode": row["access_mode"],
         "revision": row["revision"],
         "publishedVersionId": str(row["published_version_id"])
         if row["published_version_id"]
@@ -91,8 +94,16 @@ def version_payload(row: Any) -> dict[str, Any]:
 
 
 class AsyncpgSurveyRepository:
-    def __init__(self, pool: asyncpg.Pool[Any]):
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        *,
+        invitation_mail: SecureMailPayload | None = None,
+        public_base_url: str = "",
+    ):
         self.pool = pool
+        self.invitation_mail = invitation_mail
+        self.public_base_url = public_base_url.rstrip("/")
 
     @staticmethod
     def _capabilities(
@@ -339,13 +350,15 @@ class AsyncpgSurveyRepository:
                 )
             )
             capability = Capability.DESIGN
+            if operation.startswith("invitation"):
+                capability = Capability.MANAGE_INVITATIONS
             if operation == "summary":
                 capabilities = self._capabilities(actor, survey, grants)
                 if not capabilities:
                     raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
                 return {**survey_payload(survey), "capabilities": capabilities}
             if (
-                operation in {"publish", "schedule"}
+                operation in {"publish", "schedule", "access"}
                 or operation == "transition"
                 and body["action"] == "end"
             ):
@@ -364,6 +377,28 @@ class AsyncpgSurveyRepository:
                 grants=grants,
             ):
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
+            if operation.startswith("invitation"):
+                return await self._invitation(conn, actor, survey, operation, body)
+            if operation == "access":
+                scope = f"author:{actor.account.id}:access"
+                replay = await self._replay(conn, survey_id, scope, body)
+                if replay is not None:
+                    return replay
+                if survey["status"] != "draft":
+                    raise Conflict(
+                        "closed",
+                        "Der Zugangsmodus kann nur vor der Veröffentlichung geändert werden.",
+                    )
+                if survey["revision"] != body["expectedRevision"]:
+                    raise Conflict("revision_conflict", "Die Umfrage wurde geändert.")
+                updated = await conn.fetchrow(
+                    "UPDATE survey SET access_mode=$2,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *",
+                    survey_id,
+                    body["accessMode"],
+                )
+                return await self._record(
+                    conn, survey_id, scope, body, survey_payload(updated)
+                )
             if operation == "settings":
                 if survey["status"] == "deleted":
                     raise Conflict("closed", "Umfrage ist gelöscht.")
@@ -608,6 +643,108 @@ class AsyncpgSurveyRepository:
             result = survey_payload(row)
         return await self._record(conn, survey_id, scope, body, result)
 
+    @staticmethod
+    def _invitation_payload(row: Any) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        state = (
+            "revoked"
+            if row["revoked_at"]
+            else "expired"
+            if row["expires_at"] <= now
+            else "redeemed"
+            if row["redeemed_at"]
+            else "sent"
+            if row["sent_at"]
+            else "queued"
+        )
+        return {
+            "id": str(row["id"]),
+            "recipientEmail": row["recipient_email"],
+            "recipientName": row["recipient_name"],
+            "status": state,
+            "expiresAt": row["expires_at"].isoformat(),
+            "createdAt": row["created_at"].isoformat(),
+        }
+
+    async def _invitation(
+        self,
+        conn: Any,
+        actor: IdentityPrincipal,
+        survey: Any,
+        operation: str,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        sid = survey["id"]
+        if survey["status"] == "deleted":
+            raise Conflict("closed", "Die Umfrage wurde gelöscht.")
+        if operation == "invitation-list":
+            rows = await conn.fetch(
+                "SELECT * FROM survey_invitation WHERE survey_id=$1 ORDER BY created_at DESC,id LIMIT 100 OFFSET $2",
+                sid,
+                body["offset"],
+            )
+            return {
+                "items": [self._invitation_payload(row) for row in rows],
+                "total": await conn.fetchval(
+                    "SELECT count(*) FROM survey_invitation WHERE survey_id=$1", sid
+                ),
+            }
+        scope = f"author:{actor.account.id}:{operation}"
+        replay = await self._replay(conn, sid, scope, body)
+        if replay is not None:
+            return replay
+        if survey["revision"] != body["expectedRevision"]:
+            raise Conflict("revision_conflict", "Die Umfrage wurde geändert.")
+        if operation == "invitation-revoke":
+            row = await conn.fetchrow(
+                "UPDATE survey_invitation SET revoked_at=COALESCE(revoked_at,now()),mail_payload=NULL WHERE id=$1 AND survey_id=$2 RETURNING *",
+                UUID(body["invitationId"]),
+                sid,
+            )
+            if row is None:
+                raise ResourceNotFound("not_found", "Einladung nicht gefunden.")
+        else:
+            if (
+                survey["status"] != "active"
+                or survey["access_mode"] != "invitation"
+                or (
+                    survey["ends_at"]
+                    and survey["ends_at"] <= datetime.now(timezone.utc)
+                )
+            ):
+                raise Conflict(
+                    "closed",
+                    "Einladungen sind nur für aktive Umfragen mit Einladungszugang möglich.",
+                )
+            if self.invitation_mail is None or not self.public_base_url:
+                raise Conflict(
+                    "temporarily_unavailable", "Einladungsversand ist nicht verfügbar."
+                )
+            iid, token = uuid4(), secrets.token_urlsafe(48)
+            expires = datetime.now(timezone.utc) + timedelta(days=body["expiresInDays"])
+            mail = self.invitation_mail.protect(
+                recipient=body["recipientEmail"],
+                subject="Ihre Rückmeldung: " + " ".join(survey["title"].split()),
+                text=f"Sie sind zur Umfrage {survey['title']} eingeladen.\n\nIhre Antworten können dieser Einladung zugeordnet werden.\n\n{self.public_base_url}/surveys/{sid}#invitation={token}\n\nGültig bis {expires.isoformat()}. Bitte geben Sie diesen persönlichen Link nicht weiter.",
+            )
+            row = await conn.fetchrow(
+                "INSERT INTO survey_invitation(id,survey_id,recipient_email,recipient_name,token_digest,expires_at,mail_payload) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+                iid,
+                sid,
+                body["recipientEmail"],
+                body["recipientName"],
+                digest(token),
+                expires,
+                mail["secureMail"],
+            )
+            await conn.execute(
+                "INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload) VALUES($1,'survey_invitation',$2,'survey.invitation.send.v1',$3,'{}'::jsonb)",
+                uuid4(),
+                iid,
+                f"survey-invitation:{iid}",
+            )
+        return await self._record(conn, sid, scope, body, self._invitation_payload(row))
+
     async def participate(
         self,
         survey_id: UUID,
@@ -640,7 +777,50 @@ class AsyncpgSurveyRepository:
             if not 32 <= len(secret) <= 256:
                 raise PermissionDenied("forbidden", "Teilnahmezugang fehlt.")
             secret_hash = digest(secret)
-            if operation == "start":
+            if operation == "redeem":
+                if survey["access_mode"] != "invitation":
+                    raise PermissionDenied(
+                        "forbidden", "Diese Umfrage verwendet keine Einladungen."
+                    )
+                invitation = await conn.fetchrow(
+                    "SELECT * FROM survey_invitation WHERE survey_id=$1 AND token_digest=$2 FOR UPDATE",
+                    survey_id,
+                    secret_hash,
+                )
+                if (
+                    not invitation
+                    or invitation["revoked_at"]
+                    or invitation["expires_at"] <= now
+                ):
+                    raise ResourceNotFound(
+                        "not_found", "Einladung nicht gefunden oder nicht mehr gültig."
+                    )
+                if invitation["participation_id"]:
+                    row = await conn.fetchrow(
+                        "SELECT * FROM survey_participation WHERE id=$1 FOR UPDATE",
+                        invitation["participation_id"],
+                    )
+                else:
+                    timeout = survey[
+                        "inactivity_timeout_seconds"
+                    ] or await conn.fetchval(
+                        "SELECT inactivity_timeout_seconds FROM survey_settings WHERE singleton"
+                    )
+                    row = await conn.fetchrow(
+                        "INSERT INTO survey_participation(id,survey_id,version_id,resume_digest,inactivity_timeout_seconds,expires_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",
+                        uuid4(),
+                        survey_id,
+                        survey["published_version_id"],
+                        secret_hash,
+                        timeout,
+                        invitation["expires_at"],
+                    )
+                    await conn.execute(
+                        "UPDATE survey_invitation SET participation_id=$2,redeemed_at=now() WHERE id=$1",
+                        invitation["id"],
+                        row["id"],
+                    )
+            elif operation == "start":
                 scope = f"start:{secret_hash}"
                 replay = await self._replay(conn, survey_id, scope, body)
                 if replay is not None:
@@ -670,10 +850,19 @@ class AsyncpgSurveyRepository:
                     and row["expires_at"] <= now
                 ):
                     raise ResourceNotFound("not_found", "Teilnahme nicht gefunden.")
+            if row["revoked_at"] or (row["expires_at"] and row["expires_at"] <= now):
+                raise ResourceNotFound("not_found", "Teilnahme nicht gefunden.")
+            denied_invitation = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM survey_invitation WHERE participation_id=$1 AND (revoked_at IS NOT NULL OR expires_at<=$2))",
+                row["id"],
+                now,
+            )
+            if denied_invitation:
+                raise ResourceNotFound("not_found", "Teilnahme nicht gefunden.")
             version = await conn.fetchrow(
                 "SELECT * FROM survey_version WHERE id=$1", row["version_id"]
             )
-            if operation in {"start", "restore"}:
+            if operation in {"start", "restore", "redeem"}:
                 result = {
                     "id": str(row["id"]),
                     "version": version_payload(version),

@@ -117,6 +117,7 @@ Commands:
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
   test-surveys-editor
   test-surveys-lifecycle
+  test-surveys-invitations
   test-surveys-migrations
   test-surveys-core
   test-surveys-validation-candidate
@@ -2005,6 +2006,7 @@ case "$command" in
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
   test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
   test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
+  test-surveys-invitations) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" invitations ;;
   test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
   test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)

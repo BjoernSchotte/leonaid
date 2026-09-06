@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ApiError,
   type LeonAidApiClient,
@@ -6,6 +6,8 @@ import {
   type SurveySummaryResponse,
   type SurveyListResponse,
   type TimeoutSettingsResponse,
+  type SurveyInvitationsResponse,
+  type SurveyInvitationCreate,
 } from "@leonaid/api-client";
 import { Button } from "@leonaid/ui";
 import { SurveyEditor } from "@leonaid/surveys/editor";
@@ -85,6 +87,17 @@ export function SurveysPage({
   const [offset, setOffset] = useState(0);
   const [timeout, setTimeoutValue] = useState("");
   const [scheduledEnd, setScheduledEnd] = useState("");
+  const [accessMode, setAccessMode] = useState<"anonymous" | "invitation">(
+    "anonymous",
+  );
+  const [invitations, setInvitations] =
+    useState<SurveyInvitationsResponse | null>(null);
+  const [invitationOffset, setInvitationOffset] = useState(0);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [expiryDays, setExpiryDays] = useState(30);
+  const invitationRequest = useRef<SurveyInvitationCreate | null>(null);
+
   const [defaults, setDefaults] = useState<TimeoutSettingsResponse | null>(
     null,
   );
@@ -107,6 +120,16 @@ export function SurveysPage({
     async (key: string) => {
       const value = await client.getSurvey(key);
       setSummary(value);
+      setAccessMode(value.accessMode);
+      setInvitationOffset(0);
+      if (
+        value.status !== "deleted" &&
+        value.accessMode === "invitation" &&
+        value.capabilities?.includes("manage_invitations")
+      ) {
+        setInvitations(await client.listSurveyInvitations(key, { offset: 0 }));
+      } else setInvitations(null);
+
       const end = value.endsAt ? new Date(value.endsAt) : null;
       setScheduledEnd(
         end
@@ -436,15 +459,16 @@ export function SurveysPage({
               >
                 {labels[summary.status]}
               </span>
-              {summary.status === "active" && (
-                <a
-                  href={`/surveys/${summary.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Veröffentlichte Umfrage öffnen
-                </a>
-              )}
+              {summary.status === "active" &&
+                summary.accessMode === "anonymous" && (
+                  <a
+                    href={`/surveys/${summary.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Veröffentlichte Umfrage öffnen
+                  </a>
+                )}
               {summary.status === "active" && allowed("publish") && (
                 <Button
                   variant="secondary"
@@ -519,6 +543,215 @@ export function SurveysPage({
                   </Button>
                 </div>
               </div>
+            )}
+            <p>
+              {summary.accessMode === "invitation"
+                ? "Persönliche Einladungen: Antworten sind dem jeweiligen Empfänger zuordenbar."
+                : "Anonymer Link: Antworten werden keinem Empfänger oder Auftrag zugeordnet."}
+            </p>
+            {summary.status === "draft" && allowed("publish") && (
+              <details className="surveys-settings">
+                <summary>Zugang zur Umfrage</summary>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void run(async () => {
+                      await client.updateSurveyAccess(summary.id, {
+                        operationId: crypto.randomUUID(),
+                        expectedRevision: summary.revision,
+                        accessMode,
+                      });
+                      await refresh(summary.id);
+                    }, "Zugangsmodus wurde gespeichert.");
+                  }}
+                >
+                  <label>
+                    Zugangsmodus
+                    <select
+                      value={accessMode}
+                      onChange={(e) =>
+                        setAccessMode(
+                          e.target.value as "anonymous" | "invitation",
+                        )
+                      }
+                    >
+                      <option value="anonymous">Anonymer Link</option>
+                      <option value="invitation">Persönliche Einladung</option>
+                    </select>
+                  </label>
+                  <p>
+                    Nach der Veröffentlichung bleibt dieser Modus festgelegt.
+                  </p>
+                  <Button type="submit" disabled={pending}>
+                    Zugangsmodus speichern
+                  </Button>
+                </form>
+              </details>
+            )}
+            {invitations && allowed("manage_invitations") && (
+              <details className="surveys-settings">
+                <summary>Einladungen ({invitations.total})</summary>
+                {summary.status === "active" && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void run(async () => {
+                        invitationRequest.current ??= {
+                          operationId: crypto.randomUUID(),
+                          expectedRevision: summary.revision,
+                          recipientEmail,
+                          recipientName,
+                          expiresInDays: expiryDays,
+                        };
+                        try {
+                          await client.createSurveyInvitation(
+                            summary.id,
+                            invitationRequest.current,
+                          );
+                        } catch (error) {
+                          if (
+                            error instanceof ApiError &&
+                            [400, 401, 403, 404, 409, 422].includes(
+                              error.status,
+                            )
+                          )
+                            invitationRequest.current = null;
+                          throw error;
+                        }
+                        invitationRequest.current = null;
+                        setRecipientEmail("");
+                        setRecipientName("");
+                        await refresh(summary.id);
+                      }, "Einladung wurde zum Versand vorgemerkt.");
+                    }}
+                  >
+                    <label>
+                      E-Mail des Empfängers
+                      <input
+                        type="email"
+                        required
+                        maxLength={254}
+                        value={recipientEmail}
+                        readOnly={!!invitationRequest.current}
+                        onChange={(e) => setRecipientEmail(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Name des Empfängers (optional)
+                      <input
+                        maxLength={160}
+                        value={recipientName}
+                        readOnly={!!invitationRequest.current}
+                        onChange={(e) => setRecipientName(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Gültigkeit in Tagen
+                      <input
+                        type="number"
+                        min={1}
+                        max={90}
+                        value={expiryDays}
+                        readOnly={!!invitationRequest.current}
+                        onChange={(e) => setExpiryDays(Number(e.target.value))}
+                      />
+                    </label>
+                    <Button type="submit" disabled={pending}>
+                      Einladung senden
+                    </Button>
+                  </form>
+                )}
+                <ul className="surveys-list">
+                  {invitations.items.map((invitation) => (
+                    <li key={invitation.id}>
+                      <span>
+                        {invitation.recipientName || invitation.recipientEmail}
+                      </span>
+                      {invitation.recipientName && (
+                        <span>{invitation.recipientEmail}</span>
+                      )}
+                      <span>
+                        {
+                          {
+                            queued: "Zum Versand vorgemerkt",
+                            sent: "Versendet",
+                            redeemed: "Teilnahme begonnen",
+                            expired: "Abgelaufen",
+                            revoked: "Widerrufen",
+                          }[invitation.status]
+                        }
+                      </span>
+                      <span>
+                        Gültig bis{" "}
+                        {new Date(invitation.expiresAt).toLocaleDateString(
+                          "de-DE",
+                        )}
+                      </span>
+                      {!["revoked", "expired"].includes(invitation.status) && (
+                        <Button
+                          variant="secondary"
+                          disabled={pending}
+                          onClick={() =>
+                            void run(async () => {
+                              await client.revokeSurveyInvitation(
+                                summary.id,
+                                invitation.id,
+                                {
+                                  operationId: crypto.randomUUID(),
+                                  expectedRevision: summary.revision,
+                                },
+                              );
+                              await refresh(summary.id);
+                            }, "Einladung wurde widerrufen.")
+                          }
+                        >
+                          Einladung widerrufen
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="surveys-actions">
+                  <Button
+                    variant="secondary"
+                    disabled={pending || invitationOffset === 0}
+                    onClick={() =>
+                      void run(async () => {
+                        const next = Math.max(0, invitationOffset - 100);
+                        setInvitations(
+                          await client.listSurveyInvitations(summary.id, {
+                            offset: next,
+                          }),
+                        );
+                        setInvitationOffset(next);
+                      }, "")
+                    }
+                  >
+                    Vorherige Einladungen
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={
+                      pending ||
+                      invitationOffset + invitations.items.length >=
+                        invitations.total
+                    }
+                    onClick={() =>
+                      void run(async () => {
+                        const next = invitationOffset + 100;
+                        setInvitations(
+                          await client.listSurveyInvitations(summary.id, {
+                            offset: next,
+                          }),
+                        );
+                        setInvitationOffset(next);
+                      }, "")
+                    }
+                  >
+                    Weitere Einladungen
+                  </Button>
+                </div>
+              </details>
             )}
             {["draft", "active"].includes(summary.status) &&
               allowed("publish") && (

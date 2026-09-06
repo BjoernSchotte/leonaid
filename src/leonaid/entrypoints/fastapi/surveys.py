@@ -5,7 +5,14 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, Query
-from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+    field_validator,
+    EmailStr,
+)
 
 from leonaid.application.surveys import SurveyService
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
@@ -43,6 +50,34 @@ class SurveyTimeoutSettings(Mutation):
     inactivityTimeoutSeconds: int | None = Field(ge=1, le=604800)
 
 
+class SurveyAccess(Mutation):
+    accessMode: Literal["anonymous", "invitation"]
+
+
+class SurveyInvitationCreate(Mutation):
+    recipientEmail: EmailStr = Field(max_length=254)
+    recipientName: str = Field(default="", max_length=160)
+    expiresInDays: int = Field(default=30, ge=1, le=90)
+
+
+class SurveyInvitationResponse(SurveyInput):
+    id: str
+    recipientEmail: str
+    recipientName: str
+    status: Literal["queued", "sent", "redeemed", "expired", "revoked"]
+    expiresAt: str
+    createdAt: str
+
+
+class SurveyInvitationsResponse(SurveyInput):
+    items: list[SurveyInvitationResponse]
+    total: int
+
+
+class RedeemInvitation(SurveyInput):
+    token: str = Field(min_length=32, max_length=256)
+
+
 class SurveySchedule(Mutation):
     endsAt: str | None = Field(max_length=40)
 
@@ -78,6 +113,7 @@ class SurveySummaryResponse(SurveyInput):
     title: str
     actionId: str | None
     ownerUserId: str
+    accessMode: Literal["anonymous", "invitation"]
     capabilities: list[str] = Field(default_factory=list)
     status: Literal["draft", "active", "ended", "archived", "deleted"]
     revision: int
@@ -351,6 +387,90 @@ async def save_draft(
 )
 async def publish(survey_id: UUID, body: Mutation, request: Request) -> dict[str, Any]:
     return await author(request, survey_id, "publish", body.model_dump())
+
+
+@router.put(
+    "/surveys/{survey_id}/access",
+    operation_id="updateSurveyAccess",
+    response_model=SurveySummaryResponse,
+)
+async def update_access(
+    survey_id: UUID, body: SurveyAccess, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "access", body.model_dump())
+
+
+@router.get(
+    "/surveys/{survey_id}/invitations",
+    operation_id="listSurveyInvitations",
+    response_model=SurveyInvitationsResponse,
+)
+async def list_invitations(
+    survey_id: UUID,
+    request: Request,
+    response: Response,
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "invitation-list", {"offset": offset})
+
+
+@router.post(
+    "/surveys/{survey_id}/invitations",
+    operation_id="createSurveyInvitation",
+    response_model=SurveyInvitationResponse,
+)
+async def create_invitation(
+    survey_id: UUID, body: SurveyInvitationCreate, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "invitation-create", body.model_dump())
+
+
+@router.post(
+    "/surveys/{survey_id}/invitations/{invitation_id}/revoke",
+    operation_id="revokeSurveyInvitation",
+    response_model=SurveyInvitationResponse,
+)
+async def revoke_invitation(
+    survey_id: UUID,
+    invitation_id: UUID,
+    body: Mutation,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request,
+        survey_id,
+        "invitation-revoke",
+        {**body.model_dump(), "invitationId": str(invitation_id)},
+    )
+
+
+@router.post(
+    "/public/surveys/{survey_id}/invitation/redeem",
+    operation_id="redeemSurveyInvitation",
+    response_model=SurveyParticipationResponse,
+)
+async def redeem_invitation(
+    survey_id: UUID, body: RedeemInvitation, request: Request, response: Response
+) -> dict[str, Any]:
+    result = await service(request).participate(
+        survey_id, None, "redeem", {}, body.token
+    )
+    response.set_cookie(
+        cookie_name(result["id"]),
+        body.token,
+        secure=True,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        max_age=90 * 86400,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return result
 
 
 @router.get(

@@ -714,7 +714,7 @@ Acceptance criteria:
 
 - [ ] **060.A1 — Integration:** persona/resource matrix rejects foreign survey IDs, unauthorized transitions and unauthorized list/count/data access; anonymous responses have no CRM/order association.
 - [ ] **060.A2 — Integration:** invitation retries do not create duplicate logical invitations; revoked/expired access is rejected, and credentials are absent from response exports and captured application logs.
-- [ ] **060.A3 — E2E:** authorized member sends a test invitation, retrieves it from Mailpit and completes the real linked survey; a revoked invitation no longer grants access.
+- [x] **060.A3 — E2E:** authorized member sends a test invitation, retrieves it from Mailpit and completes the real linked survey; a revoked invitation no longer grants access. [Live invitation evidence](proofs/SURV-060.md#personal-invitations).
 - [ ] **060.A4 — E2E:** action-scoped and standalone personas see only permitted operations; direct navigation and direct API calls cannot bypass hidden controls.
 - [ ] **060.A5 — E2E:** change the timeout through the backend UI and verify its effect on a new participation; existing participations retain their effective setting and test responses remain excluded from production analysis.
 

@@ -46,6 +46,7 @@ function ParticipationPage({ surveyId }: { surveyId: string }) {
   const [title, setTitle] = useState("Ihre Rückmeldung zählt");
   const [message, setMessage] = useState("Fragebogen wird geladen …");
   const [ready, setReady] = useState(false);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const adapter = useMemo<ParticipationAdapter>(() => {
     const secret = Array.from(crypto.getRandomValues(new Uint8Array(48)), (n) =>
@@ -74,6 +75,18 @@ function ParticipationPage({ surveyId }: { surveyId: string }) {
     void (async () => {
       try {
         const id = new URL(location.href).searchParams.get("participation");
+        const invitation = new URLSearchParams(location.hash.slice(1)).get(
+          "invitation",
+        );
+        if (invitation) {
+          setInvitationToken(invitation);
+          setMessage(
+            "Dies ist Ihre persönliche Einladung. Ihre Antworten können dem Empfänger dieser Einladung zugeordnet werden. Sie werden während der Teilnahme gespeichert.",
+          );
+          setReady(true);
+          return;
+        }
+
         if (id) {
           const restored = await adapter.restore(id, {
             signal: controller.signal,
@@ -105,13 +118,18 @@ function ParticipationPage({ surveyId }: { surveyId: string }) {
   async function start() {
     setBusy(true);
     try {
-      const started = await adapter.start(surveyId, startOperation);
+      const started = invitationToken
+        ? await result<Participation>(
+            client.redeemSurveyInvitation(surveyId, { token: invitationToken }),
+          )
+        : await adapter.start(surveyId, startOperation);
       if (!started.ok) {
         setMessage(started.error.message);
         return;
       }
       const url = new URL(location.href);
       url.searchParams.set("participation", started.value.id);
+      url.hash = "";
       history.replaceState(null, "", url);
       setParticipation(started.value);
     } catch {

@@ -168,7 +168,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
-        application.state.survey_service = SurveyService(AsyncpgSurveyRepository(pool))
+        application.state.survey_service = SurveyService(
+            AsyncpgSurveyRepository(
+                pool,
+                invitation_mail=SecureMailPayload(
+                    settings.mail_payload_secret.get_secret_value()
+                ),
+                public_base_url=str(settings.public_base_url),
+            )
+        )
         api_metrics = ApiMetrics()
         application.state.operations_service = OperationsService(
             pool,

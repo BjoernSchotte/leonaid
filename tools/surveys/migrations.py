@@ -19,9 +19,10 @@ TABLES = {
     "survey_grant",
     "survey_settings",
     "survey_settings_operation",
+    "survey_invitation",
 }
 BASELINE = "0026_invoice_payment_snapshot"
-HEAD = "0028_survey_timeouts"
+HEAD = "0029_survey_invitations"
 
 
 async def fingerprints(conn, tables):
@@ -104,6 +105,22 @@ async def constraints(conn):
             "UPDATE survey SET published_version_id=$1 WHERE id=$2",
             version,
             second,
+        )
+        await rejected(
+            "invitation participation belongs to same survey",
+            "INSERT INTO survey_invitation(id,survey_id,recipient_email,token_digest,participation_id,redeemed_at,expires_at) VALUES($1,$2,'synthetic@example.com',$3,$4,now(),now()+interval '1 day')",
+            uuid4(),
+            second,
+            str(uuid4()),
+            participation,
+        )
+        await rejected(
+            "invitation redemption timestamp matches association",
+            "INSERT INTO survey_invitation(id,survey_id,recipient_email,token_digest,participation_id,expires_at) VALUES($1,$2,'synthetic@example.com',$3,$4,now()+interval '1 day')",
+            uuid4(),
+            first,
+            str(uuid4()),
+            participation,
         )
         await rejected(
             "positive participation timeout",

@@ -204,6 +204,7 @@ a substitute for completing an individual task.
 - [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.
+  Evidence: [060.A3 / 060.S3 accepted](proofs/SURV-060.md#personal-invitations); 060.A2 / 060.S2 and therefore this task remain open.
   Integration / supporting checks: **060.S2**.
   E2E: **060.S3**.
 
