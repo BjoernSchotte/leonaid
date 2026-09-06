@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./editorial-contract-proof.mjs";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { patchAuthSource } from "../../apps/campaign-site/emdash-auth-patch.mjs";

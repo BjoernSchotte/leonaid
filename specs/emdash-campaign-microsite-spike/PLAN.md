@@ -1240,6 +1240,34 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Implement and admit the bounded non-media editorial contract for the
+      currently proven System Admin runtime. `src/campaign-schema.mjs` defines
+      version 1 fields for title, hero heading/introduction, Portable Text story,
+      FAQ, partners, theme selection and SEO description; runtime fixture setup
+      now uses that collection definition. Create/update paths share strict
+      nested validation, preserve immutable Core bindings and reject unknown
+      fields, media references, executable blocks and unsafe link schemes.
+      Limits include 60 KiB aggregate editorial JSON, 64 KiB raw create requests,
+      60 story blocks, 20 FAQ entries and 30 partners, plus bounded nested strings.
+      Evidence: `campaign-runtime` passed actual authenticated HTTPS writes and
+      readback of all seven added fields, invalid/oversized/nested input denial
+      with unchanged revision counts, and prior concurrent revision, attribution,
+      publication, rollback, revocation, sanitized logging and bootstrap failure
+      regressions in project `leonaid-emdash-tmp-bblgojyket`. `admin-browser` passed
+      native creation with hero and SEO fields, subsequent edit/reload retention,
+      campaign resolver/trash denial, SMTP login/fresh-login and existing editor
+      regressions in all three browsers in `leonaid-emdash-tmp-kpiyjjc3zx`.
+      `campaign-content` additionally passed the real lower-level database scope,
+      create/concurrency and rollback suite in `leonaid-emdash-tmp-grsvc4jeky`.
+      All projects exposed no host ports and removed their owned resources.
+      `./leonaid check` passed on `be013bf` (208 unit tests, 242 Python source-file
+      checks, API parity, frontend/CMS checks including 26 CMS files, formatting
+      and privacy/policy gates; unchanged tree). Direct production-policy checks
+      accept exact limits and reject 39 unsafe/oversized cases; these are now
+      included in the pinned-source proof entry point, which also passed.
+      This does not complete the schema migration/export/type-generation gate,
+      global action uniqueness, media/social images, complete native rich-field
+      UX, safe public rendering, or Charity admission.
 - [ ] Add a versioned EmDash seed defining a `campaign_pages` collection.
 - [ ] Include an immutable, required, unique `action_id` UUID field and a
       display-only cached action name if needed for editor usability.
