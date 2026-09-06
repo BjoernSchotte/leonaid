@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Shared orders visible in administrator review — 2026-09-06
+
+The integrated browser journey now navigates to `/admin/orders` after creating both recovered orders. For each actual order ID, it opens the delivery/billing disclosure using keyboard Enter, verifies contact, phone, multiline instructions, timezone and the appropriate reused/separate invoice address, and closes it again using Enter. This proves the visible reviewer path in addition to admin API and PostgreSQL readback.
+
+`./leonaid test-public-orders` exited 0 for isolated project `leonaid-362a-delivery-public-20260906q`, ports 18265/18665 and worktree subnet override. The full shared Admin configuration, both stale rejections, explicit replacements, both successful orders and visible Admin review passed in 6.5 seconds. Existing public scenarios and final PostgreSQL verification pass. Own stack was cleaned up. Exact mobile In-App acceptance and integrated EmDash renderer acceptance remain open.
+
 ## Retirement after both order forms selected the same window — 2026-09-06
 
 The shared 3/3/1 journey now fills both forms and selects the third-day window before retiring it through the Admin editor. Anna receives `delivery_window_unavailable`; the public form presents delivery feedback. Both preserve their delivery address and multiline notes, and public separate billing and privacy acknowledgement remain intact. Admin order-list counts before and after the two rejected submissions are equal.

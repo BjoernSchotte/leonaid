@@ -822,6 +822,32 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
         order.source === "acquisition" ? "Lieferweg 31" : "Rechnungsweg 32",
       );
     }
+    await adminPage.goto(`${baseUrl}/admin/orders`);
+    await expect(
+      adminPage.getByRole("heading", { name: "Bestellungen prüfen" }),
+    ).toBeVisible();
+    for (const order of captured) {
+      const row = adminPage.locator(`[data-commitment-id="${order.id}"]`);
+      const disclosure = row.locator(".commitment-delivery-review summary");
+      await disclosure.focus();
+      await adminPage.keyboard.press("Enter");
+      const details = row.locator(".commitment-delivery-review");
+      await expect(details).toHaveAttribute("open", "");
+      await expect(details).toContainText("Gemeinsamer Lieferkontakt");
+      await expect(details).toContainText("+49 931 313131");
+      await expect(
+        details.locator(".commitment-delivery-instructions"),
+      ).toHaveText("Abteilung Integration\nEingang links");
+      await expect(details).toContainText("Europe/Berlin");
+      await expect(details).toContainText(
+        order.source === "acquisition"
+          ? "Rechnung: Gemeinsame Lieferstelle, Lieferweg 31"
+          : "Rechnung: Zentrale Integration, Rechnungsweg 32",
+      );
+      await disclosure.focus();
+      await adminPage.keyboard.press("Enter");
+      await expect(details).not.toHaveAttribute("open", "");
+    }
     await writeFile(
       `${artifactDirectory}/delivery-cross-surface-policy.json`,
       JSON.stringify(
