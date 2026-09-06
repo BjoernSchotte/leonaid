@@ -1012,6 +1012,13 @@ class CreateCommitmentRequest(TransportModel):
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
 
 
+class CompleteDeliveryRequest(TransportModel):
+    expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    delivery_recipient: PublicOrderDeliveryRecipientRequest
+    invoice_recipient: CommitmentInvoiceRecipientRequest
+    window_id: UUID | None = None
+
+
 class CommitmentBuyerResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID
@@ -1043,6 +1050,7 @@ class CommitmentLineResponse(TransportModel):
 
 
 class CommitmentResponse(TransportModel):
+    delivery_completion_version: str
     delivery_recipient: PublicOrderDeliveryRecipientRequest | None
     delivery_window_id: UUID | None
     delivery_window_snapshot: dict[str, str] | None

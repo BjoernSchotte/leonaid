@@ -163,5 +163,13 @@ done
 mkdir -p "$root/.artifacts/poc090"
 cp "$proof"/invoice-*.png "$root/.artifacts/poc090/"
 
+compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/delivery/http_completion.py
+
 echo "invoice-test: OK: Serververtrag, Fresh Login, Rechnungsfreigabe,"
 echo "invoice-test:     Finanz-Lesesicht und echte Twenty-Snapshots bewiesen"

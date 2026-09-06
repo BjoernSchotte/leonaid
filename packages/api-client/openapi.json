@@ -2147,6 +2147,10 @@
             "title": "Currency",
             "type": "string"
           },
+          "deliveryCompletionVersion": {
+            "title": "Deliverycompletionversion",
+            "type": "string"
+          },
           "deliveryRecipient": {
             "anyOf": [
               {
@@ -2246,6 +2250,7 @@
           }
         },
         "required": [
+          "deliveryCompletionVersion",
           "deliveryRecipient",
           "deliveryWindowId",
           "deliveryWindowSnapshot",
@@ -2263,6 +2268,41 @@
           "replayed"
         ],
         "title": "CommitmentResponse",
+        "type": "object"
+      },
+      "CompleteDeliveryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "deliveryRecipient": {
+            "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+          },
+          "expectedVersion": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expectedversion",
+            "type": "string"
+          },
+          "invoiceRecipient": {
+            "$ref": "#/components/schemas/CommitmentInvoiceRecipientRequest"
+          },
+          "windowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Windowid"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "deliveryRecipient",
+          "invoiceRecipient"
+        ],
+        "title": "CompleteDeliveryRequest",
         "type": "object"
       },
       "CompleteFreshLoginRequest": {
@@ -11878,6 +11918,129 @@
           }
         },
         "summary": "Create Commitment",
+        "tags": [
+          "commitments"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion": {
+      "post": {
+        "operationId": "completeCommitmentDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commitment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Commitment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteDeliveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Complete Commitment Delivery",
         "tags": [
           "commitments"
         ]

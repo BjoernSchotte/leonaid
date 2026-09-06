@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Delivery completion HTTP and invoice checkpoint — 2026-09-06
+
+The completion service is now wired into FastAPI at `POST /api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion`, with action-manager authorization, validated typed input, Idempotency-Key handling and no-store responses. Internal commitment responses expose `deliveryCompletionVersion` for optimistic edits. OpenAPI and the TypeScript client were regenerated from the source schemas.
+
+The extended `./leonaid test-invoices` gate passed against real HTTP, Core PostgreSQL and Twenty. After the unchanged invoice browser journey, `tools/delivery/http_completion.py` enables scheduling for the synthetic action, proves incomplete delivery blocks issuance, denies anonymous/acquirer/finance completion requests, completes the existing draft with a different invoice recipient, proves version change and stale-edit rejection, and replays the exact completion. It then actually issues the invoice, compares its recipient with the supplied billing snapshot and its gross amount with the original order, rejects editing the now-invoiced order, and verifies exactly one invoice and one completion audit event in PostgreSQL.
+
+All frontend type checks, Python source/live-proof Mypy, focused Ruff and 212 unit tests pass. The isolated test used project `leonaid-362a-delivery-invoice-20260906b`, ports 18266/18666 and the dedicated subnet override; cleanup completed successfully. This advances the previous guard-only evidence to an actual repaired-order-to-invoice journey.
+
+The administrator completion form and its browser acceptance remain open; there is no claim yet that an operator can perform the entire repair through the UI. Remaining admin/form edge cases and integrated visual acceptance also remain open. The parallel EmDash branch was inspected read-only at `50598b9`; it has progressed into campaign binding/content authorization but still lacks the public order renderer required for campaign/alias parity.
+
 ## Delivery completion backend checkpoint — 2026-09-06
 
 Added an action-manager-authorized completion service and transactional repository for draft/review-ready orders. The request carries delivery and invoice snapshots, a window ID and an optimistic hash of the current completion fields/status. The repository locks action then order, rejects stale edits and closed/invoiced orders, preserves already booked window IDs/times (including retired windows), and transitions successfully completed drafts to review-ready. Prices, quantities, buyer records and order lines remain unchanged. A separate command receipt provides exact replay and changed-payload conflict handling; the audit event records only status metadata, without addresses or notes.

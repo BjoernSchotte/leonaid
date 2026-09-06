@@ -49,7 +49,8 @@ export type CommitmentLineRequest = { readonly offeringId: string; readonly quan
 export type CommitmentLineResponse = { readonly boxCount: number; readonly currency: string; readonly description: string; readonly id: string; readonly lineTotalMinor: number; readonly offeringId: string; readonly pieceCount: number; readonly piecesPerUnit: number | null; readonly quantity: number; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
 export type CommitmentRecordResponse = { readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; };
-export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly currency: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId: string | null; readonly deliveryWindowSnapshot: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId: string | null; readonly deliveryWindowSnapshot: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
+export type CompleteDeliveryRequest = { readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; readonly windowId?: string | null; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
@@ -621,6 +622,23 @@ export class LeonAidApiClient {
   ): Promise<CommitmentResponse> {
     return this.request<CommitmentResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async completeCommitmentDelivery(
+    actionId: string,
+    commitmentId: string,
+    body: CompleteDeliveryRequest,
+    options: RequestOptions = {},
+  ): Promise<CommitmentResponse> {
+    return this.request<CommitmentResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/commitments/${encodeURIComponent(String(commitmentId))}/delivery-completion`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

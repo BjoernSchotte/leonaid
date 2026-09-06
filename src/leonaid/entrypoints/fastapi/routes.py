@@ -41,6 +41,11 @@ from leonaid.application.assignments import (
     AssignmentHandoverResult,
     AssignmentManagementService,
 )
+from leonaid.application.delivery_completion import (
+    DeliveryCompletionService,
+    DeliveryCompletionDraft,
+    delivery_completion_version,
+)
 from leonaid.application.commitments import (
     CommitmentCaptureContext,
     CommitmentDraft,
@@ -224,6 +229,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CorrectInvitationAddressRequest,
     CreateEmailChangeRequest,
     CreateCommitmentRequest,
+    CompleteDeliveryRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
@@ -1235,6 +1241,7 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        delivery_completion_version=delivery_completion_version(commitment),
         delivery_recipient=(
             PublicOrderDeliveryRecipientRequest.model_validate(
                 commitment.delivery_recipient
@@ -3154,6 +3161,45 @@ async def create_commitment(
         f"/api/v1/actions/{action_id}/commitments/{commitment.id}"
     )
     return commitment_response(commitment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/delivery-completion",
+    operation_id="completeCommitmentDelivery",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def complete_commitment_delivery(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: CompleteDeliveryRequest,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(
+        DeliveryCompletionService, request.app.state.delivery_completion_service
+    )
+    order = await service.complete(
+        actor,
+        action_id,
+        commitment_id,
+        draft=DeliveryCompletionDraft(
+            expected_version=body.expected_version,
+            delivery_recipient=DeliveryRecipientSnapshot(
+                **body.delivery_recipient.model_dump()
+            ),
+            invoice_recipient=InvoiceRecipientSnapshot(
+                **body.invoice_recipient.model_dump()
+            ),
+            window_id=body.window_id,
+        ),
+        key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return commitment_response(order)
 
 
 @router.get(
