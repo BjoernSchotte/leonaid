@@ -686,6 +686,11 @@ The operator installs and validates the mapping schema separately from request
 processing. Inputs to this internal primitive must come from a currently
 validated Core identity; these database tests do not prove that HTTP boundary.
 The CMS remains closed and the shared-login gate is not complete.
+The `service-runtime` case also passed with the mapping schema installed by the
+real pre-HTTP operator job. `./leonaid check` passed at `e0b3b53`, including
+208 unit tests, 241 Python source-file type checks, all frontend/CMS checks and
+an unchanged worktree. Both proof projects removed their own containers,
+networks and volumes after completion; no host ports were published.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
