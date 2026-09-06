@@ -606,9 +606,10 @@ Dependencies: EMS-010
       identity after restart. Connecting this primitive to verified HTTP
       authentication and replacing upstream email lookup remain open below.
 
-- [ ] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
+- [x] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
       config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
-      workspace package.
+      workspace package. Production HTTP identity is proven below; browser
+      navigation and broader editor access remain separate open gates.
 - [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
       without forwarding unrelated cookies.
 - [ ] Call `http://api:8000/api/v1/identity/me` with the cookie and a bounded
@@ -704,13 +705,38 @@ A paused API proves timeout denial; a stopped API proves unavailable denial.
 The probe has Edge-only access, no database/operator credentials and no mounted
 `.env.local` (Bun otherwise loads it automatically). Synthetic session artifacts
 and all project resources are removed. The prepared `authenticate()` function
-combines this boundary with the UUID mapper and remains System-Admin-only, but
-is deliberately NOT configured in EmDash yet. Upstream stable-ID resolution,
+combined this boundary with the UUID mapper and remained System-Admin-only, but
+was not yet configured in EmDash at that checkpoint. Upstream stable-ID resolution,
 actual middleware/browser integration, hostile-response cases and the complete
 shared-login acceptance gate remain open.
 `./leonaid check` passed at `e1b8913`: 208 unit tests, 242 Python source-file
 type checks, all frontend/CMS checks, generated API parity and an unchanged
 worktree. No active CMS authentication route is claimed by this checkpoint.
+
+Production identity seam checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case auth-runtime` now passes against the actual
+Node production EmDash middleware, real Core HTTP and PostgreSQL. The external
+descriptor is configured with auto-provisioning and upstream role sync disabled.
+The narrowly pinned transform documented in `AUTH-PATCH.md` resolves the verified
+mapped CMS ID, bypasses email linking and does not create a local CMS session.
+Only GET `/_emdash/api/auth/me` is admitted, for a currently verified Core System
+Admin. The proof checks stable identity after an email change, repeated requests,
+absence of Set-Cookie, anonymous/Charity denial, bearer-header rejection, and
+immediate denial after Core session revocation and API shutdown without restarting
+the CMS. Setup, editor and passkey routes remain default-denied. Development-mode
+access is explicitly refused by source guard; browser/dev runtime proof remains
+pending. Real-source integrity tests reject byte drift, semantic drift and double
+patch application. A skipped transform fails the production build.
+
+The proof owns fresh project-scoped volumes and three private project networks,
+publishes no host ports and gives its HTTP probe only Edge access. Object storage
+is intentionally absent from this authentication-only proof. A prior attempt
+exhausted Docker's automatic address pool; removing the unused proof-only storage
+network allowed the test to run without touching another project's resources.
+All owned containers, networks, volumes and synthetic session files were removed.
+Full browser SSO, protected TLS setup, hostile-response tests, campaign isolation
+and the upstream extension proposal remain open. No full EMS-020 completion is
+claimed.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 

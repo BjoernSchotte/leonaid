@@ -31,6 +31,11 @@ async def main() -> None:
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "w") as output:
                 json.dump(tokens, output)
+        elif sys.argv[1] == "rename":
+            await connection.execute(
+                "UPDATE user_account SET email='renamed-system@leonaid.invalid' WHERE id=$1",
+                SYSTEM_ID,
+            )
         elif sys.argv[1] == "revoke":
             await connection.execute(
                 "UPDATE user_session SET revoked_at=$1 WHERE user_id=$2", now, SYSTEM_ID

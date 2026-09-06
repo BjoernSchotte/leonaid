@@ -10,8 +10,8 @@ const pool = new pg.Pool({
 });
 pool.on("error", () => {});
 
-// This adapter is not enabled in astro.config until the stable-ID upstream seam
-// and protected bootstrap are proven. Stock email-based lookup is unsafe.
+// The pinned upstream seam resolves metadata.cmsUserId rather than email.
+// The outer middleware still closes every route except read-only auth/me.
 export async function authenticate(request: Request) {
   const identity = await readCoreIdentity(request);
   // Charity access remains disabled until the campaign-isolation gate passes.

@@ -4,6 +4,7 @@ import { defineConfig } from "astro/config";
 import emdash, { s3 } from "emdash/astro";
 import { postgres } from "emdash/db";
 import routeContract from "./route-contract.mjs";
+import stableIdentityPatch from "./emdash-auth-patch.mjs";
 
 export default defineConfig({
   output: "server",
@@ -17,8 +18,15 @@ export default defineConfig({
     actionBodySizeLimit: 64 * 1024,
   },
   integrations: [
+    stableIdentityPatch(),
     react(),
     emdash({
+      auth: {
+        type: "leonaid-core",
+        entrypoint: new URL("./src/auth/leonaid-auth.ts", import.meta.url)
+          .pathname,
+        config: { autoProvision: false, syncRoles: false },
+      },
       middleware: {
         outer: new URL("./src/closed-bootstrap.ts", import.meta.url),
       },

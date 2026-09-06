@@ -1,0 +1,6 @@
+services:
+  campaign-site:
+    # This proof exercises authentication only; no object store is started.
+    networks: !override [edge, cms-data]
+  core-postgres:
+    networks: !override [core-data, cms-data]
