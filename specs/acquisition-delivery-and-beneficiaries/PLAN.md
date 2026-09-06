@@ -7,7 +7,13 @@ Date: 2026-09-06
 
 Anna can capture a Krapfentaxi order with a delivery address, an optional different billing address, a selectable delivery window, an optional delivery contact, and delivery instructions. Charity administrators configure any number of delivery dates and any number of windows per date. Anna's mobile overview shows who benefits from the selected action beside its existing goal, without adding a large homepage section.
 
-Include the public order path where it shares these contracts: an action's delivery requirements must be consistent across public and internal orders. Keep non-delivery actions, such as sponsorship-only actions, unaffected.
+Delivery capture is mandatory scope for both order-entry channels: Anna's acquisition interface and an interested visitor's order form on the charity action's Astro website. The Charity Admin backend owns their action-level configuration and form definitions. Completing only one entry channel does not complete this plan. Keep non-delivery actions, such as sponsorship-only actions, unaffected.
+
+| Surface | Required outcome |
+| --- | --- |
+| Charity Admin backend | Configure action delivery dates/windows and the effective order-form definition; review all captured delivery data |
+| Anna's acquisition interface | Capture delivery/billing addresses, a window, contact, and instructions under the same delivery rules; show compact beneficiaries on the overview |
+| Public Astro charity website | Render these fields from the Core-owned form definition and submit them to Core, including on the EmDash-backed campaign website after its cutover |
 
 This is a planning-only change. Implementation, migrations, deployment, and live order submission are not part of this task.
 
@@ -45,6 +51,32 @@ All paths below are repository-relative.
 | Dashboard | `packages/features/src/dashboard/dashboard.tsx` contains the existing goal card; `DashboardResponse` in `schemas.py` has no beneficiaries | Add a scoped beneficiary projection and compact display |
 
 Preserve the architectural boundary: Twenty owns CRM parties and relationships; LeonAid Core owns action configuration and order snapshots. Delivery-specific addresses and notes must not silently overwrite CRM records.
+
+### Parallel EmDash integration: verified dependency snapshot
+
+Read-only inspection on 2026-09-06 found branch `codex/analysiere-emdashintegration` at `08e2169`. This is a moving implementation baseline, not a merged dependency or a claim that the campaign website is complete.
+
+- Its `specs/emdash-campaign-microsite-spike/PLAN.md` keeps offerings, prices, availability, order-form configuration, privacy text, and submissions authoritative in Core (section 2.1).
+- The new Astro application is `apps/campaign-site`, alongside `apps/public`. Its current files include `astro.config.mjs` and `src/closed-bootstrap.ts`; public campaign rendering is not yet implemented in that snapshot. Database provisioning has evidence, but this does not prove public ordering.
+- EMS-010 defines route ownership; EMS-050 plans canonical campaign rendering; EMS-085 explicitly requires working form transport after migration. Existing Astro Actions belong to the app serving them: copying `PublicAction.astro` into the campaign app alone cannot establish submission parity.
+- `apps/public` initially owns existing public routes. The intended campaign URL is `/campaigns/<archive_slug>/`, with `/krapfentaxi` becoming a Core-managed alias. Order POSTs must retain valid ownership and must not be redirected as part of the cutover.
+
+Before DEL-02/DEL-04 implementation, inspect the latest EmDash branch again and reconcile its actual rendering, shared-component, and action-route decisions. Do not edit or cherry-pick the active parallel worktree as part of this plan update. Integrate against the agreed EmDash baseline before declaring final public-site acceptance; if it remains unfinished, report campaign-site acceptance as pending.
+
+### Form definitions are implementation scope
+
+Current `OrderFormConfiguration` in `src/leonaid/domain/action_templates.py` defines address requirements, buyer contact requirements, and a general message option. These values are serialized into template/action configuration and projected through `OrderFormConfigurationResponse` and `PublicOrderFormResponse`. Persistence is handled in `src/leonaid/adapters/postgres/actions.py` and `public_orders.py`; public submission validates form requirements in `src/leonaid/application/public_orders.py`.
+
+Extend that complete chain, not just rendered inputs:
+
+- Define a typed delivery section in the effective form contract: delivery enabled/required, window required when delivery is enabled, optional delivery-contact name/phone, and optional multiline delivery instructions with their limits. Keep buyer contact fields distinct from delivery contact fields and general messages distinct from instructions.
+- Make action delivery configuration the authority for delivery/window requirements. Project these into the form definition; do not introduce independently editable flags that allow the schedule, acquisition form, and public form to disagree. Newly enabled delivery forms include the requested optional contact/instruction fields in both channels.
+- Extend template defaults, serialization/deserialization, action-instance persistence, admin configuration reads/writes, public projections, capture context, and generated client types. Existing instances need an explicit compatible upgrade/enablement path; changing only the Krapfentaxi template does not update them.
+- Validate contradictory definitions on the server, such as requiring a window while delivery is disabled. Apply delivery completeness rules to both acquisition and public submissions, with the documented internal-draft exception. Preserve channel-specific buyer identity, public consent, and anti-abuse behavior.
+- Render from the effective contract in each frontend and enforce the same requirements at the Core boundary, including for clients that bypass HTML validation. Admin changes must reach both entry channels on refresh without an EmDash publication, rebuild, or hard-coded form change. Revalidate stale forms at submission and preserve input when configuration changes invalidate a selection.
+- Keep operational form definitions, submitted addresses, contacts, notes, and orders out of EmDash content records. EmDash owns editorial presentation only and cannot hide required fields or override Core validation through editorial settings.
+
+Prefer shared typed field mapping, limits, validation helpers, and compatible Astro form components across public renderers. Keep serving-app submission adapters explicit; reuse the existing Astro Action implementation where the EmDash integration permits it, or use the Core order API with equivalent server validation and progressive enhancement. Do not create a second CMS order pipeline.
 
 ## Product decisions proposed for implementation
 
@@ -111,6 +143,7 @@ Proposed names below are implementation targets, not existing API guarantees.
 Dependencies: none.
 
 - [ ] Implement delivery configuration/window invariants and snapshot extensions.
+- [ ] Extend typed order-form definitions, template defaults, and existing action-instance compatibility; establish one authoritative delivery policy for both entry channels.
 - [ ] Add schema migration, reference constraints, old-snapshot defaults, and fixtures.
 - [ ] Define retirement, timezone immutability once booked, and action-date-edit validation against existing delivery dates.
 - [ ] Prove old orders still load without invented delivery data and non-delivery commitments remain unaffected.
@@ -120,6 +153,7 @@ Dependencies: none.
 Dependencies: DEL-01.
 
 - [ ] Add authorized schedule reads/writes and revision conflict handling.
+- [ ] Wire effective form definitions through action persistence, admin configuration, capture context, public projections, and server validation for both order channels.
 - [ ] Extend internal/public order creation, readback, review transitions, legacy-order completion, and idempotency.
 - [ ] Implement transactional availability checks and protect referenced windows from mutation.
 - [ ] Regenerate API client and prove action/party authorization remains enforced.
@@ -131,6 +165,7 @@ Dependencies: DEL-02.
 - [ ] Add delivery configuration to `packages/features/src/action-admin/manage-action.tsx` and a focused section/component alongside `manage-sections.tsx`.
 - [ ] Support date/window add, edit, copy, retire, validation, empty state, and unsaved revision-conflict recovery.
 - [ ] Explain referenced-window restrictions and no-available-window state in German UI copy.
+- [ ] Show the effective order-form delivery section in the Charity Admin backend, including required address/window fields and optional contact/instructions; changes must govern both Anna's form and the public form.
 
 ### DEL-04 — Internal and public ordering
 
@@ -138,6 +173,8 @@ Dependencies: DEL-02; DEL-03 provides usable configured test actions.
 
 - [ ] Extend `commitment-capture.tsx`, `commitment-admin.tsx`, and related styling with delivery/billing/contact/instructions/window behavior.
 - [ ] Extend `PublicAction.astro`, `PublicOrderEnhancement.astro`, and `apps/public/src/actions/index.ts` using the same backend rules, preserving the existing public address toggle and validation flow.
+- [ ] Reconcile with EmDash EMS-010/050/085 and extend the actual `apps/campaign-site` form renderer and serving-app transport once available. Reuse shared definitions/components where appropriate; verify both canonical campaign and alias entry points rather than assuming parity from copied markup.
+- [ ] Preserve anonymous submission with and without JavaScript, consent/version checks, anti-abuse controls, idempotency, server pricing, and recoverable error/success feedback across the public renderer transition.
 - [ ] Preserve user input on validation, network, and retired-window errors; make exact retry versus edited resubmission explicit in command-key handling.
 - [ ] Verify saved details, legacy completion, and correct invoice recipient end to end.
 
@@ -157,6 +194,7 @@ Dependencies: DEL-01–05.
 - [ ] Inspect the implemented mobile dashboard and ordering UI in the In-App Browser using synthetic data; compare collapsed goal-card height before/after at 360, 390, and 430 px widths.
 - [ ] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow.
 - [ ] Record commands/results and remaining limitations in this spec directory before marking implementation complete.
+- [ ] Prove the same configured action works through Anna's form, the existing public renderer, and the EmDash campaign renderer on the integrated baseline. An unfinished EmDash renderer leaves this acceptance item open.
 
 ## Acceptance and test matrix
 
@@ -173,6 +211,11 @@ Dependencies: DEL-01–05.
 | Authorization | Acquirers cannot edit schedules or view other parties' orders; unrelated-action administrators cannot mutate schedules; public reads contain configuration only |
 | Beneficiaries | Zero/one/many/long names, unconfigured goal, action switch, keyboard/touch expansion, and mobile height budget pass |
 | Billing regression | Invoice creation uses the correct invoice snapshot and does not substitute delivery notes/contact fields |
+| Definition propagation | Admin configures delivery once; both entry channels expose the same address/window/contact/instructions contract; existing action instances and new template instances behave correctly |
+| API enforcement | Bypassing HTML validation cannot submit a complete order missing required delivery fields; stale form/configuration errors preserve input; optional contact remains optional in both channels |
+| EmDash parity | Identical synthetic orders through legacy Astro and campaign Astro persist equivalent delivery snapshots; canonical URL and alias work with and without JavaScript |
+| Editorial independence | Editing/publishing EmDash content cannot change delivery requirements or order data; Core window changes reach the campaign form without CMS publication |
+| Transport/cutover | Serving-app action route, origin/CSRF protections, consent, retries, and success/error feedback remain valid; order POSTs are not redirected and accepted orders survive renderer rollback |
 
 Extend existing suites such as `tests/e2e/commitments.spec.mjs`, `action-admin.spec.mjs`, `public-orders.spec.mjs`, `dashboard.spec.mjs`, `tests/unit/test_public_orders.py`, and `test_dashboard_metrics.py`; add focused schedule domain/repository tests. Cover real persistence and transaction races, not just component mocks.
 
@@ -195,6 +238,8 @@ rtk git diff --check
 ```
 
 Run the existing invoice regression gate when changing review/invoice transition code, and the OpenAPI compatibility checks for generated contract changes. A successful build alone does not satisfy DEL-06.
+
+On the integrated EmDash baseline, also run the applicable EMS-010/050/085 route, public rendering, and demo-migration gates from `specs/emdash-campaign-microsite-spike/PLAN.md`, including campaign-site build/type checks as defined there at implementation time. Run the extended public-order scenarios against both renderer entry points. A closed-runtime or PostgreSQL-only EmDash test is not evidence that these delivery forms work.
 
 ## Review assumptions
 
