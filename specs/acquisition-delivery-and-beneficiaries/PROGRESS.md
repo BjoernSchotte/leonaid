@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Effective order rules and empty availability in Charity Admin — 2026-09-06
+
+Added an effective-form summary to the delivery editor, read from Core's existing delivery/order-form projection. It distinguishes saved rules from local edits and displays delivery/address requirements, optional contact/instruction limits, timezone and currently selectable window count. With delivery enabled and zero selectable windows it explains that public and review-ready acquisition orders are blocked while internal drafts remain possible. A refresh button retries reads and rechecks time-dependent availability. Read errors do not display stale rules as current. The saved configuration revision keys the query, so successful schedule saves refresh the summary without discarding local editor state.
+
+The real public-policy browser test creates only elapsed/retired availability, opens Charity Admin and verifies the zero-window warning and required-field/limit copy; restoring a future window and refreshing removes the warning and shows one window. The integrated Admin save automatically shows seven windows after configuring 3/3/1. Both entry channels, stale rejection/recovery, successful orders, visible admin details and PostgreSQL readback continue to pass.
+
+`bun run typecheck` passed across API client, UI, features, web, PWA and public Astro (zero errors/warnings). `./leonaid test-public-orders` exited 0 on isolated project `leonaid-362a-delivery-public-20260906r`, ports 18265/18665 and worktree subnet override. The shared journey passed in 5.0 seconds. Own stack was cleaned up. Together with the prior admin add/edit/copy/retire/conflict/discard proofs, this completes DEL-03; integrated EmDash and final mobile In-App acceptance remain open.
+
 ## Shared orders visible in administrator review — 2026-09-06
 
 The integrated browser journey now navigates to `/admin/orders` after creating both recovered orders. For each actual order ID, it opens the delivery/billing disclosure using keyboard Enter, verifies contact, phone, multiline instructions, timezone and the appropriate reused/separate invoice address, and closes it again using Enter. This proves the visible reviewer path in addition to admin API and PostgreSQL readback.

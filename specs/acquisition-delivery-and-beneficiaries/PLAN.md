@@ -167,9 +167,11 @@ Dependencies: DEL-01.
 Dependencies: DEL-02.
 
 - [x] Add delivery configuration to `packages/features/src/action-admin/manage-action.tsx` and a focused section/component alongside `manage-sections.tsx`. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
-- [ ] Support date/window add, edit, copy, retire, validation, empty state, and unsaved revision-conflict recovery.
-- [ ] Explain referenced-window restrictions and no-available-window state in German UI copy.
-- [ ] Show the effective order-form delivery section in the Charity Admin backend, including required address/window fields and optional contact/instructions; changes must govern both Anna's form and the public form.
+- [x] Support date/window add, edit, copy, retire, validation, empty state, and unsaved revision-conflict recovery.
+- [x] Explain referenced-window restrictions and no-available-window state in German UI copy.
+- [x] Show the effective order-form delivery section in the Charity Admin backend, including required address/window fields and optional contact/instructions; changes must govern both Anna's form and the public form.
+
+Evidence: admin lifecycle/conflict checkpoints and effective-form/empty-availability checkpoint in `PROGRESS.md`; same-action propagation and both-order readback in `ACCEPTANCE.md`.
 
 ### DEL-04 — Internal and public ordering
 

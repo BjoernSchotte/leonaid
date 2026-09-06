@@ -423,6 +423,22 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     await expect(form.locator('[name="deliveryRecipientName"]')).toHaveValue(
       "Erhaltener neuer Empfang",
     );
+    const adminPage = await admin.newPage();
+    await adminPage.goto(
+      `${baseUrl}/admin/actions/20000000-0000-4000-8000-000000000001`,
+    );
+    await adminPage.getByTestId("management-tab-delivery").click();
+    const effectiveForm = adminPage.getByRole("region", {
+      name: "Aktuell gültiges Bestellformular",
+    });
+    await expect(effectiveForm).toContainText(
+      "Keine verfügbaren Lieferfenster",
+    );
+    await expect(effectiveForm).toContainText(
+      "Interne Entwürfe bleiben möglich",
+    );
+    await expect(effectiveForm).toContainText("Lieferadresse: erforderlich");
+    await expect(effectiveForm).toContainText("maximal 1000 Zeichen");
     const noJs = await browser.newContext({
       javaScriptEnabled: false,
       ignoreHTTPSErrors: true,
@@ -442,6 +458,14 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
       await noJs.close();
     }
     await save(original.enabled, original.windows);
+    await effectiveForm
+      .getByRole("button", { name: "Bestellregeln aktualisieren" })
+      .click();
+    await expect(effectiveForm).toContainText("1 verfügbares Lieferfenster");
+    await expect(effectiveForm).not.toContainText(
+      "Keine verfügbaren Lieferfenster",
+    );
+    await adminPage.close();
     await form.locator("[data-delivery-reload]").click();
     await expect(form.locator('[name="deliveryWindowId"] option')).toHaveCount(
       original.windows.filter((window) => !window.retired).length + 1,
@@ -597,6 +621,11 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
     expect((await saved).status()).toBe(200);
     const configuration = await (await admin.request.get(scheduleUrl)).json();
     expect(configuration.windows).toHaveLength(7);
+    await expect(
+      adminPage.getByRole("region", {
+        name: "Aktuell gültiges Bestellformular",
+      }),
+    ).toContainText("7 verfügbare Lieferfenster");
     expect(
       ["2026-10-01", "2026-10-02", "2026-10-03"].map(
         (date) =>

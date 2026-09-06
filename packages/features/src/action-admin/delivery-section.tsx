@@ -49,6 +49,91 @@ export function DeliverySection(props: Props) {
   );
 }
 
+function EffectiveDeliveryForm({
+  client,
+  actionId,
+  revision,
+}: {
+  client: LeonAidApiClient;
+  actionId: string;
+  revision: number;
+}) {
+  const query = useQuery({
+    queryKey: ["delivery-effective-form", actionId, revision],
+    queryFn: () => client.getDeliveryOrderForm(actionId),
+  });
+  const form = query.data;
+  return (
+    <section
+      aria-label="Aktuell gültiges Bestellformular"
+      className="delivery-effective-form"
+    >
+      <h3>Aktuell gültiges Bestellformular</h3>
+      <p>
+        Gespeicherte Regeln für Akquise und öffentliche Bestellungen.
+        Ungespeicherte Änderungen gelten noch nicht.
+      </p>
+      {query.isPending ? (
+        <StatusMessage>Bestellregeln werden geladen …</StatusMessage>
+      ) : query.isError ? (
+        <StatusMessage tone="error">
+          Die aktuellen Bestellregeln konnten nicht geladen werden.
+        </StatusMessage>
+      ) : form ? (
+        <>
+          {!form.enabled ? (
+            <p>Die Lieferfensterauswahl ist deaktiviert.</p>
+          ) : (
+            <>
+              <p>
+                Lieferadresse:{" "}
+                {form.requireAddress ? "erforderlich" : "optional"}.
+                Lieferzeitfenster:{" "}
+                {form.requireWindow ? "erforderlich" : "optional"}.
+              </p>
+              <p>
+                {form.windows.length}{" "}
+                {form.windows.length === 1
+                  ? "verfügbares Lieferfenster"
+                  : "verfügbare Lieferfenster"}{" "}
+                · {form.timezone}
+              </p>
+              {form.windows.length === 0 && (
+                <StatusMessage>
+                  Keine verfügbaren Lieferfenster. Öffentliche Bestellungen und
+                  prüfbereite Akquise-Bestellungen sind derzeit nicht möglich.
+                  Interne Entwürfe bleiben möglich. Ergänze ein zukünftiges
+                  Fenster und speichere die Planung.
+                </StatusMessage>
+              )}
+            </>
+          )}
+          {form.allowContact && (
+            <p>
+              Ansprechpartner und Telefonnummer am Liefertag sind optional
+              (maximal {form.contactNameMaxLength} bzw.{" "}
+              {form.contactPhoneMaxLength} Zeichen).
+            </p>
+          )}
+          {form.allowInstructions && (
+            <p>
+              Abteilung / Lieferhinweise sind optional (maximal{" "}
+              {form.instructionsMaxLength} Zeichen).
+            </p>
+          )}
+        </>
+      ) : null}
+      <Button
+        variant="secondary"
+        disabled={query.isFetching}
+        onClick={() => void query.refetch()}
+      >
+        Bestellregeln aktualisieren
+      </Button>
+    </section>
+  );
+}
+
 function DeliveryEditor({
   initial,
   client,
@@ -150,6 +235,11 @@ function DeliveryEditor({
           </p>
         </div>
       </header>
+      <EffectiveDeliveryForm
+        client={client}
+        actionId={actionId}
+        revision={initial.revision}
+      />
       <form onSubmit={(event) => void save(event)} className="delivery-editor">
         <fieldset disabled={disabled || pending}>
           <legend>Bestellungen mit Lieferung</legend>
