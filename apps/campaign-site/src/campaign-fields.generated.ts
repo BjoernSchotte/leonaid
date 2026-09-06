@@ -2,12 +2,29 @@
 // Field shapes only: authorization and campaignEditorial validation are required.
 import type { PortableTextBlock } from "emdash";
 
-export type CampaignSchemaVersion = 1;
+export type CampaignSchemaVersion = 2;
+
+export interface CampaignImageReference {
+  id: string;
+  provider?: "local";
+  alt?: string;
+  width?: number;
+  height?: number;
+  filename?: string;
+  mimeType?: "image/png" | "image/jpeg" | "image/webp";
+  meta?: {
+    storageKey: string;
+    caption?: string | null;
+    blurhash?: string | null;
+    dominantColor?: string | null;
+  };
+}
 
 export interface CampaignPageFields {
   action_id: string;
   body?: PortableTextBlock[] | null;
   faq?: { _key?: string; question: string; answer: string }[] | null;
+  hero_image?: CampaignImageReference | null;
   hero_summary?: string | null;
   hero_title?: string | null;
   partners?:
@@ -16,9 +33,11 @@ export interface CampaignPageFields {
         name: string;
         description?: string | null;
         website?: string | null;
+        logo?: CampaignImageReference | null;
       }[]
     | null;
   seo_description?: string | null;
+  social_image?: CampaignImageReference | null;
   theme?: "leonaid" | "krapfentaxi" | null;
   title?: string | null;
 }

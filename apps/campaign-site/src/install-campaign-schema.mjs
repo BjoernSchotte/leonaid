@@ -4,6 +4,7 @@ import { SchemaRegistry } from "emdash";
 import { applySeed } from "emdash/seed";
 import {
   campaignCollection,
+  campaignCollectionV1,
   campaignSchemaVersion,
 } from "./campaign-schema.mjs";
 
@@ -23,9 +24,32 @@ const fieldContract = (field) => ({
 const sortedFields = (fields) =>
   fields.map(fieldContract).sort((a, b) => a.slug.localeCompare(b.slug));
 
+async function assertSchema(registry, expected) {
+  const actual = await registry.getCollectionWithFields(expected.slug);
+  if (
+    !actual ||
+    actual.label !== expected.label ||
+    actual.titleField !== expected.titleField ||
+    actual.hasSeo ||
+    actual.commentsEnabled ||
+    !isDeepStrictEqual(
+      [...actual.supports].sort(),
+      [...expected.supports].sort(),
+    ) ||
+    !isDeepStrictEqual(
+      sortedFields(actual.fields),
+      sortedFields(expected.fields),
+    )
+  )
+    throw new Error("campaign_schema_drift");
+}
+
 // Operator-only installation: no automatic repairs or content import. Existing
 // schemas must match exactly; incompatible upgrades need an explicit migration.
-export async function installCampaignSchema(database) {
+export async function installCampaignSchema(
+  database,
+  { upgradeFromVersion1 = false } = {},
+) {
   return database.transaction().execute(async (transaction) => {
     await sql`SET LOCAL lock_timeout = '3s'`.execute(transaction);
     await sql`SET LOCAL statement_timeout = '5s'`.execute(transaction);
@@ -35,10 +59,36 @@ export async function installCampaignSchema(database) {
       .select("value")
       .where("name", "=", "leonaid:campaign_schema_version")
       .executeTakeFirst();
-    if (version && version.value !== JSON.stringify(campaignSchemaVersion))
+    const upgrade = version?.value === "1" && upgradeFromVersion1;
+    if (
+      version &&
+      version.value !== JSON.stringify(campaignSchemaVersion) &&
+      !upgrade
+    )
       throw new Error("campaign_schema_version_mismatch");
     const registry = new SchemaRegistry(transaction);
     const existing = await registry.getCollection(campaignCollection.slug);
+    if (upgrade) {
+      await assertSchema(registry, campaignCollectionV1);
+      for (const field of campaignCollection.fields) {
+        const previous = campaignCollectionV1.fields.find(
+          (item) => item.slug === field.slug,
+        );
+        if (!previous)
+          await registry.createField(campaignCollection.slug, field);
+        else if (
+          !isDeepStrictEqual(fieldContract(previous), fieldContract(field))
+        )
+          await registry.updateField(campaignCollection.slug, field.slug, {
+            validation: field.validation,
+          });
+      }
+      await transaction
+        .updateTable("options")
+        .set({ value: JSON.stringify(campaignSchemaVersion) })
+        .where("name", "=", "leonaid:campaign_schema_version")
+        .execute();
+    }
     if (!existing) {
       if (version) throw new Error("campaign_schema_missing");
       await applySeed(
@@ -47,25 +97,7 @@ export async function installCampaignSchema(database) {
         { includeContent: false, onConflict: "error" },
       );
     }
-    const actual = await registry.getCollectionWithFields(
-      campaignCollection.slug,
-    );
-    if (
-      !actual ||
-      actual.label !== campaignCollection.label ||
-      actual.titleField !== campaignCollection.titleField ||
-      actual.hasSeo ||
-      actual.commentsEnabled ||
-      !isDeepStrictEqual(
-        [...actual.supports].sort(),
-        [...campaignCollection.supports].sort(),
-      ) ||
-      !isDeepStrictEqual(
-        sortedFields(actual.fields),
-        sortedFields(campaignCollection.fields),
-      )
-    )
-      throw new Error("campaign_schema_drift");
+    await assertSchema(registry, campaignCollection);
     if (!version)
       await transaction
         .insertInto("options")
@@ -74,6 +106,10 @@ export async function installCampaignSchema(database) {
           value: JSON.stringify(campaignSchemaVersion),
         })
         .execute();
-    return { schemaVersion: campaignSchemaVersion, created: !existing };
+    return {
+      schemaVersion: campaignSchemaVersion,
+      created: !existing,
+      upgraded: upgrade,
+    };
   });
 }

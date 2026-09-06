@@ -101,6 +101,8 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/media-http-proof.mjs "$@"
     }
     media_probe
+    compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
+      node tools/emdash_spike/campaign-media-reference-proof.mjs
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs fail-confirm
     media_probe --confirm-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs restore-confirm

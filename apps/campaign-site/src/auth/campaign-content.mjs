@@ -5,6 +5,7 @@ import {
   handleRevisionGet,
   handleContentCompare,
 } from "emdash";
+import { requireCampaignMediaReferences } from "./campaign-media-references.mjs";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,11 +41,21 @@ export async function listCampaignContent(
   collection,
   parameters = {},
 ) {
-  return handleContentList(
-    database,
-    collection,
-    campaignListParameters(profile, collection, parameters),
-  );
+  return database.transaction().execute(async (transaction) => {
+    const result = await handleContentList(
+      transaction,
+      collection,
+      campaignListParameters(profile, collection, parameters),
+    );
+    if (result.success)
+      for (const item of result.data.items)
+        await requireCampaignMediaReferences(
+          transaction,
+          item.data.action_id,
+          item.data,
+        );
+    return result;
+  });
 }
 
 const ulid = /^[0-9A-HJKMNP-TV-Z]{26}$/;
@@ -59,7 +70,7 @@ function scopedEntryQuery(database, profile, collection) {
   // Select only authorization metadata before invoking upstream content readers.
   let query = database
     .selectFrom("ec_campaign_pages")
-    .select("ec_campaign_pages.id")
+    .select(["ec_campaign_pages.id", "ec_campaign_pages.action_id"])
     .where("ec_campaign_pages.deleted_at", "is", null);
   if (parameters.fieldFilters) {
     query = query.where(
@@ -82,7 +93,14 @@ export async function getCampaignContent(database, profile, collection, id) {
     if (!entry) return notFound();
     // Hold the row lock through hydration; concurrent rebinding/deletion cannot
     // change the authorization target between lookup and upstream data access.
-    return handleContentGet(transaction, collection, entry.id);
+    const result = await handleContentGet(transaction, collection, entry.id);
+    if (result.success)
+      await requireCampaignMediaReferences(
+        transaction,
+        entry.action_id,
+        result.data.item.data,
+      );
+    return result;
   });
 }
 
@@ -101,7 +119,20 @@ export async function listCampaignRevisions(
       .forShare()
       .executeTakeFirst();
     if (!entry) return notFound();
-    return handleRevisionList(transaction, collection, entry.id, parameters);
+    const result = await handleRevisionList(
+      transaction,
+      collection,
+      entry.id,
+      parameters,
+    );
+    if (result.success)
+      for (const revision of result.data.items)
+        await requireCampaignMediaReferences(
+          transaction,
+          entry.action_id,
+          revision.data,
+        );
+    return result;
   });
 }
 
@@ -118,7 +149,14 @@ export async function getCampaignRevision(database, profile, revisionId) {
     if (!entry) return notFound();
     // Permission derives from the stored parent, never revision JSON or a
     // caller-supplied entry ID. Lock both rows until the revision is read.
-    return handleRevisionGet(transaction, revisionId);
+    const result = await handleRevisionGet(transaction, revisionId);
+    if (result.success)
+      await requireCampaignMediaReferences(
+        transaction,
+        entry.action_id,
+        result.data.item.data,
+      );
+    return result;
   });
 }
 
@@ -145,13 +183,21 @@ export async function compareCampaignContent(
     if (ids.length) {
       const revisions = await transaction
         .selectFrom("revisions")
-        .select("id")
+        .select(["id", "data"])
         .where("collection", "=", collection)
         .where("entry_id", "=", id)
         .where("id", "in", ids)
         .forShare()
         .execute();
       if (revisions.length !== ids.length) return notFound();
+      for (const revision of revisions)
+        await requireCampaignMediaReferences(
+          transaction,
+          entry.action_id,
+          typeof revision.data === "string"
+            ? JSON.parse(revision.data)
+            : revision.data,
+        );
     }
     return handleContentCompare(transaction, collection, id);
   });

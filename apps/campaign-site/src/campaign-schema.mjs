@@ -1,7 +1,7 @@
 // Versioned editorial schema. Core remains authoritative for all business data.
-// Media fields are added only with the campaign-scoped storage/preview proof.
-export const campaignSchemaVersion = 1;
-export const campaignCollection = {
+export const campaignSchemaVersion = 2;
+// Retained verbatim for strict, explicit version-1 migration preflight.
+export const campaignCollectionV1 = {
   slug: "campaign_pages",
   label: "Campaign pages",
   titleField: "title",
@@ -76,6 +76,34 @@ export const campaignCollection = {
       type: "text",
       validation: { maxLength: 320 },
     },
+  ],
+};
+
+const imageField = (slug, label) => ({
+  slug,
+  label,
+  type: "image",
+  validation: { allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"] },
+});
+export const campaignCollection = {
+  ...campaignCollectionV1,
+  fields: [
+    ...campaignCollectionV1.fields.map((field) =>
+      field.slug === "partners"
+        ? {
+            ...field,
+            validation: {
+              ...field.validation,
+              subFields: [
+                ...field.validation.subFields,
+                imageField("logo", "Partner logo"),
+              ],
+            },
+          }
+        : field,
+    ),
+    imageField("hero_image", "Hero image"),
+    imageField("social_image", "Social sharing image"),
   ],
 };
 

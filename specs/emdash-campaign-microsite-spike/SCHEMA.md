@@ -1,6 +1,6 @@
 # Campaign schema lifecycle
 
-`apps/campaign-site/src/campaign-schema.mjs` is the source-controlled version 1
+`apps/campaign-site/src/campaign-schema.mjs` is the source-controlled version 2
 editorial collection definition. Its structure is exported with:
 
 ```sh
@@ -27,7 +27,7 @@ or startup auto-migration calls it. Within a bounded PostgreSQL transaction it:
 - creates an absent collection through the actual EmDash seed engine;
 - checks existing field definitions, validation, defaults and relevant collection
   capabilities against the source contract;
-- records version 1 in `options.leonaid:campaign_schema_version`;
+- records version 2 in `options.leonaid:campaign_schema_version`;
 - returns without schema/content updates when the existing contract matches.
 
 Schema or version drift fails closed and remains untouched. Do not use a generic
@@ -35,11 +35,52 @@ Schema or version drift fails closed and remains untouched. Do not use a generic
 versions need reviewed migrations, backup and rollback evidence. This metadata
 comparison is not a complete physical PostgreSQL index/constraint audit.
 
+### Explicit version-1 upgrade
+
+The retained `campaignCollectionV1` is the exact legacy preflight contract.
+`installCampaignSchema(database, { upgradeFromVersion1: true })` accepts only
+that version and matching metadata. It adds nullable `hero_image` and
+`social_image` fields and a nullable `partners[].logo`, using the actual EmDash
+registry inside the same serialized PostgreSQL transaction. It advances the
+version marker only with the complete schema change; ordinary installation
+refuses version 1. There is no runtime auto-upgrade or generic drift repair.
+
+The real `schema-migration` proof retains published content, an outstanding
+draft and all revision rows byte-for-byte, rejects changed legacy rules, and
+injects a PostgreSQL failure while adding the second image field. The first
+field's DDL, repeater metadata and version marker all roll back. Three competing
+explicit upgrades produce one upgrade and two unchanged results. Repetition
+does not rewrite content or schema. Full backup/restore-based release rollback
+remains the separate EMS-080 requirement; this is not downgrade support.
+
+### Campaign image references
+
+Version 2 allows only local PNG/JPEG/WebP references in the three named image
+slots. Strings/URLs, remote providers, arbitrary metadata and dark variants are
+not admitted. IDs have canonical ULID syntax; alt text and native cached facts
+are bounded. Native provider enrichment adds nullable caption/placeholder facts
+inside `meta`; those values must match the stored media row exactly.
+
+`auth/campaign-media-references.mjs` resolves IDs through immutable action
+ownership and ready status, locks media/binding rows in deterministic order, and
+checks MIME, dimensions, SHA-256 presence, storage namespace and every supplied
+cached fact. Same-user ownership of multiple campaigns is not permission to
+reuse a media binding across them. System Admins follow the same binding rule.
+Validation occurs before native normalization, creation, update, restore and
+publication; resulting references are checked before commit. Content/revision
+reads and comparisons also reject invalid references. A forged stored revision
+is not trusted just because its parent belongs to the requesting actor.
+
+These are application-level reference checks, not database triggers against a
+trusted database owner. Media ready status does not grant anonymous delivery.
+Native picker context, browser image previews, full image-field UX and public
+publication/reference-gated delivery still require their separate proofs.
+
 ## Campaign binding constraints
 
 After collection installation, the operator must call `installCampaignBindings`.
 The binding contract is version 2 (`options.leonaid:campaign_binding_version`),
-separate from version 1 of the editorial collection. It installs the immutable
+separate from the editorial collection version. It installs the immutable
 content/revision binding triggers plus the physical PostgreSQL constraint
 `leonaid_campaign_action_unique UNIQUE (action_id)`.
 
@@ -94,12 +135,15 @@ types from `SchemaRegistry.getCollectionWithFields()` after installation and
 checks exact equality with both the source-generated and committed output.
 Collection field ordering does not change the output; unsupported field types
 fail explicitly instead of silently widening to `any` or `unknown`. New media
-fields require extending both generation and verification when they are admitted.
+fields now use a bounded local `CampaignImageReference` shape; TypeScript still
+cannot prove the referenced row belongs to a campaign or is ready.
 
 ## Evidence boundary
 
 ```sh
 ./leonaid test-emdash-spike --case schema-runtime
+./leonaid test-emdash-spike --case schema-migration
+./leonaid test-emdash-spike --case campaign-media-http
 ./leonaid test-emdash-spike --case campaign-runtime
 ```
 
@@ -110,6 +154,6 @@ The runtime regression exercises the same installer before real CMS/Core HTTP
 operations. Both use collision-checked project-specific networks and volumes,
 publish no host ports, and clean only owned resources.
 
-This does not complete EMS-040: media fields and the complete `content-model`
-gate remain open.
+This does not complete EMS-040: native image-field UX and the complete
+`content-model` gate remain open.
 Pilot/release operator wiring and upgrade/restore integration also remain open.

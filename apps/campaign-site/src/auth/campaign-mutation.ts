@@ -1,6 +1,10 @@
 import { sql } from "kysely";
 import { requireCurrentCampaignActor } from "./core-identity";
 import {
+  requireCampaignMediaReferences,
+  requireCampaignResultMediaReferences,
+} from "./campaign-media-references.mjs";
+import {
   getRequestContext,
   runWithContext,
   type EmDashRequestContext,
@@ -59,8 +63,14 @@ export async function updateCampaignAtomically(
   body: Parameters<Updater>[2],
   actor: MutationActor,
 ): Promise<Result> {
-  return mutateCampaignAtomically(emdash, collection, id, actor, () =>
-    updater(collection, id, body),
+  return mutateCampaignAtomically(
+    emdash,
+    collection,
+    id,
+    actor,
+    () => updater(collection, id, body),
+    "new-draft",
+    { data: body.data },
   );
 }
 
@@ -71,6 +81,7 @@ export async function mutateCampaignAtomically(
   actor: MutationActor,
   mutate: () => Promise<Result>,
   effect: "new-draft" | "discard-draft" | "publish" | "unpublish" = "new-draft",
+  references?: { data?: unknown; revisionId?: string },
 ): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
@@ -109,6 +120,34 @@ export async function mutateCampaignAtomically(
         if (linked.rows.length !== 1)
           throw new Error("campaign_revision_pointer_invalid");
       }
+      // Validate before native provider normalization or revision promotion.
+      // The selected stored revision, not a caller-supplied snapshot, is locked.
+      const referenceRevision =
+        references?.revisionId ??
+        (effect === "publish"
+          ? (entry.rows[0].draft_revision_id ?? entry.rows[0].live_revision_id)
+          : null);
+      if (referenceRevision) {
+        const revision = await sql<{
+          data: string | Record<string, unknown>;
+        }>`SELECT data FROM public.revisions
+          WHERE id=${referenceRevision} AND collection='campaign_pages' AND entry_id=${id}
+          FOR SHARE`.execute(transaction);
+        if (revision.rows.length !== 1)
+          throw new Error("campaign_revision_pointer_invalid");
+        const data = revision.rows[0].data;
+        await requireCampaignMediaReferences(
+          transaction,
+          entry.rows[0].action_id,
+          typeof data === "string" ? JSON.parse(data) : data,
+        );
+      }
+      if (references?.data)
+        await requireCampaignMediaReferences(
+          transaction,
+          entry.rows[0].action_id,
+          references.data,
+        );
       const tasks = deferredTracker();
       return runWithContext(
         {
@@ -133,6 +172,13 @@ export async function mutateCampaignAtomically(
             // for revision insertion, pointer updates and schema validation.
             const result = await mutate();
             if (!result.success) throw new RejectedMutation(result);
+            // Upstream can merge partial writes or enrich references. Never
+            // commit/return a different, unchecked image reference as a result.
+            await requireCampaignResultMediaReferences(
+              transaction,
+              entry.rows[0].action_id,
+              result,
+            );
             if (effect === "unpublish") {
               const withdrawn = await sql<{
                 draft_revision_id: string | null;

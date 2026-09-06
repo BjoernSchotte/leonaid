@@ -285,6 +285,102 @@ if (mode) {
   await stage("charity", failure);
   const tamper = await reserve("charity", a, "synthetic-tamper.png");
   await stage("charity", tamper);
+  const pagesRoot = "/_emdash/api/content/campaign_pages";
+  const page = (await call("charity", pagesRoot)).json.data.items.find(
+    (item) => item.data.action_id === a,
+  );
+  assert.ok(page);
+  const pagePath = `${pagesRoot}/${page.id}`;
+  const readPage = async () => (await call("charity", pagePath)).json.data;
+  const history = async () =>
+    (await call("charity", `${pagePath}/revisions`)).json.data;
+  const original = await readPage();
+  const originalHistory = await history();
+  const ownReference = {
+    id: ready.id,
+    provider: "local",
+    alt: "Synthetic hero",
+    width: ready.width,
+    height: ready.height,
+    filename: ready.filename,
+    mimeType: ready.mimeType,
+    meta: { storageKey: ready.storageKey },
+  };
+  for (const changes of [
+    { hero_image: { id: foreignReady.id } },
+    { social_image: { id: foreignReady.id } },
+    {
+      partners: [
+        { name: "Denied foreign logo", logo: { id: foreignReady.id } },
+      ],
+    },
+    { hero_image: { id: failure.mediaId } },
+    {
+      hero_image: {
+        ...ownReference,
+        meta: { storageKey: foreignReady.storageKey },
+      },
+    },
+    { hero_image: { ...ownReference, width: 99 } },
+    { hero_image: { ...ownReference, provider: "external" } },
+    { hero_image: { ...ownReference, src: "https://example.invalid/tracker" } },
+    { hero_image: { ...ownReference, darkVariant: { id: foreignReady.id } } },
+  ]) {
+    await call("charity", pagePath, 403, "PUT", {
+      _rev: original._rev,
+      data: { ...original.item.data, ...changes },
+    });
+    assert.deepEqual(await readPage(), original);
+    assert.deepEqual(await history(), originalHistory);
+  }
+  const edited = (
+    await call("charity", pagePath, 200, "PUT", {
+      _rev: original._rev,
+      data: {
+        ...original.item.data,
+        hero_image: ownReference,
+        social_image: { id: ready.id },
+        partners: [{ name: "Own logo", logo: ownReference }],
+      },
+    })
+  ).json.data;
+  assert.equal(edited.item.data.hero_image.id, ready.id);
+  assert.equal((await readPage()).item.data.partners[0].logo.id, ready.id);
+  const savedRevision = (await history()).items.find(
+    (revision) => revision.id === edited.item.draftRevisionId,
+  );
+  assert.equal(savedRevision.data.hero_image.id, ready.id);
+  await call("charity", `${pagePath}/publish`, 200, "POST", {});
+  const published = await readPage();
+  assert.equal(published.item.status, "published");
+  const cleared = (
+    await call("charity", pagePath, 200, "PUT", {
+      _rev: published._rev,
+      data: {
+        ...published.item.data,
+        hero_image: null,
+        social_image: null,
+        partners: [],
+      },
+    })
+  ).json.data;
+  assert.equal(cleared.item.data.hero_image, null);
+  const restored = (
+    await call(
+      "charity",
+      `/_emdash/api/revisions/${savedRevision.id}/restore`,
+      200,
+      "POST",
+      {},
+    )
+  ).json.data;
+  assert.equal(restored.item.data.hero_image.id, ready.id);
+  const compared = (await call("charity", `${pagePath}/compare`)).json.data;
+  assert.equal(compared.draft.hero_image.id, ready.id);
+  await call("charity_b", pagePath, 404);
+  console.log(
+    "campaign-media-references: real HTTPS native fields, nested logo, private revisions, publish/clear/restore/compare passed; foreign/pending/provider/path/dimension injection left content and history unchanged",
+  );
   for (const [path, method] of [
     [root, "POST"],
     [`${root}/${ready.id}`, "PUT"],

@@ -1400,6 +1400,35 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Add version-2 local image fields (`hero_image`, `social_image`, partner
+      `logo`), strict bounded reference shapes and matching generated types.
+      Explicit `upgradeFromVersion1` migration verifies the retained exact v1
+      metadata, preserves content/revisions and atomically adds nullable fields;
+      regular installation refuses an old version and never repairs drift.
+      Actual `schema-runtime` passed in `leonaid-emdash-tmp-yipefbzm44`;
+      `schema-migration` in `leonaid-emdash-tmp-t7qtwbj2yh` proved concurrent
+      one-winner upgrade, published/draft/revision preservation and complete
+      rollback after a real failure during the second new field's DDL.
+      The shared image-reference guard locks ready media and immutable bindings,
+      checks the exact action and cached file facts, and runs before native
+      normalization/create/update/restore/publish and before returning mutations.
+      Content, revision and comparison reads reject invalid references as well.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-ufbdcww1dt` with actual
+      production EmDash/Core/TLS/PostgreSQL/RustFS: own image creation, nested logo,
+      save/read/publish/clear/restore/compare, foreign/pending/provider/path/dimension
+      injection denial with unchanged content/history, and same-user cross-action
+      denial even for System Admin creation. A real poisoned stored revision
+      could not be read, compared, restored or published by either admin role;
+      full SQL/media snapshots remained unchanged and explicit fixture restoration
+      recovered access. Existing storage faults, slow uploads, three real logout
+      races, membership withdrawal and bootstrap restart/database-failure cases
+      passed. All three successful projects used unique resources, published no
+      host ports and cleaned their own resources.
+      Initial checks caught a negative compiler-fixture annotation, unvalidated
+      upstream result typing and native provider metadata enrichment; these were
+      corrected without admitting arbitrary metadata or weakening ownership.
+      See [SCHEMA.md](SCHEMA.md). Native picker context, image preview/browser UX,
+      public publication-gated delivery, cleanup and fresh restore remain open.
 - [x] Admit the campaign-scoped native reservation/PUT/confirmation protocol and
       private file reads through real Core authentication. Global multipart,
       media mutation, folder, usage and image-optimizer alternatives stay closed.
@@ -1587,7 +1616,7 @@ Dependencies: EMS-030 successful
       formatting and privacy/policy gates; unchanged tree).
       This supersedes earlier notes that global action uniqueness was open;
       pilot operator wiring, full model/media and restore/upgrade gates remain open.
-- [ ] Define typed, bounded fields for hero content, content blocks, FAQ,
+- [x] Define typed, bounded fields for hero content, content blocks, FAQ,
       partners, theme choice, SEO description, and social image.
 - [ ] Keep Core-owned values out of this schema.
 - [ ] Restrict arbitrary HTML, script, iframe, external asset, and unsafe URL

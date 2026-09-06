@@ -3,7 +3,7 @@ import type {
   CampaignSchemaVersion,
 } from "../../apps/campaign-site/src/campaign-fields.generated.js";
 
-const version: CampaignSchemaVersion = 1;
+const version: CampaignSchemaVersion = 2;
 const minimal: CampaignPageFields = { action_id: "synthetic-core-id" };
 const page: CampaignPageFields = {
   action_id: minimal.action_id,
@@ -15,6 +15,12 @@ const page: CampaignPageFields = {
   partners: [{ name: "Synthetic partner", description: null, website: null }],
   theme: "krapfentaxi",
   seo_description: null,
+  hero_image: {
+    id: "synthetic-media-id",
+    provider: "local",
+    alt: "Synthetic hero",
+  },
+  social_image: null,
 };
 const nullable: CampaignPageFields = {
   action_id: page.action_id,
@@ -43,8 +49,13 @@ page.partners = [{ name: 42 }];
 page.hero_title = { html: "<script>" };
 // @ts-expect-error business data is not a CMS field
 page.order_total = 100;
-// @ts-expect-error media fields are not yet in schema version 1
-page.social_image = { id: "unscoped-media" };
+// @ts-expect-error only local image providers are supported
+page.social_image = { id: "unscoped-media", provider: "external" };
+page.hero_image = {
+  id: "synthetic-media",
+  // @ts-expect-error arbitrary cached storage metadata is not supported
+  meta: { url: "https://example.invalid" },
+};
 // @ts-expect-error schema version is literal
-const wrongVersion: CampaignSchemaVersion = 2;
+const wrongVersion: CampaignSchemaVersion = 1;
 void [version, nullable, missingAction, nullAction, wrongVersion];

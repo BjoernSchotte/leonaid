@@ -31,19 +31,25 @@ with a revision token, valid Origin and `X-EmDash-Request: 1`. It rejects bindin
 changes, metadata and direct publication. The versioned editorial contract allows
 title, hero heading/introduction, bounded Portable Text, FAQ, partners, a fixed
 theme enum and SEO description. Unknown fields and nested properties, executable
-blocks/custom marks, unsafe links and media references are rejected. Aggregate
+blocks/custom marks and unsafe links are rejected. Version 2 adds strict local
+hero/social image and partner-logo references; ownership and cached file facts
+must match ready media bound to this exact action. Aggregate
 editorial JSON is limited to 60 KiB; raw create requests are limited to 64 KiB.
 Core pricing, orders, lifecycle and legal configuration are never CMS fields.
-Content/revision media references, public safe rendering and full native rich-field
-UX remain separate gates. The separate `campaign-media-http` proof admits only
+Public safe rendering and full native rich-field UX remain separate gates.
+The separate `campaign-media-http` proof admits only
 scoped reservation, PUT, confirmation, listing, item reads and private file reads.
 It uses real Core sessions and immutable campaign ownership; the upstream public
 file route is explicitly reprotected rather than relying on upstream locals.
 Confirmation verifies actual stored bytes and server-derived dimensions. Three
 real logout races prove fresh Core checks after database waits at upload start,
 object linking and confirmation. A ready media row is not public publication.
-The existing editorial schema still rejects all media references until the
-reference-validation and native-field tasks are completed.
+Version-2 references are verified before native normalization and mutations,
+including locked stored revisions on restore/publication, and before returning
+read or mutation results. Actual same-user cross-action creation and poisoned
+stored-revision tests reject foreign references for both Charity and System
+Admins with unchanged SQL/media. Native picker context and browser image-field
+workflows remain incomplete; HTTP field acceptance is not a browser UX proof.
 
 Actual HTTP/1 slow-body tests exposed proxy request-body draining before error
 delivery. Both Caddy variants intercept only CMS 408/413 responses, set connection

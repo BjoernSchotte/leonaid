@@ -17,7 +17,7 @@ const exported = exportCampaignSchema();
 assert.equal(exported, exportCampaignSchema());
 const contract = JSON.parse(exported);
 assert.deepEqual(Object.keys(contract), ["schema_version", "seed"]);
-assert.equal(contract.schema_version, 1);
+assert.equal(contract.schema_version, 2);
 assert.deepEqual(Object.keys(contract.seed), ["version", "collections"]);
 assert.equal(validateSeed(contract.seed).valid, true);
 

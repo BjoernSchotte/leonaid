@@ -2,6 +2,10 @@ import { defineMiddleware } from "astro:middleware";
 import { campaignMediaRoute } from "./auth/campaign-media-routes.mjs";
 import { campaignMediaHttp } from "./auth/campaign-media-http";
 import {
+  CampaignMediaReferenceError,
+  requireCampaignMediaReferences,
+} from "./auth/campaign-media-references.mjs";
+import {
   readCoreIdentity,
   CoreIdentityError,
   requireCorePublication,
@@ -103,6 +107,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
           data.action_id !== access.data.item.data.action_id
         )
           throw new CoreIdentityError(503);
+        await database
+          .transaction()
+          .execute((transaction) =>
+            requireCampaignMediaReferences(transaction, data.action_id, data),
+          );
       }
       return result;
     };
@@ -214,6 +223,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
         access.data.item.entryId,
         actor,
         () => runtimeRestore(revisionId, user.id),
+        "new-draft",
+        { revisionId },
       );
     };
     return await next();
@@ -221,7 +232,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return Response.json(
       { error: { code: "CAMPAIGN_ACCESS_DENIED" } },
       {
-        status: error instanceof CoreIdentityError ? error.status : 503,
+        status:
+          error instanceof CoreIdentityError ||
+          error instanceof CampaignMediaReferenceError
+            ? error.status
+            : 503,
         headers: { "Cache-Control": "no-store" },
       },
     );

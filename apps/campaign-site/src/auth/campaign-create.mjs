@@ -2,6 +2,10 @@ import { sql } from "kysely";
 import { handleContentCreate } from "emdash";
 import { requireCampaignBindings } from "./campaign-bindings.mjs";
 import { validCampaignEditorial } from "./campaign-editorial.mjs";
+import {
+  requireCampaignMediaReferences,
+  requireCampaignResultMediaReferences,
+} from "./campaign-media-references.mjs";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const reject = (code) => ({
@@ -61,6 +65,7 @@ export async function createCampaignContent(
     const existing = await sql`SELECT id FROM public.ec_campaign_pages
       WHERE action_id=${data.action_id} LIMIT 1`.execute(transaction);
     if (existing.rows.length) return reject("CONFLICT");
+    await requireCampaignMediaReferences(transaction, data.action_id, data);
     const result = await create(transaction, "campaign_pages", {
       data: { ...data, title: data.title.trim() },
       slug: data.action_id,
@@ -70,6 +75,11 @@ export async function createCampaignContent(
     // Upstream may return an error after partial work: abort the transaction,
     // never commit a failed result. The HTTP layer must sanitize exceptions.
     if (!result.success) throw new Error("campaign_create_failed");
+    await requireCampaignResultMediaReferences(
+      transaction,
+      data.action_id,
+      result,
+    );
     return result;
   });
 }

@@ -12,6 +12,8 @@ function fieldType(field) {
       return "string";
     case "portableText":
       return "PortableTextBlock[]";
+    case "image":
+      return "CampaignImageReference";
     case "select": {
       const options = field.validation?.options ?? field.options;
       if (
@@ -61,6 +63,17 @@ export async function generateCampaignTypes(collection = campaignCollection) {
 import type { PortableTextBlock } from "emdash";
 
 export type CampaignSchemaVersion = ${campaignSchemaVersion};
+
+export interface CampaignImageReference {
+  id: string;
+  provider?: "local";
+  alt?: string;
+  width?: number;
+  height?: number;
+  filename?: string;
+  mimeType?: "image/png" | "image/jpeg" | "image/webp";
+  meta?: { storageKey: string; caption?: string | null; blurhash?: string | null; dominantColor?: string | null };
+}
 
 export interface CampaignPageFields {
 ${fields.map(property).join("\n")}

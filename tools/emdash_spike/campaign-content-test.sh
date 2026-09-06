@@ -4,6 +4,7 @@ root=$1
 case ${2:-content} in
   content) proof_script=campaign-content-proof.mjs ;;
   schema) proof_script=schema-runtime-proof.mjs ;;
+  schema-migration) proof_script=schema-migration-proof.mjs ;;
   media) proof_script=campaign-media-proof.mjs ;;
   *) echo "campaign-content: unsupported proof" >&2; exit 2 ;;
 esac

@@ -2,6 +2,38 @@ import { z } from "astro/zod";
 
 const key = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const text = (max) => z.string().max(max);
+const storageKey = z
+  .string()
+  .regex(
+    /^campaigns\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$/,
+  );
+// Native image shape, deliberately local-only. Database ownership and every
+// optional cached fact are checked separately before any upstream mutation.
+export const campaignImageReference = z
+  .object({
+    id: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+    provider: z.literal("local").optional(),
+    alt: text(400).optional(),
+    width: z.number().int().min(1).max(8192).optional(),
+    height: z.number().int().min(1).max(8192).optional(),
+    filename: text(200).optional(),
+    mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]).optional(),
+    // The native provider enriches these nullable cached facts on save. Their
+    // values must match the media row, never caller-supplied arbitrary metadata.
+    meta: z
+      .object({
+        storageKey,
+        caption: text(4000).nullish(),
+        blurhash: text(200).nullish(),
+        dominantColor: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .nullish(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 const href = text(2048).refine((value) => {
   if (/[\u0000-\u0020\u007f\\]/.test(value)) return false;
   if (value.startsWith("/") && !value.startsWith("//")) return true;
@@ -64,6 +96,8 @@ export const campaignEditorial = z
     action_id: z.uuid().optional(),
     hero_title: text(180).nullish(),
     hero_summary: text(1200).nullish(),
+    hero_image: campaignImageReference.nullish(),
+    social_image: campaignImageReference.nullish(),
     body: z
       .array(block)
       .max(60)
@@ -92,6 +126,7 @@ export const campaignEditorial = z
             name: text(200).min(1),
             description: text(800).nullish(),
             website: href.or(z.literal("")).nullish(),
+            logo: campaignImageReference.nullish(),
           })
           .strict(),
       )
