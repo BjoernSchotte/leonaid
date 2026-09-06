@@ -36,9 +36,9 @@ The visible website says no delivery tours are currently planned. Entering the s
 
 Do not copy the historical dates, salutation requirements, newsletter checkbox, or special-order options into this scope. The old site supports multiple addresses; this plan deliberately proposes one destination and one window per order, as requested. Multiple destinations and quantity allocation would require a separate fulfillment model.
 
-### Verified checkout touchpoints
+### Checkout touchpoints at initial plan review
 
-All paths below are repository-relative.
+All paths below are repository-relative. This table records the starting gaps, not the current implementation status; consult `PROGRESS.md` for implemented and verified checkpoints.
 
 | Area | Current implementation | Required change |
 | --- | --- | --- |
@@ -64,6 +64,8 @@ Read-only inspection on 2026-09-06 found branch `codex/analysiere-emdashintegrat
 Before DEL-02/DEL-04 implementation, inspect the latest EmDash branch again and reconcile its actual rendering, shared-component, and action-route decisions. Do not edit or cherry-pick the active parallel worktree as part of this plan update. Integrate against the agreed EmDash baseline before declaring final public-site acceptance; if it remains unfinished, report campaign-site acceptance as pending.
 
 Implementation recheck on 2026-09-06: the parallel branch has advanced to `eadd30e` (CMS routing quality gate). Its campaign source still consists of `closed-bootstrap.ts` and `database-ready.ts`; it has no public order renderer. The shared Core form contract can proceed independently, but this does not complete DEL-04 or EmDash parity acceptance. Recheck again when the renderer becomes available.
+
+Latest read-only recheck on 2026-09-06: `codex/analysiere-emdashintegration` is at `cd9518d`, recording the browser dashboard quality checkpoint after Core-session dashboard access. The campaign source now also includes bootstrap controls and Core identity/authentication adapters. It still has no public campaign order renderer. Dashboard authentication evidence does not satisfy EMS-050/085 or delivery-order acceptance. Recheck the actual serving-app action routes and renderer at integration time; do not duplicate this parallel work or assume its current commit is the final integration baseline.
 
 ### Form definitions are implementation scope
 
@@ -197,6 +199,8 @@ Dependencies: DEL-01–05.
 - [ ] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow.
 - [ ] Record commands/results and remaining limitations in this spec directory before marking implementation complete.
 - [ ] Prove the same configured action works through Anna's form, the existing public renderer, and the EmDash campaign renderer on the integrated baseline. An unfinished EmDash renderer leaves this acceptance item open.
+
+Use one synthetic action for this cross-surface acceptance: configure two delivery days with three windows each in Charity Admin, then add a third day with a different count. Refresh Anna's form and the public form and compare their effective requirements and available windows with the saved admin configuration. Submit one order through each entry channel and verify their delivery, separate/reused billing, contact, instructions, and selected-window snapshots in administrator review and PostgreSQL. Repeat the public journey through the integrated EmDash canonical route and alias, with and without JavaScript. Finally retire a window after both forms have loaded: both must reject the stale selection, preserve unrelated input, and permit an explicit replacement selection. No CMS publication or site rebuild may be needed for these operational changes.
 
 ## Acceptance and test matrix
 
