@@ -862,6 +862,10 @@ still require real two-campaign data proofs for content, revisions, media and
 publication before Charity access may be enabled. No broad fork or client-side
 filtering is approved by this result.
 
+`./leonaid check` passed at `d0a6b33`, including the new inventory drift guard,
+208 unit tests, 242 Python source-file type checks, all frontend/CMS type and
+format checks, API parity and privacy/policy gates, with an unchanged worktree.
+
 ### EMS-040 — Define the editorial microsite model
 
 Dependencies: EMS-030 successful
