@@ -5,6 +5,7 @@ import {
   isCampaignUpdateRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
+import { updateCampaignAtomically } from "./auth/campaign-mutation";
 import { requireCampaignBindings } from "./auth/campaign-bindings.mjs";
 import {
   listCampaignContent,
@@ -65,7 +66,10 @@ export const onRequest = defineMiddleware(
           id,
           body,
         );
-        return denied ?? runtimeUpdate(collection, id, body);
+        return (
+          denied ??
+          updateCampaignAtomically(emdash, runtimeUpdate, collection, id, body)
+        );
       };
       emdash.handleRevisionList = (collection, id, parameters) =>
         listCampaignRevisions(database, profile, collection, id, parameters);

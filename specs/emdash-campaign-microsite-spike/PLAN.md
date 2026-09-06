@@ -888,6 +888,28 @@ Quality checkpoint: `./leonaid check` passed at `d05378f` with 208 unit tests,
 API/privacy/policy gates; worktree unchanged. The separate
 `authorization-surface` regression passed all 1,866 real HTTPS requests.
 
+Concurrent-write checkpoint (6 September 2026): the real `campaign-runtime`
+proof reproduced two successful PUTs using the same `_rev` token. The upstream
+runtime checks `_rev` before later re-reading the entry used for revision staging;
+sequential stale-token tests did not cover that interleaving. The application
+now locks the content row and invokes the original updater within one PostgreSQL
+transaction using EmDash's public `runWithContext` database override. Runtime
+getter identity is checked before mutation, so incompatible context resolution
+fails closed. Upstream validation, revision staging and pointer changes use the
+same transaction; returned failures cause rollback. Deferred revision bookkeeping
+is tracked and drained before the transaction closes. Lock and statement timeouts
+are explicitly bounded; this adds no database pool or service.
+
+The fixed live proof passes five rounds of four simultaneous same-token PUTs,
+repeated after restoring the guard: exactly one success and one new revision per
+round, all other responses 409, winner content retained and published values
+unchanged. A second clean run also checks sanitized logs for deferred-work and
+completed-transaction failures. Core revocation and disabled-guard denial still
+pass. The temporary font-download build failure was retried only after its
+process terminated and its project was cleaned. Multi-instance/load testing,
+late-write-failure injection and other mutation operations remain open; this
+closes the demonstrated title-update race, not the whole authorization gate.
+
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
 - [x] Wire the four read primitives into request-local EmDash handlers and
@@ -899,6 +921,9 @@ API/privacy/policy gates; worktree unchanged. The separate
 - [x] Preserve upstream draft hydration and admit System Admin title-draft PUTs
       through the original runtime updater, with real HTTP save/read/revision
       proof, unchanged published values and stale-revision rejection.
+- [x] Reproduce and fix concurrent same-revision title saves; run the original
+      runtime updater inside a checked PostgreSQL transaction with a row lock,
+      and prove exactly one successful save per concurrent request group.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

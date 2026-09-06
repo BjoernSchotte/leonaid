@@ -55,12 +55,23 @@ async function call(
     req.on("error", reject);
     req.end(encoded);
   });
-  assert.equal(response.status, status, `${method} ${path}: unexpected status`);
+  if (Array.isArray(status))
+    assert.ok(
+      status.includes(response.status),
+      `${method} ${path}: unexpected status ${response.status}`,
+    );
+  else
+    assert.equal(
+      response.status,
+      status,
+      `${method} ${path}: unexpected status`,
+    );
   assert.equal(response.headers["cache-control"], "no-store");
   assert.equal(response.headers["set-cookie"], undefined);
-  return response.headers["content-type"]?.includes("application/json")
+  const payload = response.headers["content-type"]?.includes("application/json")
     ? JSON.parse(response.body)
     : null;
+  return Array.isArray(status) ? { status: response.status, payload } : payload;
 }
 const root = "/_emdash/api/content/campaign_pages";
 if (guardUnavailable) {
@@ -164,6 +175,37 @@ if (guardUnavailable) {
     revisionsBefore.data.total + 1,
   );
   assert.equal((await call(path, 200)).data.item.data.title, body.data.title);
+  for (let round = 0; round < 5; round++) {
+    const current = await call(path, 200);
+    const history = await call(`${path}/revisions`, 200);
+    const attempts = await Promise.all(
+      Array.from({ length: 4 }, (_, index) =>
+        call(path, [200, 409], {
+          method: "PUT",
+          body: {
+            _rev: current.data._rev,
+            data: { title: `concurrent draft ${round}-${index}` },
+          },
+        }),
+      ),
+    );
+    assert.equal(
+      attempts.filter((attempt) => attempt.status === 200).length,
+      1,
+      "Exactly one same-revision write may succeed",
+    );
+    assert.equal(
+      (await call(`${path}/revisions`, 200)).data.total,
+      history.data.total + 1,
+    );
+    const winner = attempts.find((attempt) => attempt.status === 200);
+    const stored = await call(path, 200);
+    assert.equal(
+      stored.data.item.data.title,
+      winner.payload.data.item.data.title,
+    );
+    assert.equal(stored.data.item.liveData.title, entry.data.title);
+  }
   const missing = await call(`${root}/00000000000000000000000000`, 404);
   // Upstream includes the ID in its message. This static envelope verifies
   // that the request-local wrapper actually ran, not just the upstream reader.

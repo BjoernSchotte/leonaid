@@ -89,6 +89,11 @@ if [ "$mode" != auth ]; then
     content_probe
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     content_probe --revoked
+    compose logs --no-color campaign-site | docker run --rm -i --network none "$NODE_IMAGE" \
+      node --input-type=module -e '
+      let input=""; for await(const chunk of process.stdin) input+=chunk;
+      if (/deferred task failed|Failed to prune revisions|Failed to clean up|Transaction.*(?:complete|committed|rollback)/i.test(input)) throw new Error("CMS transaction/deferred work did not finish cleanly");
+      console.log("campaign-runtime: no deferred-work or completed-transaction failures");'
   fi
   if [ "$mode" = surface ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
