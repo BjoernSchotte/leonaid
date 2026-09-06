@@ -2,8 +2,13 @@
 import type { DeliveryOrderFormResponse } from "@leonaid/api-client";
 interface Props {
   definition: DeliveryOrderFormResponse;
+  posted?: FormData | null;
 }
-const { definition } = Astro.props;
+const { definition, posted } = Astro.props;
+const postedText = (name: string) => {
+  const value = posted?.get(name);
+  return typeof value === "string" ? value : "";
+};
 const dates = [
   ...new Set(definition.windows.map((window) => window.deliveryOn)),
 ].sort();
@@ -30,7 +35,10 @@ const dateLabel = (date: string) =>
             {definition.windows
               .filter((window) => window.deliveryOn === date)
               .map((window) => (
-                <option value={window.id}>
+                <option
+                  value={window.id}
+                  selected={postedText("deliveryWindowId") === window.id}
+                >
                   {dateLabel(date)} · {window.startsAt.slice(0, 5)}–
                   {window.endsAt.slice(0, 5)} Uhr
                 </option>
@@ -45,6 +53,9 @@ const dateLabel = (date: string) =>
           ? "Bitte wähle ein Fenster aus."
           : "Aktuell sind keine Lieferfenster verfügbar. Eine Bestellung ist erst mit einem verfügbaren Fenster möglich."
       }</small
+    >
+    <button type="button" data-delivery-reload hidden
+      >Lieferfenster aktualisieren</button
     >
     <span
       id="deliveryWindowId-error"
@@ -62,6 +73,7 @@ const dateLabel = (date: string) =>
             <input
               id="deliveryContactName"
               name="deliveryContactName"
+              value={postedText("deliveryContactName")}
               autocomplete="shipping name"
               maxlength={definition.contactNameMaxLength}
             />
@@ -75,6 +87,7 @@ const dateLabel = (date: string) =>
             <input
               id="deliveryContactPhone"
               name="deliveryContactPhone"
+              value={postedText("deliveryContactPhone")}
               type="tel"
               autocomplete="shipping tel"
               maxlength={definition.contactPhoneMaxLength}
@@ -97,6 +110,7 @@ const dateLabel = (date: string) =>
             rows="3"
             maxlength={definition.instructionsMaxLength}
             aria-describedby="deliveryInstructions-help"
+            set:text={postedText("deliveryInstructions")}
           />
           <small id="deliveryInstructions-help">
             Zum Beispiel Abteilung, Eingang, Stockwerk oder Wegbeschreibung.

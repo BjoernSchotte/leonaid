@@ -14,7 +14,7 @@ import { isKrapfentaxiAction } from "../lib/presentation";
 
 interface OrderActionResult {
   data?: PublicOrderResultResponse;
-  error?: { message: string };
+  error?: { message: string; code?: string };
 }
 
 interface Props {
@@ -35,7 +35,45 @@ const orderForm =
   route.submissionsAllowed && !isArchive ? action.orderForm : null;
 const serverOrder = orderResult?.data;
 const serverError = orderResult?.error?.message;
-const commandId = crypto.randomUUID();
+// Astro Actions parse a cloned request; the original body remains available
+// for this request-local error render. Never persist submitted personal data.
+const posted =
+  serverError && Astro.request.method === "POST"
+    ? await Astro.request.clone().formData()
+    : null;
+const postedText = (name: string, fallback = "") => {
+  const value = posted?.get(name);
+  return typeof value === "string" ? value : fallback;
+};
+const knownRejection = [
+  "BAD_REQUEST",
+  "UNPROCESSABLE_CONTENT",
+  "FORBIDDEN",
+  "TOO_MANY_REQUESTS",
+].includes(orderResult?.error?.code ?? "");
+const previousCommand = postedText("commandId");
+const commandId =
+  !knownRejection && /^[0-9a-f-]{36}$/i.test(previousCommand)
+    ? previousCommand
+    : crypto.randomUUID();
+const postedQuantity = (id: string, fallback: string) => {
+  const index = posted?.getAll("offeringId").indexOf(id) ?? -1;
+  const value = index >= 0 ? posted?.getAll("quantity")[index] : undefined;
+  return typeof value === "string" ? value : fallback;
+};
+const preview = action.offerings.reduce(
+  (total, offering, index) => {
+    const value = Number(postedQuantity(offering.id, index === 0 ? "1" : "0"));
+    const quantity =
+      Number.isInteger(value) && value >= 0 && value <= 5000 ? value : 0;
+    return {
+      amount: total.amount + quantity * offering.unitPriceMinor,
+      pieces: total.pieces + quantity * (offering.piecesPerUnit ?? 0),
+      units: total.units + quantity,
+    };
+  },
+  { amount: 0, pieces: 0, units: 0 },
+);
 const dateFormatter = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "long",
@@ -439,7 +477,10 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                               min={index === 0 ? "1" : "0"}
                               max="5000"
                               step="1"
-                              value={index === 0 ? "1" : "0"}
+                              value={postedQuantity(
+                                offering.id,
+                                index === 0 ? "1" : "0",
+                              )}
                               required={index === 0}
                               data-quantity
                               data-unit-price={offering.unitPriceMinor}
@@ -470,14 +511,14 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                       <span>Aktueller Bestellwert</span>
                       <strong data-order-preview-total>
                         {money(
-                          action.offerings[0]?.unitPriceMinor ?? 0,
+                          preview.amount,
                           action.offerings[0]?.currency ?? "EUR",
                         )}
                       </strong>
                       <small data-order-preview-quantity>
-                        {action.offerings[0]?.piecesPerUnit
-                          ? `${action.offerings[0].piecesPerUnit} Stück`
-                          : "1 Einheit"}
+                        {preview.pieces
+                          ? `${preview.pieces} Stück`
+                          : `${preview.units} Einheiten`}
                       </small>
                     </div>
                   </fieldset>
@@ -499,6 +540,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="companyName"
                           name="companyName"
+                          value={postedText("companyName")}
                           autocomplete="organization"
                           maxlength="300"
                           required={orderForm.requireCompanyName}
@@ -521,6 +563,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="givenName"
                           name="givenName"
+                          value={postedText("givenName")}
                           autocomplete="given-name"
                           maxlength="200"
                           required
@@ -542,6 +585,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="familyName"
                           name="familyName"
+                          value={postedText("familyName")}
                           autocomplete="family-name"
                           maxlength="200"
                           required
@@ -563,6 +607,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="email"
                           name="email"
+                          value={postedText("email")}
                           type="email"
                           autocomplete="email"
                           maxlength="320"
@@ -586,6 +631,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="phone"
                           name="phone"
+                          value={postedText("phone")}
                           type="tel"
                           autocomplete="tel"
                           maxlength="40"
@@ -621,8 +667,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="deliveryRecipientName"
                           name="deliveryRecipientName"
+                          value={postedText("deliveryRecipientName")}
                           autocomplete="shipping name"
-                          maxlength="300"
+                          maxlength="200"
                           required
                           aria-describedby="deliveryRecipientName-help deliveryRecipientName-error"
                         />
@@ -643,8 +690,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="deliveryStreetLine1"
                           name="deliveryStreetLine1"
+                          value={postedText("deliveryStreetLine1")}
                           autocomplete="shipping street-address"
-                          maxlength="300"
+                          maxlength="200"
                           required
                           aria-describedby="deliveryStreetLine1-help deliveryStreetLine1-error"
                         />
@@ -664,9 +712,10 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="deliveryPostalCode"
                           name="deliveryPostalCode"
+                          value={postedText("deliveryPostalCode")}
                           autocomplete="shipping postal-code"
                           inputmode="numeric"
-                          maxlength="24"
+                          maxlength="20"
                           required
                           aria-describedby="deliveryPostalCode-help deliveryPostalCode-error"
                         />
@@ -686,8 +735,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="deliveryCity"
                           name="deliveryCity"
+                          value={postedText("deliveryCity")}
                           autocomplete="shipping address-level2"
-                          maxlength="200"
+                          maxlength="120"
                           required
                           aria-describedby="deliveryCity-help deliveryCity-error"
                         />
@@ -701,11 +751,13 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         />
                       </div>
                     </div>
+                    {orderForm.delivery?.enabled && (
+                      <DeliveryOptions
+                        definition={orderForm.delivery}
+                        posted={posted}
+                      />
+                    )}
                   </fieldset>
-
-                  {orderForm.delivery?.enabled && (
-                    <DeliveryOptions definition={orderForm.delivery} />
-                  )}
 
                   <fieldset class="order-step">
                     <legend>
@@ -720,7 +772,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         type="checkbox"
                         name="billingSameAsDelivery"
                         value="true"
-                        checked
+                        checked={
+                          posted ? posted.has("billingSameAsDelivery") : true
+                        }
                         data-billing-same
                       />
                       <span>
@@ -741,8 +795,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="invoiceRecipientName"
                           name="invoiceRecipientName"
+                          value={postedText("invoiceRecipientName")}
                           autocomplete="billing name"
-                          maxlength="300"
+                          maxlength="200"
                           aria-describedby="invoiceRecipientName-help invoiceRecipientName-error"
                         />
                         <small id="invoiceRecipientName-help">
@@ -761,8 +816,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="invoiceStreetLine1"
                           name="invoiceStreetLine1"
+                          value={postedText("invoiceStreetLine1")}
                           autocomplete="billing street-address"
-                          maxlength="300"
+                          maxlength="200"
                           aria-describedby="invoiceStreetLine1-help invoiceStreetLine1-error"
                         />
                         <small id="invoiceStreetLine1-help">
@@ -781,9 +837,10 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="invoicePostalCode"
                           name="invoicePostalCode"
+                          value={postedText("invoicePostalCode")}
                           autocomplete="billing postal-code"
                           inputmode="numeric"
-                          maxlength="24"
+                          maxlength="20"
                           aria-describedby="invoicePostalCode-help invoicePostalCode-error"
                         />
                         <small id="invoicePostalCode-help">
@@ -802,8 +859,9 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="invoiceCity"
                           name="invoiceCity"
+                          value={postedText("invoiceCity")}
                           autocomplete="billing address-level2"
-                          maxlength="200"
+                          maxlength="120"
                           aria-describedby="invoiceCity-help invoiceCity-error"
                         />
                         <small id="invoiceCity-help">
@@ -824,6 +882,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         <input
                           id="invoiceEmail"
                           name="invoiceEmail"
+                          value={postedText("invoiceEmail")}
                           type="email"
                           autocomplete="billing email"
                           maxlength="320"
@@ -858,10 +917,12 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                           rows="4"
                           maxlength="1000"
                           aria-describedby="message-help message-error"
+                          set:text={postedText("message")}
                         />
                         <small id="message-help">
-                          Zum Beispiel Hinweise zur Anlieferung. Bitte keine
-                          sensiblen Daten eintragen.
+                          Fragen oder zusätzliche Angaben zur Bestellung. Für
+                          die Anlieferung bitte das Feld Lieferhinweise
+                          verwenden.
                         </small>
                         <span
                           id="message-error"
@@ -894,6 +955,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                       <input
                         type="checkbox"
                         name="privacyAcknowledged"
+                        checked={Boolean(
+                          posted?.has("privacyAcknowledged") &&
+                            postedText("privacyNoticeVersion") ===
+                              orderForm.privacyNoticeVersion,
+                        )}
                         value="true"
                         required
                         aria-describedby="privacyAcknowledged-help privacyAcknowledged-error"
@@ -916,6 +982,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                       <input
                         type="checkbox"
                         name="bindingOrderConfirmed"
+                        checked={Boolean(
+                          posted?.has("bindingOrderConfirmed") &&
+                            postedText("privacyNoticeVersion") ===
+                              orderForm.privacyNoticeVersion,
+                        )}
                         value="true"
                         required
                         aria-describedby="bindingOrderConfirmed-help bindingOrderConfirmed-error"

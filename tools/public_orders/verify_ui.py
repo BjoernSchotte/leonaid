@@ -66,6 +66,17 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
     } != {"new-company", "existing-company", "person-without-company"}:
         raise VerificationFailure("Die drei öffentlichen E2E-Personas fehlen")
 
+    browser_orders = await connection.fetchval(
+        """
+        SELECT count(*) FROM commitment
+        WHERE action_id = $1 AND source = 'public_form'
+          AND delivery_recipient_snapshot ->> 'contactName' = 'Alex Lieferung'
+        """,
+        ACTION_ID,
+    )
+    if browser_orders != 3:
+        raise VerificationFailure("Browser retries did not preserve exactly three orders")
+
     expected: dict[str, dict[str, str | int | UUID]] = {
         "new-company": {
             "name": "POC072 Browseratelier GmbH",

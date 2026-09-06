@@ -155,7 +155,34 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     quantity: 2,
     recipient: "POC072 Browseratelier GmbH",
   });
+  const initialCommand = await form
+    .locator('input[name="commandId"]')
+    .inputValue();
+  // A stale client may retain an ID no longer offered by Core. Exercise the
+  // real rejection/refresh path without changing another test's schedule.
+  await form.locator('select[name="deliveryWindowId"]').evaluate((select) => {
+    const option = new Option(
+      "Nicht mehr verfügbar",
+      "90000000-0000-4000-8000-000000000099",
+    );
+    select.append(option);
+    select.value = option.value;
+  });
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator("[data-form-message]")).toBeVisible();
+  await expect(form.locator('input[name="givenName"]')).toHaveValue("Nora");
+  await form.locator("[data-delivery-reload]").click();
+  await expect(form.locator("#deliveryWindowId-help")).toContainText(
+    "Lieferfenster aktualisiert",
+  );
+  await expect(form.locator('select[name="deliveryWindowId"]')).toHaveValue("");
+  await form
+    .locator('select[name="deliveryWindowId"]')
+    .selectOption("90000000-0000-4000-8000-000000000072");
   let submitted = await submitOrder(form);
+  await expect(form.locator('input[name="commandId"]')).not.toHaveValue(
+    initialCommand,
+  );
   proof.orders.push({
     scenario: "new-company",
     publicReference: submitted.reference,
@@ -174,7 +201,32 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     quantity: 1,
     recipient: "Musterwerk GmbH",
   });
+  const replayCommand = await form
+    .locator('input[name="commandId"]')
+    .inputValue();
+  // Commit through the real server, then lose only its response. The retry
+  // must return the same order, not create a fourth persisted order.
+  await page.route(
+    /\/_actions\/createPublicOrder/,
+    async (route) => {
+      const response = await route.fetch();
+      expect(response.ok()).toBeTruthy();
+      await route.abort("failed");
+    },
+    { times: 1 },
+  );
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator("[data-form-message]")).toBeVisible();
+  await form.locator('input[name="givenName"]').fill("Geändert");
+  await form.locator('button[type="submit"]').click();
+  await expect(form.locator("[data-form-message]")).toContainText(
+    "Ausgang der letzten Übermittlung ist unklar",
+  );
+  await form.locator('input[name="givenName"]').fill("Mara");
   submitted = await submitOrder(form);
+  await expect(form.locator('input[name="commandId"]')).toHaveValue(
+    replayCommand,
+  );
   proof.orders.push({
     scenario: "existing-company",
     publicReference: submitted.reference,
@@ -205,6 +257,44 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     .fill("Paula Rechnung");
   await form.locator('input[name="invoiceStreetLine1"]').fill("Rechnungsweg 8");
   await form.locator('input[name="invoicePostalCode"]').fill("86150");
+  await form.locator('input[name="invoiceCity"]').fill("Augsburg");
+  const rejectedCommand = await form
+    .locator('input[name="commandId"]')
+    .inputValue();
+  await form.locator('input[name="invoiceCity"]').fill(" ");
+  await Promise.all([
+    noJsPage.waitForNavigation(),
+    form.locator('button[type="submit"]').click(),
+  ]);
+  await expect(form.locator("[data-form-message]")).toBeVisible();
+  await expect(form.locator('input[name="givenName"]')).toHaveValue("Paula");
+  await expect(form.locator('input[name="quantity"]').first()).toHaveValue("3");
+  await expect(form.locator('input[name="invoiceStreetLine1"]')).toHaveValue(
+    "Rechnungsweg 8",
+  );
+  await expect(
+    form.locator('input[name="billingSameAsDelivery"]'),
+  ).not.toBeChecked();
+  await expect(form.locator('input[name="privacyAcknowledged"]')).toBeChecked();
+  await expect(form.locator('select[name="deliveryWindowId"]')).toHaveValue(
+    "90000000-0000-4000-8000-000000000072",
+  );
+  await expect(
+    form.locator('textarea[name="deliveryInstructions"]'),
+  ).toHaveValue("Abteilung Bildung\nEingang links <b>Hinweis</b>");
+  await expect(form.locator('input[name="commandId"]')).not.toHaveValue(
+    rejectedCommand,
+  );
+  await expect(form.locator("[data-order-preview-total]")).toContainText(
+    "108,00",
+  );
+  await expect(form.locator("[data-order-preview-quantity]")).toContainText(
+    "72 Stück",
+  );
+  await noJsPage.screenshot({
+    path: `${artifactDirectory}/public-order-nojs-error.png`,
+    fullPage: true,
+  });
   await form.locator('input[name="invoiceCity"]').fill("Augsburg");
   await Promise.all([
     noJsPage.waitForNavigation(),
