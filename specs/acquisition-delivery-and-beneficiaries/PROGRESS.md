@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Effective form configuration checkpoint — 2026-09-06
+
+Admin action configuration, acquisition capture context, and the published public order form now expose the same typed delivery definition: required address/window, optional contact/instructions and limits, timezone/revision, and future non-retired windows. Public projection is only requested after the existing publication/submission gate. It contains no submitted contacts or order data.
+
+New action persistence initializes delivery enabled for Krapfentaxi templates and disabled for blank templates; existing migration defaults stay disabled. Action detail changes acquire the same action lock and reject periods excluding configured delivery dates.
+
+`tools/delivery/test-foundation.sh` passed with the new real action-repository proof: instantiate both templates, read their persisted defaults, configure a window, project the effective definition, reject an incompatible period edit, and omit elapsed windows. Prior acquisition-order and schedule proofs still pass. Full Python source/live-tool Mypy and 212 unit tests pass; OpenAPI/client regenerated and diff whitespace checked.
+
+Still pending: the actual HTTP/browser journeys and UI consumers of this definition, full public-order live execution, review/completion handling, adversarial concurrency, beneficiary dashboard, and EmDash integration. This proof verifies persisted configuration and the shared projection, not the rendered forms.
+
 ## Order persistence checkpoint — 2026-09-06
 
 Both internal/public order drafts and transport mappings now carry delivery window IDs and delivery-specific contact/instructions. Their fingerprints include selected windows while preserving historical hashes when no window is supplied. Delivery fields no longer leak into the invoice request through inheritance. Both repositories derive and persist the selected time snapshot, then expose it on internal reads/replays.

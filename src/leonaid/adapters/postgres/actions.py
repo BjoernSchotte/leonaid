@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from leonaid.adapters.postgres.delivery import read_configuration
+
 import json
 from datetime import datetime
 from decimal import Decimal
@@ -102,6 +104,12 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         occurred_at,
                     )
                     await self._insert_capabilities(connection, action)
+                    await connection.execute(
+                        "INSERT INTO action_delivery_configuration(action_id, enabled) VALUES ($1, $2)",
+                        action.id,
+                        configuration is not None
+                        and configuration.snapshot.template_key.value == "krapfentaxi",
+                    )
                     await self._insert_beneficiaries(connection, action, occurred_at)
                     if configuration is not None:
                         await self._insert_configuration(
@@ -271,6 +279,11 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     ) -> CharityAction:
         async with self._pool.acquire() as connection:
             async with connection.transaction():
+                await connection.fetchval(
+                    "SELECT id FROM charity_action WHERE id = $1 FOR UPDATE", action.id
+                )
+                delivery = await read_configuration(connection, action.id)
+                delivery.validate_period(action.starts_on, action.ends_on)
                 changed = await self._advance_revision(
                     connection,
                     action,

@@ -53,6 +53,20 @@ class DeliveryConfigurationResponse(DeliveryConfigurationRequest):
     action_id: UUID
 
 
+class DeliveryOrderFormResponse(TransportModel):
+    enabled: bool
+    require_address: bool
+    require_window: bool
+    allow_contact: bool
+    allow_instructions: bool
+    contact_name_max_length: int
+    contact_phone_max_length: int
+    instructions_max_length: int
+    timezone: str
+    revision: int
+    windows: list[DeliveryWindowRequest]
+
+
 class PlatformInformationResponse(TransportModel):
     service: str = Field(examples=["leonaid-api"])
     release: str = Field(examples=["0.0.0"])
@@ -762,6 +776,7 @@ class PublicOfferingResponse(TransportModel):
 
 
 class PublicOrderFormResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     form_key: str
     title: str
     introduction: str
@@ -932,6 +947,7 @@ class ConfiguredOfferingResponse(TransportModel):
 
 
 class OrderFormConfigurationResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     id: UUID
     form_key: str
     title: str
@@ -1051,6 +1067,7 @@ class CommitmentResponse(TransportModel):
 
 
 class CommitmentCaptureContextResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]

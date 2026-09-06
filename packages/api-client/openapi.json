@@ -1781,6 +1781,16 @@
             "title": "Actionname",
             "type": "string"
           },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryOrderFormResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "offerings": {
             "items": {
               "$ref": "#/components/schemas/ConfiguredOfferingResponse"
@@ -3484,6 +3494,73 @@
           "actionId"
         ],
         "title": "DeliveryConfigurationResponse",
+        "type": "object"
+      },
+      "DeliveryOrderFormResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "allowContact": {
+            "title": "Allowcontact",
+            "type": "boolean"
+          },
+          "allowInstructions": {
+            "title": "Allowinstructions",
+            "type": "boolean"
+          },
+          "contactNameMaxLength": {
+            "title": "Contactnamemaxlength",
+            "type": "integer"
+          },
+          "contactPhoneMaxLength": {
+            "title": "Contactphonemaxlength",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "instructionsMaxLength": {
+            "title": "Instructionsmaxlength",
+            "type": "integer"
+          },
+          "requireAddress": {
+            "title": "Requireaddress",
+            "type": "boolean"
+          },
+          "requireWindow": {
+            "title": "Requirewindow",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryWindowRequest"
+            },
+            "title": "Windows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "requireAddress",
+          "requireWindow",
+          "allowContact",
+          "allowInstructions",
+          "contactNameMaxLength",
+          "contactPhoneMaxLength",
+          "instructionsMaxLength",
+          "timezone",
+          "revision",
+          "windows"
+        ],
+        "title": "DeliveryOrderFormResponse",
         "type": "object"
       },
       "DeliveryWindowRequest": {
@@ -6488,6 +6565,16 @@
             "title": "Allowmessage",
             "type": "boolean"
           },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryOrderFormResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "formKey": {
             "title": "Formkey",
             "type": "string"
@@ -7564,6 +7651,16 @@
           "allowMessage": {
             "title": "Allowmessage",
             "type": "boolean"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryOrderFormResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "formKey": {
             "title": "Formkey",

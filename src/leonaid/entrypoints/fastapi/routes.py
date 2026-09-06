@@ -9,6 +9,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationResponse,
     DeliveryWindowRequest,
     PublicOrderDeliveryRecipientRequest,
+    DeliveryOrderFormResponse,
 )
 
 import hashlib
@@ -1047,6 +1048,7 @@ def public_action_route_response(
     *,
     access_token: str | None = None,
     legal_configuration: LegalConfigurationVersion | None = None,
+    delivery: DeliveryOrderFormResponse | None = None,
 ) -> PublicActionRouteResponse:
     action = route.action
     submissions_allowed = route.submissions_allowed and legal_configuration is not None
@@ -1099,6 +1101,7 @@ def public_action_route_response(
                 ],
                 order_form=(
                     PublicOrderFormResponse(
+                        delivery=delivery,
                         form_key=route.order_form.configuration.form_key,
                         title=route.order_form.configuration.title,
                         introduction=route.order_form.configuration.introduction,
@@ -1707,6 +1710,15 @@ async def resolve_public_action_alias(
         route,
         access_token=access_token,
         legal_configuration=legal_configuration,
+        delivery=(
+            delivery_order_form_response(
+                await cast(
+                    DeliveryService, request.app.state.delivery_service
+                ).for_published_order_form(route.action.id)
+            )
+            if submissions_allowed and route.action is not None
+            else None
+        ),
     )
 
 
@@ -3034,7 +3046,14 @@ async def get_charity_action_configuration(
         action_id,
     )
     response.headers["Cache-Control"] = "no-store"
-    return charity_action_configuration_response(action, configuration)
+    result = charity_action_configuration_response(action, configuration)
+    if result.order_form is not None:
+        result.order_form.delivery = delivery_order_form_response(
+            await cast(DeliveryService, request.app.state.delivery_service).get(
+                actor, action_id
+            )
+        )
+    return result
 
 
 @router.get(
@@ -3070,7 +3089,13 @@ async def get_commitment_capture_context(
     actor = await identity_service(request).authenticate(session_token(request))
     context = await commitment_service(request).capture_context(actor, action_id)
     response.headers["Cache-Control"] = "no-store"
-    return commitment_capture_context_response(context)
+    result = commitment_capture_context_response(context)
+    result.delivery = delivery_order_form_response(
+        await cast(DeliveryService, request.app.state.delivery_service).get(
+            actor, action_id
+        )
+    )
+    return result
 
 
 @router.get(
@@ -4312,6 +4337,29 @@ async def confirm_email_change(
         )
     response.headers["Cache-Control"] = "no-store"
     return EmailChangeConfirmationResponse.model_validate(confirmed)
+
+
+def delivery_order_form_response(
+    value: DeliveryConfiguration,
+    *,
+    evaluated_at: datetime | None = None,
+) -> DeliveryOrderFormResponse:
+    now = evaluated_at or datetime.now(timezone.utc)
+    definition = value.form_definition()
+    return DeliveryOrderFormResponse.model_validate(
+        {
+            **definition,
+            "timezone": value.timezone,
+            "revision": value.revision,
+            "windows": [
+                DeliveryWindowRequest.model_validate(window)
+                for window in value.windows
+                if value.enabled
+                and not window.retired
+                and window.bounds(value.timezone)[0] > now
+            ],
+        }
+    )
 
 
 def delivery_configuration_response(

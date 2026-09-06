@@ -24,6 +24,7 @@ from leonaid.domain.commitments import (
     InvoiceRecipientSnapshot,
 )
 from leonaid.domain.errors import DomainInvariantError
+from tools.delivery.form_configuration import prove_form_configuration
 
 
 async def prove_orders(pool: asyncpg.Pool[Any], action_id: UUID) -> None:
@@ -152,3 +153,4 @@ async def prove_orders(pool: asyncpg.Pool[Any], action_id: UUID) -> None:
     print(
         "delivery-orders: PASS: creation/readback, incomplete draft, required fields, retirement, exact replay and changed-key conflict"
     )
+    await prove_form_configuration(pool, actor)
