@@ -406,6 +406,29 @@ EMS-080. Record the exact test commands and sanitized outcomes in `RESULT.md`.
 Unverified requirements remain open even when a standalone provisioning test
 passes.
 
+### 4.3 Infrastructure review closure map
+
+Use this map when reviewing the infrastructure changes as a whole. Inclusion in
+the plan is not implementation acceptance: the linked tasks and their live
+verification gates must still pass before activation.
+
+| Agreed requirement | Owning tasks | Required acceptance outcome |
+| --- | --- | --- |
+| One optional Docker service for all campaigns | EMS-000, EMS-010 | Base and pilot configurations work with CMS disabled and enabled; existing services retain their routes and availability. |
+| Existing PostgreSQL and RustFS | EMS-000, EMS-040, EMS-080 | Separate database/role and private bucket credentials; no Core database access; SQL and media survive fresh restore. |
+| Existing Core login and campaign permissions | EMS-020, EMS-030 | No second login or independent CMS session; foreign campaign reads and writes fail; revocation applies on the next protected request. |
+| Existing navigation and a same-origin editor | EMS-060 | Role-aware Edit microsite and Back to LeonAid navigation; top-level editor, not an iframe or duplicated React shell. |
+| HTTPS and protected first installation | EMS-010, EMS-070 | Existing Caddy owns TLS; fixed origin and trusted proxy handling; designated operator setup only; restart and recovery never reopen the wizard. |
+| Runtime fit and operational safety | EMS-010, EMS-070, EMS-080 | Explicit activation, isolated proofs, bounded resources, runtime-only secrets, sanitized monitoring and pinned releases. |
+| Astro microsites and live Core business data | EMS-040, EMS-050, EMS-085 | Canonical `/campaigns/<archive_slug>/` pages expose published content only; publishing needs no rebuild; Core remains authoritative for ordering. |
+| Editable Krapfentaxi demo | EMS-060, EMS-085 | Assigned Charity Admin edits text and media; drafts stay private; published edits appear anonymously and existing orders still work. |
+| Core-managed campaign aliases | EMS-082, EMS-085 | Per-campaign backend/UI management, globally unique safe aliases and a single redirect to the canonical page; historical URLs remain stable. |
+| Backup, upgrade and rollback compatibility | EMS-080, EMS-085 | Versioned manifests cover CMS state, keys and media; fresh restore works; CMS rollback preserves subsequently accepted Core orders. |
+
+Concrete hosting addresses, production credentials and operating runbooks remain
+in `leonaid-internal`. This plan and its PR authorize neither production
+activation nor changes to another running stack.
+
 ## 5. Canonical commands and proof gates
 
 All product and verification work remains Docker-only. Do not require host
