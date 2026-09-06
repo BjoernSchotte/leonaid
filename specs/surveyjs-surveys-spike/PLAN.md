@@ -460,6 +460,13 @@ All scenario tests assert outcomes, including persisted state and negative cases
 
 ### Task completion and test traceability
 
+Use [TASK-ACCEPTANCE.md](TASK-ACCEPTANCE.md) as the task-level acceptance
+template inside each work-package proof. Every implementation task must have
+its own row; a work-package summary alone is insufficient. Expand each linked
+acceptance criterion into named scenarios with prerequisites, actions and
+observable expected results before implementing its test. Shared tests may
+cover several tasks, but each task must link to the specific relevant assertions.
+
 Use the stable task IDs in implementation commits and test descriptions. Keep
 implementation (`xxx.n`), test delivery/execution (`xxx.Tn`) and acceptance
 (`xxx.An`) separate. An implemented feature with a failing or missing integration
@@ -499,6 +506,25 @@ their named scenarios and acceptance mapping must be discoverable from the proof
 
 Test filenames may change during implementation; update this mapping and the
 proof together. The acceptance IDs and required outcomes remain authoritative.
+
+### Execution gates
+
+- [ ] **Validation gate:** accept 010.A1 before treating the initial capability
+  profile as authoritative. A working editor or passing happy-path browser test
+  does not resolve unproven client/server semantics.
+- [ ] **Package gate:** accept 020.A1–020.A4 using the packed independent
+  consumer before claiming that the package is reusable outside LeonAid.
+- [ ] **Module gate:** complete the deferred 030.A4 lifecycle journey after
+  SURV-060 supplies the member UI; backend-only evidence cannot close this item.
+- [ ] **Analysis gate:** accept SURV-070 against hand-calculated fixtures before
+  using its snapshots as the reference values for SURV-080 export acceptance.
+- [ ] **Final gate:** complete SURV-100 only after all required predecessor
+  criteria and the exit criteria below pass. Record any missing prerequisite as
+  open; do not replace it with a narrower successful test.
+
+Independent implementation may proceed while a gate is open, but dependent
+acceptance remains open until its prerequisite evidence exists. These gates
+summarize existing criteria and do not replace their individual checkboxes.
 
 ### SURV-000 — Contracts, dependency selection and test infrastructure
 
