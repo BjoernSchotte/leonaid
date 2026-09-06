@@ -14,7 +14,8 @@ compose() {
     --file "$root/infra/emdash-spike/service.test.yml" \
     --file "$root/infra/emdash-spike/core-auth.test.yml" \
     --file "$root/infra/emdash-spike/auth-runtime.test.yml" \
-    --file "$root/infra/emdash-spike/bootstrap.test.yml" --profile emdash "$@"
+    --file "$root/infra/emdash-spike/bootstrap.test.yml" \
+    --file "$root/infra/emdash-spike/login.test.yml" --profile emdash "$@"
 }
 if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ] || \
    [ -n "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ] || \
@@ -37,7 +38,11 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   import assert from "node:assert/strict";
   let input=""; for await(const chunk of process.stdin) input+=chunk;
   const {services}=JSON.parse(input);
-  for(const name of ["api","core-postgres","campaign-site","core-auth-probe","proxy","public","admin-browser","bootstrap-probe","bootstrap-operator"]) assert.ok(!services[name].ports?.length);
+  for(const name of ["api","core-postgres","campaign-site","core-auth-probe","proxy","public","admin-browser","bootstrap-probe","bootstrap-operator","worker","mailpit"]) assert.ok(!services[name].ports?.length);
+  assert.deepEqual(Object.keys(services.mailpit.networks),["edge"]);
+  assert.deepEqual(Object.keys(services.worker.networks).sort(),["core-data","edge"]);
+  assert.equal(services.worker.environment.MAIL_SMTP_HOST,"mailpit");
+  assert.equal(services.worker.environment.MAIL_SMTP_PASSWORD,"");
   assert.deepEqual(Object.keys(services["core-auth-probe"].networks),["edge"]);
   assert.deepEqual(Object.keys(services["bootstrap-probe"].networks),["edge"]);
   assert.equal(services["bootstrap-operator"].network_mode,"none");
@@ -141,6 +146,8 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-editor-browser-proof.mjs "$@"
     }
     editor_probe
+    compose up --no-deps --build --detach --wait mailpit worker
+    editor_probe --login
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     browser_probe --revoked
     editor_probe --revoked

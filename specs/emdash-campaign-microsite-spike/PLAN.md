@@ -641,6 +641,22 @@ Dependencies: EMS-010
       stable and collisions fail closed; only a Core System Admin can bootstrap.
 - [ ] Implement browser login/validated-return navigation, fresh-login handling,
       structured API failures, and bounded outage handling from section 2.3.
+- [x] Prove System Admin login through the actual Core email-code form from an
+      empty browser context, SMTP delivery through the real Core worker, return
+      to the native campaign editor, native editing and publication, and Core
+      logout followed by CMS API denial and editor login redirection.
+      Evidence (6 September 2026): `./leonaid test-emdash-spike --case admin-browser`
+      passed in Chromium, Firefox and WebKit in isolated project
+      `leonaid-emdash-tmp-d3nso1xqrb`. Login uses no prepared browser session or
+      intercepted responses. The proof also repeats native autosave, stale-tab
+      conflict, manual save and private follow-up editing, plus previous
+      dashboard/revocation and TLS restart/database-failure checks. Mailpit and
+      the production worker have explicitly test-only SMTP settings, use only
+      this project's networks and publish no host ports; all owned resources
+      were removed on successful completion. Logout calls the real Core API
+      through the authenticated browser context; navigation/logout UI wiring,
+      fresh login, hostile dependency responses and Charity admission remain
+      separate open requirements.
 - [ ] Prove logout and revocation with a retained EmDash session cookie; disable
       the upstream development fallback and run tests against the production
       Docker build, not `astro dev`.

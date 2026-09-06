@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const origin = "https://proxy:8443";
 const apiRoot = "/_emdash/api/content/campaign_pages";
 const editorRoot = "/_emdash/admin/content/campaign_pages";
 const revoked = process.argv.includes("--revoked");
+const login = process.argv.includes("--login");
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   const browser = await engine.launch({ headless: true });
   try {
@@ -37,7 +39,8 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await page.waitForURL("**/login?returnTo=**");
     assert.equal(new URL(page.url()).searchParams.get("returnTo"), editorRoot);
     await page.getByRole("heading", { name: "Bei LeonAid anmelden" }).waitFor();
-    await context.addCookies([cookie(tokens.system)]);
+    if (login) await browserLogin(context, page, editorRoot);
+    else await context.addCookies([cookie(tokens.system)]);
     if (revoked) {
       await page.goto(origin + editorRoot);
       await page.waitForURL("**/login?returnTo=**");
@@ -188,6 +191,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           ["emdash_session", "astro-session"].includes(item.name),
         ),
         false,
+      );
+    }
+    if (login) {
+      await coreLogout(context, page, editorRoot, apiRoot);
+      console.log(
+        `campaign-editor-browser: OK: ${name}: actual SMTP form login, editor return, native editing and Core logout`,
       );
     }
     await context.clearCookies();
