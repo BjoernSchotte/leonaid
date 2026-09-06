@@ -42,6 +42,16 @@ as well as denied actors, missing guards and revoked sessions. This uses EmDash'
 explicit restore semantics (no `_rev` precondition on its native restore route),
 not an autosave operation. Charity admission remains closed.
 
+Canonical `campaign_pages` compare GETs and discard-draft POSTs are also admitted
+for System Admins. Comparison holds the scoped content row and both revision
+references through upstream reading, requiring each referenced revision to belong
+to that exact parent. The real PostgreSQL proof denies foreign policy actors and
+corrupted cross-entry pointers even for System Admins. Discard uses the original
+runtime handler inside the shared locked transaction and checks that the pointer
+was cleared; it neither inserts nor deletes history. HTTPS tests cover unchanged
+live data, repeat discard, restoring discarded history, denied actors and rollback
+when a fixture-only deferred PostgreSQL trigger rejects the final commit.
+
 The admitted read routes additionally require exact, enabled PostgreSQL binding
 guards. Their operator installation refuses inconsistent existing rows. Content
 IDs and action bindings cannot change, and campaign revision snapshots must
@@ -140,8 +150,8 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/content/[collection]` | GET, POST | core | GET campaign_pages: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked title-draft PUT only | Stored action_id; immutable proposed binding; narrow draft field policy |
-| `/_emdash/api/content/[collection]/[id]/compare` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]/compare` | GET | core | campaign_pages canonical ULID: System Admin only | Stored parent action_id and exact live/draft revision parent bindings |
+| `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | campaign_pages canonical ULID: System Admin only; atomic pointer clear | Stored parent action_id; unchanged live content and history |
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/permanent` | DELETE | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/preview-url` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |

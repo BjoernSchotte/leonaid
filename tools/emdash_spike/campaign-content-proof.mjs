@@ -17,6 +17,7 @@ import {
   getCampaignContent,
   listCampaignRevisions,
   getCampaignRevision,
+  compareCampaignContent,
 } from "../../apps/campaign-site/src/auth/campaign-content.mjs";
 
 const admin = new pg.Pool({ connectionTimeoutMillis: 3000 });
@@ -180,6 +181,23 @@ try {
     );
     assert.equal(own.success, true);
     assert.equal(own.data.item.id, entry.id);
+    const comparison = await compareCampaignContent(
+      database,
+      owner,
+      "campaign_pages",
+      entry.id,
+    );
+    assert.equal(comparison.success, true);
+    assert.equal(comparison.data.draft.action_id, entry.data.action_id);
+    assert.deepEqual(
+      await compareCampaignContent(
+        database,
+        foreign,
+        "campaign_pages",
+        entry.id,
+      ),
+      missing,
+    );
     const update = {
       _rev: own.data._rev,
       data: { title: "allowed draft edit", action_id: entry.data.action_id },
@@ -278,6 +296,34 @@ try {
         true,
       );
     }
+  }
+  const pointerOwner = await getCampaignContent(
+    database,
+    system,
+    "campaign_pages",
+    entries[0].id,
+  );
+  const pointerOther = await getCampaignContent(
+    database,
+    system,
+    "campaign_pages",
+    entries[1].id,
+  );
+  await sql`UPDATE ec_campaign_pages SET draft_revision_id=${pointerOther.data.item.draftRevisionId}
+    WHERE id=${entries[0].id}`.execute(database);
+  try {
+    assert.deepEqual(
+      await compareCampaignContent(
+        database,
+        system,
+        "campaign_pages",
+        entries[0].id,
+      ),
+      missing,
+    );
+  } finally {
+    await sql`UPDATE ec_campaign_pages SET draft_revision_id=${pointerOwner.data.item.draftRevisionId}
+      WHERE id=${entries[0].id}`.execute(database);
   }
   for (const action of [a, b]) {
     const profile = actor(action);

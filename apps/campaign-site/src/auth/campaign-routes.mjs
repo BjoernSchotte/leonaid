@@ -2,7 +2,7 @@
 // IDs are canonical EmDash ULIDs; public slugs are resolved separately by Core.
 const id = "[0-9A-HJKMNP-TV-Z]{26}";
 const content = new RegExp(
-  `^/_emdash/api/content/campaign_pages(?:/${id}(?:/revisions)?)?$`,
+  `^/_emdash/api/content/campaign_pages(?:/${id}(?:/(?:revisions|compare))?)?$`,
 );
 const revision = new RegExp(`^/_emdash/api/revisions/${id}$`);
 
@@ -18,4 +18,11 @@ export function isCampaignUpdateRoute(path, method) {
 const restore = new RegExp(`^/_emdash/api/revisions/${id}/restore$`);
 export function isCampaignRestoreRoute(path, method) {
   return method === "POST" && restore.test(path);
+}
+
+const discard = new RegExp(
+  `^/_emdash/api/content/campaign_pages/${id}/discard-draft$`,
+);
+export function isCampaignDiscardRoute(path, method) {
+  return method === "POST" && discard.test(path);
 }

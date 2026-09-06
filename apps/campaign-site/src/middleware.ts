@@ -4,6 +4,7 @@ import {
   isCampaignReadRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
+  isCampaignDiscardRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
 import {
@@ -16,6 +17,7 @@ import {
   getCampaignContent,
   listCampaignRevisions,
   getCampaignRevision,
+  compareCampaignContent,
 } from "./auth/campaign-content.mjs";
 
 export const onRequest = defineMiddleware(
@@ -23,7 +25,8 @@ export const onRequest = defineMiddleware(
     if (
       !isCampaignReadRoute(url.pathname, request.method) &&
       !isCampaignUpdateRoute(url.pathname, request.method) &&
-      !isCampaignRestoreRoute(url.pathname, request.method)
+      !isCampaignRestoreRoute(url.pathname, request.method) &&
+      !isCampaignDiscardRoute(url.pathname, request.method)
     )
       return next();
     try {
@@ -39,6 +42,7 @@ export const onRequest = defineMiddleware(
       const runtimeGet = emdash.handleContentGet;
       const runtimeUpdate = emdash.handleContentUpdate;
       const runtimeRestore = emdash.handleRevisionRestore;
+      const runtimeDiscard = emdash.handleContentDiscardDraft;
       // EmDash creates this object per request. Never mutate the shared runtime.
       emdash.handleContentList = (collection, parameters) =>
         listCampaignContent(database, profile, collection, parameters);
@@ -92,6 +96,25 @@ export const onRequest = defineMiddleware(
         listCampaignRevisions(database, profile, collection, id, parameters);
       emdash.handleRevisionGet = (id) =>
         getCampaignRevision(database, profile, id);
+      emdash.handleContentCompare = (collection, id) =>
+        compareCampaignContent(database, profile, collection, id);
+      emdash.handleContentDiscardDraft = async (collection, id) => {
+        const access = await getCampaignContent(
+          database,
+          profile,
+          collection,
+          id,
+        );
+        if (!access.success) return access;
+        return mutateCampaignAtomically(
+          emdash,
+          collection,
+          id,
+          { coreUserId: profile.userId, cmsUserId: user.id },
+          () => runtimeDiscard(collection, id),
+          "discard-draft",
+        );
+      };
       emdash.handleRevisionRestore = async (revisionId) => {
         const access = await getCampaignRevision(database, profile, revisionId);
         if (!access.success) return access;

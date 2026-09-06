@@ -61,6 +61,7 @@ export async function mutateCampaignAtomically(
   id: string,
   actor: { coreUserId: string; cmsUserId: string },
   mutate: () => Promise<Result>,
+  effect: "new-draft" | "discard-draft" = "new-draft",
 ): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
@@ -102,6 +103,15 @@ export async function mutateCampaignAtomically(
             // for revision insertion, pointer updates and schema validation.
             const result = await mutate();
             if (!result.success) throw new RejectedMutation(result);
+            if (effect === "discard-draft") {
+              const cleared = await sql`SELECT id FROM public.ec_campaign_pages
+                WHERE id=${id} AND draft_revision_id IS NULL AND deleted_at IS NULL`.execute(
+                transaction,
+              );
+              if (cleared.rows.length !== 1)
+                throw new Error("campaign_draft_discard_failed");
+              return result;
+            }
             // Attribute only the newly staged revision. Passing authorId to the
             // upstream updater would also change the content's author metadata.
             const attributed = await sql`UPDATE public.revisions AS revision

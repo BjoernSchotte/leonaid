@@ -3,6 +3,7 @@ import {
   handleContentGet,
   handleRevisionList,
   handleRevisionGet,
+  handleContentCompare,
 } from "emdash";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,5 +119,40 @@ export async function getCampaignRevision(database, profile, revisionId) {
     // Permission derives from the stored parent, never revision JSON or a
     // caller-supplied entry ID. Lock both rows until the revision is read.
     return handleRevisionGet(transaction, revisionId);
+  });
+}
+
+export async function compareCampaignContent(
+  database,
+  profile,
+  collection,
+  id,
+) {
+  campaignListParameters(profile, collection);
+  if (!ulid.test(id)) return notFound();
+  return database.transaction().execute(async (transaction) => {
+    const entry = await scopedEntryQuery(transaction, profile, collection)
+      .select(["live_revision_id", "draft_revision_id"])
+      .where("ec_campaign_pages.id", "=", id)
+      .forShare()
+      .executeTakeFirst();
+    if (!entry) return notFound();
+    const ids = [
+      ...new Set(
+        [entry.live_revision_id, entry.draft_revision_id].filter(Boolean),
+      ),
+    ];
+    if (ids.length) {
+      const revisions = await transaction
+        .selectFrom("revisions")
+        .select("id")
+        .where("collection", "=", collection)
+        .where("entry_id", "=", id)
+        .where("id", "in", ids)
+        .forShare()
+        .execute();
+      if (revisions.length !== ids.length) return notFound();
+    }
+    return handleContentCompare(transaction, collection, id);
   });
 }

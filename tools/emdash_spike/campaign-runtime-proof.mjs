@@ -76,6 +76,10 @@ async function call(
 const root = "/_emdash/api/content/campaign_pages";
 if (guardUnavailable) {
   await call(root, 503);
+  await call(`${root}/00000000000000000000000000/compare`, 503);
+  await call(`${root}/00000000000000000000000000/discard-draft`, 503, {
+    method: "POST",
+  });
   await call("/_emdash/api/revisions/00000000000000000000000000/restore", 503, {
     method: "POST",
   });
@@ -85,6 +89,10 @@ if (guardUnavailable) {
   });
 } else if (revoked) {
   await call(root, 401);
+  await call(`${root}/00000000000000000000000000/compare`, 401);
+  await call(`${root}/00000000000000000000000000/discard-draft`, 401, {
+    method: "POST",
+  });
   await call("/_emdash/api/revisions/00000000000000000000000000/restore", 401, {
     method: "POST",
   });
@@ -92,6 +100,20 @@ if (guardUnavailable) {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
+} else if (process.argv.includes("--discard-failure")) {
+  const listing = await call(root, 200);
+  const path = `${root}/${listing.data.items[0].id}`;
+  const before = await call(path, 200);
+  assert.ok(before.data.item.draftRevisionId);
+  const history = await call(`${path}/revisions`, 200);
+  const comparison = await call(`${path}/compare`, 200);
+  await call(`${path}/discard-draft`, 503, { method: "POST" });
+  assert.deepEqual(await call(path, 200), before);
+  assert.deepEqual(await call(`${path}/revisions`, 200), history);
+  assert.deepEqual(await call(`${path}/compare`, 200), comparison);
+  console.log(
+    "campaign-runtime: deferred database commit failure rolls back discard",
+  );
 } else if (process.argv.includes("--late-write-failure")) {
   const listing = await call(root, 200);
   const path = `${root}/${listing.data.items[0].id}`;
@@ -129,6 +151,12 @@ if (guardUnavailable) {
     assert.ok(draft);
     assert.equal(item.data.item.data.title, draft.data.title);
     assert.equal(item.data.item.liveData.title, entry.data.title);
+    const compared = await call(`${path}/compare`, 200);
+    assert.equal(compared.data.hasChanges, true);
+    assert.deepEqual(compared.data.draft, draft.data);
+    assert.deepEqual(compared.data.live, item.data.item.liveData);
+    await call(`${path}/compare`, 401, { token: null });
+    await call(`${path}/compare`, 403, { token: tokens.charity });
     assert.notEqual(item.data.item.data.title, item.data.item.liveData.title);
     for (const revision of revisions.data.items) {
       const detail = await call(`/_emdash/api/revisions/${revision.id}`, 200);
@@ -294,6 +322,42 @@ if (guardUnavailable) {
     restoreTarget,
   );
   await call("/_emdash/api/revisions/00000000000000000000000000/restore", 404, {
+    method: "POST",
+  });
+  const preDiscard = await call(path, 200);
+  const historyBeforeDiscard = await call(`${path}/revisions`, 200);
+  const comparisonBeforeDiscard = await call(`${path}/compare`, 200);
+  for (const options of [
+    { token: null },
+    { token: tokens.charity },
+    { origin: "https://attacker.invalid" },
+    { marker: false },
+  ]) {
+    await call(`${path}/discard-draft`, options.token === null ? 401 : 403, {
+      method: "POST",
+      ...options,
+    });
+  }
+  assert.deepEqual(await call(path, 200), preDiscard);
+  await call(`${path}/discard-draft`, 200, { method: "POST" });
+  const discarded = await call(path, 200);
+  assert.equal(discarded.data.item.draftRevisionId, null);
+  assert.deepEqual(discarded.data.item.data, preDiscard.data.item.liveData);
+  assert.equal(discarded.data.item.status, preDiscard.data.item.status);
+  assert.equal(discarded.data.item.authorId, preDiscard.data.item.authorId);
+  assert.deepEqual((await call(`${path}/compare`, 200)).data, {
+    hasChanges: false,
+    live: comparisonBeforeDiscard.data.live,
+    draft: null,
+  });
+  assert.deepEqual(await call(`${path}/revisions`, 200), historyBeforeDiscard);
+  // Repeating discard is harmless; discarded revisions remain restorable.
+  await call(`${path}/discard-draft`, 200, { method: "POST" });
+  assert.deepEqual(await call(path, 200), discarded);
+  await call(restorePath, 200, { method: "POST" });
+  assert.deepEqual((await call(path, 200)).data.item.data, restoreTarget.data);
+  await call(`${root}/00000000000000000000000000/compare`, 404);
+  await call(`${root}/00000000000000000000000000/discard-draft`, 404, {
     method: "POST",
   });
   const missing = await call(`${root}/00000000000000000000000000`, 404);

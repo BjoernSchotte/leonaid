@@ -968,6 +968,13 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       no host ports. `./leonaid check` passed at `eb59dde`: 208 unit tests,
       242 Python source-file type checks, all frontend/CMS checks, formatting,
       API/privacy/policy and inventory guards; worktree unchanged.
+- [x] Admit System Admin compare GETs and discard-draft POSTs for canonical
+      campaign items. Prove scoped comparison, exact revision-parent validation,
+      unchanged live content/history, harmless repeated discard, subsequent
+      restore, and rollback of a real deferred database commit failure.
+      `campaign-content` and `campaign-runtime` passed with real PostgreSQL,
+      Core sessions and verified TLS (6 September 2026). Positive Charity HTTP
+      access, new-content workflows and the full editor remain pending.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

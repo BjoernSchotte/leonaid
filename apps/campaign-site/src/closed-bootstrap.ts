@@ -7,6 +7,7 @@ import {
   isCampaignReadRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
+  isCampaignDiscardRoute,
 } from "./auth/campaign-routes.mjs";
 import {
   bootstrapIsArmed,
@@ -81,7 +82,8 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
   const campaignUpdate =
     isCampaignUpdateRoute(url.pathname, request.method) ||
-    isCampaignRestoreRoute(url.pathname, request.method);
+    isCampaignRestoreRoute(url.pathname, request.method) ||
+    isCampaignDiscardRoute(url.pathname, request.method);
   if (
     ((adminHome || adminRead) && request.method === "GET") ||
     campaignUpdate

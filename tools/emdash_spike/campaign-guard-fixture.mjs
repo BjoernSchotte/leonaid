@@ -38,6 +38,22 @@ try {
     await sql`DROP FUNCTION public.synthetic_reject_attribution()`.execute(
       database,
     );
+  } else if (process.argv[2] === "fail-discard") {
+    await sql`CREATE FUNCTION public.synthetic_reject_discard() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic commit failure'; END $$`.execute(
+      database,
+    );
+    await sql`CREATE CONSTRAINT TRIGGER synthetic_reject_discard AFTER UPDATE
+      ON public.ec_campaign_pages DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+      WHEN (OLD.draft_revision_id IS NOT NULL AND NEW.draft_revision_id IS NULL)
+      EXECUTE FUNCTION public.synthetic_reject_discard()`.execute(database);
+  } else if (process.argv[2] === "restore-discard") {
+    await sql`DROP TRIGGER synthetic_reject_discard ON public.ec_campaign_pages`.execute(
+      database,
+    );
+    await sql`DROP FUNCTION public.synthetic_reject_discard()`.execute(
+      database,
+    );
   } else {
     throw new Error("unknown synthetic fixture operation");
   }
