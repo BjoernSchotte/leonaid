@@ -333,6 +333,12 @@ check_all() {
 
   docker run --rm \
     -v "$root:/workspace:ro" \
+    -w /workspace \
+    "$NODE_IMAGE" \
+    node tools/emdash_spike/dependencies.mjs
+
+  docker run --rm \
+    -v "$root:/workspace:ro" \
     "$ALPINE_IMAGE" \
     /bin/sh /workspace/tools/traceability/test.sh /workspace
   docker run --rm \

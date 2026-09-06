@@ -1,6 +1,6 @@
 # EmDash Campaign Microsite Spike — Implementation and Verification Plan
 
-Status: proposed; no implementation started
+Status: implementation in progress; dependency checkpoint verified, live gates pending
 
 Plan basis: LeonAid commit `5f5f52c`, 6 September 2026
 
@@ -388,8 +388,8 @@ EMS-030 passes. Never expose an unguarded wizard while implementing later tasks.
 
 Dependencies: none
 
-- [ ] Add EmDash as an exact version, not a caret or floating range.
-- [ ] Record the resolved package tarball integrity and license in the existing
+- [x] Add EmDash as an exact version, not a caret or floating range.
+- [x] Record the resolved package tarball integrity and license in the existing
       dependency-lock mechanism.
 - [ ] Confirm compatibility with Astro 7.1.3 and the pinned Node 22 runtime.
 - [ ] Configure EmDash's PostgreSQL adapter and pin its required driver.
@@ -399,7 +399,7 @@ Dependencies: none
       media. Do not expose the bucket publicly.
 - [ ] Disable marketplace plugins and sandboxed third-party plugins unless the
       spike explicitly tests and pins `workerd`.
-- [ ] Add a short `DECISIONS.md` beside this plan recording the selected EmDash
+- [x] Add a short `DECISIONS.md` beside this plan recording the selected EmDash
       version, database, storage, plugin policy, and the accepted spike-only
       limitations.
 
@@ -411,6 +411,13 @@ Verification:
 
 Expected: dependency parity, licenses, formatting, type checks, and existing
 tests pass; no floating EmDash or container version exists.
+
+Partial evidence (6 September 2026): Docker Node execution of
+`tools/emdash_spike/dependencies.mjs`, frozen Bun installation, and the existing
+`tools/pins/check.py` all passed. Exact EmDash version, MIT license, tarball
+integrity and Docker workspace-manifest parity are checked. EMS-000 as a whole
+remains incomplete until production-build compatibility, provisioning, storage
+permissions, plugin configuration and the full `./leonaid check` gate pass.
 
 ### EMS-010 — Create the isolated EmDash Astro service
 
