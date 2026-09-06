@@ -82,6 +82,18 @@
         "react-dom": "19.2.8",
       },
     },
+    "packages/surveys": {
+      "name": "@leonaid/surveys",
+      "version": "0.0.0",
+      "dependencies": {
+        "survey-core": "3.0.3",
+        "survey-react-ui": "3.0.3",
+      },
+      "peerDependencies": {
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
+      },
+    },
     "packages/ui": {
       "name": "@leonaid/ui",
       "version": "0.0.0",
@@ -364,6 +376,8 @@
     "@leonaid/public": ["@leonaid/public@workspace:apps/public"],
 
     "@leonaid/pwa": ["@leonaid/pwa@workspace:apps/pwa"],
+
+    "@leonaid/surveys": ["@leonaid/surveys@workspace:packages/surveys"],
 
     "@leonaid/ui": ["@leonaid/ui@workspace:packages/ui"],
 
@@ -956,6 +970,10 @@
     "strip-ansi": ["strip-ansi@6.0.1", "", { "dependencies": { "ansi-regex": "^5.0.1" } }, "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A=="],
 
     "suf-log": ["suf-log@2.5.3", "", { "dependencies": { "s.color": "0.0.15" } }, "sha512-KvC8OPjzdNOe+xQ4XWJV2whQA0aM1kGVczMQ8+dStAO6KfEB140JEVQ9dE76ONZ0/Ylf67ni4tILPJB41U0eow=="],
+
+    "survey-core": ["survey-core@3.0.3", "", {}, "sha512-K2UbtyMxlss0V1f0XWInxvSFusej4fdJBKaHS1+rKH3/mIT6BmjznAmFCCY20XzAN/mAvzg+hLrEiCKTpHe9aw=="],
+
+    "survey-react-ui": ["survey-react-ui@3.0.3", "", { "peerDependencies": { "react": "^16.5.0 || ^17.0.1 || ^18.1.0 || ^19.0.0", "react-dom": "^16.5.0 || ^17.0.1 || ^18.1.0 || ^19.0.0", "survey-core": "3.0.3" } }, "sha512-tlwAFE++9BcOxdfe/omSK3wCL1pf5dJgFbKS9Xlmx/BBOgYBaHWbk9hZAusx0N/JCA1WXpALt+22tQR8bjWqwQ=="],
 
     "svgo": ["svgo@4.0.2", "", { "dependencies": { "commander": "^11.1.0", "css-select": "^5.1.0", "css-tree": "^3.0.1", "css-what": "^6.1.0", "csso": "^5.0.5", "picocolors": "^1.1.1", "sax": "^1.5.0" }, "bin": "./bin/svgo.js" }, "sha512-ekx94z1rRc5LDi6oSUaeRnYhd0UOJxdtQCL2rF8xpWxD3TPAsISWOrxezqGovqS38GRZOdpDfvQe3ts6F7nsng=="],
 

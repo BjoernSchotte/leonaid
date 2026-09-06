@@ -8,9 +8,11 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY packages/api-client/package.json ./packages/api-client/package.json
 COPY packages/features/package.json ./packages/features/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/surveys/package.json ./packages/surveys/package.json
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY apps/web ./apps/web
 COPY packages/api-client ./packages/api-client
+COPY packages/surveys ./packages/surveys
 COPY packages/features ./packages/features
 COPY packages/ui ./packages/ui
 RUN bun run build:web
