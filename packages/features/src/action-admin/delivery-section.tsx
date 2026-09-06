@@ -60,6 +60,9 @@ function DeliveryEditor({
   const cache = useQueryClient();
   const [revision, setRevision] = useState(initial.revision);
   const [enabled, setEnabled] = useState(initial.enabled);
+  const [timezone, setTimezone] = useState(initial.timezone);
+  const [conflict, setConflict] = useState(false);
+  const [comparison, setComparison] = useState<DeliveryConfigurationResponse>();
   const [days, setDays] = useState(() => daysFor(initial));
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{ error: boolean; text: string }>();
@@ -90,16 +93,18 @@ function DeliveryEditor({
       return;
     }
     setPending(true);
+    setConflict(false);
     setFeedback(undefined);
     try {
       const result = await client.saveDeliveryConfiguration(actionId, {
         revision,
         enabled,
-        timezone: initial.timezone,
+        timezone,
         windows: days.flatMap((day) =>
           day.windows.map((w) => ({ ...w, deliveryOn: day.date })),
         ),
       });
+      setComparison(undefined);
       setRevision(result.revision);
       setDays(daysFor(result));
       await cache.invalidateQueries({
@@ -113,12 +118,16 @@ function DeliveryEditor({
         text: "Lieferplanung gespeichert. Die Fenster gelten für Akquise und öffentliche Bestellungen.",
       });
     } catch (error) {
+      setConflict(
+        error instanceof ApiError &&
+          error.detail.code === "delivery_revision_conflict",
+      );
       setFeedback({
         error: true,
         text:
           error instanceof ApiError
             ? error.detail.code === "delivery_revision_conflict"
-              ? "Die Planung wurde inzwischen geändert. Deine Eingaben bleiben erhalten. Öffne den aktuellen Stand in einem neuen Tab und gleiche die Änderungen ab."
+              ? "Die Planung wurde inzwischen geändert. Deine Eingaben bleiben erhalten. Lade den aktuellen Stand zum Vergleichen."
               : error.detail.message
             : "Speichern nicht möglich. Deine Eingaben bleiben erhalten; bitte erneut versuchen.",
       });
@@ -133,7 +142,7 @@ function DeliveryEditor({
           <h2 id="delivery-heading">Lieferplanung</h2>
           <p>
             Lege die Liefertage und Zeitfenster für diese Aktion fest. Uhrzeiten
-            gelten für {initial.timezone}.
+            gelten für {timezone}.
           </p>
         </div>
       </header>
@@ -293,6 +302,82 @@ function DeliveryEditor({
             {pending ? "Wird gespeichert …" : "Lieferplanung speichern"}
           </Button>
         </fieldset>
+        {conflict && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={async () => {
+              try {
+                setComparison(await client.getDeliveryConfiguration(actionId));
+              } catch {
+                setFeedback({
+                  error: true,
+                  text: "Der aktuelle Stand konnte nicht geladen werden. Deine Eingaben bleiben erhalten.",
+                });
+              }
+            }}
+          >
+            Aktuelle Lieferplanung vergleichen
+          </Button>
+        )}
+        {comparison && (
+          <section aria-label="Aktuell gespeicherte Lieferplanung">
+            <h3>Aktuell gespeichert · Revision {comparison.revision}</h3>
+            <p>
+              Lieferung {comparison.enabled ? "aktiviert" : "deaktiviert"} ·{" "}
+              {comparison.timezone}
+            </p>
+            <ul>
+              {comparison.windows.map((window) => (
+                <li key={window.id}>
+                  {window.deliveryOn} · {window.startsAt.slice(0, 5)}–
+                  {window.endsAt.slice(0, 5)} ·{" "}
+                  {window.retired ? "nicht zur Auswahl" : "zur Auswahl"}
+                </li>
+              ))}
+            </ul>
+            <p>
+              Vergleiche die gespeicherten Fenster mit deinen Eingaben oben.
+              Wenn du deine Planung übernimmst, ersetzt das nächste Speichern
+              den hier angezeigten Stand. Bereits gebuchte Zeiten bleiben
+              geschützt.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setRevision(comparison.revision);
+                setTimezone(comparison.timezone);
+                setComparison(undefined);
+                setConflict(false);
+                setFeedback({
+                  error: false,
+                  text: "Deine Eingaben bleiben erhalten. Prüfe die Planung und speichere sie anschließend.",
+                });
+              }}
+            >
+              Eigene Planung nach Abgleich übernehmen
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setRevision(comparison.revision);
+                setTimezone(comparison.timezone);
+                setEnabled(comparison.enabled);
+                setDays(daysFor(comparison));
+                setComparison(undefined);
+                setConflict(false);
+                setFeedback({
+                  error: false,
+                  text: "Gespeicherte Planung übernommen. Deine vorherigen Eingaben wurden verworfen.",
+                });
+              }}
+            >
+              Eigene Eingaben verwerfen und gespeicherte Planung laden
+            </Button>
+          </section>
+        )}
         {feedback && (
           <StatusMessage tone={feedback.error ? "error" : "success"}>
             {feedback.text}

@@ -1,6 +1,17 @@
 # Implementation evidence
 
 
+## Delivery editor tab retention and conflict recovery — 2026-09-06
+
+The delivery editor remains mounted inside its hidden management panel, retaining unsaved dates/windows across tab switches. A revision conflict now offers an in-place read-only comparison of the latest saved configuration (revision, enabled policy, timezone, dates, times, retirement). The admin can explicitly retain their local plan on the compared revision and save, or explicitly discard their input and load the saved plan. The comparison explains that saving the retained plan replaces the compared configuration; immutable booked-window guards still apply server-side. A later concurrent write is still protected by revision validation.
+
+Live evidence: `LEONAID_ACTION_ADMIN_TEST_PROJECT=leonaid-362a-delivery-admin-20260906k` with HTTP 18262, HTTPS 18662 and the isolated network override completed `./leonaid test-action-admin` with exit 0. The browser creates two days with three windows each, switches away/back before saving, verifies all six windows remain, performs an actual competing API save, receives a revision conflict, compares the saved October 3 window, explicitly retains its own plan, saves and reloads the six original windows. Existing mobile layout/Axe and action lifecycle assertions pass, as does the React component gate. Frontend feature typecheck and diff whitespace checks pass. The test removed its own Docker resources.
+
+Added optional `LEONAID_ACTION_ADMIN_TEST_COMPOSE_OVERRIDE` support to the existing gate so its networks can use worktree-reserved subnets. No foreign Docker resources were changed.
+
+Remaining for DEL-03: unequal per-day counts and additional edit/retire/error-focus acceptance still need evidence; the discard-current-input branch is implemented but not yet browser-proven. Full cross-surface/In-App/EmDash acceptance remains open.
+
+
 ## Historical completion HTTP and admin UI checkpoint — 2026-09-06
 
 Added strict `confirmHistoricalDelivery` to the completion HTTP request and regenerated OpenAPI/client. The new manager-only completion context returns the shared future-order definition plus separate configured, already ended windows (including retired ones). Ordinary capture/public projections remain future-only. The admin editor exposes an unchecked explicit historical confirmation; switching modes clears date/window selection, with no historical default. Already booked snapshots remain fixed.

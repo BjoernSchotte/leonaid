@@ -286,15 +286,13 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           id="panel-delivery"
           role="tabpanel"
         >
-          {activePanel === "delivery" && (
-            <DeliverySection
-              client={client}
-              actionId={actionId}
-              startsOn={shared.state.action.startsOn}
-              endsOn={shared.state.action.endsOn}
-              disabled={archived}
-            />
-          )}
+          <DeliverySection
+            client={client}
+            actionId={actionId}
+            startsOn={shared.state.action.startsOn}
+            endsOn={shared.state.action.endsOn}
+            disabled={archived}
+          />
         </div>
         <div
           aria-labelledby="tab-basics"

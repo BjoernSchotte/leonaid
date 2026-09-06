@@ -184,6 +184,41 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       .getByLabel("Datum", { exact: true })
       .last()
       .fill("2028-10-02");
+    await page.getByTestId("management-tab-basics").click();
+    await page.getByTestId("management-tab-delivery").click();
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    const configUrl = `${baseUrl}/api/v1/actions/${actionId}/delivery`;
+    const configResponse = await context.request.get(configUrl);
+    const remote = await configResponse.json();
+    delete remote.actionId;
+    remote.windows = [
+      {
+        id: crypto.randomUUID(),
+        deliveryOn: "2028-10-03",
+        startsAt: "09:00",
+        endsAt: "10:00",
+        retired: false,
+      },
+    ];
+    expect(
+      (await context.request.put(configUrl, { data: remote })).ok(),
+    ).toBeTruthy();
+    await delivery
+      .getByRole("button", { name: "Lieferplanung speichern", exact: true })
+      .click();
+    await expect(delivery).toContainText("inzwischen geändert");
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    await delivery
+      .getByRole("button", { name: "Aktuelle Lieferplanung vergleichen" })
+      .click();
+    await expect(
+      delivery.getByRole("region", {
+        name: "Aktuell gespeicherte Lieferplanung",
+      }),
+    ).toContainText("2028-10-03");
+    await delivery
+      .getByRole("button", { name: "Eigene Planung nach Abgleich übernehmen" })
+      .click();
     await delivery
       .getByRole("button", { name: "Lieferplanung speichern", exact: true })
       .click();
