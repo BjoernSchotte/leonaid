@@ -1045,6 +1045,14 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       withdrawal, continued republication denial after Core closure, denied
       actors and full deferred-commit rollback (6 September 2026). Anonymous
       page withdrawal and Charity access remain separate, pending gates.
+      Quality evidence: `./leonaid check` passed at `2f101b9`, including 208 unit
+      tests, 242 Python source-file type checks, API parity, all frontend/CMS
+      checks, formatting and privacy/policy guards, with unchanged worktree.
+      The separate `authorization-surface` run passed 1,866 actual HTTPS
+      requests and confirmed setup remains closed after restart and database
+      failure. Both isolated proof projects removed their owned resources and
+      published no host ports. These checks do not close the remaining editor,
+      Charity authorization, anonymous delivery or recovery gates.
 
 Verification:
 
