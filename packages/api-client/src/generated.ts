@@ -27,6 +27,7 @@ export type ActivateLegalConfigurationRequest = { readonly expectedRevision: num
 export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
+export type AnswerSave = { readonly answers: Record<string, unknown>; readonly currentPage?: string | null; readonly expectedRevision: number; readonly operationId: string; };
 export type ApiErrorDetail = { readonly code: string; readonly message: string; readonly requestId: string; };
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
 export type ApproveLegalConfigurationRequest = { readonly evidenceId: string; readonly expectedRevision: number; };
@@ -56,6 +57,7 @@ export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<
 export type ConfirmEmailChangeRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
 export type CorrectInvitationAddressRequest = { readonly email: string; };
+export type Create = { readonly definition: Record<string, unknown>; readonly inactivityTimeoutSeconds?: number | null; readonly operationId: string; readonly title: string; };
 export type CreateAcquisitionAssignmentRequest = { readonly acquirerUserId: string; readonly partyId: string; readonly partyKind: "company" | "person"; };
 export type CreateActionFromTemplateRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; readonly templateKey: "blank" | "krapfentaxi"; readonly templateVersion?: number | null; };
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
@@ -73,6 +75,7 @@ export type DashboardPipelineResponse = { readonly committed: number; readonly c
 export type DashboardReminderResponse = { readonly overdue: number; readonly today: number; readonly total: number; readonly unscheduled: number; readonly upcoming: number; };
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
+export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
 export type EmailChangeConfirmationResponse = { readonly revokedSessionCount: number; readonly status: "confirmed"; };
 export type EmailChangeDispatchResponse = { readonly changeId: string; readonly status: "pending"; };
 export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
@@ -124,6 +127,7 @@ export type MemberDirectoryMembershipResponse = { readonly actionId: string; rea
 export type MemberDirectoryResponse = { readonly actions: Array<MemberDirectoryActionResponse>; readonly items: Array<MemberDirectoryMemberResponse>; readonly nextCursor: string | null; readonly partial: boolean; readonly total: number; };
 export type MemberRoleChangeResponse = { readonly actionId: string | null; readonly actionName: string | null; readonly enabled: boolean; readonly replayed: boolean; readonly revision: number; readonly role: "system_admin" | "finance_reader" | "finance_manager" | "charity_admin" | "acquirer" | "driver"; readonly roleLabel: string; readonly scope: "global" | "action"; readonly userId: string; };
 export type MemberStatusChangeResponse = { readonly displayName: string; readonly previousStatus: "active" | "suspended"; readonly previousStatusLabel: string; readonly replayed: boolean; readonly revision: number; readonly revokedSessionCount: number; readonly status: "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
+export type Mutation = { readonly expectedRevision: number; readonly operationId: string; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type OperationalAlertResponse = { readonly category: string; readonly name: string; readonly runbookUrl: string; readonly severity: "P0" | "P1" | "P2"; readonly summary: string; };
 export type OperationalApiMetricsResponse = { readonly averageLatencyMs: number; readonly errors: number; readonly requests: number; };
@@ -179,7 +183,13 @@ export type SponsorDraftResponse = { readonly city: string | null; readonly comp
 export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
 export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCandidateResponse>; readonly input: SponsorDraftResponse; readonly normalizedKey: string; readonly partyKind: "company" | "person"; readonly status: "no_match" | "single_match" | "ambiguous_match"; };
 export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly contactTwentyId: string | null; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly replayed: boolean; readonly twentyId: string; };
+export type Start = { readonly operationId: string; readonly resumeSecret: string; };
 export type SupportRequestDiagnosticResponse = { readonly errorCode: string | null; readonly impact: string; readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; readonly nextStep: string; readonly occurredAt: string; readonly outcome: "successful" | "rejected" | "failed"; readonly release: string; readonly route: string; readonly statusCode: number; readonly supportCode: string; };
+export type SurveyDiagnostic = { readonly code: string; readonly message: string; readonly path: string; readonly severity: "error" | "warning" | "information"; };
+export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
+export type SurveyParticipationResponse = { readonly id: string; readonly inactivityTimeoutSeconds: number; readonly response: SurveyResponseSnapshot; readonly version: SurveyVersionResponse; };
+export type SurveyResponseSnapshot = { readonly answers: Record<string, unknown>; readonly completedAt: string | null; readonly currentPage: string | null; readonly diagnostics: Array<SurveyDiagnostic>; readonly lastAnswerChangedAt: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; readonly versionId: string; };
+export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
 export type TransitionCharityActionRequest = { readonly revision: number; readonly targetStatus: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | null; readonly nextAction?: string | null; readonly priority: number; readonly revision: number; readonly status: "open" | "contacted" | "committed" | "declined"; };
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
@@ -1548,6 +1558,138 @@ export class LeonAidApiClient {
   ): Promise<PublicOrderResultResponse> {
     return this.request<PublicOrderResultResponse>(
       `/api/v1/public/actions/${encodeURIComponent(String(publicAlias))}/orders`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getPublicSurvey(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyVersionResponse> {
+    return this.request<SurveyVersionResponse>(
+      `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async startSurveyParticipation(
+    surveyId: string,
+    body: Start,
+    options: RequestOptions = {},
+  ): Promise<SurveyParticipationResponse> {
+    return this.request<SurveyParticipationResponse>(
+      `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}/participations`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async restoreSurveyParticipation(
+    surveyId: string,
+    participationId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyParticipationResponse> {
+    return this.request<SurveyParticipationResponse>(
+      `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}/participations/${encodeURIComponent(String(participationId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveSurveyResponse(
+    surveyId: string,
+    participationId: string,
+    body: AnswerSave,
+    options: RequestOptions = {},
+  ): Promise<SurveyResponseSnapshot> {
+    return this.request<SurveyResponseSnapshot>(
+      `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}/participations/${encodeURIComponent(String(participationId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async completeSurveyResponse(
+    surveyId: string,
+    participationId: string,
+    body: Mutation,
+    options: RequestOptions = {},
+  ): Promise<SurveyResponseSnapshot> {
+    return this.request<SurveyResponseSnapshot>(
+      `/api/v1/public/surveys/${encodeURIComponent(String(surveyId))}/participations/${encodeURIComponent(String(participationId))}/complete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async createSurvey(
+    surveyId: string,
+    body: Create,
+    options: RequestOptions = {},
+  ): Promise<SurveyDraftResponse> {
+    return this.request<SurveyDraftResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getSurveyDraft(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyDraftResponse> {
+    return this.request<SurveyDraftResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/draft`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveSurveyDraft(
+    surveyId: string,
+    body: DraftSave,
+    options: RequestOptions = {},
+  ): Promise<SurveyDraftResponse> {
+    return this.request<SurveyDraftResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/draft`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async publishSurvey(
+    surveyId: string,
+    body: Mutation,
+    options: RequestOptions = {},
+  ): Promise<SurveyVersionResponse> {
+    return this.request<SurveyVersionResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/publish`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

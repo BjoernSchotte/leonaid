@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 root=${1:-$(pwd)}
+mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 # A fresh project per invocation; no published host ports and no shared volumes.
@@ -39,6 +40,10 @@ compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
+if [ "$mode" = responses ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/responses.py
+fi
 docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \

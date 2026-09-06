@@ -474,12 +474,14 @@ Acceptance criteria:
 
 ### SURV-010 — Vertical autosave and authoritative validation proof
 
+Current evidence: [SURV-010](proofs/SURV-010.md). Remaining unchecked items are not yet proven.
+
 Dependencies: SURV-000. Use fixture definitions and a minimal runner before the
 full editor exists; carry the proven contracts into later work packages.
 
 Implementation tasks:
 
-- [ ] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
+- [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
 - [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics.
 - [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values.
 - [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof.
@@ -487,10 +489,10 @@ Implementation tasks:
 Acceptance criteria:
 
 - [ ] **010.A1 — Integration:** shared fixtures produce equivalent client/server relevance and validation; unsupported definitions and forged values fail server checks even when client validation is bypassed.
-- [ ] **010.A2 — Integration:** incomplete required fields can be saved; invalid values are rejected or explicitly represented under the documented contract; completion rejects missing relevant required answers atomically.
+- [x] **010.A2 — Integration:** incomplete required fields can be saved; invalid values are rejected or explicitly represented under the documented contract; completion rejects missing relevant required answers atomically.
 - [ ] **010.A3 — E2E:** enter text without blur, wait for save acknowledgement, close the browser and resume in a fresh context using valid resume access; the server restores the exact accepted text and page.
 - [ ] **010.A4 — E2E:** change an earlier answer to hide a follow-up, navigate back/forward and reload; obsolete follow-up data is absent from the current analyzable snapshot.
-- [ ] **010.A5 — Integration:** the configured short timeout classifies the participation as partial; resumption updates the same participation, with no duplicate record.
+- [x] **010.A5 — Integration:** the configured short timeout classifies the participation as partial; resumption updates the same participation, with no duplicate record.
 
 ### SURV-020 — Neutral package and independent demo
 

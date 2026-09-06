@@ -45,6 +45,9 @@ from leonaid.adapters.postgres.legal_configuration import (
     AsyncpgLegalConfigurationRepository,
 )
 from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.application.surveys import SurveyService
+from leonaid.entrypoints.fastapi.surveys import router as surveys_router
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
@@ -165,6 +168,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
+        application.state.survey_service = SurveyService(AsyncpgSurveyRepository(pool))
         api_metrics = ApiMetrics()
         application.state.operations_service = OperationsService(
             pool,
@@ -573,6 +577,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
 
     application.include_router(router)
+    application.include_router(surveys_router)
     return application
 
 

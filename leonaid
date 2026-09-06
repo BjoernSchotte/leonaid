@@ -115,6 +115,8 @@ Commands:
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
+  test-surveys-responses
+                    Prove real survey response API persistence and validation
   test-surveys-infrastructure
                     Prove survey migration and UI foundations in a fresh isolated stack
   test-surveys-dependencies
@@ -1993,6 +1995,7 @@ case "$command" in
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
+  test-surveys-responses) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" responses ;;
   test-surveys-infrastructure) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" ;;
   test-surveys-dependencies) run_bun bun tools/surveys/dependencies.mjs ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;

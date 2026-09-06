@@ -1,0 +1,75 @@
+[
+  {
+    "name": "empty",
+    "fixture": "krapfentaxi",
+    "answers": {}
+  },
+  {
+    "name": "low-rating",
+    "fixture": "krapfentaxi",
+    "answers": {
+      "delivery_rating": 1,
+      "delivery_feedback": "Late",
+      "freshness": "fresh",
+      "nps": 7
+    }
+  },
+  {
+    "name": "high-rating",
+    "fixture": "krapfentaxi",
+    "answers": {
+      "delivery_rating": 5,
+      "delivery_feedback": "stale hidden",
+      "freshness": "fresh",
+      "nps": 9
+    }
+  },
+  {
+    "name": "matrix-incomplete",
+    "fixture": "golf",
+    "answers": {
+      "event_rating": {
+        "organization": 3
+      }
+    }
+  },
+  {
+    "name": "matrix-complete",
+    "fixture": "golf",
+    "answers": {
+      "event_rating": {
+        "organization": 3,
+        "course": 2,
+        "catering": 1
+      },
+      "improvements": ["food"],
+      "food_feedback": "More vegetarian options",
+      "handicap": 10
+    }
+  },
+  {
+    "name": "out-of-range",
+    "fixture": "golf",
+    "answers": {
+      "event_rating": {
+        "organization": 3,
+        "course": 2,
+        "catering": 1
+      },
+      "handicap": 100
+    }
+  },
+  {
+    "name": "food-hidden",
+    "fixture": "golf",
+    "answers": {
+      "event_rating": {
+        "organization": 3,
+        "course": 2,
+        "catering": 1
+      },
+      "improvements": ["schedule"],
+      "food_feedback": "obsolete"
+    }
+  }
+]
