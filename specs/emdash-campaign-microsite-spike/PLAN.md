@@ -353,6 +353,57 @@ credentials. Include the EmDash SQL dump and RustFS objects in the same recovery
 workflow. Record the shared PostgreSQL server's availability/resource coupling;
 application ownership and authorization remain separate.
 
+### 4.2 Existing-infrastructure integration contract
+
+The following requirements complement the task checklist; they are acceptance
+criteria, not claims that the integration has already been implemented.
+
+- **Explicit activation:** keep the CMS opt-in while the spike is incomplete.
+  Define how the existing `./leonaid` commands select the Compose profile for
+  development, tests, backup and release. An inactive profile must neither break
+  proxy startup nor silently disappear from a CMS-enabled backup. Validate both
+  the base Compose configuration and the merged pilot configuration. The pilot
+  must use a digest-pinned image, not a host source build, and must override the
+  development origin with the configured public HTTPS origin.
+- **Safe parallel execution:** every proof command must select a unique Compose
+  project explicitly, check container/network/volume and host-port collisions,
+  and scope cleanup to resources created by that invocation. Do not reuse the
+  default `leonaid` project, shared volume names or another checkout's stack.
+  Publish no ports for internal proofs; reserve separate loopback ports for
+  browser/TLS proofs. Apply this rule to existing regression commands as well.
+- **Bounded shared resources:** define and measure a CMS connection-pool limit,
+  database/query timeouts, CPU/memory limits, upload size limits and graceful
+  shutdown. Measure representative rendering and publishing alongside Core
+  requests. CMS load, a failed migration or storage exhaustion must not exhaust
+  Core's connection budget; record thresholds and fail the acceptance test when
+  Core login or ordering becomes unavailable.
+- **Runtime secrets:** extend the existing bootstrap and environment validation
+  rather than introducing a second secret manager. Keep the CMS database login,
+  scoped S3 key and EmDash encryption key distinct from Core and RustFS operator
+  credentials. Validate the pinned EmDash version's exact encryption-key format
+  without printing values. Preserve keys across restart/redeploy, document
+  supported rotation and recovery, and never bake secrets into images or build
+  arguments. Operator credentials belong only in short-lived provisioning jobs.
+- **Private storage, deliberate public delivery:** the RustFS bucket stays
+  private. Resolve published media through a controlled application endpoint or
+  a proven short-lived delivery mechanism; never expose the RustFS console or
+  root credentials. Authorize draft/preview media separately, prevent cross-action
+  attachment and path traversal, and test MIME handling, upload limits and
+  unsafe SVG/HTML. Avoid a reusable public URL that accidentally reveals a draft.
+- **Existing operational boundaries:** add sanitized CMS health/failure signals
+  to the current monitoring and release workflow. Keep concrete VPS addresses,
+  real domains, credentials, backup destinations and private runbooks exclusively
+  in `leonaid-internal`; this public specification contains generic contracts and
+  synthetic test evidence only. Do not add a second reverse proxy, PostgreSQL
+  server, object store or identity provider for the spike.
+
+Track closure in the existing tasks: activation, isolation and resource limits
+in EMS-010; media delivery in EMS-040/050; origin and proxy configuration in
+EMS-070; secret lifecycle, monitoring, recovery and release compatibility in
+EMS-080. Record the exact test commands and sanitized outcomes in `RESULT.md`.
+Unverified requirements remain open even when a standalone provisioning test
+passes.
+
 ## 5. Canonical commands and proof gates
 
 All product and verification work remains Docker-only. Do not require host
