@@ -45,6 +45,39 @@ parent check so current draft data and published `liveData` are both preserved.
 The inventory surface probe uses non-admitted
 placeholder collections/IDs, so it complements rather than replaces this test.
 
+## Authorization after write-lock waits
+
+The initial request profile is not sufficient authority for a mutation that has
+waited for a PostgreSQL lock. `requireCurrentCampaignActor` now performs fresh,
+bounded Core action and identity reads after content/revision locks, immediately
+before the original mutator runs. It requires the same Core subject and role,
+and current System Admin or matching Charity membership authority. Creation uses
+the same check after its per-action advisory lock. This helper does not open
+Charity admission: the outer System-Admin-only gate remains in place.
+
+`campaign-auth-race` reproduces actual blocked HTTP operations, rather than
+sleeping before the request or substituting Core responses. Its isolated operator
+holds a shared content-row lock (or the actual creation advisory lock), observes
+the requesting CMS backend in PostgreSQL's blocking graph, logs that request's
+synthetic session out through Core HTTPS, confirms Core identity returns 401,
+and releases the lock. Update, revision restore, discard, publish, unpublish and
+creation must then return 401 with identical content/revision/list snapshots.
+An independent valid Core session reads those snapshots. The unfixed updater
+was observed returning 200 after this exact logout sequence.
+
+The dedicated test operator has only the isolated Edge and CMS data networks,
+the CMS database role, and transient synthetic sessions. Ordinary HTTP probes
+remain Edge-only; no host ports or production services are involved. The same
+race proof runs within `campaign-runtime` before its happy-path regressions.
+
+This is a post-lock revalidation boundary, not a distributed transaction between
+Core and CMS: it does not promise atomic cancellation of a write when revocation
+occurs after the final Core authorization read. Positive Charity membership
+revocation, role/suspension changes, dependency failure cases and full isolation
+remain separate acceptance requirements.
+
+## Admitted editor operations
+
 Canonical System Admin editor/list HTML routes under
 `/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
 fixed-origin and current Core session checks. Anonymous navigation returns to

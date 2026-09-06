@@ -1065,6 +1065,33 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [ ] Query Core for the actor's current active memberships; do not trust an
       EmDash field, cached browser value, author ID, or client header as proof of
       `charity_admin` membership.
+- [x] Revalidate mutation authority after blocking CMS locks, not only when the
+      HTTP request starts. Actual `campaign-auth-race` baseline project
+      `leonaid-emdash-tmp-6oczrmd9fy` reproduced a queued update returning 200
+      after Core logout and confirmed Core identity 401. The shared mutation
+      wrapper now re-reads Core action access and identity after content/revision
+      locks, requiring the same subject/role and current campaign authority
+      immediately before the original mutator. Creation performs the same check
+      after its per-action advisory lock. No actor or membership is taken from
+      the submitted content body.
+      On `b5fbf38`, `campaign-runtime` passed in isolated project
+      `leonaid-emdash-tmp-7h7nf7vhgb`, including all six real lock-wait/logout races
+      for update, revision restore, discard, publish, unpublish and creation.
+      PostgreSQL's actual blocking graph establishes that each mutation is
+      waiting; Core's real HTTPS logout invalidates only that synthetic session;
+      release then yields 401 with unchanged content, revisions and listing.
+      The complete normal-write/concurrency/publication/rollback/revocation,
+      sanitized-error, TLS and bootstrap restart/database-failure regressions
+      also passed. Both projects exposed no host ports and removed their owned
+      resources. The race operator alone joins isolated CMS data and Edge;
+      normal HTTP probes remain Edge-only.
+      `./leonaid check` passed on the same commit: 208 unit tests, 242 Python
+      source-file checks, API parity, 28 CMS files, frontend/generated-type,
+      formatting and privacy/policy gates; unchanged tree.
+      This closes the observed pre-lock authorization race, not the full Charity
+      gate or a distributed Core/CMS transaction. Revocation after the final
+      Core read, positive Charity membership/role changes and hostile Core
+      dependency cases are not claimed by this proof; see [AUTHORIZATION.md](AUTHORIZATION.md).
 - [ ] Permit a System Admin across campaigns.
 - [ ] Permit a Charity Admin only when the current/proposed microsite's immutable
       `action_id` is present with active `charity_admin` membership.
