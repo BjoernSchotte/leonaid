@@ -609,7 +609,7 @@ Dependencies: EMS-010
 - [ ] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
       config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
       workspace package.
-- [ ] Extract the exact `__Host-leonaid_session` cookie from the incoming request
+- [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
       without forwarding unrelated cookies.
 - [ ] Call `http://api:8000/api/v1/identity/me` with the cookie and a bounded
       timeout. Deny access on DNS errors, timeout, 401, 403, 5xx, invalid JSON,
@@ -691,6 +691,23 @@ real pre-HTTP operator job. `./leonaid check` passed at `e0b3b53`, including
 208 unit tests, 241 Python source-file type checks, all frontend/CMS checks and
 an unchanged worktree. Both proof projects removed their own containers,
 networks and volumes after completion; no host ports were published.
+
+Core HTTP boundary checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case core-auth` passed against real Core HTTP and
+PostgreSQL in a unique no-host-port project. The client uses the generated API
+client with a fixed internal Core origin, no redirect following, a two-second
+timeout, a 64 KiB response limit and runtime profile validation. Tests cover
+System/Charity identity resolution, denied finance-only access, forged identity
+headers, unrelated/local EmDash cookies, duplicate/malformed session cookies,
+Core session revocation and removal of the last Charity Admin membership.
+A paused API proves timeout denial; a stopped API proves unavailable denial.
+The probe has Edge-only access, no database/operator credentials and no mounted
+`.env.local` (Bun otherwise loads it automatically). Synthetic session artifacts
+and all project resources are removed. The prepared `authenticate()` function
+combines this boundary with the UUID mapper and remains System-Admin-only, but
+is deliberately NOT configured in EmDash yet. Upstream stable-ID resolution,
+actual middleware/browser integration, hostile-response cases and the complete
+shared-login acceptance gate remain open.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 

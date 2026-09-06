@@ -9,6 +9,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
+    "@leonaid/api-client": "workspace:*",
     "@astrojs/node": "11.0.2",
     "@astrojs/react": "5.0.7",
     "@aws-sdk/client-s3": "3.1127.0",

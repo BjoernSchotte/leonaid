@@ -15,6 +15,7 @@ WORKDIR /workspace
 ENV ASTRO_TELEMETRY_DISABLED=1
 COPY --from=dependencies /workspace ./
 COPY apps/campaign-site ./apps/campaign-site
+COPY packages/api-client ./packages/api-client
 WORKDIR /workspace/apps/campaign-site
 RUN node /workspace/node_modules/astro/bin/astro.mjs check
 RUN node /workspace/node_modules/astro/bin/astro.mjs build

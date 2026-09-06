@@ -1,0 +1,12 @@
+services:
+  core-auth-probe:
+    image: docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55
+    working_dir: /workspace
+    # Do not mount .env.local: Bun automatically loads env files from cwd.
+    volumes:
+      - ../../tools:/workspace/tools:ro
+      - ../../apps/campaign-site:/workspace/apps/campaign-site:ro
+      - ../../packages/api-client:/workspace/packages/api-client:ro
+      - ../../node_modules:/workspace/node_modules:ro
+    networks: [edge]
+    command: [bun, tools/emdash_spike/core-auth-proof.mjs]
