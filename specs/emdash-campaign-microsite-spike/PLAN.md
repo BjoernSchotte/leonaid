@@ -1434,6 +1434,11 @@ Dependencies: EMS-030 successful
       Core checks after upload lock waits, final confirmation, cleanup scheduling,
       preview/public delivery and restore remain open. Do not enable media HTTP
       routes or mark the full media/campaign-isolation gates complete from this.
+      Quality checkpoint: `./leonaid check` passed at `02f6159`: 208 unit tests,
+      242 Python source-file checks, all frontend/API checks, 32 CMS files without
+      diagnostics, generated types, formatting and privacy/policy gates, with an
+      unchanged committed tree. The pinned Bun frozen install also passed with
+      networking disabled and no dependency changes.
 - [x] Implement the campaign-media ownership database prerequisite without
       admitting the global upstream media routes. `auth/campaign-media.mjs`
       installs a separately versioned, immutable media-to-Core-action binding;
