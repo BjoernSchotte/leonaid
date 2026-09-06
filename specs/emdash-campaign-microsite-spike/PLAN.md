@@ -1340,6 +1340,28 @@ Dependencies: EMS-030, EMS-050
       existing-microsite resolver, chooser, Back affordance or Charity admission.
 - [ ] Add **Edit microsite** to the existing role-aware LeonAid navigation for
       System Admins and Charity Admins only.
+- [x] Add the selected-action resolver prerequisite for System Admins:
+      `GET /_emdash/admin/campaigns/<Core UUID>` rechecks Core access and returns
+      a no-store 303 to the exact native editor or the campaign-prefilled new
+      form. GET creates no content. Multiple bindings and a real trashed CMS row
+      return a static 409; missing Core targets fail closed. Register the endpoint
+      explicitly through Astro and require its presence in the build inventory.
+      Evidence: `admin-browser` passed in Chromium, Firefox and WebKit in isolated
+      project `leonaid-emdash-tmp-76kqblohiv`, including both redirects, actual
+      editor arrival, unchanged content count on lookup, ambiguous/trashed
+      binding denial, unsupported POST denial, anonymous login return, Charity
+      denial and revoked-session redirection. The trash fixture invokes the real
+      EmDash delete handler; no HTTP response is substituted. Previous native
+      creation/editing/publication, SMTP login/fresh-login, bootstrap restart and
+      database-failure regressions passed. All owned resources were removed and
+      no host ports were exposed. `./leonaid check` passed on `2423161` with 208
+      unit tests, 242 Python source-file checks, API parity, frontend/CMS checks
+      including 24 CMS files, formatting and privacy/policy gates; unchanged tree.
+      The initial run on `6b08cd6` correctly failed because an underscored
+      filesystem page was absent from the emitted route inventory; explicit
+      registration fixed it without weakening the expected 303. This does not
+      close the role-aware LeonAid control, chooser, Back navigation or Charity
+      admission, nor replace the outstanding global binding-uniqueness migration.
 - [ ] Where an action is already selected, link to the campaign-scoped EmDash
       editing route for that `action_id`. Otherwise link to an authorized
       campaign chooser that reveals only manageable campaigns.
