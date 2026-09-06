@@ -391,6 +391,7 @@ check_all() {
     python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
   docker run --rm \
     -v "$root:/workspace:ro" \
+    -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/pilot/boundary.py /workspace
   run_python uv run --frozen --no-sync ruff check \
