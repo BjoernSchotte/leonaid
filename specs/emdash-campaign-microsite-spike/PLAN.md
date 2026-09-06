@@ -772,6 +772,12 @@ All proof services use the unique project and no published host ports; browser
 containers have Edge access only. Synthetic sessions and owned resources are
 removed after completion. Full EMS-020/030/070 remain open.
 
+`./leonaid check` passed at `c786d7a`: 208 unit tests, 242 Python source-file
+type checks, public/CMS and other frontend checks, formatting, API parity and
+privacy/policy gates, with an unchanged worktree. `closed-runtime` passed again
+against the production image: liveness and all 18 default-deny requests work
+without a database or network.
+
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
 Dependencies: EMS-020, EMS-070
