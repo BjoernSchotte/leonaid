@@ -1305,6 +1305,225 @@
         "title": "AdministratorOptionResponse",
         "type": "object"
       },
+      "AggregateCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "percentage": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentage"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "count",
+          "percentage"
+        ],
+        "title": "AggregateCount",
+        "type": "object"
+      },
+      "AnalysisFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "createdBefore": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbefore"
+          },
+          "createdFrom": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdfrom"
+          },
+          "isTest": {
+            "default": false,
+            "title": "Istest",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "enum": [
+                "in_progress",
+                "partial",
+                "completed"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Statuses",
+            "type": "array"
+          },
+          "versionId": {
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Versionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId"
+        ],
+        "title": "AnalysisFilter",
+        "type": "object"
+      },
+      "AnalysisSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilityProfile": {
+            "title": "Capabilityprofile",
+            "type": "string"
+          },
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ResolvedAnalysisFilter"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lastPageCounts": {
+            "items": {
+              "$ref": "#/components/schemas/LastPageCount"
+            },
+            "title": "Lastpagecounts",
+            "type": "array"
+          },
+          "participationCount": {
+            "minimum": 0.0,
+            "title": "Participationcount",
+            "type": "integer"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionAggregate"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "rendererVersion": {
+            "title": "Rendererversion",
+            "type": "string"
+          },
+          "statusCounts": {
+            "$ref": "#/components/schemas/ParticipationCounts"
+          },
+          "surveyId": {
+            "title": "Surveyid",
+            "type": "string"
+          },
+          "versionNumber": {
+            "minimum": 1.0,
+            "title": "Versionnumber",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "surveyId",
+          "createdAt",
+          "filter",
+          "versionNumber",
+          "rendererVersion",
+          "capabilityProfile",
+          "participationCount",
+          "statusCounts",
+          "lastPageCounts",
+          "questions"
+        ],
+        "title": "AnalysisSnapshot",
+        "type": "object"
+      },
+      "AnalysisVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "title": "Publishedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "publishedAt"
+        ],
+        "title": "AnalysisVersion",
+        "type": "object"
+      },
+      "AnalysisVersions": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisVersion"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AnalysisVersions",
+        "type": "object"
+      },
       "AnswerSave": {
         "additionalProperties": false,
         "properties": {
@@ -2706,6 +2925,26 @@
           "goal"
         ],
         "title": "CreateActionFromTemplateRequest",
+        "type": "object"
+      },
+      "CreateAnalysisSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AnalysisFilter"
+          },
+          "operationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Operationid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "filter"
+        ],
+        "title": "CreateAnalysisSnapshot",
         "type": "object"
       },
       "CreateCharityActionRequest": {
@@ -5217,6 +5456,38 @@
         "title": "IssueInvoiceRequest",
         "type": "object"
       },
+      "LastPageCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "pageId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pageid"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "title",
+          "count"
+        ],
+        "title": "LastPageCount",
+        "type": "object"
+      },
       "LegalConfigurationApprovalResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5682,6 +5953,51 @@
           "status"
         ],
         "title": "LogoutResponse",
+        "type": "object"
+      },
+      "MatrixRowAggregate": {
+        "additionalProperties": false,
+        "properties": {
+          "answered": {
+            "minimum": 0.0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/AggregateCount"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "invalid": {
+            "minimum": 0.0,
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rowId": {
+            "title": "Rowid",
+            "type": "string"
+          },
+          "unanswered": {
+            "minimum": 0.0,
+            "title": "Unanswered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rowId",
+          "label",
+          "answered",
+          "unanswered",
+          "invalid",
+          "counts"
+        ],
+        "title": "MatrixRowAggregate",
         "type": "object"
       },
       "MemberDirectoryActionResponse": {
@@ -6558,6 +6874,33 @@
           "allowMessage"
         ],
         "title": "OrderFormConfigurationResponse",
+        "type": "object"
+      },
+      "ParticipationCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "minimum": 0.0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "in_progress": {
+            "minimum": 0.0,
+            "title": "In Progress",
+            "type": "integer"
+          },
+          "partial": {
+            "minimum": 0.0,
+            "title": "Partial",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "in_progress",
+          "partial",
+          "completed"
+        ],
+        "title": "ParticipationCounts",
         "type": "object"
       },
       "PilotDailyDependenciesResponse": {
@@ -7822,6 +8165,149 @@
         "title": "PublicOrderResultResponse",
         "type": "object"
       },
+      "QuestionAggregate": {
+        "additionalProperties": false,
+        "properties": {
+          "answered": {
+            "minimum": 0.0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/AggregateCount"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "hidden": {
+            "minimum": 0.0,
+            "title": "Hidden",
+            "type": "integer"
+          },
+          "invalid": {
+            "minimum": 0.0,
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "comment",
+              "date",
+              "number",
+              "radiogroup",
+              "dropdown",
+              "checkbox",
+              "rating",
+              "matrix"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "matrixRows": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixRowAggregate"
+            },
+            "title": "Matrixrows",
+            "type": "array"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "nps": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": -100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nps"
+          },
+          "questionId": {
+            "title": "Questionid",
+            "type": "string"
+          },
+          "relevant": {
+            "minimum": 0.0,
+            "title": "Relevant",
+            "type": "integer"
+          },
+          "sum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sum"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "unanswered": {
+            "minimum": 0.0,
+            "title": "Unanswered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questionId",
+          "title",
+          "kind",
+          "relevant",
+          "answered",
+          "unanswered",
+          "hidden",
+          "invalid",
+          "counts",
+          "sum",
+          "mean",
+          "minimum",
+          "maximum",
+          "nps",
+          "matrixRows"
+        ],
+        "title": "QuestionAggregate",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8202,6 +8688,68 @@
           "expectedStatus"
         ],
         "title": "ResolveSponsorMatchRequest",
+        "type": "object"
+      },
+      "ResolvedAnalysisFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "createdBefore": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdbefore"
+          },
+          "createdFrom": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdfrom"
+          },
+          "isTest": {
+            "title": "Istest",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "enum": [
+                "in_progress",
+                "partial",
+                "completed"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Statuses",
+            "type": "array"
+          },
+          "versionId": {
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Versionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "statuses",
+          "isTest",
+          "createdFrom",
+          "createdBefore"
+        ],
+        "title": "ResolvedAnalysisFilter",
         "type": "object"
       },
       "RevokePrivacyConsentRequest": {
@@ -20474,6 +21022,335 @@
           }
         },
         "summary": "Update Access",
+        "tags": [
+          "surveys"
+        ]
+      }
+    },
+    "/api/v1/surveys/{survey_id}/analysis": {
+      "post": {
+        "operationId": "createSurveyAnalysis",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "survey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Survey Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnalysisSnapshot"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Analysis Create",
+        "tags": [
+          "surveys"
+        ]
+      }
+    },
+    "/api/v1/surveys/{survey_id}/analysis/versions": {
+      "get": {
+        "operationId": "listSurveyAnalysisVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "survey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Survey Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisVersions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Analysis Versions",
+        "tags": [
+          "surveys"
+        ]
+      }
+    },
+    "/api/v1/surveys/{survey_id}/analysis/{snapshot_id}": {
+      "get": {
+        "operationId": "getSurveyAnalysis",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "survey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Survey Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Analysis Get",
         "tags": [
           "surveys"
         ]

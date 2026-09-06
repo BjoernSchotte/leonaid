@@ -93,6 +93,14 @@ if [ "$mode" = invitations ]; then
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = analysis ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py recover
+fi
 if [ "$mode" = aggregates ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
@@ -124,6 +132,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = analysis ]; then
+  cp "$proof/survey-analysis-snapshot.json" "$artifact/"
+fi
 if [ "$mode" = aggregates ]; then
   cp "$proof/surveys-aggregates.json" "$artifact/"
 fi

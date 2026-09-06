@@ -119,6 +119,7 @@ Commands:
   test-surveys-lifecycle
   test-surveys-invitations
   test-surveys-aggregates
+  test-surveys-analysis
   test-surveys-migrations
   test-surveys-core
   test-surveys-validation-candidate
@@ -2009,6 +2010,7 @@ case "$command" in
   test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
   test-surveys-invitations) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" invitations ;;
   test-surveys-aggregates) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" aggregates ;;
+  test-surveys-analysis) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" analysis ;;
   test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
   test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)

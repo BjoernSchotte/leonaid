@@ -163,9 +163,9 @@ a substitute for completing an individual task.
 
 ## SURV-050 — Public runner, ordered saves and recovery
 
-- [ ] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue.
+- [x] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue.
 
-  Acceptance criteria: **050.A3, 050.A5**.
+  Acceptance criteria: **050.A3, 050.A5**. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
   Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
   E2E: **050.S3, 050.S5**.
 
@@ -175,15 +175,15 @@ a substitute for completing an individual task.
   Integration / supporting checks: **050.S1**.
   E2E: **050.S4**.
 
-- [ ] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification.
+- [x] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification.
 
-  Acceptance criteria: **050.A2, 050.A5**.
+  Acceptance criteria: **050.A2, 050.A5**. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
   Integration / supporting checks: **050.S2**.
   E2E: **050.S5**.
 
-- [ ] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data.
+- [x] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data.
 
-  Acceptance criteria: **050.A3, 050.A4, 050.A5**.
+  Acceptance criteria: **050.A3, 050.A4, 050.A5**. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
   Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
   E2E: **050.S3, 050.S4, 050.S5**.
 

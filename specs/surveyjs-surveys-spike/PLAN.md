@@ -678,18 +678,18 @@ Implementation tasks:
 
 - [x] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue. Acceptance: **050.A3, 050.A5**.
 - [x] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement. Acceptance: **050.A1, 050.A4**.
-- [x] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**. [Backend delivery evidence](proofs/SURV-050.md); 050.A2 remains open until SURV-070 proves the effective-status rule through actual analysis queries.
+- [x] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
 - [x] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data. Acceptance: **050.A3, 050.A4, 050.A5**.
 
 Test implementation and verification tasks:
 
-- [ ] **050.T1** Inject duplicate/reordered writes and API/worker restarts; test terminal idempotent completion, default/override timeout snapshots, unchanged writes and delayed classification without data loss. Acceptance: **050.A1, 050.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **050.T1** Inject duplicate/reordered writes and API/worker restarts; test terminal idempotent completion, default/override timeout snapshots, unchanged writes and delayed classification without data loss. Acceptance: **050.A1, 050.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
 - [x] **050.T2** Exercise offline typing/reconnect, two-tab conflicts, delayed requests, lost completion acknowledgements, and abandon/timeout/resume; inspect saved state and visible save/error indicators. Acceptance: **050.A3, 050.A4, 050.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
 - [x] **050.A1 — Integration:** duplicate and reordered writes cannot overwrite newer answers; completion is idempotent and terminal, even across API/worker restarts.
-- [ ] **050.A2 — Integration:** default and survey override timeouts use server-observed answer changes; unchanged requests do not extend inactivity, worker delay does not misclassify analysis, and timeout never deletes data.
+- [x] **050.A2 — Integration:** default and survey override timeouts use server-observed answer changes; unchanged requests do not extend inactivity, worker delay does not misclassify analysis, and timeout never deletes data. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
 - [x] **050.A3 — E2E:** disconnect mid-page, continue typing, reconnect and verify accepted answers after reload; pending data is never shown as saved and lost unsent edits are not claimed recoverable after tab closure.
 - [x] **050.A4 — E2E:** edit from two tabs, deliberately reorder requests and retry completion; conflicts are visible and exactly one completed participation exists.
 - [x] **050.A5 — E2E:** abandon halfway, expire the short timeout and resume; partial answers remain available and the same participation can complete while access remains valid.
@@ -730,13 +730,13 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **070.T1** Seed hand-calculated golden results for all supported aggregates, statuses and versions; assert denominators, empty data, hidden/missing answers and aggregate-only payload authorization. Acceptance: **070.A1, 070.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **070.T1** Seed hand-calculated golden results for all supported aggregates, statuses and versions; assert denominators, empty data, hidden/missing answers and aggregate-only payload authorization. Acceptance: **070.A1, 070.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [ ] **070.T2** Switch status/version/date filters and compare chart labels with snapshot tables; exercise empty states, keyboard table access and denial of raw/free-text routes. Acceptance: **070.A3, 070.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
-- [ ] **070.A1 — Integration:** seeded golden data matches hand-calculated counts, percentages and NPS, including empty results, multiselect and partial responses; versions never merge implicitly.
-- [ ] **070.A2 — Integration:** aggregate-only users receive no raw answer texts or recipient identities in any aggregate payload; unauthorized filters/resources are rejected.
+- [x] **070.A1 — Integration:** seeded golden data matches hand-calculated counts, percentages and NPS, including empty results, multiselect and partial responses; versions never merge implicitly. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
+- [x] **070.A2 — Integration:** aggregate-only users receive no raw answer texts or recipient identities in any aggregate payload; unauthorized filters/resources are rejected. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [ ] **070.A3 — E2E:** switch completed/partial/version filters and verify chart labels and tables against the same snapshot; empty states and zero denominators remain meaningful.
 - [ ] **070.A4 — E2E:** keyboard users can access equivalent table data; an aggregate-only persona cannot open individual response/free-text routes.
 

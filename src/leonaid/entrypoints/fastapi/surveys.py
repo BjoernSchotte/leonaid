@@ -15,6 +15,11 @@ from pydantic import (
 )
 
 from leonaid.application.surveys import SurveyService
+from leonaid.application.surveys.analysis_snapshot import (
+    AnalysisSnapshot,
+    AnalysisVersions,
+    CreateAnalysisSnapshot,
+)
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.domain.surveys.validation import json_size
@@ -242,6 +247,44 @@ async def author(
 
 def cookie_name(participation_id: UUID | str) -> str:
     return f"__Host-survey_{participation_id}"
+
+
+@router.get(
+    "/surveys/{survey_id}/analysis/versions",
+    operation_id="listSurveyAnalysisVersions",
+    response_model=AnalysisVersions,
+)
+async def analysis_versions(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "analysis-versions", {})
+
+
+@router.post(
+    "/surveys/{survey_id}/analysis",
+    operation_id="createSurveyAnalysis",
+    response_model=AnalysisSnapshot,
+)
+async def analysis_create(
+    survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "analysis-create", body.model_dump())
+
+
+@router.get(
+    "/surveys/{survey_id}/analysis/{snapshot_id}",
+    operation_id="getSurveyAnalysis",
+    response_model=AnalysisSnapshot,
+)
+async def analysis_get(
+    survey_id: UUID, snapshot_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request, survey_id, "analysis-get", {"snapshotId": str(snapshot_id)}
+    )
 
 
 @router.get("/surveys", operation_id="listSurveys", response_model=SurveyListResponse)

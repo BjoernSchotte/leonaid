@@ -63,7 +63,7 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#process-restart-and-untransmitted-tab-loss).
 
 - [x] **050.S1 · Integration · 050.T1 → 050.A1:** Duplicate/reorder saves and retry completion across API/worker restarts; older writes cannot replace newer data, completed state is terminal and retries create no second logical completion.
-- [ ] **050.S2 · Integration · 050.T1 → 050.A2:** Exercise default/override timeout snapshots, unchanged requests and delayed worker classification; only server-observed answer changes extend inactivity and classification never removes responses.
+- [x] **050.S2 · Integration · 050.T1 → 050.A2:** Exercise default/override timeout snapshots, unchanged requests and delayed worker classification; only server-observed answer changes extend inactivity and classification never removes responses. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
 - [x] **050.S3 · E2E · 050.T2 → 050.A3:** Disconnect mid-page, type and reconnect; pending status remains truthful and acknowledged answers survive reload. Verify that tab closure does not promise recovery of unsent memory-only edits.
 - [x] **050.S4 · E2E · 050.T2 → 050.A4:** Edit one participation in two tabs, delay requests and lose the completion acknowledgement; show conflicts, preserve newer data and finish with exactly one completed participation after retry. [Evidence](proofs/SURV-050.md#two-tab-ordering-and-lost-completion-acknowledgement).
 - [x] **050.S5 · E2E · 050.T2 → 050.A5:** Abandon a multipage survey, expire the short timeout and resume with valid access; previous answers and identity remain intact and completion succeeds.
@@ -78,8 +78,8 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 
 ## SURV-070 — Analysis
 
-- [ ] **070.S1 · Integration · 070.T1 → 070.A1:** Seed hand-calculated distributions, ratings, NPS, matrix and multiselect results with partial/hidden/missing answers and multiple versions; every count/denominator matches, including empty results, without implicit version merging.
-- [ ] **070.S2 · Integration · 070.T1 → 070.A2:** Query aggregates with aggregate-only and unauthorized personas; reject forbidden resources/filters and exclude raw text and recipient identities from all aggregate payloads.
+- [x] **070.S1 · Integration · 070.T1 → 070.A1:** Seed hand-calculated distributions, ratings, NPS, matrix and multiselect results with partial/hidden/missing answers and multiple versions; every count/denominator matches, including empty results, without implicit version merging. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
+- [x] **070.S2 · Integration · 070.T1 → 070.A2:** Query aggregates with aggregate-only and unauthorized personas; reject forbidden resources/filters and exclude raw text and recipient identities from all aggregate payloads. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [ ] **070.S3 · E2E · 070.T2 → 070.A3:** Switch status/version/date filters and compare charts/tables with the same snapshot; labels, counts, empty states and zero denominators stay consistent.
 - [ ] **070.S4 · E2E · 070.T2 → 070.A4:** Reach equivalent table data by keyboard; an aggregate-only member cannot open individual-response or free-text routes.
 

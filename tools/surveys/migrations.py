@@ -20,9 +20,10 @@ TABLES = {
     "survey_settings",
     "survey_settings_operation",
     "survey_invitation",
+    "survey_analysis_snapshot",
 }
 BASELINE = "0026_invoice_payment_snapshot"
-HEAD = "0029_survey_invitations"
+HEAD = "0030_survey_analysis"
 
 
 async def fingerprints(conn, tables):
@@ -126,6 +127,49 @@ async def constraints(conn):
             "positive participation timeout",
             "UPDATE survey_participation SET inactivity_timeout_seconds=0 WHERE id=$1",
             participation,
+        )
+        snapshot_id = uuid4()
+        payload = json.dumps(
+            {
+                "id": str(snapshot_id),
+                "surveyId": str(first),
+                "filter": {"versionId": str(version)},
+            }
+        )
+        await conn.execute(
+            "INSERT INTO survey_analysis_snapshot(id,survey_id,version_id,payload,private_responses,created_at) VALUES($1,$2,$3,$4::jsonb,'[]',now())",
+            snapshot_id,
+            first,
+            version,
+            payload,
+        )
+        await rejected(
+            "immutable analysis snapshot",
+            "UPDATE survey_analysis_snapshot SET payload='{}' WHERE id=$1",
+            snapshot_id,
+        )
+        invalid_id = uuid4()
+        await rejected(
+            "analysis version belongs to same survey",
+            "INSERT INTO survey_analysis_snapshot(id,survey_id,version_id,payload,private_responses,created_at) VALUES($1,$2,$3,$4::jsonb,'[]',now())",
+            invalid_id,
+            second,
+            version,
+            json.dumps(
+                {
+                    "id": str(invalid_id),
+                    "surveyId": str(second),
+                    "filter": {"versionId": str(version)},
+                }
+            ),
+        )
+        await rejected(
+            "analysis metadata requires version identity",
+            "INSERT INTO survey_analysis_snapshot(id,survey_id,version_id,payload,private_responses,created_at) VALUES($1,$2,$3,$4::jsonb,'[]',now())",
+            uuid4(),
+            first,
+            version,
+            "{}",
         )
         await rejected(
             "bounded survey timeout",

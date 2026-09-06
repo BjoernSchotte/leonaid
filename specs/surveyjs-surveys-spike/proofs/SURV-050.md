@@ -1,17 +1,18 @@
 # SURV-050 — Timeout settings and durable classification
 
 Baseline: `89a6b69` plus this commit's timeout API, migration, worker and live
-checks. This is an incremental proof; SURV-050 is not fully accepted.
+checks. The later analysis-consumer proof below closes the final open criterion;
+all SURV-050 implementation tasks and their integration/E2E gates are accepted.
 
 ## Task ledger
 
 | Task | Required acceptance | Delivery / named evidence | Acceptance / remaining gap |
 |---|---|---|---|
-| 050.1 | A3, A5 | Multipage runner, offline/reconnect and tab-loss evidence below; existing A5 journey | Delivered; direct criteria pass, work-package S2 analysis regression remains open |
+| 050.1 | A3, A5 | Multipage runner, offline/reconnect and tab-loss evidence below; existing A5 journey | Accepted; direct criteria and S2 analysis-consumer regression pass |
 | 050.2 | A1, A4 | Real two-tab ordering, lost acknowledgement and API/worker restart below | Accepted: both criteria and S1/S4 pass |
-| 050.3 | A2, A5 | Timeout settings APIs, snapshot preservation, real classification worker and effective-status view; `tools/surveys/timeouts.py prepare/recover` | Backend delivery proven; A2 remains open for actual analysis integration under SURV-070 |
-| 050.4 | A3, A4, A5 | Protected restore, fresh-context/tab-loss recovery, two-tab reload and [SURV-020 restore suppression](SURV-020.md#browser-rendering-and-restoration-disposition) | Delivered; direct criteria pass, work-package S2 analysis regression remains open |
-| 050.T1 | A1, A2 | API/worker restart, ordering/replay and timeout checks below | Partial: A1 passes; A2 analysis consumer remains open |
+| 050.3 | A2, A5 | Timeout settings APIs, snapshot preservation, real classification worker and effective-status view; `tools/surveys/timeouts.py prepare/recover` | Accepted; A2 analysis-consumer integration is proven below |
+| 050.4 | A3, A4, A5 | Protected restore, fresh-context/tab-loss recovery, two-tab reload and [SURV-020 restore suppression](SURV-020.md#browser-rendering-and-restoration-disposition) | Accepted; direct criteria and S2 analysis-consumer regression pass |
+| 050.T1 | A1, A2 | API/worker restart, ordering/replay and timeout checks below | Accepted; A1 and A2 integration scenarios pass |
 | 050.T2 | A3, A4, A5 | Eight actual-browser scenarios including tab loss, two tabs, lost acknowledgement and partial resumption | Passed: A3/A4/A5 and S3/S4/S5 reconciled |
 
 ## Implementation contract
@@ -207,3 +208,27 @@ Ruff checking of `tools/surveys/restart.py` and `git diff --check` passed. No ne
 dependency or license change was introduced. 050.A2, 050.S2 and 050.T1 remain open
 until SURV-070 proves actual analysis queries with delayed classification. This
 prevents claiming all of SURV-050 or the complete spike is finished.
+
+## Analysis-consumer acceptance
+
+The earlier sections record the gaps at their respective increments. Baseline
+`29a33f7` plus the immutable-analysis increment now closes **050.A2 / 050.S2**:
+`./leonaid test-surveys-analysis` passed in isolated project
+`leonaid-surveys-833458328-20045`, exit **0**, including verified teardown and no
+published host ports. [Full assertions and sanitized evidence](SURV-070.md#immutable-analysis-snapshots).
+
+The actual analysis API uses the participation's stored timeout even after real
+API changes to the global default and survey override. Its overdue fixture is
+two minutes old with a one-second stored timeout; a separate open fixture retains
+3,600 seconds. Changing current settings to five/two seconds must not classify
+that open fixture as partial. An unchanged public save preserves the overdue
+fixture's answer-change timestamp. With the actual worker stopped, analysis
+classifies the overdue row as partial; after worker execution, questions, status
+counts, participation count and last-page counts remain identical. Stored
+immutable snapshots also remain identical after a subsequent answer change.
+
+Combined with the earlier actual creation snapshots (20, 40, 3, 40 seconds),
+unchanged-write, no-deletion, resumption and completion tests, this satisfies all
+A2 assertions and completes 050.T1. All four implementation tasks now pass their
+required criteria and S1–S5 gates. This does not accept the still-open analysis
+UI, charts, exports or full spike; their own tasks remain open.

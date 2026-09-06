@@ -155,6 +155,9 @@ export interface AuthoringAdapter {
 export interface AnalysisFilter {
   versionId: string;
   statuses: ResponseStatus[];
+  isTest: boolean;
+  createdFrom: string | null;
+  createdBefore: string | null;
 }
 export interface QuestionAggregate {
   questionId: string;
@@ -186,7 +189,12 @@ export interface AnalysisSnapshot {
   surveyId: string;
   createdAt: string;
   filter: AnalysisFilter;
+  versionNumber: number;
+  rendererVersion: string;
+  capabilityProfile: string;
   participationCount: number;
+  statusCounts: Record<ResponseStatus, number>;
+  lastPageCounts: { pageId: string | null; title: string; count: number }[];
   questions: QuestionAggregate[];
 }
 export type ExportProduct =
@@ -205,6 +213,7 @@ export interface AnalysisAdapter {
   snapshot(
     surveyId: string,
     filter: AnalysisFilter,
+    operationId: string,
     options?: RequestOptions,
   ): Promise<Result<AnalysisSnapshot>>;
   requestExport(

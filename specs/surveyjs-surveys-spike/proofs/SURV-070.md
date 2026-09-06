@@ -1,19 +1,18 @@
 # SURV-070 — Aggregate engine and analysis integration
 
-Baseline `0ac8da1` plus this increment, 2026-09-07. This increment implements the
-neutral server aggregate engine and a bounded private adapter. **No SURV-070
-implementation task or acceptance criterion is closed yet.** Persisted analysis
-snapshots, authorized host queries/filters, charts and raw-response routes remain
-to be integrated and tested.
+The initial engine increment started at baseline `0ac8da1` on 2026-09-07.
+The snapshot increment below starts at `29a33f7`. **070.A1 / 070.A2 and their
+integration scenarios are accepted.** Complete implementation tasks remain open
+for analysis UI/chart and separately authorized raw-response integration.
 
 ## Task ledger
 
 | Task | Delivered building block | Remaining acceptance |
 |---|---|---|
-| 070.1 | Strict question/batch DTOs with denominator invariants | Immutable snapshot persistence; actual status/version/date/test filters; worker-delay analysis consistency; A1/A2/A3 |
-| 070.2 | `packages/surveys/src/analysis.ts`, private `/aggregate`, Python `aggregate_batch`, hand-calculated golden fixture | Integration into authorized selected-version snapshots and browser charts; A1/A3 |
+| 070.1 | Strict DTOs, immutable PostgreSQL snapshots, authorized status/version/date/test selection and actual worker-delay consistency | A1/A2 accepted; A3 analysis UI remains open |
+| 070.2 | Neutral engine and bounded adapter, golden data, host batch combination and real selected-version snapshot API | A1 accepted; A3 browser charts remain open |
 | 070.3 | No delivery claim | Custom charts, accessible tables, separately authorized raw/free-text views; A2/A3/A4 |
-| 070.T1 | Engine-level golden data and bounded adapter checks | Real persona/resource matrix, response status/version selection and immutable snapshots |
+| 070.T1 | Engine and actual API golden data, aggregate-only/foreign/action/test scope rejection, immutable snapshot and batching/limit checks | Accepted for A1/A2; broader module capabilities remain tracked by SURV-060 |
 | 070.T2 | Existing packed-consumer and infrastructure regression only | Actual analysis filter/chart/table and raw-route-denial E2E journeys |
 
 ## Aggregate semantics
@@ -46,8 +45,7 @@ from denominators, rather than incorrectly averaging percentages or NPS values.
 The private service exposes `/aggregate` alongside its unchanged `/validate`
 operation. `aggregate_batch` approves the definition, rejects unknown answer
 fields and limits a single batch to 100 records and a 550,000-byte JSON body.
-This is a processing-batch limit, not the final survey response limit. Large
-survey batching/snapshot orchestration remains pending. The adapter validates
+This is a processing-batch limit, not the final survey response limit. The snapshot increment below supplies multi-batch selection and orchestration. The adapter validates
 strict DTOs, finite numeric values, matching question IDs and denominator sums.
 Errors expose a generic unavailable outcome and no SurveyJS answer diagnostics.
 
@@ -114,10 +112,134 @@ existing infrastructure browser journey passed, and all isolated resources were
 removed. This proves the private engine in the full stack; it still does not
 prove the as-yet-unimplemented analysis UI or snapshot/query authorization.
 
-## Acceptance boundary
+## Immutable analysis snapshots
 
-The engine's input records are already selected by its caller. It does not yet
-prove 070.A1's status/version isolation, 070.A2's actual aggregate-only persona
-routes, or 070.A3/A4's analysis UI. In particular 050.A2 remains open: read-time
-timeout classification must still be exercised through the future real analysis
-query. The current infrastructure browser test is not an analysis UI test.
+Baseline `29a33f7` plus this increment's migration, API/client, repository and
+live fixtures. `./leonaid test-surveys-analysis` passed as
+`leonaid-surveys-833458328-20045`, exit **0**. This closes **070.A1 / 070.S1**,
+**070.A2 / 070.S2**, and the actual-analysis portion of **050.A2 / 050.S2**.
+The existing infrastructure browser scenario passed; it is not an analysis UI test. Owned containers, volumes and networks were removed, and no
+host ports were published.
+
+The member API provides:
+
+- GET `/api/v1/surveys/{surveyId}/analysis/versions`: published version metadata,
+  without response data or an implicit choice of version.
+- POST `/api/v1/surveys/{surveyId}/analysis`: a stable operation ID plus a filter
+  with a required version ID. Status defaults to partial/completed and test data
+  defaults to excluded. Date bounds apply to participation creation, inclusive
+  `createdFrom` and exclusive `createdBefore`, normalized to UTC.
+- GET `/api/v1/surveys/{surveyId}/analysis/{snapshotId}`: the stored immutable
+  result, with current permissions and survey lifecycle checked again.
+
+All routes require `view_aggregates`; selecting or reading test-data snapshots
+also requires `design`. Resource scope applies to action-linked surveys as well
+as standalone grants. Trash blocks ordinary analysis, while archive permits
+authorized reads. Snapshot operation replay rechecks these permissions.
+
+The repository holds the survey lock while capturing and processing its
+selection, so response/lifecycle writes cannot change that selection. It records
+a server timestamp after acquiring the lock. The SQL selection uses persisted
+timeout snapshots and answer-change timestamps to classify overdue rows even if
+the worker is stopped. An elapsed survey end also closes open rows for analysis
+without waiting for the worker. Overall status counts use the same version,
+date and test-data scope; selected questions use the requested statuses.
+
+Migration `0030_survey_analysis` stores the public aggregate payload separately
+from frozen raw response data needed for later authorized exports. The aggregate
+API queries only the public payload on read. Neither storage projection contains
+resume credentials or recipient identities; only the private projection contains
+raw answer text and participation IDs. Database constraints bind snapshot,
+survey and version identities, and a trigger rejects updates. Survey deletion
+cascades to these snapshots. SURV-090 must include this table in retention and
+deletion/recovery acceptance.
+
+Selected responses are processed in bounded engine batches; global metrics are
+recomputed from combined counts and sums. A request is limited to 5,000 selected
+responses and 32 MiB of serialized source answers, checked in SQL before loading
+them into the application. These are current spike bounds, not a throughput
+guarantee. Large-selection latency and the synchronous survey-lock duration
+still need the operational assessment under SURV-090.
+
+### Actual API/PostgreSQL assertions
+
+`tools/surveys/analysis_snapshot_live.py prepare` runs with the real worker
+stopped. It creates/publishes surveys through the API, then seeds controlled
+golden response/history rows and real principals/sessions in PostgreSQL:
+
+- Two versions with overlapping question IDs remain separate even when the
+  survey's current published pointer has moved to version two. Version one
+  returns the five golden responses and NPS 100/3; version two returns its one
+  response and NPS -100. Completed-only selection returns one response/NPS 100.
+- In-progress and test responses are excluded by default. Overall status counts
+  are one in progress, four partial and one completed. The overdue row is still
+  physically `in_progress` while its effective analysis status is partial.
+- The actual settings APIs change the global default to five seconds and the
+  survey override to two seconds. Existing one-second and 3,600-second response
+  snapshots still determine classification. An unchanged public save on the
+  overdue participation leaves its answer-change timestamp untouched and its
+  effective status partial. Original settings are restored before worker recovery.
+- All golden selection/rating/matrix/text/date/relevance denominators match.
+  A seeded unknown last-page value is mapped to a generic unknown-page count,
+  never copied into the aggregate payload.
+- The inclusive date boundary accepts rows created exactly at the start; the
+  exclusive boundary rejects rows exactly at the end. Equivalent `+02:00` input
+  is returned as UTC. Future-only selection returns zero with null metrics.
+- Missing or foreign version IDs, duplicate or unknown statuses, naive or
+  inverted dates and an unauthorized recipient filter are rejected.
+- An aggregate-only user can create/read/replay real-data snapshots but cannot
+  create or read test snapshots. A design-only user and an unauthenticated caller
+  cannot create aggregates. Foreign survey/snapshot identifiers are denied.
+- Seeded free text, recipient email/name, credentials and participation IDs are
+  absent from every inspected aggregate payload. SQL confirms raw text exists
+  only in the private snapshot projection, without recipient identity or tokens.
+- Removing an aggregate grant denies old snapshot reads and operation replay.
+  An action-linked grant without membership grants no access; adding membership
+  permits the read, and removing membership denies it again.
+- Exact replay returns the same snapshot; reusing the operation with different
+  filters conflicts. A direct SQL snapshot update is rejected. After an actual
+  public answer save, the original snapshot remains identical as decoded
+  JSON, while a new all-status snapshot reflects the changed answer and NPS -50.
+- A 101-response selection crosses engine batch boundaries: 100 detractors and
+  one promoter yield NPS -9900/101 and mean 10/101. Averaging batch metrics would
+  fail these assertions.
+- An actual scheduled end elapses while the worker is stopped. Analysis includes
+  the open row as partial; archived snapshot reads still return the original
+  result, and trash subsequently denies reads.
+- 5,001 selected responses and a separate 1,700-response selection exceeding
+  32 MiB both return `limit_exceeded`, with no snapshot or operation result
+  written. Reducing the same fixture to an empty selection lets the same
+  operation succeed, proving failed requests did not leave a false receipt.
+
+The `recover` phase starts the actual worker and waits until it physically marks
+the overdue row partial. A new snapshot's questions, status counts, participation
+count and last-page counts exactly match the pre-worker analysis. The original
+snapshot is still unchanged after both the answer edit and worker execution.
+[Sanitized golden snapshot](assets/SURV-070-snapshot.json).
+
+### Migration and supporting evidence
+
+`./leonaid test-surveys-migrations` passed as
+`surveys-migrations-833458328-16175`, exit **0**. Empty and existing-data databases
+reach revision 0030, repeating the migration is harmless, 17 database invariants
+pass and the 46 prior table fingerprints are preserved:
+[empty](assets/SURV-070-migrations-empty.json),
+[upgrade](assets/SURV-070-migrations-upgrade.json),
+[baseline](assets/SURV-070-migrations-baseline.json).
+
+The initial snapshot run (`…-16288`) passed the original API/worker scenarios and
+cleanup. Mypy then identified an overly broad inferred type for the default
+status list; an explicitly typed factory corrected it. The expanded run (`…-17916`) also passed. The final run above additionally
+distinguishes persisted timeout snapshots from current settings and exercises
+an unchanged public save. These runs include the resolved response-filter DTO and all additional boundary,
+action-membership, deadline and limit cases. Final Mypy on four application files
+and member-app TypeScript passed; generated OpenAPI/client includes all three
+routes. Source and test Ruff checks and `git diff --check` passed.
+
+## Remaining acceptance
+
+070.A3/A4 and the complete 070.1/070.2/070.3 tasks remain open for custom charts,
+accessible equivalent tables, actual analysis filter UI and separately authorized
+individual/free-text routes. The private raw projection is not itself a delivered
+raw-response view or export. Preview/test participation creation remains under
+060.4; this increment proves selection isolation using controlled database rows.
