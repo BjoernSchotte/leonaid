@@ -575,6 +575,19 @@ updated `closed-runtime` test also passed with 18 denied GET/POST requests in
 the production image without network/database access. No editor, authentication
 or full proxy acceptance is implied by these results.
 
+Proxy checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case proxy-routing` passed with both production
+Astro images and the actual local Caddyfile. Fifty CMS assets, including bundled
+fonts, match their image bytes through Caddy; public login assets remain served
+by `apps/public`. CMS setup and campaign requests stay denied. Public login HTML
+and assets remain available after the CMS is stopped. The pilot Caddyfile passes
+offline validation with synthetic domains. See `ROUTES.md` and the image's
+generated route inventory for exact endpoint ownership. The proof uses one
+unique Edge network, no published ports and no unrelated service dependencies;
+all test containers and that network were removed. This does not close the
+full route-ownership task: real CMS image transformation, form transport,
+authenticated browser flows and pilot HTTPS still need their later gates.
+
 ### EMS-020 — Implement same-origin LeonAid authentication
 
 Dependencies: EMS-010

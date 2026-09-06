@@ -1,0 +1,11 @@
+services:
+  proxy:
+    ports: !reset []
+    depends_on: !reset {}
+  public:
+    depends_on: !reset {}
+  campaign-site:
+    # This HTTP/static-assets proof does not use SQL or object storage.
+    networks: !override [edge]
+    volumes:
+      - ../../tools/emdash_spike:/proof:ro

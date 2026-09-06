@@ -46,6 +46,12 @@
 		reverse_proxy api:8000
 	}
 
+	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
+	handle @campaign_routes {
+		import leonaid_headers
+		reverse_proxy campaign-site:3000
+	}
+
 	handle_path /app/* {
 		import leonaid_headers
 		reverse_proxy pwa:3000

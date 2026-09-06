@@ -34,6 +34,13 @@
 		}
 	}
 
+	# Preserve CMS paths. The service is optional and cannot block proxy startup.
+	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
+	handle @campaign_routes {
+		import leonaid_headers
+		reverse_proxy campaign-site:3000
+	}
+
 	@slashless_service_roots path /app /admin /crm /mail /mailing
 	redir @slashless_service_roots {path}/ 308
 

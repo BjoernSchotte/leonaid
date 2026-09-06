@@ -17,14 +17,17 @@ assert.equal(env.S3_BUCKET, "emdash-media");
 assert.equal(env.S3_ACCESS_KEY_ID, "leonaid-emdash");
 assert.ok(env.PGPASSWORD?.length >= 32);
 assert.ok(env.S3_SECRET_ACCESS_KEY?.length >= 32);
-assert.match(env.EMDASH_ENCRYPTION_KEY, /^emdash_enc_v1_[A-Za-z0-9_-]{43}$/);
-assert.notEqual(
-  env.PGPASSWORD,
-  services["core-postgres"].environment.POSTGRES_PASSWORD,
+assert.ok(
+  /^emdash_enc_v1_[A-Za-z0-9_-]{43}$/.test(env.EMDASH_ENCRYPTION_KEY ?? ""),
+  "CMS encryption key must use the versioned format",
 );
-assert.notEqual(
-  env.S3_SECRET_ACCESS_KEY,
-  services.rustfs.environment.RUSTFS_SECRET_KEY,
+assert.ok(
+  env.PGPASSWORD !== services["core-postgres"].environment.POSTGRES_PASSWORD,
+  "CMS and Core database credentials must differ",
+);
+assert.ok(
+  env.S3_SECRET_ACCESS_KEY !== services.rustfs.environment.RUSTFS_SECRET_KEY,
+  "CMS and RustFS operator credentials must differ",
 );
 for (const key of Object.keys(env))
   assert.ok(!/^(CORE_|TWENTY_|RUSTFS_)/.test(key));

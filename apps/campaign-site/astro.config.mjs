@@ -3,11 +3,13 @@ import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import emdash, { s3 } from "emdash/astro";
 import { postgres } from "emdash/db";
+import routeContract from "./route-contract.mjs";
 
 export default defineConfig({
   output: "server",
   adapter: node({ mode: "standalone" }),
   build: { assets: "_campaign-assets" },
+  image: { endpoint: { route: "/_emdash/image", entrypoint: undefined } },
   server: { host: true, port: 3000 },
   security: {
     allowedDomains: [{ hostname: "localhost" }, { hostname: "proxy" }],
@@ -29,5 +31,6 @@ export default defineConfig({
       sandboxed: [],
       mcp: false,
     }),
+    routeContract(),
   ],
 });
