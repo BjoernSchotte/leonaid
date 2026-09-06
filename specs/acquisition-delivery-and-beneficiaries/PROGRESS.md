@@ -1,6 +1,15 @@
 # Implementation evidence
 
 
+## Public delivery policy refresh checkpoint — 2026-09-06
+
+Fixed the public refresh behavior to apply current enabled/required/contact/instructions rules as well as window options. Delivery controls are present even when initially disabled, so later activation can reveal them without discarding address input. Disabling removes the window requirement and disables its submission. The JavaScript refresh button is available immediately; no-JavaScript rendering continues to use server-projected rules. Existing selected windows survive only if still available.
+
+Live evidence: `./leonaid test-public-orders` completed with exit 0 using isolated project `leonaid-362a-delivery-public-20260906i`, ports 18265/18665 and the worktree subnet override. Two Chromium tests passed (25.6 seconds): the existing three order journeys and a new real-admin policy propagation journey. The latter disables delivery after page load, refreshes and checks that selection is disabled/nonrequired while the recipient survives; it then loads a disabled page, enables delivery via the real admin API, refreshes and checks that required selection, contact and instructions become available with the recipient retained and no automatic selection. Original policy is restored in cleanup. Existing public Core/Twenty contract and PostgreSQL order verification pass, including the no-JavaScript order path. Astro typecheck and helper Ruff/Mypy pass. Own Docker resources were cleaned up.
+
+The helper creates a disposable synthetic admin session and passes it through the test's temporary proof directory, which is removed by the gate; no session credential is committed. Remaining acceptance includes stale-policy submission itself with/without JavaScript, empty availability, final integrated In-App inspection and EmDash parity.
+
+
 ## Editable public delivery and billing countries — 2026-09-06
 
 Removed the public Astro action's hardcoded DE delivery/invoice country. The public form now exposes separate two-letter country fields with autocomplete, labels, validation/error targets and retained SSR values. Existing forms without these new fields retain the DE default. Submitted lowercase codes normalize to uppercase. Shared billing uses the current delivery country; separate billing uses its independently supplied country.

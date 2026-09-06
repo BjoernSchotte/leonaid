@@ -40,6 +40,7 @@
     const reloadDelivery = form.querySelector<HTMLButtonElement>(
       "[data-delivery-reload]",
     );
+    if (reloadDelivery) reloadDelivery.hidden = false;
     let pending = false;
     let lastPayload = "";
     let outcome: "known-rejection" | "unknown" | null = null;
@@ -70,6 +71,16 @@
           );
           return;
         }
+        slot.required = definition.requireWindow;
+        slot.disabled = !definition.enabled;
+        for (const field of form.querySelectorAll<HTMLElement>(
+          "[data-delivery-contact]",
+        ))
+          field.hidden = !definition.allowContact;
+        for (const field of form.querySelectorAll<HTMLElement>(
+          "[data-delivery-instructions]",
+        ))
+          field.hidden = !definition.allowInstructions;
         const selected = slot.value;
         slot.replaceChildren(
           new Option("Liefertag und Zeitfenster auswählen", ""),
@@ -104,10 +115,13 @@
           token.value = response.data.action.orderForm.accessToken;
         const help = form.querySelector<HTMLElement>("#deliveryWindowId-help");
         if (help)
-          help.textContent = definition.windows.length
-            ? "Lieferfenster aktualisiert. Bitte wähle ein verfügbares Fenster aus."
-            : "Aktuell sind keine Lieferfenster verfügbar. Deine Eingaben bleiben erhalten.";
-        slot.focus();
+          help.textContent = !definition.enabled
+            ? "Für diese Aktion ist keine Lieferfensterauswahl vorgesehen. Deine Eingaben bleiben erhalten."
+            : definition.windows.length
+              ? "Lieferfenster aktualisiert. Bitte wähle ein verfügbares Fenster aus."
+              : "Aktuell sind keine Lieferfenster verfügbar. Deine Eingaben bleiben erhalten.";
+        if (definition.enabled) slot.focus();
+        else reloadDelivery.focus();
       } catch {
         showFailure(
           "Lieferfenster konnten nicht geladen werden. Deine Eingaben bleiben erhalten.",

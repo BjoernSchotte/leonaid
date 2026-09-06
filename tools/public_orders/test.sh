@@ -98,11 +98,20 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/public_orders/contract.py
 
+compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --entrypoint python \
+  api /repo/tools/delivery/public_policy_session.py /proof/policy.env
+
 compose up --detach --wait --wait-timeout 420 public proxy
 
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env-file "$proof/policy.env" \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \

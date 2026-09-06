@@ -330,3 +330,71 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     `${JSON.stringify(proof, null, 2)}\n`,
   );
 });
+
+test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", async ({
+  browser,
+  page,
+}) => {
+  const admin = await browser.newContext({ ignoreHTTPSErrors: true });
+  await admin.addCookies([
+    {
+      name: "__Host-leonaid_session",
+      value: process.env.KLARA_SESSION,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    },
+  ]);
+  const url = `${baseUrl}/api/v1/actions/20000000-0000-4000-8000-000000000001/delivery`;
+  const read = async () => {
+    const response = await admin.request.get(url);
+    expect(response.ok()).toBeTruthy();
+    const result = await response.json();
+    delete result.actionId;
+    return result;
+  };
+  const original = await read();
+  const save = async (enabled) => {
+    const current = await read();
+    expect(
+      (await admin.request.put(url, { data: { ...current, enabled } })).ok(),
+    ).toBeTruthy();
+  };
+  try {
+    let form = await openOrderForm(page);
+    await form
+      .locator('[name="deliveryRecipientName"]')
+      .fill("Erhaltener Empfang");
+    await save(false);
+    await form.locator("[data-delivery-reload]").click();
+    await expect(form.locator('[name="deliveryWindowId"]')).toBeDisabled();
+    await expect(form.locator('[name="deliveryWindowId"]')).not.toHaveAttribute(
+      "required",
+    );
+    await expect(form.locator('[name="deliveryRecipientName"]')).toHaveValue(
+      "Erhaltener Empfang",
+    );
+    form = await openOrderForm(page);
+    await expect(form.locator('[name="deliveryWindowId"]')).toBeDisabled();
+    await form
+      .locator('[name="deliveryRecipientName"]')
+      .fill("Erhaltener neuer Empfang");
+    await save(true);
+    await form.locator("[data-delivery-reload]").click();
+    await expect(form.locator('[name="deliveryWindowId"]')).toBeEnabled();
+    await expect(form.locator('[name="deliveryWindowId"]')).toHaveAttribute(
+      "required",
+      "",
+    );
+    await expect(form.locator('[name="deliveryContactName"]')).toBeVisible();
+    await expect(form.locator('[name="deliveryInstructions"]')).toBeVisible();
+    await expect(form.locator('[name="deliveryRecipientName"]')).toHaveValue(
+      "Erhaltener neuer Empfang",
+    );
+    await expect(form.locator('[name="deliveryWindowId"]')).toHaveValue("");
+  } finally {
+    await save(original.enabled);
+    await admin.close();
+  }
+});

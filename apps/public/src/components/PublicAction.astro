@@ -776,7 +776,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         />
                       </div>
                     </div>
-                    {orderForm.delivery?.enabled && (
+                    {orderForm.delivery && (
                       <DeliveryOptions
                         definition={orderForm.delivery}
                         posted={posted}

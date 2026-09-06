@@ -26,6 +26,7 @@ const dateLabel = (date: string) =>
       id="deliveryWindowId"
       name="deliveryWindowId"
       required={definition.requireWindow}
+      disabled={!definition.enabled}
       aria-describedby="deliveryWindowId-help deliveryWindowId-error"
     >
       <option value="">Liefertag und Zeitfenster auswählen</option>
@@ -49,9 +50,11 @@ const dateLabel = (date: string) =>
     </select>
     <small id="deliveryWindowId-help"
       >Zeitzone: {definition.timezone}. {
-        dates.length
-          ? "Bitte wähle ein Fenster aus."
-          : "Aktuell sind keine Lieferfenster verfügbar. Eine Bestellung ist erst mit einem verfügbaren Fenster möglich."
+        !definition.enabled
+          ? "Für diese Aktion ist keine Lieferfensterauswahl vorgesehen."
+          : dates.length
+            ? "Bitte wähle ein Fenster aus."
+            : "Aktuell sind keine Lieferfenster verfügbar. Eine Bestellung ist erst mit einem verfügbaren Fenster möglich."
       }</small
     >
     <button type="button" data-delivery-reload hidden
@@ -63,9 +66,13 @@ const dateLabel = (date: string) =>
       data-error-for="deliveryWindowId"></span>
   </div>
   {
-    definition.allowContact && (
+    (
       <>
-        <div class="form-field">
+        <div
+          class="form-field"
+          data-delivery-contact
+          hidden={!definition.allowContact}
+        >
           <>
             <label for="deliveryContactName">
               Ansprechpartner bei der Lieferung (optional)
@@ -79,7 +86,11 @@ const dateLabel = (date: string) =>
             />
           </>
         </div>
-        <div class="form-field">
+        <div
+          class="form-field"
+          data-delivery-contact
+          hidden={!definition.allowContact}
+        >
           <>
             <label for="deliveryContactPhone">
               Telefonnummer am Liefertag (optional)
@@ -98,8 +109,12 @@ const dateLabel = (date: string) =>
     )
   }
   {
-    definition.allowInstructions && (
-      <div class="form-field form-field--wide">
+    (
+      <div
+        class="form-field form-field--wide"
+        data-delivery-instructions
+        hidden={!definition.allowInstructions}
+      >
         <>
           <label for="deliveryInstructions">
             Abteilung / Lieferhinweise (optional)
