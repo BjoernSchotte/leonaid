@@ -959,6 +959,15 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       transaction. Prove a newly attributed draft, unchanged published content
       and source revision, denied actors and late-write rollback over real HTTPS.
       Charity access and the full editor remain pending.
+      Evidence (6 September 2026): `campaign-runtime` passed restore success,
+      historical snapshot preservation, new revision attribution, anonymous and
+      Charity denial, bad Origin/missing marker, unknown IDs, disabled guards,
+      revocation and actual late-write rollback. The separate
+      `authorization-surface` regression passed all 1,866 HTTPS requests.
+      Both unique Docker projects removed their owned resources and published
+      no host ports. `./leonaid check` passed at `eb59dde`: 208 unit tests,
+      242 Python source-file type checks, all frontend/CMS checks, formatting,
+      API/privacy/policy and inventory guards; worktree unchanged.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and
