@@ -17,13 +17,17 @@ anna_session="poc080-10000000-0000-4000-8000-000000000004-server-session-token-v
 klara_session="poc080-10000000-0000-4000-8000-000000000002-server-session-token-value"
 
 compose() {
+  if [ -n "${LEONAID_COMMITMENT_TEST_COMPOSE_OVERRIDE:-}" ]; then
+    set -- --file "$compose_file" --file "$LEONAID_COMMITMENT_TEST_COMPOSE_OVERRIDE" "$@"
+  else
+    set -- --file "$compose_file" "$@"
+  fi
   LEONAID_HTTP_PORT="$http_port" \
     LEONAID_HTTPS_PORT="$https_port" \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
-      --file "$compose_file" \
       "$@"
 }
 

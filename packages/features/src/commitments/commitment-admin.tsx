@@ -18,6 +18,8 @@ import type {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { DeliveryDetails } from "./delivery-fields";
+
 import { actionErrorMessage } from "../action-admin/errors";
 
 interface CommitmentAdminPageProps {
@@ -337,6 +339,21 @@ function CommitmentRow({
           <a href="/admin/invoices">Rechnung ansehen</a>
         ) : null}
       </div>
+      {(commitment.deliveryRecipient || commitment.deliveryWindowSnapshot) && (
+        <details className="commitment-delivery-review">
+          <summary>Liefer- und Rechnungsdaten ansehen</summary>
+          <DeliveryDetails commitment={commitment} />
+          {commitment.invoiceRecipient && (
+            <p>
+              Rechnung: {commitment.invoiceRecipient.recipientName},{" "}
+              {commitment.invoiceRecipient.streetLine1},{" "}
+              {commitment.invoiceRecipient.postalCode}{" "}
+              {commitment.invoiceRecipient.city} ·{" "}
+              {commitment.invoiceRecipient.countryCode}
+            </p>
+          )}
+        </details>
+      )}
       {reviewOpen && context ? (
         <InvoiceReview
           context={context}

@@ -1,5 +1,17 @@
 # Implementation evidence
 
+## Acquisition delivery capture checkpoint — 2026-09-06
+
+Anna's capture form consumes the Core delivery definition for address/window requirements, optional contact/instructions, and field limits. It offers date-grouped explicit window selection, clears selection when the date changes, and supports delivery-address reuse for billing with an independent invoice email. The separate billing draft survives toggling; submission derives reused billing from the current delivery address. Buyer changes clear delivery details. An explicit deferral option keeps missing delivery data draft-only; draft submission also permits a missing window while server validation still checks any supplied address block.
+
+Saved delivery address, contact, multiline instructions, and date/time snapshot now appear on the success screen and in an expandable administrator order detail. HTML-like instructions are rendered as text. Changed submissions receive a new command key after a known validation rejection; uncertain network outcomes require the original payload to be retried or checked before editing/resubmitting. Delivery errors refresh configuration without resetting address inputs and provide an explicit reload control.
+
+The isolated `./leonaid test-commitments` gate passed the real CRM/HTTP/browser/PostgreSQL journey: configure delivery via the administrator API, capture as Anna, prove address-reuse behavior and invoice email, read back all delivery fields, inspect them in the administrator UI, and compare unchanged Golden totals across browser/API/database. Eleven tests passed with sixteen deliberate skips for single-execution write scenarios; nine Chromium/Firefox/WebKit viewport combinations passed responsiveness/accessibility checks, including 200% root text sizing in mobile Chromium. Feature type checking and diff whitespace checks passed. Screenshots were inspected locally; success-heading focus/scroll was subsequently improved.
+
+The final isolated run also passed stale-window recovery: retire the selected window through the administrator API after the form loads, reject the stale submission, preserve address/instructions, reload selectable windows, choose the replacement, and persist exactly one order with a new command key. Success-heading focus/scroll corrections were included in this run. Remaining scope includes actual persisted draft/different-billing browser cases, unknown-network retry proof, legacy-order completion and review guards, public Astro ordering, dashboard beneficiaries, and integrated EmDash acceptance. EmDash was rechecked at `205c649`; only closed bootstrap/database/identity mapping source exists, with no public order renderer yet.
+
+Test isolation uses its own Compose project and loopback ports 18263/18663. Docker's automatic address pool became exhausted by concurrently active projects; the commitment test runner now accepts an optional Compose override for separately allocated test subnets. No foreign networks or volumes were removed.
+
 ## Delivery editor checkpoint — 2026-09-06
 
 The action management UI now has a delivery tab with date/window creation, copying a day's windows with fresh IDs, retirement controls, and save feedback. It displays the effective required address/window and optional contact/instructions policy for both acquisition and public ordering. The server rejects schedule changes for archived actions.

@@ -79,6 +79,7 @@ async function openMusterwerkCapture(context, page) {
 }
 
 test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext", async ({
+  browser,
   context,
   page,
 }, testInfo) => {
@@ -86,6 +87,27 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     testInfo.project.name !== "chromium-390",
     "Der schreibende Browserweg läuft genau einmal im mobilen Leitbrowser.",
   );
+  const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  await authenticate(adminContext, klaraSession);
+  const scheduleUrl = `${baseUrl}/api/v1/actions/20000000-0000-4000-8000-000000000001/delivery`;
+  const schedule = await (await adminContext.request.get(scheduleUrl)).json();
+  const configured = await adminContext.request.put(scheduleUrl, {
+    data: {
+      revision: schedule.revision,
+      enabled: true,
+      timezone: "Europe/Berlin",
+      windows: [
+        {
+          id: "90000000-0000-4000-8000-000000000081",
+          deliveryOn: "2026-10-01",
+          startsAt: "09:00",
+          endsAt: "11:00",
+          retired: false,
+        },
+      ],
+    },
+  });
+  expect(configured.status()).toBe(200);
   await openMusterwerkCapture(context, page);
 
   await expect(page.getByTestId("commitment-offering")).toHaveValue(
@@ -101,7 +123,46 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     "36,00 €",
   );
   await page.getByTestId("commitment-quantity").fill("2");
-  await page.getByTestId("commitment-street").fill("Musterstraße 12");
+  await page.locator("#delivery-streetLine1").fill("Lieferstraße 8");
+  const sameAddress = page.getByLabel(
+    "Rechnungsadresse entspricht der Lieferadresse",
+  );
+  await sameAddress.uncheck();
+  await page.getByTestId("commitment-street").fill("Rechnungsstraße 4");
+  await sameAddress.check();
+  await sameAddress.uncheck();
+  await expect(page.getByTestId("commitment-street")).toHaveValue(
+    "Rechnungsstraße 4",
+  );
+  await sameAddress.check();
+  await page.locator("#delivery-streetLine1").fill("Lieferstraße 12");
+  await page.locator("#delivery-date").selectOption("2026-10-01");
+  await expect(page.locator("#delivery-window")).toHaveValue("");
+  await page
+    .locator("#delivery-window")
+    .selectOption("90000000-0000-4000-8000-000000000081");
+  await page.locator("#delivery-date").selectOption("");
+  await expect(page.locator("#delivery-window")).toHaveValue("");
+  await page.locator("#delivery-date").selectOption("2026-10-01");
+  await page
+    .locator("#delivery-window")
+    .selectOption("90000000-0000-4000-8000-000000000081");
+  const deferDelivery = page.getByLabel(
+    "Lieferdaten später ergänzen (nur Entwurf)",
+  );
+  await deferDelivery.check();
+  await expect(page.getByTestId("commitment-save-ready")).toBeDisabled();
+  await expect(page.getByTestId("commitment-save-draft")).toBeEnabled();
+  await deferDelivery.uncheck();
+  await expect(page.locator("#delivery-streetLine1")).toHaveValue(
+    "Lieferstraße 12",
+  );
+  await page.locator("#delivery-contact").fill("Alex Lieferung");
+  await page.locator("#delivery-phone").fill("+49 931 123456");
+  await page
+    .locator("#delivery-instructions")
+    .fill("Abteilung Bildung\nVierter Stock, Eingang links <b>Test</b>");
+  await page.locator("#commitment-email").fill("rechnung@beispiel.invalid");
   await expect(page.getByTestId("commitment-preview-total")).toHaveText(
     "72,00 €",
   );
@@ -112,11 +173,60 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   await expect(page.getByTestId("commitment-save-ready")).toBeVisible();
 
   await assertNoSeriousAxeFindings(page);
+  await page.evaluate(() => {
+    document.activeElement?.blur();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  });
   await page.screenshot({
     path: `${artifactDirectory}/commitment-capture-mobile.png`,
     fullPage: true,
   });
 
+  const currentSchedule = await configured.json();
+  const replacementId = "90000000-0000-4000-8000-000000000082";
+  const retired = await adminContext.request.put(scheduleUrl, {
+    data: {
+      revision: currentSchedule.revision,
+      enabled: true,
+      timezone: "Europe/Berlin",
+      windows: [
+        { ...currentSchedule.windows[0], retired: true },
+        {
+          ...currentSchedule.windows[0],
+          id: replacementId,
+          startsAt: "11:00",
+          endsAt: "13:00",
+          retired: false,
+        },
+      ],
+    },
+  });
+  expect(retired.status(), await retired.text()).toBe(200);
+  const [rejected] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === "POST" &&
+        candidate.url().includes("/commitments"),
+    ),
+    page.getByTestId("commitment-save-ready").click(),
+  ]);
+  expect((await rejected.json()).error.code).toBe(
+    "delivery_window_unavailable",
+  );
+  await expect(
+    page.getByText(/Dieses Lieferfenster ist nicht mehr verfügbar/),
+  ).toBeVisible();
+  await expect(page.locator("#delivery-streetLine1")).toHaveValue(
+    "Lieferstraße 12",
+  );
+  await expect(page.locator("#delivery-instructions")).toHaveValue(
+    "Abteilung Bildung\nVierter Stock, Eingang links <b>Test</b>",
+  );
+  await page.getByRole("button", { name: "Lieferfenster neu laden" }).click();
+  await expect(
+    page.locator(`#delivery-window option[value="${replacementId}"]`),
+  ).toHaveCount(1);
+  await page.locator("#delivery-window").selectOption(replacementId);
   const [response] = await Promise.all([
     page.waitForResponse(
       (candidate) =>
@@ -125,8 +235,21 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     ),
     page.getByTestId("commitment-save-ready").click(),
   ]);
-  expect(response.status()).toBe(201);
+  expect(response.status(), await response.text()).toBe(201);
   const payload = await response.json();
+  expect(payload.deliveryRecipient.streetLine1).toBe("Lieferstraße 12");
+  expect(payload.invoiceRecipient.streetLine1).toBe("Lieferstraße 12");
+  expect(payload.invoiceRecipient.email).toBe("rechnung@beispiel.invalid");
+  expect(payload.deliveryRecipient.contactName).toBe("Alex Lieferung");
+  expect(payload.deliveryRecipient.instructions).toBe(
+    "Abteilung Bildung\nVierter Stock, Eingang links <b>Test</b>",
+  );
+  expect(payload.deliveryWindowSnapshot.deliveryOn).toBe("2026-10-01");
+  expect(payload.deliveryWindowSnapshot.startsAt).toBe("11:00");
+  expect(response.request().headers()["idempotency-key"]).not.toBe(
+    rejected.request().headers()["idempotency-key"],
+  );
+  await adminContext.close();
   await expect(page.getByTestId("commitment-success")).toBeVisible();
   await expect(page.getByTestId("commitment-success")).toContainText(
     "Bereit für die Prüfung",
@@ -138,6 +261,8 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     "data-commitment-id",
     payload.id,
   );
+  await expect(page.locator("#commitment-success-heading")).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await page.screenshot({
     path: `${artifactDirectory}/commitment-success-mobile.png`,
     fullPage: true,
@@ -222,6 +347,17 @@ test("Charity-Admin sieht denselben Eingang und dieselben Golden-Summen", async 
   await expect(createdRow).toContainText("Prüfbereit");
   await expect(createdRow).toContainText("Erfasst von Anna Akquise");
   await expect(createdRow).toContainText("72,00 €");
+  await createdRow
+    .getByText("Liefer- und Rechnungsdaten ansehen", { exact: true })
+    .click();
+  await expect(createdRow).toContainText("Lieferstraße 12");
+  await expect(createdRow).toContainText("Alex Lieferung");
+  await expect(createdRow).toContainText(
+    "Vierter Stock, Eingang links <b>Test</b>",
+  );
+  await expect(
+    createdRow.locator(".commitment-delivery-instructions b"),
+  ).toHaveCount(0);
 
   const draftStatus = page.locator('.commitment-status[data-status="draft"]');
   const readyStatus = page.locator(
