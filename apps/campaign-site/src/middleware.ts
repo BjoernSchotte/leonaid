@@ -87,6 +87,9 @@ export const onRequest = defineMiddleware(
           id,
           body,
         );
+        // This native runtime flag is omitted from the upstream Locals type.
+        // Normalize it explicitly; do not cast away the public handler contract.
+        const revisionedBody = { ...body, skipRevision: false };
         return (
           denied ??
           updateCampaignAtomically(
@@ -94,7 +97,9 @@ export const onRequest = defineMiddleware(
             runtimeUpdate,
             collection,
             id,
-            body,
+            // Native autosave requests may ask to overwrite a draft revision.
+            // Retain an attributed revision for every accepted save instead.
+            revisionedBody,
             {
               coreUserId: profile.userId,
               cmsUserId: user.id,

@@ -1,0 +1,123 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+
+export const upstreamEditorSha256 =
+  "b7c64e5f4ba4cb760d1694332d920194a107db6d42258fd5358a1201776ce299";
+
+// The released 0.36 client drops the server's _rev envelope and does not send
+// revision preconditions. Backport only token transport into its existing UI.
+// Authentication and concurrency enforcement remain server-side. No fetch
+// interception, request fabrication or substitute editor is introduced.
+export function patchEditorSource(source) {
+  assert.equal(
+    createHash("sha256").update(source).digest("hex"),
+    upstreamEditorSha256,
+    "EmDash editor source changed; re-review revision transport patch",
+  );
+  const replace = (before, after) => {
+    assert.equal(source.split(before).length, 2);
+    source = source.replace(before, after);
+  };
+  for (const [name, message] of [
+    ["fetchContent", "Failed to fetch content"],
+    ["updateContent", "Failed to update content"],
+  ]) {
+    const start = source.indexOf(`async function ${name}(`);
+    const end = source.indexOf("\n}\n", start) + 3;
+    const original = source.slice(start, end);
+    assert.ok(start > 0 && end > start);
+    replace(
+      original,
+      original
+        .replace(
+          "return (await parseApiResponse(",
+          "const payload = await parseApiResponse(",
+        )
+        .replace(
+          `"${message}")).item;`,
+          `"${message}");\n\treturn { ...payload.item, _rev: payload._rev };`,
+        ),
+    );
+  }
+  replace(
+    "\t\tenabled: !i18n || !!activeLocale\n\t});",
+    `\t\tenabled: !i18n || !!activeLocale
+\t});
+\t// Keep the revision this editor loaded, not a background query refresh.
+\tconst leonaidRevisions = React$1.useRef(new Map());
+\tconst leonaidEntry = React$1.useRef("");
+\tif (leonaidEntry.current !== id) {
+\t\tleonaidEntry.current = id;
+\t\tleonaidRevisions.current.delete(id);
+\t}
+\tif (rawItem && !leonaidRevisions.current.has(rawItem.id))
+\t\tleonaidRevisions.current.set(rawItem.id, rawItem._rev);
+\tconst leonaidSave = async (targetId, targetLocale, changes) => {
+\t\tconst saved = await updateContent(collection, targetId,
+\t\t\t{ ...changes, _rev: leonaidRevisions.current.get(targetId) },
+\t\t\t{ locale: targetLocale });
+\t\tleonaidRevisions.current.set(targetId, saved._rev);
+\t\treturn saved;
+\t};`,
+  );
+  replace(
+    "mutationFn: ({ targetId, targetLocale, changes }) => updateContent(collection, targetId, changes, { locale: targetLocale }),",
+    "mutationFn: ({ targetId, targetLocale, changes }) => leonaidSave(targetId, targetLocale, changes),",
+  );
+  replace(
+    `mutationFn: ({ targetId, targetLocale, changes }) => updateContent(collection, targetId, {
+\t\t\t...changes,
+\t\t\tskipRevision: true
+\t\t}, { locale: targetLocale }),`,
+    `mutationFn: ({ targetId, targetLocale, changes }) => leonaidSave(targetId, targetLocale, {
+\t\t\t...changes,
+\t\t\tskipRevision: true
+\t\t}),`,
+  );
+  replace(
+    `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
+\t\tonSuccess: () => {`,
+    `mutationFn: () => publishContent(collection, id, { locale: rawItem?.locale ?? activeLocale }),
+\t\tonSuccess: async () => {
+\t\t\tconst refreshed = await fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale });
+\t\t\tleonaidRevisions.current.set(id, refreshed._rev);`,
+  );
+  return source;
+}
+
+export default function editorRevisionPatch() {
+  let transformed = false;
+  const require = createRequire(import.meta.url);
+  const entry = require.resolve("@emdash-cms/admin");
+  return {
+    name: "leonaid-pinned-editor-revisions",
+    hooks: {
+      "astro:config:setup": async ({ updateConfig }) => {
+        patchEditorSource(await readFile(entry, "utf8"));
+        updateConfig({
+          vite: {
+            plugins: [
+              {
+                name: "leonaid-emdash-editor-revisions",
+                enforce: "pre",
+                transform(source, id) {
+                  if (id.split("?")[0] !== entry) return;
+                  transformed = true;
+                  return { code: patchEditorSource(source), map: null };
+                },
+              },
+            ],
+          },
+        });
+      },
+      "astro:build:done": () => {
+        assert.ok(
+          transformed,
+          "Editor revision patch missing from production build",
+        );
+      },
+    },
+  };
+}

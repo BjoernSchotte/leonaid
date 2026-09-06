@@ -64,9 +64,12 @@ for (const route of inventory.routes.filter((route) =>
         req.end(!["GET", "HEAD"].includes(method) ? "{}" : undefined);
       });
       const expected =
-        openedReads.has(path) && method === "GET"
+        (openedReads.has(path) && method === "GET") ||
+        (path === "/_emdash/api/auth/me" && method === "POST")
           ? actor === "system"
-            ? 200
+            ? method === "POST"
+              ? 400
+              : 200
             : actor === "charity"
               ? 403
               : 401

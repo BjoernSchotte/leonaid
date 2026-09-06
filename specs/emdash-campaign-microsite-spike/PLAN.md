@@ -948,6 +948,15 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [x] Preserve upstream draft hydration and admit System Admin title-draft PUTs
       through the original runtime updater, with real HTTP save/read/revision
       proof, unchanged published values and stale-revision rejection.
+- [ ] Prove the native System Admin title editor in Chromium, Firefox and
+      WebKit: own welcome dismissal, canonical editor navigation, real autosave
+      and explicit save, stale-tab conflict, attributed revision, reload,
+      publication and subsequent private draft. Use the exact published admin
+      bundle with a small SHA-256-pinned revision-transport backport; require
+      unchanged slug/locale echoes and retain revision history on autosave.
+      No browser request interception or replacement editor may satisfy this
+      gate. The complete editorial model, Charity access, remaining editor
+      controls and anonymous edit-to-public delivery remain separate gates.
 - [x] Reproduce and fix concurrent same-revision title saves; run the original
       runtime updater inside a checked PostgreSQL transaction with a row lock,
       and prove exactly one successful save per concurrent request group.

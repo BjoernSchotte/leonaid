@@ -42,6 +42,7 @@ Commands:
                     Prove public form, real Twenty reuse/create and ActivityEvents
   test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser>
   test-emdash-spike --case <authorization-inventory|authorization-surface>
+  test-emdash-spike --case <campaign-content|campaign-runtime>
                     Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX

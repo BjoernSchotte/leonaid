@@ -42,6 +42,32 @@ access by default. Charity Admin access remains disabled until the complete
 campaign-isolation gate passes. A narrow pinned identity/authorization patch may
 be evaluated under the plan's STOP rules; no broad fork is approved.
 
+## Native editor revision transport (EMS-020/030)
+
+The reviewed Git checkout and the published 0.36.0 tarball are not interchangeable
+evidence. The installed admin bundle discards the server's `_rev` envelope and
+omits revision tokens from native saves, whereas the reviewed checkout contains
+later editor concurrency work. Runtime proofs use the exact locked npm packages.
+
+`apps/campaign-site/emdash-editor-patch.mjs` applies a build-local backport to the
+published admin bundle with SHA-256
+`b7c64e5f4ba4cb760d1694332d920194a107db6d42258fd5358a1201776ce299`.
+It preserves read/update tokens, remembers the revision loaded by each editor,
+sends that token on native manual/autosaves, and refreshes it after publishing.
+Background query refreshes must not silently advance a stale editor's token.
+The build checks every replacement anchor, rejects byte drift and repeat
+application, and fails if the production client transform did not execute.
+This is an additional narrow spike-only compatibility patch, not authorization
+to maintain a broad fork. Reevaluate against a published upstream fix before
+pilot release; upstream coordination and complete editor operations remain open.
+
+The server continues to require `_rev` and serializes updates in PostgreSQL.
+Native slug/locale echoes are accepted only unchanged. Autosave's `skipRevision`
+hint is deliberately ignored after type validation: retain an attributed revision
+for every accepted save. Measure resulting history/storage cost in the resource
+and recovery gates. Publication still uses the actual 0.36 server contract;
+no revision-token publication guarantee is inferred from newer checkout code.
+
 ## Local execution boundary
 
 Do not operate the existing `leonaid` Compose project. Every spike test owns a

@@ -6,7 +6,7 @@ const denied = () => ({
 });
 
 // First admitted editor mutation: title draft updates. Rich editorial fields,
-// media, metadata, publication and creation stay closed until their own proofs.
+// media, mutable metadata and creation stay closed until their own proofs.
 // The caller retains the ORIGINAL runtime updater (schema, hooks and revisions).
 export async function authorizeCampaignUpdate(
   database,
@@ -20,11 +20,23 @@ export async function authorizeCampaignUpdate(
   if (!body || typeof body !== "object" || Array.isArray(body)) return denied();
   if (
     Object.entries(body).some(
-      ([key, value]) => value !== undefined && !["data", "_rev"].includes(key),
+      ([key, value]) =>
+        value !== undefined &&
+        !["data", "_rev", "slug", "locale", "skipRevision"].includes(key),
     )
   )
     return denied();
   if (typeof body._rev !== "string" || !body._rev || body._rev.length > 512)
+    return denied();
+  // The native editor echoes the slug on every save. It is not a URL editor:
+  // Core owns canonical addresses; a changed CMS slug is still denied.
+  if (body.slug !== undefined && body.slug !== existing.data.item.slug)
+    return denied();
+  // The upstream HTTP route forwards the editor's locale query parameter.
+  // Allow only an echo of this exact stored entry, never a translation switch.
+  if (body.locale !== undefined && body.locale !== existing.data.item.locale)
+    return denied();
+  if (body.skipRevision !== undefined && typeof body.skipRevision !== "boolean")
     return denied();
   const data = body.data;
   if (

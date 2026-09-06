@@ -321,6 +321,32 @@ if (guardUnavailable) {
     "campaign-runtime: late database failure rolls back content and revisions",
   );
 } else {
+  const welcomePath = "/_emdash/api/auth/me";
+  for (const options of [
+    { token: null },
+    { token: tokens.charity },
+    { marker: false },
+    { origin: "https://attacker.invalid" },
+  ]) {
+    await call(welcomePath, options.token === null ? 401 : 403, {
+      method: "POST",
+      body: { action: "dismissWelcome" },
+      ...options,
+    });
+  }
+  const ownProfile = await call(welcomePath, 200);
+  await call(welcomePath, 400, {
+    method: "POST",
+    body: { action: "changeRole" },
+  });
+  await call(welcomePath, 200, {
+    method: "POST",
+    body: { action: "dismissWelcome" },
+  });
+  assert.deepEqual((await call(welcomePath, 200)).data, {
+    ...ownProfile.data,
+    isFirstLogin: false,
+  });
   const result = await call(root, 200);
   assert.equal(result.data.total, 4);
   assert.equal(result.data.items.length, 4);
@@ -360,6 +386,8 @@ if (guardUnavailable) {
   const revisionsBefore = await call(`${path}/revisions`, 200);
   const body = {
     _rev: before.data._rev,
+    slug: before.data.item.slug,
+    skipRevision: true,
     data: {
       title: `${entry.data.title} HTTP edit`,
       action_id: entry.data.action_id,
@@ -394,13 +422,26 @@ if (guardUnavailable) {
   await call(path, 403, { method: "PUT", body: { data: body.data } });
   await call(path, 403, {
     method: "PUT",
+    body: { ...body, slug: "must-not-rewrite-core-route" },
+  });
+  await call(path, 400, {
+    method: "PUT",
+    body: { ...body, skipRevision: "true" },
+  });
+  await call(`${path}?locale=fr`, 403, { method: "PUT", body });
+  await call(path, 403, {
+    method: "PUT",
     body: { ...body, authorId: "00000000000000000000000000" },
   });
   assert.equal(
     (await call(`${path}/revisions`, 200)).data.total,
     revisionsBefore.data.total,
   );
-  const edited = await call(path, 200, { method: "PUT", body });
+  const edited = await call(
+    `${path}?locale=${encodeURIComponent(before.data.item.locale)}`,
+    200,
+    { method: "PUT", body },
+  );
   assert.equal(edited.data.item.data.title, body.data.title);
   const after = await call(path, 200);
   const identity = await call("/_emdash/api/auth/me", 200);

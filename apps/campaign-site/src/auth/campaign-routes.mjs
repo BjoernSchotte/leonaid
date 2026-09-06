@@ -1,6 +1,13 @@
 // Only these proven read handlers may pass the outer default-deny boundary.
 // IDs are canonical EmDash ULIDs; public slugs are resolved separately by Core.
 const id = "[0-9A-HJKMNP-TV-Z]{26}";
+const editor = new RegExp(
+  `^/_emdash/admin/content/campaign_pages(?:/${id})?/?$`,
+);
+export function isCampaignEditorRoute(path, method) {
+  return method === "GET" && editor.test(path);
+}
+
 const content = new RegExp(
   `^/_emdash/api/content/campaign_pages(?:/${id}(?:/(?:revisions|compare))?)?$`,
 );

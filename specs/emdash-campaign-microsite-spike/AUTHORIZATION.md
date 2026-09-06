@@ -26,11 +26,30 @@ All Charity users remain denied; positive Charity HTTP isolation is not yet
 claimed. A canonical item PUT now permits only System Admin title-draft edits
 with a revision token, valid Origin and `X-EmDash-Request: 1`. It rejects binding
 changes, metadata, publication and other editorial fields pending their proofs.
+The native editor may echo the exact stored slug and locale, but cannot change
+either. Its `skipRevision` hint is validated as a boolean and normalized to
+`false`: every accepted autosave retains a new attributed draft revision.
+The published 0.36 admin client drops `_rev` when reading and does not send it
+when saving. The isolated, SHA-256-pinned `emdash-editor-patch.mjs` restores token
+transport for native manual/autosaves; the backend still rejects missing/stale
+tokens. This is not a replacement editor or a client-side authorization check.
 The original runtime updater remains responsible for schema validation and
 revision storage. The original runtime getter is retained after the scoped
 parent check so current draft data and published `liveData` are both preserved.
 The inventory surface probe uses non-admitted
 placeholder collections/IDs, so it complements rather than replaces this test.
+
+Canonical System Admin editor/list HTML routes under
+`/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
+fixed-origin and current Core session checks. Anonymous navigation returns to
+Core login with that validated local path. APIs remain the data-access boundary;
+no other collection or creation page is opened. The narrow `auth/me` POST admits
+only upstream's own-user `dismissWelcome` action, with Origin and request-marker
+checks. This changes neither identity nor permissions and creates no session.
+The surface test expects HTTP 400 for the System Admin's empty preference body,
+401 for anonymous callers and 403 for Charity callers; other disabled POSTs
+remain closed. The native editor browser proof runs separately from the route
+inventory matrix and does not claim complete Charity editor admission.
 
 Canonical revision-restore POSTs now use the same bootstrap, Core System Admin,
 Origin and request-marker checks. The scoped revision reader resolves the stored
@@ -102,7 +121,7 @@ must both be checked and the binding must remain immutable.
 | Route | Methods | Registration | Current rule | Required campaign lookup |
 | --- | --- | --- | --- | --- |
 | `/_emdash/.well-known/auth` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/admin/[...path]` | GET | core | Root/one-shot setup only | Global/identity surface; no campaign authority implied |
+| `/_emdash/admin/[...path]` | GET | core | System Admin root/canonical campaign editor; one-shot setup | Data APIs independently enforce campaign authority |
 | `/_emdash/api/admin/allowed-domains` | GET, POST | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/admin/allowed-domains/[domain]` | DELETE, PATCH | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/admin/api-tokens` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
@@ -161,7 +180,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/auth/logout` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/magic-link/send` | POST | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/magic-link/verify` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/auth/me` | GET, POST | core | Core System Admin GET only | Global/identity surface; no campaign authority implied |
+| `/_emdash/api/auth/me` | GET, POST | core | Core System Admin GET and own welcome dismissal only | No other user, identity or role mutation |
 | `/_emdash/api/auth/mode` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/oauth/[provider]` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/oauth/[provider]/callback` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |

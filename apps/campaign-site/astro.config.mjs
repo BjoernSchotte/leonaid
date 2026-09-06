@@ -5,6 +5,7 @@ import emdash, { s3 } from "emdash/astro";
 import { postgres } from "emdash/db";
 import routeContract from "./route-contract.mjs";
 import stableIdentityPatch from "./emdash-auth-patch.mjs";
+import editorRevisionPatch from "./emdash-editor-patch.mjs";
 
 export default defineConfig({
   output: "server",
@@ -19,6 +20,7 @@ export default defineConfig({
   },
   integrations: [
     stableIdentityPatch(),
+    editorRevisionPatch(),
     react(),
     emdash({
       auth: {

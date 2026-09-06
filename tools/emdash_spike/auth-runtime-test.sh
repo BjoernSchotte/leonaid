@@ -134,8 +134,16 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/admin-browser-proof.mjs "$@"
     }
     browser_probe
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    editor_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+        node tools/emdash_spike/campaign-editor-browser-proof.mjs "$@"
+    }
+    editor_probe
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     browser_probe --revoked
+    editor_probe --revoked
   fi
   compose restart campaign-site
   compose up --no-deps --detach --wait campaign-site

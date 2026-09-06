@@ -4,6 +4,7 @@ import { authenticate } from "./auth/leonaid-auth";
 import { CoreIdentityError } from "./auth/core-identity";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
+  isCampaignEditorRoute,
   isCampaignReadRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
@@ -79,6 +80,8 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
   }
   const adminHome =
     url.pathname === "/_emdash/admin" || url.pathname === "/_emdash/admin/";
+  const adminPage =
+    adminHome || isCampaignEditorRoute(url.pathname, request.method);
   const adminRead =
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
@@ -88,9 +91,14 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
     isCampaignDiscardRoute(url.pathname, request.method) ||
     isCampaignPublishRoute(url.pathname, request.method) ||
     isCampaignUnpublishRoute(url.pathname, request.method);
+  // Upstream permits only the current user's dismissWelcome preference here.
+  // It does not edit identity, role, credentials or another user's profile.
+  const dismissWelcome =
+    url.pathname === "/_emdash/api/auth/me" && request.method === "POST";
   if (
-    ((adminHome || adminRead) && request.method === "GET") ||
-    campaignUpdate
+    ((adminPage || adminRead) && request.method === "GET") ||
+    campaignUpdate ||
+    dismissWelcome
   ) {
     try {
       if (import.meta.env.DEV || request.headers.has("Authorization"))
@@ -103,7 +111,10 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       if (!setupManifest) await requireCompletedBootstrap(bootstrapDirectory);
       if (!hasSecurePublicOrigin(request))
         return new Response("Invalid CMS origin", { status: 403, headers });
-      if (campaignUpdate && request.headers.get("X-EmDash-Request") !== "1")
+      if (
+        (campaignUpdate || dismissWelcome) &&
+        request.headers.get("X-EmDash-Request") !== "1"
+      )
         return new Response("Invalid CMS request", { status: 403, headers });
       const identity = await authenticate(request);
       if (setupManifest)
@@ -114,12 +125,12 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       return response;
     } catch (error) {
       const status = error instanceof CoreIdentityError ? error.status : 503;
-      if (adminHome && status === 401) {
+      if (adminPage && status === 401) {
         return new Response(null, {
           status: 303,
           headers: {
             ...headers,
-            Location: "/login?returnTo=%2F_emdash%2Fadmin%2F",
+            Location: `/login?returnTo=${encodeURIComponent(adminHome ? "/_emdash/admin/" : url.pathname)}`,
           },
         });
       }
