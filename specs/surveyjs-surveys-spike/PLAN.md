@@ -472,8 +472,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **000.T1** Implement and run the integration/contract checks for **000.A1, 000.A2, 000.A4**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **000.T2** Implement and run browser/render acceptance for **000.A3**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **000.T1** Add DTO/error-contract checks, persona/capability fixture coverage, clean-stack migration and database roundtrip tests, plus prohibited/unknown-dependency negative fixtures. Acceptance: **000.A1, 000.A2, 000.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **000.T2** Add a Playwright smoke journey through both hosts: authenticate a synthetic member, open a public route, and verify failure diagnostics and cleanup. Acceptance: **000.A3**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -498,8 +498,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **010.T1** Implement and run the integration/contract checks for **010.A1, 010.A2, 010.A5**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **010.T2** Implement and run browser/render acceptance for **010.A3, 010.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **010.T1** Run identical supported-definition/answer fixtures through SurveyJS and the server validator; exercise forged values, incomplete saves, atomic completion and short-timeout resumption through the real API/database. Acceptance: **010.A1, 010.A2, 010.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **010.T2** Add browser tests for text saved without blur, closing and restoring a fresh browser context, and conditional follow-up removal across navigation and reload. Acceptance: **010.A3, 010.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -522,8 +522,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **020.T1** Implement and run the integration/contract checks for **020.A1, 020.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **020.T2** Implement and run browser/render acceptance for **020.A3, 020.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **020.T1** Install the packed artifact into a clean external consumer, save/load through its real adapter, and inspect dependency, bundle and license boundaries including font notices. Acceptance: **020.A1, 020.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **020.T2** Exercise the independent demo with host translations/styles; verify adjacent controls, reload/hydration, and absence of restoration-triggered writes or duplicate participations. Acceptance: **020.A3, 020.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -546,8 +546,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **030.T1** Implement and run the integration/contract checks for **030.A1, 030.A2, 030.A3**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **030.T2** Implement and run browser/render acceptance for **030.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **030.T1** Test migrations from empty and baseline databases, all lifecycle edges, simultaneous draft/publish writes, close/submit races, version binding and response-free duplication. Acceptance: **030.A1, 030.A2, 030.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **030.T2** Automate create, publish, end, archive, trash and restore through the member UI; compare persisted lifecycle state and verify public access remains closed after restoration. Acceptance: **030.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -571,8 +571,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **040.T1** Implement and run the integration/contract checks for **040.A1, 040.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **040.T2** Implement and run browser/render acceptance for **040.A3, 040.A4, 040.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **040.T1** Roundtrip editor definitions through the draft API/database; assert stable IDs, safe unknown-property preservation, stale-save conflicts and field-specific rejection of unsupported or unsafe imports. Acceptance: **040.A1, 040.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **040.T2** Author both complete sample questionnaires through the UI; cover guided conditions, preview/publication, drag and keyboard reordering, undo/redo, interrupted saves, focus and accessible labels. Acceptance: **040.A3, 040.A4, 040.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -597,8 +597,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **050.T1** Implement and run the integration/contract checks for **050.A1, 050.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **050.T2** Implement and run browser/render acceptance for **050.A3, 050.A4, 050.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **050.T1** Inject duplicate/reordered writes and API/worker restarts; test terminal idempotent completion, default/override timeout snapshots, unchanged writes and delayed classification without data loss. Acceptance: **050.A1, 050.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **050.T2** Exercise offline typing/reconnect, two-tab conflicts, delayed requests, lost completion acknowledgements, and abandon/timeout/resume; inspect saved state and visible save/error indicators. Acceptance: **050.A3, 050.A4, 050.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -621,8 +621,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **060.T1** Implement and run the integration/contract checks for **060.A1, 060.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **060.T2** Implement and run browser/render acceptance for **060.A3, 060.A4, 060.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **060.T1** Exercise every persona/resource capability against lists, counts and direct endpoints; test foreign IDs, anonymous identity separation, invitation retries, expiry/revocation and token-free logs/exports. Acceptance: **060.A1, 060.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **060.T2** Send an invitation through the UI and worker, retrieve it from Mailpit and participate; test revocation, action/standalone permissions, timeout settings and exclusion of preview/test data. Acceptance: **060.A3, 060.A4, 060.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -644,8 +644,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **070.T1** Implement and run the integration/contract checks for **070.A1, 070.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **070.T2** Implement and run browser/render acceptance for **070.A3, 070.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **070.T1** Seed hand-calculated golden results for all supported aggregates, statuses and versions; assert denominators, empty data, hidden/missing answers and aggregate-only payload authorization. Acceptance: **070.A1, 070.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **070.T2** Switch status/version/date filters and compare chart labels with snapshot tables; exercise empty states, keyboard table access and denial of raw/free-text routes. Acceptance: **070.A3, 070.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -666,8 +666,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **080.T1** Implement and run the integration/contract checks for **080.A1, 080.A2, 080.A3**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **080.T2** Implement and run browser/render acceptance for **080.A4, 080.A5, 080.A6**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **080.T1** Generate all four export products through real worker/storage adapters; parse values and metadata, test formula injection and renderer retries, and revoke permissions/delete surveys before jobs and downloads. Acceptance: **080.A1, 080.A2, 080.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **080.T2** Request and download each export through the UI, compare snapshot values, test denied raw exports, and render PDF pages/XLSX charts for recorded clipping, font, legend and pagination review. Acceptance: **080.A4, 080.A5, 080.A6**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -690,8 +690,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **090.T1** Implement and run the integration/contract checks for **090.A1, 090.A2, 090.A3, 090.A4**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **090.T2** Implement and run browser/render acceptance for **090.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **090.T1** Race deletion with saves/completion/export, interrupt and retry database/object cleanup, restore a real synthetic backup and reapply deletion records; verify limits and scan logs for seeded sensitive markers. Acceptance: **090.A1, 090.A2, 090.A3, 090.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **090.T2** Trash a survey while its public page is open; verify visible save rejection, blocked invitations/downloads, and restoration without automatic public reopening. Acceptance: **090.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
@@ -714,8 +714,8 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **100.T1** Implement and run the integration/contract checks for **100.A1, 100.A3, 100.A4, 100.A5**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
-- [ ] **100.T2** Implement and run browser/render acceptance for **100.A2**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
+- [ ] **100.T1** Run the aggregate gate from empty volumes and again, including worker/storage recovery, packed-consumer and affected regression checks; audit capability-to-proof links and sanitized delivery artifacts. Acceptance: **100.A1, 100.A3, 100.A4, 100.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **100.T2** Run both complete author-to-deletion journeys on desktop and mobile against real services, including invitation, partial response/resumption, version isolation, permissions, analysis and every export. Acceptance: **100.A2**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
