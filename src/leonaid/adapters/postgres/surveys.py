@@ -192,10 +192,17 @@ class AsyncpgSurveyRepository:
                 return await self._lifecycle(conn, actor, survey, operation, body)
             if survey["status"] in {"ended", "archived", "deleted"}:
                 raise Conflict("closed", "Umfrage ist geschlossen.")
-            if operation == "draft":
+            if operation in {"draft", "validate"}:
                 draft = await conn.fetchrow(
                     "SELECT * FROM survey_draft WHERE survey_id=$1", survey_id
                 )
+                if operation == "validate":
+                    if draft["revision"] != body["expectedRevision"]:
+                        raise Conflict(
+                            "revision_conflict",
+                            "Der Entwurf wurde zwischenzeitlich geändert.",
+                        )
+                    validate_definition(json.loads(draft["definition"]))
                 return {
                     "surveyId": str(survey_id),
                     "revision": draft["revision"],

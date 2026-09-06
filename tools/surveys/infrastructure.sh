@@ -50,7 +50,7 @@ if [ "$mode" = lifecycle ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = editor ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-authoring.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -67,6 +67,7 @@ mkdir -p "$artifact"
 cp "$proof/surveys-public.png" "$artifact/"
 if [ "$mode" = editor ]; then
   cp "$proof/surveys-editor.png" "$artifact/"
+  cp "$proof"/surveys-authoring-*.png "$artifact/"
 fi
 if [ "$mode" = runner ]; then
   cp "$proof/surveys-mid-page.png" "$artifact/"

@@ -30,6 +30,10 @@ class Mutation(SurveyInput):
     expectedRevision: int = Field(ge=1)
 
 
+class DraftValidation(SurveyInput):
+    expectedRevision: int = Field(ge=1)
+
+
 class Transition(Mutation):
     action: Literal["end", "archive", "unarchive", "trash", "restore"]
 
@@ -202,6 +206,18 @@ async def draft(
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
     return await author(request, survey_id, "draft", {})
+
+
+@router.post(
+    "/surveys/{survey_id}/draft/validate",
+    operation_id="validateSurveyDraft",
+    response_model=SurveyDraftResponse,
+)
+async def validate_draft(
+    survey_id: UUID, body: DraftValidation, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "validate", body.model_dump())
 
 
 @router.put(

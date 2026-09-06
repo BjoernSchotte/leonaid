@@ -76,6 +76,7 @@ export type DashboardReminderResponse = { readonly overdue: number; readonly tod
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
+export type DraftValidation = { readonly expectedRevision: number; };
 export type Duplicate = { readonly expectedRevision: number; readonly operationId: string; readonly targetSurveyId: string; readonly title: string; };
 export type EmailChangeConfirmationResponse = { readonly revokedSessionCount: number; readonly status: "confirmed"; };
 export type EmailChangeDispatchResponse = { readonly changeId: string; readonly status: "pending"; };
@@ -1690,6 +1691,22 @@ export class LeonAidApiClient {
       `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/draft`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async validateSurveyDraft(
+    surveyId: string,
+    body: DraftValidation,
+    options: RequestOptions = {},
+  ): Promise<SurveyDraftResponse> {
+    return this.request<SurveyDraftResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/draft/validate`,
+      {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

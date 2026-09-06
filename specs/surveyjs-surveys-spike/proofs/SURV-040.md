@@ -1,7 +1,7 @@
 # SURV-040 — Initial visual editor evidence
 
-Date: 2026-09-06. Status: partial; implementation item 040.1 delivered.
-Its broader work-package acceptance criteria remain open.
+Date: 2026-09-06. Status: partial; implementation items 040.1 and 040.2 delivered;
+040.A3 proven. Broader work-package acceptance criteria remain open.
 
 ## Implemented surface
 
@@ -21,8 +21,8 @@ question types read-only and does not import commercial editor code.
 The history model remaps internal references when duplicating pages without
 rewriting quoted literals. It keeps 100 in-memory edit snapshots; undo/redo is
 saved as a new revision. Reordering may invalidate preceding-answer references;
-publication validation remains authoritative. The initial UI does not yet expose
-publication, so no unsupported definition can bypass server validation here.
+publication validation remains authoritative. At that initial milestone the UI did not expose publication. The authoring
+increment below adds it with the same authoritative server validation.
 
 Three Bun tests (16 assertions) passed in the pinned runtime: stable identity and
 unknown-data preservation, correct duplicate reference mapping/undo/redo, and exact
@@ -31,11 +31,10 @@ TypeScript checks and the permissive dependency inventory passed.
 
 ## Remaining acceptance
 
-The full Krapfentaxi and golf authoring/publishing journeys, guided conditions,
-complete bounds/property panels, preview, safe JSON import/export, complete
-keyboard/accessibility and mobile/theme acceptance, conflict/reconnect browser
-coverage, navigation/list integration and the packed independent consumer remain
-open. No complete work package or full editor parity is claimed.
+Safe JSON import/export, complete profile/property compatibility, full
+keyboard/accessibility and mobile/theme acceptance, draft conflict/reconnect
+browser coverage, navigation/list integration and the packed independent consumer
+remain open. No complete work package or full editor parity is claimed.
 
 
 ## Live browser result
@@ -60,8 +59,71 @@ visually inspected at 1440px width: page navigation, question canvas, property
 panel and save controls are readable without overlap. This is desktop visual
 review, not the complete mobile/dark-mode/accessibility acceptance.
 
-040.1's implementation checkbox records the delivered structural editing
-operations. 040.A1, A3 and A4 remain open until their full definition roundtrip,
-both complete questionnaire/publish journeys and keyboard/error/a11y scope are
-proven. This distinction follows the plan's separate implementation/acceptance
+At the structural milestone, 040.1's checkbox recorded delivery while 040.A1,
+A3 and A4 remained open. The subsequent sample authoring proof below completes
+A3; the full definition roundtrip and keyboard/error/a11y scope remain open. This distinction follows the plan's separate implementation/acceptance
 tracking; no whole editor work package is marked complete.
+
+
+## Complete sample authoring and validated preview
+
+The next increment implements 040.2 and proves 040.A3. It adds guided preceding-
+answer conditions (one all/any level), required flags, bounds, rating scales,
+choice/matrix entry ordering and questionnaire presentation controls. Preview
+first flushes the draft and validates the exact persisted revision through
+`POST /api/v1/surveys/{id}/draft/validate`; only that validated definition reaches
+SurveyJS. Authorization and survey state are checked before validation. No
+participation adapter is attached to the preview. Publication retries reuse the
+operation ID and revision after uncertain acknowledgement, locking edits until
+that operation resolves.
+
+`./leonaid test-surveys-editor` ran against fresh project
+`leonaid-surveys-833458328-40403`: four Chromium tests passed in 37.8 seconds,
+following real migration/API/PostgreSQL foundation checks. The command exited
+zero and verified teardown of its own containers and volumes. No host ports were
+published. The tests and implementation use SurveyJS core/react 3.0.3.
+
+`tests/e2e/surveys-authoring.spec.mjs` creates both questionnaires entirely through
+member controls, without entering JSON. Each has three pages and six questions:
+
+- Krapfentaxi: required delivery rating, conditional improvement comment,
+  required freshness choice, optional notes, required 0–10 recommendation scale
+  and optional name with length limits.
+- Golf: required three-by-three matrix, bounded multiple selection, conditional
+  food comment, future-attendance dropdown, bounded handicap and date inputs.
+
+Both journeys save, reject an unsafe presentation value before preview, correct
+it, complete all preview pages, assert conditional follow-ups, and verify zero
+participation requests. They then publish and inspect the real public definition
+for version 1, page/question counts and key properties; a reload restores the
+persisted title. The taxi journey drops the HTTP acknowledgement after the real
+server commits publication, retries, and still receives version 1. The existing
+structural editor scenario in the same run proves page/question reordering,
+movement, duplication and undo/redo against persisted definitions.
+
+The preceding run (`leonaid-surveys-833458328-39598`) had three passing scenarios
+and one test interaction failure: SurveyJS's decorative checkbox intercepted a
+pointer click aimed at its hidden native input. The final test uses Space on the
+native checkbox and asserts its checked state; no forced click, mocked server,
+skipped scenario or relaxed assertion was introduced.
+
+Additional checks in pinned runtimes passed: package and web TypeScript checks;
+three editor model tests (16 assertions); `./leonaid test-surveys-core` (82 actual
+SurveyJS/Python comparisons, 23 Python tests, three save-queue tests with 17
+assertions); `./leonaid test-surveys-dependencies` (MIT runtime dependencies,
+OFL font inventory and four negative cases). The generated API contract includes
+the validate-draft endpoint.
+
+The web TypeScript configuration now skips external declaration checking because
+SurveyJS 3.0.3's matrix renderer declaration has a nullable return incompatible
+with its declared base method (TS2416). Application source remains strict. This
+upstream declaration limitation is documented in the package README.
+
+Local screenshots are `.artifacts/surveys-infrastructure/surveys-authoring-Golf.png`
+and `surveys-authoring-Krapfentaxi.png`. The Golf screenshot was visually inspected
+at 1440px: saved state, presentation controls and three-page outline are readable.
+Full typography/theme, mobile and accessibility acceptance remain open.
+
+040.A1/A2/A4/A5 and 040.T1/T2 remain open for their broader roundtrip/import,
+keyboard/error/accessibility and interrupted draft-save scope. This evidence does
+not accept the entire editor work package or claim arbitrary SurveyJS support.

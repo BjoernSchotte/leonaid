@@ -48,8 +48,11 @@ export function SurveysPage({
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [published, setPublished] = useState(false);
   const adapter = useMemo<AuthoringAdapter>(
     () => ({
+      validateDraft: (id, expectedRevision, options) =>
+        mapped(client.validateSurveyDraft(id, { expectedRevision }, options)),
       loadDraft: (id, options) => mapped(client.getSurveyDraft(id, options)),
       saveDraft: (id, body, options) =>
         mapped(client.saveSurveyDraft(id, body, options)),
@@ -134,7 +137,22 @@ export function SurveysPage({
       </header>
       {message && <p role="alert">{message}</p>}
       {draft ? (
-        <SurveyEditor draft={draft} adapter={adapter} />
+        <>
+          <SurveyEditor
+            draft={draft}
+            adapter={adapter}
+            onPublished={() => setPublished(true)}
+          />
+          {published && (
+            <a
+              href={`/surveys/${draft.surveyId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Veröffentlichte Umfrage öffnen
+            </a>
+          )}
+        </>
       ) : (
         !surveyId && (
           <form

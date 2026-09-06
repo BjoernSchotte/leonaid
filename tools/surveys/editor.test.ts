@@ -60,6 +60,7 @@ test("an uncertain draft save retries the identical operation before newer edits
   const calls: SaveDraft[] = [];
   let fail = true;
   const adapter: AuthoringAdapter = {
+    validateDraft: async () => ({ ok: true, value: draft }),
     loadDraft: async () => ({ ok: true, value: draft }),
     publish: async () => {
       throw new Error("not used");

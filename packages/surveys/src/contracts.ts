@@ -135,6 +135,11 @@ export interface ParticipationAdapter {
   ): Promise<Result<ResponseSnapshot>>;
 }
 export interface AuthoringAdapter {
+  validateDraft(
+    surveyId: string,
+    expectedRevision: number,
+    options?: RequestOptions,
+  ): Promise<Result<Draft>>;
   loadDraft(surveyId: string, options?: RequestOptions): Promise<Result<Draft>>;
   saveDraft(
     surveyId: string,

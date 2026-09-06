@@ -118,7 +118,26 @@ is not a recovery mechanism for unsent edits. The host uses the actual generated
 LeonAid API client. The current editor UI is German; configurable translations
 remain an explicit package follow-up.
 
-Guided conditions, complete type-specific property panels, safe JSON import/export,
-live preview, publication controls, responsive/accessibility acceptance and full
-independent packed-consumer proof remain required work. The initial editor must
-not be presented as SurveyJS Creator feature parity.
+The editor now exposes required flags, text/selection limits, number/date bounds,
+rating scales, matrix rows/columns and presentation properties. Guided visibility
+rules reference preceding questions and combine one level of all/any conditions.
+Existing expressions outside that editable shape remain preserved with an explicit
+remove action. Reordering can still invalidate a reference; the server rejects an
+invalid definition at preview/publication.
+
+Preview flushes the draft and calls `validateDraft(surveyId, expectedRevision)`.
+The host must return the exact persisted, authorized and validated draft, or a
+revision/validation error. The preview creates a local SurveyJS model without a
+ParticipationAdapter; completing it cannot create collected responses. Publication
+uses a stable operation ID and revision. After an uncertain acknowledgement,
+editing stays locked until the same publication request is resolved.
+
+Safe JSON import/export, full property/profile compatibility,
+responsive/accessibility acceptance and independent packed-consumer proof remain
+required work. This editor does not claim SurveyJS Creator feature parity.
+
+The web host currently enables TypeScript `skipLibCheck`, matching the neutral
+package: SurveyJS 3.0.3's matrix renderer declaration returns `Element | null`
+while its declared base method returns `Element` (TS2416). Application source
+remains strictly checked; this setting does not establish clean upstream type
+declarations. Track removal when the pinned upstream declarations are corrected.
