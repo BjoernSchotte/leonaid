@@ -14,7 +14,11 @@ async def main() -> None:
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     try:
         tokens = await seed_sessions(connection)
-        Path(sys.argv[1]).write_text(f"KLARA_SESSION={tokens['klara_fresh']}\n")
+        output = Path(sys.argv[1])
+        output.write_text(
+            f"KLARA_SESSION={tokens['klara_fresh']}\nANNA_SESSION={tokens['anna']}\n"
+        )
+        output.chmod(0o600)
     finally:
         await connection.close()
 

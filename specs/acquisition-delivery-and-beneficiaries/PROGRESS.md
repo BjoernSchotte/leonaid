@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Same-action admin-to-acquisition/public policy propagation — 2026-09-06
+
+Added a shared live browser journey in the public gate. It opens Anna's capture and the anonymous Astro form before changing configuration, then uses the Charity Admin delivery editor on that same Golden action to extend its booked first-day interval into three windows, copy them to a second day and add one interval on a third day. An actual successful PUT and subsequent read confirm 3/3/1 persisted windows.
+
+Without a service rebuild or content publication, reloading Anna and using public availability refresh exposes exactly the same seven window IDs. The test compares the capture API projection, each date's internal selector options and the public selector against the saved configuration. Selection stays empty after changing dates/refreshing; contact and instruction fields are present in both forms. A synthetic policy evidence JSON is retained in `.artifacts/poc072/delivery-cross-surface-policy.json`. Disposable Anna/admin sessions are written to a mode-600 temporary environment file.
+
+`./leonaid test-public-orders` exited 0 with isolated project `leonaid-362a-delivery-public-20260906n`, ports 18265/18665 and worktree network override. The existing three-order journey passed in 20.1 seconds, stale-policy journey in 9.1 seconds and the new shared configuration journey in 2.3 seconds. Existing Core/Twenty and PostgreSQL proofs pass; own stack was cleaned up. Creating and reviewing both orders after this shared configuration, integrated retirement recovery, and EmDash parity remain open. Read-only EmDash baseline `e0bdb7c` adds campaign draft creation but still has no public order renderer.
+
 ## Delivery extras removed by subject anonymization — 2026-09-06
 
 The requirement audit found that the existing privacy anonymizer replaced address fields but retained the new delivery contact name, phone and instructions. Updated only the delivery snapshot expression to remove those three JSON keys before applying the existing anonymized address. Billing and legally retained invoice/document records keep their established handling.

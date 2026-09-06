@@ -111,9 +111,9 @@ compose run --rm --no-deps \
   --entrypoint python \
   api /repo/tools/delivery/public_policy_session.py /proof/policy.env
 
-compose up --detach --wait --wait-timeout 420 public proxy
+compose up --detach --wait --wait-timeout 420 public pwa web proxy
 
-for browser_case in 'neue Firma' 'Lieferregeln'; do
+for browser_case in 'neue Firma' 'Lieferregeln' 'Gemeinsame Lieferplanung'; do
   if [ "$browser_case" = 'Lieferregeln' ]; then
     # Separate independent browser scenarios in this disposable test database.
     # The contract above already proves production rate-limit behavior.
@@ -160,7 +160,8 @@ for artifact in \
   public-order-success-existing-company.png \
   public-order-success-person.png \
   public-order-form-desktop.png \
-  public-orders-ui-proof.json; do
+  public-orders-ui-proof.json \
+  delivery-cross-surface-policy.json; do
   if [ ! -s "$proof/$artifact" ]; then
     echo "public-order-test: ERROR: Browsernachweis fehlt: $artifact" >&2
     exit 1
@@ -170,6 +171,7 @@ done
 mkdir -p "$root/.artifacts/poc072"
 cp "$proof"/public-order-*.png "$root/.artifacts/poc072/"
 cp "$proof/public-orders-ui-proof.json" "$root/.artifacts/poc072/"
+cp "$proof/delivery-cross-surface-policy.json" "$root/.artifacts/poc072/"
 
 echo "public-order-test: OK: realer Core/Twenty-Vertrag, sichtbare Formular-UX,"
 echo "public-order-test:     drei Bestellwege, Idempotenz, Schutzregeln und ActivityEvents bewiesen"

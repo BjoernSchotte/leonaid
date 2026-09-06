@@ -516,3 +516,155 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     await admin.close();
   }
 });
+
+test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Neubau", async ({
+  browser,
+}) => {
+  const contexts = [];
+  async function openContext(token) {
+    const context = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      reducedMotion: "reduce",
+      viewport: { width: 390, height: 844 },
+    });
+    contexts.push(context);
+    if (token)
+      await context.addCookies([
+        {
+          name: "__Host-leonaid_session",
+          value: token,
+          url: baseUrl,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax",
+        },
+      ]);
+    return context;
+  }
+  try {
+    expect(process.env.ANNA_SESSION).toBeTruthy();
+    expect(process.env.KLARA_SESSION).toBeTruthy();
+    const admin = await openContext(process.env.KLARA_SESSION);
+    const anna = await openContext(process.env.ANNA_SESSION);
+    const visitor = await openContext();
+    const adminPage = await admin.newPage();
+    const annaPage = await anna.newPage();
+    const publicPage = await visitor.newPage();
+    const actionId = "20000000-0000-4000-8000-000000000001";
+    const scheduleUrl = `${baseUrl}/api/v1/actions/${actionId}/delivery`;
+    // Load both consumer forms before editing the operational configuration.
+    await annaPage.goto(`${baseUrl}/app/commitments/new?action=${actionId}`);
+    await expect(annaPage.locator("#delivery-date")).toBeVisible();
+    await openOrderForm(publicPage);
+    await adminPage.goto(`${baseUrl}/admin/actions/${actionId}`);
+    await adminPage.getByTestId("management-tab-delivery").click();
+    const editor = adminPage.locator(".delivery-editor");
+    const firstDay = editor.locator(".delivery-day").first();
+    await expect(firstDay.getByLabel("Datum", { exact: true })).toHaveValue(
+      "2026-10-01",
+    );
+    for (const [index, start, end] of [
+      [2, "11:00", "13:00"],
+      [3, "13:00", "15:00"],
+    ]) {
+      await firstDay
+        .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+        .click();
+      await firstDay.getByLabel(`Beginn ${index}`, { exact: true }).fill(start);
+      await firstDay.getByLabel(`Ende ${index}`, { exact: true }).fill(end);
+    }
+    await firstDay
+      .getByRole("button", { name: "Fenster auf neuen Tag kopieren" })
+      .click();
+    await editor.getByLabel("Datum", { exact: true }).last().fill("2026-10-02");
+    await editor
+      .getByRole("button", { name: "Tag hinzufügen", exact: true })
+      .click();
+    const thirdDay = editor.locator(".delivery-day").last();
+    await thirdDay.getByLabel("Datum", { exact: true }).fill("2026-10-03");
+    await thirdDay
+      .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+      .click();
+    await thirdDay.getByLabel("Beginn 1", { exact: true }).fill("10:00");
+    await thirdDay.getByLabel("Ende 1", { exact: true }).fill("12:00");
+    const saved = adminPage.waitForResponse(
+      (response) =>
+        response.url() === scheduleUrl && response.request().method() === "PUT",
+    );
+    await editor
+      .getByRole("button", { name: "Lieferplanung speichern" })
+      .click();
+    expect((await saved).status()).toBe(200);
+    const configuration = await (await admin.request.get(scheduleUrl)).json();
+    expect(configuration.windows).toHaveLength(7);
+    expect(
+      ["2026-10-01", "2026-10-02", "2026-10-03"].map(
+        (date) =>
+          configuration.windows.filter((window) => window.deliveryOn === date)
+            .length,
+      ),
+    ).toEqual([3, 3, 1]);
+    await annaPage.reload();
+    await publicPage
+      .getByRole("button", { name: "Lieferfenster aktualisieren" })
+      .click();
+    const capture = await (
+      await anna.request.get(
+        `${baseUrl}/api/v1/actions/${actionId}/commitment-capture`,
+      )
+    ).json();
+    expect(capture.delivery.windows.map((window) => window.id).sort()).toEqual(
+      configuration.windows.map((window) => window.id).sort(),
+    );
+    const publicOptions = publicPage.locator(
+      "#deliveryWindowId option[value]:not([value=''])",
+    );
+    await expect(publicOptions).toHaveCount(7);
+    expect(
+      await publicOptions.evaluateAll((options) =>
+        options.map((option) => option.value).sort(),
+      ),
+    ).toEqual(configuration.windows.map((window) => window.id).sort());
+    for (const date of ["2026-10-01", "2026-10-02", "2026-10-03"]) {
+      await annaPage.locator("#delivery-date").selectOption(date);
+      await expect(annaPage.locator("#delivery-window")).toHaveValue("");
+      const options = annaPage.locator(
+        "#delivery-window option[value]:not([value=''])",
+      );
+      expect(
+        await options.evaluateAll((items) =>
+          items.map((item) => item.value).sort(),
+        ),
+      ).toEqual(
+        configuration.windows
+          .filter((window) => window.deliveryOn === date)
+          .map((window) => window.id)
+          .sort(),
+      );
+    }
+    await expect(publicPage.locator("#deliveryWindowId")).toHaveValue("");
+    await expect(publicPage.locator("#deliveryWindowId")).toHaveAttribute(
+      "required",
+      "",
+    );
+    await expect(annaPage.locator("#delivery-contact")).toBeVisible();
+    await expect(annaPage.locator("#delivery-instructions")).toBeVisible();
+    await expect(publicPage.locator("#deliveryContactName")).toBeVisible();
+    await expect(publicPage.locator("#deliveryInstructions")).toBeVisible();
+    await writeFile(
+      `${artifactDirectory}/delivery-cross-surface-policy.json`,
+      JSON.stringify(
+        {
+          actionId,
+          windows: configuration.windows,
+          counts: [3, 3, 1],
+          channels: ["admin", "acquisition", "public"],
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+});
