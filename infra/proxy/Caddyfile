@@ -45,6 +45,15 @@
 	handle @campaign_routes {
 		import leonaid_headers
 		reverse_proxy campaign-site:3000 {
+			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
+			# This affects only CMS body-limit responses, not other applications.
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+			# common_headers supplies one unambiguous nosniff value at the edge.
+			header_down -X-Content-Type-Options
 			header_up -Forwarded
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Host {hostport}

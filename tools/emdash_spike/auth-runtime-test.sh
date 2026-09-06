@@ -2,12 +2,16 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
 compose() {
+  set -- --profile emdash "$@"
+  if [ "$mode" = media ]; then
+    set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
+  fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" \
     --file "$root/infra/emdash-spike/identity.test.yml" \
@@ -15,7 +19,7 @@ compose() {
     --file "$root/infra/emdash-spike/core-auth.test.yml" \
     --file "$root/infra/emdash-spike/auth-runtime.test.yml" \
     --file "$root/infra/emdash-spike/bootstrap.test.yml" \
-    --file "$root/infra/emdash-spike/login.test.yml" --profile emdash "$@"
+    --file "$root/infra/emdash-spike/login.test.yml" "$@"
 }
 if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ] || \
    [ -n "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ] || \
@@ -26,7 +30,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
-  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/cms-id" "$proof/root.crt"
+  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -52,6 +56,10 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
+if [ "$mode" = media ]; then
+  compose up --detach --wait rustfs
+  compose run --rm --no-deps cms-storage-operator
+fi
 compose up --no-deps --build --detach --wait api campaign-site
 fixture() {
   compose run --rm --no-deps --volume "$root:/repo:ro" \
@@ -83,6 +91,35 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = media ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-isolation
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs --isolation
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs install
+    media_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof" bootstrap-probe \
+        node tools/emdash_spike/media-http-proof.mjs "$@"
+    }
+    media_probe
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs fail-confirm
+    media_probe --confirm-failure
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs restore-confirm
+    media_probe --confirm-retry
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs tamper
+    media_probe --tampered
+    compose stop rustfs
+    media_probe --storage-down
+    compose up --detach --wait rustfs
+    media_probe --retained
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-media-races /proof/race-sessions.json
+    compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
+      node tools/emdash_spike/media-auth-race-proof.mjs
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke-charity
+    media_probe --revoked
+    compose stop api
+    media_probe --core-down
+    compose up --no-deps --detach --wait api
+  fi
   if [ "$mode" = isolation ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-isolation

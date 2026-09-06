@@ -64,20 +64,27 @@ for (const route of inventory.routes.filter((route) =>
         req.end(!["GET", "HEAD"].includes(method) ? "{}" : undefined);
       });
       const expected =
-        (openedReads.has(path) && method === "GET") ||
-        (path === "/_emdash/api/auth/me" && method === "POST")
-          ? actor === "system"
-            ? method === "POST"
-              ? 400
-              : 200
-            : actor === "charity"
-              ? path === "/_emdash/api/dashboard"
-                ? 403
-                : method === "POST"
-                  ? 400
-                  : 200
-              : 401
-          : 503;
+        (path === "/_emdash/api/media" && method === "GET") ||
+        (path === "/_emdash/api/media/upload-url" && method === "POST")
+          ? // This inventory proof has no operator-installed media schema. Core
+            // authentication applies, then the missing schema denies admission.
+            actor === "anonymous"
+            ? 401
+            : 503
+          : (openedReads.has(path) && method === "GET") ||
+              (path === "/_emdash/api/auth/me" && method === "POST")
+            ? actor === "system"
+              ? method === "POST"
+                ? 400
+                : 200
+              : actor === "charity"
+                ? path === "/_emdash/api/dashboard"
+                  ? 403
+                  : method === "POST"
+                    ? 400
+                    : 200
+                : 401
+            : 503;
       assert.equal(response.status, expected, `${actor} ${method} ${path}`);
       assert.equal(
         response.headers["cache-control"],

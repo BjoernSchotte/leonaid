@@ -1400,6 +1400,41 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Admit the campaign-scoped native reservation/PUT/confirmation protocol and
+      private file reads through real Core authentication. Global multipart,
+      media mutation, folder, usage and image-optimizer alternatives stay closed.
+      Reservations require an explicit authorized action; canonical IDs and
+      storage keys resolve through immutable ownership before hydration. Neither
+      native SHA-1 hints nor same-image uploads expose a global deduplication hit.
+      Actual request streams have byte and time limits; S3 transport and object
+      reads have bounded deadlines. Confirmation verifies stored MIME/SHA-256,
+      derives dimensions by decoding, and changes pending to ready atomically.
+      Ready is private upload state, not anonymous publication. Core authority is
+      checked after database locks before staging, after object PUT before linking,
+      and before confirmation; failed linking safely compensates its own object.
+      Evidence (7 September 2026):
+      `./leonaid test-emdash-spike --case campaign-media-http` passed in isolated
+      project `leonaid-emdash-tmp-vugk541uob` through actual verified Caddy TLS,
+      Core sessions, production EmDash/Node, PostgreSQL and private RustFS.
+      Two Charity actors proved own uploads/private reads and foreign ID/key/list
+      denial, anonymous denial, metadata stripping, server-derived dimensions,
+      CSRF rejection, pending/ready conflicts, actual stalled and oversized
+      chunked uploads, and closed alternate routes. Real database confirmation
+      failure/retry, object corruption, storage outage/restart, membership
+      withdrawal and Core outage remained closed without independent CMS cookies.
+      Three database-controlled races revoked real Core sessions during upload
+      start, linking and confirmation: all returned 401 with unchanged media,
+      attempt-ledger and object-key snapshots. CMS restart/database shutdown kept
+      bootstrap closed. No host ports were published; all owned resources and
+      synthetic session files were removed.
+      Earlier runs exposed duplicate nosniff headers, wrong ready-upload conflict
+      precedence and HTTP/1 body draining at the proxy. Both Caddy configurations
+      now close only CMS 408/413 connections before returning the upstream error;
+      no global timeout or experimental full-duplex setting was introduced.
+      Both configurations passed offline validation in the pinned Caddy image.
+      Native field/picker UX, content/revision media-reference authorization,
+      cleanup scheduling, publication-gated delivery and fresh restore remain
+      open. This checkpoint does not complete media or campaign isolation.
 - [x] Implement and prove private raster-upload staging against actual RustFS,
       independently of HTTP admission. The already locked Sharp 0.35.3 is now an
       explicit CMS dependency; its version/license and frozen install are checked.
@@ -1429,11 +1464,12 @@ Dependencies: EMS-030 successful
       no host port, and all owned containers/networks/volumes were removed.
       An earlier failed run exposed identical test animation frames collapsing
       to one frame; two distinct frames were independently verified before rerun.
-      This is still a lower-level policy-input/storage proof. Native HTTP/editor
+      This was a lower-level policy-input/storage proof. At that checkpoint HTTP/editor
       upload, bounded request streaming and storage transport timeouts, fresh
       Core checks after upload lock waits, final confirmation, cleanup scheduling,
-      preview/public delivery and restore remain open. Do not enable media HTTP
-      routes or mark the full media/campaign-isolation gates complete from this.
+      preview/public delivery and restore remained open. The HTTP checkpoint
+      above supersedes only its explicitly proven requirements; the standalone
+      staging proof alone does not authorize HTTP or close campaign isolation.
       Quality checkpoint: `./leonaid check` passed at `02f6159`: 208 unit tests,
       242 Python source-file checks, all frontend/API checks, 32 CMS files without
       diagnostics, generated types, formatting and privacy/policy gates, with an

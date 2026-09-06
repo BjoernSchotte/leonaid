@@ -172,6 +172,11 @@ function scoped(database, actionId) {
     .where("leonaid_campaign_media.action_id", "=", actionId);
 }
 
+async function boundTransaction(transaction) {
+  await sql`SET LOCAL lock_timeout = '2s'`.execute(transaction);
+  await sql`SET LOCAL statement_timeout = '3s'`.execute(transaction);
+}
+
 // The upload coordinator rechecks Core authority before calling this function.
 // Keys are generated here, never accepted from request data or original names.
 export async function createCampaignPendingMedia(
@@ -179,6 +184,7 @@ export async function createCampaignPendingMedia(
   profile,
   actionId,
   input,
+  beforeCreate,
 ) {
   requireAction(profile, actionId);
   if (
@@ -200,6 +206,8 @@ export async function createCampaignPendingMedia(
     throw new Error("campaign_media_input_invalid");
   await requireCampaignMedia(database);
   return database.transaction().execute(async (transaction) => {
+    await boundTransaction(transaction);
+    if (beforeCreate) await beforeCreate(transaction);
     const extension = {
       "image/jpeg": "jpg",
       "image/png": "png",
@@ -217,11 +225,34 @@ export async function createCampaignPendingMedia(
   });
 }
 
+// Resolve only permission metadata before media hydration. HTTP callers still
+// revalidate this resolved action against Core before returning any media data.
+export async function resolveCampaignMedia(database, profile, selector) {
+  await requireCampaignMedia(database);
+  let query = database
+    .selectFrom("leonaid_campaign_media")
+    .innerJoin("media", "media.id", "leonaid_campaign_media.media_id")
+    .select(["media.id", "leonaid_campaign_media.action_id"]);
+  if (!profile.globalRoles.includes("system_admin")) {
+    const actions = profile.actionMemberships
+      .filter((item) => item.role === "charity_admin")
+      .map((item) => item.actionId);
+    if (!actions.length) throw new Error("campaign_media_access_denied");
+    query = query.where("leonaid_campaign_media.action_id", "in", actions);
+  }
+  if (selector.id) query = query.where("media.id", "=", selector.id);
+  else if (selector.key)
+    query = query.where("media.storage_key", "=", selector.key);
+  else throw new Error("campaign_media_input_invalid");
+  return query.executeTakeFirst();
+}
+
 export async function getCampaignMedia(database, profile, actionId, id) {
   requireAction(profile, actionId);
   await requireCampaignMedia(database);
   if (typeof id !== "string" || !ulid.test(id)) return null;
   return database.transaction().execute(async (transaction) => {
+    await boundTransaction(transaction);
     const permitted = await scoped(transaction, actionId)
       .select("media.id")
       .where("media.id", "=", id)
@@ -246,6 +277,7 @@ export async function findCampaignMediaByHash(
   if (typeof hash !== "string" || !/^[0-9a-f]{64}$/.test(hash))
     throw new Error("campaign_media_input_invalid");
   return database.transaction().execute(async (transaction) => {
+    await boundTransaction(transaction);
     const permitted = await scoped(transaction, actionId)
       .select("media.id")
       .where("media.status", "=", "ready")
@@ -286,6 +318,7 @@ export async function listCampaignMedia(
     .transaction()
     .setIsolationLevel("repeatable read")
     .execute(async (transaction) => {
+      await boundTransaction(transaction);
       const query = scoped(transaction, actionId)
         .where("media.status", "=", "ready")
         .where(sql`strpos(lower(media.filename), lower(${q}))`, ">", 0);

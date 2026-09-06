@@ -1,6 +1,6 @@
 # EmDash authorization surface
 
-Status: bounded Charity editorial admission implemented; full campaign isolation remains incomplete.
+Status: bounded Charity editorial and private media HTTP admission implemented; full campaign isolation remains incomplete.
 
 Baseline: EmDash 0.36.0 at `603062902369d9695608e85c2d034d4f66f7a1f1`.
 `route-inventory.json` records each route's actual exported HTTP methods, package
@@ -34,7 +34,29 @@ theme enum and SEO description. Unknown fields and nested properties, executable
 blocks/custom marks, unsafe links and media references are rejected. Aggregate
 editorial JSON is limited to 60 KiB; raw create requests are limited to 64 KiB.
 Core pricing, orders, lifecycle and legal configuration are never CMS fields.
-Media, public safe rendering and full native rich-field UX remain separate gates.
+Content/revision media references, public safe rendering and full native rich-field
+UX remain separate gates. The separate `campaign-media-http` proof admits only
+scoped reservation, PUT, confirmation, listing, item reads and private file reads.
+It uses real Core sessions and immutable campaign ownership; the upstream public
+file route is explicitly reprotected rather than relying on upstream locals.
+Confirmation verifies actual stored bytes and server-derived dimensions. Three
+real logout races prove fresh Core checks after database waits at upload start,
+object linking and confirmation. A ready media row is not public publication.
+The existing editorial schema still rejects all media references until the
+reference-validation and native-field tasks are completed.
+
+Actual HTTP/1 slow-body tests exposed proxy request-body draining before error
+delivery. Both Caddy variants intercept only CMS 408/413 responses, set connection
+closure and copy the upstream response. Other services and successful responses
+retain their existing behavior. This uses the documented
+[response interception contract](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#intercepting-responses)
+and avoids enabling experimental
+[HTTP/1 full duplex](https://caddyserver.com/docs/caddyfile/options#enable-full-duplex)
+globally. The live TLS proof includes actual five-second body timeout, chunked
+oversize denial, database failure/retry, storage outage/corruption, private reads,
+two-actor isolation and Core revocation. Browser image-field UX and anonymous
+publication-gated media remain unproven.
+
 The native editor may echo the exact stored slug and locale, but cannot change
 either. Its `skipRevision` hint is validated as a boolean and normalized to
 `false`: every accepted autosave retains a new attributed draft revision.
@@ -310,18 +332,18 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/import/wordpress/rewrite-urls` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/manifest` | GET | core | System Admin runtime manifest; Charity source-only campaign manifest | No global settings, other schemas, media, taxonomy or plugin metadata for Charity |
 | `/_emdash/api/mcp` | DELETE, GET, POST | mcp-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/media` | GET, POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
-| `/_emdash/api/media/[id]` | DELETE, GET, PUT | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
-| `/_emdash/api/media/[id]/confirm` | POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
-| `/_emdash/api/media/[id]/upload` | PUT | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
+| `/_emdash/api/media` | GET, POST | core | Core-authorized GET for one explicit campaign; multipart POST denied | Installed media guards, current action authority, scoped list/count/search/cursor; no usage hydration |
+| `/_emdash/api/media/[id]` | DELETE, GET, PUT | core | Core-authorized scoped GET; DELETE/PUT denied | Immutable media binding; foreign and missing IDs both 404 |
+| `/_emdash/api/media/[id]/confirm` | POST | core | Core-authorized confirmation of an owned staged image | Actual stored hash/type/decoded dimensions; fresh Core check after row lock; atomic ready transition |
+| `/_emdash/api/media/[id]/upload` | PUT | core | Core-authorized bounded private image staging | Pending media binding; actual raster bytes; Core rechecks before attempt insertion and final linking |
 | `/_emdash/api/media/[id]/usage` | GET | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
-| `/_emdash/api/media/file/[...key]` | GET | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
+| `/_emdash/api/media/file/[...key]` | GET | core | Authenticated private image preview only; anonymous access denied | Canonical generated key to owned ready media; fresh Core authority and stored hash; no-store |
 | `/_emdash/api/media/folders` | GET, POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/media/folders/[id]` | DELETE, GET, PUT | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/media/providers` | GET | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/media/providers/[providerId]` | GET, POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/media/providers/[providerId]/[itemId]` | DELETE, GET | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
-| `/_emdash/api/media/upload-url` | POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
+| `/_emdash/api/media/upload-url` | POST | core | Core-authorized reservation for one explicit campaign; same-origin PUT URL only | Installed binding guards, current Core action and mapped author; no global deduplication or S3 bearer URL |
 | `/_emdash/api/menus` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/menus/[name]` | DELETE, GET, PUT | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/menus/[name]/items` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |

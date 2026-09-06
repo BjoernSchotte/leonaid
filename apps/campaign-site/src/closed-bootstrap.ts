@@ -6,6 +6,7 @@ import {
   requireCurrentCampaignActor,
 } from "./auth/core-identity";
 import { campaignManifest } from "./auth/campaign-manifest.mjs";
+import { campaignMediaRoute } from "./auth/campaign-media-routes.mjs";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
   isCampaignEditorRoute,
@@ -100,9 +101,12 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       ? campaignParameters[0]
       : null;
   const adminRead =
+    Boolean(campaignMediaRoute(url.pathname, request.method)) ||
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
   const campaignUpdate =
+    (Boolean(campaignMediaRoute(url.pathname, request.method)) &&
+      request.method !== "GET") ||
     isCampaignCreateRoute(url.pathname, request.method) ||
     isCampaignUpdateRoute(url.pathname, request.method) ||
     isCampaignRestoreRoute(url.pathname, request.method) ||
