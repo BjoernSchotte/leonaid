@@ -39,7 +39,12 @@ cleanup() {
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$status" -eq 0 ] && [ "${LEONAID_PUBLIC_ORDER_TEST_KEEP_FOR_REVIEW:-0}" = 1 ]; then
+    echo "public-order-test: Review stack retained: $project at https://localhost:$https_port/krapfentaxi"
+    echo "public-order-test: Remove this project's containers, volumes and networks after review."
+  else
+    compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  fi
   rm -rf "$proof"
   exit "$status"
 }

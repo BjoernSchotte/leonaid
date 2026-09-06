@@ -1,5 +1,16 @@
 # Implementation evidence
 
+## Direct In-App public form review — 2026-09-06
+
+The isolated public-order gate exited 0 with project `leonaid-362a-delivery-review-20260906`, ports 18265/18665 and the worktree network override. The opt-in `LEONAID_PUBLIC_ORDER_TEST_KEEP_FOR_REVIEW=1` now retains only a successful test stack for direct review; default and failed runs still clean up automatically. Temporary proof files are removed in both cases.
+
+Opened the actual public form in the In-App Browser over local HTTP. Screenshots and direct interactions verified delivery fields, multiline department/directions, optional contact, separate billing disclosure and preservation of a typed billing recipient across collapsing/reopening. Refreshing availability retained the contact/instructions and left the window unselected with an updated status. No order was submitted during this manual review.
+
+The screenshot exposed an unstyled refresh button. Added a secondary button style with a 2.75rem minimum height, inherited typography and existing theme tokens; the hidden attribute remains effective without JavaScript. Rebuilt only this project's public service successfully and verified the corrected button and working refresh directly in the In-App Browser. This desktop inspection does not claim the remaining exact mobile widths or integrated authenticated journey. Local HTTPS was rejected for an untrusted development certificate; no trust settings were changed.
+
+Read-only EmDash baseline is now `3f39ed7`; campaign-site still has no public order renderer. Full EmDash and cross-surface acceptance remains open.
+
+
 
 ## Historical order repository read after migration — 2026-09-06
 

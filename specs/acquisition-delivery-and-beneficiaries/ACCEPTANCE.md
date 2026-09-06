@@ -13,8 +13,8 @@ This is a partial requirement audit, not a completion declaration. Checked PLAN.
 | Template/default compatibility across channels | Persisted Krapfentaxi/blank defaults and existing null records are proven. `form_configuration.py` now also creates and reads a real review-ready sponsoring order on a blank action, preserving EUR 5 pricing and billing with null delivery fields; exact replay returns the same order. Broader channel/template compatibility still needs integrated acceptance. | Partial |
 | Both capture channels and legacy completion | Actual acquisition/public orders, address reuse/separation, notes/contact, country fields, historical completion and invoice issuance have separate proofs in PROGRESS.md. The complete integrated action journey is not yet recorded. | Partial |
 | Recovery behavior | Public stale policy/window, empty availability, no-JavaScript error retention and accepted-response retry; Anna accepted-response 503 retry; admin revision reconciliation all have recorded live proofs. Audit remaining draft/action-switch and no-JavaScript unknown-outcome scope before marking the broad item complete. | Partial |
-| Final In-App Browser acceptance | Automated browser checks and screenshots do not substitute for the explicitly requested integrated In-App Browser inspection. | Open |
-| EmDash canonical/alias parity and editorial independence | Read-only parallel worktree baseline `fa394a7` connects native CMS editor saves; its `apps/campaign-site/src` still has no public order renderer. No source was imported or modified there. | Open |
+| Final In-App Browser acceptance | Direct public desktop In-App screenshots and billing-toggle/notes/refresh interactions now pass; corrected the refresh button found there. Exact mobile widths and the integrated authenticated journey remain open. | Partial |
+| EmDash canonical/alias parity and editorial independence | Read-only parallel worktree baseline `3f39ed7` records the SMTP browser login checkpoint; its `apps/campaign-site/src` still has no public order renderer. No source was imported or modified there. | Open |
 
 Fresh foundation command:
 
