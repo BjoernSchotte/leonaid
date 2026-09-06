@@ -1,6 +1,12 @@
 .action-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 1.4rem;
+}
+
+.action-page > * {
+  min-width: 0;
 }
 
 .action-page__header {
@@ -186,7 +192,7 @@
 
 .action-workspace-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.3rem;
   padding: 0.35rem;
   border: 1px solid var(--border);
@@ -1890,4 +1896,64 @@
   .member-card {
     transition: none;
   }
+}
+.delivery-editor fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.delivery-editor > fieldset {
+  display: grid;
+  gap: 1rem;
+}
+.delivery-editor legend {
+  font-weight: 650;
+  margin-bottom: 0.75rem;
+}
+.delivery-editor .delivery-day {
+  padding-block: 1rem;
+  border-block-start: 1px solid var(--border);
+}
+.delivery-day-header,
+.delivery-window {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+.delivery-editor label:not(.delivery-enable) {
+  display: grid;
+  gap: 0.35rem;
+}
+.delivery-editor input:not([type="checkbox"]) {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+.delivery-enable {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 44px;
+}
+.delivery-editor .ui-button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.delivery-day-header > *,
+.delivery-window > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.delivery-editor input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
 }

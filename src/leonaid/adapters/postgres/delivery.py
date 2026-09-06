@@ -96,7 +96,7 @@ class AsyncpgDeliveryRepository:
             async with connection.transaction():
                 # Order creation and action-period edits must use this same action lock.
                 action = await connection.fetchrow(
-                    "SELECT starts_on, ends_on FROM charity_action WHERE id = $1 FOR UPDATE",
+                    "SELECT starts_on, ends_on, status FROM charity_action WHERE id = $1 FOR UPDATE",
                     configuration.action_id,
                 )
                 if action is None:
@@ -104,6 +104,11 @@ class AsyncpgDeliveryRepository:
                         "action_not_found", "Diese Aktion wurde nicht gefunden."
                     )
                 current = await read_configuration(connection, configuration.action_id)
+                if str(action["status"]) == "archived":
+                    raise Conflict(
+                        "delivery_action_archived",
+                        "Archivierte Aktionen können nicht geändert werden.",
+                    )
                 if current.revision != configuration.revision:
                     raise Conflict(
                         "delivery_revision_conflict",

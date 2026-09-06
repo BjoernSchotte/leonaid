@@ -63,6 +63,8 @@ Read-only inspection on 2026-09-06 found branch `codex/analysiere-emdashintegrat
 
 Before DEL-02/DEL-04 implementation, inspect the latest EmDash branch again and reconcile its actual rendering, shared-component, and action-route decisions. Do not edit or cherry-pick the active parallel worktree as part of this plan update. Integrate against the agreed EmDash baseline before declaring final public-site acceptance; if it remains unfinished, report campaign-site acceptance as pending.
 
+Implementation recheck on 2026-09-06: the parallel branch has advanced to `eadd30e` (CMS routing quality gate). Its campaign source still consists of `closed-bootstrap.ts` and `database-ready.ts`; it has no public order renderer. The shared Core form contract can proceed independently, but this does not complete DEL-04 or EmDash parity acceptance. Recheck again when the renderer becomes available.
+
 ### Form definitions are implementation scope
 
 Current `OrderFormConfiguration` in `src/leonaid/domain/action_templates.py` defines address requirements, buyer contact requirements, and a general message option. These values are serialized into template/action configuration and projected through `OrderFormConfigurationResponse` and `PublicOrderFormResponse`. Persistence is handled in `src/leonaid/adapters/postgres/actions.py` and `public_orders.py`; public submission validates form requirements in `src/leonaid/application/public_orders.py`.

@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Delivery editor checkpoint — 2026-09-06
+
+The action management UI now has a delivery tab with date/window creation, copying a day's windows with fresh IDs, retirement controls, and save feedback. It displays the effective required address/window and optional contact/instructions policy for both acquisition and public ordering. The server rejects schedule changes for archived actions.
+
+The isolated `./leonaid test-action-admin` gate passed with real HTTP, React, and Chromium: create two dates with three adjacent windows each, copy, save, reload, verify six persisted windows, check mobile document width at 390 px, run Axe on the editor, and continue the existing full action lifecycle with keyboard tab navigation. Screenshots were inspected locally. The layout now constrains the page grid so horizontal tab scrolling does not widen the document. Subsequent visual corrections separate the section heading from its explanation and accommodate all six desktop tabs.
+
+The PostgreSQL foundation gate also passes with an additional archived-action rejection proof after the valid action status sequence. Focused Ruff and frontend feature type checking pass.
+
+This is a usable configuration checkpoint, not full DEL-03 acceptance. Further proof/handling remains for unsaved tab changes, in-place revision-conflict reconciliation, referenced-window errors, unequal window counts, broader mobile sizes and zoom. Acquisition/public form rendering, saved order review/completion, dashboard beneficiaries, full public submission, and EmDash parity remain open. The EmDash branch was rechecked at `eadd30e`; its public order renderer is still absent. Tests use a dedicated Compose project and loopback ports 18262/18662; only their own resources are removed.
+
 ## Effective form configuration checkpoint — 2026-09-06
 
 Admin action configuration, acquisition capture context, and the published public order form now expose the same typed delivery definition: required address/window, optional contact/instructions and limits, timezone/revision, and future non-retired windows. Public projection is only requested after the existing publication/submission gate. It contains no submitted contacts or order data.

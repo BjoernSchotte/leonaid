@@ -155,6 +155,69 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       "Krapfentaxi Golden UI 2028",
     );
     await expect(page.getByTestId("management-status")).toHaveText("Entwurf");
+    await page.getByTestId("management-tab-delivery").click();
+    const delivery = page.locator(".delivery-editor");
+    await delivery.getByLabel("Lieferung für diese Aktion aktivieren").check();
+    await delivery
+      .getByRole("button", { name: "Tag hinzufügen", exact: true })
+      .click();
+    await delivery.getByLabel("Datum", { exact: true }).fill("2028-10-01");
+    await delivery
+      .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+      .click();
+    await delivery.getByLabel("Beginn 1", { exact: true }).fill("08:00");
+    await delivery.getByLabel("Ende 1", { exact: true }).fill("10:00");
+    for (const [slot, start, end] of [
+      [2, "10:00", "12:00"],
+      [3, "12:00", "14:00"],
+    ]) {
+      await delivery
+        .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+        .click();
+      await delivery.getByLabel(`Beginn ${slot}`, { exact: true }).fill(start);
+      await delivery.getByLabel(`Ende ${slot}`, { exact: true }).fill(end);
+    }
+    await delivery
+      .getByRole("button", { name: "Fenster auf neuen Tag kopieren" })
+      .click();
+    await delivery
+      .getByLabel("Datum", { exact: true })
+      .last()
+      .fill("2028-10-02");
+    await delivery
+      .getByRole("button", { name: "Lieferplanung speichern", exact: true })
+      .click();
+    await expect(delivery).toContainText("Lieferplanung gespeichert");
+    await page.reload();
+    await expect(
+      delivery.getByLabel("Beginn 1", { exact: true }).first(),
+    ).toHaveValue("08:00");
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-desktop.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(delivery).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-mobile.png`,
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    const deliveryA11y = await new AxeBuilder({ page })
+      .include(".delivery-editor")
+      .analyze();
+    expect(deliveryA11y.violations).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-mobile.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.getByTestId("management-tab-basics").click();
     await expect(page.getByTestId("current-action")).toHaveText(
       "Krapfentaxi Golden UI 2028",
     );
@@ -214,6 +277,8 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     ).toEqual([]);
 
     await page.getByTestId("management-tab-basics").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("management-tab-delivery")).toBeFocused();
     await page.keyboard.press("ArrowRight");
     await expect(
       page.getByTestId("management-tab-beneficiaries"),

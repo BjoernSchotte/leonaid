@@ -20,6 +20,7 @@ from leonaid.domain.actions import (
 )
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.action_templates import ActionTemplateKey
+from leonaid.application.errors import Conflict
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.entrypoints.fastapi.routes import delivery_order_form_response
 
@@ -86,6 +87,20 @@ async def prove_form_configuration(pool: asyncpg.Pool[Any], actor: UUID) -> None
             config, evaluated_at=datetime(2027, 3, 1, tzinfo=timezone.utc)
         )
         assert future_form.windows == [] and future_form.require_window
+        async with pool.acquire() as connection:
+            for status in ("scheduled", "active", "completed", "archived"):
+                await connection.execute(
+                    "UPDATE charity_action SET status = $2 WHERE id = $1",
+                    identifier,
+                    status,
+                )
+        try:
+            await schedules.save(replace(config, enabled=False))
+        except Conflict as error:
+            assert error.code == "delivery_action_archived"
+        else:
+            raise AssertionError("Archived action accepted a schedule change")
+        assert (await schedules.get(identifier)).enabled
     print(
         "delivery-form: PASS: persisted Krapfentaxi/blank defaults, effective fields, available windows, period protection"
     )
