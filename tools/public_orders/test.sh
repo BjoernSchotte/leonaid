@@ -114,7 +114,7 @@ compose run --rm --no-deps \
 compose up --detach --wait --wait-timeout 420 public pwa web proxy
 
 for browser_case in 'neue Firma' 'Lieferregeln' 'Gemeinsame Lieferplanung'; do
-  if [ "$browser_case" = 'Lieferregeln' ]; then
+  if [ "$browser_case" != 'neue Firma' ]; then
     # Separate independent browser scenarios in this disposable test database.
     # The contract above already proves production rate-limit behavior.
     compose exec -T core-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM public_submission_attempt"' >/dev/null

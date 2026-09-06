@@ -651,6 +651,99 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
     await expect(annaPage.locator("#delivery-instructions")).toBeVisible();
     await expect(publicPage.locator("#deliveryContactName")).toBeVisible();
     await expect(publicPage.locator("#deliveryInstructions")).toBeVisible();
+    const selectedWindow = configuration.windows.find(
+      (window) => window.deliveryOn === "2026-10-03",
+    );
+    for (const [field, value] of Object.entries({
+      recipientName: "Gemeinsame Lieferstelle",
+      streetLine1: "Lieferweg 31",
+      postalCode: "97070",
+      city: "Würzburg",
+    })) {
+      await annaPage.locator(`#delivery-${field}`).fill(value);
+    }
+    await annaPage
+      .locator("#delivery-contact")
+      .fill("Gemeinsamer Lieferkontakt");
+    await annaPage.locator("#delivery-phone").fill("+49 931 313131");
+    await annaPage
+      .locator("#delivery-instructions")
+      .fill("Abteilung Integration\nEingang links");
+    await annaPage.locator("#delivery-window").selectOption(selectedWindow.id);
+    await annaPage
+      .locator("#commitment-email")
+      .fill("integration-rechnung@leonaid.invalid");
+    const acceptedAnna = annaPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/actions/${actionId}/commitments`),
+    );
+    await annaPage.getByTestId("commitment-save-ready").click();
+    const annaResponse = await acceptedAnna;
+    expect(annaResponse.status(), await annaResponse.text()).toBe(201);
+    const annaOrder = await annaResponse.json();
+    expect(annaOrder.deliveryWindowId).toBe(selectedWindow.id);
+    expect(annaOrder.invoiceRecipient.streetLine1).toBe("Lieferweg 31");
+    const publicForm = publicPage.locator("[data-order-form]");
+    await fillOrder(publicForm, {
+      email: "integration-bestellung@leonaid.invalid",
+      givenName: "Irene",
+      familyName: "Integration",
+      quantity: 1,
+      recipient: "Gemeinsame Lieferstelle",
+      street: "Lieferweg 31",
+      postalCode: "97070",
+      city: "Würzburg",
+    });
+    await publicForm
+      .locator("#deliveryWindowId")
+      .selectOption(selectedWindow.id);
+    await publicForm.locator("#deliveryCountryCode").fill("DE");
+    await publicForm
+      .locator("#deliveryContactName")
+      .fill("Gemeinsamer Lieferkontakt");
+    await publicForm
+      .locator('input[name="deliveryContactPhone"]')
+      .fill("+49 931 313131");
+    await publicForm
+      .locator("#deliveryInstructions")
+      .fill("Abteilung Integration\nEingang links");
+    await publicForm.locator('input[name="billingSameAsDelivery"]').uncheck();
+    for (const [field, value] of Object.entries({
+      invoiceRecipientName: "Zentrale Integration",
+      invoiceStreetLine1: "Rechnungsweg 32",
+      invoicePostalCode: "97070",
+      invoiceCity: "Würzburg",
+      invoiceCountryCode: "DE",
+    })) {
+      await publicForm.locator(`#${field}`).fill(value);
+    }
+    const publicOrder = await submitOrder(publicForm);
+    const adminOrdersResponse = await admin.request.get(
+      `${baseUrl}/api/v1/actions/${actionId}/commitments`,
+    );
+    expect(adminOrdersResponse.status()).toBe(200);
+    const adminOrders = await adminOrdersResponse.json();
+    const captured = adminOrders.items
+      .map((item) => item.commitment)
+      .filter(
+        (order) =>
+          order.deliveryRecipient?.contactName === "Gemeinsamer Lieferkontakt",
+      );
+    expect(captured).toHaveLength(2);
+    for (const order of captured) {
+      expect(order.deliveryRecipient.instructions).toBe(
+        "Abteilung Integration\nEingang links",
+      );
+      expect(order.deliveryRecipient.streetLine1).toBe("Lieferweg 31");
+      expect(order.deliveryWindowId).toBe(selectedWindow.id);
+      expect(order.deliveryWindowSnapshot).toEqual(
+        annaOrder.deliveryWindowSnapshot,
+      );
+      expect(order.invoiceRecipient.streetLine1).toBe(
+        order.source === "acquisition" ? "Lieferweg 31" : "Rechnungsweg 32",
+      );
+    }
     await writeFile(
       `${artifactDirectory}/delivery-cross-surface-policy.json`,
       JSON.stringify(
@@ -658,6 +751,9 @@ test("Gemeinsame Lieferplanung erreicht Anna und öffentliche Bestellung ohne Ne
           actionId,
           windows: configuration.windows,
           counts: [3, 3, 1],
+          annaOrderId: annaOrder.id,
+          publicReference: publicOrder.reference,
+          selectedWindow,
           channels: ["admin", "acquisition", "public"],
         },
         null,

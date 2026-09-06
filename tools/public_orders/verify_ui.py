@@ -54,6 +54,36 @@ async def twenty_record(
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
     proof_path = Path(require_env("UI_PROOF_PATH"))
     proof = json.loads(proof_path.read_text(encoding="utf-8"))
+    shared = json.loads(
+        proof_path.with_name("delivery-cross-surface-policy.json").read_text()
+    )
+    shared_rows = await connection.fetch(
+        """
+        SELECT id, source, delivery_recipient_snapshot, invoice_recipient_snapshot,
+               delivery_window_id, delivery_window_snapshot
+        FROM commitment
+        WHERE id = $1 OR public_reference = $2
+        """,
+        UUID(shared["annaOrderId"]),
+        shared["publicReference"],
+    )
+    if len(shared_rows) != 2:
+        raise VerificationFailure("Shared action orders missing from PostgreSQL")
+    for row in shared_rows:
+        delivery = json.loads(row["delivery_recipient_snapshot"])
+        billing = json.loads(row["invoice_recipient_snapshot"])
+        window = json.loads(row["delivery_window_snapshot"])
+        if (
+            delivery["contactName"] != "Gemeinsamer Lieferkontakt"
+            or delivery["contactPhone"] != "+49 931 313131"
+            or delivery["instructions"] != "Abteilung Integration\nEingang links"
+            or delivery["streetLine1"] != "Lieferweg 31"
+            or str(row["delivery_window_id"]) != shared["selectedWindow"]["id"]
+            or window["deliveryOn"] != "2026-10-03"
+            or billing["streetLine1"]
+            != ("Lieferweg 31" if row["source"] == "acquisition" else "Rechnungsweg 32")
+        ):
+            raise VerificationFailure("Shared action delivery/billing snapshots differ")
     validation = proof.get("validation")
     orders = proof.get("orders")
     if validation != {

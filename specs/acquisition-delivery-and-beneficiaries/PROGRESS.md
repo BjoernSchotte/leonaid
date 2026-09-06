@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Both orders persisted after shared Admin configuration — 2026-09-06
+
+Continued the same-action 3/3/1 browser journey with an actual review-ready acquisition order and an anonymous public order selecting the third day's configured window. Both use identical delivery address, optional contact/phone and multiline instructions. Anna keeps address reuse enabled; the public buyer supplies a separate billing address. Admin list API readback proves exactly two matching integration orders, identical server-derived delivery-window snapshots and the intended different billing streets. The final PostgreSQL verifier independently locates the acquisition order by returned ID and the public order by success reference and checks both snapshots.
+
+`./leonaid test-public-orders` exited 0 with isolated project `leonaid-362a-delivery-public-20260906o`, ports 18265/18665 and worktree subnet override. Existing order paths passed in 19.8 seconds, policy recovery in 8.9 seconds and shared configuration plus both orders in 3.0 seconds. Existing three-order persistence/retry assertions still pass because the integration orders have a distinct synthetic contact marker. The disposable rate-attempt table is cleared between independent browser scenarios; production anti-abuse code is unchanged. Ruff/Mypy and diff checks pass. Own stack was cleaned up. Final administrator UI inspection, retiring a selection loaded in both forms, exact mobile In-App acceptance and integrated EmDash ordering remain open.
+
 ## Same-action admin-to-acquisition/public policy propagation — 2026-09-06
 
 Added a shared live browser journey in the public gate. It opens Anna's capture and the anonymous Astro form before changing configuration, then uses the Charity Admin delivery editor on that same Golden action to extend its booked first-day interval into three windows, copy them to a second day and add one interval on a third day. An actual successful PUT and subsequent read confirm 3/3/1 persisted windows.
