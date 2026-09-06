@@ -2,6 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
+case "$mode" in auth|bootstrap|browser|surface) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -56,7 +57,7 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
-if [ "$mode" = bootstrap ] || [ "$mode" = browser ]; then
+if [ "$mode" != auth ]; then
   if [ "$mode" = browser ]; then
     docker run --rm --network none --workdir /workspace \
       --volume "$root/apps/public:/workspace/apps/public:ro" \
@@ -75,6 +76,10 @@ if [ "$mode" = bootstrap ] || [ "$mode" = browser ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = surface ]; then
+    compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+      node tools/emdash_spike/authorization-surface-proof.mjs
+  fi
   if [ "$mode" = browser ]; then
     compose up --no-deps --build --detach --wait public
     browser_probe() {

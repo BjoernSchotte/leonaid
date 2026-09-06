@@ -784,6 +784,10 @@ Dependencies: EMS-020, EMS-070
 
 This is the decisive feasibility task.
 
+- [x] Capture the pinned core/built-in/MCP HTTP route inventory, including actual
+      exported methods and source hashes, and prove the current closed policy
+      for every CMS-routed row with System Admin, Charity Admin and anonymous
+      real HTTP requests. Full campaign-data isolation remains open below.
 - [ ] Inventory every EmDash 0.36 route and operation capable of reading drafts
       or mutating content, revisions, publication state, media, menus, settings,
       users, schemas, plugins, REST tokens, CLI access, or MCP access.
@@ -834,6 +838,29 @@ STOP if the only available implementation is any of the following:
 - a broad fork whose security-relevant diff cannot be isolated and tested.
 
 On STOP, keep EmDash access System-Admin-only and proceed directly to EMS-090.
+
+Authorization-surface checkpoint (6 September 2026):
+`authorization-inventory` evaluates the upstream injectors offline and compares
+186 routes (165 core, 20 disabled built-in auth, one disabled MCP), exported HTTP
+methods and SHA-256 hashes with the committed `route-inventory.json`. Missing
+routes, changed methods and changed source hashes are rejected. This check is
+also part of `./leonaid check`. `AUTHORIZATION.md` maps every route to its current
+rule and the required campaign binding lookup, and records non-HTTP limitations.
+
+`./leonaid test-emdash-spike --case authorization-surface` passed 1,866 real
+HTTPS requests through Caddy/Core/EmDash with synthetic System Admin, Charity
+Admin and anonymous actors. It covers each CMS-routed declared operation plus
+HEAD/OPTIONS, including disabled built-in auth and MCP paths. After one-time
+setup, only the existing System-Admin GETs succeed; other operations stay closed,
+with no-store responses and no independent session cookie. The uniquely owned
+project, volumes, networks and session artifacts were removed; no host ports
+were published. Bootstrap closure still passed after restart/database shutdown.
+
+This is a route-drift/closed-policy checkpoint, not positive campaign isolation.
+The proposed request-scoped enforcement seam and indexed field-filter capability
+still require real two-campaign data proofs for content, revisions, media and
+publication before Charity access may be enabled. No broad fork or client-side
+filtering is approved by this result.
 
 ### EMS-040 — Define the editorial microsite model
 
