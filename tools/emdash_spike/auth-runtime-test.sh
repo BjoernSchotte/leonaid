@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -83,6 +83,23 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = isolation ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-isolation
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs --isolation
+    isolation_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+        node tools/emdash_spike/campaign-isolation-proof.mjs "$@"
+    }
+    isolation_probe
+    compose up --no-deps --build --detach --wait public
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-editor-browser-proof.mjs --charity
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-isolation-browser-proof.mjs
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke-charity
+    isolation_probe --revoked
+  fi
   if [ "$mode" = content ]; then
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
     content_probe() {

@@ -13,6 +13,7 @@ const apiRoot = "/_emdash/api/content/campaign_pages";
 const editorRoot = "/_emdash/admin/content/campaign_pages";
 const revoked = process.argv.includes("--revoked");
 const login = process.argv.includes("--login");
+const charity = process.argv.includes("--charity");
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   const browser = await engine.launch({ headless: true });
   try {
@@ -44,7 +45,10 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.equal(new URL(page.url()).searchParams.get("returnTo"), editorRoot);
     await page.getByRole("heading", { name: "Bei LeonAid anmelden" }).waitFor();
     if (login) await browserLogin(context, page, editorRoot);
-    else await context.addCookies([cookie(tokens.system)]);
+    else
+      await context.addCookies([
+        cookie(charity ? tokens.charity : tokens.system),
+      ]);
     if (revoked) {
       await page.goto(origin + editorRoot);
       await page.waitForURL("**/login?returnTo=**");
@@ -217,7 +221,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       );
     }
     await context.clearCookies();
-    await context.addCookies([cookie(tokens.charity)]);
+    await context.addCookies([cookie(tokens.finance)]);
     assert.equal((await page.goto(origin + editorRoot)).status(), 403);
     assert.equal((await context.request.get(origin + apiRoot)).status(), 403);
     assert.equal(
@@ -234,7 +238,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     await context.close();
     console.log(
-      `campaign-editor-browser: OK: ${name}: ${revoked ? "revoked editor navigation and API denied" : "native autosave/manual save, stale-tab conflict, attribution, reload, publish and private follow-up"}; Charity stays denied`,
+      `campaign-editor-browser: OK: ${name}: ${revoked ? "revoked editor navigation and API denied" : "native autosave/manual save, stale-tab conflict, attribution, reload, publish and private follow-up"}; Finance stays denied`,
     );
   } finally {
     await browser.close();

@@ -43,9 +43,8 @@ export const onRequest = defineMiddleware(
       return next();
     try {
       const profile = await readCoreIdentity(request);
-      // Positive HTTP proof is System-Admin-only until every operation is scoped.
       const user = locals.user;
-      if (profile.role !== 50 || user?.role !== 50)
+      if (![40, 50].includes(profile.role) || user?.role !== profile.role)
         throw new CoreIdentityError(403);
       const actor = {
         coreUserId: profile.userId,

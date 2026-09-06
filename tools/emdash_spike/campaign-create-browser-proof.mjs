@@ -178,13 +178,13 @@ for (const [index, [name, engine]] of engines.entries()) {
       assert.equal(denied.status(), query.endsWith("999999999999") ? 503 : 403);
     }
     await context.clearCookies();
-    await context.addCookies([cookie(tokens.charity)]);
+    await context.addCookies([cookie(tokens.finance)]);
     assert.equal((await page.goto(origin + editorRoot + "/new")).status(), 403);
     assert.equal((await page.goto(origin + newPath)).status(), 403);
     assert.equal((await page.goto(origin + handoffPath)).status(), 403);
     await context.close();
     console.log(
-      `campaign-create-browser: OK: ${name}: native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Charity denial`,
+      `campaign-create-browser: OK: ${name}: native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Finance denial`,
     );
   } finally {
     await browser.close();

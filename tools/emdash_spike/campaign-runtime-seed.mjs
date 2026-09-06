@@ -15,13 +15,14 @@ const database = new Kysely({
   }),
 });
 try {
+  const actions = process.argv.includes("--isolation") ? [1, 2, 3] : [1, 2];
   await installCampaignSchema(database);
   const result = await applySeed(
     database,
     {
       version: "1",
       content: {
-        campaign_pages: [1, 2].map((action, index) => ({
+        campaign_pages: actions.map((action, index) => ({
           id: `proof-${index}`,
           slug: `proof-${index}`,
           status: "published",
@@ -34,7 +35,7 @@ try {
     },
     { includeContent: true, onConflict: "error" },
   );
-  assert.equal(result.content.created, 2);
+  assert.equal(result.content.created, actions.length);
   await installCampaignBindings(database);
   const entries = await handleContentList(database, "campaign_pages", {});
   assert.equal(entries.success, true);
@@ -45,7 +46,7 @@ try {
     });
   }
   console.log(
-    "campaign-runtime: two uniquely bound real synthetic entries and revisions seeded",
+    `campaign-runtime: ${actions.length} uniquely bound real synthetic entries and revisions seeded`,
   );
 } finally {
   await database.destroy();

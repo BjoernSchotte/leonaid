@@ -20,9 +20,17 @@ export async function createCampaignWithRuntime(
   body: { data: Record<string, unknown> },
 ) {
   const profile = await readCoreIdentity(request);
-  if (profile.role !== 50) throw new CoreIdentityError(403);
+  if (![40, 50].includes(profile.role)) throw new CoreIdentityError(403);
   const actionId = body.data?.action_id;
   if (typeof actionId !== "string") throw new CoreIdentityError(403);
+  if (
+    profile.role === 40 &&
+    !profile.actionMemberships.some(
+      (membership) =>
+        membership.role === "charity_admin" && membership.actionId === actionId,
+    )
+  )
+    throw new CoreIdentityError(403);
   const action = await requireCoreCampaign(request, actionId);
   return createCampaignContent(
     emdash.db,

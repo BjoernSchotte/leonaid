@@ -92,7 +92,7 @@ if (
     assert.deepEqual((await call(root, 200)).data, before);
   } else {
     await call(root, 401, { method: "POST", body, token: null });
-    await call(root, 403, { method: "POST", body, token: tokens.charity });
+    await call(root, 403, { method: "POST", body, token: tokens.finance });
     await call(root, 403, { method: "POST", body, marker: false });
     await call(root, 403, {
       method: "POST",
@@ -221,7 +221,7 @@ if (
     const history = await call(`${path}/revisions`, 200);
     for (const options of [
       { token: null },
-      { token: tokens.charity },
+      { token: tokens.finance },
       { origin: "https://attacker.invalid" },
       { marker: false },
     ]) {
@@ -317,7 +317,7 @@ if (
     assert.equal((await coreResponse.json()).isPublished, !entryDenied);
     for (const options of [
       { token: null },
-      { token: tokens.charity },
+      { token: tokens.finance },
       { origin: "https://attacker.invalid" },
       { marker: false },
     ]) {
@@ -403,7 +403,7 @@ if (
   const welcomePath = "/_emdash/api/auth/me";
   for (const options of [
     { token: null },
-    { token: tokens.charity },
+    { token: tokens.finance },
     { marker: false },
     { origin: "https://attacker.invalid" },
   ]) {
@@ -446,18 +446,18 @@ if (
     assert.deepEqual(compared.data.draft, draft.data);
     assert.deepEqual(compared.data.live, item.data.item.liveData);
     await call(`${path}/compare`, 401, { token: null });
-    await call(`${path}/compare`, 403, { token: tokens.charity });
+    await call(`${path}/compare`, 403, { token: tokens.finance });
     assert.notEqual(item.data.item.data.title, item.data.item.liveData.title);
     for (const revision of revisions.data.items) {
       const detail = await call(`/_emdash/api/revisions/${revision.id}`, 200);
       assert.equal(detail.data.item.entryId, entry.id);
       await call(`/_emdash/api/revisions/${revision.id}`, 401, { token: null });
       await call(`/_emdash/api/revisions/${revision.id}`, 403, {
-        token: tokens.charity,
+        token: tokens.finance,
       });
     }
     await call(path, 401, { token: null });
-    await call(path, 403, { token: tokens.charity });
+    await call(path, 403, { token: tokens.finance });
   }
   const entry = result.data.items[0];
   const path = `${root}/${entry.id}`;
@@ -507,7 +507,7 @@ if (
   };
   for (const options of [
     { token: null },
-    { token: tokens.charity },
+    { token: tokens.finance },
     { origin: "https://attacker.invalid" },
     { marker: false },
   ])
@@ -679,7 +679,7 @@ if (
   const historyBeforeRestore = await call(`${path}/revisions`, 200);
   for (const options of [
     { token: null },
-    { token: tokens.charity },
+    { token: tokens.finance },
     { origin: "https://attacker.invalid" },
     { marker: false },
   ]) {
@@ -727,7 +727,7 @@ if (
   const comparisonBeforeDiscard = await call(`${path}/compare`, 200);
   for (const options of [
     { token: null },
-    { token: tokens.charity },
+    { token: tokens.finance },
     { origin: "https://attacker.invalid" },
     { marker: false },
   ]) {
@@ -764,7 +764,7 @@ if (
   assert.equal(missing.error.message, "Content not found");
   await call("/_emdash/api/revisions/00000000000000000000000000", 404);
   await call(root, 401, { token: null });
-  await call(root, 403, { token: tokens.charity });
+  await call(root, 403, { token: tokens.finance });
   await call(root, 403, { origin: "https://attacker.invalid" });
   await call(root, 503, {
     extra: { Authorization: "Bearer synthetic-denied" },

@@ -25,6 +25,9 @@ export default defineConfig({
     contentLogPatch(),
     react(),
     emdash({
+      // A fixed public favicon avoids the native shell resolving global CMS
+      // media/settings merely to render a campaign editor's HTML document.
+      admin: { siteName: "LeonAid", favicon: "/favicon.svg" },
       auth: {
         type: "leonaid-core",
         entrypoint: new URL("./src/auth/leonaid-auth.ts", import.meta.url)

@@ -36,6 +36,7 @@ async def main() -> None:
                 else [
                     ("system", SYSTEM_ID),
                     ("charity", KLARA_ID),
+                    ("charity_b", UUID("10000000-0000-4000-8000-000000000003")),
                     ("finance", FINN_ID),
                 ]
             )
@@ -47,15 +48,45 @@ async def main() -> None:
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "w") as output:
                 json.dump(tokens, output)
+        elif sys.argv[1] == "prepare-isolation":
+            for suffix, user_id in [
+                (41, KLARA_ID),
+                (42, UUID("10000000-0000-4000-8000-000000000003")),
+            ]:
+                await connection.execute(
+                    """INSERT INTO action_membership
+                    (id, action_id, user_id, role, active_from)
+                    VALUES ($1, $2, $3, 'charity_admin', $4)""",
+                    UUID(f"40000000-0000-4000-8000-{suffix:012d}"),
+                    UUID(f"20000000-0000-4000-8000-{suffix:012d}"),
+                    user_id,
+                    now - timedelta(days=1),
+                )
+            await connection.execute(
+                "UPDATE charity_action SET status='scheduled' WHERE id=$1",
+                UUID("20000000-0000-4000-8000-000000000003"),
+            )
+            await connection.execute(
+                """UPDATE charity_action SET status='active',
+                publication_starts_at=$1, publication_ends_at=$2
+                WHERE id IN ($3, $4)""",
+                now - timedelta(days=1),
+                now + timedelta(days=1),
+                UUID("20000000-0000-4000-8000-000000000001"),
+                UUID("20000000-0000-4000-8000-000000000003"),
+            )
         elif sys.argv[1] == "rename":
             await connection.execute(
                 "UPDATE user_account SET email='renamed-system@leonaid.invalid' WHERE id=$1",
                 SYSTEM_ID,
             )
-        elif sys.argv[1] == "revoke":
-            await connection.execute(
-                "UPDATE user_session SET revoked_at=$1 WHERE user_id=$2", now, SYSTEM_ID
-            )
+        elif sys.argv[1] in {"revoke", "revoke-charity"}:
+            if sys.argv[1] == "revoke":
+                await connection.execute(
+                    "UPDATE user_session SET revoked_at=$1 WHERE user_id=$2",
+                    now,
+                    SYSTEM_ID,
+                )
             await connection.execute(
                 "DELETE FROM action_membership WHERE user_id=$1", KLARA_ID
             )

@@ -3,7 +3,7 @@ import { sql } from "kysely";
 import {
   CoreIdentityError,
   readCoreIdentity,
-  requireCoreCampaign,
+  requireCurrentCampaignActor,
 } from "./core-identity";
 import { requireCampaignBindings } from "./campaign-bindings.mjs";
 
@@ -13,11 +13,18 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
   const headers = { "Cache-Control": "no-store" };
   try {
     const profile = await readCoreIdentity(request);
-    if (profile.role !== 50 || locals.user?.role !== 50)
+    if (![40, 50].includes(profile.role) || locals.user?.role !== profile.role)
       throw new CoreIdentityError(403);
     const actionId = params.actionId;
     if (!actionId) throw new CoreIdentityError(403);
-    await requireCoreCampaign(request, actionId);
+    await requireCurrentCampaignActor(
+      request,
+      {
+        coreUserId: profile.userId,
+        coreRole: profile.role,
+      },
+      actionId,
+    );
     const database = locals.emdash?.db;
     if (!database) throw new CoreIdentityError(503);
     const rows = await database.transaction().execute(async (transaction) => {

@@ -1,6 +1,6 @@
 # EmDash authorization surface
 
-Status: route inventory and closed-policy verification; campaign isolation is NOT proven.
+Status: bounded Charity editorial admission implemented; full campaign isolation remains incomplete.
 
 Baseline: EmDash 0.36.0 at `603062902369d9695608e85c2d034d4f66f7a1f1`.
 `route-inventory.json` records each route's actual exported HTTP methods, package
@@ -9,21 +9,24 @@ injector, not a filename-derived approximation. It includes 165 core routes and
 20 built-in auth routes and one MCP route that are deliberately not enabled in
 this installation (186 routes total).
 
-All actors below are resolved through current Core sessions. Charity users have
-no admitted CMS operation yet. The shared test for every CMS-routed row is
-`authorization-surface`: real HTTPS requests with System Admin, Charity Admin and
-anonymous credentials, each declared method plus HEAD/OPTIONS. An admitted GET
-is expected to return 200/403/401 respectively; other operations remain 503.
+All actors below are resolved through current Core sessions. The bounded
+editorial routes admit current campaign-scoped Charity Admins after completed
+bootstrap; disabled routes remain closed. The shared `authorization-surface`
+test uses real HTTPS requests with System Admin, Charity Admin and anonymous
+credentials, each declared method plus HEAD/OPTIONS. Own identity and manifest
+GETs return 200 for both admin roles and 401 anonymously. The global dashboard
+remains System-Admin-only (200/403/401). Other disabled operations remain 503.
 The setup grant is already consumed in this proof. Root routes not owned by the
 CMS are tracked by the separate proxy-routing/build route contract.
 
 The `campaign-runtime` proof additionally exercises admitted GETs for the exact
 `campaign_pages` collection and canonical ULID content/revision IDs. These need
-completed bootstrap, valid HTTPS origin and a current Core System Admin session.
+completed bootstrap, valid HTTPS origin and a current authorized Core session.
 Request-local handlers enforce the campaign-read primitives before upstream
 data access. Unknown item IDs prove the wrapper's static `NOT_FOUND` response.
-All Charity users remain denied; positive Charity HTTP isolation is not yet
-claimed. A canonical item PUT now permits only System Admin editorial-draft edits
+The separate `campaign-editorial-isolation` prerequisite exercises both Charity
+actors with real Core memberships and disjoint campaign sets. A canonical item
+PUT permits authorized System Admin or campaign-member editorial-draft edits
 with a revision token, valid Origin and `X-EmDash-Request: 1`. It rejects binding
 changes, metadata and direct publication. The versioned editorial contract allows
 title, hero heading/introduction, bounded Portable Text, FAQ, partners, a fixed
@@ -47,13 +50,33 @@ placeholder collections/IDs, so it complements rather than replaces this test.
 
 ## Authorization after write-lock waits
 
+The new `campaign-editorial-isolation` prerequisite passed in isolated project
+`leonaid-emdash-tmp-muon2a5fkj`. Two actual Core Charity identities prove scoped
+lists/counts/cursors/search, hostile filter override, own/foreign content and
+revision operations, attributed update/restore/discard/publish/unpublish and
+draft-only creation. Forbidden writes preserve independent System Admin
+snapshots. Both actors' native lists and foreign editor URLs are checked in
+Chromium, Firefox and WebKit; native save/conflict/reload/publish/private-follow-up
+is additionally exercised as Charity A. With A's memberships removed in Core,
+all previously admitted operations deny A without changing content/history;
+B retains access. This is not the full `campaign-isolation` gate: media, preview,
+Charity native creation and real email-code login, hostile dependencies and the
+remaining complete operation matrix still require evidence.
+
+The Charity manifest is generated only from `campaignCollection`, including its
+source-derived hash. It contains no global database metadata. The native shell
+uses a configured public favicon instead of resolving CMS settings/media. The
+global dashboard endpoint remains forbidden, including on SPA navigation; the
+CMS root redirects Charity users to their scoped list. This changes no Caddy
+framing policy and adds no alternate authentication mechanism.
+
 The initial request profile is not sufficient authority for a mutation that has
 waited for a PostgreSQL lock. `requireCurrentCampaignActor` now performs fresh,
 bounded Core action and identity reads after content/revision locks, immediately
 before the original mutator runs. It requires the same Core subject and role,
 and current System Admin or matching Charity membership authority. Creation uses
-the same check after its per-action advisory lock. This helper does not open
-Charity admission: the outer System-Admin-only gate remains in place.
+the same check after its per-action advisory lock. Charity admission also
+requires completed setup, identity mapping and the scoped outer/runtime guards.
 
 `campaign-auth-race` reproduces actual blocked HTTP operations, rather than
 sleeping before the request or substituting Core responses. Its isolated operator
@@ -72,13 +95,14 @@ race proof runs within `campaign-runtime` before its happy-path regressions.
 
 This is a post-lock revalidation boundary, not a distributed transaction between
 Core and CMS: it does not promise atomic cancellation of a write when revocation
-occurs after the final Core authorization read. Positive Charity membership
-revocation, role/suspension changes, dependency failure cases and full isolation
-remain separate acceptance requirements.
+occurs after the final Core authorization read. The editorial-isolation
+prerequisite tests withdrawal before the next request; Charity-specific lock-wait
+revocation, role/suspension changes, dependency failures and full isolation remain
+separate acceptance requirements.
 
 ## Admitted editor operations
 
-Canonical System Admin editor/list HTML routes under
+Canonical authorized admin editor/list HTML routes under
 `/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
 fixed-origin and current Core session checks. Anonymous navigation returns to
 Core login with that validated local path. APIs remain the data-access boundary.
@@ -92,16 +116,18 @@ unavailable targets fail closed. Anonymous login preserves only this validated
 parameter, never arbitrary query parameters. The client prefill conveys no
 authority: the creation POST still validates the complete body and current Core
 access. Without a handoff, the manual System Admin flow remains available.
-Campaign-aware LeonAid navigation and Charity admission remain pending.
+Charity navigation to the CMS root redirects to the scoped campaign list.
+Charity creation requires an authorized `?campaign=<Core UUID>` handoff.
+Campaign-aware navigation in LeonAid itself remains pending.
 The narrow `auth/me` POST admits
 only upstream's own-user `dismissWelcome` action, with Origin and request-marker
 checks. This changes neither identity nor permissions and creates no session.
-The surface test expects HTTP 400 for the System Admin's empty preference body,
-401 for anonymous callers and 403 for Charity callers; other disabled POSTs
+The surface test expects HTTP 400 for either admin role's empty preference body
+and 401 for anonymous callers; other disabled POSTs
 remain closed. The native editor browser proof runs separately from the route
 inventory matrix and does not claim complete Charity editor admission.
 
-Canonical revision-restore POSTs now use the same bootstrap, Core System Admin,
+Canonical revision-restore POSTs now use the same bootstrap, current Core authority,
 Origin and request-marker checks. The scoped revision reader resolves the stored
 campaign parent before the original runtime restore runs under that parent's
 row lock and transaction. A restore creates an actor-attributed draft revision;
@@ -109,10 +135,10 @@ it does not publish, change content authorship, or rewrite the source revision.
 The real `campaign-runtime` proof checks these properties and late-write rollback,
 as well as denied actors, missing guards and revoked sessions. This uses EmDash's
 explicit restore semantics (no `_rev` precondition on its native restore route),
-not an autosave operation. Charity admission remains closed.
+not an autosave operation. Charity access requires membership of the stored parent.
 
 Canonical `campaign_pages` compare GETs and discard-draft POSTs are also admitted
-for System Admins. Comparison holds the scoped content row and both revision
+for System Admins and the campaign's Charity Admins. Comparison holds the scoped content row and both revision
 references through upstream reading, requiring each referenced revision to belong
 to that exact parent. The real PostgreSQL proof denies foreign policy actors and
 corrupted cross-entry pointers even for System Admins. Discard uses the original
@@ -121,7 +147,7 @@ was cleared; it neither inserts nor deletes history. HTTPS tests cover unchanged
 live data, repeat discard, restoring discarded history, denied actors and rollback
 when a fixture-only deferred PostgreSQL trigger rejects the final commit.
 
-Canonical campaign publish POSTs are admitted for System Admins only after a
+Canonical campaign publish POSTs are admitted for authorized admins only after a
 fresh, bounded call to the existing authenticated Core action endpoint. Its new
 `isPublished` response field evaluates the existing `is_published_at` domain
 method with Core's clock; it is not persisted and does not duplicate lifecycle
@@ -138,7 +164,7 @@ and required beneficiaries. This is a CMS mutation gate, NOT an anonymous
 delivery proof or a lasting public-access grant: EMS-050 must recheck Core on
 every public page request, including withdrawal after a successful CMS publish.
 
-Canonical unpublish POSTs require the same current Core System Admin session,
+Canonical unpublish POSTs require the same current authorized Core session,
 scope, Origin and request marker, but deliberately do not require an active Core
 publication window. An authorized operator must still be able to withdraw a CMS
 publication after Core closure. The original unpublisher runs atomically: an
@@ -171,7 +197,7 @@ must both be checked and the binding must remain immutable.
 | Route | Methods | Registration | Current rule | Required campaign lookup |
 | --- | --- | --- | --- | --- |
 | `/_emdash/.well-known/auth` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/admin/[...path]` | GET | core | System Admin root/canonical campaign editor; one-shot setup | Data APIs independently enforce campaign authority |
+| `/_emdash/admin/[...path]` | GET | core | System Admin root; scoped campaign editor for both admin roles; designated setup | Data APIs independently enforce campaign authority |
 | `/_emdash/api/admin/allowed-domains` | GET, POST | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/admin/allowed-domains/[domain]` | DELETE, PATCH | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/admin/api-tokens` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
@@ -230,7 +256,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/auth/logout` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/magic-link/send` | POST | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/magic-link/verify` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/auth/me` | GET, POST | core | Core System Admin GET and own welcome dismissal only | No other user, identity or role mutation |
+| `/_emdash/api/auth/me` | GET, POST | core | Current admin identity GET and own welcome dismissal only | No other user, identity or role mutation |
 | `/_emdash/api/auth/mode` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/oauth/[provider]` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/auth/oauth/[provider]/callback` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
@@ -245,20 +271,20 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/auth/signup/verify` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/content/[collection]` | GET, POST | core | campaign_pages: System Admin GET and bounded draft-only POST; otherwise denied | Current Core action, mapped author, serialized create and list/count filters |
-| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked bounded editorial-draft PUT only | Stored action_id; immutable proposed binding; strict editorial field policy |
-| `/_emdash/api/content/[collection]/[id]/compare` | GET | core | campaign_pages canonical ULID: System Admin only | Stored parent action_id and exact live/draft revision parent bindings |
-| `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | campaign_pages canonical ULID: System Admin only; atomic pointer clear | Stored parent action_id; unchanged live content and history |
+| `/_emdash/api/content/[collection]` | GET, POST | core | campaign_pages: scoped admin GET and bounded draft-only POST; otherwise denied | Current Core action, mapped author, serialized create and list/count filters |
+| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: scoped admin GET and revision-checked bounded editorial-draft PUT only | Stored action_id; immutable proposed binding; strict editorial field policy |
+| `/_emdash/api/content/[collection]/[id]/compare` | GET | core | campaign_pages canonical ULID: scoped admin only | Stored parent action_id and exact live/draft revision parent bindings |
+| `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | campaign_pages canonical ULID: scoped admin only; atomic pointer clear | Stored parent action_id; unchanged live content and history |
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/permanent` | DELETE | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/preview-url` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/publish` | POST | core | campaign_pages canonical ULID: System Admin plus fresh Core publication approval; no backdating | Stored action_id, exact revision parents, Core-evaluated current publication window |
+| `/_emdash/api/content/[collection]/[id]/publish` | POST | core | campaign_pages canonical ULID: scoped admin plus fresh Core publication approval; no backdating | Stored action_id, exact revision parents, Core-evaluated current publication window |
 | `/_emdash/api/content/[collection]/[id]/restore` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/revisions` | GET | core | campaign_pages canonical ULID: System Admin only; otherwise denied | Stored parent content action_id |
+| `/_emdash/api/content/[collection]/[id]/revisions` | GET | core | campaign_pages canonical ULID: scoped admin only; otherwise denied | Stored parent content action_id |
 | `/_emdash/api/content/[collection]/[id]/schedule` | DELETE, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/terms/[taxonomy]` | GET, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/translations` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/unpublish` | POST | core | campaign_pages canonical ULID: System Admin only; allowed after Core publication closure | Stored action_id and exact revision parents; atomic withdrawal preserving draft/history |
+| `/_emdash/api/content/[collection]/[id]/unpublish` | POST | core | campaign_pages canonical ULID: scoped admin only; allowed after Core publication closure | Stored action_id and exact revision parents; atomic withdrawal preserving draft/history |
 | `/_emdash/api/content/[collection]/authors` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/trash` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/dashboard` | GET | core | Core System Admin GET only | Global/identity surface; no campaign authority implied |
@@ -272,7 +298,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/import/wordpress/media` | POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/import/wordpress/prepare` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/import/wordpress/rewrite-urls` | POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/manifest` | GET | core | Core System Admin GET only | Global/identity surface; no campaign authority implied |
+| `/_emdash/api/manifest` | GET | core | System Admin runtime manifest; Charity source-only campaign manifest | No global settings, other schemas, media, taxonomy or plugin metadata for Charity |
 | `/_emdash/api/mcp` | DELETE, GET, POST | mcp-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/media` | GET, POST | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
 | `/_emdash/api/media/[id]` | DELETE, GET, PUT | core | Denied for all actors | Media-to-campaign binding (not global ownership) |
@@ -304,8 +330,8 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/redirects/[id]` | DELETE, GET, PUT | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/redirects/404s` | DELETE, GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/redirects/404s/summary` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/revisions/[revisionId]` | GET | core | Canonical ULID: System Admin only, campaign_pages parent required | Revision to owning content action_id |
-| `/_emdash/api/revisions/[revisionId]/restore` | POST | core | Canonical ULID: System Admin only, campaign_pages parent required; new draft only | Stored revision parent to owning content action_id; locked atomic restore |
+| `/_emdash/api/revisions/[revisionId]` | GET | core | Canonical ULID: scoped admin, campaign_pages parent required | Revision to owning content action_id |
+| `/_emdash/api/revisions/[revisionId]/restore` | POST | core | Canonical ULID: scoped admin, campaign_pages parent required; new draft only | Stored revision parent to owning content action_id; locked atomic restore |
 | `/_emdash/api/schema` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/schema/collections` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/schema/collections/[slug]` | DELETE, GET, PUT | core | Denied for all actors | Global/identity surface; no campaign authority implied |

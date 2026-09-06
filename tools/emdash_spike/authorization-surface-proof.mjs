@@ -71,7 +71,11 @@ for (const route of inventory.routes.filter((route) =>
               ? 400
               : 200
             : actor === "charity"
-              ? 403
+              ? path === "/_emdash/api/dashboard"
+                ? 403
+                : method === "POST"
+                  ? 400
+                  : 200
               : 401
           : 503;
       assert.equal(response.status, expected, `${actor} ${method} ${path}`);

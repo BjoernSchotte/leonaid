@@ -20,6 +20,8 @@ services:
     networks: [edge]
     volumes:
       - ../../tools:/workspace/tools:ro
+      - ../../apps/campaign-site/src/auth/campaign-manifest.mjs:/workspace/apps/campaign-site/src/auth/campaign-manifest.mjs:ro
+      - ../../apps/campaign-site/src/campaign-schema.mjs:/workspace/apps/campaign-site/src/campaign-schema.mjs:ro
       - ../../specs/emdash-campaign-microsite-spike:/workspace/specs/emdash-campaign-microsite-spike:ro
   bootstrap-operator:
     image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a

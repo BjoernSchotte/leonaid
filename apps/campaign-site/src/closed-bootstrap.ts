@@ -1,7 +1,11 @@
 import { defineMiddleware } from "astro:middleware";
 import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
-import { CoreIdentityError, requireCoreCampaign } from "./auth/core-identity";
+import {
+  CoreIdentityError,
+  requireCurrentCampaignActor,
+} from "./auth/core-identity";
+import { campaignManifest } from "./auth/campaign-manifest.mjs";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
   isCampaignEditorRoute,
@@ -53,6 +57,7 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       if (import.meta.env.DEV || request.headers.has("Authorization"))
         throw new Error();
       const identity = await authenticate(request);
+      if (identity.role !== 50) throw new CoreIdentityError(403);
       await requireArmedBootstrap(bootstrapDirectory, identity.subject);
       if (!hasSecurePublicOrigin(request))
         return new Response("Invalid CMS origin", { status: 403, headers });
@@ -130,9 +135,34 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       )
         return new Response("Invalid CMS request", { status: 403, headers });
       const identity = await authenticate(request);
+      if (identity.role === 40) {
+        if (url.pathname === "/_emdash/api/dashboard")
+          throw new CoreIdentityError(403);
+        if (adminHome)
+          return new Response(null, {
+            status: 303,
+            headers: {
+              ...headers,
+              Location: "/_emdash/admin/content/campaign_pages",
+            },
+          });
+        if (url.pathname === "/_emdash/api/manifest")
+          return Response.json(
+            { success: true, data: campaignManifest() },
+            { headers },
+          );
+        if (campaignNew && !campaignHandoff) throw new CoreIdentityError(403);
+      }
       if (campaignNew && campaignParameters.length) {
         if (!campaignHandoff) throw new CoreIdentityError(403);
-        await requireCoreCampaign(request, campaignHandoff);
+        await requireCurrentCampaignActor(
+          request,
+          {
+            coreUserId: identity.subject,
+            coreRole: identity.role,
+          },
+          campaignHandoff,
+        );
       }
       if (setupManifest)
         await requireArmedBootstrap(bootstrapDirectory, identity.subject);

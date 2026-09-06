@@ -844,6 +844,50 @@ Dependencies: EMS-020, EMS-070
 
 This is the decisive feasibility task.
 
+Current editorial admission checkpoint (6 September 2026):
+
+- [x] Admit current Charity Admins to the bounded non-media campaign editor
+      after completed bootstrap, with server-side membership enforcement for
+      list/count/pagination/search, item and revision reads, comparison, draft
+      update, restore, discard, publish, unpublish and draft-only creation.
+      Require an authorized Core campaign handoff for Charity creation; retain
+      immutable bindings and fresh post-lock Core authorization.
+- [x] Keep the global dashboard inaccessible to Charity users and redirect their
+      CMS home to the scoped campaign list. Return a source-only campaign field
+      manifest instead of global database settings/schema/plugin/media metadata.
+      Configure a fixed shell favicon so rendering editor HTML does not resolve
+      global CMS branding media. Denied Finance-only actors remain denied.
+- [x] Prove both Charity actors against actual Core sessions and disjoint action
+      memberships, including native browser list isolation and direct foreign
+      editor requests. Prove the assigned Charity actor's native autosave/manual
+      save, stale-tab conflict, attributed revision, publish and private follow-up
+      in Chromium, Firefox and WebKit. Withdraw A's memberships in real Core
+      storage and prove every admitted operation denies A without changing its
+      content/history, while B remains authorized.
+
+Evidence: `./leonaid test-emdash-spike --case campaign-editorial-isolation`
+exited successfully in isolated project `leonaid-emdash-tmp-muon2a5fkj`.
+Two real Charity identities operate on three initially seeded campaign records
+and independently create two more. Foreign content/revision mutations leave
+System-Admin-observed snapshots unchanged. A forged action filter cannot widen
+the list; foreign-title search first proves the record is searchable by System
+Admin before requiring zero Charity results. All six actor/browser combinations
+prove scoped native lists, foreign item API 404 and closed global navigation.
+The accompanying HTTPS requests verify the project CA, no-store responses and
+absence of independent CMS cookies. Bootstrap remains closed after restart and
+database failure. All owned resources were removed; no host ports were published.
+The fixture follows Core's actual draft-to-scheduled-to-active lifecycle; no
+domain trigger was bypassed. Native list links include locale query parameters,
+which the browser proof preserves when matching canonical item destinations.
+
+This is a prerequisite, not success of the broader `campaign-isolation` gate.
+Charity email-code login, native creation/rich-field UX, membership revocation
+during lock waits, remaining account/dependency cases, media, preview and the
+complete route/data matrix remain open. Earlier System-Admin-only checkpoints
+below describe their historical evidence; this checkpoint supersedes their
+blanket Charity-denial status for the bounded admitted operations only.
+No production or other-checkout activation is authorized.
+
 Campaign-list primitive checkpoint (6 September 2026):
 `./leonaid test-emdash-spike --case campaign-content` passed against the pinned
 PostgreSQL image and actual EmDash migrations, seed API and content-list handler.

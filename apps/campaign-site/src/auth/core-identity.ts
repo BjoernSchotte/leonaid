@@ -160,7 +160,6 @@ export async function requireCurrentCampaignActor(
   actor: { coreUserId: string; coreRole: number },
   actionId: string,
 ) {
-  const action = await requireCoreCampaign(request, actionId);
   const current = await readCoreIdentity(request);
   if (
     current.userId !== actor.coreUserId ||
@@ -173,5 +172,5 @@ export async function requireCurrentCampaignActor(
       ))
   )
     throw new CoreIdentityError(403);
-  return action;
+  return requireCoreCampaign(request, actionId);
 }

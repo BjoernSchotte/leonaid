@@ -73,7 +73,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await context.addCookies([
       {
         name: "__Host-leonaid_session",
-        value: tokens.charity,
+        value: tokens.finance,
         domain: "proxy",
         path: "/",
         secure: true,
@@ -85,7 +85,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.equal(denied.status(), 403);
     await context.close();
     console.log(
-      `emdash-admin-browser: OK: ${name}: ${revoked ? "revoked session redirects/denies" : "Core-session dashboard hydration and login return"}; Charity access denied`,
+      `emdash-admin-browser: OK: ${name}: ${revoked ? "revoked session redirects/denies" : "Core-session dashboard hydration and login return"}; Finance access denied`,
     );
   } finally {
     await browser.close();
