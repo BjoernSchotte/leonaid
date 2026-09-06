@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
-const root = "http://proxy:8080";
+const root = "https://proxy:8443";
 const get = (path, options = {}) =>
   fetch(root + path, {
     ...options,

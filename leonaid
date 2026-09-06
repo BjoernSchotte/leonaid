@@ -40,7 +40,7 @@ Commands:
                     Prove public alias switching and immutable archive routes
   test-public-orders
                     Prove public form, real Twenty reuse/create and ActivityEvents
-  test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime>
+  test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime>
                     Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX

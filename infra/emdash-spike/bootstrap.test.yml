@@ -1,0 +1,23 @@
+services:
+  proxy:
+    ports: !reset []
+    depends_on: !reset {}
+  campaign-site:
+    environment:
+      EMDASH_SITE_URL: https://proxy:8443
+  bootstrap-probe:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    working_dir: /workspace
+    networks: [edge]
+    volumes:
+      - ../../tools:/workspace/tools:ro
+  bootstrap-operator:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    user: "1000:1000"
+    network_mode: none
+    working_dir: /workspace
+    volumes:
+      - ../../apps/campaign-site:/workspace/apps/campaign-site:ro
+      - ../../tools/emdash_spike:/workspace/tools/emdash_spike:ro
+      - cms-bootstrap-state:/app/bootstrap-state
+    entrypoint: [node, tools/emdash_spike/arm-bootstrap.mjs]

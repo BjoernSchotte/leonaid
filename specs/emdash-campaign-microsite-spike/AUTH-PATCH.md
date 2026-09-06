@@ -21,7 +21,9 @@ The outer guard validates Core before EmDash initialization, then the external
 adapter validates Core again inside upstream middleware. There is deliberately
 no identity cache. Bearer headers and development-mode fallback are refused.
 Only GET `/_emdash/api/auth/me` is currently admitted, for Core System Admins.
-Editor, setup, mutations, public previews and all other CMS paths remain closed.
+Editor, non-setup mutations, public previews and all other CMS paths remain closed.
+The later `BOOTSTRAP.md` gate separately admits one operator-authorized setup
+attempt through verified Core identity and the configured HTTPS origin.
 This is not proof of browser SSO or campaign authorization.
 
 Verification: `./leonaid test-emdash-spike --case auth-runtime` uses the actual

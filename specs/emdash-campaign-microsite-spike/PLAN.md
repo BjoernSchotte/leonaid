@@ -924,7 +924,7 @@ Dependencies: EMS-010, EMS-020
       temporary, fail-closed bootstrap gate covering every
       `/_emdash/admin/setup*` and `/_emdash/api/setup*` route. Protect both UI and
       API; protecting the visible wizard alone is insufficient.
-- [ ] Permit initial setup only to a currently authenticated LeonAid System
+- [x] Permit initial setup only to a currently authenticated LeonAid System
       Admin. Do not store temporary bootstrap credentials in Git.
 - [ ] Verify setup completion from inside the trusted network, then permanently
       close setup routes (do not remove protection). The gate must not reopen
@@ -945,12 +945,39 @@ setup UI and API cannot be claimed anonymously; only the designated System
 Admin completes setup; setup cannot be repeated; all normal EmDash auth uses
 the LeonAid session and no Passkey prompt appears.
 
+Protected bootstrap checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case bootstrap-runtime` passed with real production
+EmDash, Core, PostgreSQL and Caddy. The client validates the actual TLS certificate
+against this project's CA; it does not disable certificate verification. The
+proof covers default denial, explicit 15-minute operator activation bound to one
+Core System Admin UUID, anonymous/Charity denial, foreign Origin denial, forged
+forwarding-header replacement, wrong HTTP Host rejection with fixed TLS SNI,
+HTTP-to-HTTPS redirect, real setup-page delivery and successful setup POST.
+Setup cannot be repeated and remains closed after a CMS restart and PostgreSQL
+shutdown. No independently usable CMS session cookie is created.
+
+The separate `cms-bootstrap-state` volume is consumed before upstream mutation;
+completion additionally requires reading the actual database completion option.
+Real-filesystem tests cover twelve concurrent attempts (exactly one consumes),
+actor mismatch, expiry, corruption, symlinks and refusal to rearm existing state.
+See `BOOTSTRAP.md` for state transitions, crash behavior and recovery obligations.
+The proof creates only its own project networks/volumes, publishes no host ports,
+and runs activation with no network or application credentials. Owned temporary
+resources and synthetic session files were removed after the test.
+
+This is not the full `tls-and-bootstrap` gate: browser wizard interaction,
+general editor/login navigation, pilot runtime origin configuration, complete
+proxy trust review and fresh-volume recovery remain open. The new durable state
+must be included in EMS-080 before any pilot activation.
+
 ### EMS-080 — Extend backup, restore, upgrade, observability, and operator UX
 
 Dependencies: EMS-050, EMS-070
 
 - [ ] Add the EmDash database and its required runtime state to the existing
       consistent backup inventory.
+      Include `cms-bootstrap-state`; missing state must remain closed on restore,
+      never be reconstructed as an armed grant from an empty CMS database.
 - [ ] Ensure RustFS backup includes the dedicated media bucket and verify media
       object restoration, not just metadata.
 - [ ] Preserve the EmDash encryption key outside its database and include only

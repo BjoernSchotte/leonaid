@@ -1,10 +1,19 @@
 import { defineMiddleware } from "astro:middleware";
-import { databaseReady } from "./database-ready";
+import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
 import { CoreIdentityError } from "./auth/core-identity";
+import { hasSecurePublicOrigin } from "./auth/public-origin";
+import {
+  bootstrapIsArmed,
+  requireArmedBootstrap,
+  consumeBootstrap,
+  completeBootstrap,
+} from "./bootstrap-control.mjs";
+
+const bootstrapDirectory = "/app/bootstrap-state";
 
 // Intentionally no enable environment variable. Broader access requires the
-// EMS-020/070 gates; only verified read-only identity reaches a CMS handler.
+// EMS-020/070 gates; setup additionally needs an explicit one-time operator grant.
 export const onRequest = defineMiddleware(async ({ url, request }, next) => {
   const headers = { "Cache-Control": "no-store" };
   if (url.pathname === "/health/live") {
@@ -17,8 +26,49 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       headers,
     });
   }
-  // First integrated read-only seam. Editor, mutations, setup and alternative
-  // credentials remain closed until their own acceptance gates pass.
+  const setupPage =
+    url.pathname === "/_emdash/admin/setup" ||
+    url.pathname === "/_emdash/admin/setup/";
+  const setupStatus = url.pathname === "/_emdash/api/setup/status";
+  const setupPost =
+    url.pathname === "/_emdash/api/setup" && request.method === "POST";
+  if (((setupPage || setupStatus) && request.method === "GET") || setupPost) {
+    if (!(await bootstrapIsArmed(bootstrapDirectory)))
+      return new Response("CMS access is not enabled", {
+        status: 503,
+        headers,
+      });
+    try {
+      if (import.meta.env.DEV || request.headers.has("Authorization"))
+        throw new Error();
+      const identity = await authenticate(request);
+      await requireArmedBootstrap(bootstrapDirectory, identity.subject);
+      if (!hasSecurePublicOrigin(request))
+        return new Response("Invalid CMS origin", { status: 403, headers });
+      if (await setupIsComplete()) throw new Error();
+      if (setupPost) {
+        if (request.headers.get("X-EmDash-Request") !== "1")
+          return new Response("Invalid CMS request", { status: 403, headers });
+        // Consume BEFORE upstream mutation. Failure/crash cannot reopen setup.
+        await consumeBootstrap(bootstrapDirectory, identity.subject);
+      }
+      const response = await next();
+      if (setupPost) {
+        // Upstream can report success despite failing to save completion.
+        if (!response.ok || !(await setupIsComplete())) throw new Error();
+        await completeBootstrap(bootstrapDirectory, identity.subject);
+      }
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    } catch (error) {
+      const status = error instanceof CoreIdentityError ? error.status : 503;
+      return Response.json(
+        { error: { code: "CMS_SETUP_DENIED" } },
+        { status, headers },
+      );
+    }
+  }
+  // Editor and non-setup mutations remain closed until their acceptance gates.
   if (url.pathname === "/_emdash/api/auth/me" && request.method === "GET") {
     // Upstream development and bearer paths bypass external auth. Never enter
     // either path, even when a valid Core cookie accompanies another credential.

@@ -19,6 +19,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
+  rm -f "$proof/root.crt"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -40,7 +41,10 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
 # Only these real services run; --no-deps avoids starting unrelated stack services.
 compose up --no-deps --build --detach public campaign-site
 compose up --no-deps --detach --wait proxy
-compose exec -T campaign-site node /proof/proxy-proof.mjs
+compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
+compose cp "$proof/root.crt" campaign-site:/tmp/proxy-root.crt
+compose exec -T --env NODE_EXTRA_CA_CERTS=/tmp/proxy-root.crt campaign-site node /proof/proxy-proof.mjs
 compose stop campaign-site
 # Reuse the CMS image as a one-shot probe, not as an HTTP server.
-compose run --rm --no-deps campaign-site node /proof/proxy-proof.mjs --cms-stopped
+compose run --rm --no-deps --volume "$proof/root.crt:/tmp/proxy-root.crt:ro" \
+  --env NODE_EXTRA_CA_CERTS=/tmp/proxy-root.crt campaign-site node /proof/proxy-proof.mjs --cms-stopped

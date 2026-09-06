@@ -27,6 +27,8 @@ services:
       EMDASH_SITE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
     networks: [edge, cms-data, storage-data]
+    volumes:
+      - cms-bootstrap-state:/app/bootstrap-state
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -38,6 +40,8 @@ services:
       context: ../proxy/image
     logging: *default-logging
     restart: unless-stopped
+    environment:
+      LEONAID_HTTPS_PORT: ${LEONAID_HTTPS_PORT:-8443}
     ports:
       - "127.0.0.1:${LEONAID_HTTP_PORT:-8080}:8080"
       - "127.0.0.1:${LEONAID_HTTPS_PORT:-8443}:8443"
@@ -565,6 +569,7 @@ services:
 
 volumes:
   survey-erasure-archive:
+  cms-bootstrap-state:
   core-postgres-data:
   twenty-postgres-data:
   twenty-redis-data:

@@ -1,6 +1,9 @@
 {
 	email {$CADDY_ACME_EMAIL}
 	admin off
+	servers {
+		strict_sni_host on
+	}
 }
 
 (common_headers) {
@@ -49,7 +52,12 @@
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
 	handle @campaign_routes {
 		import leonaid_headers
-		reverse_proxy campaign-site:3000
+		reverse_proxy campaign-site:3000 {
+			header_up -Forwarded
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
 
 	handle_path /app/* {

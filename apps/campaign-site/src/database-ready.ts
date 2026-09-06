@@ -24,3 +24,19 @@ export async function databaseReady(): Promise<boolean> {
     return false;
   }
 }
+
+export async function setupIsComplete(): Promise<boolean> {
+  if (process.env.PGDATABASE !== "emdash" || process.env.PGUSER !== "emdash")
+    return false;
+  try {
+    const result = await pool.query(
+      "SELECT value FROM options WHERE name = $1",
+      ["emdash:setup_complete"],
+    );
+    return (
+      result.rows.length === 1 && JSON.parse(result.rows[0].value) === true
+    );
+  } catch {
+    return false;
+  }
+}

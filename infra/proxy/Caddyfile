@@ -1,3 +1,9 @@
+{
+	servers {
+		strict_sni_host on
+	}
+}
+
 (common_headers) {
 	header {
 		X-Content-Type-Options nosniff
@@ -38,7 +44,12 @@
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
 	handle @campaign_routes {
 		import leonaid_headers
-		reverse_proxy campaign-site:3000
+		reverse_proxy campaign-site:3000 {
+			header_up -Forwarded
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
 
 	@slashless_service_roots path /app /admin /crm /mail /mailing
@@ -79,6 +90,10 @@ http://crm.localhost:8080 {
 
 http://:8080 {
 	import common_headers
+	@cms_https path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
+	handle @cms_https {
+		redir https://localhost:{$LEONAID_HTTPS_PORT:8443}{uri} 308
+	}
 	import leonaid_routes
 }
 

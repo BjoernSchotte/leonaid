@@ -7,13 +7,13 @@ shift
 test_case=all
 if [ "$#" -ne 0 ]; then
   if [ "$#" -ne 2 ] || [ "$1" != --case ]; then
-    echo "emdash-spike: expected --case dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime" >&2
+    echo "emdash-spike: expected --case dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime" >&2
     exit 2
   fi
   test_case=$2
 fi
 case "$test_case" in
-  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime) ;;
+  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
 
@@ -50,6 +50,7 @@ if [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/identity-map-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/core-auth-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root"
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" bootstrap
   echo "emdash-spike: INCOMPLETE: database, auth, isolation, rendering and recovery gates are pending" >&2
   exit 2
 fi
@@ -73,4 +74,7 @@ if [ "$test_case" = core-auth ]; then
 fi
 if [ "$test_case" = auth-runtime ]; then
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root"
+fi
+if [ "$test_case" = bootstrap-runtime ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" bootstrap
 fi
