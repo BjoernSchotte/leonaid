@@ -3,8 +3,8 @@
 Implementation in progress; the public package name and own OSS license remain
 UNDEFINED. The private package manifest uses UNLICENSED until that decision.
 The package now exposes initial contracts, a React respondent runner and scoped
-styles. The editor and analytics entrypoints are still pending. This is not yet
-a usable survey authoring package.
+styles, plus an initial independent visual editor. Analytics and the remaining
+authoring capabilities are still pending; this is not the accepted full spike.
 
 ## Host adapter protocol v1
 
@@ -91,3 +91,34 @@ browser inputs (an emoji outside the BMP counts as two units). The backend uses
 the same measure. Guided string conditions follow SurveyJS's case-insensitive
 default; answer data itself keeps its original case. `./leonaid test-surveys-core`
 compares these semantics in the actual pinned runtimes.
+
+
+## Initial visual editor
+
+Import SurveyEditor from `@leonaid/surveys/editor` and its separate stylesheet
+from `@leonaid/surveys/editor-styles`. Supply a Draft and an AuthoringAdapter.
+The editor has no LeonAid imports. The host currently exposes it at
+`/admin/surveys/new` and `/admin/surveys/<id>` after normal member authentication.
+These routes do not yet provide the complete survey navigation/list screen.
+
+The initial editor supports page/question creation, movement, duplication and
+removal, HTML drag-and-drop with explicit keyboard movement controls, basic
+question properties/choices and undo/redo. Stable question/choice IDs survive
+wording changes and moves. Page duplication gives its questions new IDs and
+remaps internal expression references while preserving quoted literals. Unknown
+JSON properties survive edits; unsupported question types are displayed read-only.
+Undo/redo keeps a bounded in-memory history of 100 edits; it is not a persisted
+edit/audit history. Reordering can invalidate preceding-answer dependencies;
+publication validation remains authoritative and must not be bypassed.
+
+Draft autosave debounces at 700ms. The coordinator serializes requests, retries
+uncertain writes with identical IDs/payloads and queues newer edits behind them.
+Conflicts stop automatic saves. Unacknowledged data remains in memory; reload
+is not a recovery mechanism for unsent edits. The host uses the actual generated
+LeonAid API client. The current editor UI is German; configurable translations
+remain an explicit package follow-up.
+
+Guided conditions, complete type-specific property panels, safe JSON import/export,
+live preview, publication controls, responsive/accessibility acceptance and full
+independent packed-consumer proof remain required work. The initial editor must
+not be presented as SurveyJS Creator feature parity.

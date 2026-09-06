@@ -49,6 +49,9 @@ if [ "$mode" = lifecycle ]; then
     --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = editor ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs"
+fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
@@ -62,6 +65,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
 cp "$proof/surveys-public.png" "$artifact/"
+if [ "$mode" = editor ]; then
+  cp "$proof/surveys-editor.png" "$artifact/"
+fi
 if [ "$mode" = runner ]; then
   cp "$proof/surveys-mid-page.png" "$artifact/"
 fi

@@ -59,6 +59,7 @@
       "dependencies": {
         "@leonaid/api-client": "workspace:*",
         "@leonaid/features": "workspace:*",
+        "@leonaid/surveys": "workspace:*",
         "@leonaid/ui": "workspace:*",
         "@tanstack/react-query": "5.101.4",
         "react": "19.2.8",

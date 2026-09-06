@@ -7,7 +7,9 @@
   "exports": {
     "./contracts": "./src/contracts.ts",
     "./runner": "./src/runner.tsx",
-    "./styles": "./src/styles.css"
+    "./styles": "./src/styles.css",
+    "./editor": "./src/editor.tsx",
+    "./editor-styles": "./src/editor.css"
   },
   "dependencies": {
     "survey-core": "3.0.3",
