@@ -1435,6 +1435,20 @@ Dependencies: EMS-030 successful
       Native field/picker UX, content/revision media-reference authorization,
       cleanup scheduling, publication-gated delivery and fresh restore remain
       open. This checkpoint does not complete media or campaign isolation.
+      Quality/regression checkpoint at `3afaacc`: `./leonaid check` passed with
+      208 unit tests, 242 Python source-file checks, 35 CMS files without
+      diagnostics, all frontend/API/type-generation/format/privacy/policy gates
+      and an unchanged committed tree. `campaign-media-binding` and
+      `campaign-media-upload` passed again in projects ending `0on4sgqolo` and
+      `yc9aepxs9a`; `authorization-surface` passed 1,866 actual HTTPS requests in
+      `vspx2idvue`. `proxy-routing` in `9ffxwicnev` byte-verified 50 CMS assets and
+      proved existing public login/assets survive CMS shutdown.
+      `campaign-editorial-isolation` in `kcmiw4cria` passed two-actor HTTP and
+      Chromium/Firefox/WebKit isolation plus actual Charity SMTP login, fresh
+      confirmation/session rotation, native draft editing/conflict/reload,
+      publication/private follow-up, creation and logout. Membership withdrawal,
+      restart and database-failure bootstrap closure passed. These regression
+      projects published no host ports and removed all owned resources.
 - [x] Implement and prove private raster-upload staging against actual RustFS,
       independently of HTTP admission. The already locked Sharp 0.35.3 is now an
       explicit CMS dependency; its version/license and frozen install are checked.
