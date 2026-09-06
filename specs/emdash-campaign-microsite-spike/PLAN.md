@@ -708,6 +708,9 @@ combines this boundary with the UUID mapper and remains System-Admin-only, but
 is deliberately NOT configured in EmDash yet. Upstream stable-ID resolution,
 actual middleware/browser integration, hostile-response cases and the complete
 shared-login acceptance gate remain open.
+`./leonaid check` passed at `e1b8913`: 208 unit tests, 242 Python source-file
+type checks, all frontend/CMS checks, generated API parity and an unchanged
+worktree. No active CMS authentication route is claimed by this checkpoint.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
