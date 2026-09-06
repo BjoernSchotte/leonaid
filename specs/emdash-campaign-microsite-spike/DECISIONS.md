@@ -41,7 +41,7 @@ canary in logs and the HTTP response. Creation rolls back, then succeeds after
 the fixture trigger is removed. The original runtime creator and request-local
 database transaction remain authoritative; hooks/validation are not replaced
 with the lower-level database proof helper. Native System Admin creation is now
-browser-proven with manual Core UUID/internal-slug entry; campaign-aware LeonAid
+browser-proven with both manual and validated campaign-parameter prefill; LeonAid
 navigation and Charity admission remain separate outstanding gates.
 
 ### Persistence selection

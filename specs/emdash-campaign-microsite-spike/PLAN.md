@@ -1321,6 +1321,23 @@ assertions in the existing tests.
 
 Dependencies: EMS-030, EMS-050
 
+- [x] Prove the native new-page campaign handoff prerequisite for System Admins:
+      `/_emdash/admin/content/campaign_pages/new?campaign=<Core UUID>` prefills
+      the existing editor's action binding and internal slug without manual
+      UUID/slug input. Validate the single canonical UUID and current Core access
+      on GET; preserve only the validated campaign parameter through anonymous
+      login redirection. POST still performs independent Core authorization and
+      guarded creation. Evidence: `admin-browser` passed in Chromium, Firefox
+      and WebKit in isolated project `leonaid-emdash-tmp-cc9ihf2dyj`, including
+      actual creation, duplicate rejection, autosave/reload, malformed/duplicate
+      query rejection, missing Core target fail-closed and Charity denial.
+      Existing SMTP login/fresh-login, native editing/publication, revocation and
+      bootstrap TLS restart/database-failure regressions passed. All owned
+      containers, networks and volumes were removed; no host ports were exposed.
+      `./leonaid check` passed on `bcad4db`: 208 unit tests, 242 Python source-file
+      checks, API parity, frontend/CMS type checks, formatting and privacy/policy
+      gates, with unchanged worktree. This does not close the navigation entry,
+      existing-microsite resolver, chooser, Back affordance or Charity admission.
 - [ ] Add **Edit microsite** to the existing role-aware LeonAid navigation for
       System Admins and Charity Admins only.
 - [ ] Where an action is already selected, link to the campaign-scoped EmDash
