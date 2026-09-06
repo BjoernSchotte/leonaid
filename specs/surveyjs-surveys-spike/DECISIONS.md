@@ -79,6 +79,37 @@ The browser fallback is explicitly allowed by the plan and retains the same
 authoritative persistence/validation adapter. Host browser evidence is recorded
 in [SURV-020](proofs/SURV-020.md#browser-rendering-and-restoration-disposition).
 
+### Timeout settings and effective status contract
+
+The planned `survey_partial_timeout_seconds` backend setting is persisted as
+`survey_settings.inactivity_timeout_seconds` and exposed as
+`inactivityTimeoutSeconds` through GET/PUT `/api/v1/survey-settings`. The initial
+value is 1800 seconds; only an active system administrator can read/change this
+global setting. PUT requires an operation ID and expected settings revision.
+The same operation and payload replay the original response; a changed payload
+or stale revision conflicts without changing state.
+
+PUT `/api/v1/surveys/{id}/settings` requires the survey's design capability and
+its summary revision (not its draft revision). A null timeout removes the
+override. Both settings accept integers from 1 through 604800 seconds; null is
+allowed only for the survey override. A participation snapshots the resolved
+value when created, so later settings changes cannot reinterpret its deadline.
+The member UI for these APIs is still tracked under SURV-060.
+
+The platform worker independently sweeps at most 1000 overdue participations
+every five seconds, or after 250ms when a full batch suggests more backlog.
+`FOR UPDATE SKIP LOCKED` leaves concurrent writes for a later sweep. A sweep
+changes only `in_progress` to `partial`, never answers, revisions, deadlines or
+completed state. Database/startup failures retry; the next successful sweep
+catches up from durable rows without a per-participation timer in memory.
+
+The PostgreSQL `survey_participation_effective` view supplies `effective_status`
+using statement time and the same persisted deadline as the worker. SURV-070
+must use this effective status for filters/denominators and prove it through the
+actual analysis endpoints while the worker lags. Reading the raw persisted
+`status` alone is not an acceptable analysis implementation. The current public
+response reader already evaluates this rule independently of worker progress.
+
 ## T-02 implementation selection — shared SurveyJS-Core adapter
 
 Select the isolated JavaScript adapter using the same `createSurveyModel`,

@@ -34,6 +34,19 @@ class DraftValidation(SurveyInput):
     expectedRevision: int = Field(ge=1)
 
 
+class TimeoutSettings(Mutation):
+    inactivityTimeoutSeconds: int = Field(ge=1, le=604800)
+
+
+class SurveyTimeoutSettings(Mutation):
+    inactivityTimeoutSeconds: int | None = Field(ge=1, le=604800)
+
+
+class TimeoutSettingsResponse(SurveyInput):
+    inactivityTimeoutSeconds: int
+    revision: int
+
+
 class Transition(Mutation):
     action: Literal["end", "archive", "unarchive", "trash", "restore"]
 
@@ -151,6 +164,46 @@ async def author(
 
 def cookie_name(participation_id: UUID | str) -> str:
     return f"__Host-survey_{participation_id}"
+
+
+@router.get(
+    "/survey-settings",
+    operation_id="getSurveySettings",
+    response_model=TimeoutSettingsResponse,
+)
+async def settings(request: Request, response: Response) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    return await service(request).settings(principal, None)
+
+
+@router.put(
+    "/survey-settings",
+    operation_id="updateSurveySettings",
+    response_model=TimeoutSettingsResponse,
+)
+async def update_settings(
+    body: TimeoutSettings, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    return await service(request).settings(principal, body.model_dump())
+
+
+@router.put(
+    "/surveys/{survey_id}/settings",
+    operation_id="updateSurveyTimeout",
+    response_model=SurveySummaryResponse,
+)
+async def update_survey_timeout(
+    survey_id: UUID, body: SurveyTimeoutSettings, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "settings", body.model_dump())
 
 
 @router.post(

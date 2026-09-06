@@ -671,7 +671,7 @@ Implementation tasks:
 
 - [ ] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue. Acceptance: **050.A3, 050.A5**.
 - [ ] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement. Acceptance: **050.A1, 050.A4**.
-- [ ] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**.
+- [x] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**. [Backend delivery evidence](proofs/SURV-050.md); 050.A2 remains open until SURV-070 proves the effective-status rule through actual analysis queries.
 - [ ] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data. Acceptance: **050.A3, 050.A4, 050.A5**.
 
 Test implementation and verification tasks:

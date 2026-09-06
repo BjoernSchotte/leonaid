@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import asyncpg
 
+from leonaid.adapters.postgres.pool import create_pool
+from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.entrypoints.worker.outbox import build_worker
 
 last_database_success = 0.0
@@ -108,7 +110,27 @@ async def database_readiness_loop() -> None:
 
 
 async def service_loop() -> None:
-    await asyncio.gather(durable_worker_loop(), database_readiness_loop())
+    await asyncio.gather(
+        durable_worker_loop(), database_readiness_loop(), survey_timeout_loop()
+    )
+
+
+async def survey_timeout_loop() -> None:
+    """Independent five-second sweep; catch up in bounded batches after outages."""
+    while True:
+        pool = None
+        try:
+            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
+            repository = AsyncpgSurveyRepository(pool)
+            while True:
+                count = await repository.classify_overdue()
+                await asyncio.sleep(0.25 if count == 1000 else 5)
+        except Exception:
+            # Migration/startup/database outages are retried without logging private rows.
+            await asyncio.sleep(2)
+        finally:
+            if pool is not None:
+                await pool.close()
 
 
 def main() -> None:

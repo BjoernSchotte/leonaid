@@ -90,6 +90,69 @@ class AsyncpgSurveyRepository:
     def __init__(self, pool: asyncpg.Pool[Any]):
         self.pool = pool
 
+    async def classify_overdue(self, limit: int = 1000) -> int:
+        """Bounded repeatable sweep; locked writes are retried on the next sweep."""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetch(
+                """WITH due AS (
+                    SELECT id FROM survey_participation
+                    WHERE status='in_progress' AND
+                        COALESCE(last_answer_changed_at,created_at)
+                        + make_interval(secs => inactivity_timeout_seconds)
+                        <= statement_timestamp()
+                    ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED
+                ) UPDATE survey_participation p SET status='partial'
+                  FROM due WHERE p.id=due.id RETURNING p.id""",
+                limit,
+            )
+            return len(result)
+
+    async def settings(
+        self, actor: IdentityPrincipal, body: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        if not actor.account.can_authenticate or not actor.is_system_admin:
+            raise PermissionDenied(
+                "forbidden", "Kein Zugriff auf die Grundeinstellung."
+            )
+        async with self.pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT * FROM survey_settings WHERE singleton FOR UPDATE"
+            )
+            if body is not None:
+                replay = await conn.fetchrow(
+                    "SELECT * FROM survey_settings_operation WHERE actor_id=$1 AND operation_id=$2",
+                    actor.account.id,
+                    body["operationId"],
+                )
+                if replay:
+                    if replay["request_hash"] != digest(encoded(body)):
+                        raise Conflict(
+                            "idempotency_conflict",
+                            "Operation mit anderen Daten wiederholt.",
+                        )
+                    return cast(dict[str, Any], json.loads(replay["response"]))
+                if row["revision"] != body["expectedRevision"]:
+                    raise Conflict(
+                        "revision_conflict", "Die Grundeinstellung wurde geändert."
+                    )
+                row = await conn.fetchrow(
+                    "UPDATE survey_settings SET inactivity_timeout_seconds=$1,revision=revision+1 WHERE singleton RETURNING *",
+                    body["inactivityTimeoutSeconds"],
+                )
+            result = {
+                "inactivityTimeoutSeconds": row["inactivity_timeout_seconds"],
+                "revision": row["revision"],
+            }
+            if body is not None:
+                await conn.execute(
+                    "INSERT INTO survey_settings_operation(actor_id,operation_id,request_hash,response) VALUES($1,$2,$3,$4::jsonb)",
+                    actor.account.id,
+                    body["operationId"],
+                    digest(encoded(body)),
+                    encoded(result),
+                )
+            return result
+
     async def _survey(self, conn: Any, survey_id: UUID) -> Any:
         row = await conn.fetchrow(
             "SELECT * FROM survey WHERE id=$1 FOR UPDATE", survey_id
@@ -189,6 +252,23 @@ class AsyncpgSurveyRepository:
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
             if operation == "summary":
                 return survey_payload(survey)
+            if operation == "settings":
+                if survey["status"] == "deleted":
+                    raise Conflict("closed", "Umfrage ist gelöscht.")
+                scope = f"author:{actor.account.id}:settings"
+                replay = await self._replay(conn, survey_id, scope, body)
+                if replay is not None:
+                    return replay
+                if survey["revision"] != body["expectedRevision"]:
+                    raise Conflict("revision_conflict", "Die Umfrage wurde geändert.")
+                updated = await conn.fetchrow(
+                    "UPDATE survey SET inactivity_timeout_seconds=$2,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *",
+                    survey_id,
+                    body["inactivityTimeoutSeconds"],
+                )
+                return await self._record(
+                    conn, survey_id, scope, body, survey_payload(updated)
+                )
             if operation in {"transition", "duplicate"}:
                 return await self._lifecycle(conn, actor, survey, operation, body)
             if survey["status"] in {"ended", "archived", "deleted"}:

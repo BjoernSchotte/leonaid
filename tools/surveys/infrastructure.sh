@@ -50,6 +50,12 @@ if [ "$mode" = lifecycle ]; then
     --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
 fi
 if [ "$mode" = runner ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/timeouts.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/timeouts.py recover
   validator_check() {
     compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
       --workdir /repo --entrypoint python api tools/surveys/validation_live.py "$1"

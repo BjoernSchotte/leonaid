@@ -7,6 +7,10 @@ from leonaid.domain.identity import IdentityPrincipal
 
 
 class SurveyRepository(Protocol):
+    async def settings(
+        self, actor: IdentityPrincipal, body: dict[str, Any] | None
+    ) -> dict[str, Any]: ...
+
     async def author(
         self,
         actor: IdentityPrincipal,
@@ -27,6 +31,11 @@ class SurveyRepository(Protocol):
 class SurveyService:
     def __init__(self, repository: SurveyRepository):
         self.repository = repository
+
+    async def settings(
+        self, actor: IdentityPrincipal, body: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        return await self.repository.settings(actor, body)
 
     async def author(
         self,
