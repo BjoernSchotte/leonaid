@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { request } from "node:https";
+import { setTimeout as delay } from "node:timers/promises";
 import pg from "pg";
 import sharp from "sharp";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
+Object.assign(
+  tokens,
+  JSON.parse(await readFile("/proof/reference-sessions.json", "utf8")),
+);
 const media = JSON.parse(
   await readFile("/proof/media-http-state.json", "utf8"),
 );
@@ -66,12 +71,85 @@ async function call(actor, path, status = 200, method = "GET", body) {
   });
   assert.equal(response.status, status, `${actor} ${method} ${path}`);
   assert.equal(response.headers["cache-control"], "no-store");
-  assert.equal(response.headers["set-cookie"], undefined);
+  if (!path.startsWith("/api/v1/"))
+    assert.equal(response.headers["set-cookie"], undefined);
   if (status === 403) {
     assert.ok(!response.text.includes(media.foreign.id));
     assert.ok(!response.text.includes(media.foreign.storageKey));
   }
   return JSON.parse(response.text).data;
+}
+
+const snapshot = async () => ({
+  entries: (
+    await pool.query("SELECT * FROM public.ec_campaign_pages ORDER BY id")
+  ).rows,
+  revisions: (await pool.query("SELECT * FROM public.revisions ORDER BY id"))
+    .rows,
+  media: (await pool.query("SELECT * FROM public.media ORDER BY id")).rows,
+});
+
+async function lateWriteRevocation(actor, path, method, body) {
+  // Native creation inserts the content row directly; later edits insert a
+  // draft revision. Block the actual write in each path, not an assumed hook.
+  const table = method === "POST" ? "ec_campaign_pages" : "revisions";
+  const before = await snapshot();
+  const blocker = await pool.connect();
+  let active = false;
+  let pending;
+  let trigger = false;
+  try {
+    await pool.query(`CREATE FUNCTION public.synthetic_reference_race() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN PERFORM pg_advisory_xact_lock(724381907); RETURN NEW; END; $$`);
+    await pool.query(`CREATE TRIGGER synthetic_reference_race AFTER INSERT ON public.${table}
+      FOR EACH ROW EXECUTE FUNCTION public.synthetic_reference_race()`);
+    trigger = true;
+    await blocker.query("BEGIN");
+    active = true;
+    const pid = (await blocker.query("SELECT pg_backend_pid() AS pid")).rows[0]
+      .pid;
+    await blocker.query("SELECT pg_advisory_xact_lock(724381907)");
+    pending = call(actor, path, 401, method, body);
+    void pending.catch(() => {});
+    let waiting = false;
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline) {
+      const result = await pool.query(
+        `SELECT query FROM pg_stat_activity WHERE datname=current_database()
+        AND wait_event_type='Lock' AND $1::integer=ANY(pg_blocking_pids(pid))`,
+        [pid],
+      );
+      waiting = result.rows.some((row) =>
+        row.query.toLowerCase().includes("insert into"),
+      );
+      if (waiting) break;
+      await delay(20);
+    }
+    assert.ok(
+      waiting,
+      `${actor}: real ${table} write must wait after initial Core authorization`,
+    );
+    await call(actor, "/api/v1/auth/logout", 200, "POST");
+    await call(actor, "/api/v1/identity/me", 401);
+    await blocker.query("COMMIT");
+    active = false;
+    await pending;
+    assert.deepEqual(await snapshot(), before);
+    console.log(
+      `campaign-reference-late-race: ${actor}: actual ${table} INSERT wait, Core logout, 401 and complete SQL rollback`,
+    );
+  } finally {
+    if (active) await blocker.query("ROLLBACK");
+    blocker.release();
+    if (pending) await Promise.allSettled([pending]);
+    if (trigger)
+      await pool.query(
+        `DROP TRIGGER synthetic_reference_race ON public.${table}`,
+      );
+    await pool.query(
+      "DROP FUNCTION IF EXISTS public.synthetic_reference_race()",
+    );
+  }
 }
 
 try {
@@ -113,6 +191,7 @@ try {
     {},
   );
   create.data.hero_image = { id: reserved.mediaId };
+  await lateWriteRevocation("reference-create", root, "POST", create);
   const created = await call("charity", root, 201, "POST", create);
   assert.equal(created.item.status, "draft");
   assert.equal(created.item.data.hero_image.id, reserved.mediaId);
@@ -128,13 +207,9 @@ try {
   const original = await call("charity", pagePath);
   const revisionId = original.item.draftRevisionId;
   assert.ok(revisionId);
-  const snapshot = async () => ({
-    entries: (
-      await pool.query("SELECT * FROM public.ec_campaign_pages ORDER BY id")
-    ).rows,
-    revisions: (await pool.query("SELECT * FROM public.revisions ORDER BY id"))
-      .rows,
-    media: (await pool.query("SELECT * FROM public.media ORDER BY id")).rows,
+  await lateWriteRevocation("reference-update", pagePath, "PUT", {
+    _rev: original._rev,
+    data: { title: "Synthetic revoked late update" },
   });
   const before = await snapshot();
   const stored = before.revisions.find(

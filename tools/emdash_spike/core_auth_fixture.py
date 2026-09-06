@@ -19,7 +19,12 @@ async def main() -> None:
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     try:
         now = datetime.now(timezone.utc)
-        if sys.argv[1] in {"prepare", "prepare-races", "prepare-media-races"}:
+        if sys.argv[1] in {
+            "prepare",
+            "prepare-races",
+            "prepare-media-races",
+            "prepare-reference-races",
+        }:
             actors = (
                 [
                     (operation, SYSTEM_ID)
@@ -44,6 +49,11 @@ async def main() -> None:
                 actors = [
                     (operation, KLARA_ID)
                     for operation in ["upload-start", "upload-link", "confirm"]
+                ]
+            if sys.argv[1] == "prepare-reference-races":
+                actors = [
+                    (operation, KLARA_ID)
+                    for operation in ["reference-update", "reference-create"]
                 ]
             tokens = {
                 name: await create_session(connection, user_id, now=now)

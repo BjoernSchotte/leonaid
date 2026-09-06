@@ -68,5 +68,12 @@ export async function createCampaignWithRuntime(
         },
       );
     },
+    async () => {
+      await requireCurrentCampaignActor(
+        request,
+        { coreUserId: profile.userId, coreRole: profile.role },
+        actionId,
+      );
+    },
   );
 }

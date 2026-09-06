@@ -131,8 +131,17 @@ the CMS database role, and transient synthetic sessions. Ordinary HTTP probes
 remain Edge-only; no host ports or production services are involved. The same
 race proof runs within `campaign-runtime` before its happy-path regressions.
 
-This is a post-lock revalidation boundary, not a distributed transaction between
-Core and CMS: it does not promise atomic cancellation of a write when revocation
+A second fresh authority check also runs after successful native
+writes, result-media validation, attribution/effect checks and deferred work,
+immediately before the transaction callback completes. Creation has the same
+final check after native creation and result validation. The media HTTP proof
+holds real INSERTs with fixture-only PostgreSQL triggers (content for creation,
+revisions for updates), logs each separate Charity session out through real Core
+HTTPS, then requires 401 and identical content/revision/media snapshots after
+releasing the lock. This closes revocation during those later write waits.
+
+These checks are not a distributed transaction between
+Core and CMS: they do not promise atomic cancellation of a write when revocation
 occurs after the final Core authorization read. The editorial-isolation
 prerequisite tests withdrawal before the next request; Charity-specific lock-wait
 revocation, role/suspension changes, dependency failures and full isolation remain

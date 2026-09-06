@@ -1400,6 +1400,22 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Revalidate the current Core actor after successful native content writes,
+      result-reference checks and deferred tasks, before completing the CMS
+      transaction. The same final check covers creation and all shared mutation
+      branches. `campaign-media-http` passed in isolated project
+      `leonaid-emdash-tmp-onakkpvf9m`: separate actual Charity sessions were
+      revoked through Core HTTPS while fixture-only PostgreSQL triggers held
+      content INSERT (create) and revision INSERT (update). Both returned 401
+      after release with identical complete content/revision/media snapshots;
+      independent valid sessions retained access and could create successfully.
+      All existing private-media, storage failure/retry, three upload/logout
+      races, membership withdrawal and bootstrap restart/database-failure cases
+      passed, with no host ports and complete owned-resource cleanup.
+      The initial proof targeted a revision INSERT for creation, but native
+      EmDash creates the content row directly; the corrected proof targets each
+      actual write path. The failed isolated run was also fully cleaned.
+      This is not atomic distributed revocation after the final Core read.
 - [x] Add version-2 local image fields (`hero_image`, `social_image`, partner
       `logo`), strict bounded reference shapes and matching generated types.
       Explicit `upgradeFromVersion1` migration verifies the retained exact v1

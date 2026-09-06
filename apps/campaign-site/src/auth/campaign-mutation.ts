@@ -149,7 +149,7 @@ export async function mutateCampaignAtomically(
           references.data,
         );
       const tasks = deferredTracker();
-      return runWithContext(
+      const result = await runWithContext(
         {
           ...getRequestContext(),
           editMode: false,
@@ -242,6 +242,14 @@ export async function mutateCampaignAtomically(
           }
         },
       );
+      // Native writes, result hydration and deferred work can acquire later
+      // locks too. Revocation during those waits must roll back the whole write.
+      await requireCurrentCampaignActor(
+        actor.request,
+        actor,
+        entry.rows[0].action_id,
+      );
+      return result;
     });
   } catch (error) {
     if (error instanceof RejectedMutation) return error.result;

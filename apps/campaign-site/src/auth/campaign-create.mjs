@@ -19,6 +19,7 @@ const reject = (code) => ({
 // original runtime creator, including its hooks and schema validation.
 /**
  * @param {(...args: Parameters<typeof handleContentCreate>) => Promise<{success: boolean, data?: unknown, error?: {code: string, message: string}}>} [create]
+ * @param {(transaction: Parameters<typeof handleContentCreate>[0]) => Promise<void>} [beforeCommit]
  */
 export async function createCampaignContent(
   database,
@@ -27,6 +28,7 @@ export async function createCampaignContent(
   cmsUserId,
   body,
   create = handleContentCreate,
+  beforeCommit,
 ) {
   const data = body?.data;
   if (
@@ -80,6 +82,7 @@ export async function createCampaignContent(
       data.action_id,
       result,
     );
+    if (beforeCommit) await beforeCommit(transaction);
     return result;
   });
 }
