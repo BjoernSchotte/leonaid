@@ -1095,6 +1095,9 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       The failure proof also exposed upstream error logging of raw database
       exceptions; sanitize that path before HTTP admission (synthetic diagnostic
       data only was used in this proof).
+      Quality gate: `./leonaid check` passed on `e0bdb7c`, including the new CMS
+      module (20 checked files), unit tests, Python/frontend type checks, API
+      parity, formatting and privacy/policy gates; working tree unchanged.
 - [ ] Ensure create cannot bind content to an action the actor does not manage,
       and update cannot change `action_id`.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
