@@ -12,6 +12,7 @@ import {
   requireCampaignBindings,
 } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
 import { provisionPostgres } from "./provision-postgres.mjs";
+import { proveCampaignCreate } from "./campaign-create-proof.mjs";
 import {
   listCampaignContent,
   getCampaignContent,
@@ -388,6 +389,12 @@ try {
   console.log(
     "campaign-content: real PostgreSQL/EmDash scoped reads, immutable content/revision bindings, invalid existing data and disabled-guard denial passed; Charity admission remains closed",
   );
+  await proveCampaignCreate(database, {
+    host: process.env.PGHOST,
+    user: "emdash",
+    database: "emdash",
+    password,
+  });
 } finally {
   await database.destroy();
 }

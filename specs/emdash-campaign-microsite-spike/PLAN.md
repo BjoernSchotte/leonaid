@@ -1076,6 +1076,25 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       during the spike.
 - [ ] Ensure list/search counts and draft previews cannot disclose another
       campaign's content.
+- [x] Prove the database creation primitive using the actual EmDash creator:
+      require a matching resolved action and current policy actor, persisted
+      Core-to-CMS author mapping, bounded title-only input and draft-only output.
+      Serialize creation per action; existing and trashed records reserve their
+      binding. Evidence (6 September 2026): `campaign-content` passed in isolated
+      project `leonaid-emdash-tmp-pseuhkfgqn`, with real PostgreSQL migrations and
+      EmDash writes. Four concurrent creates yielded exactly one success and
+      three conflicts. Foreign action, missing membership, driver role, wrong
+      identity mapping, metadata overrides and malformed fields were denied.
+      An actual AFTER INSERT trigger failure left no created record; removing
+      the fixture trigger restored successful creation. Owned resources were
+      removed. Actor/resolved-action inputs here are pure policy fixtures, not
+      proof of Core HTTP authorization. HTTP creation remains closed pending
+      live Core resolution, the original runtime hook/validation path and its
+      request-context transaction integration. This serialization is not the
+      database-wide unique action constraint required in EMS-040.
+      The failure proof also exposed upstream error logging of raw database
+      exceptions; sanitize that path before HTTP admission (synthetic diagnostic
+      data only was used in this proof).
 - [ ] Ensure create cannot bind content to an action the actor does not manage,
       and update cannot change `action_id`.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
