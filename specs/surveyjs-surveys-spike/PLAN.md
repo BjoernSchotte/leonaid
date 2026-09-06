@@ -560,8 +560,8 @@ full editor exists; carry the proven contracts into later work packages.
 Implementation tasks:
 
 - [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database. Acceptance: **010.A2, 010.A3, 010.A5**.
-- [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**.
-- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Acceptance: **010.A1, 010.A2, 010.A4**.
+- [x] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**. [Executable selection evidence](proofs/SURV-010.md#isolated-validation-candidate-selection); implementation selection delivered, full integration acceptance remains open.
+- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes. Acceptance: **010.A1, 010.A2, 010.A4**.
 - [x] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof. Acceptance: **010.A3, 010.A4, 010.A5**.
 
 Test implementation and verification tasks:
@@ -802,6 +802,7 @@ in the work-package proofs. SURV-100 wires the final aggregate/CI gate.
 | Proposed command | Required coverage |
 |---|---|
 | `./leonaid test-surveys-core` | Domain, contracts, validation parity and capability checks. |
+| `./leonaid test-surveys-validation-candidate` | Executable Python versus isolated shared-Core feasibility comparison; explicitly reports known production differences and cannot satisfy full integration acceptance. |
 | `./leonaid test-surveys-integration` | Real API/database/worker migrations, lifecycle, policies, aggregates and deletion/recovery. |
 | `./leonaid test-surveys-editor` | Editor components plus real persisted browser authoring and accessibility. |
 | `./leonaid test-surveys-responses` | Real persistence, ordering, timeout, fault and resume scenarios. |

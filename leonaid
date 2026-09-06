@@ -118,6 +118,7 @@ Commands:
   test-surveys-editor
   test-surveys-lifecycle
   test-surveys-core
+  test-surveys-validation-candidate
   test-surveys-runner
                     Prove browser autosave, partial resume and reconnect with real services
   test-surveys-responses
@@ -2008,6 +2009,11 @@ case "$command" in
     run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync pytest tests/unit/test_surveys.py tests/unit/test_survey_validation.py -q
     run_bun bun test tools/surveys/saves.test.ts
+    ;;
+  test-surveys-validation-candidate)
+    run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare
+    run_bun bun tools/surveys/validation-candidate.mjs .artifacts/surveys/candidate-input.json .artifacts/surveys/candidate-output.json
+    run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py verify
     ;;
   test-surveys-runner) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" runner ;;
   test-surveys-responses) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" responses ;;

@@ -60,7 +60,37 @@ must be recorded without silently changing the accepted product direction.
 | T-06 | Server-side chart generation for XLSX and Typst reports | SURV-080 | Shared aggregate data, no private browser screenshots as report pipeline. |
 | T-07 | SurveyJS 3 token mapping and SSR/hydration behavior in Astro/React | SURV-000/020 | Isolated styling, no duplicate autosave on hydration, no public caching of private participation content. |
 
-## Deliberately deferred
+## T-02 implementation selection — shared SurveyJS-Core adapter
+
+Select the isolated JavaScript adapter using the same `createSurveyModel`,
+restoration and profile answer checks as the browser. The executable comparison
+now covers 192 host-approved cases, including 24 explicit condition scenarios.
+The Python candidate disagrees on 27 mode/snapshot results: among these are nine
+missing required follow-ups that Python incorrectly considers complete because
+its relevance evaluation hides the question. See [SURV-010 evidence](proofs/SURV-010.md#isolated-validation-candidate-selection).
+
+Retain Python for the definition capability allowlist, authorization, selecting
+the stored published version, revision checks and transaction ownership. Do not
+weaken those controls or accept a respondent-supplied definition. The JS
+candidate evaluates answers and relevance only after host definition approval.
+It is currently an isolated executable comparison, not the production write path.
+
+The operational cost is an additional pinned JavaScript runtime and a bounded
+validation call at the backend adapter boundary. The benefit is eliminating a
+second implementation of SurveyJS condition coercion, emptiness and ordering.
+The candidate introduces no third-party dependency beyond existing MIT core;
+it does not import React, editor code or LeonAid modules. Throughput, memory,
+request limits, timeout/failure behavior and deployment remain to be proven
+when wiring the actual adapter. Do not infer a performance result from this
+feasibility run.
+
+SURV-010.3 must integrate this adapter with partial saves and completion, enforce
+bounded requests and fail closed on adapter failure without advancing revision,
+answers or completion. SURV-010.T1/A1 remain open until actual API/database and
+browser journeys prove these cases. The selection is delivered; full validation
+acceptance is not.
+
+## Deliberately deferred decisions
 
 - Own OSS license for LeonAid and editor: **UNDEFINED**. No choice between MIT
   and Apache-2.0. Existing `UNLICENSED`/`private` metadata remains unchanged.

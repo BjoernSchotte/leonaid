@@ -319,3 +319,53 @@ exit zero with verified teardown and no host ports. This covers both sample
 authoring journeys, keyboard/preview accessibility, persisted structural edits,
 safe import/publication rejection and draft-save recovery. It establishes no
 additional mobile/theme or full-profile compatibility claim.
+
+## Isolated validation candidate selection
+
+Task **010.2** implementation selection, based on `6396f5b` plus this commit.
+The linked **010.A1** acceptance remains open; no new actual-API or browser
+integration acceptance is claimed by this comparison.
+
+`./leonaid test-surveys-validation-candidate` executes three separate processes
+in pinned Docker runtimes: Python approves every fixture definition using the
+real capability validator, Bun evaluates the same definitions/answers through
+the new shared-Core candidate, and Python compares explicit expected results
+and the existing Python answer validator. The command exited zero for 192 cases.
+It uses ephemeral containers without published ports or persistent services.
+
+The candidate in `packages/surveys/src/validation-candidate.ts` shares the model,
+restoration and answer checks used by the runner. It returns partial validity,
+complete validity, cleaned answers and relevant question IDs, and disposes every
+model. It is not exported as an untrusted-definition API and is not called by
+the production backend yet. A `complete` flag on profile answer validation lets
+partial responses omit required answers, minimum selection counts and required
+matrix rows, while still rejecting malformed supplied values. Browser default
+completion behavior is unchanged.
+
+| Task | Required acceptance | Named scenarios / assertions | Delivery and remaining gap |
+|---|---|---|---|
+| 010.2 | 010.A1 | `validation_candidate.py`: all 168 existing cases plus 24 `candidate_*` cases in `condition-candidate-cases.json`; compare validity and exact snapshots, with explicit expected visible IDs | Comparison and JS selection delivered; real adapter integration still open |
+
+New scenarios include numeric text, quoted numeric literals, lexical strings
+and ISO dates, numeric/string contains, empty matrix, zero versus empty,
+case-insensitive equality and combined conditions. Each is run with and without
+its follow-up answer. Explicit expectations prevent a comparison from blessing
+two implementations that both produce the wrong result. The verifier requires
+the exact expected mismatch modes per case; unexpected differences or vanished
+known differences fail and require review.
+
+Observed result: 27 Python mode/snapshot differences across the new cases.
+Eighteen are cleaned-snapshot differences with supplied follow-ups; nine are
+completion differences when required follow-ups are missing. The Core candidate
+retains the relevant supplied follow-ups and rejects their absence at completion.
+The Python candidate incorrectly hides those questions. Aligned cases such as
+zero/notempty, case-insensitive equality and nonnumeric text remain controls.
+This evidence selects the shared-Core adapter in DECISIONS.md. It does not prove
+adapter availability, failure atomicity, deployment or all malformed definitions.
+
+Regression: `./leonaid test-surveys-core` exited zero (168 comparisons, 23 Python
+tests, three coordinator tests / 17 assertions). Package TypeScript checking
+also exited zero. Tests ran with Bun 1.2.19 and the pinned Python image from
+`infra/locks/images.env`, and SurveyJS Core 3.0.3. No production container or
+other worktree network was altered. The comparison JSON remains a synthetic,
+ignored local artifact reproducible with the command above.

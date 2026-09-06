@@ -24,12 +24,14 @@ const absent = (value: unknown) =>
 export function profileAnswerError(
   question: ProfileQuestion,
   value: unknown,
+  complete = true,
 ): string | undefined {
   if (absent(value)) {
     if (
-      question.isRequired ||
-      (question.type === "checkbox" &&
-        number(question, "minSelectedChoices", 0) > 0)
+      complete &&
+      (question.isRequired ||
+        (question.type === "checkbox" &&
+          number(question, "minSelectedChoices", 0) > 0))
     )
       return "Bitte beantworten Sie diese Frage.";
     return;
@@ -109,7 +111,7 @@ export function profileAnswerError(
       return invalid;
     const min = number(question, "minSelectedChoices", 0),
       max = number(question, "maxSelectedChoices", 0) || 100;
-    if (value.length < min)
+    if (complete && value.length < min)
       return `Bitte wählen Sie mindestens ${min} Antworten aus.`;
     if (value.length > max)
       return `Bitte wählen Sie höchstens ${max} Antworten aus.`;
@@ -128,8 +130,9 @@ export function profileAnswerError(
     )
       return invalid;
     if (
-      (question.isRequired && !entries.length) ||
-      (question.isAllRowRequired && entries.length !== rows.length)
+      complete &&
+      ((question.isRequired && !entries.length) ||
+        (question.isAllRowRequired && entries.length !== rows.length))
     )
       return "Bitte beantworten Sie die erforderlichen Zeilen.";
     return;
