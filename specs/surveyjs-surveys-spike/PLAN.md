@@ -2,7 +2,7 @@
 
 Date: 2026-09-06
 
-Status: planned; no implementation or runtime evidence yet
+Status: implementation in progress; only checked acceptance criteria with linked evidence are proven
 
 Own license decision: **UNDEFINED**, for both LeonAid and the new package
 
@@ -416,10 +416,11 @@ never triggers deletion. Handle concurrent autosave/export and deletion safely.
 
 ## 10. Work packages and acceptance evidence
 
-All work packages are open. During implementation, each receives a
+No work package is fully accepted yet. During implementation, each receives a
 `proofs/SURV-xxx.md` document with versions, commands, outcomes and limitations.
 Build success alone is insufficient. Product runtimes and relevant tests run
-in Docker through `./leonaid`; proposed new commands do not exist yet.
+in Docker through `./leonaid`; command availability and successful execution
+must be recorded separately in the evidence.
 
 | ID | Implementation | Dependencies | Required evidence |
 |---|---|---|---|
@@ -438,8 +439,12 @@ in Docker through `./leonaid`; proposed new commands do not exist yet.
 ### Execution checklist
 
 The overview above is the dependency map. The following checklists are the
-implementation backlog. Every item is open; check an implementation item only
-when its code exists, and an acceptance item only after the stated test passes.
+implementation backlog. Existing checked items retain their recorded evidence.
+An implementation checkbox records code delivery; it does not imply acceptance.
+Each task below names its acceptance criteria. A task is accepted only when all
+of those criteria pass; unchecked criteria keep its acceptance open, even when
+its implementation checkbox is checked. Check an acceptance item only after the
+stated test passes. Test implementation and execution are explicit tasks too.
 Each work package records commit, dependency versions, exact commands, exit
 codes, fixture IDs and evidence paths in `proofs/SURV-xxx.md`. Failures and
 unsupported cases stay explicit. Do not create passing proof placeholders.
@@ -459,11 +464,16 @@ Dependencies: none.
 
 Implementation tasks:
 
-- [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
-- [ ] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence.
-- [ ] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices.
-- [ ] **000.4** Build deterministic Krapfentaxi/golf fixtures and persona seeds in the existing testkit; add isolated Docker test entrypoints and artifact collection.
-- [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
+- [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency. Acceptance: **000.A1**.
+- [ ] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence. Acceptance: **000.A1, 000.A2**.
+- [ ] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices. Acceptance: **000.A4**.
+- [ ] **000.4** Build deterministic Krapfentaxi/golf fixtures and persona seeds in the existing testkit; add isolated Docker test entrypoints and artifact collection. Acceptance: **000.A2, 000.A3**.
+- [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy. Acceptance: **000.A1**.
+
+Test implementation and verification tasks:
+
+- [ ] **000.T1** Implement and run the integration/contract checks for **000.A1, 000.A2, 000.A4**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **000.T2** Implement and run browser/render acceptance for **000.A3**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -481,10 +491,15 @@ full editor exists; carry the proven contracts into later work packages.
 
 Implementation tasks:
 
-- [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
-- [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics.
-- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values.
-- [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof.
+- [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database. Acceptance: **010.A2, 010.A3, 010.A5**.
+- [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**.
+- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Acceptance: **010.A1, 010.A2, 010.A4**.
+- [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof. Acceptance: **010.A3, 010.A4, 010.A5**.
+
+Test implementation and verification tasks:
+
+- [ ] **010.T1** Implement and run the integration/contract checks for **010.A1, 010.A2, 010.A5**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **010.T2** Implement and run browser/render acceptance for **010.A3, 010.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -500,10 +515,15 @@ Dependencies: SURV-010.
 
 Implementation tasks:
 
-- [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration.
-- [ ] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof.
-- [ ] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary.
-- [ ] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling.
+- [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration. Acceptance: **020.A1, 020.A2, 020.A3**.
+- [ ] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof. Acceptance: **020.A1, 020.A3**.
+- [ ] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary. Acceptance: **020.A3, 020.A4**.
+- [ ] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling. Acceptance: **020.A2**.
+
+Test implementation and verification tasks:
+
+- [ ] **020.T1** Implement and run the integration/contract checks for **020.A1, 020.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **020.T2** Implement and run browser/render acceptance for **020.A3, 020.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -518,9 +538,14 @@ Dependencies: SURV-010.
 
 Implementation tasks:
 
-- [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys.
-- [ ] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers.
-- [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions.
+- [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys. Acceptance: **030.A1, 030.A4**.
+- [ ] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers. Acceptance: **030.A2, 030.A3**.
+- [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions. Acceptance: **030.A1, 030.A2, 030.A4**.
+
+Test implementation and verification tasks:
+
+- [ ] **030.T1** Implement and run the integration/contract checks for **030.A1, 030.A2, 030.A3**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **030.T2** Implement and run browser/render acceptance for **030.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -535,10 +560,15 @@ Dependencies: SURV-020, SURV-030.
 
 Implementation tasks:
 
-- [ ] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging.
-- [ ] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview.
-- [ ] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics.
-- [ ] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data.
+- [ ] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging. Acceptance: **040.A1, 040.A3, 040.A4**.
+- [ ] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview. Acceptance: **040.A2, 040.A3, 040.A4**.
+- [ ] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics. Acceptance: **040.A1, 040.A2, 040.A5**.
+- [ ] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data. Acceptance: **040.A1, 040.A2**.
+
+Test implementation and verification tasks:
+
+- [ ] **040.T1** Implement and run the integration/contract checks for **040.A1, 040.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **040.T2** Implement and run browser/render acceptance for **040.A3, 040.A4, 040.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -554,10 +584,15 @@ Dependencies: SURV-020, SURV-030, SURV-040.
 
 Implementation tasks:
 
-- [ ] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue.
-- [ ] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement.
-- [ ] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification.
-- [ ] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data.
+- [ ] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue. Acceptance: **050.A3, 050.A5**.
+- [ ] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement. Acceptance: **050.A1, 050.A4**.
+- [ ] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**.
+- [ ] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data. Acceptance: **050.A3, 050.A4, 050.A5**.
+
+Test implementation and verification tasks:
+
+- [ ] **050.T1** Implement and run the integration/contract checks for **050.A1, 050.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **050.T2** Implement and run browser/render acceptance for **050.A3, 050.A4, 050.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -573,10 +608,15 @@ Dependencies: SURV-030, SURV-050. Supplies the lifecycle UI needed to finish 030
 
 Implementation tasks:
 
-- [ ] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls.
-- [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions.
-- [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
-- [ ] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis.
+- [ ] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls. Acceptance: **060.A4, 060.A5**.
+- [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions. Acceptance: **060.A1, 060.A4**.
+- [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
+- [ ] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis. Acceptance: **060.A5**.
+
+Test implementation and verification tasks:
+
+- [ ] **060.T1** Implement and run the integration/contract checks for **060.A1, 060.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **060.T2** Implement and run browser/render acceptance for **060.A3, 060.A4, 060.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -592,9 +632,14 @@ Dependencies: SURV-040, SURV-050, SURV-060.
 
 Implementation tasks:
 
-- [ ] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators.
-- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values.
-- [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views.
+- [ ] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators. Acceptance: **070.A1, 070.A2, 070.A3**.
+- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values. Acceptance: **070.A1, 070.A3**.
+- [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views. Acceptance: **070.A2, 070.A3, 070.A4**.
+
+Test implementation and verification tasks:
+
+- [ ] **070.T1** Implement and run the integration/contract checks for **070.A1, 070.A2**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **070.T2** Implement and run browser/render acceptance for **070.A3, 070.A4**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -609,9 +654,14 @@ Dependencies: SURV-070.
 
 Implementation tasks:
 
-- [ ] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text.
-- [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination.
-- [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation.
+- [ ] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text. Acceptance: **080.A1, 080.A2, 080.A4, 080.A6**.
+- [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination. Acceptance: **080.A1, 080.A4, 080.A5**.
+- [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation. Acceptance: **080.A3, 080.A4, 080.A6**.
+
+Test implementation and verification tasks:
+
+- [ ] **080.T1** Implement and run the integration/contract checks for **080.A1, 080.A2, 080.A3**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **080.T2** Implement and run browser/render acceptance for **080.A4, 080.A5, 080.A6**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -628,9 +678,14 @@ Dependencies: SURV-050, SURV-060, SURV-080.
 
 Implementation tasks:
 
-- [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects.
-- [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
-- [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
+- [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects. Acceptance: **090.A1, 090.A2, 090.A5**.
+- [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data. Acceptance: **090.A3**.
+- [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials. Acceptance: **090.A4**.
+
+Test implementation and verification tasks:
+
+- [ ] **090.T1** Implement and run the integration/contract checks for **090.A1, 090.A2, 090.A3, 090.A4**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **090.T2** Implement and run browser/render acceptance for **090.A5**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -646,10 +701,15 @@ Dependencies: SURV-000–090, including deferred lifecycle E2E acceptance.
 
 Implementation tasks:
 
-- [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
-- [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
-- [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
-- [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
+- [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling. Acceptance: **100.A1, 100.A2, 100.A3, 100.A5**.
+- [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys. Acceptance: **100.A2, 100.A4**.
+- [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites. Acceptance: **100.A3, 100.A5**.
+- [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided. Acceptance: **100.A4, 100.A5**.
+
+Test implementation and verification tasks:
+
+- [ ] **100.T1** Implement and run the integration/contract checks for **100.A1, 100.A3, 100.A4, 100.A5**; assert the specified positive and negative outcomes against the required real services or packed artifact. Acceptance: automated checks exit zero; document reviews explicitly record their findings; the proof links every listed criterion to test paths, commands and results.
+- [ ] **100.T2** Implement and run browser/render acceptance for **100.A2**. Acceptance: each stated journey passes against real services; record browser/viewport, assertions, sanitized artifacts and any separately performed manual review in the proof.
 
 Acceptance criteria:
 
@@ -661,8 +721,9 @@ Acceptance criteria:
 
 ### Test entrypoints to implement
 
-These commands are proposed, not currently available. SURV-000 confirms their
-integration with `./leonaid`; SURV-100 wires the final aggregate/CI gate.
+This table defines the target command contract, not a claim that every command
+is already available or passes. Record implemented entrypoints and actual runs
+in the work-package proofs. SURV-100 wires the final aggregate/CI gate.
 
 | Proposed command | Required coverage |
 |---|---|
