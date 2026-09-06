@@ -1118,6 +1118,12 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       database-failure checks passed; owned resources were removed. Native
       creation UI, Charity admission, global binding uniqueness and the broader
       creation/duplicate/import contract remain open.
+      Quality gate: `./leonaid check` passed on `2cd833c` (208 unit tests,
+      242 Python source-file checks, API parity, frontend/CMS checks including
+      23 CMS files, formatting and privacy/policy checks; unchanged worktree).
+      `authorization-surface` separately passed 1,866 actual HTTPS requests in
+      isolated project `leonaid-emdash-tmp-xsy7jksssg`, with restart/database
+      failure checks and owned-resource cleanup.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
       reports the referenced action as publishable under existing Core rules.
 - [x] Gate canonical System Admin CMS publish requests on a fresh authenticated
