@@ -3,6 +3,7 @@ import { Kysely } from "kysely";
 import { createDialect } from "emdash/db/postgres";
 import { runMigrations } from "emdash/db";
 import { provisionPostgres } from "./provision-postgres.mjs";
+import { installIdentityMapping } from "../../apps/campaign-site/src/auth/identity-map.mjs";
 
 const admin = new pg.Pool({ connectionTimeoutMillis: 3000 });
 try {
@@ -27,6 +28,18 @@ try {
   await runMigrations(database);
 } finally {
   await database.destroy();
+}
+const cms = new pg.Pool({
+  host: "core-postgres",
+  database: "emdash",
+  user: "emdash",
+  password: process.env.CMS_POSTGRES_PASSWORD,
+  connectionTimeoutMillis: 3000,
+});
+try {
+  await installIdentityMapping(cms);
+} finally {
+  await cms.end();
 }
 console.log(
   "emdash-service-provision: OK: dedicated credentials and migrations ready before HTTP startup",

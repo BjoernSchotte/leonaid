@@ -600,6 +600,11 @@ Dependencies: EMS-010
       own email, regenerate OpenAPI/TypeScript, and prove that email remains
       mutable profile data while `userId` stays stable. Never expose this field
       on anonymous or suspended-session responses.
+- [x] Implement and database-test the UUID-to-EmDash-user persistence primitive:
+      unique bidirectional mapping, transactional profile synchronization,
+      explicit first-System-Admin requirement, conflict denial and retained
+      identity after restart. Connecting this primitive to verified HTTP
+      authentication and replacing upstream email lookup remain open below.
 
 - [ ] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
       config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
@@ -668,6 +673,19 @@ extension, not the CMS adapter, stable account mapping or shared-login gate.
 `./leonaid check` passed at commit `9274123`: 208 unit tests, 241 Python
 type-checked source files, generated API parity, frontend/CMS type and format
 checks, privacy/policy checks and an unchanged worktree.
+
+Identity-store checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case identity-map` passed on real PostgreSQL and
+the actual EmDash migrations, both from empty storage and after restarting the
+database. Twelve concurrent first requests for one Core subject produce exactly
+one mapped user. Charity-first bootstrap is denied without creating a user;
+email/name/role changes preserve the CMS ID. Cross-subject email collisions
+roll back without merging or orphaning identities. Foreign-key deletion,
+incompatible mapping constraints and accidental Core-database use are denied.
+The operator installs and validates the mapping schema separately from request
+processing. Inputs to this internal primitive must come from a currently
+validated Core identity; these database tests do not prove that HTTP boundary.
+The CMS remains closed and the shared-login gate is not complete.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
