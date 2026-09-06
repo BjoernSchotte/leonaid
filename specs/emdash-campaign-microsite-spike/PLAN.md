@@ -587,6 +587,8 @@ unique Edge network, no published ports and no unrelated service dependencies;
 all test containers and that network were removed. This does not close the
 full route-ownership task: real CMS image transformation, form transport,
 authenticated browser flows and pilot HTTPS still need their later gates.
+`./leonaid check` subsequently passed at `34ae0a7`, including 208 unit tests,
+240 Python type-checked files, all frontend/CMS checks and an unchanged worktree.
 
 ### EMS-020 — Implement same-origin LeonAid authentication
 
