@@ -750,6 +750,31 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                           data-error-for="deliveryCity"
                         />
                       </div>
+                      <div class="form-field">
+                        <label for="deliveryCountryCode">
+                          Ländercode (Lieferung)
+                        </label>
+                        <input
+                          id="deliveryCountryCode"
+                          name="deliveryCountryCode"
+                          value={postedText("deliveryCountryCode") || "DE"}
+                          autocomplete="shipping country"
+                          minlength="2"
+                          maxlength="2"
+                          pattern="[A-Za-z]{2}"
+                          required
+                          aria-describedby="deliveryCountryCode-help deliveryCountryCode-error"
+                        />
+                        <small id="deliveryCountryCode-help">
+                          Zwei Buchstaben, zum Beispiel DE für Deutschland oder
+                          AT für Österreich.
+                        </small>
+                        <span
+                          id="deliveryCountryCode-error"
+                          class="field-error"
+                          data-error-for="deliveryCountryCode"
+                        />
+                      </div>
                     </div>
                     {orderForm.delivery?.enabled && (
                       <DeliveryOptions
@@ -871,6 +896,31 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                           id="invoiceCity-error"
                           class="field-error"
                           data-error-for="invoiceCity"
+                        />
+                      </div>
+                      <div class="form-field">
+                        <label for="invoiceCountryCode">
+                          Ländercode (Rechnung)
+                        </label>
+                        <input
+                          id="invoiceCountryCode"
+                          name="invoiceCountryCode"
+                          value={postedText("invoiceCountryCode") || "DE"}
+                          autocomplete="billing country"
+                          minlength="2"
+                          maxlength="2"
+                          pattern="[A-Za-z]{2}"
+                          required
+                          aria-describedby="invoiceCountryCode-help invoiceCountryCode-error"
+                        />
+                        <small id="invoiceCountryCode-help">
+                          Zwei Buchstaben, zum Beispiel DE für Deutschland oder
+                          AT für Österreich.
+                        </small>
+                        <span
+                          id="invoiceCountryCode-error"
+                          class="field-error"
+                          data-error-for="invoiceCountryCode"
                         />
                       </div>
                     </div>

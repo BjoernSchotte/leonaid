@@ -75,7 +75,9 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         ACTION_ID,
     )
     if browser_orders != 3:
-        raise VerificationFailure("Browser retries did not preserve exactly three orders")
+        raise VerificationFailure(
+            "Browser retries did not preserve exactly three orders"
+        )
 
     expected: dict[str, dict[str, str | int | UUID]] = {
         "new-company": {
@@ -128,6 +130,8 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if (
                 not invoice
+                or invoice.get("countryCode")
+                != ("DE" if scenario == "person-without-company" else "AT")
                 or invoice.get("email") != "rechnung@leonaid.invalid"
                 or invoice.get("streetLine1")
                 != (
@@ -151,6 +155,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if (
                 not delivery
+                or delivery.get("countryCode") != "AT"
                 or delivery.get("contactName") != "Alex Lieferung"
                 or delivery.get("contactPhone") != "+49 821 765432"
                 or delivery.get("instructions")

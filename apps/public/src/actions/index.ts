@@ -80,6 +80,12 @@ export const server = {
       deliveryStreetLine1: requiredText(200),
       deliveryPostalCode: requiredText(20),
       deliveryCity: requiredText(120),
+      deliveryCountryCode: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z]{2}$/)
+        .default("DE"),
       deliveryWindowId: z.union([z.uuid(), z.literal("")]).optional(),
       deliveryContactName: optionalText(200),
       deliveryContactPhone: optionalText(50),
@@ -93,6 +99,12 @@ export const server = {
       invoiceStreetLine1: optionalText(200),
       invoicePostalCode: optionalText(20),
       invoiceCity: optionalText(120),
+      invoiceCountryCode: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z]{2}$/)
+        .default("DE"),
       invoiceEmail: optionalText(320),
       offeringId: z.array(z.uuid()).min(1).max(20),
       quantity: z.array(z.number().int().min(0).max(5_000)).min(1).max(20),
@@ -144,7 +156,7 @@ export const server = {
             postalCode: input.deliveryPostalCode,
             city: input.deliveryCity,
             email: input.invoiceEmail || input.email,
-            countryCode: "DE",
+            countryCode: input.deliveryCountryCode,
           }
         : {
             recipientName: input.invoiceRecipientName ?? "",
@@ -152,7 +164,7 @@ export const server = {
             postalCode: input.invoicePostalCode ?? "",
             city: input.invoiceCity ?? "",
             email: input.invoiceEmail || input.email,
-            countryCode: "DE",
+            countryCode: input.invoiceCountryCode,
           };
       try {
         return await submitPublicOrder(
@@ -176,7 +188,7 @@ export const server = {
               streetLine1: input.deliveryStreetLine1,
               postalCode: input.deliveryPostalCode,
               city: input.deliveryCity,
-              countryCode: "DE",
+              countryCode: input.deliveryCountryCode,
             },
             invoiceRecipient,
             lines,

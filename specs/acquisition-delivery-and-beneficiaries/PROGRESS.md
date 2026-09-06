@@ -1,6 +1,15 @@
 # Implementation evidence
 
 
+## Editable public delivery and billing countries — 2026-09-06
+
+Removed the public Astro action's hardcoded DE delivery/invoice country. The public form now exposes separate two-letter country fields with autocomplete, labels, validation/error targets and retained SSR values. Existing forms without these new fields retain the DE default. Submitted lowercase codes normalize to uppercase. Shared billing uses the current delivery country; separate billing uses its independently supplied country.
+
+Live evidence: isolated `leonaid-362a-delivery-public-20260906h` on ports 18265/18665 with the worktree subnet override completed `./leonaid test-public-orders` with exit 0. The three existing browser journeys (including no-JavaScript submission, stale-window/input retention and exact retry scenarios) enter `at` for delivery. PostgreSQL verification asserts AT for every delivery, AT for reused billing, and DE for the separate-billing journey. Existing Core/Twenty contract, consent, pricing, idempotency, activity and anti-abuse checks pass. Astro typecheck reports zero errors/warnings; verifier Ruff and whitespace checks pass. Own Docker resources were cleaned up.
+
+Remaining: policy changes after page load and other cross-channel acceptance remain open, as do final In-App Browser inspection and integrated EmDash renderer parity.
+
+
 ## Variable delivery days, discard recovery and error focus — 2026-09-06
 
 Delivery editor errors now receive programmatic focus on a single wrapper while the existing StatusMessage remains the alert. Expanded the real admin browser journey to save three days with 3/3/1 windows, reject an end before its start without losing the entered start, and verify error focus. A second real concurrent save retires a window; after conflict, explicitly discarding local edits restores the saved times and retirement checkbox. The effective order-form response contains six selectable windows while all seven configured windows survive reload.

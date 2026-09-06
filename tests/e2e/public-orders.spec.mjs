@@ -66,6 +66,7 @@ async function fillOrder(
   await form.locator('input[name="deliveryStreetLine1"]').fill(street);
   await form.locator('input[name="deliveryPostalCode"]').fill(postalCode);
   await form.locator('input[name="deliveryCity"]').fill(city);
+  await form.locator('input[name="deliveryCountryCode"]').fill("at");
   await form
     .locator('select[name="deliveryWindowId"]')
     .selectOption("90000000-0000-4000-8000-000000000072");
