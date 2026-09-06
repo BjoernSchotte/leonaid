@@ -1029,6 +1029,13 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       archived action cannot reactivate, and new actions need beneficiaries.
       Anonymous rendering, scheduling, Charity publishing and complete operation
       isolation remain pending; this does not close the public-delivery gate.
+      Quality evidence: `./leonaid check` passed at `22f76ec`, including 208 unit
+      tests, 242 Python source-file type checks, API parity, all frontend/CMS
+      checks, formatting and privacy/policy guards, with unchanged worktree.
+      `authorization-surface` passed all 1,866 real HTTPS requests. The successful
+      publication run and separate surface project both removed their owned
+      resources without publishing host ports; failed fixture runs were cleaned
+      before replacement runs. No shared Core lifecycle guard was disabled.
 
 Verification:
 
