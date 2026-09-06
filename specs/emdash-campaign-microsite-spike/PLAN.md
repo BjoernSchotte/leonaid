@@ -812,6 +812,9 @@ stored collection/entry relationship, never a caller-supplied parent or revision
 JSON. HTTP wiring, concurrency fault injection, write authorization, trashed
 content and immutable-binding enforcement are still open; this does not admit
 Charity users to the runtime.
+Quality checkpoint: `./leonaid check` passed at `1766e00`, including 208 unit
+tests, 242 Python source-file type checks, all frontend/CMS checks, formatting,
+API/privacy/policy gates and route-inventory verification; worktree unchanged.
 
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
