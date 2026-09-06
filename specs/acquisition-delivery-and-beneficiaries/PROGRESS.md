@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Completion context load failure is recoverable — 2026-09-06
+
+Found and corrected an initial-load failure gap in the administrator completion form: a failed delivery-context query displayed an error alongside an indefinite loading message, with no explicit retry or close action. The error now offers a disabled-while-fetching Retry planning button, hides the contradictory loading message, and permits closing the form even before a definition is available. Existing delivery/invoice state remains in the component during refetch.
+
+The invoice browser journey now makes the completion-context request fail with 503 through all automatic retries, verifies the explicit retry, absence of the loading text and usable close button, then restores the real endpoint and clicks retry. The actual delivery form loads and the full existing close/reopen, historical selection, concurrent-edit comparison, accepted-response-loss/exact-retry and saved invoice checks continue successfully.
+
+Full `./leonaid test-invoices` in isolated project `leonaid-362a-delivery-invoice-20260906c`, ports 18266/18666 and worktree subnet override, passed the expanded browser journey in 16.2 seconds and final delivery HTTP/invoice verification. Pinned-container `bun run typecheck` passed. EmDash integration and the remaining complete-scope acceptance remain open.
+
 ## Action core regression and existing-renderer implementation audit — 2026-09-06
 
 Ran the plan's `./leonaid test-actions` gate on the current delivery branch. Added optional `LEONAID_ACTION_TEST_COMPOSE_OVERRIDE` using the same scoped compose-argument construction as the other runners; default behavior is unchanged. Isolated project `leonaid-362a-delivery-actions-20260906a` used ports 18269/18669 and dedicated worktree subnets.

@@ -309,13 +309,28 @@ async function completeDeliveryInBrowser(browser, cookies) {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/admin/orders`);
     const row = page.locator(`[data-commitment-id="${order.id}"]`);
+    const contextUrl = `${root}/delivery/completion-context`;
+    await page.route(contextUrl, (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: {
+        code: "temporarily_unavailable",
+        requestId: "completion-context-retry-proof",
+        message: "Lieferplanung vorübergehend nicht verfügbar.",
+      } }),
+    }));
     await row.getByRole("button", { name: "Lieferdaten ergänzen" }).click();
     const form = row.getByTestId("delivery-completion");
+    const reloadPlanning = form.getByRole("button", { name: "Lieferplanung erneut laden" });
+    await expect(reloadPlanning).toBeVisible({ timeout: 15000 });
+    await expect(form.getByText("Lieferplanung wird geladen …", { exact: true })).toHaveCount(0);
+    await expect(form.getByRole("button", { name: "Ergänzung schließen" })).toBeEnabled();
     await expect(
-      form.getByRole("heading", {
-        name: "Liefer- und Rechnungsdaten ergänzen",
-      }),
+      form.getByRole("heading", { name: "Liefer- und Rechnungsdaten ergänzen" }),
     ).toBeFocused();
+    await page.unroute(contextUrl);
+    await reloadPlanning.click();
+    await expect(form.getByLabel("Firma / Empfänger", { exact: true })).toBeVisible();
     await form.getByRole("button", { name: "Ergänzung schließen" }).click();
     await expect(
       row.getByRole("button", { name: "Lieferdaten ergänzen" }),

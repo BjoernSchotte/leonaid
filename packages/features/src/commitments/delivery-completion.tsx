@@ -205,11 +205,24 @@ export function DeliveryCompletion({
       )}
       {context.isError && (
         <StatusMessage tone="error">
-          Lieferplanung konnte nicht geladen werden.
+          <p>Lieferplanung konnte nicht geladen werden. Deine Eingaben bleiben erhalten.</p>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={context.isFetching}
+            onClick={() => void context.refetch()}
+          >
+            Lieferplanung erneut laden
+          </Button>
         </StatusMessage>
       )}
       {!definition ? (
-        <p>Lieferplanung wird geladen …</p>
+        <>
+          {!context.isError && <p>Lieferplanung wird geladen …</p>}
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Ergänzung schließen
+          </Button>
+        </>
       ) : (
         <fieldset disabled={pending}>
           {baseline.deliveryWindowId && (
