@@ -67,6 +67,11 @@ class DeliveryOrderFormResponse(TransportModel):
     windows: list[DeliveryWindowRequest]
 
 
+class DeliveryCompletionContextResponse(TransportModel):
+    form: DeliveryOrderFormResponse
+    historical_windows: list[DeliveryWindowRequest]
+
+
 class PlatformInformationResponse(TransportModel):
     service: str = Field(examples=["leonaid-api"])
     release: str = Field(examples=["0.0.0"])
@@ -1013,6 +1018,7 @@ class CreateCommitmentRequest(TransportModel):
 
 
 class CompleteDeliveryRequest(TransportModel):
+    confirm_historical_delivery: bool = Field(default=False, strict=True)
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
     delivery_recipient: PublicOrderDeliveryRecipientRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest

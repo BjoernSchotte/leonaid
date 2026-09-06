@@ -50,7 +50,7 @@ export type CommitmentLineResponse = { readonly boxCount: number; readonly curre
 export type CommitmentListResponse = { readonly actionId: string; readonly currencyTotals: Array<CommitmentCurrencyTotalResponse>; readonly items: Array<CommitmentRecordResponse>; readonly totalBoxes: number; readonly totalPieces: number; };
 export type CommitmentRecordResponse = { readonly capturedByDisplayName: string | null; readonly commitment: CommitmentResponse; readonly createdAt: string; };
 export type CommitmentResponse = { readonly actionId: string; readonly buyer: CommitmentBuyerResponse; readonly currency: string; readonly deliveryCompletionVersion: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId: string | null; readonly deliveryWindowSnapshot: Record<string, string> | null; readonly id: string; readonly invoiceRecipient: CommitmentInvoiceRecipientResponse | null; readonly lines: Array<CommitmentLineResponse>; readonly replayed: boolean; readonly source: "acquisition" | "public_form" | "admin"; readonly status: "draft" | "review_ready" | "confirmed" | "invoiced" | "cancelled"; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
-export type CompleteDeliveryRequest = { readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; readonly windowId?: string | null; };
+export type CompleteDeliveryRequest = { readonly confirmHistoricalDelivery?: boolean; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly expectedVersion: string; readonly invoiceRecipient: CommitmentInvoiceRecipientRequest; readonly windowId?: string | null; };
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
@@ -73,6 +73,7 @@ export type DashboardMetricDefinitionResponse = { readonly description: string; 
 export type DashboardPipelineResponse = { readonly committed: number; readonly contacted: number; readonly declined: number; readonly handedOver: number; readonly open: number; readonly total: number; };
 export type DashboardReminderResponse = { readonly overdue: number; readonly today: number; readonly total: number; readonly unscheduled: number; readonly upcoming: number; };
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
+export type DeliveryCompletionContextResponse = { readonly form: DeliveryOrderFormResponse; readonly historicalWindows: Array<DeliveryWindowRequest>; };
 export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly revision: number; readonly timezone?: string; readonly windows: Array<DeliveryWindowRequest>; };
 export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly timezone?: string; readonly windows: Array<DeliveryWindowRequest>; };
 export type DeliveryOrderFormResponse = { readonly allowContact: boolean; readonly allowInstructions: boolean; readonly contactNameMaxLength: number; readonly contactPhoneMaxLength: number; readonly enabled: boolean; readonly instructionsMaxLength: number; readonly requireAddress: boolean; readonly requireWindow: boolean; readonly revision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
@@ -762,6 +763,17 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getDeliveryCompletionContext(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<DeliveryCompletionContextResponse> {
+    return this.request<DeliveryCompletionContextResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery/completion-context`,
+      { method: "GET" },
       options,
     );
   }

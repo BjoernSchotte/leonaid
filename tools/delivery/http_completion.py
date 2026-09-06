@@ -43,10 +43,10 @@ async def main() -> None:
                     *current.json()["windows"],
                     {
                         "id": window,
-                        "deliveryOn": "2026-10-01",
+                        "deliveryOn": "2026-09-03",
                         "startsAt": "09:00",
                         "endsAt": "11:00",
-                        "retired": False,
+                        "retired": True,
                     },
                 ],
             }
@@ -54,10 +54,30 @@ async def main() -> None:
                 f"{root}/delivery", headers=headers, json=config
             )
             response.raise_for_status()
+            history = await client.get(
+                f"{root}/delivery/completion-context", headers=headers
+            )
+            history.raise_for_status()
+            assert "no-store" in history.headers["cache-control"]
+            assert any(
+                item["id"] == window for item in history.json()["historicalWindows"]
+            )
+            assert not any(
+                item["id"] == window for item in history.json()["form"]["windows"]
+            )
+            for name in ("anna", "finn"):
+                denied_context = await client.get(
+                    f"{root}/delivery/completion-context",
+                    headers=session_headers(tokens[name]),
+                )
+                assert denied_context.status_code == 403
+            assert (
+                await client.get(f"{root}/delivery/completion-context")
+            ).status_code == 401
             blocked = await client.post(
                 invoice_path,
                 headers={**headers, "Idempotency-Key": str(uuid4())},
-                json={"serviceOn": "2026-10-01"},
+                json={"serviceOn": "2026-09-03"},
             )
             assert (
                 blocked.status_code == 409
@@ -97,6 +117,14 @@ async def main() -> None:
                 assert denied.status_code == 403
             anonymous = await client.post(path, json=body)
             assert anonymous.status_code == 401
+            unconfirmed = await client.post(
+                path, headers={**headers, "Idempotency-Key": str(uuid4())}, json=body
+            )
+            assert (
+                unconfirmed.status_code == 422
+                and error_code(unconfirmed) == "delivery_window_unavailable"
+            )
+            body["confirmHistoricalDelivery"] = True
             key = str(uuid4())
             response = await client.post(
                 path, headers={**headers, "Idempotency-Key": key}, json=body
@@ -127,7 +155,7 @@ async def main() -> None:
             invoice = await client.post(
                 invoice_path,
                 headers={**headers, "Idempotency-Key": str(uuid4())},
-                json={"serviceOn": "2026-10-01"},
+                json={"serviceOn": "2026-09-03"},
             )
             invoice.raise_for_status()
             assert invoice.json()["recipient"] == billing

@@ -46,6 +46,7 @@ export function DeliveryCompletion({
     order.invoiceRecipient?.email ?? order.buyer.email ?? "",
   );
   const [same, setSame] = useState(!order.invoiceRecipient);
+  const [historical, setHistorical] = useState(false);
   const [date, setDate] = useState("");
   const [windowId, setWindowId] = useState(order.deliveryWindowId ?? "");
   const [error, setError] = useState("");
@@ -60,9 +61,20 @@ export function DeliveryCompletion({
   >(undefined);
   const context = useQuery({
     queryKey: ["completion-context", order.actionId],
-    queryFn: () => client.getDeliveryOrderForm(order.actionId),
+    queryFn: () => client.getDeliveryCompletionContext(order.actionId),
   });
-  const definition = context.data;
+  const definition = context.data
+    ? historical && !baseline.deliveryWindowId
+      ? {
+          ...context.data.form,
+          enabled: true,
+          requireWindow: true,
+          allowContact: true,
+          allowInstructions: true,
+          windows: context.data.historicalWindows,
+        }
+      : context.data.form
+    : undefined;
   useEffect(() => {
     if (error) message.current?.focus();
   }, [error]);
@@ -87,6 +99,7 @@ export function DeliveryCompletion({
           deliveryRecipient: delivery,
           invoiceRecipient: { ...recipient, email: email.trim() || null },
           windowId: windowId || null,
+          confirmHistoricalDelivery: historical && !baseline.deliveryWindowId,
         };
         const payload = JSON.stringify(body);
         if (attempt.current?.unknown && attempt.current.payload !== payload) {
@@ -205,6 +218,28 @@ export function DeliveryCompletion({
               <DeliveryDetails commitment={baseline} />
             </>
           )}
+          {!baseline.deliveryWindowId &&
+            !!context.data?.historicalWindows.length && (
+              <label className="commitment-delivery-toggle">
+                <input
+                  type="checkbox"
+                  checked={historical}
+                  onChange={(event) => {
+                    setHistorical(event.target.checked);
+                    setDate("");
+                    setWindowId("");
+                  }}
+                />
+                Ich bestätige den ausgewählten vergangenen Liefertermin als
+                historischen Nachtrag.
+              </label>
+            )}
+          {historical && !baseline.deliveryWindowId && (
+            <p>
+              Wähle den damaligen Liefertermin aus der Aktionsplanung. Auch
+              inzwischen zurückgezogene Termine sind möglich.
+            </p>
+          )}
           <DeliveryFields
             definition={{ ...definition, requireAddress: true }}
             value={delivery}
@@ -229,7 +264,11 @@ export function DeliveryCompletion({
                 const result = await context.refetch();
                 if (
                   result.data &&
-                  !result.data.windows.some((item) => item.id === windowId)
+                  !(
+                    historical
+                      ? result.data.historicalWindows
+                      : result.data.form.windows
+                  ).some((item) => item.id === windowId)
                 ) {
                   setWindowId("");
                   setDate("");

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from leonaid.application.policies import require_action_manager
 from leonaid.application.delivery import DeliveryService
 from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
 from leonaid.entrypoints.fastapi.schemas import (
+    DeliveryCompletionContextResponse,
     DeliveryConfigurationRequest,
     DeliveryConfigurationResponse,
     DeliveryWindowRequest,
@@ -3194,6 +3196,7 @@ async def complete_commitment_delivery(
                 **body.invoice_recipient.model_dump()
             ),
             window_id=body.window_id,
+            confirm_historical_delivery=body.confirm_historical_delivery,
         ),
         key=request.headers.get("Idempotency-Key", ""),
         request_id=request_id(request),
@@ -4467,6 +4470,34 @@ async def get_delivery_order_form(
     configuration = await service.get(actor, action_id)
     response.headers["Cache-Control"] = "private, no-store"
     return delivery_order_form_response(configuration)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery/completion-context",
+    operation_id="getDeliveryCompletionContext",
+    response_model=DeliveryCompletionContextResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["delivery"],
+)
+async def get_delivery_completion_context(
+    action_id: UUID,
+    request: Request,
+    response: Response,
+) -> DeliveryCompletionContextResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    require_action_manager(actor, action_id)
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    configuration = await service.get(actor, action_id)
+    now = datetime.now(timezone.utc)
+    response.headers["Cache-Control"] = "private, no-store"
+    return DeliveryCompletionContextResponse(
+        form=delivery_order_form_response(configuration, evaluated_at=now),
+        historical_windows=[
+            DeliveryWindowRequest.model_validate(window)
+            for window in configuration.windows
+            if window.bounds(configuration.timezone)[1] <= now
+        ],
+    )
 
 
 @router.put(

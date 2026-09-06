@@ -2273,6 +2273,11 @@
       "CompleteDeliveryRequest": {
         "additionalProperties": false,
         "properties": {
+          "confirmHistoricalDelivery": {
+            "default": false,
+            "title": "Confirmhistoricaldelivery",
+            "type": "boolean"
+          },
           "deliveryRecipient": {
             "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
           },
@@ -3466,6 +3471,27 @@
           "generatedAt"
         ],
         "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DeliveryCompletionContextResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "form": {
+            "$ref": "#/components/schemas/DeliveryOrderFormResponse"
+          },
+          "historicalWindows": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryWindowRequest"
+            },
+            "title": "Historicalwindows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "form",
+          "historicalWindows"
+        ],
+        "title": "DeliveryCompletionContextResponse",
         "type": "object"
       },
       "DeliveryConfigurationRequest": {
@@ -12976,6 +13002,109 @@
           }
         },
         "summary": "Save Delivery Configuration",
+        "tags": [
+          "delivery"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/delivery/completion-context": {
+      "get": {
+        "operationId": "getDeliveryCompletionContext",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryCompletionContextResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Get Delivery Completion Context",
         "tags": [
           "delivery"
         ]

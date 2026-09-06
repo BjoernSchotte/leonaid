@@ -273,11 +273,18 @@ async function completeDeliveryInBrowser(browser, cookies) {
     const slot = crypto.randomUUID();
     config.enabled = true;
     config.windows.push({
-      id: slot,
+      id: crypto.randomUUID(),
       deliveryOn: "2026-10-02",
       startsAt: "09:00",
       endsAt: "11:00",
       retired: false,
+    });
+    config.windows.push({
+      id: slot,
+      deliveryOn: "2026-09-02",
+      startsAt: "09:00",
+      endsAt: "11:00",
+      retired: true,
     });
     expect(
       (await context.request.put(`${root}/delivery`, { data: config })).ok(),
@@ -298,7 +305,7 @@ async function completeDeliveryInBrowser(browser, cookies) {
       (await definitionResponse.json()).windows.some(
         (item) => item.id === slot,
       ),
-    ).toBeTruthy();
+    ).toBeFalsy();
     const page = await context.newPage();
     await page.goto(`${baseUrl}/admin/orders`);
     const row = page.locator(`[data-commitment-id="${order.id}"]`);
@@ -322,9 +329,15 @@ async function completeDeliveryInBrowser(browser, cookies) {
       .fill("Lieferweg 4");
     await form.getByLabel("PLZ", { exact: true }).fill("86150");
     await form.getByLabel("Ort", { exact: true }).fill("Augsburg");
+    const confirmation = form.getByLabel(
+      "Ich bestätige den ausgewählten vergangenen Liefertermin als historischen Nachtrag.",
+    );
+    await expect(confirmation).not.toBeChecked();
+    await confirmation.check();
+    await expect(form.getByLabel("Liefertag", { exact: true })).toHaveValue("");
     await form
       .getByLabel("Liefertag", { exact: true })
-      .selectOption("2026-10-02");
+      .selectOption("2026-09-02");
     await form
       .getByLabel("Lieferzeitfenster", { exact: true })
       .selectOption(slot);
@@ -396,6 +409,7 @@ async function completeDeliveryInBrowser(browser, cookies) {
         data: {
           expectedVersion: order.deliveryCompletionVersion,
           windowId: slot,
+          confirmHistoricalDelivery: true,
           deliveryRecipient: {
             recipientName: "Parallel gespeichert",
             streetLine1: "Parallelweg 1",

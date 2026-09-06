@@ -1,6 +1,19 @@
 # Implementation evidence
 
 
+## Historical completion HTTP and admin UI checkpoint — 2026-09-06
+
+Added strict `confirmHistoricalDelivery` to the completion HTTP request and regenerated OpenAPI/client. The new manager-only completion context returns the shared future-order definition plus separate configured, already ended windows (including retired ones). Ordinary capture/public projections remain future-only. The admin editor exposes an unchecked explicit historical confirmation; switching modes clears date/window selection, with no historical default. Already booked snapshots remain fixed.
+
+Live proof: isolated invoice project `leonaid-362a-delivery-invoice-20260906j`, ports 18266/18666 with the worktree network override, completed with exit 0 and cleaned its resources. The first attempt (`...i`) failed because its synthetic enabled schedule contained only retired windows; the corrected fixture retains a future active window alongside the historical retired one. No production validation was loosened.
+
+The Chromium flow at 390px selects the September 2 historical window on a completed action, verifies the confirmation starts unchecked and no date is preselected, retains local input across a real competing-save conflict, explicitly reconciles the stored state and saves separate billing. Axe reports no serious/critical violations; focus, 200% text size and horizontal overflow assertions pass. The rendered `.artifacts/poc090/invoice-delivery-completion.png` was visually inspected. The competing HTTP write makes the first historical assignment; browser persistence then preserves that booked snapshot during reconciliation.
+
+The authenticated HTTP proof independently completes a legacy draft with a retired September 3 window: unconfirmed submission fails, the explicit confirmation succeeds and replays, then actual invoice issuance uses the separate billing recipient and original total. Anna/finance/anonymous cannot read the historical context; ordinary form windows exclude the past selection. Existing invoice fresh-login and finance-read-only checks also pass. Python Mypy (113 files), Ruff, 213 unit tests and all frontend type checks pass.
+
+Remaining: the overall plan is still incomplete. Additional ordering recovery/configuration cases, admin unsaved-tab and revision reconciliation, integrated In-App Browser acceptance and EmDash parity remain. Parallel EmDash read-only baseline `5dee14e` still has no public order renderer; no changes were made in that worktree.
+
+
 ## Explicit historical completion backend checkpoint — 2026-09-06
 
 The user approved historical delivery completion explicitly. PLAN.md now records the exception: an action manager can confirm an existing draft/review-ready order's configured, already ended delivery window, including a retired window. New acquisition/public submissions retain future-only availability. No window is inferred or invented; existing booked snapshots remain unchanged.
