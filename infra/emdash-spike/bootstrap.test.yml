@@ -2,6 +2,15 @@ services:
   proxy:
     ports: !reset []
     depends_on: !reset {}
+  public:
+    depends_on: !reset {}
+  admin-browser:
+    image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
+    working_dir: /workspace
+    networks: [edge]
+    volumes:
+      - ../../tools:/workspace/tools:ro
+      - ../../node_modules:/workspace/node_modules:ro
   campaign-site:
     environment:
       EMDASH_SITE_URL: https://proxy:8443

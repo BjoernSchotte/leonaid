@@ -612,6 +612,10 @@ Dependencies: EMS-010
       navigation and broader editor access remain separate open gates.
 - [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
       without forwarding unrelated cookies.
+- [x] Prove the System-Admin dashboard entry in Chromium, Firefox and WebKit
+      using real Core sessions, including login return navigation and denial
+      after revocation. This prerequisite does not close full login-code delivery,
+      fresh-login handling or content editing below.
 - [ ] Call `http://api:8000/api/v1/identity/me` with the cookie and a bounded
       timeout. Deny access on DNS errors, timeout, 401, 403, 5xx, invalid JSON,
       and schema drift. Distinguish an invalid session from dependency failure
@@ -742,6 +746,31 @@ claimed.
 type checks, all frontend/CMS type and formatting checks, generated API parity,
 privacy/policy checks, and an unchanged worktree. The full-spike command still
 reports incomplete until the remaining acceptance cases are implemented.
+
+Browser dashboard checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case admin-browser` runs the real bootstrap proof,
+then opens the EmDash SPA in Chromium, Firefox and WebKit. All three hydrate the
+dashboard with successful manifest/dashboard reads using a genuine Core session.
+Anonymous navigation reaches the existing LeonAid login with a fixed local
+`returnTo`; revoked sessions redirect there and receive 401 on direct dashboard
+API access. Charity access remains 403. Alternative token creation stays closed.
+The shared login page now rejects external, backslash, control-character and
+nested encoded redirect escapes through a tested pure destination validator.
+
+Only admin-root GET and its manifest/dashboard GET dependencies are opened,
+after both the durable bootstrap state and database completion are verified.
+Every admitted request rechecks Core and the configured HTTPS origin. During
+setup, manifest access is limited to the designated actor. General editor routes
+and content mutations remain pending their authorization gates.
+
+The browser proof installs existing synthetic Core session cookies; it does not
+claim to prove requesting/delivering a login code or completing fresh login.
+Browser contexts bypass trust of the ephemeral test certificate for UI testing;
+the accompanying native Node HTTPS proof independently validates the actual
+certificate against the project's CA. No production TLS bypass is configured.
+All proof services use the unique project and no published host ports; browser
+containers have Edge access only. Synthetic sessions and owned resources are
+removed after completion. Full EMS-020/030/070 remain open.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 

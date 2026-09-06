@@ -8,6 +8,7 @@ import {
   requireArmedBootstrap,
   consumeBootstrap,
   completeBootstrap,
+  requireCompletedBootstrap,
 } from "./bootstrap-control.mjs";
 
 const bootstrapDirectory = "/app/bootstrap-state";
@@ -64,6 +65,53 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       const status = error instanceof CoreIdentityError ? error.status : 503;
       return Response.json(
         { error: { code: "CMS_SETUP_DENIED" } },
+        { status, headers },
+      );
+    }
+  }
+  const adminHome =
+    url.pathname === "/_emdash/admin" || url.pathname === "/_emdash/admin/";
+  const adminRead = [
+    "/_emdash/api/manifest",
+    "/_emdash/api/dashboard",
+  ].includes(url.pathname);
+  if ((adminHome || adminRead) && request.method === "GET") {
+    try {
+      if (import.meta.env.DEV || request.headers.has("Authorization"))
+        throw new Error();
+      // A manifest is needed by the setup SPA, but only its designated actor
+      // may obtain it before completion. All other reads require both stores.
+      const setupManifest =
+        url.pathname === "/_emdash/api/manifest" &&
+        (await bootstrapIsArmed(bootstrapDirectory));
+      if (!setupManifest) await requireCompletedBootstrap(bootstrapDirectory);
+      if (!hasSecurePublicOrigin(request))
+        return new Response("Invalid CMS origin", { status: 403, headers });
+      const identity = await authenticate(request);
+      if (setupManifest)
+        await requireArmedBootstrap(bootstrapDirectory, identity.subject);
+      else if (!(await setupIsComplete())) throw new Error();
+      const response = await next();
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    } catch (error) {
+      const status = error instanceof CoreIdentityError ? error.status : 503;
+      if (adminHome && status === 401) {
+        return new Response(null, {
+          status: 303,
+          headers: {
+            ...headers,
+            Location: "/login?returnTo=%2F_emdash%2Fadmin%2F",
+          },
+        });
+      }
+      if (!(error instanceof CoreIdentityError))
+        return new Response("CMS access is not enabled", {
+          status: 503,
+          headers,
+        });
+      return Response.json(
+        { error: { code: "CMS_ADMIN_DENIED" } },
         { status, headers },
       );
     }

@@ -36,10 +36,11 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   import assert from "node:assert/strict";
   let input=""; for await(const chunk of process.stdin) input+=chunk;
   const {services}=JSON.parse(input);
-  for(const name of ["api","core-postgres","campaign-site","core-auth-probe","proxy","bootstrap-probe","bootstrap-operator"]) assert.ok(!services[name].ports?.length);
+  for(const name of ["api","core-postgres","campaign-site","core-auth-probe","proxy","public","admin-browser","bootstrap-probe","bootstrap-operator"]) assert.ok(!services[name].ports?.length);
   assert.deepEqual(Object.keys(services["core-auth-probe"].networks),["edge"]);
   assert.deepEqual(Object.keys(services["bootstrap-probe"].networks),["edge"]);
   assert.equal(services["bootstrap-operator"].network_mode,"none");
+  assert.deepEqual(Object.keys(services["admin-browser"].networks),["edge"]);
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
@@ -55,7 +56,13 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
-if [ "$mode" = bootstrap ]; then
+if [ "$mode" = bootstrap ] || [ "$mode" = browser ]; then
+  if [ "$mode" = browser ]; then
+    docker run --rm --network none --workdir /workspace \
+      --volume "$root/apps/public:/workspace/apps/public:ro" \
+      --volume "$root/tools:/workspace/tools:ro" "$BUN_IMAGE" \
+      bun tools/emdash_spike/return-to-proof.ts
+  fi
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/bootstrap-control-proof.mjs
   compose up --no-deps --detach --wait proxy
@@ -68,6 +75,16 @@ if [ "$mode" = bootstrap ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = browser ]; then
+    compose up --no-deps --build --detach --wait public
+    browser_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+        node tools/emdash_spike/admin-browser-proof.mjs "$@"
+    }
+    browser_probe
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
+    browser_probe --revoked
+  fi
   compose restart campaign-site
   compose up --no-deps --detach --wait campaign-site
   tls_probe --completed
