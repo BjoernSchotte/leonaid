@@ -460,6 +460,11 @@ All scenario tests assert outcomes, including persisted state and negative cases
 
 ### Task completion and test traceability
 
+The [implementation acceptance checklist](IMPLEMENTATION-TASKS.md) assigns every
+implementation task its own acceptance gate and required integration/E2E scenarios.
+Use its checkboxes for task-level acceptance; the delivery checkboxes below continue to
+record implementation progress. Keep both views consistent when changing scope.
+
 The [scenario checklist](TEST-SCENARIOS.md) breaks the integration and E2E test
 tasks into individually checkable execution units with explicit expected results.
 Use it together with the implementation tasks below: each scenario identifies
@@ -613,15 +618,17 @@ Acceptance criteria:
 
 ### SURV-030 — Lifecycle, migrations and immutable versions
 
-Current backend evidence: [SURV-030](proofs/SURV-030.md). Lifecycle UI acceptance remains open.
+Current evidence: [SURV-030](proofs/SURV-030.md), including member UI, baseline upgrades
+and scheduled closure. Acceptance 030.A1 remains open until SURV-090 proves the
+permanent-deletion edge from section 5; implementation delivery is distinct from acceptance.
 
 Dependencies: SURV-010.
 
 Implementation tasks:
 
-- [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys. Acceptance: **030.A1, 030.A4**.
+- [x] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys. Acceptance: **030.A1, 030.A4**.
 - [x] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers. Acceptance: **030.A2, 030.A3**.
-- [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions. Acceptance: **030.A1, 030.A2, 030.A4**.
+- [x] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions. Acceptance: **030.A1, 030.A2, 030.A4**.
 
 Test implementation and verification tasks:
 

@@ -193,6 +193,7 @@ export type SurveyDraftResponse = { readonly definition: Record<string, unknown>
 export type SurveyListResponse = { readonly actions: Array<SurveyActionOption>; readonly items: Array<SurveySummaryResponse>; readonly total: number; };
 export type SurveyParticipationResponse = { readonly id: string; readonly inactivityTimeoutSeconds: number; readonly response: SurveyResponseSnapshot; readonly version: SurveyVersionResponse; };
 export type SurveyResponseSnapshot = { readonly answers: Record<string, unknown>; readonly completedAt: string | null; readonly currentPage: string | null; readonly diagnostics: Array<SurveyDiagnostic>; readonly lastAnswerChangedAt: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; readonly versionId: string; };
+export type SurveySchedule = { readonly endsAt: string | null; readonly expectedRevision: number; readonly operationId: string; };
 export type SurveySummaryResponse = { readonly actionId: string | null; readonly capabilities?: Array<string>; readonly deletedAt: string | null; readonly endsAt: string | null; readonly id: string; readonly inactivityTimeoutSeconds: number | null; readonly ownerUserId: string; readonly publishedVersionId: string | null; readonly revision: number; readonly status: "draft" | "active" | "ended" | "archived" | "deleted"; readonly title: string; };
 export type SurveyTimeoutSettings = { readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number | null; readonly operationId: string; };
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
@@ -1792,6 +1793,22 @@ export class LeonAidApiClient {
       `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/publish`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async scheduleSurveyEnd(
+    surveyId: string,
+    body: SurveySchedule,
+    options: RequestOptions = {},
+  ): Promise<SurveySummaryResponse> {
+    return this.request<SurveySummaryResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/schedule`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

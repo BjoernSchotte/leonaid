@@ -15,6 +15,7 @@ from leonaid.adapters.surveyjs_validation import validate_answers
 
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.policies import may_manage_action
 from leonaid.domain.surveys import (
     Capability,
@@ -182,6 +183,29 @@ class AsyncpgSurveyRepository:
             )
             return len(result)
 
+    async def close_due_surveys(self, limit: int = 100) -> int:
+        """Use the same survey-first lock ordering as respondent and author writes."""
+        async with self.pool.acquire() as conn:
+            return cast(
+                int,
+                await conn.fetchval(
+                    """WITH due AS (
+                    SELECT id FROM survey WHERE status='active'
+                    AND ends_at<=statement_timestamp()
+                    ORDER BY ends_at,id LIMIT $1 FOR UPDATE SKIP LOCKED
+                ), closed AS (
+                    UPDATE survey s SET status='ended',revision=revision+1,
+                        updated_at=statement_timestamp()
+                    FROM due WHERE s.id=due.id RETURNING s.id
+                ), partial AS (
+                    UPDATE survey_participation p SET status='partial'
+                    FROM closed WHERE p.survey_id=closed.id AND p.status='in_progress'
+                    RETURNING p.id
+                ) SELECT count(*) FROM closed""",
+                    limit,
+                ),
+            )
+
     async def settings(
         self, actor: IdentityPrincipal, body: dict[str, Any] | None
     ) -> dict[str, Any]:
@@ -321,7 +345,7 @@ class AsyncpgSurveyRepository:
                     raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
                 return {**survey_payload(survey), "capabilities": capabilities}
             if (
-                operation == "publish"
+                operation in {"publish", "schedule"}
                 or operation == "transition"
                 and body["action"] == "end"
             ):
@@ -357,10 +381,43 @@ class AsyncpgSurveyRepository:
                 return await self._record(
                     conn, survey_id, scope, body, survey_payload(updated)
                 )
+            if operation == "schedule":
+                scope = f"author:{actor.account.id}:schedule"
+                replay = await self._replay(conn, survey_id, scope, body)
+                if replay is not None:
+                    return replay
+                now = datetime.now(timezone.utc)
+                if survey["status"] not in {"draft", "active"} or (
+                    survey["status"] == "active"
+                    and survey["ends_at"]
+                    and survey["ends_at"] <= now
+                ):
+                    raise Conflict("closed", "Diese Umfrage ist bereits geschlossen.")
+                if survey["revision"] != body["expectedRevision"]:
+                    raise Conflict("revision_conflict", "Die Umfrage wurde geändert.")
+                deadline = (
+                    datetime.fromisoformat(body["endsAt"]) if body["endsAt"] else None
+                )
+                if deadline is not None and deadline <= now:
+                    raise DomainInvariantError(
+                        "invalid_end_time",
+                        "Das geplante Ende muss in der Zukunft liegen.",
+                    )
+                updated = await conn.fetchrow(
+                    "UPDATE survey SET ends_at=$2,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *",
+                    survey_id,
+                    deadline,
+                )
+                return await self._record(
+                    conn, survey_id, scope, body, survey_payload(updated)
+                )
             if operation in {"transition", "duplicate"}:
                 return await self._lifecycle(conn, actor, survey, operation, body)
             if survey["status"] in {"ended", "archived", "deleted"}:
                 raise Conflict("closed", "Umfrage ist geschlossen.")
+            if survey["ends_at"] and survey["ends_at"] <= datetime.now(timezone.utc):
+                if survey["status"] == "active" or operation == "publish":
+                    raise Conflict("closed", "Das geplante Ende ist bereits erreicht.")
             if operation in {"draft", "validate"}:
                 draft = await conn.fetchrow(
                     "SELECT * FROM survey_draft WHERE survey_id=$1", survey_id

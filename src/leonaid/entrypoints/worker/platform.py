@@ -123,8 +123,9 @@ async def survey_timeout_loop() -> None:
             pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
             repository = AsyncpgSurveyRepository(pool)
             while True:
+                closed = await repository.close_due_surveys()
                 count = await repository.classify_overdue()
-                await asyncio.sleep(0.25 if count == 1000 else 5)
+                await asyncio.sleep(0.25 if count == 1000 or closed == 100 else 5)
         except Exception:
             # Migration/startup/database outages are retried without logging private rows.
             await asyncio.sleep(2)

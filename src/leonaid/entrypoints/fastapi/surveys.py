@@ -1,10 +1,11 @@
 """Survey transport; respondent credentials remain in HttpOnly cookies."""
 
 from typing import Any, Literal, Self, cast
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, Query
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 from leonaid.application.surveys import SurveyService
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
@@ -40,6 +41,20 @@ class TimeoutSettings(Mutation):
 
 class SurveyTimeoutSettings(Mutation):
     inactivityTimeoutSeconds: int | None = Field(ge=1, le=604800)
+
+
+class SurveySchedule(Mutation):
+    endsAt: str | None = Field(max_length=40)
+
+    @field_validator("endsAt")
+    @classmethod
+    def aware_end(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = datetime.fromisoformat(value)
+        if "T" not in value or parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("End time requires an explicit time zone")
+        return parsed.astimezone(timezone.utc).isoformat()
 
 
 class TimeoutSettingsResponse(SurveyInput):
@@ -237,6 +252,18 @@ async def update_survey_timeout(
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
     return await author(request, survey_id, "settings", body.model_dump())
+
+
+@router.put(
+    "/surveys/{survey_id}/schedule",
+    operation_id="scheduleSurveyEnd",
+    response_model=SurveySummaryResponse,
+)
+async def schedule_end(
+    survey_id: UUID, body: SurveySchedule, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "schedule", body.model_dump())
 
 
 @router.post(

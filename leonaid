@@ -117,6 +117,7 @@ Commands:
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
   test-surveys-editor
   test-surveys-lifecycle
+  test-surveys-migrations
   test-surveys-core
   test-surveys-validation-candidate
   test-surveys-package
@@ -2005,6 +2006,7 @@ case "$command" in
   test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
   test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
   test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
+  test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)
     mkdir -p "$root/.artifacts/surveys"
     run_bun bun tools/surveys/parity.mjs .artifacts/surveys/parity.json

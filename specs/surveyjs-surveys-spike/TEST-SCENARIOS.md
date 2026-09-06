@@ -47,6 +47,9 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 - [ ] **030.S3 · Integration · 030.T1 → 030.A3:** Publish v2 while v1 participations exist and duplicate the survey; old participations retain v1, new ones use v2, and the duplicate contains no answers, recipients or credentials.
 - [x] **030.S4 · E2E · 030.T2 → 030.A4:** After SURV-060 supplies the member UI, create, publish, end, archive, trash and restore; UI/database states agree and the public survey remains closed after restore. [Evidence](proofs/SURV-060.md).
 
+- [x] **030.S5 · Integration · 030.T1 → 030.A1:** Configure and replay a future end, reject invalid/past/stale requests, then advance the fixture deadline with the real worker stopped. Late start/save/completion and reopening fail; restart the worker and verify one durable closure with unchanged partial/completed answers and participation revisions. [Evidence](proofs/SURV-030.md#scheduled-closure-through-the-backend-and-worker).
+- [x] **030.S6 · E2E · 030.T2 → 030.A4:** Set a future end in the member UI, verify the persisted timestamp, reload the field, remove the end and verify persisted null before exercising the manual lifecycle. [Evidence](proofs/SURV-030.md#scheduled-closure-through-the-backend-and-worker).
+
 ## SURV-040 — Editor
 
 - [ ] **040.S1 · Integration · 040.T1 → 040.A1:** Persist and reload edited definitions including safe unknown regions; stable IDs and unknown data survive, while a stale draft write reports conflict without overwriting the newer draft.

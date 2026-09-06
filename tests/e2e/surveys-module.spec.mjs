@@ -5,6 +5,7 @@ const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 async function session(browser, token, mobile = false) {
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
+    timezoneId: "UTC",
     viewport: mobile
       ? { width: 390, height: 844 }
       : { width: 1440, height: 1000 },
@@ -70,6 +71,39 @@ test("member manages lifecycle and timeout through the real module", async ({
     page.getByRole("region", { name: "Fragebogen bearbeiten" }),
   ).toBeVisible();
   const id = page.url().split("/").at(-1);
+  await page.getByText("Geplantes Ende", { exact: true }).click();
+  const future = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+  await page.getByLabel("Teilnahme endet am", { exact: true }).fill(future);
+  await page
+    .getByRole("button", { name: "Geplantes Ende speichern", exact: true })
+    .click();
+  await expect(
+    page.getByText("Geplantes Ende wurde gespeichert.", { exact: true }),
+  ).toBeVisible();
+  const scheduled = await page.evaluate(
+    async (key) =>
+      (await (await fetch(`/api/v1/surveys/${key}`)).json()).endsAt,
+    id,
+  );
+  expect(new Date(scheduled).toISOString().slice(0, 16)).toBe(future);
+  await page.reload();
+  await page.getByText("Geplantes Ende", { exact: true }).click();
+  await expect(
+    page.getByLabel("Teilnahme endet am", { exact: true }),
+  ).toHaveValue(future);
+  await page.getByLabel("Teilnahme endet am", { exact: true }).fill("");
+  await page
+    .getByRole("button", { name: "Geplantes Ende speichern", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async (key) =>
+          (await (await fetch(`/api/v1/surveys/${key}`)).json()).endsAt,
+        id,
+      ),
+    )
+    .toBeNull();
   await page
     .getByText("Teilantworten nach Inaktivität", { exact: true })
     .click();
@@ -133,7 +167,9 @@ test("member manages lifecycle and timeout through the real module", async ({
   await page
     .getByLabel("Umfrage suchen", { exact: true })
     .fill("Feedback aus der Lions-Aktion");
-  await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("ended");
+  await page
+    .getByRole("combobox", { name: "Status", exact: true })
+    .selectOption("ended");
   await expect(page.locator(".surveys-list li")).toHaveCount(1);
   await expect(page.locator(".surveys-list")).toContainText("Beendet");
   writeFileSync(

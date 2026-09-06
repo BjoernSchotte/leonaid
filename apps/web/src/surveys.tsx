@@ -84,6 +84,7 @@ export function SurveysPage({
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [timeout, setTimeoutValue] = useState("");
+  const [scheduledEnd, setScheduledEnd] = useState("");
   const [defaults, setDefaults] = useState<TimeoutSettingsResponse | null>(
     null,
   );
@@ -106,6 +107,14 @@ export function SurveysPage({
     async (key: string) => {
       const value = await client.getSurvey(key);
       setSummary(value);
+      const end = value.endsAt ? new Date(value.endsAt) : null;
+      setScheduledEnd(
+        end
+          ? new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+              .toISOString()
+              .slice(0, 16)
+          : "",
+      );
       setTimeoutValue(value.inactivityTimeoutSeconds?.toString() ?? "");
       if (
         ["draft", "active"].includes(value.status) &&
@@ -511,6 +520,48 @@ export function SurveysPage({
                 </div>
               </div>
             )}
+            {["draft", "active"].includes(summary.status) &&
+              allowed("publish") && (
+                <details className="surveys-settings">
+                  <summary>Geplantes Ende</summary>
+                  <p>
+                    Die Teilnahme endet automatisch zu diesem Zeitpunkt. Bereits
+                    gespeicherte Antworten bleiben erhalten.
+                  </p>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void run(async () => {
+                        await client.scheduleSurveyEnd(summary.id, {
+                          operationId: crypto.randomUUID(),
+                          expectedRevision: summary.revision,
+                          endsAt: scheduledEnd
+                            ? new Date(scheduledEnd).toISOString()
+                            : null,
+                        });
+                        await refresh(summary.id);
+                      }, "Geplantes Ende wurde gespeichert.");
+                    }}
+                  >
+                    <label>
+                      Teilnahme endet am
+                      <input
+                        type="datetime-local"
+                        value={scheduledEnd}
+                        onChange={(e) => setScheduledEnd(e.target.value)}
+                      />
+                    </label>
+                    <p>
+                      Lokale Zeitzone:{" "}
+                      {Intl.DateTimeFormat().resolvedOptions().timeZone}. Leer
+                      lassen, um ohne geplantes Ende fortzufahren.
+                    </p>
+                    <Button type="submit" disabled={pending}>
+                      Geplantes Ende speichern
+                    </Button>
+                  </form>
+                </details>
+              )}
             {summary.status !== "deleted" && allowed("design") && (
               <details className="surveys-settings">
                 <summary>Teilantworten nach Inaktivität</summary>

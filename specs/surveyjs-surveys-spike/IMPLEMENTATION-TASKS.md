@@ -1,0 +1,307 @@
+# Surveys — implementation task acceptance checklist
+
+This checklist makes the acceptance gate for each implementation task explicit.
+The deliverables and criterion definitions remain authoritative in [PLAN.md](PLAN.md);
+the expected results for named test scenarios are in [TEST-SCENARIOS.md](TEST-SCENARIOS.md).
+Own license: **UNDEFINED**. Commercial components remain excluded.
+
+A checkbox here means **task acceptance**, not merely code delivery. All entries
+start open pending a task-by-task evidence review; this does not reset checked
+delivery or criteria in PLAN.md. Check a task only when every listed criterion
+and relevant assertion passes, and link the task-specific proof using
+[TASK-ACCEPTANCE.md](TASK-ACCEPTANCE.md).
+
+Integration and E2E references distinguish direct criterion coverage from the
+work-package regression gate when a task has no criterion at that test layer.
+When a scenario spans multiple tasks, record the assertions that exercise this
+task and its integration into the complete user journey. Shared scenarios must
+not be reduced to a smoke test. Dependency and rendering reviews remain required
+where referenced by the acceptance criteria, even though they are not E2E tests.
+
+## Per-task completion rule
+
+- [ ] Deliver the concrete implementation described by the task.
+- [ ] Pass every referenced acceptance criterion with named assertions.
+- [ ] Pass the listed integration scenarios against real services.
+- [ ] Pass the listed E2E scenarios through the actual user interface.
+- [ ] Record rejection, persistence and recovery outcomes required by those scenarios.
+- [ ] Link the tested revision, exact commands, exit codes and sanitized artifacts.
+- [ ] Verify isolated Docker resources and successful cleanup.
+
+Use this rule separately for each task; do not check these template boxes as
+a substitute for completing an individual task.
+
+## SURV-000 — Contracts, dependency selection and test infrastructure
+
+- [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
+
+  Acceptance criteria: **000.A1**.
+  Integration / supporting checks: **000.S1**.
+  E2E — work-package regression gate: **000.S4**.
+
+- [ ] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence.
+
+  Acceptance criteria: **000.A1, 000.A2**.
+  Integration / supporting checks: **000.S1, 000.S2**.
+  E2E — work-package regression gate: **000.S4**.
+
+- [ ] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices.
+
+  Acceptance criteria: **000.A4**.
+  Integration / supporting checks: **000.S3**.
+  E2E — work-package regression gate: **000.S4**.
+
+- [ ] **000.4** Build deterministic Krapfentaxi/golf fixtures and persona seeds in the existing testkit; add isolated Docker test entrypoints and artifact collection.
+
+  Acceptance criteria: **000.A2, 000.A3**.
+  Integration / supporting checks: **000.S2**.
+  E2E: **000.S4**.
+
+- [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
+
+  Acceptance criteria: **000.A1**.
+  Integration / supporting checks: **000.S1**.
+  E2E — work-package regression gate: **000.S4**.
+
+## SURV-010 — Vertical autosave and authoritative validation proof
+
+- [ ] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
+
+  Acceptance criteria: **010.A2, 010.A3, 010.A5**.
+  Integration / supporting checks: **010.S2, 010.S3**.
+  E2E: **010.S4**.
+
+- [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics.
+
+  Acceptance criteria: **010.A1**.
+  Integration / supporting checks: **010.S1**.
+  E2E — work-package regression gate: **010.S4, 010.S5**.
+
+- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes.
+
+  Acceptance criteria: **010.A1, 010.A2, 010.A4**.
+  Integration / supporting checks: **010.S1, 010.S2**.
+  E2E: **010.S5**.
+
+- [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof.
+
+  Acceptance criteria: **010.A3, 010.A4, 010.A5**.
+  Integration / supporting checks: **010.S3**.
+  E2E: **010.S4, 010.S5**.
+
+## SURV-020 — Neutral package and independent demo
+
+- [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration.
+
+  Acceptance criteria: **020.A1, 020.A2, 020.A3**.
+  Integration / supporting checks: **020.S1, 020.S2**.
+  E2E: **020.S3**.
+
+- [ ] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof.
+
+  Acceptance criteria: **020.A1, 020.A3**.
+  Integration / supporting checks: **020.S1**.
+  E2E: **020.S3**.
+
+- [ ] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary.
+
+  Acceptance criteria: **020.A3, 020.A4**.
+  Integration / supporting checks — work-package regression gate: **020.S1, 020.S2**.
+  E2E: **020.S3, 020.S4**.
+
+- [ ] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling.
+
+  Acceptance criteria: **020.A2**.
+  Integration / supporting checks: **020.S2**.
+  E2E — work-package regression gate: **020.S3, 020.S4**.
+
+## SURV-030 — Lifecycle, migrations and immutable versions
+
+- [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys.
+
+  Acceptance criteria: **030.A1, 030.A4**.
+  Integration / supporting checks: **030.S1, 030.S5**.
+  E2E: **030.S4, 030.S6**.
+
+- [ ] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers.
+
+  Acceptance criteria: **030.A2, 030.A3**.
+  Integration / supporting checks: **030.S2, 030.S3**.
+  E2E — work-package regression gate: **030.S4, 030.S6**.
+
+- [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions.
+
+  Acceptance criteria: **030.A1, 030.A2, 030.A4**.
+  Integration / supporting checks: **030.S1, 030.S2, 030.S5**.
+  E2E: **030.S4, 030.S6**.
+
+## SURV-040 — Visual questionnaire editor
+
+- [ ] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging.
+
+  Acceptance criteria: **040.A1, 040.A3, 040.A4**.
+  Integration / supporting checks: **040.S1**.
+  E2E: **040.S3, 040.S4**.
+
+- [ ] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview.
+
+  Acceptance criteria: **040.A2, 040.A3, 040.A4**.
+  Integration / supporting checks: **040.S2**.
+  E2E: **040.S3, 040.S4**.
+
+- [ ] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics.
+
+  Acceptance criteria: **040.A1, 040.A2, 040.A5**.
+  Integration / supporting checks: **040.S1, 040.S2**.
+  E2E: **040.S5**.
+
+- [ ] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data.
+
+  Acceptance criteria: **040.A1, 040.A2**.
+  Integration / supporting checks: **040.S1, 040.S2**.
+  E2E — work-package regression gate: **040.S3, 040.S4, 040.S5**.
+
+## SURV-050 — Public runner, ordered saves and recovery
+
+- [ ] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue.
+
+  Acceptance criteria: **050.A3, 050.A5**.
+  Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
+  E2E: **050.S3, 050.S5**.
+
+- [ ] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement.
+
+  Acceptance criteria: **050.A1, 050.A4**.
+  Integration / supporting checks: **050.S1**.
+  E2E: **050.S4**.
+
+- [ ] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification.
+
+  Acceptance criteria: **050.A2, 050.A5**.
+  Integration / supporting checks: **050.S2**.
+  E2E: **050.S5**.
+
+- [ ] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data.
+
+  Acceptance criteria: **050.A3, 050.A4, 050.A5**.
+  Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
+  E2E: **050.S3, 050.S4, 050.S5**.
+
+## SURV-060 — LeonAid module, permissions and invitations
+
+- [ ] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls.
+
+  Acceptance criteria: **060.A4, 060.A5**.
+  Integration / supporting checks — work-package regression gate: **060.S1, 060.S2**.
+  E2E: **060.S4, 060.S5**.
+
+- [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions.
+
+  Acceptance criteria: **060.A1, 060.A4**.
+  Integration / supporting checks: **060.S1**.
+  E2E: **060.S4**.
+
+- [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
+
+  Acceptance criteria: **060.A2, 060.A3**.
+  Integration / supporting checks: **060.S2**.
+  E2E: **060.S3**.
+
+- [ ] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis.
+
+  Acceptance criteria: **060.A5**.
+  Integration / supporting checks — work-package regression gate: **060.S1, 060.S2**.
+  E2E: **060.S5**.
+
+## SURV-070 — Aggregates, charts and filters
+
+- [ ] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators.
+
+  Acceptance criteria: **070.A1, 070.A2, 070.A3**.
+  Integration / supporting checks: **070.S1, 070.S2**.
+  E2E: **070.S3**.
+
+- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values.
+
+  Acceptance criteria: **070.A1, 070.A3**.
+  Integration / supporting checks: **070.S1**.
+  E2E: **070.S3**.
+
+- [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views.
+
+  Acceptance criteria: **070.A2, 070.A3, 070.A4**.
+  Integration / supporting checks: **070.S2**.
+  E2E: **070.S3, 070.S4**.
+
+## SURV-080 — CSV, XLSX and Typst exports
+
+- [ ] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text.
+
+  Acceptance criteria: **080.A1, 080.A2, 080.A4, 080.A6**.
+  Integration / supporting checks: **080.S1, 080.S2**.
+  E2E: **080.S4, 080.S6**.
+
+- [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination.
+
+  Acceptance criteria: **080.A1, 080.A4, 080.A5**.
+  Integration / supporting checks: **080.S1, 080.S5**.
+  E2E: **080.S4**.
+
+- [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation.
+
+  Acceptance criteria: **080.A3, 080.A4, 080.A6**.
+  Integration / supporting checks: **080.S3**.
+  E2E: **080.S4, 080.S6**.
+
+## SURV-090 — Deletion, recovery and operational limits
+
+- [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects.
+
+  Acceptance criteria: **090.A1, 090.A2, 090.A5**.
+  Integration / supporting checks: **090.S1, 090.S2**.
+  E2E: **090.S5**.
+
+- [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
+
+  Acceptance criteria: **090.A3**.
+  Integration / supporting checks: **090.S3**.
+  E2E — work-package regression gate: **090.S5**.
+
+- [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
+
+  Acceptance criteria: **090.A4**.
+  Integration / supporting checks: **090.S4**.
+  E2E — work-package regression gate: **090.S5**.
+
+## SURV-100 — Full acceptance and spike outcome
+
+- [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
+
+  Acceptance criteria: **100.A1, 100.A2, 100.A3, 100.A5**.
+  Integration / supporting checks: **100.S1, 100.S2, 100.S3**.
+  E2E: **100.S4**.
+
+- [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
+
+  Acceptance criteria: **100.A2, 100.A4**.
+  Integration / supporting checks: **100.S3**.
+  E2E: **100.S4**.
+
+- [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
+
+  Acceptance criteria: **100.A3, 100.A5**.
+  Integration / supporting checks: **100.S2, 100.S3**.
+  E2E — work-package regression gate: **100.S4**.
+
+- [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
+
+  Acceptance criteria: **100.A4, 100.A5**.
+  Integration / supporting checks: **100.S3**.
+  E2E — work-package regression gate: **100.S4**.
+
+## Final reconciliation
+
+- [ ] Every implementation task in PLAN.md has exactly one entry above.
+- [ ] Every completed task links to its task-level proof; no inferred passing status.
+- [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
+- [ ] Remaining open tasks are listed in the spike report and prevent full completion.

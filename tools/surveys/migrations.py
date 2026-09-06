@@ -1,0 +1,237 @@
+"""Actual PostgreSQL survey upgrade and constraint assertions."""
+
+import asyncio
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+from uuid import uuid4
+
+import asyncpg
+
+TABLES = {
+    "survey",
+    "survey_draft",
+    "survey_version",
+    "survey_participation",
+    "survey_operation",
+    "survey_grant",
+    "survey_settings",
+    "survey_settings_operation",
+}
+BASELINE = "0026_invoice_payment_snapshot"
+HEAD = "0028_survey_timeouts"
+
+
+async def fingerprints(conn, tables):
+    result = {}
+    for table in tables:
+        quoted = '"' + table.replace('"', '""') + '"'
+        content = await conn.fetchval(
+            f"SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM public.{quoted} t"
+        )
+        result[table] = {
+            "rows": len(json.loads(content)),
+            "sha256": hashlib.sha256(content.encode()).hexdigest(),
+        }
+    return result
+
+
+async def constraints(conn):
+    owner, first, second, version, participation = [uuid4() for _ in range(5)]
+    transaction = conn.transaction()
+    await transaction.start()
+    checked = []
+    try:
+        await conn.execute(
+            "INSERT INTO user_account(id,email,display_name,status) VALUES($1,$2,'Migration fixture','active')",
+            owner,
+            f"{owner}@example.invalid",
+        )
+        for sid in [first, second]:
+            await conn.execute(
+                "INSERT INTO survey(id,title,owner_user_id) VALUES($1,'Synthetic migrated survey',$2)",
+                sid,
+                owner,
+            )
+            await conn.execute(
+                "INSERT INTO survey_draft(survey_id,definition) VALUES($1,$2::jsonb)",
+                sid,
+                '{"pages":[{"name":"page","elements":[{"type":"text","name":"answer"}]}]}',
+            )
+        await conn.execute(
+            "INSERT INTO survey_version(id,survey_id,number,definition,schema_hash,renderer_version,capability_profile) SELECT $1,survey_id,1,definition,'synthetic','3.0.3','initial-v1' FROM survey_draft WHERE survey_id=$2",
+            version,
+            first,
+        )
+        await conn.execute(
+            "INSERT INTO survey_participation(id,survey_id,version_id,resume_digest,inactivity_timeout_seconds) VALUES($1,$2,$3,$4,1800)",
+            participation,
+            first,
+            version,
+            str(uuid4()),
+        )
+
+        async def rejected(name, sql, *args):
+            try:
+                async with conn.transaction():
+                    await conn.execute(sql, *args)
+                    # Publication's composite FK is intentionally deferred until commit.
+                    await conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
+            except asyncpg.PostgresError as error:
+                assert error.sqlstate in {"23000", "23514", "23503", "23505"}, (
+                    name,
+                    error.sqlstate,
+                )
+                checked.append(name)
+                return
+            raise AssertionError(f"Missing database invariant: {name}")
+
+        await rejected(
+            "immutable publication",
+            "UPDATE survey_version SET definition='{}'::jsonb WHERE id=$1",
+            version,
+        )
+        await rejected(
+            "version belongs to participation survey",
+            "UPDATE survey_participation SET survey_id=$1 WHERE id=$2",
+            second,
+            participation,
+        )
+        await rejected(
+            "published version belongs to survey",
+            "UPDATE survey SET published_version_id=$1 WHERE id=$2",
+            version,
+            second,
+        )
+        await rejected(
+            "positive participation timeout",
+            "UPDATE survey_participation SET inactivity_timeout_seconds=0 WHERE id=$1",
+            participation,
+        )
+        await rejected(
+            "bounded survey timeout",
+            "UPDATE survey SET inactivity_timeout_seconds=604801 WHERE id=$1",
+            first,
+        )
+        await rejected(
+            "completion timestamp required",
+            "UPDATE survey_participation SET status='completed' WHERE id=$1",
+            participation,
+        )
+        await rejected(
+            "trash timestamp required",
+            "UPDATE survey SET status='deleted' WHERE id=$1",
+            first,
+        )
+        await rejected(
+            "known lifecycle state",
+            "UPDATE survey SET status='unexpected' WHERE id=$1",
+            first,
+        )
+        await rejected(
+            "one version number per survey",
+            "INSERT INTO survey_version(id,survey_id,number,definition,schema_hash,renderer_version,capability_profile) SELECT $1,survey_id,number,definition,schema_hash,renderer_version,capability_profile FROM survey_version WHERE id=$2",
+            uuid4(),
+            version,
+        )
+        await rejected(
+            "known grant capability",
+            "INSERT INTO survey_grant(survey_id,user_id,capability) VALUES($1,$2,'unexpected')",
+            first,
+            owner,
+        )
+        await rejected(
+            "singleton settings", "INSERT INTO survey_settings(singleton) VALUES(false)"
+        )
+        await conn.execute(
+            "UPDATE survey_participation SET last_answer_changed_at=statement_timestamp()-interval '1 hour',answers=$2::jsonb WHERE id=$1",
+            participation,
+            '{"answer":"Synthetic retained answer"}',
+        )
+        effective = await conn.fetchrow(
+            "SELECT status,effective_status,answers FROM survey_participation_effective WHERE id=$1",
+            participation,
+        )
+        assert (
+            effective["status"] == "in_progress"
+            and effective["effective_status"] == "partial"
+        )
+        assert json.loads(effective["answers"]) == {
+            "answer": "Synthetic retained answer"
+        }
+        checked.append("effective partial status preserves answers")
+    finally:
+        await transaction.rollback()
+    return checked
+
+
+async def main():
+    conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
+    mode = sys.argv[1]
+    try:
+        current = await conn.fetchval("SELECT version_num FROM alembic_version")
+        tables = {
+            r["table_name"]
+            for r in await conn.fetch(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"
+            )
+        }
+        baseline_path = Path("/proof/baseline.json")
+        if mode == "baseline":
+            assert current == BASELINE and not TABLES & tables
+            assert await conn.fetchval("SELECT count(*) FROM invoice") > 0
+            assert await conn.fetchval("SELECT count(*) FROM commitment") > 0
+            state = await fingerprints(conn, sorted(tables - {"alembic_version"}))
+            baseline_path.write_text(
+                json.dumps({"revision": current, "tables": state}, indent=2)
+            )
+            print(
+                f"PASS: populated pre-survey baseline captured; {len(state)} table fingerprints"
+            )
+            return
+        assert current == HEAD and TABLES <= tables
+        assert (
+            await conn.fetchval(
+                "SELECT inactivity_timeout_seconds FROM survey_settings WHERE singleton"
+            )
+            == 1800
+        )
+        assert (
+            await conn.fetchval("SELECT revision FROM survey_settings WHERE singleton")
+            == 1
+        )
+        for table in TABLES - {"survey_settings"}:
+            assert await conn.fetchval(f"SELECT count(*) FROM {table}") == 0
+        if mode == "upgrade":
+            baseline = json.loads(baseline_path.read_text())
+            actual = await fingerprints(conn, sorted(baseline["tables"]))
+            assert actual == baseline["tables"], (
+                "Pre-existing data changed during survey migrations"
+            )
+        checked = await constraints(conn)
+        if mode == "upgrade":
+            assert (
+                await fingerprints(conn, sorted(baseline["tables"]))
+                == baseline["tables"]
+            ), "Constraint proof changed existing data"
+        Path(f"/proof/{mode}.json").write_text(
+            json.dumps(
+                {
+                    "mode": mode,
+                    "revision": current,
+                    "preexistingDataPreserved": mode == "upgrade",
+                    "checks": checked,
+                },
+                indent=2,
+            )
+        )
+        print(
+            f"PASS: {mode} at {HEAD}; {len(checked)} actual PostgreSQL invariants; existing data preserved where present"
+        )
+    finally:
+        await conn.close()
+
+
+asyncio.run(main())

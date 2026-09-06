@@ -7,6 +7,8 @@ Own license decision remains **UNDEFINED**.
 ## Task ledger
 
 Create one row for every implementation and test task in the work package.
+Reconcile each implementation row with [IMPLEMENTATION-TASKS.md](IMPLEMENTATION-TASKS.md),
+including the required integration and E2E assertions before marking it accepted.
 Replace placeholders with actual values; leave unimplemented items open.
 
 | Task ID | Deliverable / changed paths | Required acceptance IDs | Named tests and assertion locations | Implementation delivered | Acceptance result / remaining gap |

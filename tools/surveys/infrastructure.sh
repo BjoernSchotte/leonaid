@@ -46,6 +46,12 @@ if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ]; t
     --workdir /repo --entrypoint python api tools/surveys/responses.py
 fi
 if [ "$mode" = lifecycle ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/schedule.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/schedule.py recover
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
