@@ -3,11 +3,17 @@ import { expect } from "@playwright/test";
 
 const origin = "https://proxy:8443";
 const mail = "http://mailpit:8025/mail/api/v1";
-const email = "system-admin@leonaid.invalid";
+const defaultEmail = "system-admin@leonaid.invalid";
 
 // Read actual SMTP deliveries from this proof project's Mailpit. Never print
 // challenge material or inject cookies, network responses, or form state.
-export async function browserLogin(context, page, returnTo, fresh = false) {
+export async function browserLogin(
+  context,
+  page,
+  returnTo,
+  fresh = false,
+  email = defaultEmail,
+) {
   if (!fresh) assert.equal((await context.cookies()).length, 0);
   const before = await context.request.get(`${mail}/messages`);
   assert.equal(before.status(), 200);
@@ -62,7 +68,13 @@ export async function browserLogin(context, page, returnTo, fresh = false) {
   );
 }
 
-export async function browserFreshLogin(context, page, editorPath, apiRoot) {
+export async function browserFreshLogin(
+  context,
+  page,
+  editorPath,
+  apiRoot,
+  email = defaultEmail,
+) {
   const profile = await context.request.get(origin + "/_emdash/api/auth/me");
   assert.equal(profile.status(), 200);
   const identity = (await profile.json()).data;
@@ -91,7 +103,7 @@ export async function browserFreshLogin(context, page, editorPath, apiRoot) {
   await page
     .getByRole("heading", { name: "Anmeldung bestätigen", exact: true })
     .waitFor();
-  await browserLogin(context, page, editorPath, true);
+  await browserLogin(context, page, editorPath, true, email);
   assert.equal(
     (await context.request.get(origin + "/api/v1/auth/fresh/status")).status(),
     200,

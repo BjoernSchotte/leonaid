@@ -90,8 +90,13 @@ async def main() -> None:
             await connection.execute(
                 "DELETE FROM action_membership WHERE user_id=$1", KLARA_ID
             )
-        elif sys.argv[1] == "prepare-publication":
-            for suffix, action_status in [(41, "draft"), (42, "scheduled")]:
+        elif sys.argv[1] in {"prepare-publication", "prepare-charity-browser"}:
+            actions = (
+                [(43, "draft"), (44, "draft"), (45, "draft")]
+                if sys.argv[1] == "prepare-charity-browser"
+                else [(41, "draft"), (42, "scheduled")]
+            )
+            for suffix, action_status in actions:
                 await connection.execute(
                     """INSERT INTO charity_action
                     (id, carrier_name, name, purpose, status, starts_on, ends_on,
@@ -112,6 +117,16 @@ async def main() -> None:
                     UUID(f"30000000-0000-4000-8000-{suffix:012d}"),
                     UUID(f"20000000-0000-4000-8000-{suffix:012d}"),
                 )
+                if sys.argv[1] == "prepare-charity-browser":
+                    await connection.execute(
+                        """INSERT INTO action_membership
+                        (id, action_id, user_id, role, active_from)
+                        VALUES ($1, $2, $3, 'charity_admin', $4)""",
+                        UUID(f"40000000-0000-4000-8000-{suffix:012d}"),
+                        UUID(f"20000000-0000-4000-8000-{suffix:012d}"),
+                        KLARA_ID,
+                        now - timedelta(days=1),
+                    )
         elif sys.argv[1].startswith("publication-"):
             mode = sys.argv[1].removeprefix("publication-")
             if mode not in {

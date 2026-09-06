@@ -92,9 +92,12 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-isolation-proof.mjs "$@"
     }
     isolation_probe
-    compose up --no-deps --build --detach --wait public
+    compose up --no-deps --build --detach --wait public mailpit worker
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
-      node tools/emdash_spike/campaign-editor-browser-proof.mjs --charity
+      node tools/emdash_spike/campaign-editor-browser-proof.mjs --charity --login
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-charity-browser
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-create-browser-proof.mjs --charity-login
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/campaign-isolation-browser-proof.mjs
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke-charity

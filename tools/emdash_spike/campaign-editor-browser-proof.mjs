@@ -14,6 +14,7 @@ const editorRoot = "/_emdash/admin/content/campaign_pages";
 const revoked = process.argv.includes("--revoked");
 const login = process.argv.includes("--login");
 const charity = process.argv.includes("--charity");
+const loginEmail = charity ? "klara.kern@leonaid.invalid" : undefined;
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   const browser = await engine.launch({ headless: true });
   try {
@@ -44,7 +45,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await page.waitForURL("**/login?returnTo=**");
     assert.equal(new URL(page.url()).searchParams.get("returnTo"), editorRoot);
     await page.getByRole("heading", { name: "Bei LeonAid anmelden" }).waitFor();
-    if (login) await browserLogin(context, page, editorRoot);
+    if (login) await browserLogin(context, page, editorRoot, false, loginEmail);
     else
       await context.addCookies([
         cookie(charity ? tokens.charity : tokens.system),
@@ -74,10 +75,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.ok(entry);
       const apiPath = `${apiRoot}/${entry.id}`;
       const editorPath = `${editorRoot}/${entry.id}`;
-      if (login) await browserFreshLogin(context, page, editorPath, apiRoot);
+      if (login)
+        await browserFreshLogin(context, page, editorPath, apiRoot, loginEmail);
       const before = await json(apiPath);
       const history = await json(`${apiPath}/revisions`);
       const identity = await json("/_emdash/api/auth/me");
+      assert.equal(identity.role, charity ? 40 : 50);
       // The SPA itself loads content and revisions; no intercepted requests,
       // injected form state, server doubles or API writes stand in for editing.
       assert.equal((await page.goto(origin + editorPath)).status(), 200);
@@ -217,7 +220,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     if (login) {
       await coreLogout(context, page, editorRoot, apiRoot);
       console.log(
-        `campaign-editor-browser: OK: ${name}: actual SMTP form login, editor return, native editing and Core logout`,
+        `campaign-editor-browser: OK: ${name}: ${charity ? "Charity" : "System"} actual SMTP form login/fresh login, editor return, native editing and Core logout`,
       );
     }
     await context.clearCookies();

@@ -881,7 +881,7 @@ domain trigger was bypassed. Native list links include locale query parameters,
 which the browser proof preserves when matching canonical item destinations.
 
 This is a prerequisite, not success of the broader `campaign-isolation` gate.
-Charity email-code login, native creation/rich-field UX, membership revocation
+Native rich-field UX, membership revocation
 during lock waits, remaining account/dependency cases, media, preview and the
 complete route/data matrix remain open. Earlier System-Admin-only checkpoints
 below describe their historical evidence; this checkpoint supersedes their
@@ -909,6 +909,39 @@ Every complete live command also passed restart/database-failure bootstrap
 closure and removed only its own containers, networks, volumes and transient
 synthetic sessions. No proof published host ports. These regressions do not
 close the explicitly pending full-spike gates.
+
+Charity login and native creation checkpoint (6 September 2026):
+
+- [x] Prove the assigned Charity Admin signs in through the real Core email-code
+      form from an empty browser context, receives the code through the actual
+      worker/SMTP delivery, returns to EmDash and receives role 40 rather than
+      System Admin privileges. Prove real freshness expiry and confirmation,
+      Core session rotation, stable CMS identity, native editing/publication and
+      Core logout followed by CMS denial and login redirection.
+- [x] Prove native Charity draft creation for an assigned Core campaign from
+      the same real login flow, including preserved campaign handoff, title,
+      hero and SEO fields, canonical editor return, mapped authorship,
+      duplicate conflict, subsequent autosave/reload and Core logout. A second
+      Charity actor must neither read nor claim the created campaign binding.
+
+Evidence: the expanded `campaign-editorial-isolation` command exited successfully
+in `leonaid-emdash-tmp-hlryd3d3rt`, using Chromium, Firefox and WebKit for both
+journeys. Positive login/creation browser contexts do not receive prepared
+cookies, intercepted responses or API writes in place of native editing. Three
+additional synthetic Core campaigns have actual persisted Charity memberships
+and beneficiaries. The native editor creates their CMS records only on Save.
+The proof verifies duplicate HTTP 409, foreign HTTP 404/403 and unchanged content
+after the foreign actor's denied claim. All original isolation checks pass again;
+membership withdrawal now also covers all three browser-created records.
+Verified TLS bootstrap remains closed after restart/database failure, all owned
+resources and transient sessions were removed, and no host ports were published.
+Login challenge codes and cookie values are never logged or committed.
+
+This closes the assigned Charity actor's real-login/native-creation prerequisite,
+not the complete identity lifecycle, navigation/logout UI, rich-field editing,
+media, public delivery or full campaign-isolation gate. The proof uses Core's
+actual logout API through the authenticated browser context; a CMS logout control
+is still part of the pending shell/navigation work.
 
 Campaign-list primitive checkpoint (6 September 2026):
 `./leonaid test-emdash-spike --case campaign-content` passed against the pinned

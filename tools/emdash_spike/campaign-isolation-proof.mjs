@@ -66,7 +66,14 @@ if (process.argv.includes("--revoked")) {
     await call("charity", path, 403);
   const all = await data("system", root);
   for (const entry of all.items.filter((item) =>
-    [action(1), action(2), action(41)].includes(item.data.action_id),
+    [
+      action(1),
+      action(2),
+      action(41),
+      action(43),
+      action(44),
+      action(45),
+    ].includes(item.data.action_id),
   )) {
     const path = `${root}/${entry.id}`;
     const before = await data("system", path);

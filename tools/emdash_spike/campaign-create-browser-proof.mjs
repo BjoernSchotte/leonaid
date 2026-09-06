@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
+import { browserLogin, coreLogout } from "./browser-login.mjs";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const origin = "https://proxy:8443";
 const apiRoot = "/_emdash/api/content/campaign_pages";
 const editorRoot = "/_emdash/admin/content/campaign_pages";
 const engines = Object.entries({ chromium, firefox, webkit });
+const charity = process.argv.includes("--charity-login");
 for (const [index, [name, engine]] of engines.entries()) {
   const browser = await engine.launch({ headless: true });
   try {
@@ -44,7 +46,7 @@ for (const [index, [name, engine]] of engines.entries()) {
       await context.close();
       continue;
     }
-    const action = `20000000-0000-4000-8000-${String([3, 41, 42][index]).padStart(12, "0")}`;
+    const action = `20000000-0000-4000-8000-${String((charity ? [43, 44, 45] : [3, 41, 42])[index]).padStart(12, "0")}`;
     const newPath = editorRoot + "/new?campaign=" + action;
     const handoffPath = "/_emdash/admin/campaigns/" + action;
     await page.goto(origin + handoffPath);
@@ -53,7 +55,15 @@ for (const [index, [name, engine]] of engines.entries()) {
     await page.goto(origin + newPath);
     await page.waitForURL("**/login?returnTo=**");
     assert.equal(new URL(page.url()).searchParams.get("returnTo"), newPath);
-    await context.addCookies([cookie(tokens.system)]);
+    if (charity)
+      await browserLogin(
+        context,
+        page,
+        newPath,
+        false,
+        "klara.kern@leonaid.invalid",
+      );
+    else await context.addCookies([cookie(tokens.system)]);
     const title = `Native ${name} new campaign`;
     const json = async (path) => {
       const response = await context.request.get(origin + path);
@@ -61,6 +71,8 @@ for (const [index, [name, engine]] of engines.entries()) {
       return (await response.json()).data;
     };
     const before = await json(apiRoot);
+    const identity = await json("/_emdash/api/auth/me");
+    assert.equal(identity.role, charity ? 40 : 50);
     const resolve = async (path) => {
       const response = await context.request.get(origin + path, {
         maxRedirects: 0,
@@ -137,7 +149,7 @@ for (const [index, [name, engine]] of engines.entries()) {
           "/_emdash/admin/campaigns/20000000-0000-4000-8000-999999999999",
         )
       ).status(),
-      503,
+      charity ? 403 : 503,
     );
     assert.equal(
       (await context.request.post(origin + handoffPath)).status(),
@@ -175,7 +187,48 @@ for (const [index, [name, engine]] of engines.entries()) {
       const denied = await context.request.get(
         origin + editorRoot + "/new?" + query,
       );
-      assert.equal(denied.status(), query.endsWith("999999999999") ? 503 : 403);
+      assert.equal(
+        denied.status(),
+        query.endsWith("999999999999") && !charity ? 503 : 403,
+      );
+    }
+    if (charity) {
+      // The positive creation path above used only the actual email-code form.
+      // A separate real Core actor must not discover or claim its new binding.
+      const foreign = await browser.newContext({ ignoreHTTPSErrors: true });
+      await foreign.addCookies([cookie(tokens.charity_b)]);
+      assert.equal(
+        (
+          await foreign.request.get(origin + `${apiRoot}/${created.item.id}`)
+        ).status(),
+        404,
+      );
+      assert.equal(
+        (
+          await foreign.request.get(origin + handoffPath, { maxRedirects: 0 })
+        ).status(),
+        403,
+      );
+      assert.equal(
+        (
+          await foreign.request.post(origin + apiRoot, {
+            headers: { Origin: origin, "X-EmDash-Request": "1" },
+            data: {
+              data: {
+                action_id: action,
+                title: "Foreign browser claim denied",
+              },
+            },
+          })
+        ).status(),
+        403,
+      );
+      assert.deepEqual(
+        (await json(`${apiRoot}/${created.item.id}`)).item,
+        stored,
+      );
+      await foreign.close();
+      await coreLogout(context, page, editorPath, apiRoot);
     }
     await context.clearCookies();
     await context.addCookies([cookie(tokens.finance)]);
@@ -184,7 +237,7 @@ for (const [index, [name, engine]] of engines.entries()) {
     assert.equal((await page.goto(origin + handoffPath)).status(), 403);
     await context.close();
     console.log(
-      `campaign-create-browser: OK: ${name}: native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Finance denial`,
+      `campaign-create-browser: OK: ${name}: ${charity ? "Charity SMTP login and Core logout; " : ""}native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Finance denial`,
     );
   } finally {
     await browser.close();

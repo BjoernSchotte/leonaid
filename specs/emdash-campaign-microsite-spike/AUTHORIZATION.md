@@ -60,8 +60,18 @@ Chromium, Firefox and WebKit; native save/conflict/reload/publish/private-follow
 is additionally exercised as Charity A. With A's memberships removed in Core,
 all previously admitted operations deny A without changing content/history;
 B retains access. This is not the full `campaign-isolation` gate: media, preview,
-Charity native creation and real email-code login, hostile dependencies and the
+complete rich-field UX, hostile dependencies and the
 remaining complete operation matrix still require evidence.
+
+The expanded prerequisite also passed in `leonaid-emdash-tmp-hlryd3d3rt` with
+actual Charity email-code login, fresh-login confirmation/session rotation,
+native editing and logout, followed by native creation through a separate real
+login in each of Chromium, Firefox and WebKit. Three assigned Core campaigns
+receive draft-only CMS records through the editor's Save action. Duplicate,
+foreign-read/claim and subsequent membership-withdrawal checks pass. Positive
+browser sessions are not injected; codes come from the actual isolated worker
+and SMTP delivery. This supersedes the initial prepared-session limitation for
+Charity A's login/edit/create journey, not the remaining broad acceptance gates.
 
 The Charity manifest is generated only from `campaignCollection`, including its
 source-derived hash. It contains no global database metadata. The native shell
