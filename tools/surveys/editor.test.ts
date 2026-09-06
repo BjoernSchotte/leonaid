@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
 import { EditorHistory } from "../../packages/surveys/src/editor-model";
+import {
+  compatibilityIssues,
+  questionIssues,
+} from "../../packages/surveys/src/editor-compatibility";
 import { DraftCoordinator } from "../../packages/surveys/src/editor-saves";
 import type {
   AuthoringAdapter,
@@ -92,4 +96,45 @@ test("an uncertain draft save retries the identical operation before newer edits
     "Second",
   );
   expect(saves.state).toBe("saved");
+});
+
+test("import replacement is atomic, reversible and lossless for safe unknown regions", () => {
+  const history = new EditorHistory(definition);
+  const imported = structuredClone(definition);
+  imported.title = "Imported";
+  history.replace(imported);
+  expect(history.document).toEqual(imported);
+  expect(compatibilityIssues(history.document)).toContain("definition.unknown");
+  expect(questionIssues(history.document.pages[0].elements[1])).toContain(
+    "custom",
+  );
+  for (const invalid of [
+    null,
+    [],
+    { pages: null },
+    { pages: [{ name: "p", elements: [null] }] },
+    { ...imported, bad: Infinity },
+  ]) {
+    expect(() => history.replace(invalid)).toThrow();
+    expect(history.document).toEqual(imported);
+  }
+  history.undo();
+  expect(history.document).toEqual(definition);
+  history.redo();
+  expect(history.document).toEqual(imported);
+});
+
+test("nested choice content stays read-only instead of being flattened by property controls", () => {
+  expect(
+    questionIssues({
+      name: "choice",
+      type: "radiogroup",
+      choices: [
+        { value: "a", text: "A", elements: [{ type: "text", name: "nested" }] },
+      ],
+    }),
+  ).toEqual(["choices"]);
+  expect(questionIssues({ name: "future", type: "__proto__" })).toEqual([
+    "type",
+  ]);
 });

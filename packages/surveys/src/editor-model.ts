@@ -25,16 +25,31 @@ const copy = <T>(value: T): T => structuredClone(value);
 const id = (prefix: string) =>
   `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 
-export function readEditorDefinition(
-  value: SurveyDefinition,
-): EditorDefinition {
-  if (JSON.stringify(value).length > 262144 || !Array.isArray(value.pages))
+export function readEditorDefinition(value: unknown): EditorDefinition {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(
+      "Die JSON-Datei muss einen Fragebogen als Objekt enthalten.",
+    );
+  function inspect(item: unknown, depth: number): void {
+    if (depth > 30)
+      throw new Error("Der Fragebogen ist zu tief verschachtelt.");
+    if (typeof item === "number" && !Number.isFinite(item))
+      throw new Error("Zahlen müssen endlich sein.");
+    if (item && typeof item === "object")
+      for (const child of Object.values(item)) inspect(child, depth + 1);
+  }
+  inspect(value, 0);
+  const definition = value as SurveyDefinition;
+  if (
+    new TextEncoder().encode(JSON.stringify(value)).length > 262144 ||
+    !Array.isArray(definition.pages)
+  )
     throw new Error(
       "Der Fragebogen muss eine begrenzte Liste von Seiten enthalten.",
     );
   const names = new Set<string>();
   const pageNames = new Set<string>();
-  for (const page of value.pages) {
+  for (const page of definition.pages) {
     if (
       !page ||
       typeof page !== "object" ||
@@ -136,6 +151,14 @@ export class EditorHistory {
     const next = copy(this.present);
     mutate(next);
     const checked = readEditorDefinition(next);
+    if (JSON.stringify(checked) === JSON.stringify(this.present)) return;
+    this.past = [...this.past.slice(-99), this.present];
+    this.present = checked;
+    this.future = [];
+    this.generation++;
+  }
+  replace(definition: unknown) {
+    const checked = readEditorDefinition(definition);
     if (JSON.stringify(checked) === JSON.stringify(this.present)) return;
     this.past = [...this.past.slice(-99), this.present];
     this.present = checked;

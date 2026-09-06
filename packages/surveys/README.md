@@ -132,9 +132,24 @@ ParticipationAdapter; completing it cannot create collected responses. Publicati
 uses a stable operation ID and revision. After an uncertain acknowledgement,
 editing stays locked until the same publication request is resolved.
 
-Safe JSON import/export, full property/profile compatibility,
-responsive/accessibility acceptance and independent packed-consumer proof remain
-required work. This editor does not claim SurveyJS Creator feature parity.
+The advanced JSON section accepts a file or pasted JSON and downloads the current
+local definition. Import parses a bounded object with explicit named pages and
+questions; malformed structure, non-finite numbers and excessive nesting are
+rejected without changing history. Applying a definition is one reversible edit.
+Unknown safe properties survive serialization and persistence. Unsupported
+question types, options and nested choice content are read-only in the property
+panel, with paths listed in compatibility notices. The supported profile remains
+explicit: this is not an arbitrary SurveyJS JSON importer. Only the host's
+validation endpoint may approve execution in preview or publication.
+
+When another editor wins a save race, automatic writes stop. The user may export
+the local definition and explicitly load the server draft, discarding local edit
+history. Subsequent saves use the returned revision. Network failures retain the
+original operation ID/payload so an uncertain committed save can be resolved
+before sending newer edits. The browser gate covers both cases.
+
+Full property/profile compatibility, responsive/accessibility acceptance and
+independent packed-consumer proof remain required work. This editor does not claim SurveyJS Creator feature parity.
 
 The web host currently enables TypeScript `skipLibCheck`, matching the neutral
 package: SurveyJS 3.0.3's matrix renderer declaration returns `Element | null`

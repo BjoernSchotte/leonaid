@@ -1,7 +1,8 @@
 # SURV-040 — Initial visual editor evidence
 
-Date: 2026-09-06. Status: partial; implementation items 040.1 and 040.2 delivered;
-040.A3 proven. Broader work-package acceptance criteria remain open.
+Date: 2026-09-06. Status: partial; implementation items 040.1–040.4 delivered;
+040.A1/A2/A3/A5 and 040.T1 proven. Full keyboard/accessibility acceptance
+040.A4 and its combined browser verification task 040.T2 remain open.
 
 ## Implemented surface
 
@@ -31,10 +32,9 @@ TypeScript checks and the permissive dependency inventory passed.
 
 ## Remaining acceptance
 
-Safe JSON import/export, complete profile/property compatibility, full
-keyboard/accessibility and mobile/theme acceptance, draft conflict/reconnect
-browser coverage, navigation/list integration and the packed independent consumer
-remain open. No complete work package or full editor parity is claimed.
+Complete profile/property compatibility, full keyboard/accessibility and
+mobile/theme acceptance, navigation/list integration and the packed independent
+consumer remain open. No complete work package or full editor parity is claimed.
 
 
 ## Live browser result
@@ -124,6 +124,65 @@ and `surveys-authoring-Krapfentaxi.png`. The Golf screenshot was visually inspec
 at 1440px: saved state, presentation controls and three-page outline are readable.
 Full typography/theme, mobile and accessibility acceptance remain open.
 
-040.A1/A2/A4/A5 and 040.T1/T2 remain open for their broader roundtrip/import,
-keyboard/error/accessibility and interrupted draft-save scope. This evidence does
+At the sample-authoring milestone, 040.A1/A2/A4/A5 and 040.T1/T2 remained open
+for their broader roundtrip/import, keyboard/error/accessibility and interrupted
+draft-save scope. The import/recovery increment below resolves part of that scope.
+The sample-authoring evidence does
 not accept the entire editor work package or claim arbitrary SurveyJS support.
+
+
+## JSON preservation, publication diagnostics and draft recovery
+
+The import/recovery increment adds a bounded file/paste import and current-local-
+state download. Applying imported JSON is a single undoable history change. The
+parser rejects invalid root/page/question structures, non-finite numbers and
+excessive nesting without replacing the existing document. Safe unknown JSON is
+preserved rather than stripped. Compatibility notices identify root/page fields
+and affected questions by path; unsupported question/options regions remain
+read-only. Preview/publication still validate the persisted definition on the
+server, which now identifies the affected page/question in validation errors.
+
+Conflict recovery offers a download of local changes and an explicit discard-
+local/load-server action. Loading resets edit history and the coordinator to the
+server revision; it does not overwrite the winning server draft. An uncertain
+network save retains its exact operation ID/payload until resolved before newer
+edits can be sent.
+
+The added test file is `tests/e2e/surveys-import-recovery.spec.mjs`. Its import
+journey reads actual persisted definitions and downloaded JSON, including nested
+unknown metadata and stable identities. It checks malformed JSON without a state
+change, unsupported/unsafe publication errors, absence of external requests,
+undo/redo of imports, reload, and successful publication after correction. Its
+recovery journey commits a real save then drops the acknowledgement, blocks a
+retry while a newer edit is made, reconnects, verifies exact request replay and
+revision progression, checks undo/redo, and resolves an actual two-tab conflict.
+No persistence or authorization endpoint is mocked.
+
+
+Live verification: `./leonaid test-surveys-editor` passed all six Chromium
+scenarios in 54.4 seconds against fresh project
+`leonaid-surveys-833458328-44133`, following the real migration and
+API/PostgreSQL foundation checks. The command exited zero, published no host
+ports and verified teardown of its own containers and volumes. Both new scenarios use the real member UI and
+backend; downloaded JSON and persisted server state are asserted, not inferred
+from a success toast. The preceding run (`leonaid-surveys-833458328-43174`) had
+five passing scenarios and one locator failure after filling the JSON textarea.
+The corrected locator selects its accessible textbox role; the unchanged
+assertions and complete import journey then passed.
+
+The import roundtrip and two-tab conflict prove 040.A1. Unsupported metadata and
+question properties, unsafe presentation, path diagnostics and successful
+publication after correction prove 040.A2. Lost acknowledgement/replay, explicit
+unsaved/error state, undo/redo and conflict resolution prove 040.A5. These checks
+also satisfy the scoped integration verification task 040.T1. All four editor
+implementation items are delivered; 040.A4 and 040.T2 stay unchecked until the
+complete keyboard/error/accessibility journey is proven.
+
+Supporting gates passed in pinned runtimes: `bun run typecheck:web`,
+`bunx tsc --noEmit -p packages/surveys/tsconfig.json`,
+`bun test tools/surveys/editor.test.ts` (five tests, 33 assertions),
+`./leonaid test-surveys-core` (82 actual SurveyJS/Python comparisons, 23 Python
+tests, three queue tests/17 assertions) and
+`uv run --frozen ruff check src/leonaid/domain/surveys/validation.py`.
+Each exited zero. No dependencies were added. Definitions used in the tests are
+synthetic; raw browser traces remain in ignored local artifacts.

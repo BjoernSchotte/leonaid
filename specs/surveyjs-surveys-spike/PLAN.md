@@ -566,21 +566,21 @@ Implementation tasks:
 
 - [x] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging. Acceptance: **040.A1, 040.A3, 040.A4**.
 - [x] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview. Acceptance: **040.A2, 040.A3, 040.A4**.
-- [ ] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics. Acceptance: **040.A1, 040.A2, 040.A5**.
-- [ ] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data. Acceptance: **040.A1, 040.A2**.
+- [x] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics. Acceptance: **040.A1, 040.A2, 040.A5**.
+- [x] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data. Acceptance: **040.A1, 040.A2**.
 
 Test implementation and verification tasks:
 
-- [ ] **040.T1** Roundtrip editor definitions through the draft API/database; assert stable IDs, safe unknown-property preservation, stale-save conflicts and field-specific rejection of unsupported or unsafe imports. Acceptance: **040.A1, 040.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **040.T1** Roundtrip editor definitions through the draft API/database; assert stable IDs, safe unknown-property preservation, stale-save conflicts and field-specific rejection of unsupported or unsafe imports. Acceptance: **040.A1, 040.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 - [ ] **040.T2** Author both complete sample questionnaires through the UI; cover guided conditions, preview/publication, drag and keyboard reordering, undo/redo, interrupted saves, focus and accessible labels. Acceptance: **040.A3, 040.A4, 040.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
-- [ ] **040.A1 — Integration:** editor-produced definitions roundtrip through the draft API/database without changing stable IDs or safe unknown properties; stale saves report a conflict.
-- [ ] **040.A2 — Integration:** structurally valid but unsupported or unsafe imported definitions cannot publish; validation identifies the affected field or question.
+- [x] **040.A1 — Integration:** editor-produced definitions roundtrip through the draft API/database without changing stable IDs or safe unknown properties; stale saves report a conflict.
+- [x] **040.A2 — Integration:** structurally valid but unsupported or unsafe imported definitions cannot publish; validation identifies the affected field or question.
 - [x] **040.A3 — E2E:** author both complete sample questionnaires without entering JSON; reorder pages/questions, configure conditions, preview, reload and publish the persisted result.
 - [ ] **040.A4 — E2E:** complete the core authoring journey by keyboard, including reordering and error recovery; verify focus/labels with accessibility checks and document manual observations.
-- [ ] **040.A5 — E2E:** undo/redo and an interrupted draft save behave visibly and correctly after reconnect; the editor never claims an unacknowledged change is saved.
+- [x] **040.A5 — E2E:** undo/redo and an interrupted draft save behave visibly and correctly after reconnect; the editor never claims an unacknowledged change is saved.
 
 ### SURV-050 — Public runner, ordered saves and recovery
 

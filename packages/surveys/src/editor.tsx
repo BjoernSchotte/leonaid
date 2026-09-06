@@ -9,9 +9,11 @@ import {
   EditorHistory,
   type EditorQuestion,
   type QuestionKind,
+  readEditorDefinition,
 } from "./editor-model";
 import { DraftCoordinator } from "./editor-saves";
 import { ConditionBuilder } from "./conditions";
+import { compatibilityIssues, questionIssues } from "./editor-compatibility";
 import { createSurveyModel } from "./model";
 import { Survey } from "survey-react-ui";
 import type { Model } from "survey-core";
@@ -38,6 +40,10 @@ export function SurveyEditor({
   onPublished,
 }: SurveyEditorProps) {
   const [, render] = useState(0);
+  const [loadedDraft, setLoadedDraft] = useState(draft);
+  const [jsonInput, setJsonInput] = useState("");
+  const [jsonError, setJsonError] = useState("");
+  useEffect(() => setLoadedDraft(draft), [draft]);
   const [pageId, selectPage] = useState<string | null>(null);
   const [questionId, selectQuestion] = useState<string | null>(null);
   const [kind, setKind] = useState<QuestionKind>("text");
@@ -47,15 +53,16 @@ export function SurveyEditor({
   const [preview, setPreview] = useState<Model | null>(null);
   const publication = useRef<Mutation | null>(null);
   const { history, saves } = useMemo(() => {
-    const history = new EditorHistory(draft.definition);
+    const history = new EditorHistory(loadedDraft.definition);
     return {
       history,
-      saves: new DraftCoordinator(draft, history, adapter, () =>
+      saves: new DraftCoordinator(loadedDraft, history, adapter, () =>
         render((n) => n + 1),
       ),
     };
-  }, [draft, adapter]);
+  }, [loadedDraft, adapter]);
   const doc = history.document;
+  const issues = compatibilityIssues(doc);
   const page = doc.pages.find((p) => p.name === pageId) ?? doc.pages[0];
   const question = page?.elements.find((q) => q.name === questionId);
   function edit(change: () => void) {
@@ -86,6 +93,60 @@ export function SurveyEditor({
       window.removeEventListener("online", online);
     };
   }, [saves]);
+  function exportJson() {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(history.document, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "survey-draft.json";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function importJson() {
+    try {
+      if (new TextEncoder().encode(jsonInput).length > 262144)
+        throw new Error("Die JSON-Datei darf höchstens 256 KiB groß sein.");
+      const definition = readEditorDefinition(JSON.parse(jsonInput));
+      edit(() => history.replace(definition));
+      selectPage(null);
+      selectQuestion(null);
+      setJsonError("");
+    } catch (error) {
+      setJsonError(
+        error instanceof SyntaxError
+          ? "Das JSON ist ungültig. Prüfen Sie Klammern, Kommas und Anführungszeichen."
+          : error instanceof Error
+            ? error.message
+            : "Import nicht möglich.",
+      );
+    }
+  }
+  async function reloadDraft() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await adapter.loadDraft(draft.surveyId);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      readEditorDefinition(result.value.definition);
+      saves.cancelTimer();
+      setLoadedDraft(result.value);
+      selectPage(null);
+      selectQuestion(null);
+      setNotice("Der aktuelle Serverstand wurde geladen.");
+    } catch {
+      setError(
+        "Der Serverstand konnte nicht geladen werden. Ihre lokalen Änderungen bleiben erhalten.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function inspect() {
     if (publication.current) return;
     setBusy(true);
@@ -309,12 +370,89 @@ export function SurveyEditor({
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert">{error}</p>}
       {saves.state === "conflict" && (
-        <p role="alert">
-          Ein anderes Fenster hat den Entwurf geändert. Laden Sie den aktuellen
-          Stand neu, bevor Sie weiter speichern.
-        </p>
+        <div role="alert">
+          <p>
+            Ein anderes Fenster hat den Entwurf geändert. Exportieren Sie Ihre
+            lokalen Änderungen, bevor Sie den Serverstand laden.
+          </p>
+          <button type="button" onClick={exportJson}>
+            Lokale Änderungen als JSON exportieren
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void reloadDraft()}
+          >
+            Serverstand laden und lokale Änderungen verwerfen
+          </button>
+        </div>
       )}
       <fieldset className="se-editing" disabled={busy || !!publication.current}>
+        <details>
+          <summary>JSON importieren / exportieren</summary>
+          <p>
+            Für fortgeschrittene Nutzer: Ein Import ersetzt den lokalen
+            Fragebogen und wird als Entwurf gespeichert. Rückgängig stellt den
+            vorherigen Stand wieder her. Der Export enthält den aktuellen
+            lokalen Stand, auch noch nicht gespeicherte Änderungen.
+          </p>
+          <button type="button" onClick={exportJson}>
+            Fragebogen als JSON exportieren
+          </button>
+          <label>
+            JSON-Datei öffnen
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (file.size > 262144) {
+                  setJsonError(
+                    "Die JSON-Datei darf höchstens 256 KiB groß sein.",
+                  );
+                  return;
+                }
+                try {
+                  setJsonInput(await file.text());
+                  setJsonError("");
+                } catch {
+                  setJsonError("Die Datei konnte nicht gelesen werden.");
+                }
+              }}
+            />
+          </label>
+          <label>
+            Fragebogen-JSON
+            <textarea
+              rows={10}
+              value={jsonInput}
+              onChange={(event) => setJsonInput(event.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          {jsonError && <p role="alert">{jsonError}</p>}
+          <button type="button" onClick={importJson}>
+            JSON übernehmen
+          </button>
+        </details>
+        {issues.length > 0 && (
+          <section aria-label="Kompatibilitätshinweise">
+            <h2>Nicht unterstützte Eigenschaften</h2>
+            <p>
+              Diese Bereiche bleiben unverändert erhalten und werden nicht
+              ausgeführt. Betroffene Fragen sind schreibgeschützt. Vorschau und
+              Veröffentlichung werden zusätzlich vom Server geprüft.
+            </p>
+            <ul>
+              {issues.map((path) => (
+                <li key={path}>
+                  <code>{path}</code>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <label className="se-title">
           Titel des Fragebogens
           <input
@@ -595,7 +733,7 @@ export function SurveyEditor({
           </div>
           <aside aria-label="Frageeigenschaften">
             <h2>Eigenschaften</h2>
-            {question && kinds.some(([type]) => type === question.type) ? (
+            {question && questionIssues(question).length === 0 ? (
               <>
                 <label>
                   Fragetitel
@@ -783,7 +921,7 @@ export function SurveyEditor({
             ) : (
               <p>
                 {question
-                  ? "Dieser Fragetyp bleibt unverändert erhalten."
+                  ? "Diese Frage enthält nicht unterstützte Eigenschaften und bleibt unverändert erhalten. Korrigieren Sie die angezeigten Felder über den JSON-Import."
                   : "Wählen Sie eine Frage, um Titel und Antworten zu bearbeiten."}
               </p>
             )}

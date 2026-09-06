@@ -265,8 +265,10 @@ def options(items: Any, path: str) -> list[Any]:
 
 
 def validate_definition(definition: Any) -> None:
-    if not isinstance(definition, dict) or set(definition) - ROOT_KEYS:
-        fail("unsupported_capability", "definition")
+    if not isinstance(definition, dict):
+        fail("invalid_definition", "definition")
+    if unknown := sorted(set(definition) - ROOT_KEYS):
+        fail("unsupported_capability", f"definition.{unknown[0]}")
     if json_size(definition) > 262144:
         fail("limit_exceeded", "definition")
     check_properties(definition)
@@ -285,58 +287,72 @@ def validate_definition(definition: Any) -> None:
         fail("invalid_definition", "pages")
     preceding: set[str] = set()
     names: set[str] = set()
-    for page in pages:
-        if not isinstance(page, dict) or set(page) - PAGE_KEYS:
-            fail("unsupported_capability", "page")
-        check_properties(page)
-        name = page.get("name")
-        if not isinstance(name, str) or not NAME.fullmatch(name) or name in names:
-            fail("invalid_definition", "page name")
-        names.add(name)
-        if "visibleIf" in page:
-            condition(page["visibleIf"], {}, preceding)
-        elements = page.get("elements")
-        if not isinstance(elements, list) or not elements:
-            fail("invalid_definition", "elements")
-        for question in elements:
-            if (
-                not isinstance(question, dict)
-                or set(question) - QUESTION_KEYS
-                or not isinstance(question.get("type"), str)
-                or question.get("type") not in TYPES
-            ):
-                fail("unsupported_capability", "question")
-            kind = question["type"]
-            if set(question) - (COMMON_QUESTION_KEYS | TYPE_KEYS[kind]):
-                fail(
-                    "unsupported_capability", "property does not apply to question type"
-                )
-            input_type = question.get("inputType", "text")
-            if input_type not in ("text", "number", "date"):
-                fail("unsupported_capability", "inputType")
-            if kind == "text" and (
-                input_type == "text"
-                and {"min", "max"} & question.keys()
-                or input_type != "text"
-                and {"minLength", "maxLength"} & question.keys()
-            ):
-                fail("unsupported_capability", "input constraint does not apply")
-            check_properties(question)
-            name = question.get("name")
-            if (
-                not isinstance(name, str)
-                or not NAME.fullmatch(name)
-                or name in preceding
-            ):
-                fail("invalid_definition", "question name")
-            if "visibleIf" in question:
-                condition(question["visibleIf"], {}, preceding)
-            if question["type"] in {"radiogroup", "dropdown", "checkbox"}:
-                options(question.get("choices"), name)
-            if question["type"] == "matrix":
-                options(question.get("rows"), name)
-                options(question.get("columns"), name)
-            preceding.add(name)
+    for page_index, page in enumerate(pages):
+        try:
+            if not isinstance(page, dict) or set(page) - PAGE_KEYS:
+                fail("unsupported_capability", "page")
+            check_properties(page)
+            name = page.get("name")
+            if not isinstance(name, str) or not NAME.fullmatch(name) or name in names:
+                fail("invalid_definition", "page name")
+            names.add(name)
+            if "visibleIf" in page:
+                condition(page["visibleIf"], {}, preceding)
+            elements = page.get("elements")
+            if not isinstance(elements, list) or not elements:
+                fail("invalid_definition", "elements")
+            for question_index, question in enumerate(elements):
+                try:
+                    if (
+                        not isinstance(question, dict)
+                        or set(question) - QUESTION_KEYS
+                        or not isinstance(question.get("type"), str)
+                        or question.get("type") not in TYPES
+                    ):
+                        fail("unsupported_capability", "question")
+                    kind = question["type"]
+                    if set(question) - (COMMON_QUESTION_KEYS | TYPE_KEYS[kind]):
+                        fail(
+                            "unsupported_capability",
+                            "property does not apply to question type",
+                        )
+                    input_type = question.get("inputType", "text")
+                    if input_type not in ("text", "number", "date"):
+                        fail("unsupported_capability", "inputType")
+                    if kind == "text" and (
+                        input_type == "text"
+                        and {"min", "max"} & question.keys()
+                        or input_type != "text"
+                        and {"minLength", "maxLength"} & question.keys()
+                    ):
+                        fail(
+                            "unsupported_capability", "input constraint does not apply"
+                        )
+                    check_properties(question)
+                    name = question.get("name")
+                    if (
+                        not isinstance(name, str)
+                        or not NAME.fullmatch(name)
+                        or name in preceding
+                    ):
+                        fail("invalid_definition", "question name")
+                    if "visibleIf" in question:
+                        condition(question["visibleIf"], {}, preceding)
+                    if question["type"] in {"radiogroup", "dropdown", "checkbox"}:
+                        options(question.get("choices"), name)
+                    if question["type"] == "matrix":
+                        options(question.get("rows"), name)
+                        options(question.get("columns"), name)
+                    preceding.add(name)
+                except DomainInvariantError as error:
+                    raise DomainInvariantError(
+                        error.code,
+                        f"pages[{page_index}].elements[{question_index}]: {error.message}",
+                    ) from error
+        except DomainInvariantError as error:
+            raise DomainInvariantError(
+                error.code, f"pages[{page_index}]: {error.message}"
+            ) from error
     if len(preceding) > 150:
         fail("limit_exceeded", "questions")
 
