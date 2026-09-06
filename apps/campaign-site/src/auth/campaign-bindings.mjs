@@ -77,6 +77,40 @@ export async function requireCampaignBindings(database) {
       throw new Error("campaign_binding_guard_mismatch");
     }
   }
+  const unique = await sql`
+    SELECT c.convalidated, c.condeferrable, c.condeferred,
+      c.conkey::text = ('{' || a.attnum::text || '}') AS exact_key,
+      i.indisunique, i.indisvalid, i.indisready, i.indimmediate,
+      i.indpred IS NULL AND i.indexprs IS NULL AS unconditional,
+      i.indnatts = 1 AND i.indnkeyatts = 1 AS single_column
+    FROM pg_constraint c JOIN pg_index i ON i.indexrelid=c.conindid
+    JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attname='action_id'
+    WHERE c.conrelid='public.ec_campaign_pages'::regclass
+      AND c.conname='leonaid_campaign_action_unique' AND c.contype='u'
+  `.execute(database);
+  const row = unique.rows[0];
+  if (
+    unique.rows.length !== 1 ||
+    !row.convalidated ||
+    row.condeferrable ||
+    row.condeferred ||
+    !row.exact_key ||
+    !row.indisunique ||
+    !row.indisvalid ||
+    !row.indisready ||
+    !row.indimmediate ||
+    !row.unconditional ||
+    !row.single_column
+  ) {
+    throw new Error("campaign_binding_unique_mismatch");
+  }
+  const version = await database
+    .selectFrom("options")
+    .select("value")
+    .where("name", "=", "leonaid:campaign_binding_version")
+    .executeTakeFirst();
+  if (version?.value !== "2")
+    throw new Error("campaign_binding_version_mismatch");
 }
 
 // Operator-only, after collection creation and before admitting mutations.
@@ -91,6 +125,15 @@ export async function installCampaignBindings(database) {
     await sql`LOCK TABLE public.ec_campaign_pages, public.revisions IN ACCESS EXCLUSIVE MODE`.execute(
       transaction,
     );
+    const version = await transaction
+      .selectFrom("options")
+      .select("value")
+      .where("name", "=", "leonaid:campaign_binding_version")
+      .executeTakeFirst();
+    if (version) {
+      await requireCampaignBindings(transaction);
+      return;
+    }
     const invalid = await sql`
       SELECT 1 FROM public.ec_campaign_pages WHERE action_id IS NULL OR action_id !~ ${uuid}
       UNION ALL
@@ -100,6 +143,11 @@ export async function installCampaignBindings(database) {
     `.execute(transaction);
     if (invalid.rows.length)
       throw new Error("campaign_binding_existing_data_invalid");
+    const duplicates = await sql`
+      SELECT 1 FROM public.ec_campaign_pages GROUP BY action_id HAVING count(*) > 1 LIMIT 1
+    `.execute(transaction);
+    if (duplicates.rows.length)
+      throw new Error("campaign_binding_existing_duplicates");
     for (const guard of guards) {
       const existing =
         await sql`SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
@@ -122,6 +170,17 @@ export async function installCampaignBindings(database) {
           .execute(transaction);
       }
     }
+    await sql`ALTER TABLE public.ec_campaign_pages
+      ADD CONSTRAINT leonaid_campaign_action_unique UNIQUE (action_id)`.execute(
+      transaction,
+    );
+    await transaction
+      .insertInto("options")
+      .values({
+        name: "leonaid:campaign_binding_version",
+        value: "2",
+      })
+      .execute();
     await requireCampaignBindings(transaction);
   });
 }

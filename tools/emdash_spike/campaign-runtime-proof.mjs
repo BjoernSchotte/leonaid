@@ -196,7 +196,7 @@ if (
   const published = listing.data.items.filter(
     (item) => item.status === "published",
   );
-  assert.equal(published.length, 4);
+  assert.equal(published.length, 2);
   await call(`${root}/${published[0].id}/discard-draft`, 200, {
     method: "POST",
   });
@@ -210,7 +210,7 @@ if (
 ) {
   const failed = process.argv.includes("--unpublish-failure");
   const listing = await call(root, 200);
-  assert.equal(listing.data.items.length, 6);
+  assert.equal(listing.data.items.length, 4);
   const identity = await call("/_emdash/api/auth/me", 200);
   let copied = 0;
   let preserved = 0;
@@ -281,7 +281,7 @@ if (
     await call(`${path}/publish`, 403, { method: "POST" });
   }
   assert.equal(copied, 1);
-  assert.ok(preserved >= 3);
+  assert.equal(preserved, failed ? 1 : 3);
   await call(`${root}/00000000000000000000000000/unpublish`, 404, {
     method: "POST",
   });
@@ -296,8 +296,8 @@ if (
   const denied = process.argv.includes("--publish-denied");
   const failed = process.argv.includes("--publish-failure");
   const listing = await call(root, 200);
-  assert.equal(listing.data.total, 6);
-  assert.equal(listing.data.items.length, 6);
+  assert.equal(listing.data.total, 4);
+  assert.equal(listing.data.items.length, 4);
   for (const entry of listing.data.items) {
     const entryDenied =
       denied || entry.data.action_id !== "20000000-0000-4000-8000-000000000001";
@@ -427,8 +427,8 @@ if (
     isFirstLogin: false,
   });
   const result = await call(root, 200);
-  assert.equal(result.data.total, 4);
-  assert.equal(result.data.items.length, 4);
+  assert.equal(result.data.total, 2);
+  assert.equal(result.data.items.length, 2);
   for (const entry of result.data.items) {
     const path = `${root}/${entry.id}`;
     const item = await call(path, 200);

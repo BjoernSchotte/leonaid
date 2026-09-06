@@ -122,13 +122,15 @@ for (const [index, [name, engine]] of engines.entries()) {
     await page.goto(origin + handoffPath);
     await page.waitForURL((url) => url.pathname === editorPath);
     await expect(page.locator("#field-title")).toHaveValue(title);
-    const ambiguous = await resolve(
+    const seeded = await resolve(
       "/_emdash/admin/campaigns/20000000-0000-4000-8000-000000000001",
     );
-    assert.equal(ambiguous.status(), 409);
-    assert.deepEqual(await ambiguous.json(), {
-      error: { code: "CAMPAIGN_BINDING_CONFLICT" },
-    });
+    assert.equal(seeded.status(), 303);
+    const seededEntry = before.items.find(
+      (item) => item.data.action_id === "20000000-0000-4000-8000-000000000001",
+    );
+    assert.ok(seededEntry);
+    assert.equal(seeded.headers().location, `${editorRoot}/${seededEntry.id}`);
     assert.equal(
       (
         await resolve(

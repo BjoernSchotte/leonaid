@@ -45,6 +45,16 @@ try {
     await sql`ALTER TABLE public.ec_campaign_pages DISABLE TRIGGER leonaid_campaign_binding`.execute(
       database,
     );
+  } else if (process.argv[2] === "drop-unique") {
+    await requireCampaignBindings(database);
+    await sql`ALTER TABLE public.ec_campaign_pages DROP CONSTRAINT leonaid_campaign_action_unique`.execute(
+      database,
+    );
+  } else if (process.argv[2] === "restore-unique") {
+    await sql`ALTER TABLE public.ec_campaign_pages ADD CONSTRAINT leonaid_campaign_action_unique UNIQUE (action_id)`.execute(
+      database,
+    );
+    await requireCampaignBindings(database);
   } else if (process.argv[2] === "restore") {
     await sql`ALTER TABLE public.ec_campaign_pages ENABLE TRIGGER leonaid_campaign_binding`.execute(
       database,

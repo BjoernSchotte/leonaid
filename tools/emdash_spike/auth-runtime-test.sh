@@ -97,6 +97,9 @@ if [ "$mode" != auth ]; then
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs disable
     content_probe --guard-unavailable
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs drop-unique
+    content_probe --guard-unavailable
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-unique
     content_probe
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/publication-cms-fixture.mjs

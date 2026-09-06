@@ -43,9 +43,15 @@ const database = new Kysely({
 });
 const a = "20000000-0000-4000-8000-000000000001";
 const b = "20000000-0000-4000-8000-000000000002";
+const a2 = "20000000-0000-4000-8000-000000000011";
+const b2 = "20000000-0000-4000-8000-000000000012";
+const group = (id) => ([a, a2].includes(id) ? [a, a2] : [b, b2]);
 const actor = (id) => ({
   globalRoles: [],
-  actionMemberships: [{ actionId: id, role: "charity_admin" }],
+  actionMemberships: group(id).map((actionId) => ({
+    actionId,
+    role: "charity_admin",
+  })),
 });
 const system = { globalRoles: ["system_admin"], actionMemberships: [] };
 try {
@@ -73,13 +79,13 @@ try {
         },
       ],
       content: {
-        campaign_pages: [a, a, b, b].map((action, index) => ({
+        campaign_pages: [a, a2, b, b2].map((action, index) => ({
           id: `entry-${index}`,
           slug: `entry-${index}`,
           status: "draft",
           data: {
             action_id: action,
-            title: `${action === a ? "alpha" : "bravo"} story ${index}`,
+            title: `${group(action).includes(a) ? "alpha" : "bravo"} story ${index}`,
           },
         })),
       },
@@ -114,6 +120,34 @@ try {
   await sql`UPDATE ec_campaign_pages SET action_id=${original.data.action_id} WHERE id=${original.id}`.execute(
     database,
   );
+  const duplicate = entries[1];
+  await sql`UPDATE ec_campaign_pages SET action_id=${original.data.action_id}
+    WHERE id=${duplicate.id}`.execute(database);
+  await assert.rejects(
+    installCampaignBindings(database),
+    /campaign_binding_existing_duplicates/,
+  );
+  assert.equal(
+    (
+      await sql`SELECT count(*)::integer AS count FROM ec_campaign_pages
+    WHERE action_id=${original.data.action_id}`.execute(database)
+    ).rows[0].count,
+    2,
+  );
+  assert.equal(
+    (
+      await database
+        .selectFrom("options")
+        .selectAll()
+        .where("name", "=", "leonaid:campaign_binding_version")
+        .execute()
+    ).length,
+    0,
+  );
+  // Only the fixture restores its deliberately corrupted row; the installer
+  // must not select a winner, delete content or rewrite existing bindings.
+  await sql`UPDATE ec_campaign_pages SET action_id=${duplicate.data.action_id}
+    WHERE id=${duplicate.id}`.execute(database);
   await installCampaignBindings(database);
   await installCampaignBindings(database);
   await requireCampaignBindings(database);
@@ -173,7 +207,7 @@ try {
   );
   for (const entry of entries) {
     const owner = actor(entry.data.action_id);
-    const foreign = actor(entry.data.action_id === a ? b : a);
+    const foreign = actor(group(entry.data.action_id).includes(a) ? b : a);
     const own = await getCampaignContent(
       database,
       owner,
@@ -331,18 +365,22 @@ try {
     const first = await list(profile, { limit: 1 });
     assert.equal(first.total, 2);
     assert.equal(first.items.length, 1);
-    assert.equal(first.items[0].data.action_id, action);
+    assert.ok(group(action).includes(first.items[0].data.action_id));
     assert.ok(first.nextCursor);
     const second = await list(profile, { limit: 1, cursor: first.nextCursor });
     assert.equal(second.total, 2);
     assert.equal(second.items.length, 1);
-    assert.equal(second.items[0].data.action_id, action);
+    assert.ok(group(action).includes(second.items[0].data.action_id));
     assert.notEqual(second.items[0].id, first.items[0].id);
     const hostile = await list(profile, {
       fieldFilters: { action_id: action === a ? b : a },
     });
     assert.equal(hostile.total, 2);
-    assert.ok(hostile.items.every((item) => item.data.action_id === action));
+    assert.ok(
+      hostile.items.every((item) =>
+        group(action).includes(item.data.action_id),
+      ),
+    );
     const search = await list(profile, { q: action === a ? "bravo" : "alpha" });
     assert.equal(search.total, 0);
     assert.deepEqual(search.items, []);
@@ -388,6 +426,58 @@ try {
   await requireCampaignBindings(database);
   console.log(
     "campaign-content: real PostgreSQL/EmDash scoped reads, immutable content/revision bindings, invalid existing data and disabled-guard denial passed; Charity admission remains closed",
+  );
+  const concurrentAction = "20000000-0000-4000-8000-000000000099";
+  const attempts = await Promise.allSettled(
+    Array.from({ length: 4 }, (_, index) =>
+      sql`INSERT INTO ec_campaign_pages (id, slug, action_id, title)
+      VALUES (${`0000000000000000000000009${index}`}, ${`unique-race-${index}`},
+        ${concurrentAction}, 'Synthetic direct database race')`.execute(
+        database,
+      ),
+    ),
+  );
+  assert.equal(
+    attempts.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  const rejected = attempts.filter((result) => result.status === "rejected");
+  assert.equal(rejected.length, 3);
+  for (const result of rejected) {
+    assert.equal(result.reason.code, "23505");
+    assert.equal(result.reason.constraint, "leonaid_campaign_action_unique");
+  }
+  await sql`UPDATE ec_campaign_pages SET deleted_at='2026-09-06T00:00:00Z'
+    WHERE action_id=${concurrentAction}`.execute(database);
+  await assert.rejects(
+    sql`INSERT INTO ec_campaign_pages (id, slug, locale, action_id, title)
+    VALUES ('00000000000000000000000098', 'different-slug', 'de', ${concurrentAction},
+      'Trashed binding remains reserved across locales')`.execute(database),
+    { code: "23505", constraint: "leonaid_campaign_action_unique" },
+  );
+  for (const replacement of [
+    null,
+    "ALTER TABLE public.ec_campaign_pages ADD CONSTRAINT leonaid_campaign_action_unique UNIQUE (action_id) DEFERRABLE",
+    "ALTER TABLE public.ec_campaign_pages ADD CONSTRAINT leonaid_campaign_action_unique UNIQUE (action_id, id)",
+  ]) {
+    await assert.rejects(
+      database.transaction().execute(async (transaction) => {
+        await sql`ALTER TABLE public.ec_campaign_pages DROP CONSTRAINT leonaid_campaign_action_unique`.execute(
+          transaction,
+        );
+        if (replacement) await sql.raw(replacement).execute(transaction);
+        await assert.rejects(
+          requireCampaignBindings(transaction),
+          /campaign_binding_unique_mismatch/,
+        );
+        throw new Error("rollback_unique_drift_probe");
+      }),
+      /rollback_unique_drift_probe/,
+    );
+    await requireCampaignBindings(database);
+  }
+  console.log(
+    "campaign-content: database-wide concurrent uniqueness, trash/locale reservation and missing/deferred/composite constraint denial passed",
   );
   await proveCampaignCreate(database, {
     host: process.env.PGHOST,
