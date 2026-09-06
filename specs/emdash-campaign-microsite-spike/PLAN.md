@@ -568,6 +568,13 @@ This is not the full `service-isolation` or `route-ownership` gate: pilot wiring
 cross-Twenty denial, proxy/browser routing, resource limits and Core login/order
 availability during CMS failure remain unverified and open.
 
+Quality checkpoint: `./leonaid check` passed at commit `52fd7d5`: 208 unit
+tests, 240 Python source-file type checks, all frontend/CMS type and format
+checks, dependency/API/privacy/policy gates, and an unchanged worktree. The
+updated `closed-runtime` test also passed with 18 denied GET/POST requests in
+the production image without network/database access. No editor, authentication
+or full proxy acceptance is implied by these results.
+
 ### EMS-020 — Implement same-origin LeonAid authentication
 
 Dependencies: EMS-010
