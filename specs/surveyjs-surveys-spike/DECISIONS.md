@@ -73,22 +73,27 @@ Retain Python for the definition capability allowlist, authorization, selecting
 the stored published version, revision checks and transaction ownership. Do not
 weaken those controls or accept a respondent-supplied definition. The JS
 candidate evaluates answers and relevance only after host definition approval.
-It is currently an isolated executable comparison, not the production write path.
+The shared-Core service is now called by the actual save/completion write path;
+the original isolated comparison remains a reproducible diagnostic of the
+superseded Python answer-semantics candidate.
 
-The operational cost is an additional pinned JavaScript runtime and a bounded
+The operational cost is an additional pinned Bun service and a bounded HTTP
 validation call at the backend adapter boundary. The benefit is eliminating a
 second implementation of SurveyJS condition coercion, emptiness and ordering.
 The candidate introduces no third-party dependency beyond existing MIT core;
-it does not import React, editor code or LeonAid modules. Throughput, memory,
-request limits, timeout/failure behavior and deployment remain to be proven
-when wiring the actual adapter. Do not infer a performance result from this
-feasibility run.
+it does not import React, editor code or LeonAid modules. Sustained throughput
+and peak memory remain to be measured. The integrated service now has
+a 600,000-byte request limit, 256 MiB memory / one CPU limits and private
+core-data networking without host ports. The host uses a three-second HTTP I/O
+timeout. Stop/pause/recovery and failure atomicity passed the actual API/database
+gate. A single observed memory sample was 28.56 MiB; it is not a benchmark.
 
-SURV-010.3 must integrate this adapter with partial saves and completion, enforce
-bounded requests and fail closed on adapter failure without advancing revision,
-answers or completion. SURV-010.T1/A1 remain open until actual API/database and
-browser journeys prove these cases. The selection is delivered; full validation
-acceptance is not.
+SURV-010.3 now integrates the adapter with partial saves and completion and
+fails closed on adapter failure without advancing revision, answers or completion.
+See [integrated live proof](proofs/SURV-010.md#shared-core-backend-integration)
+for 192 API/database cases and seven browser scenarios. This accepts the bounded
+initial-profile validation gate; full product and production readiness remain
+subject to the other work packages.
 
 ## Deliberately deferred decisions
 

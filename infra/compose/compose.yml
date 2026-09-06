@@ -35,6 +35,26 @@ services:
       timeout: 3s
       retries: 20
 
+  survey-validator:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.survey-validator
+    logging: *default-logging
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    networks:
+      - core-data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build:
       context: ../..
@@ -85,6 +105,8 @@ services:
       - mail-data
       - telemetry
     depends_on:
+      survey-validator:
+        condition: service_healthy
       core-postgres:
         condition: service_healthy
       twenty-server:

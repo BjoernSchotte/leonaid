@@ -1,0 +1,23 @@
+{
+  "title": "Bedingte Rückmeldung",
+  "pages": [
+    {
+      "name": "page",
+      "elements": [
+        {
+          "name": "source",
+          "type": "text",
+          "title": "Auswahl als Text",
+          "isRequired": true
+        },
+        {
+          "name": "followup",
+          "type": "text",
+          "title": "Ihre Rückmeldung",
+          "isRequired": true,
+          "visibleIf": "{source} = 1"
+        }
+      ]
+    }
+  ]
+}

@@ -509,7 +509,7 @@ proof together. The acceptance IDs and required outcomes remain authoritative.
 
 ### Execution gates
 
-- [ ] **Validation gate:** accept 010.A1 before treating the initial capability
+- [x] **Validation gate:** accept 010.A1 before treating the initial capability
   profile as authoritative. A working editor or passing happy-path browser test
   does not resolve unproven client/server semantics.
 - [ ] **Package gate:** accept 020.A1–020.A4 using the packed independent
@@ -560,18 +560,18 @@ full editor exists; carry the proven contracts into later work packages.
 Implementation tasks:
 
 - [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database. Acceptance: **010.A2, 010.A3, 010.A5**.
-- [x] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**. [Executable selection evidence](proofs/SURV-010.md#isolated-validation-candidate-selection); implementation selection delivered, full integration acceptance remains open.
-- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes. Acceptance: **010.A1, 010.A2, 010.A4**.
+- [x] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**. [Executable selection evidence](proofs/SURV-010.md#isolated-validation-candidate-selection) and [integrated proof](proofs/SURV-010.md#shared-core-backend-integration).
+- [x] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes. Acceptance: **010.A1, 010.A2, 010.A4**. [Evidence](proofs/SURV-010.md#shared-core-backend-integration).
 - [x] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof. Acceptance: **010.A3, 010.A4, 010.A5**.
 
 Test implementation and verification tasks:
 
-- [ ] **010.T1** Run identical supported-definition/answer fixtures through SurveyJS and the server validator; exercise forged values, incomplete saves, atomic completion and short-timeout resumption through the real API/database. Acceptance: **010.A1, 010.A2, 010.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **010.T1** Run identical supported-definition/answer fixtures through SurveyJS and the server validator; exercise forged values, incomplete saves, atomic completion and short-timeout resumption through the real API/database. Acceptance: **010.A1, 010.A2, 010.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Evidence](proofs/SURV-010.md#shared-core-backend-integration).
 - [x] **010.T2** Add browser tests for text saved without blur, closing and restoring a fresh browser context, and conditional follow-up removal across navigation and reload. Acceptance: **010.A3, 010.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
-- [ ] **010.A1 — Integration:** shared fixtures produce equivalent client/server relevance and validation; unsupported definitions and forged values fail server checks even when client validation is bypassed.
+- [x] **010.A1 — Integration:** shared fixtures produce equivalent client/server relevance and validation; unsupported definitions and forged values fail server checks even when client validation is bypassed. [Evidence](proofs/SURV-010.md#shared-core-backend-integration).
 - [x] **010.A2 — Integration:** incomplete required fields can be saved; invalid values are rejected or explicitly represented under the documented contract; completion rejects missing relevant required answers atomically.
 - [x] **010.A3 — E2E:** enter text without blur, wait for save acknowledgement, close the browser and resume in a fresh context using valid resume access; the server restores the exact accepted text and page.
 - [x] **010.A4 — E2E:** change an earlier answer to hide a follow-up, navigate back/forward and reload; obsolete follow-up data is absent from the current analyzable snapshot.

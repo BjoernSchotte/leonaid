@@ -77,7 +77,7 @@ def verify() -> None:
         f"PASS: {len(cases)} candidate cases; {len(differences)} explicitly recorded Python mode/snapshot differences"
     )
     print(
-        "Feasibility evidence only: production adapter and end-to-end parity remain open"
+        "This comparison alone does not prove production integration; see the live runner gate"
     )
 
 

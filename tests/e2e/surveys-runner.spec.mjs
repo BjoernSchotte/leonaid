@@ -8,6 +8,69 @@ const saved = (page) =>
     "saved",
   );
 
+test("numeric text conditions retain required follow-ups through actual saves and reload", async ({
+  browser,
+}) => {
+  const id = process.env.SURVEY_CONDITION_COERCION_ID;
+  if (!id) throw new Error("Condition fixture required");
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${baseURL}/surveys/${id}`);
+    await page.getByRole("button", { name: "Umfrage beginnen" }).click();
+    await expect(page.locator("[data-name=source] input")).toBeVisible();
+    const pid = new URL(page.url()).searchParams.get("participation");
+    expect(pid).toBeTruthy();
+    const path = `/api/v1/public/surveys/${id}/participations/${pid}`;
+    const source = page.locator("[data-name=source] input");
+    const detail = page.locator("[data-name=followup] input");
+    await source.fill("1");
+    await saved(page);
+    await page.reload();
+    await expect(detail).toBeVisible();
+    await page
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(
+      page.locator("[data-name=followup] .sd-error").first(),
+    ).toBeVisible();
+    await detail.fill("Erste Rückmeldung");
+    await saved(page);
+    await page.reload();
+    await expect(detail).toHaveValue("Erste Rückmeldung");
+    await source.fill("2");
+    await saved(page);
+    await page.reload();
+    await expect(detail).not.toBeVisible();
+    const hidden = await page.evaluate(
+      async (path) => (await fetch(path)).json(),
+      path,
+    );
+    expect(hidden.response.answers).toEqual({ source: "2" });
+    await source.fill("1");
+    await expect(detail).toHaveValue("");
+    await detail.fill("Neue Rückmeldung");
+    await saved(page);
+    await page
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Vielen Dank für Ihre Rückmeldung." }),
+    ).toBeVisible();
+    const final = await page.evaluate(
+      async (path) => (await fetch(path)).json(),
+      path,
+    );
+    expect(final.response.status).toBe("completed");
+    expect(final.response.answers).toEqual({
+      source: "1",
+      followup: "Neue Rückmeldung",
+    });
+  } finally {
+    await context.close();
+  }
+});
+
 test("acknowledged text survives closing mid-page and hidden follow-up is removed", async ({
   browser,
 }) => {

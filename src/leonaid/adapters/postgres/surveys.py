@@ -11,6 +11,8 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.surveyjs_validation import validate_answers
+
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.surveys import (
@@ -22,7 +24,6 @@ from leonaid.domain.surveys import (
 )
 from leonaid.domain.surveys.validation import (
     PROFILE,
-    validate_answers,
     validate_definition,
 )
 
@@ -473,7 +474,7 @@ class AsyncpgSurveyRepository:
             answers = (
                 body["answers"] if operation == "save" else json.loads(row["answers"])
             )
-            clean = validate_answers(
+            clean = await validate_answers(
                 definition, answers, complete=operation == "complete"
             )
             page = body.get("currentPage", row["current_page"])

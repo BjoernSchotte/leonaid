@@ -369,3 +369,76 @@ also exited zero. Tests ran with Bun 1.2.19 and the pinned Python image from
 `infra/locks/images.env`, and SurveyJS Core 3.0.3. No production container or
 other worktree network was altered. The comparison JSON remains a synthetic,
 ignored local artifact reproducible with the command above.
+
+## Shared-Core backend integration
+
+Tasks **010.3**, **010.T1** and criterion **010.A1** are accepted for the bounded
+initial-v1 profile, based on `fb912b2` plus this commit's integration and tests.
+This supersedes earlier statements in this historical proof that the adapter
+was only a feasibility process. Other work packages remain open.
+
+`AsyncpgSurveyRepository` now awaits the private Core adapter inside the existing
+save/completion transaction, after identity, lifecycle and revision checks.
+Python validates the stored immutable definition against the capability allowlist
+and rejects unknown/oversized answers before calling the service. The service
+uses the same model, restoration and answer checks as the browser. Invalid
+answers produce HTTP 422; connection failure, timeout or a malformed adapter
+contract produces HTTP 503 without a database update. No fallback to the
+known-divergent Python answer evaluator is allowed. That evaluator remains only
+as a regression/comparison reference.
+
+The new Docker service runs pinned Bun 1.2.19, with only the bundled SurveyJS
+Core 3.0.3 application dependency. It uses private `core-data`, no host port,
+a read-only filesystem, non-root user, dropped capabilities, one CPU and 256 MiB
+memory limits. The service bounds request bodies at 600,000 bytes; the host
+retains separate 262,144-byte definition/answer limits and three-second HTTP I/O
+timeouts. Core diagnostic logging is suppressed because it can contain answer
+values. The built `/app` contained the 2,216,485-byte JS bundle and MIT notice
+file, with no stylesheet/font assets. A single `docker stats` sample showed
+28.56 MiB / 256 MiB and 0.09% CPU; this is an observation, not a load benchmark.
+
+| Task / criterion | Named proof | Result |
+|---|---|---|
+| 010.3 / 010.A1, 010.A2 | `validation_live.py cases`, all 192 named fixture cases | Real publication, participation, partial save, persisted cleanup and completion behavior match expected outcomes; rejected writes preserve DB state |
+| 010.T1 / 010.A1 | `test-surveys-validation-candidate`, 192 approved cases | Exact Core expectations pass; the old Python candidate's 27 differences remain explicitly diagnosed |
+| 010.T1 / 010.A1 | `test_malformed_definitions_fail_closed`, `test_misapplied_properties_cannot_change_validation_branch`; existing [SURV-040 import/publication proof](SURV-040.md) | The unchanged host allowlist rejects unsupported definitions independently of the renderer, including direct publication attempts |
+| 010.T1 / 010.A2, 010.A5 | `responses.py` and runner timeout/resume scenarios | Incomplete versus invalid answers, real idempotent writes, terminal completion and same-participation timeout resumption pass |
+| 010.3 / 010.A2 | `validation_live.py unavailable/recover`, actual container stop and pause | Save and completion return 503; answers, revision, status and answer/completion timestamps are unchanged; exact save retry succeeds once after restart/unpause |
+| 010.3 / 010.A4 | New numeric-text browser scenario plus existing hidden-page chain scenario | Relevant answers persist, hidden answers are removed, restoration stays correct, and reopening requires a fresh answer |
+
+Final live command: `./leonaid test-surveys-runner`, project
+`leonaid-surveys-833458328-71137`, **exit 0**, seven Chromium scenarios passed in
+31.3 seconds, after migrations, foundation, response contracts, 192 condition/
+answer API cases and both stopped/paused adapter recovery sequences. All API
+and persistence paths are real. The fixture runner covers the 168 established
+answer regressions plus 24 explicit condition cases; baseline expectations use
+the previously compared Python results, while condition expectations are explicit
+golden data. Invalid partial states are rejected before they can be persisted;
+valid partial states are checked in PostgreSQL and against completion results.
+
+The new E2E “numeric text conditions retain required follow-ups through actual
+saves and reload” enters `"1"`, reloads the required follow-up, proves the empty
+answer blocks completion, saves and restores a supplied detail, switches to
+`"2"` and verifies persisted removal, then returns to `"1"`, supplies fresh text
+and completes with the exact expected server snapshot. The other six scenarios
+cover infrastructure, no-blur save/fresh-context resume, offline reconnect,
+Unicode/minimum length, chained hidden pages and forged answer types/matrix
+correction. Successful teardown verified removal of this project's containers
+and volumes. A read-only log check after the API/failure scenarios confirmed
+empty validator stdout/stderr; this is not a claim about all application logs.
+
+Two preceding runs failed and were corrected: project `69405` failed its
+IPv6 `localhost` healthcheck although IPv4 responded; the check now uses
+`127.0.0.1`. Project `70135` passed the API and outage checks but the new browser
+test read its participation ID before startup completed; it now waits for the
+rendered source input and asserts the ID exists. Those runs do not count as
+successful gates. Their isolated resources were cleaned up; the final run above
+is the acceptance evidence.
+
+Additional current checks passed: `./leonaid test-surveys-core` (168 legacy
+comparisons, 23 Python tests, three coordinator tests / 17 assertions),
+`./leonaid test-surveys-validation-candidate` (192 cases), Ruff for the changed
+Python files and strict mypy for the new adapter. No commercial dependency was
+introduced and our own license remains UNDEFINED. Runtime capacity testing,
+complete product journeys, packed independent consumer, analytics and exports
+are still tracked by their respective open work packages.

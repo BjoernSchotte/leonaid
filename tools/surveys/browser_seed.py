@@ -25,6 +25,7 @@ async def main():
             "validation-boundaries",
             "conditional-pages",
             "validation-coercion",
+            "condition-coercion",
         ]:
             survey_id = str(uuid4())
             definition = json.loads(

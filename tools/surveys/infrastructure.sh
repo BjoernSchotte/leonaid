@@ -49,6 +49,23 @@ if [ "$mode" = lifecycle ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
 fi
+if [ "$mode" = runner ]; then
+  validator_check() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/validation_live.py "$1"
+  }
+  validator_check cases
+  validator_check seed
+  compose stop survey-validator
+  validator_check unavailable
+  compose up --detach --wait --wait-timeout 60 survey-validator
+  validator_check recover
+  validator_check seed
+  compose pause survey-validator
+  validator_check unavailable
+  compose unpause survey-validator
+  validator_check recover
+fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = editor ]; then
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
