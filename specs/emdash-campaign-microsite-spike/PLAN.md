@@ -943,6 +943,17 @@ media, public delivery or full campaign-isolation gate. The proof uses Core's
 actual logout API through the authenticated browser context; a CMS logout control
 is still part of the pending shell/navigation work.
 
+Quality/regression checkpoint for `b45ea36`: `./leonaid check` passed with
+208 unit tests, 242 Python source-file checks, 29 CMS files, all frontend/API/
+type-generation/format/privacy/policy gates and an unchanged committed worktree.
+`admin-browser` passed again in `leonaid-emdash-tmp-boms6sabma`, preserving the
+shared helpers' System Admin default: real SMTP login, fresh-login rotation,
+native editing/creation, duplicate and trashed-binding checks, logout and
+revoked navigation/API denial in all three browsers. Restart/database-failure
+bootstrap closure and complete owned-resource cleanup passed; no host ports were
+published. The milestone changes tests/fixtures and evidence, not production
+authentication semantics or the existing application source.
+
 Campaign-list primitive checkpoint (6 September 2026):
 `./leonaid test-emdash-spike --case campaign-content` passed against the pinned
 PostgreSQL image and actual EmDash migrations, seed API and content-list handler.
