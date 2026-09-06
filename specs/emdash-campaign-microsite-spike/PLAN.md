@@ -738,6 +738,11 @@ Full browser SSO, protected TLS setup, hostile-response tests, campaign isolatio
 and the upstream extension proposal remain open. No full EMS-020 completion is
 claimed.
 
+`./leonaid check` passed at `8ac3a04`: 208 unit tests, 242 Python source-file
+type checks, all frontend/CMS type and formatting checks, generated API parity,
+privacy/policy checks, and an unchanged worktree. The full-spike command still
+reports incomplete until the remaining acceptance cases are implemented.
+
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
 Dependencies: EMS-020, EMS-070
