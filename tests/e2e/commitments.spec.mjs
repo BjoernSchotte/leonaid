@@ -418,6 +418,11 @@ test("Bestellerfassung bleibt in allen Zielbrowsern responsiv und barrierearm", 
     page.getByTestId("commitment-sponsor"),
     page.getByTestId("commitment-quantity"),
     page.getByTestId("commitment-save-ready"),
+    page.locator("#delivery-streetLine1"),
+    page.locator("#delivery-contact"),
+    page.locator("#delivery-phone"),
+    page.locator("#delivery-instructions"),
+    page.locator("#delivery-date"),
   ]) {
     const box = await locator.boundingBox();
     expect(box).not.toBeNull();
@@ -429,10 +434,14 @@ test("Bestellerfassung bleibt in allen Zielbrowsern responsiv und barrierearm", 
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "32px";
     });
-    const scaledOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(scaledOverflow).toBeLessThanOrEqual(1);
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      const scaledOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(scaledOverflow).toBeLessThanOrEqual(1);
+    }
+    await assertNoSeriousAxeFindings(page);
   }
 
   await page.screenshot({

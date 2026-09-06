@@ -41,7 +41,11 @@ cleanup() {
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$status" -eq 0 ] && [ "${LEONAID_COMMITMENT_TEST_KEEP_FOR_REVIEW:-0}" = "1" ]; then
+    echo "commitment-test: Review stack retained: $project on $http_port/$https_port"
+  else
+    compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  fi
   rm -rf "$proof"
   exit "$status"
 }

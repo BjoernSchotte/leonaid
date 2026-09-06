@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Mobile acquisition and persisted deferred-delivery draft — 2026-09-06
+
+Expanded acquisition responsiveness checks to cover 360/390/430px at 200% root text size, and included delivery street, contact, phone, instructions and date controls in the 44px touch-height assertions. The complete `test-commitments` gate exited 0 in isolated project `leonaid-362a-delivery-commitments-20260906q`, ports 18263/18663: 11 browser checks passed in 45.1 seconds, with 16 intentional skips. The existing API/PostgreSQL aggregate verifier passed before subsequent manual review. An opt-in `LEONAID_COMMITMENT_TEST_KEEP_FOR_REVIEW=1` retains only successful stacks for this direct review; default/failure cleanup is unchanged.
+
+Direct authenticated In-App Browser review then filled synthetic street/contact/multiline instructions in Anna's form. Actual document widths were 345/375/415px at viewports 360/390/430px, both at normal and 200% text size. The 390px screenshot shows readable contact, phone, multiline notes and the address-reuse checkbox. Temporary text/viewport overrides were restored afterward.
+
+Checking deferred delivery hid the delivery fields, explained the missing requirements and disabled review-ready submission. Clicking Save draft produced the focused success heading and a real EUR 36 order. PostgreSQL readback of synthetic ID `b263a29d-3a94-43eb-b1e2-feec32656557` confirmed `draft`, total_minor 3600 and null delivery recipient, window ID/snapshot and invoice recipient. This is an actual browser-created incomplete draft, beyond the previous toggle-only proof. The manual order was created after the automated aggregate checks. The synthetic browser cookie/tab were removed and own stack cleanup completed with exit 0.
+
+The header still displays the workspace's original action after selecting a different action inside capture; the form and saved action context are separately selected. This observed context-label inconsistency is not treated as proven correct. Public mobile In-App ordering and integrated EmDash acceptance remain open.
+
 ## Mobile dashboard text scaling and direct In-App measurements — 2026-09-06
 
 Authenticated In-App Browser inspection on the disposable review stack covered 360, 390 and 430px widths. A single beneficiary added 60px to the goal card (44px disclosure row); multiple beneficiaries expanded through the native disclosure, including keyboard Enter. At 200% root text size, direct inspection found horizontal overflow at 390px (document width about 428px). Constraining the dashboard grid track and action selector and allowing text wrapping removes that overflow. After rebuilding the PWA, measured document widths were 345/375/415px at viewports 360/390/430px.
