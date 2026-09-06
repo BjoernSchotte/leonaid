@@ -355,10 +355,14 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     return result;
   };
   const original = await read();
-  const save = async (enabled) => {
+  const save = async (enabled, windows) => {
     const current = await read();
     expect(
-      (await admin.request.put(url, { data: { ...current, enabled } })).ok(),
+      (
+        await admin.request.put(url, {
+          data: { ...current, enabled, windows: windows ?? current.windows },
+        })
+      ).ok(),
     ).toBeTruthy();
   };
   try {
@@ -369,6 +373,7 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     await save(false);
     await form.locator("[data-delivery-reload]").click();
     await expect(form.locator('[name="deliveryWindowId"]')).toBeDisabled();
+    await expect(form.locator("[data-delivery-required]")).toBeHidden();
     await expect(form.locator('[name="deliveryWindowId"]')).not.toHaveAttribute(
       "required",
     );
@@ -377,6 +382,7 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     );
     form = await openOrderForm(page);
     await expect(form.locator('[name="deliveryWindowId"]')).toBeDisabled();
+    await expect(form.locator("[data-delivery-required]")).toBeHidden();
     await form
       .locator('[name="deliveryRecipientName"]')
       .fill("Erhaltener neuer Empfang");
@@ -393,8 +399,52 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
       "Erhaltener neuer Empfang",
     );
     await expect(form.locator('[name="deliveryWindowId"]')).toHaveValue("");
+    await expect(form.locator("[data-delivery-required]")).toBeVisible();
+    await save(true, [
+      ...original.windows.map((window) => ({ ...window, retired: true })),
+      {
+        id: crypto.randomUUID(),
+        deliveryOn: "2026-09-01",
+        startsAt: "09:00",
+        endsAt: "10:00",
+        retired: false,
+      },
+    ]);
+    await form.locator("[data-delivery-reload]").click();
+    await expect(form.locator('[name="deliveryWindowId"] option')).toHaveCount(
+      1,
+    );
+    await expect(form.locator("#deliveryWindowId-help")).toContainText(
+      "keine Lieferfenster verfügbar",
+    );
+    await expect(form.locator('[name="deliveryRecipientName"]')).toHaveValue(
+      "Erhaltener neuer Empfang",
+    );
+    const noJs = await browser.newContext({
+      javaScriptEnabled: false,
+      ignoreHTTPSErrors: true,
+    });
+    try {
+      const noJsForm = await openOrderForm(await noJs.newPage());
+      await expect(
+        noJsForm.locator('[name="deliveryWindowId"] option'),
+      ).toHaveCount(1);
+      await expect(noJsForm.locator("#deliveryWindowId-help")).toContainText(
+        "Eine Bestellung ist erst mit einem verfügbaren Fenster möglich",
+      );
+      await expect(
+        noJsForm.locator('[name="deliveryWindowId"]'),
+      ).toHaveAttribute("required", "");
+    } finally {
+      await noJs.close();
+    }
+    await save(original.enabled, original.windows);
+    await form.locator("[data-delivery-reload]").click();
+    await expect(form.locator('[name="deliveryWindowId"] option')).toHaveCount(
+      original.windows.filter((window) => !window.retired).length + 1,
+    );
   } finally {
-    await save(original.enabled);
+    await save(original.enabled, original.windows);
     await admin.close();
   }
 });

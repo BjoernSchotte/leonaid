@@ -1,6 +1,15 @@
 # Implementation evidence
 
 
+## Public empty availability and required-label consistency — 2026-09-06
+
+The visible delivery-window required hint now follows the same Core requirement as the actual select, both on SSR and after policy refresh. The live policy test additionally retires all future configured windows while retaining an active past window, producing valid enabled configuration with no selectable future windows. The loaded JavaScript form shows only the empty option, explains unavailability and retains its recipient. A separate no-JavaScript page shows the same empty selection and explains that ordering needs an available window. Restoring the original configured windows makes the choices available again through refresh.
+
+Evidence: isolated project `leonaid-362a-delivery-public-20260906j`, ports 18265/18665 and worktree subnet override completed `./leonaid test-public-orders` with exit 0. Both Chromium tests passed (24.6 seconds), including existing three persisted order journeys and no-JavaScript coverage. The Core/Twenty contract and PostgreSQL verification pass. Astro typecheck and whitespace checks pass. The test restored the original schedule and cleaned its own Docker resources.
+
+Remaining scope is unchanged: stale-policy submission recovery, broader cross-channel acceptance, final In-App Browser inspection and integrated EmDash parity are still open. This checkpoint proves empty availability rendering/refresh, not every submission outcome.
+
+
 ## Public delivery policy refresh checkpoint — 2026-09-06
 
 Fixed the public refresh behavior to apply current enabled/required/contact/instructions rules as well as window options. Delivery controls are present even when initially disabled, so later activation can reveal them without discarding address input. Disabling removes the window requirement and disables its submission. The JavaScript refresh button is available immediately; no-JavaScript rendering continues to use server-projected rules. Existing selected windows survive only if still available.

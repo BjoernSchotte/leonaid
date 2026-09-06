@@ -72,6 +72,10 @@
           return;
         }
         slot.required = definition.requireWindow;
+        const requiredHint = form.querySelector<HTMLElement>(
+          "[data-delivery-required]",
+        );
+        if (requiredHint) requiredHint.hidden = !definition.requireWindow;
         slot.disabled = !definition.enabled;
         for (const field of form.querySelectorAll<HTMLElement>(
           "[data-delivery-contact]",

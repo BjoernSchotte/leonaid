@@ -21,7 +21,12 @@ const dateLabel = (date: string) =>
 
 <div class="form-grid" data-delivery-options>
   <div class="form-field form-field--wide">
-    <label for="deliveryWindowId">Lieferzeitfenster <em>Pflichtfeld</em></label>
+    <label for="deliveryWindowId"
+      >Lieferzeitfenster <em
+        data-delivery-required
+        hidden={!definition.requireWindow}>Pflichtfeld</em
+      ></label
+    >
     <select
       id="deliveryWindowId"
       name="deliveryWindowId"
