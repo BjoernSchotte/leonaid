@@ -190,6 +190,9 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   await page
     .locator("#commitment-action")
     .selectOption("20000000-0000-4000-8000-000000000003");
+  await expect(page.locator('[aria-label="Aktueller Arbeitskontext"]')).toContainText(
+    "Krapfentaxi Nord 2026",
+  );
   await expect(page.getByTestId("commitment-sponsor")).toHaveValue("");
   await expect(page.getByTestId("commitment-save-ready")).toBeDisabled();
   await page
@@ -205,6 +208,9 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   await expect(
     page.getByLabel("Rechnungsadresse entspricht der Lieferadresse"),
   ).toBeChecked();
+  await expect(page.locator('[aria-label="Aktueller Arbeitskontext"]')).toContainText(
+    "Krapfentaxi 2026",
+  );
   await buyerSelect.selectOption(originalBuyer);
   await page.getByTestId("commitment-quantity").fill("2");
   await page.locator("#delivery-streetLine1").fill("Lieferstraße 8");

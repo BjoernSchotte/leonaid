@@ -286,6 +286,7 @@ function ActivityHub({
 }
 
 export function App({ client }: AppProps) {
+  const [captureActionId, setCaptureActionId] = useState<string | null>(null);
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -345,7 +346,10 @@ export function App({ client }: AppProps) {
     (membership) => membership.role === "acquirer",
   );
   const currentAction =
-    memberships[0]?.actionName ?? "Keine aktive Akquise-Aktion";
+    (route === "commitment"
+      ? memberships.find((membership) => membership.actionId === captureActionId)
+          ?.actionName
+      : undefined) ?? memberships[0]?.actionName ?? "Keine aktive Akquise-Aktion";
 
   return (
     <>
@@ -363,7 +367,11 @@ export function App({ client }: AppProps) {
         {route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
         ) : route === "commitment" ? (
-          <CommitmentCapturePage client={client} identity={identity.data} />
+          <CommitmentCapturePage
+            client={client}
+            identity={identity.data}
+            onActionChange={setCaptureActionId}
+          />
         ) : route === "activities" ? (
           <ActivityHub client={client} identity={identity.data} />
         ) : (

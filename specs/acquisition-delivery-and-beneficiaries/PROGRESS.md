@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Capture header follows the selected action — 2026-09-06
+
+Resolved the context-label inconsistency found in direct mobile review. The PWA shell previously always displayed the first acquirer membership, even when capture selected another action. Capture now reports its selected action ID through an optional callback; the shell resolves the displayed name from authorized memberships. The optional interface preserves other consumers. No order payload, authorization or selection-reset behavior changes.
+
+The existing real action-switch browser journey now checks the mobile header after selecting the empty second action and after returning to the original Krapfentaxi action. Both checks pass along with confidential-field resets, successful order creation/retry and admin review. Full `test-commitments` run `leonaid-362a-delivery-commitments-20260906r`, ports 18263/18663 with worktree subnet override, passed 11 browser checks in 44.1 seconds (16 intentional skips). Browser/Admin API/PostgreSQL still agree on 10 orders, 31 boxes/744 pieces and EUR 1,116.00. `bun run typecheck` passed in the pinned Bun container.
+
+This resolves the capture-specific header issue recorded below; it does not claim action synchronization for every other workspace screen. Public mobile In-App and EmDash acceptance remain open. Read-only EmDash baseline `41f4463` still has no public order renderer.
+
 ## Mobile acquisition and persisted deferred-delivery draft — 2026-09-06
 
 Expanded acquisition responsiveness checks to cover 360/390/430px at 200% root text size, and included delivery street, contact, phone, instructions and date controls in the 44px touch-height assertions. The complete `test-commitments` gate exited 0 in isolated project `leonaid-362a-delivery-commitments-20260906q`, ports 18263/18663: 11 browser checks passed in 45.1 seconds, with 16 intentional skips. The existing API/PostgreSQL aggregate verifier passed before subsequent manual review. An opt-in `LEONAID_COMMITMENT_TEST_KEEP_FOR_REVIEW=1` retains only successful stacks for this direct review; default/failure cleanup is unchanged.

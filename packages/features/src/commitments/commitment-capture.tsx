@@ -27,6 +27,7 @@ import {
 } from "./delivery-fields";
 
 interface CommitmentCapturePageProps {
+  readonly onActionChange?: (actionId: string) => void;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
 }
@@ -173,6 +174,7 @@ function CaptureSuccess({
 export function CommitmentCapturePage({
   client,
   identity,
+  onActionChange,
 }: CommitmentCapturePageProps) {
   const memberships = useMemo(
     () =>
@@ -192,6 +194,9 @@ export function CommitmentCapturePage({
     ? requestedActionId
     : (memberships[0]?.actionId ?? "");
   const [actionId, setActionId] = useState(initialActionId);
+  useEffect(() => {
+    onActionChange?.(actionId);
+  }, [actionId, onActionChange]);
   const [assignmentId, setAssignmentId] = useState(
     initialParameters.get("assignment") ?? "",
   );
