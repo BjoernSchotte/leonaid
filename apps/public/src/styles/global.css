@@ -899,6 +899,7 @@ select {
   text-transform: uppercase;
 }
 
+.form-field select,
 .form-field input,
 .form-field textarea {
   width: 100%;
@@ -925,6 +926,7 @@ select {
   border-color: color-mix(in oklch, var(--lions-blue-700) 58%, var(--rule));
 }
 
+.form-field select:focus,
 .form-field input:focus,
 .form-field textarea:focus,
 .quantity-control input:focus {

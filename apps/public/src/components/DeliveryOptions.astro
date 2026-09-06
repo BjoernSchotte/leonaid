@@ -1,0 +1,108 @@
+---
+import type { DeliveryOrderFormResponse } from "@leonaid/api-client";
+interface Props {
+  definition: DeliveryOrderFormResponse;
+}
+const { definition } = Astro.props;
+const dates = [
+  ...new Set(definition.windows.map((window) => window.deliveryOn)),
+].sort();
+const dateLabel = (date: string) =>
+  new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "full",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+---
+
+<div class="form-grid" data-delivery-options>
+  <div class="form-field form-field--wide">
+    <label for="deliveryWindowId">Lieferzeitfenster <em>Pflichtfeld</em></label>
+    <select
+      id="deliveryWindowId"
+      name="deliveryWindowId"
+      required={definition.requireWindow}
+      aria-describedby="deliveryWindowId-help deliveryWindowId-error"
+    >
+      <option value="">Liefertag und Zeitfenster auswählen</option>
+      {
+        dates.map((date) => (
+          <optgroup label={dateLabel(date)}>
+            {definition.windows
+              .filter((window) => window.deliveryOn === date)
+              .map((window) => (
+                <option value={window.id}>
+                  {dateLabel(date)} · {window.startsAt.slice(0, 5)}–
+                  {window.endsAt.slice(0, 5)} Uhr
+                </option>
+              ))}
+          </optgroup>
+        ))
+      }
+    </select>
+    <small id="deliveryWindowId-help"
+      >Zeitzone: {definition.timezone}. {
+        dates.length
+          ? "Bitte wähle ein Fenster aus."
+          : "Aktuell sind keine Lieferfenster verfügbar. Eine Bestellung ist erst mit einem verfügbaren Fenster möglich."
+      }</small
+    >
+    <span
+      id="deliveryWindowId-error"
+      class="field-error"
+      data-error-for="deliveryWindowId"></span>
+  </div>
+  {
+    definition.allowContact && (
+      <>
+        <div class="form-field">
+          <>
+            <label for="deliveryContactName">
+              Ansprechpartner bei der Lieferung (optional)
+            </label>
+            <input
+              id="deliveryContactName"
+              name="deliveryContactName"
+              autocomplete="shipping name"
+              maxlength={definition.contactNameMaxLength}
+            />
+          </>
+        </div>
+        <div class="form-field">
+          <>
+            <label for="deliveryContactPhone">
+              Telefonnummer am Liefertag (optional)
+            </label>
+            <input
+              id="deliveryContactPhone"
+              name="deliveryContactPhone"
+              type="tel"
+              autocomplete="shipping tel"
+              maxlength={definition.contactPhoneMaxLength}
+            />
+          </>
+        </div>
+      </>
+    )
+  }
+  {
+    definition.allowInstructions && (
+      <div class="form-field form-field--wide">
+        <>
+          <label for="deliveryInstructions">
+            Abteilung / Lieferhinweise (optional)
+          </label>
+          <textarea
+            id="deliveryInstructions"
+            name="deliveryInstructions"
+            rows="3"
+            maxlength={definition.instructionsMaxLength}
+            aria-describedby="deliveryInstructions-help"
+          />
+          <small id="deliveryInstructions-help">
+            Zum Beispiel Abteilung, Eingang, Stockwerk oder Wegbeschreibung.
+          </small>
+        </>
+      </div>
+    )
+  }
+</div>

@@ -100,7 +100,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 """
                 SELECT
                     id, twenty_company_id, twenty_person_id,
-                    customer_snapshot, source, status, total_minor
+                    customer_snapshot, source, status, total_minor, delivery_recipient_snapshot, delivery_window_snapshot, invoice_recipient_snapshot
                 FROM commitment
                 WHERE action_id = $1
                   AND public_reference = $2
@@ -110,6 +110,47 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if row is None:
                 raise VerificationFailure(f"UI-Bestellung fehlt: {scenario}")
+            invoice = (
+                json.loads(row["invoice_recipient_snapshot"])
+                if isinstance(row["invoice_recipient_snapshot"], str)
+                else row["invoice_recipient_snapshot"]
+            )
+            if (
+                not invoice
+                or invoice.get("email") != "rechnung@leonaid.invalid"
+                or invoice.get("streetLine1")
+                != (
+                    "Rechnungsweg 8"
+                    if scenario == "person-without-company"
+                    else "Browserweg 72"
+                )
+            ):
+                raise VerificationFailure(
+                    f"Public billing address/email did not round-trip: {scenario}"
+                )
+            delivery = (
+                json.loads(row["delivery_recipient_snapshot"])
+                if isinstance(row["delivery_recipient_snapshot"], str)
+                else row["delivery_recipient_snapshot"]
+            )
+            window = (
+                json.loads(row["delivery_window_snapshot"])
+                if isinstance(row["delivery_window_snapshot"], str)
+                else row["delivery_window_snapshot"]
+            )
+            if (
+                not delivery
+                or delivery.get("contactName") != "Alex Lieferung"
+                or delivery.get("contactPhone") != "+49 821 765432"
+                or delivery.get("instructions")
+                != "Abteilung Bildung\nEingang links <b>Hinweis</b>"
+                or not window
+                or window.get("deliveryOn") != "2026-10-01"
+                or window.get("startsAt") != "09:00"
+            ):
+                raise VerificationFailure(
+                    f"Public delivery snapshots did not round-trip: {scenario}; contact={bool(delivery and delivery.get('contactName') == 'Alex Lieferung')}; phone={bool(delivery and delivery.get('contactPhone') == '+49 821 765432')}; date={bool(window and window.get('deliveryOn') == '2026-10-01')}; start={bool(window and window.get('startsAt') == '09:00')}"
+                )
             line = await connection.fetchrow(
                 """
                 SELECT quantity, pieces_per_unit_snapshot, unit_price_minor

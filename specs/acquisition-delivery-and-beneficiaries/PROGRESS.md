@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Public Astro delivery checkpoint — 2026-09-06
+
+The existing public Astro renderer now reads the Core delivery definition and renders a required window selector grouped by date, optional delivery-contact name/phone, and dedicated multiline instructions with the configured limits. The existing Astro Action forwards these values through the Core public-order API. HTML-form CRLF line endings are normalized to LF before the instructions length check, preserving internal line breaks consistently with acquisition capture.
+
+Invoice email is independently editable while address reuse is enabled, with the buyer email as the fallback. Separate billing fields are available in the server-rendered page so a visitor without JavaScript can uncheck address reuse and supply a different invoice recipient. JavaScript retains the existing show/hide enhancement.
+
+`./leonaid test-public-orders` passed in an isolated real Core/Twenty stack. The browser creates a new-company order and an existing-company order with JavaScript, then a private-person order with JavaScript disabled and reduced-motion preference, using a separate billing address. PostgreSQL verification proves contact/phone, literal HTML-like multiline instructions, server-derived date/time snapshots, independent invoice email, and correct reused/separate billing addresses for all three orders. Existing legal configuration, consent, price, CRM mapping, idempotency/abuse and activity-event contract checks still pass. Astro type checking and focused Python lint/type checks pass. Mobile form and server-rendered success screenshots were inspected.
+
+This proves successful submission through the legacy Astro renderer, including the JavaScript-free transport. Public stale-window recovery, edited-versus-exact retries, input preservation after a JavaScript-free server rejection, further layout/field-limit alignment and final In-App Browser acceptance remain open. The EmDash renderer is still absent at parallel branch `9ed7438`; its canonical/alias transport integration remains required. Tests use their own project, loopback ports 18265/18665 and an optional subnet override, without changing foreign resources.
+
 ## Beneficiary dashboard checkpoint — 2026-09-06
 
 The authorized dashboard snapshot now reads the selected action's beneficiaries in the same repeatable-read transaction as its metrics. The response contains IDs, organization names, public descriptions, and stable display order. The existing service role gate still conceals unrelated actions; no administrator-only request is added to Anna's interface.

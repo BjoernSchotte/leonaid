@@ -10,6 +10,8 @@ if (!baseUrl || !artifactDirectory) {
   );
 }
 
+test.setTimeout(90_000);
+
 test.use({
   ignoreHTTPSErrors: true,
   viewport: { width: 390, height: 844 },
@@ -64,9 +66,24 @@ async function fillOrder(
   await form.locator('input[name="deliveryStreetLine1"]').fill(street);
   await form.locator('input[name="deliveryPostalCode"]').fill(postalCode);
   await form.locator('input[name="deliveryCity"]').fill(city);
+  await form
+    .locator('select[name="deliveryWindowId"]')
+    .selectOption("90000000-0000-4000-8000-000000000072");
+  await form
+    .locator('input[name="deliveryContactName"]')
+    .fill("Alex Lieferung");
+  await form
+    .locator('input[name="deliveryContactPhone"]')
+    .fill("+49 821 765432");
+  await form
+    .locator('textarea[name="deliveryInstructions"]')
+    .fill("Abteilung Bildung\nEingang links <b>Hinweis</b>");
   await expect(
     form.locator('input[name="billingSameAsDelivery"]'),
   ).toBeChecked();
+  await form
+    .locator('input[name="invoiceEmail"]')
+    .fill("rechnung@leonaid.invalid");
   await form.locator('input[name="privacyAcknowledged"]').check();
   await form.locator('input[name="bindingOrderConfirmed"]').check();
 }
@@ -99,6 +116,7 @@ async function submitOrder(form) {
 }
 
 test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Formular", async ({
+  browser,
   page,
 }) => {
   const proof = {
@@ -166,7 +184,14 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     fullPage: true,
   });
 
-  form = await openOrderForm(page);
+  const noJsContext = await browser.newContext({
+    javaScriptEnabled: false,
+    reducedMotion: "reduce",
+    ignoreHTTPSErrors: true,
+    viewport: { width: 390, height: 844 },
+  });
+  const noJsPage = await noJsContext.newPage();
+  form = await openOrderForm(noJsPage);
   await fillOrder(form, {
     email: "paula.privat@leonaid.invalid",
     familyName: "Privat",
@@ -174,16 +199,34 @@ test("neue Firma, bestehende Firma und Privatperson bestellen im geführten Form
     quantity: 3,
     recipient: "Paula Privat",
   });
-  submitted = await submitOrder(form);
+  await form.locator('input[name="billingSameAsDelivery"]').uncheck();
+  await form
+    .locator('input[name="invoiceRecipientName"]')
+    .fill("Paula Rechnung");
+  await form.locator('input[name="invoiceStreetLine1"]').fill("Rechnungsweg 8");
+  await form.locator('input[name="invoicePostalCode"]').fill("86150");
+  await form.locator('input[name="invoiceCity"]').fill("Augsburg");
+  await Promise.all([
+    noJsPage.waitForNavigation(),
+    form.locator('button[type="submit"]').click(),
+  ]);
+  const noJsSuccess = noJsPage.locator("[data-order-success]");
+  await expect(noJsSuccess).toBeVisible();
+  submitted = {
+    reference: (
+      await noJsSuccess.locator("[data-order-reference]").textContent()
+    ).trim(),
+  };
   proof.orders.push({
     scenario: "person-without-company",
     publicReference: submitted.reference,
   });
-  await page.screenshot({
+  await noJsPage.screenshot({
     path: `${artifactDirectory}/public-order-success-person.png`,
     fullPage: true,
   });
 
+  await noJsContext.close();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openOrderForm(page);
   await page.screenshot({

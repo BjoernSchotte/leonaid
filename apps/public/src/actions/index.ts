@@ -76,10 +76,18 @@ export const server = {
       familyName: requiredText(200),
       email: z.email().trim().max(320),
       phone: optionalText(40),
-      deliveryRecipientName: requiredText(300),
-      deliveryStreetLine1: requiredText(300),
-      deliveryPostalCode: requiredText(24),
-      deliveryCity: requiredText(200),
+      deliveryRecipientName: requiredText(200),
+      deliveryStreetLine1: requiredText(200),
+      deliveryPostalCode: requiredText(20),
+      deliveryCity: requiredText(120),
+      deliveryWindowId: z.union([z.uuid(), z.literal("")]).optional(),
+      deliveryContactName: optionalText(200),
+      deliveryContactPhone: optionalText(50),
+      deliveryInstructions: z
+        .string()
+        .transform((value) => value.replace(/\r\n?/g, "\n").trim())
+        .pipe(z.string().max(1_000))
+        .optional(),
       billingSameAsDelivery: z.boolean(),
       invoiceRecipientName: optionalText(300),
       invoiceStreetLine1: optionalText(300),
@@ -135,7 +143,7 @@ export const server = {
             streetLine1: input.deliveryStreetLine1,
             postalCode: input.deliveryPostalCode,
             city: input.deliveryCity,
-            email: input.email,
+            email: input.invoiceEmail || input.email,
             countryCode: "DE",
           }
         : {
@@ -143,7 +151,7 @@ export const server = {
             streetLine1: input.invoiceStreetLine1 ?? "",
             postalCode: input.invoicePostalCode ?? "",
             city: input.invoiceCity ?? "",
-            email: input.invoiceEmail ?? input.email,
+            email: input.invoiceEmail || input.email,
             countryCode: "DE",
           };
       try {
@@ -159,7 +167,11 @@ export const server = {
               email: input.email,
               phone: input.phone || null,
             },
+            deliveryWindowId: input.deliveryWindowId || null,
             deliveryRecipient: {
+              contactName: input.deliveryContactName || null,
+              contactPhone: input.deliveryContactPhone || null,
+              instructions: input.deliveryInstructions || null,
               recipientName: input.deliveryRecipientName,
               streetLine1: input.deliveryStreetLine1,
               postalCode: input.deliveryPostalCode,

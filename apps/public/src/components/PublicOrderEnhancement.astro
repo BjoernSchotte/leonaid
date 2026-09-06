@@ -150,7 +150,7 @@
       if (!form.checkValidity()) {
         const fields: Record<string, readonly string[]> = {};
         for (const control of form.querySelectorAll<HTMLInputElement>(
-          "input:invalid",
+          "input:invalid, select:invalid, textarea:invalid",
         )) {
           if (!control.name) continue;
           fields[control.name] = [

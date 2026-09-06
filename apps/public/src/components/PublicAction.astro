@@ -7,6 +7,7 @@ import type {
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 
+import DeliveryOptions from "./DeliveryOptions.astro";
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
 import KrapfentaxiIntro from "./KrapfentaxiIntro.astro";
 import { isKrapfentaxiAction } from "../lib/presentation";
@@ -702,6 +703,10 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                     </div>
                   </fieldset>
 
+                  {orderForm.delivery?.enabled && (
+                    <DeliveryOptions definition={orderForm.delivery} />
+                  )}
+
                   <fieldset class="order-step">
                     <legend>
                       <span>04</span>
@@ -728,12 +733,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                         </small>
                       </span>
                     </label>
-                    <div
-                      class="form-grid billing-fields"
-                      data-billing-fields
-                      aria-hidden="true"
-                      hidden
-                    >
+                    <div class="form-grid billing-fields" data-billing-fields>
                       <div class="form-field form-field--wide">
                         <label for="invoiceRecipientName">
                           Rechnungsempfänger:in <em>Pflichtfeld</em>
@@ -815,9 +815,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
                           data-error-for="invoiceCity"
                         />
                       </div>
+                    </div>
+                    <div class="form-grid">
                       <div class="form-field form-field--wide">
                         <label for="invoiceEmail">
-                          Rechnungs-E-Mail <em>Pflichtfeld</em>
+                          Rechnungs-E-Mail (optional)
                         </label>
                         <input
                           id="invoiceEmail"
