@@ -1,0 +1,40 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #173d38;
+  background: #edf5f2;
+  --survey-accent: #14634e;
+  --survey-font: system-ui, sans-serif;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 64rem;
+  margin: auto;
+  padding: 2rem 1rem 4rem;
+}
+header {
+  margin-bottom: 2rem;
+}
+h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+}
+.host-control {
+  min-height: 44px;
+  padding: 0.7rem 1.1rem;
+  background: #173d38;
+  color: white;
+  border: 2px solid #173d38;
+  border-radius: 0.5rem;
+  font: inherit;
+  cursor: pointer;
+}
+.warm {
+  --survey-accent: #85451b;
+  background: #faf1e9;
+}

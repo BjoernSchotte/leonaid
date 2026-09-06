@@ -119,6 +119,7 @@ Commands:
   test-surveys-lifecycle
   test-surveys-core
   test-surveys-validation-candidate
+  test-surveys-package
   test-surveys-runner
                     Prove browser autosave, partial resume and reconnect with real services
   test-surveys-responses
@@ -2002,6 +2003,7 @@ case "$command" in
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
   test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
+  test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
   test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
   test-surveys-core)
     mkdir -p "$root/.artifacts/surveys"

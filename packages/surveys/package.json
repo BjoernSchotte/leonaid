@@ -4,6 +4,11 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "files": [
+    "src",
+    "README.md",
+    "THIRD-PARTY-NOTICES.txt"
+  ],
   "exports": {
     "./contracts": "./src/contracts.ts",
     "./runner": "./src/runner.tsx",

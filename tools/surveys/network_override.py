@@ -22,6 +22,7 @@ used = [
 ]
 candidates = list(ipaddress.ip_network("172.30.128.0/17").subnets(new_prefix=24))
 secrets.SystemRandom().shuffle(candidates)
+count = 1 if sys.argv[1] == "--single" else 7
 selected = [
     candidate
     for candidate in candidates
@@ -29,9 +30,12 @@ selected = [
         candidate.version == existing.version and candidate.overlaps(existing)
         for existing in used
     )
-][:7]
-if len(selected) != 7:
+][:count]
+if len(selected) != count:
     raise SystemExit("No free survey test subnets; existing networks are untouched")
+if count == 1:
+    print(selected[0])
+    raise SystemExit(0)
 names = [
     "edge",
     "core-data",

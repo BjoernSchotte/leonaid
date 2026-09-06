@@ -25,6 +25,7 @@ export function profileAnswerError(
   question: ProfileQuestion,
   value: unknown,
   complete = true,
+  locale: "de" | "en" = "de",
 ): string | undefined {
   if (absent(value)) {
     if (
@@ -33,10 +34,15 @@ export function profileAnswerError(
         (question.type === "checkbox" &&
           number(question, "minSelectedChoices", 0) > 0))
     )
-      return "Bitte beantworten Sie diese Frage.";
+      return locale === "en"
+        ? "Please answer this question."
+        : "Bitte beantworten Sie diese Frage.";
     return;
   }
-  const invalid = "Bitte geben Sie eine gültige Antwort ein.";
+  const invalid =
+    locale === "en"
+      ? "Please enter a valid answer."
+      : "Bitte geben Sie eine gültige Antwort ein.";
   if (
     (question.type === "text" || question.type === "comment") &&
     question.inputType !== "number" &&
@@ -47,9 +53,13 @@ export function profileAnswerError(
     const min = number(question, "minLength", 0),
       max = number(question, "maxLength", 0) || 10000;
     if (value.length < min)
-      return `Bitte geben Sie mindestens ${min} Zeichen ein.`;
+      return locale === "en"
+        ? `Please enter at least ${min} characters.`
+        : `Bitte geben Sie mindestens ${min} Zeichen ein.`;
     if (value.length > max)
-      return `Bitte geben Sie höchstens ${max} Zeichen ein.`;
+      return locale === "en"
+        ? `Please enter no more than ${max} characters.`
+        : `Bitte geben Sie höchstens ${max} Zeichen ein.`;
     return;
   }
   if (question.type === "rating" || question.inputType === "number") {
@@ -112,9 +122,13 @@ export function profileAnswerError(
     const min = number(question, "minSelectedChoices", 0),
       max = number(question, "maxSelectedChoices", 0) || 100;
     if (complete && value.length < min)
-      return `Bitte wählen Sie mindestens ${min} Antworten aus.`;
+      return locale === "en"
+        ? `Please select at least ${min} answers.`
+        : `Bitte wählen Sie mindestens ${min} Antworten aus.`;
     if (value.length > max)
-      return `Bitte wählen Sie höchstens ${max} Antworten aus.`;
+      return locale === "en"
+        ? `Please select no more than ${max} answers.`
+        : `Bitte wählen Sie höchstens ${max} Antworten aus.`;
     return;
   }
   if (question.type === "matrix") {
@@ -134,7 +148,9 @@ export function profileAnswerError(
       ((question.isRequired && !entries.length) ||
         (question.isAllRowRequired && entries.length !== rows.length))
     )
-      return "Bitte beantworten Sie die erforderlichen Zeilen.";
+      return locale === "en"
+        ? "Please answer the required rows."
+        : "Bitte beantworten Sie die erforderlichen Zeilen.";
     return;
   }
   return invalid;

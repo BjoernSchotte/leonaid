@@ -2,8 +2,12 @@ import { Model, TextValidator } from "survey-core";
 import { profileAnswerError, type ProfileQuestion } from "./answer-validation";
 
 /** Add profile checks that native input limits alone cannot guarantee. */
-export function createSurveyModel(definition: Record<string, unknown>): Model {
+export function createSurveyModel(
+  definition: Record<string, unknown>,
+  locale: "de" | "en" = "de",
+): Model {
   const model = new Model(structuredClone(definition));
+  model.locale = locale;
   model.clearInvisibleValues = "onHiddenContainer";
   const pages = definition.pages as Array<{
     elements: Array<ProfileQuestion & { minLength?: number }>;
@@ -41,8 +45,12 @@ export function createSurveyModel(definition: Record<string, unknown>): Model {
     const source = sources.get(options.question.name);
     if (source)
       options.error =
-        profileAnswerError(source, model.getValue(options.question.name)) ??
-        options.error;
+        profileAnswerError(
+          source,
+          model.getValue(options.question.name),
+          true,
+          locale,
+        ) ?? options.error;
   });
   return model;
 }

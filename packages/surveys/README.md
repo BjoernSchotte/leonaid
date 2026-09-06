@@ -74,8 +74,8 @@ behind them. A known invalid-response rejection permits a corrected snapshot.
 Restoration applies initial answers before attaching save listeners.
 
 The current baseline uses browser rendering in Astro; it does not claim SSR
-support or hydration parity across additional hosts yet. The runner currently
-ships German UI text; configurable translations remain required follow-up work.
+support or hydration parity across additional hosts yet. The runner defaults to German and now accepts host locale/messages; see the
+packed-consumer section below. Editor-wide translation remains open.
 The host can set `--survey-accent` and `--survey-font`; the stylesheet maps these
 to SurveyJS 3's actual `--sjs2-*` tokens on its theme root. It imports the fontless
 upstream stylesheet and uses host-provided fonts.
@@ -156,3 +156,31 @@ package: SurveyJS 3.0.3's matrix renderer declaration returns `Element | null`
 while its declared base method returns `Element` (TS2416). Application source
 remains strictly checked; this setting does not establish clean upstream type
 declarations. Track removal when the pinned upstream declarations are corrected.
+
+## Packed consumer and host configuration
+
+Host-supplied adapters connect the React questionnaire editor and respondent
+runner to persistence. This package does not import LeonAid's API client, UI,
+identity or domain modules. Own license decision: **UNDEFINED**; the package is
+private and is not being published.
+
+Entrypoints: `editor`, `runner`, `contracts`, `styles`, `editor-styles`. The current
+spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
+React and React DOM are peer dependencies. Import the runner stylesheet once;
+the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
+inside the host's survey container to customize the runner theme.
+
+`SurveyRunner` accepts a `Participation`, a `ParticipationAdapter`, optional
+`locale` (`de` by default, or `en`) and optional `messages` overriding runner
+status, recovery and completion text. The host owns credentials and translates
+adapter error messages. Keep adapter and message-object identities stable across
+renders, and do not replace a participation while it has unsaved changes.
+Questionnaire validation and all authoritative writes remain server concerns.
+Provide a secure browser context (HTTPS, or localhost for local development)
+for cryptographic operation IDs.
+
+The independent demo installs an actual tarball outside workspace resolution and
+saves to SQLite through its own adapter. It is a consumer proof, not a hosted
+service or production backend. Editor-wide translation, analytics exports,
+compiled distribution and full cross-host theme/hydration acceptance remain
+tracked in the spike plan.

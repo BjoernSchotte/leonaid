@@ -13,7 +13,36 @@ import type {
 export interface RunnerProps {
   participation: Participation;
   adapter: ParticipationAdapter;
+  locale?: "de" | "en";
+  messages?: Partial<RunnerMessages>;
 }
+export interface RunnerMessages {
+  saved: string;
+  pending: string;
+  saving: string;
+  saveFailed: string;
+  completionFailed: string;
+  completed: string;
+  thankYouTitle: string;
+  thankYouBody: string;
+  retry: string;
+  conflict: string;
+}
+const defaultMessages: RunnerMessages = {
+  saved: "Alle Antworten gespeichert",
+  pending: "Änderungen noch nicht gespeichert",
+  saving: "Antworten werden gespeichert …",
+  saveFailed:
+    "Speichern derzeit nicht möglich. Ihre Änderungen bleiben in diesem geöffneten Fenster erhalten.",
+  completionFailed:
+    "Der Abschluss konnte noch nicht bestätigt werden. Bitte versuchen Sie es erneut.",
+  completed: "Vielen Dank. Ihre Antworten sind eingegangen.",
+  thankYouTitle: "Vielen Dank für Ihre Rückmeldung.",
+  thankYouBody: "Ihre Antworten sind eingegangen.",
+  retry: "Erneut speichern",
+  conflict:
+    "Ein anderes Fenster hat neuere Antworten gespeichert. Laden Sie die Seite neu, um diesen Stand zu übernehmen.",
+};
 type SaveState =
   | "saved"
   | "pending"
@@ -34,15 +63,17 @@ export class SaveCoordinator {
   private restoring = false;
   private stopped = false;
   state: SaveState = "saved";
-  message = "Alle Antworten gespeichert";
+  message: string;
   response: ResponseSnapshot;
   constructor(
     readonly model: Model,
     readonly participation: Participation,
     readonly adapter: ParticipationAdapter,
     readonly notify: () => void,
+    readonly messages: RunnerMessages = defaultMessages,
   ) {
     this.response = participation.response;
+    this.message = messages.saved;
   }
   private status(state: SaveState, message: string) {
     this.state = state;
@@ -54,7 +85,7 @@ export class SaveCoordinator {
     this.generation++;
     this.dirty = true;
     if (this.state !== "conflict")
-      this.status("pending", "Änderungen noch nicht gespeichert");
+      this.status("pending", this.messages.pending);
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), immediate ? 0 : 400);
   }
@@ -79,7 +110,7 @@ export class SaveCoordinator {
             currentPage: this.model.currentPage?.name ?? null,
           },
         };
-      this.status("saving", "Antworten werden gespeichert …");
+      this.status("saving", this.messages.saving);
       try {
         const result = await this.adapter.save(
           this.participation.id,
@@ -110,14 +141,11 @@ export class SaveCoordinator {
         }
         this.pending = null;
       } catch {
-        this.status(
-          "error",
-          "Speichern derzeit nicht möglich. Ihre Änderungen bleiben in diesem geöffneten Fenster erhalten.",
-        );
+        this.status("error", this.messages.saveFailed);
         return false;
       }
     }
-    this.status("saved", "Alle Antworten gespeichert");
+    this.status("saved", this.messages.saved);
     return true;
   }
   async finish(): Promise<boolean> {
@@ -146,13 +174,10 @@ export class SaveCoordinator {
         return false;
       }
       this.response = result.value;
-      this.status("completed", "Vielen Dank. Ihre Antworten sind eingegangen.");
+      this.status("completed", this.messages.completed);
       return true;
     } catch {
-      this.status(
-        "error",
-        "Der Abschluss konnte noch nicht bestätigt werden. Bitte versuchen Sie es erneut.",
-      );
+      this.status("error", this.messages.completionFailed);
       this.model.mode = "edit";
       return false;
     }
@@ -163,22 +188,32 @@ export class SaveCoordinator {
   }
 }
 
-export function SurveyRunner({ participation, adapter }: RunnerProps) {
+export function SurveyRunner({
+  participation,
+  adapter,
+  locale = "de",
+  messages,
+}: RunnerProps) {
   const [, render] = useState(0);
+  const copy = useMemo(() => ({ ...defaultMessages, ...messages }), [messages]);
   const { model, saves } = useMemo(() => {
-    const model = createSurveyModel(participation.version.definition);
-    model.locale = "de";
+    const model = createSurveyModel(participation.version.definition, locale);
+    model.locale = locale;
     model.textUpdateMode = "onTyping";
     restoreSurveyAnswers(model, participation.response.answers);
     if (participation.response.currentPage) {
       const page = model.getPageByName(participation.response.currentPage);
       if (page?.isVisible) model.currentPage = page;
     }
-    const saves = new SaveCoordinator(model, participation, adapter, () =>
-      render((n) => n + 1),
+    const saves = new SaveCoordinator(
+      model,
+      participation,
+      adapter,
+      () => render((n) => n + 1),
+      copy,
     );
     return { model, saves };
-  }, [participation, adapter]);
+  }, [participation, adapter, locale, copy]);
   useEffect(() => {
     const changed = () => saves.changed();
     const pageChanged = () => saves.changed(true);
@@ -216,8 +251,8 @@ export function SurveyRunner({ participation, adapter }: RunnerProps) {
   )
     return (
       <section className="survey-thanks">
-        <h1>Vielen Dank für Ihre Rückmeldung.</h1>
-        <p>Ihre Antworten sind eingegangen.</p>
+        <h1>{copy.thankYouTitle}</h1>
+        <p>{copy.thankYouBody}</p>
       </section>
     );
   return (
@@ -231,15 +266,10 @@ export function SurveyRunner({ participation, adapter }: RunnerProps) {
         <span>{saves.message}</span>
         {saves.state === "error" && (
           <button type="button" onClick={() => void saves.flush()}>
-            Erneut speichern
+            {copy.retry}
           </button>
         )}
-        {saves.state === "conflict" && (
-          <p>
-            Ein anderes Fenster hat neuere Antworten gespeichert. Laden Sie die
-            Seite neu, um diesen Stand zu übernehmen.
-          </p>
-        )}
+        {saves.state === "conflict" && <p>{copy.conflict}</p>}
       </div>
       <Survey model={model} />
     </section>
