@@ -150,7 +150,7 @@ Dependencies: none.
 - [ ] Extend typed order-form definitions, template defaults, and existing action-instance compatibility; establish one authoritative delivery policy for both entry channels.
 - [x] Add schema migration, reference constraints, old-snapshot defaults, and fixtures. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
 - [x] Define retirement, timezone immutability once booked, and action-date-edit validation against existing delivery dates. Evidence: `ACCEPTANCE.md` (2026-09-06 audit).
-- [ ] Prove old orders still load without invented delivery data and non-delivery commitments remain unaffected.
+- [x] Prove old orders still load without invented delivery data and non-delivery commitments remain unaffected. Evidence: historical repository read and sponsoring-order regression in `PROGRESS.md`.
 
 ### DEL-02 — Backend administration and order contracts
 

@@ -1,6 +1,13 @@
 # Implementation evidence
 
 
+## Historical order repository read after migration — 2026-09-06
+
+Replaced the foundation migration fixture's empty customer object and missing line with a valid pre-0027 confirmed acquisition order: historical buyer snapshot, priced offering and one EUR 5 line. After upgrading to head, the proof reads it through `AsyncpgCommitmentRepository._get`, not only SQL column assertions. Status, buyer, line and total remain unchanged; delivery recipient, window ID and snapshot remain null. No historical selection is fabricated.
+
+The full isolated foundation gate with `LEONAID_DELIVERY_FOUNDATION_SUBNET=172.30.81.0/24` exited 0, including the new historical read, sponsoring-order regression, migration round-trip, both booking race channels and explicit historical completion. Ruff/Mypy pass. Own temporary PostgreSQL/network resources were cleaned up. The matching DEL-01 compatibility checkbox is now complete on repository/migration evidence; integrated browser and EmDash acceptance remains open.
+
+
 ## Non-delivery sponsorship order regression — 2026-09-06
 
 Expanded `tools/delivery/form_configuration.py` beyond checking the blank template's disabled default. It now uses a real persisted blank action, enables ordering, inserts a synthetic sponsoring offering and creates a review-ready admin order with a billing recipient but no delivery recipient/window. Real PostgreSQL readback preserves null delivery fields and the priced line/total. Exact command replay returns the same order ID.

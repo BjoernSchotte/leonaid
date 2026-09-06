@@ -113,6 +113,31 @@ async def repository_proof(action_id: UUID, other_id: UUID) -> None:
         await pool.close()
 
 
+async def prove_historical_read(order_id: UUID) -> None:
+    from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+    from leonaid.domain.commitments import CommitmentStatus
+
+    pool = await asyncpg.create_pool(os.environ["CORE_DATABASE_URL"])
+    assert pool is not None
+    try:
+        async with pool.acquire() as connection:
+            order = await AsyncpgCommitmentRepository._get(
+                connection, order_id, replayed=False
+            )
+        assert order.status is CommitmentStatus.CONFIRMED
+        assert order.buyer.display_name == "Historical buyer"
+        assert order.total.amount_minor == 500 and len(order.lines) == 1
+        assert order.delivery_recipient is None
+        assert (
+            order.delivery_window_id is None and order.delivery_window_snapshot is None
+        )
+        print(
+            "historical-read: PASS: pre-migration confirmed order loads through repository with original buyer/price and null delivery"
+        )
+    finally:
+        await pool.close()
+
+
 def main() -> None:
     config = Config("alembic.ini")
     command.upgrade(config, "0026_invoice_payment_snapshot")
@@ -126,12 +151,34 @@ def main() -> None:
                         '2027-02-28', %s)""",
                 (identifier, str(identifier)),
             )
+        buyer, historical_offering = uuid4(), uuid4()
+        db.execute(
+            """INSERT INTO offering(id, action_id, code, name, status, unit, unit_price_minor, currency, allowed_quantity_units)
+            VALUES (%s, %s, 'historic', 'Historical offering', 'active', 'piece', 500, 'EUR', ARRAY['piece'])""",
+            (historical_offering, action),
+        )
         db.execute(
             """INSERT INTO commitment
             (id, action_id, twenty_company_id, source, status,
              customer_snapshot, currency, total_minor)
-            VALUES (%s, %s, %s, 'acquisition', 'confirmed', '{}', 'EUR', 0)""",
-            (historical, action, uuid4()),
+            VALUES (%s, %s, %s, 'acquisition', 'confirmed', %s, 'EUR', 500)""",
+            (
+                historical,
+                action,
+                buyer,
+                Jsonb(
+                    {
+                        "partyKind": "company",
+                        "twentyId": str(buyer),
+                        "displayName": "Historical buyer",
+                    }
+                ),
+            ),
+        )
+        db.execute(
+            """INSERT INTO commitment_line(id, commitment_id, offering_id, description_snapshot, quantity, unit_snapshot, unit_price_minor, line_total_minor)
+            VALUES (%s, %s, %s, 'Historical offering', 1, 'piece', 500, 500)""",
+            (uuid4(), historical, historical_offering),
         )
         command.upgrade(config, "head")
         command.upgrade(config, "head")
@@ -144,6 +191,7 @@ def main() -> None:
                FROM commitment WHERE id = %s""",
             (historical,),
         ).fetchone() == ("confirmed", None, None)
+        asyncio.run(prove_historical_read(historical))
         db.execute(
             """INSERT INTO delivery_window
             (id, action_id, delivery_on, starts_at, ends_at)
