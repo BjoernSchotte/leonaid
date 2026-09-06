@@ -144,6 +144,18 @@ class DeliveryConfiguration:
             "Dieses Lieferfenster ist nicht mehr verfügbar. Bitte erneut auswählen.",
         )
 
+    def select_historical(self, window_id: UUID, *, now: datetime) -> DeliveryWindow:
+        """Resolve an explicitly confirmed admin correction, never a new booking."""
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("Delivery selection requires an aware current time")
+        for window in self.windows:
+            if window.id == window_id and window.bounds(self.timezone)[1] <= now:
+                return window
+        raise DomainInvariantError(
+            "delivery_historical_window_invalid",
+            "Bitte ein bereits beendetes Lieferfenster dieser Aktion auswählen.",
+        )
+
     def form_definition(self) -> dict[str, object]:
         return {
             "enabled": self.enabled,

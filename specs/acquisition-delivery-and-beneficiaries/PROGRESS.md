@@ -1,5 +1,16 @@
 # Implementation evidence
 
+
+## Explicit historical completion backend checkpoint — 2026-09-06
+
+The user approved historical delivery completion explicitly. PLAN.md now records the exception: an action manager can confirm an existing draft/review-ready order's configured, already ended delivery window, including a retired window. New acquisition/public submissions retain future-only availability. No window is inferred or invented; existing booked snapshots remain unchanged.
+
+Implemented the application-command confirmation, a separate historical domain selector, server-derived snapshot persistence and a privacy-safe audit confirmation. False/absent confirmation preserves the previous command fingerprint; true confirmation participates in idempotency. The exception is not exposed through the HTTP request or UI yet.
+
+Live evidence: `tools/delivery/test-foundation.sh` exited 0 against disposable PostgreSQL. A real existing draft rejects an unconfirmed past selection, a missing/unknown ID and a not-yet-ended historical selection; explicit confirmation stores a configured retired window, preserves prices/lines/buyer, replays exactly once and creates one historical audit event. Omitting confirmation on replay conflicts. All existing migration, booking race, invoice guard and completion proofs also pass. Ruff and Mypy (114 files) pass; 213 unit tests pass. The test created its own internal Docker network and tmpfs database, used no host ports, and cleaned up its own resources.
+
+Remaining for this decision: manager-only historical selection context, explicit admin form confirmation, generated HTTP contract, and authenticated HTTP/browser evidence. This backend checkpoint does not establish end-to-end historical completion or complete DEL-02/DEL-03.
+
 ## Completion context, focus and zoom checkpoint — 2026-09-06
 
 Added authenticated `GET /api/v1/actions/{action_id}/delivery/order-form`, projecting the same Core delivery definition with private/no-store caching. It uses existing delivery read authorization and is independent of the new-order capture status gate. The completion UI now consumes this route, so a completed action does not prevent loading its effective delivery rules. New-order capture gates are unchanged.

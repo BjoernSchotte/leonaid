@@ -205,3 +205,99 @@ async def prove_completion(
     print(
         "delivery-completion: PASS: authorization, invoice guard, concurrent edits, unchanged price/lines, billing/delivery snapshots, retirement replay and confirmed-order protection"
     )
+
+
+async def prove_historical_completion(
+    pool: asyncpg.Pool[Any], action_id: UUID, actor_id: UUID, order: Commitment
+) -> None:
+    from leonaid.domain.errors import DomainInvariantError
+
+    now = datetime(2027, 3, 1, tzinfo=timezone.utc)
+    config = await AsyncpgDeliveryRepository(pool).get(action_id)
+    window = next(item for item in config.windows if item.retired)
+    actor = IdentityPrincipal(
+        UserAccount(
+            actor_id, "history@example.invalid", "History", AccountStatus.ACTIVE
+        ),
+        frozenset(),
+        (
+            ActionMembership(
+                uuid4(), action_id, "Test", actor_id, ActionRole.CHARITY_ADMIN, now
+            ),
+        ),
+    )
+    service = DeliveryCompletionService(AsyncpgDeliveryCompletionRepository(pool))
+    draft = DeliveryCompletionDraft(
+        delivery_completion_version(order),
+        DeliveryRecipientSnapshot(
+            "History delivery", "Testweg 1", "00000", "Teststadt"
+        ),
+        InvoiceRecipientSnapshot("History invoice", "Testweg 2", "00000", "Teststadt"),
+        window.id,
+    )
+
+    async def complete(
+        value: DeliveryCompletionDraft, key: str, when: datetime = now
+    ) -> Commitment:
+        return await service.complete(
+            actor,
+            action_id,
+            order.id,
+            draft=value,
+            key=key,
+            request_id="historical-proof",
+            now=when,
+        )
+
+    for value, when, code in (
+        (draft, now, "delivery_window_unavailable"),
+        (
+            replace(draft, confirm_historical_delivery=True, window_id=uuid4()),
+            now,
+            "delivery_historical_window_invalid",
+        ),
+        (
+            replace(draft, confirm_historical_delivery=True, window_id=None),
+            now,
+            "delivery_historical_window_invalid",
+        ),
+        (
+            replace(draft, confirm_historical_delivery=True),
+            datetime(2027, 1, 1, tzinfo=timezone.utc),
+            "delivery_historical_window_invalid",
+        ),
+    ):
+        try:
+            await complete(value, str(uuid4()), when)
+        except DomainInvariantError as error:
+            assert error.code == code, error.code
+        else:
+            raise AssertionError("Invalid historical completion accepted")
+    confirmed = replace(draft, confirm_historical_delivery=True)
+    key = str(uuid4())
+    saved = await complete(confirmed, key)
+    assert saved.delivery_window_snapshot == window.snapshot(config.timezone)
+    assert (
+        saved.total == order.total
+        and saved.lines == order.lines
+        and saved.buyer == order.buyer
+    )
+    assert (await complete(confirmed, key)).replayed
+    try:
+        await complete(draft, key)
+    except Conflict as error:
+        assert error.code == "idempotency_conflict"
+    else:
+        raise AssertionError("Historical confirmation omitted on replay")
+    async with pool.acquire() as connection:
+        events = await connection.fetch(
+            "SELECT payload FROM audit_event WHERE entity_id = $1 AND event_type = 'commitment_delivery_completed'",
+            order.id,
+        )
+        import json
+
+        assert len(events) == 1
+        assert json.loads(events[0]["payload"])["historicalDeliveryConfirmed"] is True
+    print(
+        "delivery-history: PASS: explicit confirmation, ended configured retired window, foreign/missing/future rejection, immutable snapshot, exact replay and single audit"
+    )

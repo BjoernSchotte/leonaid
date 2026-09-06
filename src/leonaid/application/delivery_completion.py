@@ -53,6 +53,7 @@ class DeliveryCompletionDraft:
     delivery_recipient: DeliveryRecipientSnapshot
     invoice_recipient: InvoiceRecipientSnapshot
     window_id: UUID | None
+    confirm_historical_delivery: bool = False
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-f0-9]{64}", self.expected_version):
@@ -69,6 +70,11 @@ class DeliveryCompletionDraft:
                 "delivery": self.delivery_recipient.payload(),
                 "invoice": self.invoice_recipient.payload(),
                 "windowId": str(self.window_id) if self.window_id else None,
+                **(
+                    {"confirmHistoricalDelivery": True}
+                    if self.confirm_historical_delivery
+                    else {}
+                ),
             }
         )
 

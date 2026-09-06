@@ -118,3 +118,21 @@ def test_invoice_contract_rejects_delivery_only_contact_and_notes() -> None:
             PublicOrderInvoiceRecipientRequest.model_validate(
                 {**address, field: "Test"}
             )
+
+
+def test_historical_selection_requires_ended_same_action_window() -> None:
+    action = uuid4()
+    window = DeliveryWindow(
+        uuid4(), action, date(2027, 2, 4), time(8), time(10), retired=True
+    )
+    config = DeliveryConfiguration(action, windows=(window,))
+    ended = datetime(2027, 2, 4, 9, tzinfo=timezone.utc)
+    assert config.select_historical(window.id, now=ended) == window
+    for identifier, when in (
+        (uuid4(), ended),
+        (window.id, datetime(2027, 2, 4, 8, 59, tzinfo=timezone.utc)),
+    ):
+        with pytest.raises(DomainInvariantError):
+            config.select_historical(identifier, now=when)
+    with pytest.raises(DomainInvariantError):
+        config.select(window.id, now=ended)

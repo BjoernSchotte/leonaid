@@ -17,6 +17,7 @@ from leonaid.application.delivery_completion import (
 )
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.domain.commitments import Commitment, CommitmentStatus
+from leonaid.domain.errors import DomainInvariantError
 
 COMMAND = "complete_delivery_v1"
 
@@ -115,6 +116,15 @@ class AsyncpgDeliveryCompletionRepository:
                             "delivery_completion_snapshot_missing",
                             "Der gespeicherte Liefertermin ist unvollständig und muss geprüft werden.",
                         )
+                elif draft.confirm_historical_delivery:
+                    if draft.window_id is None:
+                        raise DomainInvariantError(
+                            "delivery_historical_window_invalid",
+                            "Bitte das damalige Lieferfenster auswählen.",
+                        )
+                    config = await read_configuration(connection, action_id)
+                    historical = config.select_historical(draft.window_id, now=now)
+                    snapshot = historical.snapshot(config.timezone)
                 else:
                     snapshot = await select_order_window(
                         connection,
@@ -151,7 +161,14 @@ class AsyncpgDeliveryCompletionRepository:
                     order_id,
                     request_id,
                     json.dumps(
-                        {"previousStatus": order.status.value, "status": "review_ready"}
+                        {
+                            "previousStatus": order.status.value,
+                            "status": "review_ready",
+                            "historicalDeliveryConfirmed": bool(
+                                draft.confirm_historical_delivery
+                                and not order.delivery_window_id
+                            ),
+                        }
                     ),
                     now,
                 )
