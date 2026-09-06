@@ -9,6 +9,9 @@ import { validateSeed } from "emdash/seed";
 import { provisionPostgres } from "./provision-postgres.mjs";
 import { installCampaignSchema } from "../../apps/campaign-site/src/install-campaign-schema.mjs";
 import { exportCampaignSchema } from "../../apps/campaign-site/src/campaign-schema.mjs";
+import { readFile } from "node:fs/promises";
+import { generateCampaignTypes } from "./campaign-typegen.mjs";
+import "./campaign-types-proof.mjs";
 
 const exported = exportCampaignSchema();
 assert.equal(exported, exportCampaignSchema());
@@ -46,6 +49,25 @@ try {
   assert.equal(results.filter((result) => result.created).length, 1);
   const registry = new SchemaRegistry(database);
   const schema = await registry.getCollectionWithFields("campaign_pages");
+  const types = await generateCampaignTypes(schema);
+  assert.equal(types, await generateCampaignTypes());
+  assert.equal(
+    types,
+    await generateCampaignTypes({
+      ...schema,
+      fields: [...schema.fields].reverse(),
+    }),
+  );
+  assert.equal(
+    types,
+    await readFile(
+      new URL(
+        "../../apps/campaign-site/src/campaign-fields.generated.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   assert.equal(
     schema.fields.length,
     contract.seed.collections[0].fields.length,
@@ -126,7 +148,7 @@ try {
     "999",
   );
   console.log(
-    "schema-runtime: OK: deterministic content-free seed export, real PostgreSQL concurrent installation, repeatability without content/schema writes, explicit schema/version drift denial",
+    "schema-runtime: OK: deterministic content-free seed export, compiled generated types match installed schema, real PostgreSQL concurrent installation, repeatability without content/schema writes, explicit schema/version drift denial",
   );
 } finally {
   await database.destroy();

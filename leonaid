@@ -45,6 +45,7 @@ Commands:
   test-emdash-spike --case <campaign-content|campaign-runtime>
   test-emdash-spike --case schema-runtime
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
+  export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX
@@ -437,9 +438,13 @@ check_all() {
     "$PYTHON_IMAGE" \
     python /workspace/tools/handoff/check.py /workspace
   run_bun bun run typecheck
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
     .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
-    tools/emdash_spike/*.mjs \
+    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts \
     tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -1993,6 +1998,12 @@ case "$command" in
       --volume "$root/apps/campaign-site/src/campaign-schema.mjs:/workspace/apps/campaign-site/src/campaign-schema.mjs:ro" \
       --volume "$root/tools/emdash_spike/export-schema.mjs:/workspace/tools/emdash_spike/export-schema.mjs:ro" \
       --workdir /workspace "$NODE_IMAGE" node tools/emdash_spike/export-schema.mjs
+    ;;
+  export-campaign-types)
+    require_docker
+    docker_retry docker run --rm --network none \
+      --volume "$root:/workspace:ro" --workdir /workspace \
+      "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs
     ;;
   test-emdash-spike)
     shift
