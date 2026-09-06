@@ -1425,6 +1425,13 @@ Dependencies: EMS-030 successful
       creation, social/partner-logo selection, search/pagination, upload failure
       recovery, mobile/keyboard/accessibility and comprehensive two-actor browser
       isolation. Public media delivery and fresh restore are still open.
+      Post-commit gates at `4106a21`: `./leonaid check` passed all 208 unit tests,
+      242 Python source checks, 37 CMS files with no diagnostics and all
+      frontend/API/generated-type/format/privacy/policy checks, leaving the
+      committed tree unchanged. `authorization-surface` passed all 1,866 real
+      HTTPS requests in `leonaid-emdash-tmp-nof8giez6b`, including bootstrap
+      closure after restart/database failure and complete owned-resource cleanup;
+      no host ports were published.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
