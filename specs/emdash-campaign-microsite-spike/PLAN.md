@@ -641,6 +641,21 @@ Dependencies: EMS-010
       stable and collisions fail closed; only a Core System Admin can bootstrap.
 - [ ] Implement browser login/validated-return navigation, fresh-login handling,
       structured API failures, and bounded outage handling from section 2.3.
+- [x] Preserve Core fresh-login confirmation and a canonical CMS item return
+      path. Prove actual freshness expiry, continued ordinary CMS access,
+      SMTP code confirmation through the Core form, session-token rotation,
+      unchanged CMS identity and subsequent native editing/publication.
+      Evidence (6 September 2026): `./leonaid test-emdash-spike --case admin-browser`
+      passed in Chromium, Firefox and WebKit in isolated no-host-port project
+      `leonaid-emdash-tmp-oilupajhcx`. The test-only overlay sets Core's supported
+      freshness window to five seconds; no clock or database timestamp is
+      replaced. Core returns freshness 401 before confirmation and 200 after
+      confirmation. The browser returns to the concrete campaign item rather
+      than losing its editor destination. Existing login, edit, logout,
+      revocation and TLS restart/database-failure regressions also passed;
+      cleanup removed only the proof project's resources. This proves the
+      existing Core confirmation flow, not a new blanket fresh-login requirement
+      for CMS edits or completion of the broader authentication gate.
 - [x] Prove System Admin login through the actual Core email-code form from an
       empty browser context, SMTP delivery through the real Core worker, return
       to the native campaign editor, native editing and publication, and Core

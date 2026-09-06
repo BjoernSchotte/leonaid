@@ -1,4 +1,8 @@
 services:
+  api:
+    environment:
+      # Exercise real expiry without changing clocks or database timestamps.
+      LEONAID_FRESH_LOGIN_SECONDS: "5"
   mailpit:
     profiles: !override [emdash]
     networks: !override [edge]

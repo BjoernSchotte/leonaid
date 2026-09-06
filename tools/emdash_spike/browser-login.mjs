@@ -7,12 +7,12 @@ const email = "system-admin@leonaid.invalid";
 
 // Read actual SMTP deliveries from this proof project's Mailpit. Never print
 // challenge material or inject cookies, network responses, or form state.
-export async function browserLogin(context, page, returnTo) {
-  assert.equal((await context.cookies()).length, 0);
+export async function browserLogin(context, page, returnTo, fresh = false) {
+  if (!fresh) assert.equal((await context.cookies()).length, 0);
   const before = await context.request.get(`${mail}/messages`);
   assert.equal(before.status(), 200);
   const seen = new Set((await before.json()).messages.map((item) => item.ID));
-  await page.locator("#login-email").fill(email);
+  if (!fresh) await page.locator("#login-email").fill(email);
   await page.locator('[data-testid="request-login"]').click();
   await expect(page.locator("#complete-login-form")).toBeVisible();
   let code;
@@ -60,6 +60,53 @@ export async function browserLogin(context, page, returnTo) {
     (await context.request.get(origin + "/api/v1/identity/me")).status(),
     200,
   );
+}
+
+export async function browserFreshLogin(context, page, editorPath, apiRoot) {
+  const profile = await context.request.get(origin + "/_emdash/api/auth/me");
+  assert.equal(profile.status(), 200);
+  const identity = (await profile.json()).data;
+  const previous = (await context.cookies()).find(
+    (item) => item.name === "__Host-leonaid_session",
+  );
+  assert.ok(previous);
+  await expect
+    .poll(
+      async () =>
+        (
+          await context.request.get(origin + "/api/v1/auth/fresh/status")
+        ).status(),
+      {
+        timeout: 15000,
+        intervals: [200, 400],
+        message: "real Core freshness expiry",
+      },
+    )
+    .toBe(401);
+  // Ordinary editing remains authenticated; stale freshness is not logout.
+  assert.equal((await context.request.get(origin + apiRoot)).status(), 200);
+  await page.goto(
+    origin + "/fresh-login?returnTo=" + encodeURIComponent(editorPath),
+  );
+  await page
+    .getByRole("heading", { name: "Anmeldung bestätigen", exact: true })
+    .waitFor();
+  await browserLogin(context, page, editorPath, true);
+  assert.equal(
+    (await context.request.get(origin + "/api/v1/auth/fresh/status")).status(),
+    200,
+  );
+  const current = (await context.cookies()).find(
+    (item) => item.name === "__Host-leonaid_session",
+  );
+  assert.ok(
+    current && current.value !== previous.value,
+    "Core rotates the session on fresh login",
+  );
+  const after = await context.request.get(origin + "/_emdash/api/auth/me");
+  assert.equal(after.status(), 200);
+  assert.deepEqual((await after.json()).data, identity);
+  assert.equal((await context.request.get(origin + apiRoot)).status(), 200);
 }
 
 export async function coreLogout(context, page, editorRoot, apiRoot) {

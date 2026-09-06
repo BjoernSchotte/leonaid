@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
-import { browserLogin, coreLogout } from "./browser-login.mjs";
+import {
+  browserLogin,
+  browserFreshLogin,
+  coreLogout,
+} from "./browser-login.mjs";
 
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const origin = "https://proxy:8443";
@@ -54,6 +58,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.ok(entry);
       const apiPath = `${apiRoot}/${entry.id}`;
       const editorPath = `${editorRoot}/${entry.id}`;
+      if (login) await browserFreshLogin(context, page, editorPath, apiRoot);
       const before = await json(apiPath);
       const history = await json(`${apiPath}/revisions`);
       const identity = await json("/_emdash/api/auth/me");
