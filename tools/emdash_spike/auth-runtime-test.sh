@@ -83,6 +83,9 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-runtime-proof.mjs "$@"
     }
     content_probe
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs fail-attribution
+    content_probe --late-write-failure
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-attribution
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs disable
     content_probe --guard-unavailable
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore

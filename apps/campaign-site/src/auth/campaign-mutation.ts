@@ -48,6 +48,7 @@ export async function updateCampaignAtomically(
   collection: string,
   id: string,
   body: Parameters<Updater>[2],
+  actor: { coreUserId: string; cmsUserId: string },
 ): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
@@ -57,7 +58,16 @@ export async function updateCampaignAtomically(
     return await database.transaction().execute(async (transaction) => {
       await sql`SET LOCAL lock_timeout = '2s'`.execute(transaction);
       await sql`SET LOCAL statement_timeout = '3s'`.execute(transaction);
-      const entry = await sql`SELECT id FROM public.ec_campaign_pages
+      const mapping =
+        await sql`SELECT cms_user_id FROM public.leonaid_external_identity
+        WHERE core_user_id=${actor.coreUserId} AND cms_user_id=${actor.cmsUserId}`.execute(
+          transaction,
+        );
+      if (mapping.rows.length !== 1)
+        throw new Error("campaign_actor_mapping_mismatch");
+      const entry = await sql<{
+        draft_revision_id: string | null;
+      }>`SELECT draft_revision_id FROM public.ec_campaign_pages
         WHERE id=${id} AND deleted_at IS NULL FOR UPDATE`.execute(transaction);
       if (!entry.rows.length)
         throw new RejectedMutation({
@@ -80,6 +90,17 @@ export async function updateCampaignAtomically(
             // for revision insertion, pointer updates and schema validation.
             const result = await updater(collection, id, body);
             if (!result.success) throw new RejectedMutation(result);
+            // Attribute only the newly staged revision. Passing authorId to the
+            // upstream updater would also change the content's author metadata.
+            const attributed = await sql`UPDATE public.revisions AS revision
+              SET author_id=${actor.cmsUserId}
+              FROM public.ec_campaign_pages AS content
+              WHERE content.id=${id} AND content.draft_revision_id=revision.id
+                AND revision.collection='campaign_pages' AND revision.entry_id=content.id
+                AND revision.id IS DISTINCT FROM ${entry.rows[0].draft_revision_id}
+              RETURNING revision.id`.execute(transaction);
+            if (attributed.rows.length !== 1)
+              throw new Error("campaign_revision_attribution_failed");
             return result;
           } finally {
             // Upstream after() work must not retain a completed transaction.

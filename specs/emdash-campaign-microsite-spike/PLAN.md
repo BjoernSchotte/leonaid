@@ -859,6 +859,23 @@ Quality checkpoint: `./leonaid check` passed at `e90adda` with 208 unit tests,
 242 Python source-file type checks, all frontend/CMS checks, formatting,
 API/privacy/policy and route-inventory guards; worktree unchanged.
 
+Revision-attribution and rollback checkpoint (6 September 2026): the admitted
+title-draft update now validates the current Core UUID/CMS user mapping inside
+the save transaction and attributes only the new draft revision to that actor.
+It does not pass an author override to upstream or change the content author.
+The real HTTPS proof compares revision attribution with the authenticated
+`auth/me` response and verifies unchanged content authorship.
+
+A fixture-only PostgreSQL trigger raises on the attribution update, after the
+original updater has inserted the revision and changed the draft pointer.
+The HTTP request fails with a sanitized 503; subsequent real reads are identical
+to the pre-request content and revision history. Removing the isolated fixture
+trigger restores successful saves. Disabled binding guards, concurrent stale
+tokens, Core revocation, restart closure and deferred-work log checks remain
+part of the same proof. This closes the previously open late-write-failure case
+for title saves; richer mutations, full Charity admission and browser editing
+remain open. No shared stack, published host port or production data is used.
+
 Title-draft editing checkpoint (6 September 2026): the production
 `campaign-runtime` proof now seeds published entries with staged drafts and
 verifies both representations. Inspection found the previous lower-level content
@@ -927,6 +944,9 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [x] Reproduce and fix concurrent same-revision title saves; run the original
       runtime updater inside a checked PostgreSQL transaction with a row lock,
       and prove exactly one successful save per concurrent request group.
+- [x] Attribute new title-draft revisions to the authenticated mapped actor
+      without changing content authorship; prove rollback after an actual late
+      PostgreSQL write failure with unchanged content and revision history.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

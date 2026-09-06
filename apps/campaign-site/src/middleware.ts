@@ -24,7 +24,8 @@ export const onRequest = defineMiddleware(
     try {
       const profile = await readCoreIdentity(request);
       // Positive HTTP proof is System-Admin-only until every operation is scoped.
-      if (profile.role !== 50 || locals.user?.role !== 50)
+      const user = locals.user;
+      if (profile.role !== 50 || user?.role !== 50)
         throw new CoreIdentityError(403);
       const emdash = locals.emdash;
       if (!emdash?.db) throw new CoreIdentityError(503);
@@ -68,7 +69,17 @@ export const onRequest = defineMiddleware(
         );
         return (
           denied ??
-          updateCampaignAtomically(emdash, runtimeUpdate, collection, id, body)
+          updateCampaignAtomically(
+            emdash,
+            runtimeUpdate,
+            collection,
+            id,
+            body,
+            {
+              coreUserId: profile.userId,
+              cmsUserId: user.id,
+            },
+          )
         );
       };
       emdash.handleRevisionList = (collection, id, parameters) =>

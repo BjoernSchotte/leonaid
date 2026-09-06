@@ -86,6 +86,20 @@ if (guardUnavailable) {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
+} else if (process.argv.includes("--late-write-failure")) {
+  const listing = await call(root, 200);
+  const path = `${root}/${listing.data.items[0].id}`;
+  const before = await call(path, 200);
+  const history = await call(`${path}/revisions`, 200);
+  await call(path, 503, {
+    method: "PUT",
+    body: { _rev: before.data._rev, data: { title: "must roll back" } },
+  });
+  assert.deepEqual(await call(path, 200), before);
+  assert.deepEqual(await call(`${path}/revisions`, 200), history);
+  console.log(
+    "campaign-runtime: late database failure rolls back content and revisions",
+  );
 } else {
   const result = await call(root, 200);
   assert.equal(result.data.total, 4);
@@ -152,6 +166,10 @@ if (guardUnavailable) {
     body: { ...body, status: "draft" },
   });
   await call(path, 403, { method: "PUT", body: { data: body.data } });
+  await call(path, 403, {
+    method: "PUT",
+    body: { ...body, authorId: "00000000000000000000000000" },
+  });
   assert.equal(
     (await call(`${path}/revisions`, 200)).data.total,
     revisionsBefore.data.total,
@@ -159,6 +177,13 @@ if (guardUnavailable) {
   const edited = await call(path, 200, { method: "PUT", body });
   assert.equal(edited.data.item.data.title, body.data.title);
   const after = await call(path, 200);
+  const identity = await call("/_emdash/api/auth/me", 200);
+  const savedRevision = await call(
+    `/_emdash/api/revisions/${after.data.item.draftRevisionId}`,
+    200,
+  );
+  assert.equal(savedRevision.data.item.authorId, identity.data.id);
+  assert.equal(after.data.item.authorId, before.data.item.authorId);
   assert.equal(after.data.item.data.title, body.data.title);
   assert.equal(after.data.item.liveData.title, entry.data.title);
   assert.equal(after.data.item.status, "published");
@@ -222,5 +247,5 @@ if (guardUnavailable) {
   }
 }
 console.log(
-  `campaign-runtime: ${guardUnavailable ? "disabled binding guard fails closed" : revoked ? "revocation" : "real Core session, TLS, list/item/revision routes and denied actors"} passed`,
+  `campaign-runtime: ${guardUnavailable ? "disabled binding guard fails closed" : revoked ? "revocation" : process.argv.includes("--late-write-failure") ? "late-write rollback" : "real Core session, TLS, list/item/revision routes, attribution and denied actors"} passed`,
 );

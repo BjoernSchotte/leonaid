@@ -22,8 +22,24 @@ try {
       database,
     );
     await requireCampaignBindings(database);
+  } else if (process.argv[2] === "fail-attribution") {
+    await sql`CREATE FUNCTION public.synthetic_reject_attribution() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic late write failure'; END $$`.execute(
+      database,
+    );
+    await sql`CREATE TRIGGER synthetic_reject_attribution BEFORE UPDATE OF author_id
+      ON public.revisions FOR EACH ROW EXECUTE FUNCTION public.synthetic_reject_attribution()`.execute(
+      database,
+    );
+  } else if (process.argv[2] === "restore-attribution") {
+    await sql`DROP TRIGGER synthetic_reject_attribution ON public.revisions`.execute(
+      database,
+    );
+    await sql`DROP FUNCTION public.synthetic_reject_attribution()`.execute(
+      database,
+    );
   } else {
-    throw new Error("expected disable or restore");
+    throw new Error("unknown synthetic fixture operation");
   }
   console.log("campaign-guard-fixture: synthetic guard state updated");
 } finally {
