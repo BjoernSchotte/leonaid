@@ -5,7 +5,9 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
-    "./contracts": "./src/contracts.ts"
+    "./contracts": "./src/contracts.ts",
+    "./runner": "./src/runner.tsx",
+    "./styles": "./src/styles.css"
   },
   "dependencies": {
     "survey-core": "3.0.3",

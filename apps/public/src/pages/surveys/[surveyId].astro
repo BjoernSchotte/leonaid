@@ -1,0 +1,76 @@
+---
+import PublicLayout from "../../layouts/PublicLayout.astro";
+const { surveyId } = Astro.params;
+if (!surveyId || !/^[0-9a-f-]{36}$/i.test(surveyId))
+  return new Response("Nicht gefunden", { status: 404 });
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("Referrer-Policy", "no-referrer");
+---
+
+<PublicLayout
+  title="Ihre Rückmeldung | LeonAid"
+  description="Ihre Meinung zur Lions-Aktion"
+  canonicalUrl={Astro.url.origin + Astro.url.pathname}
+  imageUrl=""
+  robots="noindex,nofollow"
+>
+  <div class="site-shell survey-shell">
+    <div data-survey-host data-survey-id={surveyId}>
+      <p role="status">Fragebogen wird geladen …</p>
+    </div>
+    <noscript
+      >Bitte aktivieren Sie JavaScript, um an dieser Umfrage teilzunehmen.</noscript
+    >
+  </div>
+</PublicLayout>
+<script>
+  import "../../lib/survey-page";
+</script>
+<style is:global>
+  .survey-shell {
+    --survey-font: "Instrument Sans Variable", sans-serif;
+    --survey-accent: #00338d;
+    padding-block: clamp(2rem, 5vw, 4rem);
+    min-height: 65vh;
+  }
+  .survey-introduction {
+    max-width: 44rem;
+    margin: 2rem auto 4rem;
+  }
+  .survey-eyebrow {
+    color: #00338d;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+  .survey-introduction h1 {
+    font-family: "Newsreader Variable", Georgia, serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.1;
+    margin-block: 1rem 1.5rem;
+  }
+  .survey-introduction p {
+    line-height: 1.65;
+  }
+  .survey-introduction button {
+    margin-top: 1.5rem;
+    min-height: 48px;
+    padding: 0.8rem 1.5rem;
+    background: #00338d;
+    color: #fff;
+    border: 0;
+    border-radius: 0.3rem;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .survey-introduction button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+  .survey-shell :focus-visible {
+    outline: 3px solid #bd8600;
+    outline-offset: 3px;
+  }
+</style>

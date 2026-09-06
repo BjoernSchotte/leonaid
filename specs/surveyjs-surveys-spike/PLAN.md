@@ -494,7 +494,7 @@ Implementation tasks:
 - [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database. Acceptance: **010.A2, 010.A3, 010.A5**.
 - [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics. Acceptance: **010.A1**.
 - [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Acceptance: **010.A1, 010.A2, 010.A4**.
-- [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof. Acceptance: **010.A3, 010.A4, 010.A5**.
+- [x] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof. Acceptance: **010.A3, 010.A4, 010.A5**.
 
 Test implementation and verification tasks:
 
@@ -505,8 +505,8 @@ Acceptance criteria:
 
 - [ ] **010.A1 — Integration:** shared fixtures produce equivalent client/server relevance and validation; unsupported definitions and forged values fail server checks even when client validation is bypassed.
 - [x] **010.A2 — Integration:** incomplete required fields can be saved; invalid values are rejected or explicitly represented under the documented contract; completion rejects missing relevant required answers atomically.
-- [ ] **010.A3 — E2E:** enter text without blur, wait for save acknowledgement, close the browser and resume in a fresh context using valid resume access; the server restores the exact accepted text and page.
-- [ ] **010.A4 — E2E:** change an earlier answer to hide a follow-up, navigate back/forward and reload; obsolete follow-up data is absent from the current analyzable snapshot.
+- [x] **010.A3 — E2E:** enter text without blur, wait for save acknowledgement, close the browser and resume in a fresh context using valid resume access; the server restores the exact accepted text and page.
+- [x] **010.A4 — E2E:** change an earlier answer to hide a follow-up, navigate back/forward and reload; obsolete follow-up data is absent from the current analyzable snapshot.
 - [x] **010.A5 — Integration:** the configured short timeout classifies the participation as partial; resumption updates the same participation, with no duplicate record.
 
 ### SURV-020 — Neutral package and independent demo
@@ -580,6 +580,8 @@ Acceptance criteria:
 
 ### SURV-050 — Public runner, ordered saves and recovery
 
+Partial runner evidence: [browser autosave and recovery](proofs/SURV-010.md#browser-autosave-and-recovery-proof).
+
 Dependencies: SURV-020, SURV-030, SURV-040.
 
 Implementation tasks:
@@ -600,7 +602,7 @@ Acceptance criteria:
 - [ ] **050.A2 — Integration:** default and survey override timeouts use server-observed answer changes; unchanged requests do not extend inactivity, worker delay does not misclassify analysis, and timeout never deletes data.
 - [ ] **050.A3 — E2E:** disconnect mid-page, continue typing, reconnect and verify accepted answers after reload; pending data is never shown as saved and lost unsent edits are not claimed recoverable after tab closure.
 - [ ] **050.A4 — E2E:** edit from two tabs, deliberately reorder requests and retry completion; conflicts are visible and exactly one completed participation exists.
-- [ ] **050.A5 — E2E:** abandon halfway, expire the short timeout and resume; partial answers remain available and the same participation can complete while access remains valid.
+- [x] **050.A5 — E2E:** abandon halfway, expire the short timeout and resume; partial answers remain available and the same participation can complete while access remains valid.
 
 ### SURV-060 — LeonAid module, permissions and invitations
 

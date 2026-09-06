@@ -40,18 +40,27 @@ compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
-if [ "$mode" = responses ]; then
+if [ "$mode" = responses ] || [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/responses.py
+fi
+browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = runner ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
 docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-  node_modules/.bin/playwright test tests/e2e/surveys-infrastructure.spec.mjs \
+  node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
 cp "$proof/surveys-public.png" "$artifact/"
+if [ "$mode" = runner ]; then
+  cp "$proof/surveys-mid-page.png" "$artifact/"
+fi
 compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]

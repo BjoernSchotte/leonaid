@@ -2,7 +2,9 @@
 
 Implementation in progress; the public package name and own OSS license remain
 UNDEFINED. The private package manifest uses UNLICENSED until that decision.
-Only the initial TypeScript contracts exist. This is not yet a usable editor.
+The package now exposes initial contracts, a React respondent runner and scoped
+styles. The editor and analytics entrypoints are still pending. This is not yet
+a usable survey authoring package.
 
 ## Host adapter protocol v1
 
@@ -54,3 +56,30 @@ permissions and survey deletion; a completed job does not grant lasting access.
 These are contracts to implement and prove through SURV-000/010 and subsequent
 work packages. Type checking alone is not persistence, authorization or E2E
 proof. No plan checkbox is completed by introducing these declarations.
+
+## Respondent runner
+
+Import `SurveyRunner` from `@leonaid/surveys/runner` and styles from
+`@leonaid/surveys/styles`. Supply a server-restored Participation and a host
+ParticipationAdapter. The package does not import LeonAid transport or identity
+code. The public LeonAid host supplies the generated-client adapter and keeps
+resume access in HttpOnly cookies. The URL contains the participation ID, never
+the access secret or answer data.
+
+The runner uses SurveyJS 3's onTyping updates and asynchronous onCompleting hook.
+Text saves debounce for 400 milliseconds, page changes flush immediately, and
+completion awaits the last acknowledged save before the server completion call.
+Uncertain network writes retain their operation ID and payload. New edits queue
+behind them. A known invalid-response rejection permits a corrected snapshot.
+Restoration applies initial answers before attaching save listeners.
+
+The current baseline uses browser rendering in Astro; it does not claim SSR
+support or hydration parity across additional hosts yet. The runner currently
+ships German UI text; configurable translations remain required follow-up work.
+The host can set `--survey-accent` and `--survey-font`; the stylesheet maps these
+to SurveyJS 3's actual `--sjs2-*` tokens on its theme root. It imports the fontless
+upstream stylesheet and uses host-provided fonts.
+
+Tests live in `tools/surveys/saves.test.ts` and
+`tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys-runner` builds a fresh
+isolated stack and exercises actual services before the browser scenarios.

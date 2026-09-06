@@ -1,9 +1,8 @@
 # SURV-010 — Response persistence evidence
 
-Date: 2026-09-06. Status: partial; browser autosave and full validation parity
-remain open. This is not a completed survey module.
+Date: 2026-09-06. Status: partial; full validation parity remains open. This is not a completed survey module.
 
-## Checked items: 010.1, 010.A2, 010.A5
+## Checked items: 010.1, 010.4, 010.A2–A5
 
 The implementation provides typed FastAPI endpoints and a PostgreSQL transaction
 adapter for draft creation/loading/saving, immutable publication, public
@@ -57,6 +56,52 @@ in `tests/fixtures/surveys/validation-cases.json`; outputs stay local.
 These seven cases do not establish parity for every initial capability, every
 condition or every malformed input. The Python validator is still a candidate;
 010.2, 010.3 and 010.A1 remain open pending the full comparison and selection.
-No browser questionnaire runner, answer-event debounce, restart/chaos proof,
-invitation implementation or full lifecycle UI is claimed here. Browser-based
-mid-page abandonment and recovery remain separate required acceptance items.
+Restart/chaos proof, invitations and the full lifecycle UI remain open.
+
+
+## Browser autosave and recovery proof
+
+`./leonaid test-surveys-runner` rebuilt the current source in the isolated
+`leonaid-surveys-833458328-14466` project, with empty volumes, explicit unused
+subnets and no published host ports. The real migration, API/PostgreSQL
+foundation and response contract passed. Playwright Chromium then passed all
+three tests in 11.7 seconds: identity/public infrastructure plus two runner
+scenarios in `tests/e2e/surveys-runner.spec.mjs`.
+
+The desktop journey (1280×960) proves 010.A3, 010.A4 and 050.A5:
+
+- Type text, wait for acknowledgement while the field still has focus, close the
+  entire context and restore in a fresh context with the same protected cookies.
+- After a real 2.2-second wait against the configured two-second timeout, the
+  same participation is partial and retains exact text. Restoration emits zero
+  save requests, including after the debounce interval.
+- Change the earlier rating: the now-hidden answer disappears from the server
+  snapshot, stays absent after back/forward navigation, and saved page-two text
+  and page position survive reload.
+- Complete the questionnaire and verify completed server state and the thank-you
+  page after reload, using the same participation ID.
+
+The mobile journey (390×844) disconnects the actual browser network while typing.
+The runner displays an error and retains edits in memory; reconnecting saves the
+pending text and a reload restores it. This does not prove unsent edits survive
+closing the browser; no persistent client answer cache is implemented. The broader
+050.A3 criterion remains open until that negative closure case is tested.
+
+010.4 is implemented through SurveyJS onTyping events, a 400ms debounce and
+immediate page-change flushing, together with the proven backend timeout.
+The runner is a separate package entrypoint. LeonAid supplies its generated API
+client through the host adapter and uses HttpOnly resume cookies.
+
+Supporting checks: three save-coordinator tests passed (17 assertions), covering
+late acknowledgement/new edits, exact retry after an uncertain write, and a
+corrected snapshot following explicit rejection. Package TypeScript and public
+Astro checks passed (22 files, zero errors/warnings); Prettier and the dependency
+allowlist/negative fixtures passed. Own license remains UNDEFINED.
+
+The retained local screenshot `.artifacts/surveys-infrastructure/surveys-mid-page.png`
+was visually inspected: Lions blue controls, host font, focused comment field and
+acknowledged save status render without clipping. The test asserts theme tokens
+and no horizontal overflow. This is not a full accessibility audit. SurveyJS
+fontless CSS uses host fonts. Browser rendering is the current baseline; the
+independent packed demo, configurable translations and SSR evaluation remain open.
+No editor, analytics, exports or entire work-package acceptance is claimed.

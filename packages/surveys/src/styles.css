@@ -1,0 +1,41 @@
+@import "survey-core/survey-core.fontless.css";
+.survey-runner {
+  max-width: 56rem;
+  margin-inline: auto;
+}
+.survey-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #d4dbe4;
+  color: #22364e;
+  font-size: 0.95rem;
+}
+.survey-save[data-save-state="error"],
+.survey-save[data-save-state="conflict"] {
+  color: #8a2718;
+}
+.survey-save button {
+  padding: 0.65rem 1rem;
+  min-height: 44px;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.survey-thanks {
+  max-width: 44rem;
+  margin: 5rem auto;
+}
+.survey-thanks h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.survey-runner .sd-theme-root {
+  --sjs2-color-project-brand-600: var(--survey-accent, #00338d);
+  --sjs2-typography-font-family-text: var(--survey-font, sans-serif);
+}
