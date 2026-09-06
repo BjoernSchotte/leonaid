@@ -875,6 +875,11 @@ tokens, Core revocation, restart closure and deferred-work log checks remain
 part of the same proof. This closes the previously open late-write-failure case
 for title saves; richer mutations, full Charity admission and browser editing
 remain open. No shared stack, published host port or production data is used.
+The repeat proof also rejects a client-supplied author ID. Both clean isolated
+runs completed successfully and removed their owned resources. Quality gate:
+`./leonaid check` passed at `3fc7a90` with 208 unit tests, 242 Python source-file
+type checks, all frontend/CMS checks, formatting, API/privacy/policy and pinned
+route-inventory checks; the worktree remained unchanged.
 
 Title-draft editing checkpoint (6 September 2026): the production
 `campaign-runtime` proof now seeds published entries with staged drafts and
@@ -896,8 +901,9 @@ EmDash records and pure actor-policy inputs. Both isolated projects publish no
 ports and clean their owned resources.
 
 This is not general editor completion: rich fields, media, create/publication,
-Charity runtime admission, concurrent-write races, revision attribution and
-browser editing remain pending. The title-only mutation policy must be expanded
+Charity runtime admission and browser editing remain pending. Concurrent title
+saves and revision attribution are covered by the subsequent checkpoints.
+The title-only mutation policy must be expanded
 as the full planned editorial schema and operation-specific proofs land; it is
 not a replacement for the required editable Krapfentaxi microsite.
 Quality checkpoint: `./leonaid check` passed at `d05378f` with 208 unit tests,
@@ -923,8 +929,9 @@ round, all other responses 409, winner content retained and published values
 unchanged. A second clean run also checks sanitized logs for deferred-work and
 completed-transaction failures. Core revocation and disabled-guard denial still
 pass. The temporary font-download build failure was retried only after its
-process terminated and its project was cleaned. Multi-instance/load testing,
-late-write-failure injection and other mutation operations remain open; this
+process terminated and its project was cleaned. Multi-instance/load testing
+and other mutation operations remain open; late-write-failure injection is now
+covered by the revision-attribution checkpoint. This
 closes the demonstrated title-update race, not the whole authorization gate.
 Quality checkpoint: `./leonaid check` passed at `9aebff0`: 208 unit tests,
 242 Python source-file type checks, all frontend/CMS checks, formatting,
