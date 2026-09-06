@@ -795,6 +795,9 @@ indexable. The proof publishes no ports and removes only its unique project's
 resources. Actor profiles here are pure policy inputs, not proof of Core HTTP
 authentication. The primitive is not yet wired into the request-local CMS
 handlers; full HTTP isolation, immutable bindings and revisions remain pending.
+`./leonaid check` passed at `df5040c`: 208 unit tests, 242 Python source-file
+type checks, frontend/CMS type and formatting checks, API/privacy/policy gates,
+and the 186-route inventory guard; the committed worktree remained unchanged.
 
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
