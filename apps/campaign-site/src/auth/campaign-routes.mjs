@@ -14,3 +14,8 @@ const update = new RegExp(`^/_emdash/api/content/campaign_pages/${id}$`);
 export function isCampaignUpdateRoute(path, method) {
   return method === "PUT" && update.test(path);
 }
+
+const restore = new RegExp(`^/_emdash/api/revisions/${id}/restore$`);
+export function isCampaignRestoreRoute(path, method) {
+  return method === "POST" && restore.test(path);
+}

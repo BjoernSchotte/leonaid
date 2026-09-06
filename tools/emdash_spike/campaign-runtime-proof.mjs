@@ -76,12 +76,18 @@ async function call(
 const root = "/_emdash/api/content/campaign_pages";
 if (guardUnavailable) {
   await call(root, 503);
+  await call("/_emdash/api/revisions/00000000000000000000000000/restore", 503, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000`, 503, {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
 } else if (revoked) {
   await call(root, 401);
+  await call("/_emdash/api/revisions/00000000000000000000000000/restore", 401, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000`, 401, {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
@@ -95,6 +101,13 @@ if (guardUnavailable) {
     method: "PUT",
     body: { _rev: before.data._rev, data: { title: "must roll back" } },
   });
+  assert.deepEqual(await call(path, 200), before);
+  assert.deepEqual(await call(`${path}/revisions`, 200), history);
+  await call(
+    `/_emdash/api/revisions/${history.data.items[0].id}/restore`,
+    503,
+    { method: "POST" },
+  );
   assert.deepEqual(await call(path, 200), before);
   assert.deepEqual(await call(`${path}/revisions`, 200), history);
   console.log(
@@ -231,6 +244,58 @@ if (guardUnavailable) {
     );
     assert.equal(stored.data.item.liveData.title, entry.data.title);
   }
+  const restoreTarget = revisionsBefore.data.items.find(
+    (revision) => revision.id === before.data.item.draftRevisionId,
+  );
+  assert.ok(restoreTarget);
+  const restorePath = `/_emdash/api/revisions/${restoreTarget.id}/restore`;
+  const preRestore = await call(path, 200);
+  const historyBeforeRestore = await call(`${path}/revisions`, 200);
+  for (const options of [
+    { token: null },
+    { token: tokens.charity },
+    { origin: "https://attacker.invalid" },
+    { marker: false },
+  ]) {
+    await call(restorePath, options.token === null ? 401 : 403, {
+      method: "POST",
+      ...options,
+    });
+  }
+  assert.deepEqual(await call(path, 200), preRestore);
+  assert.deepEqual(await call(`${path}/revisions`, 200), historyBeforeRestore);
+  const restored = await call(restorePath, 200, { method: "POST" });
+  const restoredRead = await call(path, 200);
+  assert.deepEqual(restored.data.item.data, restoreTarget.data);
+  assert.deepEqual(restoredRead.data.item.data, restoreTarget.data);
+  assert.deepEqual(
+    restoredRead.data.item.liveData,
+    preRestore.data.item.liveData,
+  );
+  assert.equal(restoredRead.data.item.status, preRestore.data.item.status);
+  assert.equal(restoredRead.data.item.authorId, preRestore.data.item.authorId);
+  assert.notEqual(restoredRead.data.item.draftRevisionId, restoreTarget.id);
+  assert.notEqual(
+    restoredRead.data.item.draftRevisionId,
+    preRestore.data.item.draftRevisionId,
+  );
+  const restoredRevision = await call(
+    `/_emdash/api/revisions/${restoredRead.data.item.draftRevisionId}`,
+    200,
+  );
+  assert.equal(restoredRevision.data.item.authorId, identity.data.id);
+  assert.equal(restoredRevision.data.item.entryId, entry.id);
+  assert.equal(
+    (await call(`${path}/revisions`, 200)).data.total,
+    historyBeforeRestore.data.total + 1,
+  );
+  assert.deepEqual(
+    (await call(`/_emdash/api/revisions/${restoreTarget.id}`, 200)).data.item,
+    restoreTarget,
+  );
+  await call("/_emdash/api/revisions/00000000000000000000000000/restore", 404, {
+    method: "POST",
+  });
   const missing = await call(`${root}/00000000000000000000000000`, 404);
   // Upstream includes the ID in its message. This static envelope verifies
   // that the request-local wrapper actually ran, not just the upstream reader.

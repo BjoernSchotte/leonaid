@@ -6,6 +6,7 @@ import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
   isCampaignReadRoute,
   isCampaignUpdateRoute,
+  isCampaignRestoreRoute,
 } from "./auth/campaign-routes.mjs";
 import {
   bootstrapIsArmed,
@@ -78,7 +79,9 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
   const adminRead =
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
-  const campaignUpdate = isCampaignUpdateRoute(url.pathname, request.method);
+  const campaignUpdate =
+    isCampaignUpdateRoute(url.pathname, request.method) ||
+    isCampaignRestoreRoute(url.pathname, request.method);
   if (
     ((adminHome || adminRead) && request.method === "GET") ||
     campaignUpdate

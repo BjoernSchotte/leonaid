@@ -32,6 +32,16 @@ parent check so current draft data and published `liveData` are both preserved.
 The inventory surface probe uses non-admitted
 placeholder collections/IDs, so it complements rather than replaces this test.
 
+Canonical revision-restore POSTs now use the same bootstrap, Core System Admin,
+Origin and request-marker checks. The scoped revision reader resolves the stored
+campaign parent before the original runtime restore runs under that parent's
+row lock and transaction. A restore creates an actor-attributed draft revision;
+it does not publish, change content authorship, or rewrite the source revision.
+The real `campaign-runtime` proof checks these properties and late-write rollback,
+as well as denied actors, missing guards and revoked sessions. This uses EmDash's
+explicit restore semantics (no `_rev` precondition on its native restore route),
+not an autosave operation. Charity admission remains closed.
+
 The admitted read routes additionally require exact, enabled PostgreSQL binding
 guards. Their operator installation refuses inconsistent existing rows. Content
 IDs and action bindings cannot change, and campaign revision snapshots must
@@ -188,7 +198,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/redirects/404s` | DELETE, GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/redirects/404s/summary` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/revisions/[revisionId]` | GET | core | Canonical ULID: System Admin only, campaign_pages parent required | Revision to owning content action_id |
-| `/_emdash/api/revisions/[revisionId]/restore` | POST | core | Denied for all actors | Revision to owning content action_id |
+| `/_emdash/api/revisions/[revisionId]/restore` | POST | core | Canonical ULID: System Admin only, campaign_pages parent required; new draft only | Stored revision parent to owning content action_id; locked atomic restore |
 | `/_emdash/api/schema` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/schema/collections` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/schema/collections/[slug]` | DELETE, GET, PUT | core | Denied for all actors | Global/identity surface; no campaign authority implied |

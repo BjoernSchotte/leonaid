@@ -954,6 +954,11 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [x] Attribute new title-draft revisions to the authenticated mapped actor
       without changing content authorship; prove rollback after an actual late
       PostgreSQL write failure with unchanged content and revision history.
+- [x] Admit canonical revision-restore POSTs for System Admins through the
+      scoped stored-parent lookup and original runtime handler in a locked
+      transaction. Prove a newly attributed draft, unchanged published content
+      and source revision, denied actors and late-write rollback over real HTTPS.
+      Charity access and the full editor remain pending.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

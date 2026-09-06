@@ -3,9 +3,13 @@ import { readCoreIdentity, CoreIdentityError } from "./auth/core-identity";
 import {
   isCampaignReadRoute,
   isCampaignUpdateRoute,
+  isCampaignRestoreRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
-import { updateCampaignAtomically } from "./auth/campaign-mutation";
+import {
+  updateCampaignAtomically,
+  mutateCampaignAtomically,
+} from "./auth/campaign-mutation";
 import { requireCampaignBindings } from "./auth/campaign-bindings.mjs";
 import {
   listCampaignContent,
@@ -18,7 +22,8 @@ export const onRequest = defineMiddleware(
   async ({ request, url, locals }, next) => {
     if (
       !isCampaignReadRoute(url.pathname, request.method) &&
-      !isCampaignUpdateRoute(url.pathname, request.method)
+      !isCampaignUpdateRoute(url.pathname, request.method) &&
+      !isCampaignRestoreRoute(url.pathname, request.method)
     )
       return next();
     try {
@@ -33,6 +38,7 @@ export const onRequest = defineMiddleware(
       await requireCampaignBindings(database);
       const runtimeGet = emdash.handleContentGet;
       const runtimeUpdate = emdash.handleContentUpdate;
+      const runtimeRestore = emdash.handleRevisionRestore;
       // EmDash creates this object per request. Never mutate the shared runtime.
       emdash.handleContentList = (collection, parameters) =>
         listCampaignContent(database, profile, collection, parameters);
@@ -86,6 +92,19 @@ export const onRequest = defineMiddleware(
         listCampaignRevisions(database, profile, collection, id, parameters);
       emdash.handleRevisionGet = (id) =>
         getCampaignRevision(database, profile, id);
+      emdash.handleRevisionRestore = async (revisionId) => {
+        const access = await getCampaignRevision(database, profile, revisionId);
+        if (!access.success) return access;
+        // Stored parent, not request body or snapshot JSON, selects the lock.
+        // The upstream restore creates a NEW draft; it never promotes to live.
+        return mutateCampaignAtomically(
+          emdash,
+          "campaign_pages",
+          access.data.item.entryId,
+          { coreUserId: profile.userId, cmsUserId: user.id },
+          () => runtimeRestore(revisionId, user.id),
+        );
+      };
       return await next();
     } catch (error) {
       return Response.json(

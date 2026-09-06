@@ -50,6 +50,18 @@ export async function updateCampaignAtomically(
   body: Parameters<Updater>[2],
   actor: { coreUserId: string; cmsUserId: string },
 ): Promise<Result> {
+  return mutateCampaignAtomically(emdash, collection, id, actor, () =>
+    updater(collection, id, body),
+  );
+}
+
+export async function mutateCampaignAtomically(
+  emdash: App.Locals["emdash"],
+  collection: string,
+  id: string,
+  actor: { coreUserId: string; cmsUserId: string },
+  mutate: () => Promise<Result>,
+): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
   }
@@ -88,7 +100,7 @@ export async function updateCampaignAtomically(
           try {
             // The updater checks _rev AFTER the row lock and uses this transaction
             // for revision insertion, pointer updates and schema validation.
-            const result = await updater(collection, id, body);
+            const result = await mutate();
             if (!result.success) throw new RejectedMutation(result);
             // Attribute only the newly staged revision. Passing authorId to the
             // upstream updater would also change the content's author metadata.
