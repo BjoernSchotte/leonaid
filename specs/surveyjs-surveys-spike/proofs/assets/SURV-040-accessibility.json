@@ -1,0 +1,43 @@
+{
+  "project": "leonaid-surveys-833458328-56489",
+  "baseline": "542d409",
+  "scope": "Chromium desktop 1440x1000; reduced motion; keyboard authoring and preview",
+  "scans": [
+    {
+      "state": "initial editor",
+      "violations": 0,
+      "passedRules": 17,
+      "manualReviewRules": []
+    },
+    {
+      "state": "question properties",
+      "violations": 0,
+      "passedRules": 17,
+      "manualReviewRules": []
+    },
+    {
+      "state": "validation error",
+      "violations": 0,
+      "passedRules": 17,
+      "manualReviewRules": [
+        "color-contrast"
+      ]
+    },
+    {
+      "state": "respondent preview",
+      "violations": 0,
+      "passedRules": 17,
+      "manualReviewRules": [
+        "color-contrast"
+      ]
+    },
+    {
+      "state": "reloaded published draft",
+      "violations": 0,
+      "passedRules": 17,
+      "manualReviewRules": [
+        "color-contrast"
+      ]
+    }
+  ]
+}

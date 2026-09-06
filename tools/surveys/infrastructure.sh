@@ -22,6 +22,7 @@ cleanup() {
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
     mkdir -p "$artifact"
     cp -R "$proof/test-results" "$artifact/" 2>/dev/null || true
+    cp "$proof"/surveys-accessibility* "$artifact/" 2>/dev/null || true
   fi
   if [ "$owned" = true ]; then
     compose down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -50,7 +51,7 @@ if [ "$mode" = lifecycle ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = editor ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -68,6 +69,7 @@ cp "$proof/surveys-public.png" "$artifact/"
 if [ "$mode" = editor ]; then
   cp "$proof/surveys-editor.png" "$artifact/"
   cp "$proof"/surveys-authoring-*.png "$artifact/"
+  cp "$proof"/surveys-accessibility* "$artifact/"
 fi
 if [ "$mode" = runner ]; then
   cp "$proof/surveys-mid-page.png" "$artifact/"

@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useLayoutEffect,
+  useId,
+} from "react";
 import type {
   AuthoringAdapter,
   Draft,
@@ -29,6 +36,17 @@ const kinds: [QuestionKind, string][] = [
   ["rating", "Bewertung"],
   ["matrix", "Matrix"],
 ];
+function focusEditorTarget(target: HTMLElement | null | undefined) {
+  if (!target) return;
+  // Programmatic recovery targets need a visible indicator until focus moves away.
+  target.setAttribute("data-editor-focus", "");
+  target.focus();
+  target.addEventListener(
+    "blur",
+    () => target.removeAttribute("data-editor-focus"),
+    { once: true },
+  );
+}
 export interface SurveyEditorProps {
   draft: Draft;
   adapter: AuthoringAdapter;
@@ -40,6 +58,10 @@ export function SurveyEditor({
   onPublished,
 }: SurveyEditorProps) {
   const [, render] = useState(0);
+  const root = useRef<HTMLElement>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const previewWasOpen = useRef(false);
+  const jsonErrorId = useId();
   const [loadedDraft, setLoadedDraft] = useState(draft);
   const [jsonInput, setJsonInput] = useState("");
   const [jsonError, setJsonError] = useState("");
@@ -65,6 +87,49 @@ export function SurveyEditor({
   const issues = compatibilityIssues(doc);
   const page = doc.pages.find((p) => p.name === pageId) ?? doc.pages[0];
   const question = page?.elements.find((q) => q.name === questionId);
+  useLayoutEffect(() => {
+    if (pendingFocus.current) {
+      const target = root.current?.querySelector<HTMLElement>(
+        pendingFocus.current,
+      );
+      pendingFocus.current = null;
+      focusEditorTarget(target);
+    }
+  });
+  useEffect(() => {
+    if (error)
+      focusEditorTarget(
+        root.current?.querySelector<HTMLElement>("[data-editor-error]"),
+      );
+  }, [error]);
+  useEffect(() => {
+    if (jsonError)
+      focusEditorTarget(
+        root.current?.querySelector<HTMLElement>("[data-json-error]"),
+      );
+  }, [jsonError]);
+  useEffect(() => {
+    if (preview) {
+      previewWasOpen.current = true;
+      focusEditorTarget(
+        root.current?.querySelector<HTMLElement>("[data-preview-heading]"),
+      );
+    } else if (previewWasOpen.current) {
+      previewWasOpen.current = false;
+      focusEditorTarget(
+        root.current?.querySelector<HTMLElement>("[data-preview-trigger]"),
+      );
+    }
+    return () => preview?.dispose();
+  }, [preview]);
+  function movePage(name: string, position: number) {
+    pendingFocus.current = `[data-page-id="${CSS.escape(name)}"]`;
+    edit(() => history.movePage(name, position));
+  }
+  function moveQuestion(name: string, pageName: string, position: number) {
+    pendingFocus.current = `[data-question-id="${CSS.escape(name)}"]`;
+    edit(() => history.moveQuestion(name, pageName, position));
+  }
   function edit(change: () => void) {
     if (busy || publication.current) return;
     try {
@@ -163,6 +228,15 @@ export function SurveyEditor({
       }
       const model = createSurveyModel(result.value.definition);
       model.locale = "de";
+      model.focusFirstQuestionAutomatic = false;
+      model.onGetTitleTagName.add((_, options) => {
+        options.tagName =
+          options.element === model
+            ? "h2"
+            : options.element.getType() === "page"
+              ? "h3"
+              : "h4";
+      });
       model.clearInvisibleValues = "onHidden";
       setPreview(model);
     } catch {
@@ -319,9 +393,15 @@ export function SurveyEditor({
   }
   if (preview)
     return (
-      <section className="survey-editor" aria-label="Fragebogen-Vorschau">
+      <section
+        ref={root}
+        className="survey-editor survey-preview"
+        aria-label="Fragebogen-Vorschau"
+      >
         <header className="se-toolbar">
-          <h2>Vorschau · Antworten werden nicht gespeichert</h2>
+          <h2 tabIndex={-1} data-preview-heading>
+            Vorschau · Antworten werden nicht gespeichert
+          </h2>
           <button type="button" onClick={() => setPreview(null)}>
             Zurück zum Editor
           </button>
@@ -332,7 +412,11 @@ export function SurveyEditor({
       </section>
     );
   return (
-    <section className="survey-editor" aria-label="Fragebogen bearbeiten">
+    <section
+      ref={root}
+      className="survey-editor"
+      aria-label="Fragebogen bearbeiten"
+    >
       <header className="se-toolbar">
         <div role="status" data-draft-state={saves.state}>
           {saves.message}
@@ -357,6 +441,7 @@ export function SurveyEditor({
         <button
           type="button"
           disabled={busy || !!publication.current}
+          data-preview-trigger
           onClick={() => void inspect()}
         >
           Vorschau
@@ -368,7 +453,11 @@ export function SurveyEditor({
         </button>
       </header>
       {notice && <p role="status">{notice}</p>}
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" tabIndex={-1} data-editor-error>
+          {error}
+        </p>
+      )}
       {saves.state === "conflict" && (
         <div role="alert">
           <p>
@@ -426,12 +515,18 @@ export function SurveyEditor({
             Fragebogen-JSON
             <textarea
               rows={10}
+              aria-invalid={!!jsonError}
+              aria-describedby={jsonError ? jsonErrorId : undefined}
               value={jsonInput}
               onChange={(event) => setJsonInput(event.target.value)}
               spellCheck={false}
             />
           </label>
-          {jsonError && <p role="alert">{jsonError}</p>}
+          {jsonError && (
+            <p role="alert" id={jsonErrorId} tabIndex={-1} data-json-error>
+              {jsonError}
+            </p>
+          )}
           <button type="button" onClick={importJson}>
             JSON übernehmen
           </button>
@@ -535,6 +630,7 @@ export function SurveyEditor({
                 >
                   <button
                     type="button"
+                    data-page-id={p.name}
                     aria-current={page?.name === p.name ? "step" : undefined}
                     onClick={() => {
                       selectPage(p.name);
@@ -548,9 +644,7 @@ export function SurveyEditor({
                       type="button"
                       disabled={index === 0}
                       aria-label={`Seite ${index + 1} nach oben`}
-                      onClick={() =>
-                        edit(() => history.movePage(p.name, index - 1))
-                      }
+                      onClick={() => movePage(p.name, index - 1)}
                     >
                       ↑
                     </button>
@@ -558,9 +652,7 @@ export function SurveyEditor({
                       type="button"
                       disabled={index === doc.pages.length - 1}
                       aria-label={`Seite ${index + 1} nach unten`}
-                      onClick={() =>
-                        edit(() => history.movePage(p.name, index + 1))
-                      }
+                      onClick={() => movePage(p.name, index + 1)}
                     >
                       ↓
                     </button>
@@ -653,6 +745,7 @@ export function SurveyEditor({
                     >
                       <button
                         type="button"
+                        data-question-id={q.name}
                         aria-pressed={question?.name === q.name}
                         onClick={() => selectQuestion(q.name)}
                       >
@@ -668,13 +761,7 @@ export function SurveyEditor({
                           disabled={index === 0}
                           aria-label={`Frage ${index + 1} nach oben`}
                           onClick={() =>
-                            edit(() =>
-                              history.moveQuestion(
-                                q.name,
-                                page.name,
-                                index - 1,
-                              ),
-                            )
+                            moveQuestion(q.name, page.name, index - 1)
                           }
                         >
                           ↑
@@ -684,13 +771,7 @@ export function SurveyEditor({
                           disabled={index === page.elements.length - 1}
                           aria-label={`Frage ${index + 1} nach unten`}
                           onClick={() =>
-                            edit(() =>
-                              history.moveQuestion(
-                                q.name,
-                                page.name,
-                                index + 1,
-                              ),
-                            )
+                            moveQuestion(q.name, page.name, index + 1)
                           }
                         >
                           ↓

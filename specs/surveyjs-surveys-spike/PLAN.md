@@ -416,7 +416,7 @@ never triggers deletion. Handle concurrent autosave/export and deletion safely.
 
 ## 10. Work packages and acceptance evidence
 
-No work package is fully accepted yet. During implementation, each receives a
+Work-package acceptance is tracked by the checklists below. Each receives a
 `proofs/SURV-xxx.md` document with versions, commands, outcomes and limitations.
 Build success alone is insufficient. Product runtimes and relevant tests run
 in Docker through `./leonaid`; command availability and successful execution
@@ -600,7 +600,7 @@ Acceptance criteria:
 
 ### SURV-040 — Visual questionnaire editor
 
-Structural editing and complete sample authoring evidence: [SURV-040](proofs/SURV-040.md). Broader editor acceptance remains open.
+Editor implementation and scoped acceptance evidence: [SURV-040](proofs/SURV-040.md). Independent packaging, complete theme/mobile coverage and the overall spike remain open in their respective work packages.
 
 Dependencies: SURV-020, SURV-030.
 
@@ -614,14 +614,14 @@ Implementation tasks:
 Test implementation and verification tasks:
 
 - [x] **040.T1** Roundtrip editor definitions through the draft API/database; assert stable IDs, safe unknown-property preservation, stale-save conflicts and field-specific rejection of unsupported or unsafe imports. Acceptance: **040.A1, 040.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
-- [ ] **040.T2** Author both complete sample questionnaires through the UI; cover guided conditions, preview/publication, drag and keyboard reordering, undo/redo, interrupted saves, focus and accessible labels. Acceptance: **040.A3, 040.A4, 040.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **040.T2** Author both complete sample questionnaires through the UI; cover guided conditions, preview/publication, drag and keyboard reordering, undo/redo, interrupted saves, focus and accessible labels. Acceptance: **040.A3, 040.A4, 040.A5**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 
 Acceptance criteria:
 
 - [x] **040.A1 — Integration:** editor-produced definitions roundtrip through the draft API/database without changing stable IDs or safe unknown properties; stale saves report a conflict.
 - [x] **040.A2 — Integration:** structurally valid but unsupported or unsafe imported definitions cannot publish; validation identifies the affected field or question.
 - [x] **040.A3 — E2E:** author both complete sample questionnaires without entering JSON; reorder pages/questions, configure conditions, preview, reload and publish the persisted result.
-- [ ] **040.A4 — E2E:** complete the core authoring journey by keyboard, including reordering and error recovery; verify focus/labels with accessibility checks and document manual observations.
+- [x] **040.A4 — E2E:** complete the core authoring journey by keyboard, including reordering and error recovery; verify focus/labels with accessibility checks and document manual observations.
 - [x] **040.A5 — E2E:** undo/redo and an interrupted draft save behave visibly and correctly after reconnect; the editor never claims an unacknowledged change is saved.
 
 ### SURV-050 — Public runner, ordered saves and recovery

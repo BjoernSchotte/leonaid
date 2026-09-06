@@ -1,8 +1,8 @@
 # SURV-040 — Initial visual editor evidence
 
-Date: 2026-09-06. Status: partial; implementation items 040.1–040.4 delivered;
-040.A1/A2/A3/A5 and 040.T1 proven. Full keyboard/accessibility acceptance
-040.A4 and its combined browser verification task 040.T2 remain open.
+Date: 2026-09-06. Status: implementation items 040.1–040.4 and scoped acceptance
+040.A1–A5 / 040.T1–T2 proven. This does not complete the dependent package,
+theme/mobile, validation or whole-spike work packages.
 
 ## Implemented surface
 
@@ -186,3 +186,120 @@ tests, three queue tests/17 assertions) and
 `uv run --frozen ruff check src/leonaid/domain/surveys/validation.py`.
 Each exited zero. No dependencies were added. Definitions used in the tests are
 synthetic; raw browser traces remain in ignored local artifacts.
+
+
+## Keyboard focus and accessibility verification
+
+The [technical audit](SURV-040-AUDIT.md) records the baseline failure and scoped
+follow-up. The editor now focuses a moved page/question's stable control after
+keyboard reordering, focuses blocking validation and JSON errors, focuses the
+preview heading on entry and restores its trigger on return. Preview disables
+SurveyJS's competing automatic first-question focus and disposes its model when
+closed. JSON errors are connected to the input with `aria-describedby` and
+`aria-invalid`. Control borders use a configurable higher-contrast token and
+buttons have a 44px minimum width as well as height. Focus indicators do not
+transition in from zero width under host motion rules. Preview controls are
+excluded from the editor's generic input/label/button styling. Its title event
+handler selects semantic survey/page/question headings per model, without
+mutating global SurveyJS settings.
+
+`tests/e2e/surveys-accessibility.spec.mjs` traverses actual Tab order and uses
+Enter, arrow keys, Space and keyboard text entry. It deliberately does not use
+locator focus/click/fill/selectOption shortcuts. It creates a survey, edits and
+duplicates questions, reorders questions/pages, adds a required choice and guided
+conditional comment, corrects a server validation error, enters/responds to the
+preview, returns, publishes and reloads. Persisted page/question order is checked
+against the actual API, and page errors must remain empty. Focus targets and a
+visible outline are asserted separately from the axe scans. A computed border
+contrast assertion supplements axe's text/ARIA checks.
+
+The repository already contains `@axe-core/playwright` and `axe-core` 4.12.1
+(MPL-2.0) as host QA tooling. This work uses that existing external test harness;
+it adds no dependency to the neutral package, copies no axe implementation and
+ships no axe code with the editor/runner. The package's permissive runtime policy
+and own UNDEFINED license decision are unchanged.
+
+### Diagnostic run history
+
+All projects below used fresh volumes, explicit unused subnets and no published
+host ports. Earlier green runs did not close the acceptance gap while manual axe
+findings remained unreviewed.
+
+- `45978`: keyboard reorder lost its focus target; six other scenarios passed.
+- `48621`: seven scenarios passed after focus management, but inspection exposed
+  preview style leakage and unreviewed axe findings.
+- `50032`, `50681`, `51910`: six scenarios passed; the immediate computed focus
+  width assertion failed. Focused DOM identity alone did not prove a visible ring.
+- `53125`: six scenarios passed; the test hung awaiting an animation's completion.
+  The trace showed a focused page button with the correct 3px rule but active
+  host-induced transitions. The unbounded animation wait was removed and focused
+  targets now opt out of transitions.
+- `54966`: all seven scenarios passed in 1.2 minutes, command exit zero with
+  verified teardown. Full axe details then exposed a default SurveyJS title `div`
+  with an unsupported accessible label, motivating the per-model heading fix.
+
+Project names use the prefix `leonaid-surveys-833458328-`. Raw traces are local
+and ignored; no session cookies or answer-bearing application logs are committed.
+
+### Final verification and acceptance
+
+Baseline `542d409` plus the source changes in this proof's commit were rebuilt by
+`./leonaid test-surveys-editor` in project `leonaid-surveys-833458328-56489`.
+The command exited zero: real migrations and API/PostgreSQL foundation passed,
+all seven Chromium scenarios passed in 1.5 minutes, and owned containers/volumes
+were removed and teardown verified. No host ports were published. Runtimes are
+pinned by `infra/locks/images.env`; SurveyJS core/React are 3.0.3, Playwright is
+1.54.1 and axe is 4.12.1. Web/package TypeScript checks exited zero in pinned Bun;
+five editor tests passed with 33 assertions. `git diff --check` passed.
+
+The [scan summary](assets/SURV-040-accessibility.json) records five states, each
+with zero WCAG-tagged violations and 17 passing rules. Initial editor and question
+properties had no incomplete rules. Error/reload states flagged arrow-only button
+contrast; preview flagged contrast because of the SurveyJS background pseudo
+element. No ARIA finding remains after the per-model semantic heading fix.
+
+Manual review used the captured computed foreground, ancestor/pseudo background,
+alpha and opacity values plus the rendered screenshots. There were no gradients
+or intervening opacity on these final-state targets. Alpha was composited over the
+observed surface before the sRGB relative-luminance contrast calculation:
+
+| Reviewed target | Foreground / actual surface | Contrast |
+|---|---|---|
+| Enabled page movement arrows | `#172238` / white | 15.881:1 |
+| Enabled question movement arrows | `#172238` / `#f5f7fa` | 14.797:1 |
+| Survey/question titles and choices | `#1c1b20` / white | 17.115:1 |
+| Page title | `#1c1b20` / pseudo surface `#edf9f7` | 15.888:1 |
+| Survey description | `#1c1b20` at 0.6 alpha / white | 4.507:1 |
+| Comment input text | `#1c1b20` / `#f5f5f5` | 15.698:1 |
+| Next-button label | `color(srgb 0 0.17 0.47)` / white | 12.954:1 |
+
+The description narrowly exceeds 4.5:1 in this exact theme; future theme changes
+must recheck it. Enabled arrows also have explicit accessible action labels.
+Disabled controls are visibly distinguished. The input-border token has 4.13:1
+contrast on white and 3.85:1 on the editor canvas. These observations resolve the
+listed incomplete findings for this fixture; they are not a WCAG certification.
+
+Visual inspection of the [editor](assets/SURV-040-keyboard-editor.png) and
+[preview](assets/SURV-040-keyboard-preview.png) found readable labels, correctly
+aligned radio options and no clipped controls in this desktop layout. The preview
+screenshot fast-forwards finite animations using Playwright's standard screenshot
+option; it represents the settled state. Keyboard/focus assertions run against
+the actual UI. Full mobile, zoom, screen-reader and all-theme proof stays open.
+
+Acceptance traceability:
+
+- **040.A4:** `surveys-accessibility.spec.mjs`, “keyboard authoring, recovery and
+  preview have visible focus and accessible controls”, proves actual keyboard
+  traversal, guided conditions, reorder focus, server-error correction, preview
+  entry/return, publication and persisted ordering after reload; the manual
+  observations above supplement the automated checks.
+- **040.T2 / 040.A3 / 040.A5:** the same passing command includes both complete
+  sample-authoring tests in `surveys-authoring.spec.mjs`, drag/structural editing
+  in `surveys-editor.spec.mjs`, and undo/redo, interrupted save and two-tab recovery
+  in `surveys-import-recovery.spec.mjs`. Their detailed assertions are documented
+  in the preceding increments. No survey persistence/authorization endpoint is
+  mocked. Only network delivery is deliberately interrupted in recovery tests.
+
+040.A4 and 040.T2 are now checked. Broader profile validation, independent packed
+consumption, theme/mobile work, analytics, exports and the other remaining plan
+items retain their open status.
