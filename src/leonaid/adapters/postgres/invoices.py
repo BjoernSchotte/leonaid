@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.delivery import read_configuration
+
 from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
@@ -242,6 +244,11 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 replayed=True,
             )
 
+        # Keep action -> order lock order shared with delivery completion and
+        # schedule writes. A schedule cannot become required during issuance.
+        await connection.fetchval(
+            "SELECT id FROM charity_action WHERE id = $1 FOR SHARE", action_id
+        )
         commitment_row = await connection.fetchrow(
             """
             SELECT
@@ -307,6 +314,21 @@ class AsyncpgInvoiceRepository(InvoiceRepository):
                 completed_at=occurred_at,
             )
             return invoice
+
+        await connection.fetchval(
+            "SELECT revision FROM action_delivery_configuration WHERE action_id = $1 FOR SHARE",
+            action_id,
+        )
+        delivery_config = await read_configuration(connection, action_id)
+        if delivery_config.enabled and (
+            commitment_row["delivery_recipient_snapshot"] is None
+            or commitment_row["delivery_window_id"] is None
+            or commitment_row["delivery_window_snapshot"] is None
+        ):
+            raise Conflict(
+                "invoice_delivery_incomplete",
+                "Bitte vor der Rechnungsfreigabe Lieferadresse und Lieferfenster ergänzen.",
+            )
 
         profile_row = await connection.fetchrow(
             """

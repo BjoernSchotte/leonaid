@@ -26,6 +26,7 @@ from leonaid.domain.commitments import (
 from leonaid.domain.errors import DomainInvariantError
 from tools.delivery.form_configuration import prove_form_configuration
 from tools.delivery.concurrency import prove_booking_races
+from tools.delivery.completion import prove_completion
 
 
 async def prove_orders(pool: asyncpg.Pool[Any], action_id: UUID) -> None:
@@ -155,4 +156,5 @@ async def prove_orders(pool: asyncpg.Pool[Any], action_id: UUID) -> None:
         "delivery-orders: PASS: creation/readback, incomplete draft, required fields, retirement, exact replay and changed-key conflict"
     )
     await prove_booking_races(pool, action_id, actor, draft)
+    await prove_completion(pool, action_id, actor, incomplete)
     await prove_form_configuration(pool, actor)

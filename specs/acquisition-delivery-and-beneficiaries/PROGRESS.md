@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Delivery completion backend checkpoint — 2026-09-06
+
+Added an action-manager-authorized completion service and transactional repository for draft/review-ready orders. The request carries delivery and invoice snapshots, a window ID and an optimistic hash of the current completion fields/status. The repository locks action then order, rejects stale edits and closed/invoiced orders, preserves already booked window IDs/times (including retired windows), and transitions successfully completed drafts to review-ready. Prices, quantities, buyer records and order lines remain unchanged. A separate command receipt provides exact replay and changed-payload conflict handling; the audit event records only status metadata, without addresses or notes.
+
+Invoice issuance now locks the action and versioned delivery configuration and rejects missing delivery/address/window snapshots when delivery is enabled. Existing invoice/command replay occurs before the new completeness guard. Retired booked windows remain valid historical selections; issuance does not reinterpret them as fresh availability requests.
+
+The real PostgreSQL foundation gate passes authorization denial for acquirers/drivers/unrelated managers, missing-order rejection, incomplete-delivery invoice denial, two simultaneous edits with exactly one winner, correct recipient/window readback, unchanged pricing/lines, retirement plus exact replay, changed-key-payload rejection, one audit entry and confirmed-order protection. After repair the invoice repository passes the delivery guard and reaches the fixture's intentionally missing invoice profile. This is a guard-path proof, not proof of a newly issued invoice for the repaired order. Focused Ruff, Mypy and 212 unit tests pass.
+
+Integration remains open: this checkpoint supplies the backend service/repository; it is not yet exposed through HTTP or the administrator UI. Add its scoped endpoint, response version, generated client and completion form next, then prove a repaired order through actual invoice issuance and invoice recipient readback. The full `./leonaid test-invoices` gate passed on the changed repository: real server contract, Fresh Login, invoice issuance, immutable snapshots and the finance browser view. It used its own Compose project (`leonaid-362a-delivery-invoice-20260906a`), ports 18266/18666 and the optional dedicated subnet override added to this test runner. Other outstanding plan acceptance remains unchanged.
+
 ## Public booking/retirement concurrency checkpoint — 2026-09-06
 
 The deterministic PostgreSQL proof now exercises both the acquisition repository and `AsyncpgPublicOrderRepository.order_command` / `record_order` / `complete`. It configures a synthetic published action and runs retirement-first and booking-first for each channel, observing real PostgreSQL blocking before releasing the first transaction.
