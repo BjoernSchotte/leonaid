@@ -21,6 +21,30 @@ passed; integrated service, authorization and public campaign delivery remain un
 
 ## Persistence and security boundaries
 
+### Pinned content-handler log sanitization
+
+The isolated database creation proof exposed upstream logging of raw PostgreSQL
+exceptions. The application-local `emdash-content-log-patch.mjs` now removes
+exception objects from 20 fixed content-handler diagnostics and removes item
+identifiers/error details from the revision-pruning diagnostic. It retains all
+21 fixed signals; it does not suppress errors globally or alter handler results.
+The exact published `api-B0w3uBiG.mjs` SHA-256 is
+`fd3a3c5680b620ec28a719c9aec511d632408f287e94b990b4c8096b6b40b756`.
+Source drift, changed anchors and double application fail closed, and production
+build completion requires the transform to have run. This is an additional
+version-pinned spike patch requiring review/upstream work before production.
+It does not claim to sanitize every other EmDash runtime or plugin diagnostic.
+
+The HTTP creation proof injects a real AFTER INSERT failure and requires the
+fixed create-error signal in CMS logs while rejecting the synthetic database
+canary in logs and the HTTP response. Creation rolls back, then succeeds after
+the fixture trigger is removed. The original runtime creator and request-local
+database transaction remain authoritative; hooks/validation are not replaced
+with the lower-level database proof helper. Native creation UI and Charity
+admission are separate outstanding gates.
+
+### Persistence selection
+
 Use a dedicated `emdash` database and non-superuser role on the isolated
 installation's existing Core PostgreSQL server. Use a private CMS-only RustFS
 bucket with scoped credentials. No SQLite fallback and no Core database access.

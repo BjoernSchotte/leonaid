@@ -74,7 +74,83 @@ async function call(
   return Array.isArray(status) ? { status: response.status, payload } : payload;
 }
 const root = "/_emdash/api/content/campaign_pages";
-if (guardUnavailable) {
+if (
+  process.argv.includes("--create") ||
+  process.argv.includes("--create-failure")
+) {
+  const action = "20000000-0000-4000-8000-000000000003";
+  const body = {
+    data: { action_id: action, title: "Created through real Core and runtime" },
+  };
+  const before = (await call(root, 200)).data;
+  if (process.argv.includes("--create-failure")) {
+    const failure = await call(root, 503, { method: "POST", body });
+    assert.equal(
+      JSON.stringify(failure).includes("LEONAID_SYNTHETIC_CREATE_LOG_CANARY"),
+      false,
+    );
+    assert.deepEqual((await call(root, 200)).data, before);
+  } else {
+    await call(root, 401, { method: "POST", body, token: null });
+    await call(root, 403, { method: "POST", body, token: tokens.charity });
+    await call(root, 403, { method: "POST", body, marker: false });
+    await call(root, 403, {
+      method: "POST",
+      body,
+      origin: "https://attacker.invalid",
+    });
+    for (const input of [
+      { ...body, status: "published" },
+      { ...body, authorId: "untrusted" },
+      { ...body, slug: "untrusted" },
+      { ...body, translationOf: "untrusted" },
+      { ...body, locale: "fr" },
+      { ...body, seo: {} },
+      { data: { ...body.data, title: "x".repeat(9000) } },
+      { data: { ...body.data, extra: "untrusted" } },
+      { data: { ...body.data, action_id: "invalid" } },
+    ])
+      await call(root, 403, { method: "POST", body: input });
+    await call(root, 503, {
+      method: "POST",
+      body: {
+        data: {
+          ...body.data,
+          action_id: "20000000-0000-4000-8000-999999999999",
+        },
+      },
+    });
+    assert.deepEqual((await call(root, 200)).data, before);
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        call(root, [201, 409], { method: "POST", body }),
+      ),
+    );
+    assert.equal(results.filter((result) => result.status === 201).length, 1);
+    assert.equal(results.filter((result) => result.status === 409).length, 3);
+    const created = results.find((result) => result.status === 201).payload
+      .data;
+    assert.equal(created.item.status, "draft");
+    assert.equal(created.item.data.action_id, action);
+    assert.equal(created.item.data.title, body.data.title);
+    assert.equal(created.item.slug, action);
+    assert.equal(
+      created.item.authorId,
+      (await call("/_emdash/api/auth/me", 200)).data.id,
+    );
+    assert.ok(created._rev);
+    assert.equal(
+      (await call(`${root}/${created.item.id}`, 200)).data.item.data.title,
+      body.data.title,
+    );
+    assert.equal((await call(root, 200)).data.total, before.total + 1);
+    await call(root, 409, { method: "POST", body });
+  }
+  console.log(
+    `campaign-runtime: ${process.argv.includes("--create-failure") ? "create late-write rollback and sanitized HTTP failure" : "real Core/runtime draft creation, attribution, metadata denial and concurrent conflict"} passed`,
+  );
+} else if (guardUnavailable) {
+  await call(root, 503, { method: "POST" });
   await call(root, 503);
   await call(`${root}/00000000000000000000000000/unpublish`, 503, {
     method: "POST",
@@ -94,6 +170,7 @@ if (guardUnavailable) {
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
 } else if (revoked) {
+  await call(root, 401, { method: "POST" });
   await call(root, 401);
   await call(`${root}/00000000000000000000000000/unpublish`, 401, {
     method: "POST",
@@ -597,7 +674,8 @@ if (guardUnavailable) {
   await call(root, 503, {
     extra: { Authorization: "Bearer synthetic-denied" },
   });
-  for (const method of ["POST", "PUT", "DELETE", "HEAD", "OPTIONS"]) {
+  await call(root, 403, { method: "POST" });
+  for (const method of ["PUT", "DELETE", "HEAD", "OPTIONS"]) {
     await call(root, 503, { method });
   }
 }

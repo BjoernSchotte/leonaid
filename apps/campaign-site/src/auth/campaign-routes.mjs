@@ -8,6 +8,10 @@ export function isCampaignEditorRoute(path, method) {
   return method === "GET" && editor.test(path);
 }
 
+export function isCampaignCreateRoute(path, method) {
+  return method === "POST" && path === "/_emdash/api/content/campaign_pages";
+}
+
 const content = new RegExp(
   `^/_emdash/api/content/campaign_pages(?:/${id}(?:/(?:revisions|compare))?)?$`,
 );

@@ -12,12 +12,16 @@ const reject = (code) => ({
 // Core reads. This does not admit HTTP or enable Charity access. It exercises
 // the lower-level creator only; the eventual HTTP integration must retain the
 // original runtime creator, including its hooks and schema validation.
+/**
+ * @param {(...args: Parameters<typeof handleContentCreate>) => Promise<{success: boolean, data?: unknown, error?: {code: string, message: string}}>} [create]
+ */
 export async function createCampaignContent(
   database,
   profile,
   resolvedAction,
   cmsUserId,
   body,
+  create = handleContentCreate,
 ) {
   const data = body?.data;
   if (
@@ -62,7 +66,7 @@ export async function createCampaignContent(
     const existing = await sql`SELECT id FROM public.ec_campaign_pages
       WHERE action_id=${data.action_id} LIMIT 1`.execute(transaction);
     if (existing.rows.length) return reject("CONFLICT");
-    const result = await handleContentCreate(transaction, "campaign_pages", {
+    const result = await create(transaction, "campaign_pages", {
       data: { action_id: data.action_id, title: data.title.trim() },
       slug: data.action_id,
       status: "draft",

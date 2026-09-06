@@ -12,7 +12,21 @@ const database = new Kysely({
   }),
 });
 try {
-  if (process.argv[2] === "disable") {
+  if (process.argv[2] === "fail-create") {
+    await sql`CREATE FUNCTION public.synthetic_reject_create() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'LEONAID_SYNTHETIC_CREATE_LOG_CANARY'; END $$`.execute(
+      database,
+    );
+    await sql`CREATE TRIGGER synthetic_reject_create AFTER INSERT ON public.ec_campaign_pages
+      FOR EACH ROW EXECUTE FUNCTION public.synthetic_reject_create()`.execute(
+      database,
+    );
+  } else if (process.argv[2] === "restore-create") {
+    await sql`DROP TRIGGER synthetic_reject_create ON public.ec_campaign_pages`.execute(
+      database,
+    );
+    await sql`DROP FUNCTION public.synthetic_reject_create()`.execute(database);
+  } else if (process.argv[2] === "disable") {
     await requireCampaignBindings(database);
     await sql`ALTER TABLE public.ec_campaign_pages DISABLE TRIGGER leonaid_campaign_binding`.execute(
       database,

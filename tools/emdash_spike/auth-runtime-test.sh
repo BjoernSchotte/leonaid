@@ -120,12 +120,18 @@ if [ "$mode" != auth ]; then
     content_probe --unpublish-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-unpublish
     content_probe --unpublish
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs fail-create
+    content_probe --create-failure
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-create
+    content_probe --create
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     content_probe --revoked
     compose logs --no-color campaign-site | docker run --rm -i --network none "$NODE_IMAGE" \
       node --input-type=module -e '
       let input=""; for await(const chunk of process.stdin) input+=chunk;
       if (/deferred task failed|Failed to prune revisions|Failed to clean up|Transaction.*(?:complete|committed|rollback)/i.test(input)) throw new Error("CMS transaction/deferred work did not finish cleanly");
+      if (!input.includes("Content create error:") || input.includes("LEONAID_SYNTHETIC_CREATE_LOG_CANARY")) throw new Error("CMS creation diagnostic was absent or exposed the database exception");
+      console.log("campaign-runtime: real create failure retains fixed signal without database canary");
       console.log("campaign-runtime: no deferred-work or completed-transaction failures");'
   fi
   if [ "$mode" = surface ]; then

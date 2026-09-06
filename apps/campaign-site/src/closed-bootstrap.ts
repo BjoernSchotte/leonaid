@@ -5,6 +5,7 @@ import { CoreIdentityError } from "./auth/core-identity";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
   isCampaignEditorRoute,
+  isCampaignCreateRoute,
   isCampaignReadRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
@@ -86,6 +87,7 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
   const campaignUpdate =
+    isCampaignCreateRoute(url.pathname, request.method) ||
     isCampaignUpdateRoute(url.pathname, request.method) ||
     isCampaignRestoreRoute(url.pathname, request.method) ||
     isCampaignDiscardRoute(url.pathname, request.method) ||

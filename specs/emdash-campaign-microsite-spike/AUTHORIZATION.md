@@ -195,7 +195,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/auth/signup/verify` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/content/[collection]` | GET, POST | core | GET campaign_pages: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]` | GET, POST | core | campaign_pages: System Admin GET and bounded draft-only POST; otherwise denied | Current Core action, mapped author, serialized create and list/count filters |
 | `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | campaign_pages canonical ULID: System Admin GET and revision-checked title-draft PUT only | Stored action_id; immutable proposed binding; narrow draft field policy |
 | `/_emdash/api/content/[collection]/[id]/compare` | GET | core | campaign_pages canonical ULID: System Admin only | Stored parent action_id and exact live/draft revision parent bindings |
 | `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | campaign_pages canonical ULID: System Admin only; atomic pointer clear | Stored parent action_id; unchanged live content and history |

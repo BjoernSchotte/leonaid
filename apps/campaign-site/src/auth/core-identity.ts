@@ -110,6 +110,26 @@ export async function readCoreIdentity(request: Request) {
 
 // Core evaluates lifecycle and publication windows with its own clock. This is
 // a fresh management read, not authority inferred from CMS status or timestamps.
+export async function requireCoreCampaign(request: Request, actionId: string) {
+  if (!z.uuid().safeParse(actionId).success) throw new CoreIdentityError(403);
+  try {
+    const result = z
+      .object({ id: z.uuid(), isPublished: z.boolean() })
+      .safeParse(
+        await client.getCharityAction(actionId, {
+          headers: { Cookie: coreSessionCookie(request) },
+          signal: AbortSignal.timeout(2000),
+        }),
+      );
+    if (!result.success || result.data.id !== actionId)
+      throw new CoreIdentityError(503);
+    return result.data;
+  } catch (error) {
+    if (error instanceof CoreIdentityError) throw error;
+    throw new CoreIdentityError(503);
+  }
+}
+
 export async function requireCorePublication(
   request: Request,
   actionId: string,

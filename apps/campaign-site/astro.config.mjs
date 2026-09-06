@@ -6,6 +6,7 @@ import { postgres } from "emdash/db";
 import routeContract from "./route-contract.mjs";
 import stableIdentityPatch from "./emdash-auth-patch.mjs";
 import editorRevisionPatch from "./emdash-editor-patch.mjs";
+import contentLogPatch from "./emdash-content-log-patch.mjs";
 
 export default defineConfig({
   output: "server",
@@ -21,6 +22,7 @@ export default defineConfig({
   integrations: [
     stableIdentityPatch(),
     editorRevisionPatch(),
+    contentLogPatch(),
     react(),
     emdash({
       auth: {

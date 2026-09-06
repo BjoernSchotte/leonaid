@@ -1100,6 +1100,24 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       parity, formatting and privacy/policy gates; working tree unchanged.
 - [ ] Ensure create cannot bind content to an action the actor does not manage,
       and update cannot change `action_id`.
+- [x] Admit System Admin HTTP creation through the original EmDash runtime,
+      preserving its schema validation and hooks in the guarded transaction.
+      Re-read Core campaign access after the per-action lock, bind the author
+      from the current persisted identity, and accept only a bounded raw
+      `{data: {action_id, title}}` request. New content is always a draft; the
+      internal CMS slug is the Core UUID, not a new public URL authority.
+      Evidence (6 September 2026): `campaign-runtime` passed in isolated project
+      `leonaid-emdash-tmp-hvak5vfdtv`: actual HTTPS/Core/runtime creation and read
+      back, one concurrent 201 versus three 409 responses, duplicate rejection,
+      oversized/unknown metadata rejection, anonymous/Charity/origin/marker
+      denial, absent Core target fail-closed, and revoked-session denial.
+      A real AFTER INSERT failure left content unchanged and returned a static
+      error. The pinned production log patch retained its fixed failure signal
+      without the synthetic database canary in either HTTP or CMS logs. The
+      complete prior mutation/publication/rollback suite, TLS restart and
+      database-failure checks passed; owned resources were removed. Native
+      creation UI, Charity admission, global binding uniqueness and the broader
+      creation/duplicate/import contract remain open.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
       reports the referenced action as publishable under existing Core rules.
 - [x] Gate canonical System Admin CMS publish requests on a fresh authenticated

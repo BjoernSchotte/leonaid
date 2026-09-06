@@ -3,6 +3,10 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { patchAuthSource } from "../../apps/campaign-site/emdash-auth-patch.mjs";
 import { patchEditorSource } from "../../apps/campaign-site/emdash-editor-patch.mjs";
+import {
+  contentHandlerEntry,
+  patchContentLogs,
+} from "../../apps/campaign-site/emdash-content-log-patch.mjs";
 
 const require = createRequire(import.meta.url);
 const source = await readFile(
@@ -37,4 +41,25 @@ for (const changed of [
 }
 console.log(
   "emdash-editor-patch: OK: exact published client accepted; drift and double application rejected",
+);
+const handlers = await readFile(contentHandlerEntry(), "utf8");
+const sanitized = patchContentLogs(handlers);
+assert.notEqual(sanitized, handlers);
+assert.equal([...sanitized.matchAll(/console\.error\(/g)].length, 21);
+assert.equal(
+  [...sanitized.matchAll(/console\.error\("[^"\n]+"\);/g)].length,
+  21,
+);
+for (const changed of [
+  handlers + "\n",
+  handlers.replace("Content create error", "Changed create error"),
+  sanitized,
+]) {
+  assert.throws(
+    () => patchContentLogs(changed),
+    /EmDash content source changed/,
+  );
+}
+console.log(
+  "emdash-content-log-patch: OK: all 21 fixed signals retained without exception objects or item identifiers; source drift and double application denied",
 );

@@ -14,7 +14,9 @@ class RejectedMutation extends Error {
   }
 }
 
-function deferredTracker(): NonNullable<EmDashRequestContext["deferredTasks"]> {
+export function deferredTracker(): NonNullable<
+  EmDashRequestContext["deferredTasks"]
+> {
   const pending = new Set<Promise<unknown>>();
   let finish!: () => void;
   const settled = new Promise<void>((resolve) => {

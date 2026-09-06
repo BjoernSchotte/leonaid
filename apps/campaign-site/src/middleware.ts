@@ -6,6 +6,7 @@ import {
 } from "./auth/core-identity";
 import {
   isCampaignReadRoute,
+  isCampaignCreateRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
   isCampaignDiscardRoute,
@@ -13,6 +14,8 @@ import {
   isCampaignUnpublishRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
+import { campaignCreateBody } from "./auth/campaign-create-body";
+import { createCampaignWithRuntime } from "./auth/campaign-create-runtime";
 import {
   updateCampaignAtomically,
   mutateCampaignAtomically,
@@ -30,6 +33,7 @@ export const onRequest = defineMiddleware(
   async ({ request, url, locals }, next) => {
     if (
       !isCampaignReadRoute(url.pathname, request.method) &&
+      !isCampaignCreateRoute(url.pathname, request.method) &&
       !isCampaignUpdateRoute(url.pathname, request.method) &&
       !isCampaignRestoreRoute(url.pathname, request.method) &&
       !isCampaignDiscardRoute(url.pathname, request.method) &&
@@ -47,6 +51,20 @@ export const onRequest = defineMiddleware(
       if (!emdash?.db) throw new CoreIdentityError(503);
       const database = emdash.db;
       await requireCampaignBindings(database);
+      if (isCampaignCreateRoute(url.pathname, request.method)) {
+        const body = await campaignCreateBody(request);
+        const runtimeCreate = emdash.handleContentCreate;
+        emdash.handleContentCreate = (collection) => {
+          if (collection !== "campaign_pages") throw new CoreIdentityError(403);
+          return createCampaignWithRuntime(
+            request,
+            emdash,
+            runtimeCreate,
+            user.id,
+            body,
+          );
+        };
+      }
       const runtimeGet = emdash.handleContentGet;
       const runtimeUpdate = emdash.handleContentUpdate;
       const runtimeRestore = emdash.handleRevisionRestore;
