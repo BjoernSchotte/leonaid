@@ -117,3 +117,7 @@ proof of a successful provision or a working least-privilege policy.
   after restart. Only the fresh test project's resources were removed.
 - App runtime S3 wiring, browser media delivery and coordinated recovery are
   still outstanding and must not be inferred from this provisioning proof.
+- Full `./leonaid check` passed at commit `97b6d83`: 206 unit tests, type checks
+  covering 240 Python sources and all frontends including CMS, format checks,
+  policy/API/privacy gates, and unchanged Git state. EMS-000 is complete; the
+  next gate is EMS-010's integrated private service and route ownership proof.

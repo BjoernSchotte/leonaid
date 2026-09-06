@@ -451,6 +451,10 @@ prove own-bucket object/list/delete access, denied foreign-bucket read/write/lis
 denied IAM and bucket deletion, and denied anonymous object downloads. The Core
 test object and CMS retained object survive restart. This closes the standalone
 storage provisioning proof, not the remaining HTTP-service/media UI wiring.
+`./leonaid check` also passed at commit `97b6d83`, including 206 unit tests,
+240 Python source-file type checks, CMS/frontend type checks and formatting;
+the worktree was unchanged. EMS-000's dependency/provisioning gates are complete.
+Continue with the still-open EMS-010 service-integration requirements.
 
 ### EMS-010 — Create the isolated EmDash Astro service
 
