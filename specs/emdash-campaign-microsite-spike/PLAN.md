@@ -830,6 +830,10 @@ and no independent CMS cookie is issued. This supersedes the pending HTTP wiring
 note above for these four System-Admin-only operations, not for Charity access,
 write operations, previews or media. Its isolated project has no host ports and
 all owned containers, networks, volumes and temporary session files were removed.
+Regression/quality checkpoint: `authorization-surface` passed again with 1,866
+real HTTPS requests. `./leonaid check` passed at `d0c0cf5`: 208 unit tests,
+242 Python source-file type checks, all frontend/CMS checks, formatting,
+API/privacy/policy and route-inventory guards; committed worktree unchanged.
 
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
