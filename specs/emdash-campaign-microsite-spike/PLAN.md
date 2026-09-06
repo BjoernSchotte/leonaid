@@ -657,6 +657,9 @@ Dependencies: EMS-010
       through the authenticated browser context; navigation/logout UI wiring,
       fresh login, hostile dependency responses and Charity admission remain
       separate open requirements.
+      Quality gate: `./leonaid check` passed on `f9d504b`: 208 unit tests,
+      242 Python source-file checks, API parity, frontend/CMS type checks,
+      formatting and privacy/policy checks; committed tree remained unchanged.
 - [ ] Prove logout and revocation with a retained EmDash session cookie; disable
       the upstream development fallback and run tests against the production
       Docker build, not `astro dev`.
