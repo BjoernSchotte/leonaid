@@ -6,7 +6,8 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
 from pathlib import Path
 
 import asyncpg
@@ -42,6 +43,55 @@ async def main() -> None:
             )
             await connection.execute(
                 "DELETE FROM action_membership WHERE user_id=$1", KLARA_ID
+            )
+        elif sys.argv[1] == "prepare-publication":
+            for suffix, action_status in [(41, "draft"), (42, "scheduled")]:
+                await connection.execute(
+                    """INSERT INTO charity_action
+                    (id, carrier_name, name, purpose, status, starts_on, ends_on,
+                     publication_starts_at, publication_ends_at, archive_slug)
+                    VALUES ($1, 'Synthetic carrier', 'Synthetic campaign', 'Synthetic proof',
+                            $2, $3, $3, $4, $5, $6)""",
+                    UUID(f"20000000-0000-4000-8000-{suffix:012d}"),
+                    action_status,
+                    now.date(),
+                    now - timedelta(days=1),
+                    now + timedelta(days=1),
+                    f"synthetic-publication-{suffix}",
+                )
+                await connection.execute(
+                    """INSERT INTO beneficiary
+                    (id, action_id, organization_name, public_description, sort_order)
+                    VALUES ($1, $2, 'Synthetic beneficiary', 'Synthetic proof', 0)""",
+                    UUID(f"30000000-0000-4000-8000-{suffix:012d}"),
+                    UUID(f"20000000-0000-4000-8000-{suffix:012d}"),
+                )
+        elif sys.argv[1].startswith("publication-"):
+            mode = sys.argv[1].removeprefix("publication-")
+            if mode not in {
+                "open",
+                "future",
+                "expired",
+                "none",
+                "completed",
+                "archived",
+            }:
+                raise ValueError("unknown publication fixture state")
+            starts = now - timedelta(days=1)
+            ends = now + timedelta(days=1)
+            if mode == "future":
+                starts, ends = now + timedelta(days=1), now + timedelta(days=2)
+            elif mode == "expired":
+                starts, ends = now - timedelta(days=2), now - timedelta(days=1)
+            elif mode == "none":
+                starts = ends = None
+            action_status = mode if mode in {"completed", "archived"} else "active"
+            await connection.execute(
+                "UPDATE charity_action SET status=$1, publication_starts_at=$2, publication_ends_at=$3 WHERE id=$4",
+                action_status,
+                starts,
+                ends,
+                UUID("20000000-0000-4000-8000-000000000001"),
             )
         else:
             raise ValueError("unknown fixture operation")

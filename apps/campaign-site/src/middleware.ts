@@ -1,10 +1,15 @@
 import { defineMiddleware } from "astro:middleware";
-import { readCoreIdentity, CoreIdentityError } from "./auth/core-identity";
+import {
+  readCoreIdentity,
+  CoreIdentityError,
+  requireCorePublication,
+} from "./auth/core-identity";
 import {
   isCampaignReadRoute,
   isCampaignUpdateRoute,
   isCampaignRestoreRoute,
   isCampaignDiscardRoute,
+  isCampaignPublishRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
 import {
@@ -26,7 +31,8 @@ export const onRequest = defineMiddleware(
       !isCampaignReadRoute(url.pathname, request.method) &&
       !isCampaignUpdateRoute(url.pathname, request.method) &&
       !isCampaignRestoreRoute(url.pathname, request.method) &&
-      !isCampaignDiscardRoute(url.pathname, request.method)
+      !isCampaignDiscardRoute(url.pathname, request.method) &&
+      !isCampaignPublishRoute(url.pathname, request.method)
     )
       return next();
     try {
@@ -43,6 +49,7 @@ export const onRequest = defineMiddleware(
       const runtimeUpdate = emdash.handleContentUpdate;
       const runtimeRestore = emdash.handleRevisionRestore;
       const runtimeDiscard = emdash.handleContentDiscardDraft;
+      const runtimePublish = emdash.handleContentPublish;
       // EmDash creates this object per request. Never mutate the shared runtime.
       emdash.handleContentList = (collection, parameters) =>
         listCampaignContent(database, profile, collection, parameters);
@@ -98,6 +105,33 @@ export const onRequest = defineMiddleware(
         getCampaignRevision(database, profile, id);
       emdash.handleContentCompare = (collection, id) =>
         compareCampaignContent(database, profile, collection, id);
+      emdash.handleContentPublish = async (collection, id, options) => {
+        const access = await getCampaignContent(
+          database,
+          profile,
+          collection,
+          id,
+        );
+        if (!access.success) return access;
+        if (
+          options &&
+          Object.values(options).some((value) => value !== undefined)
+        )
+          throw new CoreIdentityError(403);
+        const actionId = access.data.item.data.action_id;
+        if (typeof actionId !== "string") throw new CoreIdentityError(503);
+        return mutateCampaignAtomically(
+          emdash,
+          collection,
+          id,
+          { coreUserId: profile.userId, cmsUserId: user.id },
+          async () => {
+            await requireCorePublication(request, actionId);
+            return runtimePublish(collection, id);
+          },
+          "publish",
+        );
+      };
       emdash.handleContentDiscardDraft = async (collection, id) => {
         const access = await getCampaignContent(
           database,

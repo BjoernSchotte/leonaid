@@ -52,6 +52,23 @@ was cleared; it neither inserts nor deletes history. HTTPS tests cover unchanged
 live data, repeat discard, restoring discarded history, denied actors and rollback
 when a fixture-only deferred PostgreSQL trigger rejects the final commit.
 
+Canonical campaign publish POSTs are admitted for System Admins only after a
+fresh, bounded call to the existing authenticated Core action endpoint. Its new
+`isPublished` response field evaluates the existing `is_published_at` domain
+method with Core's clock; it is not persisted and does not duplicate lifecycle
+logic in EmDash. Only a currently active Core publication window permits this
+CMS promotion. Backdating and scheduling options are refused. The original
+runtime publisher executes under the content lock and transaction; stored live
+and draft pointers must resolve to revisions of that exact content item.
+
+`campaign-runtime` proves future, expired and absent-window denial, denial for
+draft/scheduled/completed/archived actions, promotion without history changes,
+a subsequent private draft, withdrawal on the next publish attempt and rollback
+on deferred commit failure. Synthetic fixtures preserve Core lifecycle triggers
+and required beneficiaries. This is a CMS mutation gate, NOT an anonymous
+delivery proof or a lasting public-access grant: EMS-050 must recheck Core on
+every public page request, including withdrawal after a successful CMS publish.
+
 The admitted read routes additionally require exact, enabled PostgreSQL binding
 guards. Their operator installation refuses inconsistent existing rows. Content
 IDs and action bindings cannot change, and campaign revision snapshots must
@@ -155,7 +172,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/permanent` | DELETE | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/preview-url` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/publish` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]/publish` | POST | core | campaign_pages canonical ULID: System Admin plus fresh Core publication approval; no backdating | Stored action_id, exact revision parents, Core-evaluated current publication window |
 | `/_emdash/api/content/[collection]/[id]/restore` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/revisions` | GET | core | campaign_pages canonical ULID: System Admin only; otherwise denied | Stored parent content action_id |
 | `/_emdash/api/content/[collection]/[id]/schedule` | DELETE, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |

@@ -961,6 +961,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
 
 def charity_action_response(action: CharityAction) -> CharityActionResponse:
     return CharityActionResponse(
+        is_published=action.is_published_at(datetime.now(timezone.utc)),
         id=action.id,
         carrier_name=action.carrier_name,
         name=action.name,

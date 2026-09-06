@@ -1015,6 +1015,20 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       and update cannot change `action_id`.
 - [ ] Ensure publication cannot make a microsite publicly available unless Core
       reports the referenced action as publishable under existing Core rules.
+- [x] Gate canonical System Admin CMS publish requests on a fresh authenticated
+      Core action read. Expose Core's existing `is_published_at` result as the
+      derived `isPublished` response field and regenerate the typed API contract.
+      Keep publication logic and its clock in Core; reject CMS backdating and
+      scheduling options. Promote the existing draft through the original runtime
+      inside a locked transaction with exact revision-parent checks.
+      The real `campaign-runtime` proof passed active-window promotion, future/
+      expired/absent-window denial, draft/scheduled/completed/archived denial,
+      unchanged history, a subsequent private draft, post-publish Core withdrawal,
+      denied actors, and deferred-commit rollback (6 September 2026).
+      Two fixture errors were corrected without weakening Core guards: an
+      archived action cannot reactivate, and new actions need beneficiaries.
+      Anonymous rendering, scheduling, Charity publishing and complete operation
+      isolation remain pending; this does not close the public-delivery gate.
 
 Verification:
 

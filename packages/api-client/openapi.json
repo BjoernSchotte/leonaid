@@ -1849,6 +1849,10 @@
             "title": "Id",
             "type": "string"
           },
+          "isPublished": {
+            "title": "Ispublished",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1904,6 +1908,7 @@
           }
         },
         "required": [
+          "isPublished",
           "id",
           "carrierName",
           "name",

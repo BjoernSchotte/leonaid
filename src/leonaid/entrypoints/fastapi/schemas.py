@@ -717,6 +717,7 @@ class CreateCharityActionRequest(TransportModel):
 
 
 class CharityActionResponse(TransportModel):
+    is_published: bool
     id: UUID
     carrier_name: str
     name: str

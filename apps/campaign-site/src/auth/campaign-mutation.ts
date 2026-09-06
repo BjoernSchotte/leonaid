@@ -61,7 +61,7 @@ export async function mutateCampaignAtomically(
   id: string,
   actor: { coreUserId: string; cmsUserId: string },
   mutate: () => Promise<Result>,
-  effect: "new-draft" | "discard-draft" = "new-draft",
+  effect: "new-draft" | "discard-draft" | "publish" = "new-draft",
 ): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
@@ -80,13 +80,25 @@ export async function mutateCampaignAtomically(
         throw new Error("campaign_actor_mapping_mismatch");
       const entry = await sql<{
         draft_revision_id: string | null;
-      }>`SELECT draft_revision_id FROM public.ec_campaign_pages
+        live_revision_id: string | null;
+      }>`SELECT draft_revision_id, live_revision_id FROM public.ec_campaign_pages
         WHERE id=${id} AND deleted_at IS NULL FOR UPDATE`.execute(transaction);
       if (!entry.rows.length)
         throw new RejectedMutation({
           success: false,
           error: { code: "NOT_FOUND", message: "Content not found" },
         });
+      for (const revisionId of new Set([
+        entry.rows[0].draft_revision_id,
+        entry.rows[0].live_revision_id,
+      ])) {
+        if (revisionId === null) continue;
+        const linked = await sql`SELECT id FROM public.revisions
+          WHERE id=${revisionId} AND collection='campaign_pages' AND entry_id=${id}
+          FOR SHARE`.execute(transaction);
+        if (linked.rows.length !== 1)
+          throw new Error("campaign_revision_pointer_invalid");
+      }
       const tasks = deferredTracker();
       return runWithContext(
         {
@@ -103,6 +115,17 @@ export async function mutateCampaignAtomically(
             // for revision insertion, pointer updates and schema validation.
             const result = await mutate();
             if (!result.success) throw new RejectedMutation(result);
+            if (effect === "publish") {
+              const published =
+                await sql`SELECT id FROM public.ec_campaign_pages
+                WHERE id=${id} AND status='published' AND draft_revision_id IS NULL
+                AND live_revision_id IS NOT NULL AND deleted_at IS NULL`.execute(
+                  transaction,
+                );
+              if (published.rows.length !== 1)
+                throw new Error("campaign_publish_failed");
+              return result;
+            }
             if (effect === "discard-draft") {
               const cleared = await sql`SELECT id FROM public.ec_campaign_pages
                 WHERE id=${id} AND draft_revision_id IS NULL AND deleted_at IS NULL`.execute(

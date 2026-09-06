@@ -26,3 +26,10 @@ const discard = new RegExp(
 export function isCampaignDiscardRoute(path, method) {
   return method === "POST" && discard.test(path);
 }
+
+const publish = new RegExp(
+  `^/_emdash/api/content/campaign_pages/${id}/publish$`,
+);
+export function isCampaignPublishRoute(path, method) {
+  return method === "POST" && publish.test(path);
+}

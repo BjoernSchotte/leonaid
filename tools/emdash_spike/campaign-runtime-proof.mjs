@@ -76,6 +76,9 @@ async function call(
 const root = "/_emdash/api/content/campaign_pages";
 if (guardUnavailable) {
   await call(root, 503);
+  await call(`${root}/00000000000000000000000000/publish`, 503, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000/compare`, 503);
   await call(`${root}/00000000000000000000000000/discard-draft`, 503, {
     method: "POST",
@@ -89,6 +92,9 @@ if (guardUnavailable) {
   });
 } else if (revoked) {
   await call(root, 401);
+  await call(`${root}/00000000000000000000000000/publish`, 401, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000/compare`, 401);
   await call(`${root}/00000000000000000000000000/discard-draft`, 401, {
     method: "POST",
@@ -100,6 +106,82 @@ if (guardUnavailable) {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
+} else if (
+  process.argv.some((argument) =>
+    ["--publish", "--publish-denied", "--publish-failure"].includes(argument),
+  )
+) {
+  const denied = process.argv.includes("--publish-denied");
+  const failed = process.argv.includes("--publish-failure");
+  const listing = await call(root, 200);
+  assert.equal(listing.data.total, 6);
+  assert.equal(listing.data.items.length, 6);
+  for (const entry of listing.data.items) {
+    const entryDenied =
+      denied || entry.data.action_id !== "20000000-0000-4000-8000-000000000001";
+    const path = `${root}/${entry.id}`;
+    const before = await call(path, 200);
+    const history = await call(`${path}/revisions`, 200);
+    const coreResponse = await fetch(
+      `http://api:8000/api/v1/actions/${entry.data.action_id}`,
+      {
+        headers: { Cookie: `__Host-leonaid_session=${tokens.system}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    assert.equal(coreResponse.status, 200);
+    assert.equal(coreResponse.headers.get("cache-control"), "no-store");
+    assert.equal((await coreResponse.json()).isPublished, !entryDenied);
+    for (const options of [
+      { token: null },
+      { token: tokens.charity },
+      { origin: "https://attacker.invalid" },
+      { marker: false },
+    ]) {
+      await call(`${path}/publish`, options.token === null ? 401 : 403, {
+        method: "POST",
+        ...options,
+      });
+    }
+    await call(`${path}/publish`, 403, {
+      method: "POST",
+      body: { publishedAt: "2020-01-01T00:00:00Z" },
+    });
+    assert.deepEqual(await call(path, 200), before);
+    await call(`${path}/publish`, entryDenied ? 403 : failed ? 503 : 200, {
+      method: "POST",
+    });
+    const after = await call(path, 200);
+    if (entryDenied || failed) {
+      assert.deepEqual(after, before);
+      assert.deepEqual(await call(`${path}/revisions`, 200), history);
+    } else {
+      assert.equal(after.data.item.status, "published");
+      assert.equal(after.data.item.draftRevisionId, null);
+      assert.equal(
+        after.data.item.liveRevisionId,
+        before.data.item.draftRevisionId,
+      );
+      assert.deepEqual(after.data.item.data, before.data.item.data);
+      assert.equal(after.data.item.authorId, before.data.item.authorId);
+      assert.deepEqual(await call(`${path}/revisions`, 200), history);
+      // A later edit remains a private draft; Core withdrawal is tested next.
+      await call(path, 200, {
+        method: "PUT",
+        body: {
+          _rev: after.data._rev,
+          data: { title: "synthetic unpublished follow-up" },
+        },
+      });
+      const staged = await call(path, 200);
+      assert.deepEqual(staged.data.item.liveData, after.data.item.data);
+      assert.notDeepEqual(staged.data.item.data, staged.data.item.liveData);
+    }
+  }
+  console.log(
+    `campaign-runtime: Core publication ${denied ? "denial" : failed ? "commit rollback" : "promotion and subsequent private draft"} passed`,
+  );
 } else if (process.argv.includes("--discard-failure")) {
   const listing = await call(root, 200);
   const path = `${root}/${listing.data.items[0].id}`;
