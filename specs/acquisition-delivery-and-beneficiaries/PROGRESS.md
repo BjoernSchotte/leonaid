@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Delivery extras removed by subject anonymization — 2026-09-06
+
+The requirement audit found that the existing privacy anonymizer replaced address fields but retained the new delivery contact name, phone and instructions. Updated only the delivery snapshot expression to remove those three JSON keys before applying the existing anonymized address. Billing and legally retained invoice/document records keep their established handling.
+
+The real privacy fixture adds synthetic contact/phone/multiline-instruction values to an existing operational order. After the authenticated System Admin browser flow performs lookup, export, suppression and anonymization, PostgreSQL assertions require all three keys to be absent. Existing invoice/document hash, authorization, fresh-login and suppression checks remain intact. The export remains the existing reference-based report; this change does not invent a new export format.
+
+`./leonaid test-privacy` passed with project `leonaid-362a-delivery-privacy-20260906a`, ports 18267/18667 and the explicit worktree network override newly supported by this gate. The browser check passed in 2.9 seconds and the final database contract passed. Ruff/Mypy, shell syntax and diff checks pass. The gate cleaned up its own resources. Integrated ordering and EmDash acceptance remain open.
+
 ## Buyer-switch isolation in acquisition capture — 2026-09-06
 
 Extended the real acquisition browser journey to fill delivery address/contact/phone/instructions, choose a window and enter separate invoice street/email, then switch to another authorized sponsor and back. The UI clears private delivery and invoice drafts, resets date selection and restores address reuse; previous values do not reappear on return. Existing implementation passed without a source change. The same journey then creates the normal order and proves retirement/retry recovery.

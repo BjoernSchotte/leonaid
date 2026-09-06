@@ -409,7 +409,9 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                         END,
                         delivery_recipient_snapshot = CASE
                             WHEN delivery_recipient_snapshot IS NULL THEN NULL
-                            ELSE delivery_recipient_snapshot || $3::jsonb
+                            ELSE (delivery_recipient_snapshot
+                                - 'contactName' - 'contactPhone' - 'instructions')
+                                || $3::jsonb
                         END,
                         message_snapshot = NULL,
                         updated_at = $4
