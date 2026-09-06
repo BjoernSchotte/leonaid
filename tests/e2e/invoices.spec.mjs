@@ -446,9 +446,49 @@ async function completeDeliveryInBrowser(browser, cookies) {
         name: "Eigene Eingaben auf diesen Stand übernehmen",
       })
       .click();
-    await form
-      .getByRole("button", { name: "Ergänzen und prüfbereit speichern" })
-      .click();
+    const completionUrl = `${root}/commitments/${order.id}/delivery-completion`;
+    let acceptedCompletion;
+    let submittedKey;
+    let interceptedCompletions = 0;
+    const loseCompletionResponse = async (route) => {
+      interceptedCompletions += 1;
+      submittedKey = route.request().headers()["idempotency-key"];
+      const accepted = await route.fetch();
+      expect(accepted.ok()).toBeTruthy();
+      acceptedCompletion = await accepted.json();
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: {
+          code: "response_unavailable",
+          requestId: "completion-response-loss-proof",
+          message: "Die Antwort konnte nicht zugestellt werden.",
+        } }),
+      });
+    };
+    await page.route(completionUrl, loseCompletionResponse);
+    const saveCompletion = form.getByRole("button", {
+      name: "Ergänzen und prüfbereit speichern",
+    });
+    await saveCompletion.click();
+    await expect(form.getByRole("alert")).toContainText("nicht zugestellt");
+    const deliveryName = form.getByLabel("Firma / Empfänger", { exact: true });
+    await expect(deliveryName).toHaveValue("Lieferkontakt UI");
+    await deliveryName.fill("Geänderte unbekannte Übermittlung");
+    await saveCompletion.click();
+    await expect(form.getByRole("alert")).toContainText("Ausgang der letzten Übermittlung ist unklar");
+    expect(interceptedCompletions).toBe(1);
+    await deliveryName.fill("Lieferkontakt UI");
+    await page.unroute(completionUrl, loseCompletionResponse);
+    const [retried] = await Promise.all([
+      page.waitForResponse((response) => response.url() === completionUrl && response.request().method() === "POST"),
+      saveCompletion.click(),
+    ]);
+    expect(retried.ok()).toBeTruthy();
+    expect(retried.request().headers()["idempotency-key"]).toBe(submittedKey);
+    const replayedCompletion = await retried.json();
+    expect(replayedCompletion.id).toBe(acceptedCompletion.id);
+    expect(replayedCompletion.deliveryCompletionVersion).toBe(acceptedCompletion.deliveryCompletionVersion);
     await expect(form).toHaveCount(0);
     await expect(row).toContainText("Prüfbereit");
     await expect(

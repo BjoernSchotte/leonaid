@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Completion retry after accepted update and lost response — 2026-09-06
+
+Extended the actual administrator completion journey after its existing concurrent-edit comparison/reconciliation. The browser route first forwards the completion POST to the real server and confirms acceptance, then returns a synthetic 503 response to the browser. The open form retains its delivery recipient. Editing the recipient and submitting is blocked locally while the prior outcome is unknown; the test verifies only one request reached the interception. Restoring the original input and retrying sends the same Idempotency-Key and returns the originally accepted order ID and deliveryCompletionVersion. The form then closes, review-ready state and restored focus are checked, and the existing saved contact/invoice/window readback continues.
+
+The full `./leonaid test-invoices` run in isolated project `leonaid-362a-delivery-invoice-20260906b`, ports 18266/18666 and worktree subnet override, passed the expanded browser journey in 14.4 seconds. Existing invoice contract, Fresh Login, finance view and Twenty checks pass; final delivery HTTP proof verifies authenticated completion, exact replay/version conflict, the actual issued invoice recipient and immutable invoiced order. This closes the browser-level unknown-response gap for legacy completion without changing production code. Integrated EmDash and remaining acceptance items stay open.
+
 ## Core contract audit and fresh foundation verification — 2026-09-06
 
 Re-read the actual shared policy chain: `DeliveryConfiguration.form_definition()` in `src/leonaid/domain/delivery.py` defines required delivery address/window, optional contact/instructions and limits. `delivery_order_form_response()` in `src/leonaid/entrypoints/fastapi/routes.py` adds timezone, revision and eligible windows. Action configuration, acquisition capture and published public alias resolution call that same projection. The public route only obtains it after its publication/legal submission gate. Both internal and public PostgreSQL creation paths call `select_order_window()` for transactional enforcement rather than trusting browser fields. This source audit complements the already recorded same-action Admin-to-both-forms live order and stale-selection journey.
