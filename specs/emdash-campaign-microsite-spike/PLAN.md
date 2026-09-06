@@ -1139,6 +1139,14 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       server-side authorization and draft defaults remain authoritative. This
       is a technical System Admin workflow with manual UUID/slug entry, not
       completion of campaign-aware LeonAid navigation or Charity onboarding.
+      Quality gate: `./leonaid check` passed on `5128c1b` with 208 unit tests,
+      242 Python source-file checks, API parity, frontend/CMS type checks,
+      formatting and privacy/policy checks; the worktree remained unchanged.
+      `campaign-runtime` also passed in isolated project
+      `leonaid-emdash-tmp-hjgmrlfeon`, including rejection of nonempty bylines
+      and a different valid UUID slug, prior mutation/publication/rollback
+      regressions, revoked-session denial, sanitized creation-failure logging
+      and TLS restart/database-failure checks. Owned resources were removed.
 - [x] Gate canonical System Admin CMS publish requests on a fresh authenticated
       Core action read. Expose Core's existing `is_published_at` result as the
       derived `isPublished` response field and regenerate the typed API contract.
