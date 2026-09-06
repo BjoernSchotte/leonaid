@@ -1,7 +1,7 @@
 # EmDash spike decisions
 
-Status: dependency and closed-runtime checkpoints passed; database, authorization
-and public campaign delivery remain unproven.
+Status: dependency, closed-runtime and PostgreSQL checkpoints passed; storage,
+authorization and public campaign delivery remain unproven.
 
 ## Dependency baseline (EMS-000)
 
@@ -11,7 +11,7 @@ and public campaign delivery remain unproven.
 - Integrity: `sha512-a/lldbDMig8z3WycPliHwZ2VwFQl9ewT9OMvK9/2gvbzoJOXXUF73KTK7AThSss5SbT1oj0h9exGa/GyIr3vAw==`.
 - Astro `7.1.3`, Node `22.23.0`, Bun `1.2.19`: existing repository versions.
 - Node adapter `11.0.2`, React adapter `5.0.7`, React/React DOM `19.2.8`.
-- PostgreSQL driver `pg@8.16.3` (MIT). Real PostgreSQL proof is still pending.
+- PostgreSQL driver `pg@8.16.3` (MIT), verified with the actual EmDash adapter.
 - `kysely@0.29.5` is explicitly pinned for the real EmDash migration proof.
 - The S3 adapter imports packages not declared by EmDash itself. Explicitly add
   `@aws-sdk/client-s3@3.1127.0` and `@aws-sdk/s3-request-presigner@3.1127.0`
@@ -87,3 +87,16 @@ dependency, build, database, browser, authorization and recovery gates.
 - The PostgreSQL test creates a unique Compose project with internal `cms-data`
   and `core-data` networks and its own volume, checks for project collisions
   before startup, publishes no ports, and cleans only its own resources.
+- `./leonaid check` passed again at PostgreSQL checkpoint commit `08e2169`:
+  206 unit tests, all existing quality gates plus CMS type/format checks, and
+  an unchanged worktree. This does not prove the outstanding RustFS/auth gates.
+
+## Next storage proof
+
+Use the native signed RustFS admin API for scoped credentials and policy
+bindings, as described in the official
+[IAM documentation](https://docs.rustfs.com/en/security-compliance/iam/policies).
+The documented user/policy endpoints are under `/rustfs/admin/v3`. Verify their
+behavior against the pinned beta.11 image; documentation alone is not evidence
+of a successful provision or a working least-privilege policy. Test own-bucket
+object operations, denied unrelated bucket access and denied admin operations.
