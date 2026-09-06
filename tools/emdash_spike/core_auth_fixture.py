@@ -77,8 +77,8 @@ async def main() -> None:
                 "archived",
             }:
                 raise ValueError("unknown publication fixture state")
-            starts = now - timedelta(days=1)
-            ends = now + timedelta(days=1)
+            starts: datetime | None = now - timedelta(days=1)
+            ends: datetime | None = now + timedelta(days=1)
             if mode == "future":
                 starts, ends = now + timedelta(days=1), now + timedelta(days=2)
             elif mode == "expired":
