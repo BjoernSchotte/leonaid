@@ -159,7 +159,7 @@ Dependencies: DEL-01.
 - [ ] Add authorized schedule reads/writes and revision conflict handling.
 - [ ] Wire effective form definitions through action persistence, admin configuration, capture context, public projections, and server validation for both order channels.
 - [ ] Extend internal/public order creation, readback, review transitions, legacy-order completion, and idempotency.
-- [ ] Implement transactional availability checks and protect referenced windows from mutation.
+- [x] Implement transactional availability checks and protect referenced windows from mutation. Evidence: both acquisition/public booking-retirement races and reference protection in `PROGRESS.md`.
 - [ ] Regenerate API client and prove action/party authorization remains enforced.
 
 ### DEL-03 — Action configuration UI

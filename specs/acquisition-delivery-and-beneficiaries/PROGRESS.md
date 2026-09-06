@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Public booking/retirement concurrency checkpoint — 2026-09-06
+
+The deterministic PostgreSQL proof now exercises both the acquisition repository and `AsyncpgPublicOrderRepository.order_command` / `record_order` / `complete`. It configures a synthetic published action and runs retirement-first and booking-first for each channel, observing real PostgreSQL blocking before releasing the first transaction.
+
+All four cases pass. Retirement-first produces `delivery_window_unavailable` and persists no order. Booking-first stores exactly one order and allows later retirement; exact replay retains its ID, delivery recipient and immutable window snapshot. Public replay additionally leaves exactly one consent record and one `public_order_received` activity. The public command-receipt path is used rather than substituting direct inserts for order creation.
+
+`tools/delivery/test-foundation.sh` passed in its own ephemeral PostgreSQL container/network with no host port or shared volumes, including all existing migration, schedule, template and order checks. Focused Ruff and Mypy pass. This test-only checkpoint closes the separately forced public repository race left open in the preceding entry. HTTP/browser transport and CRM matching were proven by the preceding full public-order gate; this repository race does not repeat those boundaries. Legacy order completion/review/invoice safeguards, remaining form/admin edge cases and EmDash/integrated visual acceptance remain open.
+
 ## Booking/retirement concurrency checkpoint — 2026-09-06
 
 A deterministic real PostgreSQL race exposed a correctness bug: acquisition creation starts a Serializable transaction before waiting for the action lock. Schedule saves lock that action but update the separate delivery configuration row. After retirement committed, a waiting booking could therefore retain its earlier snapshot and accept the retired window. The pre-fix live proof reproduced an invalid persisted review-ready order.
