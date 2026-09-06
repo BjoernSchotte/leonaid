@@ -6,6 +6,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { SurveyAnalytics, englishAnalytics } from "@leonaid/surveys/analytics";
 import { aggregateApprovedSurvey } from "@leonaid/surveys/analysis";
 const versions = {
   "@leonaid/surveys": "0.0.0",
@@ -45,7 +48,9 @@ const map = JSON.parse(readFileSync("dist/client.js.map", "utf8"));
 assert(map.sources.some((source) => source.includes("surveys/src/runner")));
 assert(
   !map.sources.some((source) =>
-    /surveys\/src\/(editor|conditions|validation-candidate|analysis)/.test(source),
+    /surveys\/src\/(editor|conditions|validation-candidate|analysis|analytics)/.test(
+      source,
+    ),
   ),
   "Authoring or server modules leaked into respondent bundle",
 );
@@ -62,17 +67,65 @@ const proof = {
   editorInRespondentBundle: false,
   analysisInRespondentBundle: false,
   packedAnalysisVerified: true,
+  packedAnalyticsVerified: true,
+  analyticsInRespondentBundle: false,
 };
-const [rating, text] = aggregateApprovedSurvey({pages:[{name:"one",elements:[
-  {type:"rating",name:"nps",rateMin:0,rateMax:10},
-  {type:"comment",name:"comment"},
-]}]}, [{nps:10,comment:"PRIVATE_CONSUMER_TEXT"},{nps:9},{nps:0},{}]);
+const [rating, text] = aggregateApprovedSurvey(
+  {
+    pages: [
+      {
+        name: "one",
+        elements: [
+          { type: "rating", name: "nps", rateMin: 0, rateMax: 10 },
+          { type: "comment", name: "comment" },
+        ],
+      },
+    ],
+  },
+  [{ nps: 10, comment: "PRIVATE_CONSUMER_TEXT" }, { nps: 9 }, { nps: 0 }, {}],
+);
 assert.equal(rating.answered, 3);
 assert.equal(rating.unanswered, 1);
 assert(Math.abs(rating.nps - 100 / 3) < 1e-9);
 assert.equal(text.answered, 1);
 assert.deepEqual(text.counts, []);
-assert(!JSON.stringify([rating,text]).includes("PRIVATE_CONSUMER_TEXT"));
+assert(!JSON.stringify([rating, text]).includes("PRIVATE_CONSUMER_TEXT"));
+const rendered = renderToStaticMarkup(
+  createElement(SurveyAnalytics, {
+    snapshot: {
+      id: "consumer-snapshot",
+      surveyId: "consumer",
+      createdAt: "2026-09-07T00:00:00Z",
+      filter: {
+        versionId: "consumer-version",
+        statuses: ["partial", "completed"],
+        isTest: false,
+        createdFrom: null,
+        createdBefore: null,
+      },
+      versionNumber: 1,
+      rendererVersion: "3.0.3",
+      capabilityProfile: "initial-v1",
+      participationCount: 4,
+      statusCounts: { in_progress: 2, partial: 3, completed: 1 },
+      lastPageCounts: [{ pageId: "one", title: "One", count: 4 }],
+      questions: [rating, text],
+    },
+    messages: {
+      ...englishAnalytics,
+      heading: "Independent results",
+      nps: "Independent NPS",
+    },
+    locale: "en",
+  }),
+);
+assert(
+  rendered.includes("Independent results") &&
+    rendered.includes("Independent NPS"),
+);
+assert(rendered.includes("33.33") && rendered.includes("<table"));
+assert(!rendered.includes("PRIVATE_CONSUMER_TEXT"));
+assert(existsSync("node_modules/@leonaid/surveys/src/analytics.css"));
 writeFileSync("package-proof.json", JSON.stringify(proof, null, 2));
 console.log(
   "PASS: packed independent consumer, exact permissive dependencies, font notices and respondent bundle boundary",

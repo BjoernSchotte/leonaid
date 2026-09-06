@@ -3,7 +3,7 @@
 Implementation in progress; the public package name and own OSS license remain
 UNDEFINED. The private package manifest uses UNLICENSED until that decision.
 The package now exposes initial contracts, a React respondent runner and scoped
-styles, plus an initial independent visual editor. Analytics and the remaining
+styles, an initial independent visual editor and aggregate charts/tables. The remaining
 authoring capabilities are still pending; this is not the accepted full spike.
 
 ## Host adapter protocol v1
@@ -164,7 +164,7 @@ runner to persistence. This package does not import LeonAid's API client, UI,
 identity or domain modules. Own license decision: **UNDEFINED**; the package is
 private and is not being published.
 
-Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `styles`, `editor-styles`. The current
+Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `styles`, `editor-styles`, `analytics-styles`. The current
 spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
 React and React DOM are peer dependencies. Import the runner stylesheet once;
 the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
@@ -208,3 +208,22 @@ The initial NPS convention is the 0–10 rating template with step 1. It compute
 detractors. Zero answered yields null, not zero. Other scales have no NPS metric.
 Sum and bucket counts are retained for future host batch combination; do not
 average batch percentages, means or NPS values without their denominators.
+
+## Aggregate result components
+
+Import `SurveyAnalytics` from `@leonaid/surveys/analytics` and its separate
+`@leonaid/surveys/analytics-styles` stylesheet. Supply an authorized immutable
+`AnalysisSnapshot`; the component never fetches responses or calculates question
+aggregates in the browser. `messages` accepts the complete `AnalyticsMessages`
+contract (English by default), and `locale` controls numeric formatting.
+
+The view provides choice/rating and matrix bars, numeric/NPS summaries,
+per-question denominators, separate scoped status counts, last-page counts and
+keyboard-accessible equivalent tables. Host CSS variables `--survey-accent`,
+`--survey-border` and `--survey-track` control colors. The host supplies version,
+date, status and test-data filters and all authorization. Raw-response views and
+exports are separate capabilities and are not provided by this component.
+
+Charts use scoped CSS without another runtime dependency. This entrypoint does
+not import the SurveyJS engine or host code and remains outside the respondent
+bundle. Own license remains UNDEFINED.

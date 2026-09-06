@@ -15,7 +15,9 @@
     "./runner": "./src/runner.tsx",
     "./styles": "./src/styles.css",
     "./editor": "./src/editor.tsx",
-    "./editor-styles": "./src/editor.css"
+    "./editor-styles": "./src/editor.css",
+    "./analytics": "./src/analytics.tsx",
+    "./analytics-styles": "./src/analytics.css"
   },
   "dependencies": {
     "survey-core": "3.0.3",

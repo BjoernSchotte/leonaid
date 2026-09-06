@@ -216,15 +216,15 @@ a substitute for completing an individual task.
 
 ## SURV-070 — Aggregates, charts and filters
 
-- [ ] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators.
+- [x] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators.
 
-  Acceptance criteria: **070.A1, 070.A2, 070.A3**.
+  Acceptance criteria: **070.A1, 070.A2, 070.A3**. [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
   Integration / supporting checks: **070.S1, 070.S2**.
   E2E: **070.S3**.
 
-- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values.
+- [x] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values.
 
-  Acceptance criteria: **070.A1, 070.A3**.
+  Acceptance criteria: **070.A1, 070.A3**. [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
   Integration / supporting checks: **070.S1**.
   E2E: **070.S3**.
 

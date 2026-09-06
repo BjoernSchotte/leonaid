@@ -2,18 +2,19 @@
 
 The initial engine increment started at baseline `0ac8da1` on 2026-09-07.
 The snapshot increment below starts at `29a33f7`. **070.A1 / 070.A2 and their
-integration scenarios are accepted.** Complete implementation tasks remain open
-for analysis UI/chart and separately authorized raw-response integration.
+integration scenarios are accepted.** The later UI increment below also accepts
+070.A3 / 070.S3 and tasks 070.1 / 070.2. Separately authorized raw-response
+integration remains open.
 
 ## Task ledger
 
 | Task | Delivered building block | Remaining acceptance |
 |---|---|---|
-| 070.1 | Strict DTOs, immutable PostgreSQL snapshots, authorized status/version/date/test selection and actual worker-delay consistency | A1/A2 accepted; A3 analysis UI remains open |
-| 070.2 | Neutral engine and bounded adapter, golden data, host batch combination and real selected-version snapshot API | A1 accepted; A3 browser charts remain open |
-| 070.3 | No delivery claim | Custom charts, accessible tables, separately authorized raw/free-text views; A2/A3/A4 |
+| 070.1 | Strict DTOs, immutable PostgreSQL snapshots, authorized filters, worker-delay consistency and real member filter UI | Accepted: A1/A2/A3 and S1/S2/S3 |
+| 070.2 | Neutral engine, batch combination, golden snapshot API and chart/table UI | Accepted: A1/A3 and S1/S3 |
+| 070.3 | Custom charts and accessible tables delivered | Raw/free-text views and their authorization E2E remain open under A4 |
 | 070.T1 | Engine and actual API golden data, aggregate-only/foreign/action/test scope rejection, immutable snapshot and batching/limit checks | Accepted for A1/A2; broader module capabilities remain tracked by SURV-060 |
-| 070.T2 | Existing packed-consumer and infrastructure regression only | Actual analysis filter/chart/table and raw-route-denial E2E journeys |
+| 070.T2 | Actual analysis filters, chart/table values, empty states and keyboard tables pass | Raw-route-denial E2E remains open under A4 |
 
 ## Aggregate semantics
 
@@ -238,8 +239,92 @@ routes. Source and test Ruff checks and `git diff --check` passed.
 
 ## Remaining acceptance
 
-070.A3/A4 and the complete 070.1/070.2/070.3 tasks remain open for custom charts,
-accessible equivalent tables, actual analysis filter UI and separately authorized
-individual/free-text routes. The private raw projection is not itself a delivered
+After the UI increment below, 070.A4, 070.T2 and task 070.3 remain open for
+separately authorized individual/free-text routes and their E2E denial journeys. The private raw projection is not itself a delivered
 raw-response view or export. Preview/test participation creation remains under
 060.4; this increment proves selection isolation using controlled database rows.
+
+## Analysis UI and neutral result components
+
+Baseline `91e9fbe` plus this increment. The first full browser run passed as
+`leonaid-surveys-833458328-22924` (two tests, 5.2s). The expanded
+`./leonaid test-surveys-analysis` run passed as
+`leonaid-surveys-833458328-24499`, exit **0**, two Chromium tests in **10.2s**.
+Both include the real snapshot API/PostgreSQL/worker assertions above and
+verified isolated teardown without published host ports.
+
+The LeonAid detail page provides **Antworten auswerten** only with
+`view_aggregates` on a non-deleted survey. Its version list and submissions use
+the generated client. Filters select a published version, partial/completed/
+in-progress states and a creation-time range with an explicit displayed time
+zone. Only designers see the test-data selector. Applied snapshot metadata stays
+visible independently of edits to the next filter request. Rejected permissions
+or lifecycle operations clear a previous result; an uncertain response retains
+the exact operation ID and body for an explicit retry.
+
+`@leonaid/surveys/analytics` renders `SurveyAnalytics` from the immutable
+server result, with host-supplied messages and number locale. It does not fetch
+raw answers or import the aggregate engine. Separate scoped CSS supplies choice,
+rating and matrix bars, numeric/NPS summaries, per-question denominators and
+last-page counts. Status counts describe the same version/date/test scope before
+the chosen status filter; selected participation count describes the displayed
+question aggregates. Each distribution has an equivalent native details/table
+view, keyboard-accessible without a mouse or chart tooltip. Multiple-selection
+denominators and the limited meaning of last-page counts are explained.
+
+### Browser assertions
+
+`tests/e2e/surveys-analytics.spec.mjs` runs through the actual member UI with a
+synthetic administrator at 1280 × 900 and then 390 × 844. It captures successful
+real API responses and compares visible counts, chart labels and every choice/
+rating/matrix table cell with that exact snapshot. It additionally checks:
+
+- Default status/test selection and separate pre-filter status counts.
+- A changed filter cannot silently relabel the previous immutable result.
+- Completed-only version one has one response and NPS 100; version two has one
+  response and NPS -100. Versions never merge implicitly.
+- A future date selection has zero participants, meaningful missing metrics and
+  an explanatory empty state without NaN values.
+- Including all statuses yields six responses and the golden NPS -50.
+- Keyboard Enter opens the NPS data table, with all values matching the chart.
+- The test forwards a successful snapshot creation but aborts its HTTP response.
+  Explicit retry sends the identical body and operation ID and receives the
+  already committed snapshot ID.
+- The mobile matrix/choice layout keeps labels and tables visible without
+  horizontal document overflow. Reading the initial snapshot again after these
+  subsequent requests returns the original result unchanged.
+
+These assertions prove **070.A3 / 070.S3**. The keyboard-table portion of A4
+also passes, but A4 and 070.T2 remain open until the real individually authorized
+response/free-text routes and their denial journeys are implemented.
+
+### Packed integration and visual review
+
+`./leonaid test-surveys-package` passed as
+`surveys-package-833458328-24580`, exit **0**, with both existing browser phases
+(2.9s and 1.0s) and successful isolated cleanup. The independent installed
+tarball renders the new analytics component with English host overrides using
+React server rendering, verifies NPS and table markup, and rejects private text
+in the output. Its respondent bundle excludes both analysis and analytics
+modules. This is a packed-component rendering proof, not a separate analytics
+browser journey in the demo. [Inventory and entrypoint evidence](assets/SURV-070-analytics-package.json).
+
+No runtime dependency was added for charts: bars use scoped CSS. Existing
+SurveyJS MIT/OFL handling remains unchanged; own license is UNDEFINED. The
+member TypeScript check and whitespace diff check pass.
+
+The initial desktop/mobile screenshots were inspected. A too-dark background
+track used the host's muted **text** token. It has been corrected to the host's
+`surface-muted` token. The final `./leonaid test-surveys-analysis` run passed as
+`leonaid-surveys-833458328-25376`, exit **0**, two Chromium tests in **9.4s**,
+with all API/worker assertions and verified cleanup. The corrected desktop/mobile
+bars and tables were visually inspected: zero tracks are visually distinct from
+filled answers and numeric labels remain legible.
+
+[Desktop NPS chart and table](assets/SURV-070-analytics-chart.png),
+[mobile multiselect chart and table](assets/SURV-070-analytics-mobile-chart.png).
+The desktop component capture temporarily makes the sticky host topbar static;
+the mobile capture retains it, obscuring the heading at the capture boundary
+but not the displayed chart/table values. This is a screenshot limitation, not
+a claim of a complete accessibility audit. The real browser keyboard/table and
+no-document-overflow assertions are separate from this visual review.

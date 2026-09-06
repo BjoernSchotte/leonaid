@@ -75,3 +75,13 @@ a lockfile or final distribution: neither exists for the new package yet.
 Track these gates in SURV-000, SURV-020 and final SURV-100 evidence in
 [PLAN.md](PLAN.md). No commercial fallback is permitted if our custom editor
 requires more effort; record the remaining work instead.
+
+### Initial chart implementation
+
+The initial choice/rating/matrix charts use independently implemented scoped
+CSS bars with equivalent HTML data tables in the neutral `analytics` entrypoint.
+No chart runtime package or commercial SurveyJS component is required. The
+packed-consumer check verifies the entrypoint and excludes it from the respondent
+bundle; [live UI and package evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
+Server-rendered report charts remain a separate SURV-080 deliverable. Own license
+remains UNDEFINED.

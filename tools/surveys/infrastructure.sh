@@ -94,6 +94,7 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = analysis ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
@@ -134,6 +135,7 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
 mkdir -p "$artifact"
 if [ "$mode" = analysis ]; then
   cp "$proof/survey-analysis-snapshot.json" "$artifact/"
+  cp "$proof"/surveys-analytics-*.png "$artifact/"
 fi
 if [ "$mode" = aggregates ]; then
   cp "$proof/surveys-aggregates.json" "$artifact/"

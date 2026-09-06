@@ -19,6 +19,7 @@ import type {
 } from "@leonaid/surveys/contracts";
 import "@leonaid/surveys/editor-styles";
 import "./surveys.css";
+import { SurveyAnalysis } from "./survey-analysis";
 
 const labels = {
   draft: "Entwurf",
@@ -858,6 +859,12 @@ export function SurveysPage({
               </details>
             )}
           </section>
+          {summary.status !== "deleted" && allowed("view_aggregates") && (
+            <details className="surveys-settings">
+              <summary>Antworten auswerten</summary>
+              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} />
+            </details>
+          )}
           {draft && (
             <SurveyEditor
               draft={draft}
