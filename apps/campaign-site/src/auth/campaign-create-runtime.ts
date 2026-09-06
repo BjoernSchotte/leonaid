@@ -4,6 +4,7 @@ import { deferredTracker } from "./campaign-mutation";
 import {
   readCoreIdentity,
   requireCoreCampaign,
+  requireCurrentCampaignActor,
   CoreIdentityError,
 } from "./core-identity";
 
@@ -43,7 +44,14 @@ export async function createCampaignWithRuntime(
           try {
             // Recheck current Core access after the serialization lock, immediately
             // before the original creator performs schema validation and writes.
-            await requireCoreCampaign(request, actionId);
+            await requireCurrentCampaignActor(
+              request,
+              {
+                coreUserId: profile.userId,
+                coreRole: profile.role,
+              },
+              actionId,
+            );
             return await creator(collection, normalized);
           } finally {
             tasks.settle();

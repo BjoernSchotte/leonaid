@@ -152,3 +152,26 @@ export async function requireCorePublication(
     throw new CoreIdentityError(503);
   }
 }
+
+// Revalidate after acquiring a CMS write lock: an earlier request profile must
+// not authorize a write that waited while Core revoked the session or role.
+export async function requireCurrentCampaignActor(
+  request: Request,
+  actor: { coreUserId: string; coreRole: number },
+  actionId: string,
+) {
+  const action = await requireCoreCampaign(request, actionId);
+  const current = await readCoreIdentity(request);
+  if (
+    current.userId !== actor.coreUserId ||
+    current.role !== actor.coreRole ||
+    (!current.globalRoles.includes("system_admin") &&
+      !current.actionMemberships.some(
+        (membership) =>
+          membership.role === "charity_admin" &&
+          membership.actionId === actionId,
+      ))
+  )
+    throw new CoreIdentityError(403);
+  return action;
+}

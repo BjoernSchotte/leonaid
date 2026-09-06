@@ -1,4 +1,14 @@
 services:
+  campaign-race-probe:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    working_dir: /workspace
+    networks: [edge, cms-data]
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: emdash
+      PGUSER: emdash
+      PGPASSWORD: ${CMS_POSTGRES_PASSWORD}
+    volumes: [../..:/workspace:ro]
   campaign-site:
     # This proof exercises authentication only; no object store is started.
     networks: !override [edge, cms-data]

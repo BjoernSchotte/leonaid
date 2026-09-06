@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -26,7 +26,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
-  rm -f "$proof/sessions.json" "$proof/cms-id" "$proof/root.crt"
+  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/cms-id" "$proof/root.crt"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -47,6 +47,8 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   assert.deepEqual(Object.keys(services["bootstrap-probe"].networks),["edge"]);
   assert.equal(services["bootstrap-operator"].network_mode,"none");
   assert.deepEqual(Object.keys(services["admin-browser"].networks),["edge"]);
+  assert.ok(!services["campaign-race-probe"].ports?.length);
+  assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
@@ -88,6 +90,9 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-runtime-proof.mjs "$@"
     }
     content_probe
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-races /proof/race-sessions.json
+    compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
+      node tools/emdash_spike/campaign-auth-race-proof.mjs
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs fail-discard
     content_probe --discard-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-discard
@@ -140,6 +145,12 @@ if [ "$mode" != auth ]; then
   if [ "$mode" = surface ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
       node tools/emdash_spike/authorization-surface-proof.mjs
+  fi
+  if [ "$mode" = race ]; then
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-races /proof/race-sessions.json
+    compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
+      node tools/emdash_spike/campaign-auth-race-proof.mjs
   fi
   if [ "$mode" = browser ]; then
     compose up --no-deps --build --detach --wait public

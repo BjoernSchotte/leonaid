@@ -47,6 +47,12 @@ export const onRequest = defineMiddleware(
       const user = locals.user;
       if (profile.role !== 50 || user?.role !== 50)
         throw new CoreIdentityError(403);
+      const actor = {
+        coreUserId: profile.userId,
+        cmsUserId: user.id,
+        coreRole: profile.role,
+        request,
+      };
       const emdash = locals.emdash;
       if (!emdash?.db) throw new CoreIdentityError(503);
       const database = emdash.db;
@@ -118,10 +124,7 @@ export const onRequest = defineMiddleware(
             // Native autosave requests may ask to overwrite a draft revision.
             // Retain an attributed revision for every accepted save instead.
             revisionedBody,
-            {
-              coreUserId: profile.userId,
-              cmsUserId: user.id,
-            },
+            actor,
           )
         );
       };
@@ -143,7 +146,7 @@ export const onRequest = defineMiddleware(
           emdash,
           collection,
           id,
-          { coreUserId: profile.userId, cmsUserId: user.id },
+          actor,
           async () => {
             // Withdrawal must remain possible after Core publication is closed.
             const result = await runtimeUnpublish(collection, id);
@@ -172,7 +175,7 @@ export const onRequest = defineMiddleware(
           emdash,
           collection,
           id,
-          { coreUserId: profile.userId, cmsUserId: user.id },
+          actor,
           async () => {
             await requireCorePublication(request, actionId);
             return runtimePublish(collection, id);
@@ -192,7 +195,7 @@ export const onRequest = defineMiddleware(
           emdash,
           collection,
           id,
-          { coreUserId: profile.userId, cmsUserId: user.id },
+          actor,
           () => runtimeDiscard(collection, id),
           "discard-draft",
         );
@@ -206,7 +209,7 @@ export const onRequest = defineMiddleware(
           emdash,
           "campaign_pages",
           access.data.item.entryId,
-          { coreUserId: profile.userId, cmsUserId: user.id },
+          actor,
           () => runtimeRestore(revisionId, user.id),
         );
       };

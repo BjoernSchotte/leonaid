@@ -19,14 +19,29 @@ async def main() -> None:
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     try:
         now = datetime.now(timezone.utc)
-        if sys.argv[1] == "prepare":
-            tokens = {
-                name: await create_session(connection, user_id, now=now)
-                for name, user_id in [
+        if sys.argv[1] in {"prepare", "prepare-races"}:
+            actors = (
+                [
+                    (operation, SYSTEM_ID)
+                    for operation in [
+                        "update",
+                        "restore",
+                        "discard",
+                        "publish",
+                        "unpublish",
+                        "create",
+                    ]
+                ]
+                if sys.argv[1] == "prepare-races"
+                else [
                     ("system", SYSTEM_ID),
                     ("charity", KLARA_ID),
                     ("finance", FINN_ID),
                 ]
+            )
+            tokens = {
+                name: await create_session(connection, user_id, now=now)
+                for name, user_id in actors
             }
             path = Path(sys.argv[2])
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

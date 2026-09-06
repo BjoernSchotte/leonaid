@@ -1,4 +1,5 @@
 import { sql } from "kysely";
+import { requireCurrentCampaignActor } from "./core-identity";
 import {
   getRequestContext,
   runWithContext,
@@ -7,6 +8,12 @@ import {
 
 type Updater = App.Locals["emdash"]["handleContentUpdate"];
 type Result = Awaited<ReturnType<Updater>>;
+type MutationActor = {
+  coreUserId: string;
+  cmsUserId: string;
+  coreRole: number;
+  request: Request;
+};
 
 class RejectedMutation extends Error {
   constructor(readonly result: Result) {
@@ -50,7 +57,7 @@ export async function updateCampaignAtomically(
   collection: string,
   id: string,
   body: Parameters<Updater>[2],
-  actor: { coreUserId: string; cmsUserId: string },
+  actor: MutationActor,
 ): Promise<Result> {
   return mutateCampaignAtomically(emdash, collection, id, actor, () =>
     updater(collection, id, body),
@@ -61,7 +68,7 @@ export async function mutateCampaignAtomically(
   emdash: App.Locals["emdash"],
   collection: string,
   id: string,
-  actor: { coreUserId: string; cmsUserId: string },
+  actor: MutationActor,
   mutate: () => Promise<Result>,
   effect: "new-draft" | "discard-draft" | "publish" | "unpublish" = "new-draft",
 ): Promise<Result> {
@@ -81,9 +88,10 @@ export async function mutateCampaignAtomically(
       if (mapping.rows.length !== 1)
         throw new Error("campaign_actor_mapping_mismatch");
       const entry = await sql<{
+        action_id: string;
         draft_revision_id: string | null;
         live_revision_id: string | null;
-      }>`SELECT draft_revision_id, live_revision_id FROM public.ec_campaign_pages
+      }>`SELECT action_id, draft_revision_id, live_revision_id FROM public.ec_campaign_pages
         WHERE id=${id} AND deleted_at IS NULL FOR UPDATE`.execute(transaction);
       if (!entry.rows.length)
         throw new RejectedMutation({
@@ -113,6 +121,14 @@ export async function mutateCampaignAtomically(
           if (emdash.db !== transaction)
             throw new Error("campaign_transaction_context_mismatch");
           try {
+            // Recheck after both content and revision locks, immediately before
+            // handing control to the original mutator. Never reuse the profile
+            // that was captured before a potentially blocking lock acquisition.
+            await requireCurrentCampaignActor(
+              actor.request,
+              actor,
+              entry.rows[0].action_id,
+            );
             // The updater checks _rev AFTER the row lock and uses this transaction
             // for revision insertion, pointer updates and schema validation.
             const result = await mutate();

@@ -13,9 +13,13 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime) ;;
+  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|campaign-auth-race) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
+
+if [ "$test_case" = campaign-auth-race ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" race
+fi
 
 if [ "$test_case" = all ] || [ "$test_case" = authorization-inventory ] || [ "$test_case" = authorization-surface ]; then
   docker run --rm --network none --workdir /workspace \
