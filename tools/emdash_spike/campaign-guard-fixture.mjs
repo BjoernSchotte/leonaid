@@ -54,6 +54,22 @@ try {
     await sql`DROP FUNCTION public.synthetic_reject_discard()`.execute(
       database,
     );
+  } else if (process.argv[2] === "fail-unpublish") {
+    await sql`CREATE FUNCTION public.synthetic_reject_unpublish() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic unpublish commit failure'; END $$`.execute(
+      database,
+    );
+    await sql`CREATE CONSTRAINT TRIGGER synthetic_reject_unpublish AFTER UPDATE
+      ON public.ec_campaign_pages DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+      WHEN (OLD.status='published' AND NEW.status='draft')
+      EXECUTE FUNCTION public.synthetic_reject_unpublish()`.execute(database);
+  } else if (process.argv[2] === "restore-unpublish") {
+    await sql`DROP TRIGGER synthetic_reject_unpublish ON public.ec_campaign_pages`.execute(
+      database,
+    );
+    await sql`DROP FUNCTION public.synthetic_reject_unpublish()`.execute(
+      database,
+    );
   } else {
     throw new Error("unknown synthetic fixture operation");
   }

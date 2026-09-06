@@ -69,6 +69,17 @@ and required beneficiaries. This is a CMS mutation gate, NOT an anonymous
 delivery proof or a lasting public-access grant: EMS-050 must recheck Core on
 every public page request, including withdrawal after a successful CMS publish.
 
+Canonical unpublish POSTs require the same current Core System Admin session,
+scope, Origin and request marker, but deliberately do not require an active Core
+publication window. An authorized operator must still be able to withdraw a CMS
+publication after Core closure. The original unpublisher runs atomically: an
+existing draft keeps its ID, data and author; without a draft, the live revision
+is copied to a new actor-attributed draft. Live pointer and publication timestamp
+must be cleared, and the response is hydrated from the preserved draft rather
+than echoing old live columns. The real HTTP proof covers both cases, repeat
+withdrawal, denied actors, missing guards, revoked sessions and rollback of a
+deferred commit error including removal of the provisional draft revision.
+
 The admitted read routes additionally require exact, enabled PostgreSQL binding
 guards. Their operator installation refuses inconsistent existing rows. Content
 IDs and action bindings cannot change, and campaign revision snapshots must
@@ -178,7 +189,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/content/[collection]/[id]/schedule` | DELETE, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/terms/[taxonomy]` | GET, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/translations` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/unpublish` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]/unpublish` | POST | core | campaign_pages canonical ULID: System Admin only; allowed after Core publication closure | Stored action_id and exact revision parents; atomic withdrawal preserving draft/history |
 | `/_emdash/api/content/[collection]/authors` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/trash` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/dashboard` | GET | core | Core System Admin GET only | Global/identity surface; no campaign authority implied |

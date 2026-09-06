@@ -61,7 +61,7 @@ export async function mutateCampaignAtomically(
   id: string,
   actor: { coreUserId: string; cmsUserId: string },
   mutate: () => Promise<Result>,
-  effect: "new-draft" | "discard-draft" | "publish" = "new-draft",
+  effect: "new-draft" | "discard-draft" | "publish" | "unpublish" = "new-draft",
 ): Promise<Result> {
   if (collection !== "campaign_pages" || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
     throw new Error("campaign_mutation_target_invalid");
@@ -115,6 +115,30 @@ export async function mutateCampaignAtomically(
             // for revision insertion, pointer updates and schema validation.
             const result = await mutate();
             if (!result.success) throw new RejectedMutation(result);
+            if (effect === "unpublish") {
+              const withdrawn = await sql<{
+                draft_revision_id: string | null;
+              }>`SELECT draft_revision_id
+                FROM public.ec_campaign_pages WHERE id=${id} AND status='draft'
+                AND live_revision_id IS NULL AND published_at IS NULL AND deleted_at IS NULL`.execute(
+                transaction,
+              );
+              if (withdrawn.rows.length !== 1)
+                throw new Error("campaign_unpublish_failed");
+              if (
+                entry.rows[0].draft_revision_id !== null ||
+                entry.rows[0].live_revision_id === null
+              ) {
+                if (
+                  withdrawn.rows[0].draft_revision_id !==
+                  entry.rows[0].draft_revision_id
+                )
+                  throw new Error("campaign_unpublish_draft_changed");
+                return result;
+              }
+              // Upstream created a draft from live: attribute that new revision
+              // below without rewriting the author of a preserved older draft.
+            }
             if (effect === "publish") {
               const published =
                 await sql`SELECT id FROM public.ec_campaign_pages

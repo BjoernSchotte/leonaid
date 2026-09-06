@@ -33,3 +33,10 @@ const publish = new RegExp(
 export function isCampaignPublishRoute(path, method) {
   return method === "POST" && publish.test(path);
 }
+
+const unpublish = new RegExp(
+  `^/_emdash/api/content/campaign_pages/${id}/unpublish$`,
+);
+export function isCampaignUnpublishRoute(path, method) {
+  return method === "POST" && unpublish.test(path);
+}

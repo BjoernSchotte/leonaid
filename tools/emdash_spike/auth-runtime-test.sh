@@ -110,6 +110,11 @@ if [ "$mode" != auth ]; then
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"
       content_probe --publish-denied
     done
+    content_probe --prepare-unpublish
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs fail-unpublish
+    content_probe --unpublish-failure
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore-unpublish
+    content_probe --unpublish
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     content_probe --revoked
     compose logs --no-color campaign-site | docker run --rm -i --network none "$NODE_IMAGE" \

@@ -9,6 +9,7 @@ import {
   isCampaignRestoreRoute,
   isCampaignDiscardRoute,
   isCampaignPublishRoute,
+  isCampaignUnpublishRoute,
 } from "./auth/campaign-routes.mjs";
 import {
   bootstrapIsArmed,
@@ -85,7 +86,8 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
     isCampaignUpdateRoute(url.pathname, request.method) ||
     isCampaignRestoreRoute(url.pathname, request.method) ||
     isCampaignDiscardRoute(url.pathname, request.method) ||
-    isCampaignPublishRoute(url.pathname, request.method);
+    isCampaignPublishRoute(url.pathname, request.method) ||
+    isCampaignUnpublishRoute(url.pathname, request.method);
   if (
     ((adminHome || adminRead) && request.method === "GET") ||
     campaignUpdate

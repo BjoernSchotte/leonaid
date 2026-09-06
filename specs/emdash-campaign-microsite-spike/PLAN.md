@@ -1036,6 +1036,15 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       publication run and separate surface project both removed their owned
       resources without publishing host ports; failed fixture runs were cleaned
       before replacement runs. No shared Core lifecycle guard was disabled.
+- [x] Admit canonical System Admin CMS unpublish requests even after Core's
+      publication window closes. Execute the original runtime unpublisher in
+      the locked transaction, preserve existing draft data/identity/authorship,
+      or create an attributed draft from live when none exists. Return hydrated
+      draft data and verify cleared live pointer/publication timestamp.
+      `campaign-runtime` passed both paths, unchanged prior history, repeat
+      withdrawal, continued republication denial after Core closure, denied
+      actors and full deferred-commit rollback (6 September 2026). Anonymous
+      page withdrawal and Charity access remain separate, pending gates.
 
 Verification:
 

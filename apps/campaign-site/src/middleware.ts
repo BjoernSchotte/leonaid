@@ -10,6 +10,7 @@ import {
   isCampaignRestoreRoute,
   isCampaignDiscardRoute,
   isCampaignPublishRoute,
+  isCampaignUnpublishRoute,
 } from "./auth/campaign-routes.mjs";
 import { authorizeCampaignUpdate } from "./auth/campaign-update.mjs";
 import {
@@ -32,7 +33,8 @@ export const onRequest = defineMiddleware(
       !isCampaignUpdateRoute(url.pathname, request.method) &&
       !isCampaignRestoreRoute(url.pathname, request.method) &&
       !isCampaignDiscardRoute(url.pathname, request.method) &&
-      !isCampaignPublishRoute(url.pathname, request.method)
+      !isCampaignPublishRoute(url.pathname, request.method) &&
+      !isCampaignUnpublishRoute(url.pathname, request.method)
     )
       return next();
     try {
@@ -50,6 +52,7 @@ export const onRequest = defineMiddleware(
       const runtimeRestore = emdash.handleRevisionRestore;
       const runtimeDiscard = emdash.handleContentDiscardDraft;
       const runtimePublish = emdash.handleContentPublish;
+      const runtimeUnpublish = emdash.handleContentUnpublish;
       // EmDash creates this object per request. Never mutate the shared runtime.
       emdash.handleContentList = (collection, parameters) =>
         listCampaignContent(database, profile, collection, parameters);
@@ -105,6 +108,28 @@ export const onRequest = defineMiddleware(
         getCampaignRevision(database, profile, id);
       emdash.handleContentCompare = (collection, id) =>
         compareCampaignContent(database, profile, collection, id);
+      emdash.handleContentUnpublish = async (collection, id) => {
+        const access = await getCampaignContent(
+          database,
+          profile,
+          collection,
+          id,
+        );
+        if (!access.success) return access;
+        return mutateCampaignAtomically(
+          emdash,
+          collection,
+          id,
+          { coreUserId: profile.userId, cmsUserId: user.id },
+          async () => {
+            // Withdrawal must remain possible after Core publication is closed.
+            const result = await runtimeUnpublish(collection, id);
+            // Preserve the existing draft in the response, not stale live columns.
+            return result.success ? runtimeGet(collection, id) : result;
+          },
+          "unpublish",
+        );
+      };
       emdash.handleContentPublish = async (collection, id, options) => {
         const access = await getCampaignContent(
           database,

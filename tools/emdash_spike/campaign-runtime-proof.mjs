@@ -76,6 +76,9 @@ async function call(
 const root = "/_emdash/api/content/campaign_pages";
 if (guardUnavailable) {
   await call(root, 503);
+  await call(`${root}/00000000000000000000000000/unpublish`, 503, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000/publish`, 503, {
     method: "POST",
   });
@@ -92,6 +95,9 @@ if (guardUnavailable) {
   });
 } else if (revoked) {
   await call(root, 401);
+  await call(`${root}/00000000000000000000000000/unpublish`, 401, {
+    method: "POST",
+  });
   await call(`${root}/00000000000000000000000000/publish`, 401, {
     method: "POST",
   });
@@ -106,6 +112,103 @@ if (guardUnavailable) {
     method: "PUT",
     body: { _rev: "synthetic", data: { title: "denied" } },
   });
+} else if (process.argv.includes("--prepare-unpublish")) {
+  const listing = await call(root, 200);
+  const published = listing.data.items.filter(
+    (item) => item.status === "published",
+  );
+  assert.equal(published.length, 4);
+  await call(`${root}/${published[0].id}/discard-draft`, 200, {
+    method: "POST",
+  });
+  assert.equal(
+    (await call(`${root}/${published[0].id}`, 200)).data.item.draftRevisionId,
+    null,
+  );
+} else if (
+  process.argv.includes("--unpublish") ||
+  process.argv.includes("--unpublish-failure")
+) {
+  const failed = process.argv.includes("--unpublish-failure");
+  const listing = await call(root, 200);
+  assert.equal(listing.data.items.length, 6);
+  const identity = await call("/_emdash/api/auth/me", 200);
+  let copied = 0;
+  let preserved = 0;
+  for (const entry of listing.data.items) {
+    if (failed && entry.status !== "published") continue;
+    const path = `${root}/${entry.id}`;
+    const before = await call(path, 200);
+    const history = await call(`${path}/revisions`, 200);
+    for (const options of [
+      { token: null },
+      { token: tokens.charity },
+      { origin: "https://attacker.invalid" },
+      { marker: false },
+    ]) {
+      await call(`${path}/unpublish`, options.token === null ? 401 : 403, {
+        method: "POST",
+        ...options,
+      });
+    }
+    assert.deepEqual(await call(path, 200), before);
+    const response = await call(`${path}/unpublish`, failed ? 503 : 200, {
+      method: "POST",
+    });
+    const after = await call(path, 200);
+    const needsCopy =
+      before.data.item.draftRevisionId === null &&
+      before.data.item.liveRevisionId !== null;
+    if (needsCopy) copied++;
+    else preserved++;
+    if (failed) {
+      assert.deepEqual(after, before);
+      assert.deepEqual(await call(`${path}/revisions`, 200), history);
+      continue;
+    }
+    assert.deepEqual(response.data.item.data, before.data.item.data);
+    assert.deepEqual(after.data.item.data, before.data.item.data);
+    assert.equal(after.data.item.authorId, before.data.item.authorId);
+    assert.equal(after.data.item.status, "draft");
+    assert.equal(after.data.item.liveRevisionId, null);
+    assert.equal(after.data.item.publishedAt, null);
+    assert.equal((await call(`${path}/compare`, 200)).data.live, null);
+    const afterHistory = await call(`${path}/revisions`, 200);
+    assert.equal(
+      afterHistory.data.total,
+      history.data.total + (needsCopy ? 1 : 0),
+    );
+    if (needsCopy) {
+      const revision = await call(
+        `/_emdash/api/revisions/${after.data.item.draftRevisionId}`,
+        200,
+      );
+      assert.equal(revision.data.item.authorId, identity.data.id);
+      assert.deepEqual(revision.data.item.data, before.data.item.data);
+    } else {
+      assert.equal(
+        after.data.item.draftRevisionId,
+        before.data.item.draftRevisionId,
+      );
+      assert.deepEqual(afterHistory, history);
+    }
+    await call(`${path}/unpublish`, 200, { method: "POST" });
+    assert.deepEqual(
+      (await call(path, 200)).data.item.data,
+      after.data.item.data,
+    );
+    assert.deepEqual(await call(`${path}/revisions`, 200), afterHistory);
+    // Core is archived/closed here: withdrawal works but republication does not.
+    await call(`${path}/publish`, 403, { method: "POST" });
+  }
+  assert.equal(copied, 1);
+  assert.ok(preserved >= 3);
+  await call(`${root}/00000000000000000000000000/unpublish`, 404, {
+    method: "POST",
+  });
+  console.log(
+    `campaign-runtime: unpublish ${failed ? "commit rollback" : "preserves or creates attributed drafts after Core closure"} passed`,
+  );
 } else if (
   process.argv.some((argument) =>
     ["--publish", "--publish-denied", "--publish-failure"].includes(argument),
