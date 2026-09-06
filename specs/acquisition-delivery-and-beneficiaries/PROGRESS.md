@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Acquisition action-switch isolation — 2026-09-06
+
+Extended the disposable acquisition fixture after its existing authorization contract: transition the third Golden action through scheduled to active and authorize Anna there without assigning any sponsors or offerings. The browser explicitly selects the original action in the sponsor workspace, fills private delivery fields, selects a window and enables deferred delivery, switches to the empty second action and verifies that saving is disabled. Returning to the original action clears street, contact, instructions, date and deferred mode and restores address reuse. It then completes the existing regular order/retry journey. No production change was needed for this tested path.
+
+The initial setup attempted draft-to-active directly and correctly failed the database lifecycle constraint. A second run exposed the old browser helper's assumption about the default action; the helper now explicitly selects its intended action. The final run `leonaid-362a-delivery-commitments-20260906p` completed `./leonaid test-commitments` with exit 0, ports 18263/18663 and worktree subnet override. Eleven browser checks passed in 43.9 seconds (16 intentional skips); Browser/Admin API/PostgreSQL agree on 10 orders, 31 boxes/744 pieces and EUR 1,116.00. Ruff/Mypy and diff checks pass. All own test stacks were cleaned up. Final mobile In-App and EmDash acceptance remain open.
+
 ## Effective order rules and empty availability in Charity Admin — 2026-09-06
 
 Added an effective-form summary to the delivery editor, read from Core's existing delivery/order-form projection. It distinguishes saved rules from local edits and displays delivery/address requirements, optional contact/instruction limits, timezone and currently selectable window count. With delivery enabled and zero selectable windows it explains that public and review-ready acquisition orders are blocked while internal drafts remain possible. A refresh button retries reads and rechecks time-dependent availability. Read errors do not display stale rules as current. The saved configuration revision keys the query, so successful schedule saves refresh the summary without discarding local editor state.

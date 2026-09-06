@@ -553,6 +553,21 @@ async def main() -> None:
     )
     try:
         await exercise(connection)
+        # Authorize a second, empty action only after the isolation contract ran.
+        # The browser must clear its first action's draft on switch and return.
+        await connection.execute(
+            """
+            UPDATE charity_action SET status = 'scheduled'
+            WHERE id = '20000000-0000-4000-8000-000000000003';
+            UPDATE charity_action SET status = 'active'
+            WHERE id = '20000000-0000-4000-8000-000000000003';
+            INSERT INTO action_membership (id, action_id, user_id, role)
+            VALUES ('21000000-0000-4000-8000-000000000081',
+                    '20000000-0000-4000-8000-000000000003',
+                    '10000000-0000-4000-8000-000000000004', 'acquirer');
+            """
+        )
+
     finally:
         await connection.close()
 

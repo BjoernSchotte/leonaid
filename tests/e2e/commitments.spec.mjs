@@ -57,6 +57,9 @@ async function openMusterwerkCapture(context, page) {
   await expect(page.locator('[data-testid="display-name"]')).toHaveText(
     "Anna Akquise",
   );
+  await page
+    .getByTestId("sponsor-action")
+    .selectOption("20000000-0000-4000-8000-000000000001");
   const sponsor = page
     .locator('[data-testid="sponsor-row"]')
     .filter({ hasText: "Musterwerk GmbH" });
@@ -174,6 +177,35 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     page.getByLabel("Rechnungsadresse entspricht der Lieferadresse"),
   ).toBeChecked();
 
+  await page.locator("#delivery-streetLine1").fill("Nur erste Aktion 18");
+  await page
+    .locator("#delivery-instructions")
+    .fill("Hinweis der ersten Aktion");
+  await page.locator("#delivery-contact").fill("Kontakt der ersten Aktion");
+  await page.locator("#delivery-date").selectOption("2026-10-01");
+  await page
+    .locator("#delivery-window")
+    .selectOption("90000000-0000-4000-8000-000000000081");
+  await page.getByLabel("Lieferdaten später ergänzen (nur Entwurf)").check();
+  await page
+    .locator("#commitment-action")
+    .selectOption("20000000-0000-4000-8000-000000000003");
+  await expect(page.getByTestId("commitment-sponsor")).toHaveValue("");
+  await expect(page.getByTestId("commitment-save-ready")).toBeDisabled();
+  await page
+    .locator("#commitment-action")
+    .selectOption("20000000-0000-4000-8000-000000000001");
+  await expect(page.locator("#delivery-streetLine1")).toHaveValue("");
+  await expect(page.locator("#delivery-instructions")).toHaveValue("");
+  await expect(page.locator("#delivery-contact")).toHaveValue("");
+  await expect(page.locator("#delivery-date")).toHaveValue("");
+  await expect(
+    page.getByLabel("Lieferdaten später ergänzen (nur Entwurf)"),
+  ).not.toBeChecked();
+  await expect(
+    page.getByLabel("Rechnungsadresse entspricht der Lieferadresse"),
+  ).toBeChecked();
+  await buyerSelect.selectOption(originalBuyer);
   await page.getByTestId("commitment-quantity").fill("2");
   await page.locator("#delivery-streetLine1").fill("Lieferstraße 8");
   const sameAddress = page.getByLabel(
