@@ -1,5 +1,7 @@
 .dashboard-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: clamp(1.4rem, 3vw, 2.7rem);
 }
 
@@ -58,6 +60,8 @@
 }
 
 .dashboard-action-picker select {
+  width: 100%;
+  min-width: 0;
   min-height: var(--control-height);
   padding: 0.6rem 2.3rem 0.6rem 0.75rem;
   border: 1px solid var(--input);

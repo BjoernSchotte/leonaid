@@ -300,9 +300,12 @@ test("Begünstigte bleiben kompakt und sind vollständig per Tastatur erreichbar
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "32px";
     });
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBeLessThanOrEqual(430);
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    }
     await expectNoSeriousAccessibilityViolations(
       page,
       "Begünstigte bei vergrößerter Schrift",

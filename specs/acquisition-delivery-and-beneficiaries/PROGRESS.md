@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Mobile dashboard text scaling and direct In-App measurements — 2026-09-06
+
+Authenticated In-App Browser inspection on the disposable review stack covered 360, 390 and 430px widths. A single beneficiary added 60px to the goal card (44px disclosure row); multiple beneficiaries expanded through the native disclosure, including keyboard Enter. At 200% root text size, direct inspection found horizontal overflow at 390px (document width about 428px). Constraining the dashboard grid track and action selector and allowing text wrapping removes that overflow. After rebuilding the PWA, measured document widths were 345/375/415px at viewports 360/390/430px.
+
+Expanded the existing enlarged-text browser assertion to all three widths. The isolated dashboard gate `leonaid-362a-delivery-dashboard-20260906b`, ports 18264/18664 and worktree network override, passed all four Chromium scenarios in 6.4 seconds, including long beneficiary names, keyboard disclosure and accessibility checks. The direct browser review stack was removed before starting this gate. Full mobile ordering and EmDash renderer acceptance remain open; read-only parallel baseline `9569150` still has no public order renderer.
+
 ## No-JavaScript reload preserves the complete failed-navigation POST — 2026-09-06
 
 Extended the accepted-response-loss browser scenario with direct page reload before exercising history Back. After the actual server acceptance and deliberate response abort, reload repeats a byte-identical POST: the test compares the entire request body to the original, including command ID, latest invoice-city correction and multiline delivery instructions. No input is re-entered for this path. The returned success reference equals the originally accepted reference. The existing history-Back recovery then also runs and returns that same order; PostgreSQL still finds exactly the three intended browser orders.
