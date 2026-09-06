@@ -12,7 +12,9 @@ export function campaignManifest() {
         kind: field.type === "text" ? "richText" : field.type,
         label: field.label,
         required: Boolean(field.required),
-        ...(field.type === "repeater" ? { validation: field.validation } : {}),
+        ...(["repeater", "image"].includes(field.type)
+          ? { validation: field.validation }
+          : {}),
         ...(field.type === "select"
           ? {
               options: field.validation.options.map((value) => ({

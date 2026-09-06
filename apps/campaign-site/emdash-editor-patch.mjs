@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
+import { patchCampaignMediaEditor } from "./emdash-media-editor-patch.mjs";
 
 export const upstreamEditorSha256 =
   "b7c64e5f4ba4cb760d1694332d920194a107db6d42258fd5358a1201776ce299";
@@ -106,7 +107,7 @@ export function patchEditorSource(source) {
 \t\t\tconst refreshed = await fetchContent(collection, id, { locale: rawItem?.locale ?? activeLocale });
 \t\t\tleonaidRevisions.current.set(id, refreshed._rev);`,
   );
-  return source;
+  return patchCampaignMediaEditor(source);
 }
 
 export default function editorRevisionPatch() {

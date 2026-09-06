@@ -104,6 +104,9 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-reference-races /proof/reference-sessions.json
     compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
       node tools/emdash_spike/campaign-media-reference-proof.mjs
+    compose up --no-deps --build --detach --wait public mailpit worker
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-media-browser-proof.mjs
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs fail-confirm
     media_probe --confirm-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs restore-confirm

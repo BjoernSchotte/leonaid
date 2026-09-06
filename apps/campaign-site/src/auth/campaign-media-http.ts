@@ -8,7 +8,10 @@ import {
   readCoreIdentity,
   requireCurrentCampaignActor,
 } from "./core-identity";
-import { campaignMediaRoute } from "./campaign-media-routes.mjs";
+import {
+  campaignMediaRoute,
+  campaignMediaFileKey,
+} from "./campaign-media-routes.mjs";
 import {
   CampaignMediaError,
   campaignStorage,
@@ -100,7 +103,9 @@ export async function campaignMediaHttp({ request, url, locals }: APIContext) {
         throw new CampaignMediaError(403, "MEDIA_ACCESS_DENIED");
       actionId = campaigns[0];
       const allowed =
-        route === "list" ? ["campaign", "limit", "cursor", "q"] : ["campaign"];
+        route === "list"
+          ? ["campaign", "limit", "cursor", "q", "mimeType"]
+          : ["campaign"];
       if (
         [...url.searchParams.keys()].some(
           (key) =>
@@ -113,9 +118,7 @@ export async function campaignMediaHttp({ request, url, locals }: APIContext) {
       const binding = await resolveCampaignMedia(
         database,
         profile,
-        route === "file"
-          ? { key: url.pathname.slice("/_emdash/api/media/file/".length) }
-          : { id },
+        route === "file" ? { key: campaignMediaFileKey(url.pathname) } : { id },
       );
       if (!binding) throw new CampaignMediaError(404, "MEDIA_NOT_FOUND");
       actionId = binding.action_id;
@@ -142,6 +145,9 @@ export async function campaignMediaHttp({ request, url, locals }: APIContext) {
           ? { cursor: url.searchParams.get("cursor") }
           : {}),
         ...(url.searchParams.has("q") ? { q: url.searchParams.get("q") } : {}),
+        ...(url.searchParams.has("mimeType")
+          ? { mimeType: url.searchParams.get("mimeType") }
+          : {}),
       });
       return success({ ...result, items: result.items.map(withUrl) });
     }

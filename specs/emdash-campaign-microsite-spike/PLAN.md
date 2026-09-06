@@ -1400,6 +1400,31 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Connect the pinned native media picker to editor campaign context and
+      authenticated private previews. React context carries the action into
+      native list/reservation calls; query keys include the action and its
+      subtree resets on action changes. Server-side authorization remains
+      independent. The source-only Charity manifest includes exact image MIME
+      validation; scoped SQL filtering accepts distinct PNG/JPEG/WebP types.
+      Raw and exactly once encoded canonical file keys resolve through the same
+      Core/ready/hash checks. Native thumbnails bypass the closed anonymous
+      optimizer; URL/provider selection stays unavailable.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-slqc3u5e31` with actual
+      Core/EmDash/PostgreSQL/private RustFS and verified TLS. Chromium, Firefox
+      and WebKit each completed actual SMTP Core login, native hero-image
+      removal, scoped picker/thumbnail, upload/insert/autosave, persisted preview
+      after reload, publication with matching live revision and Core logout;
+      private file reads then returned 401. Existing reference isolation,
+      five database-wait/logout races, storage failures/retry, membership
+      withdrawal and bootstrap restart/database-failure cases passed. All owned
+      resources were removed and no host ports were published.
+      Initial runs exposed missing image validation in the Charity manifest
+      and an incorrect test assumption about `liveData` after publication; both
+      were corrected and those isolated stacks were fully cleaned.
+      Remaining image UX evidence includes same-SPA campaign switching and
+      creation, social/partner-logo selection, search/pagination, upload failure
+      recovery, mobile/keyboard/accessibility and comprehensive two-actor browser
+      isolation. Public media delivery and fresh restore are still open.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation

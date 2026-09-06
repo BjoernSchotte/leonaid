@@ -300,10 +300,13 @@ export async function listCampaignMedia(
 ) {
   requireAction(profile, actionId);
   await requireCampaignMedia(database);
-  const { limit = 30, cursor, q = "" } = parameters;
+  const { limit = 30, cursor, q = "", mimeType } = parameters;
+  const rasterTypes = ["image/png", "image/jpeg", "image/webp"];
+  const selectedTypes =
+    typeof mimeType === "string" ? mimeType.split(",") : undefined;
   if (
     Object.keys(parameters).some(
-      (key) => !["limit", "cursor", "q"].includes(key),
+      (key) => !["limit", "cursor", "q", "mimeType"].includes(key),
     ) ||
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
@@ -311,7 +314,12 @@ export async function listCampaignMedia(
     (cursor !== undefined &&
       (typeof cursor !== "string" || !ulid.test(cursor))) ||
     typeof q !== "string" ||
-    q.length > 200
+    q.length > 200 ||
+    (mimeType !== undefined &&
+      (!selectedTypes ||
+        selectedTypes.length > 3 ||
+        new Set(selectedTypes).size !== selectedTypes.length ||
+        selectedTypes.some((type) => !rasterTypes.includes(type))))
   )
     throw new Error("campaign_media_input_invalid");
   return database
@@ -319,9 +327,11 @@ export async function listCampaignMedia(
     .setIsolationLevel("repeatable read")
     .execute(async (transaction) => {
       await boundTransaction(transaction);
-      const query = scoped(transaction, actionId)
+      let query = scoped(transaction, actionId)
         .where("media.status", "=", "ready")
         .where(sql`strpos(lower(media.filename), lower(${q}))`, ">", 0);
+      if (selectedTypes)
+        query = query.where("media.mime_type", "in", selectedTypes);
       const count = await query
         .select((eb) => eb.fn.count("media.id").as("count"))
         .executeTakeFirstOrThrow();

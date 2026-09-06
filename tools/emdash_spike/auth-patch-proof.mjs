@@ -5,6 +5,10 @@ import { readFile } from "node:fs/promises";
 import { patchAuthSource } from "../../apps/campaign-site/emdash-auth-patch.mjs";
 import { patchEditorSource } from "../../apps/campaign-site/emdash-editor-patch.mjs";
 import {
+  campaignMediaFileKey,
+  campaignMediaRoute,
+} from "../../apps/campaign-site/src/auth/campaign-media-routes.mjs";
+import {
   contentHandlerEntry,
   patchContentLogs,
 } from "../../apps/campaign-site/emdash-content-log-patch.mjs";
@@ -30,6 +34,30 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+assert.ok(revisioned.includes("React$1.useContext(LeonAidMediaCampaign)"));
+assert.ok(revisioned.includes('"media",\n\t\tcampaign,'));
+const mediaKey =
+  "campaigns/20000000-0000-4000-8000-000000000001/30000000-0000-4000-8000-000000000001.png";
+for (const representation of [mediaKey, encodeURIComponent(mediaKey)]) {
+  const path = `/_emdash/api/media/file/${representation}`;
+  assert.equal(campaignMediaFileKey(path), mediaKey);
+  assert.equal(campaignMediaRoute(path, "GET"), "file");
+  assert.equal(campaignMediaRoute(path, "POST"), null);
+}
+for (const representation of [
+  encodeURIComponent(encodeURIComponent(mediaKey)),
+  encodeURIComponent(mediaKey).replaceAll("%2F", "%2f"),
+  mediaKey.replace("/", "%2F"),
+  "%",
+  "../secret",
+  `${mediaKey}/extra`,
+  mediaKey.replace("campaigns", "%63ampaigns"),
+]) {
+  assert.equal(
+    campaignMediaFileKey(`/_emdash/api/media/file/${representation}`),
+    null,
+  );
+}
 for (const changed of [
   editor + "\n",
   editor.replace("skipRevision", "skipHistory"),

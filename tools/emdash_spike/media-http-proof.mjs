@@ -208,6 +208,35 @@ if (mode) {
     own.mediaId,
   );
   const delivered = await call("charity", ready.url);
+  const encodedUrl = `${root}/file/${encodeURIComponent(ready.storageKey)}`;
+  assert.deepEqual((await call("charity", encodedUrl)).bytes, delivered.bytes);
+  await call("charity_b", encodedUrl, 404);
+  await call("anonymous", encodedUrl, 401);
+  await call("charity", `${encodedUrl}?download=1`, 400);
+  const pngList = (
+    await call("charity", `${root}?campaign=${a}&mimeType=image%2Fpng`)
+  ).json.data;
+  assert.deepEqual(
+    pngList.items.map((item) => item.id),
+    [ready.id],
+  );
+  assert.equal(
+    (await call("charity", `${root}?campaign=${a}&mimeType=image%2Fjpeg`)).json
+      .data.totalCount,
+    0,
+  );
+  for (const filter of [
+    "image/",
+    "image/svg+xml",
+    "image/png,image/png",
+    "text/html",
+  ]) {
+    await call(
+      "charity",
+      `${root}?campaign=${a}&mimeType=${encodeURIComponent(filter)}`,
+      400,
+    );
+  }
   assert.equal(delivered.headers["content-type"], "image/png");
   assert.equal(delivered.headers["x-content-type-options"], "nosniff");
   assert.equal(

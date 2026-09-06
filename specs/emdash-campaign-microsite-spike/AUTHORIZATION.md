@@ -149,6 +149,25 @@ separate acceptance requirements.
 
 ## Admitted editor operations
 
+The pinned native editor passes its campaign through a React context into media
+listing and reservation requests. Existing entries use their loaded immutable
+action binding; new forms use their selected action. Picker query keys include
+that action and the picker subtree resets when it changes. This is request
+context, not authorization: Core membership and stored media/content bindings
+remain mandatory at the HTTP boundary. The Charity manifest exports the source
+image fields' exact PNG/JPEG/WebP validation. List MIME filters are bounded,
+distinct exact raster types and apply inside the same scoped SQL query as
+counting and pagination; wildcard/provider/folder alternatives remain closed.
+
+Native local thumbnails use the authenticated file endpoint directly, not the
+anonymous Astro optimizer. Private file paths accept the raw canonical key or
+its exact single `encodeURIComponent` representation. Mixed, lowercase,
+double-encoded and malformed forms are not alternate keys; query strings remain
+denied. Normal Core, ready-state and byte/hash checks apply to both accepted
+representations. The native picker exposes local storage only, no URL/provider
+selection. Existing field widgets, upload feedback and persistence flows remain
+EmDash's own; no fetch interception or substitute editor was introduced.
+
 Canonical authorized admin editor/list HTML routes under
 `/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
 fixed-origin and current Core session checks. Anonymous navigation returns to
