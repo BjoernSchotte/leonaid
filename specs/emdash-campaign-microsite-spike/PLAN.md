@@ -816,8 +816,26 @@ Quality checkpoint: `./leonaid check` passed at `1766e00`, including 208 unit
 tests, 242 Python source-file type checks, all frontend/CMS checks, formatting,
 API/privacy/policy gates and route-inventory verification; worktree unchanged.
 
+HTTP read checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case campaign-runtime` passed with the real
+production CMS, Core, PostgreSQL and Caddy. After operator-bound setup, four
+synthetic entries and real revisions are readable through upstream list/get/
+revision-list/revision-get routes using the existing Core System Admin session.
+`src/middleware.ts` replaces only the per-request handler object; the shared
+EmDash runtime is untouched. The wrapper-specific unknown-ID response proves
+middleware ordering and invocation. Anonymous and Charity reads, foreign Origin,
+bearer credentials, POST/PUT/DELETE/HEAD/OPTIONS fail closed; Core session
+revocation produces 401 on the next read. TLS validates the actual project's CA,
+and no independent CMS cookie is issued. This supersedes the pending HTTP wiring
+note above for these four System-Admin-only operations, not for Charity access,
+write operations, previews or media. Its isolated project has no host ports and
+all owned containers, networks, volumes and temporary session files were removed.
+
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
+- [x] Wire the four read primitives into request-local EmDash handlers and
+      prove the production HTTP path with Core System Admin sessions over
+      verified TLS. Charity admission and all write operations remain closed.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

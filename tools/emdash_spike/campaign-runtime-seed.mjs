@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import { Kysely } from "kysely";
+import { createDialect } from "emdash/db/postgres";
+import { applySeed } from "emdash/seed";
+import { ContentRepository, handleContentList } from "emdash";
+
+const database = new Kysely({
+  dialect: createDialect({
+    host: process.env.PGHOST,
+    user: "emdash",
+    database: "emdash",
+    password: process.env.CMS_POSTGRES_PASSWORD,
+  }),
+});
+try {
+  const result = await applySeed(
+    database,
+    {
+      version: "1",
+      collections: [
+        {
+          slug: "campaign_pages",
+          label: "Campaign pages",
+          titleField: "title",
+          supports: ["drafts", "revisions"],
+          fields: [
+            {
+              slug: "action_id",
+              label: "Core action",
+              type: "string",
+              required: true,
+              indexed: true,
+            },
+            { slug: "title", label: "Title", type: "text", searchable: true },
+          ],
+        },
+      ],
+      content: {
+        campaign_pages: [1, 1, 2, 2].map((action, index) => ({
+          id: `proof-${index}`,
+          slug: `proof-${index}`,
+          status: "draft",
+          data: {
+            action_id: `20000000-0000-4000-8000-00000000000${action}`,
+            title: `synthetic campaign ${action} story ${index}`,
+          },
+        })),
+      },
+    },
+    { includeContent: true, onConflict: "error" },
+  );
+  assert.equal(result.content.created, 4);
+  const entries = await handleContentList(database, "campaign_pages", {});
+  assert.equal(entries.success, true);
+  const repository = new ContentRepository(database);
+  for (const entry of entries.data.items) {
+    await repository.updateDraftAware("campaign_pages", entry.id, {
+      data: { title: `${entry.data.title} revised` },
+    });
+  }
+  console.log(
+    "campaign-runtime: four real synthetic entries and revisions seeded",
+  );
+} finally {
+  await database.destroy();
+}

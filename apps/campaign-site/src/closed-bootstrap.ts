@@ -3,6 +3,7 @@ import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
 import { CoreIdentityError } from "./auth/core-identity";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
+import { isCampaignReadRoute } from "./auth/campaign-routes.mjs";
 import {
   bootstrapIsArmed,
   requireArmedBootstrap,
@@ -71,10 +72,9 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
   }
   const adminHome =
     url.pathname === "/_emdash/admin" || url.pathname === "/_emdash/admin/";
-  const adminRead = [
-    "/_emdash/api/manifest",
-    "/_emdash/api/dashboard",
-  ].includes(url.pathname);
+  const adminRead =
+    isCampaignReadRoute(url.pathname, request.method) ||
+    ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
   if ((adminHome || adminRead) && request.method === "GET") {
     try {
       if (import.meta.env.DEV || request.headers.has("Authorization"))

@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -76,6 +76,16 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = content ]; then
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
+    content_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+        node tools/emdash_spike/campaign-runtime-proof.mjs "$@"
+    }
+    content_probe
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
+    content_probe --revoked
+  fi
   if [ "$mode" = surface ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
       node tools/emdash_spike/authorization-surface-proof.mjs

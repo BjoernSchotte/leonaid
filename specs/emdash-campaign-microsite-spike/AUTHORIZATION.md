@@ -17,6 +17,15 @@ is expected to return 200/403/401 respectively; other operations remain 503.
 The setup grant is already consumed in this proof. Root routes not owned by the
 CMS are tracked by the separate proxy-routing/build route contract.
 
+The `campaign-runtime` proof additionally exercises admitted GETs for the exact
+`campaign_pages` collection and canonical ULID content/revision IDs. These need
+completed bootstrap, valid HTTPS origin and a current Core System Admin session.
+Request-local handlers enforce the campaign-read primitives before upstream
+data access. Unknown item IDs prove the wrapper's static `NOT_FOUND` response.
+All Charity users and all write methods remain denied; positive Charity HTTP
+isolation is not yet claimed. The inventory surface probe uses non-admitted
+placeholder collections/IDs, so it complements rather than replaces this test.
+
 The table describes current deny/allow decisions and the data needed before a
 campaign-scoped implementation may replace them. It does not turn closed routes
 into completed positive authorization tests. Every enabled content operation
@@ -104,8 +113,8 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/auth/signup/verify` | GET | builtin-disabled | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/comments/[collection]/[contentId]/reactions` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/content/[collection]` | GET, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | Denied for all actors | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]` | GET, POST | core | GET campaign_pages: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]` | DELETE, GET, PUT | core | GET campaign_pages canonical ULID: System Admin only; otherwise denied | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/compare` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/discard-draft` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/duplicate` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
@@ -113,7 +122,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/content/[collection]/[id]/preview-url` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/publish` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/restore` | POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
-| `/_emdash/api/content/[collection]/[id]/revisions` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
+| `/_emdash/api/content/[collection]/[id]/revisions` | GET | core | campaign_pages canonical ULID: System Admin only; otherwise denied | Stored parent content action_id |
 | `/_emdash/api/content/[collection]/[id]/schedule` | DELETE, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/terms/[taxonomy]` | GET, POST | core | Denied for all actors | Current/proposed content action_id; list/count filters |
 | `/_emdash/api/content/[collection]/[id]/translations` | GET | core | Denied for all actors | Current/proposed content action_id; list/count filters |
@@ -163,7 +172,7 @@ must both be checked and the binding must remain immutable.
 | `/_emdash/api/redirects/[id]` | DELETE, GET, PUT | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/redirects/404s` | DELETE, GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/redirects/404s/summary` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
-| `/_emdash/api/revisions/[revisionId]` | GET | core | Denied for all actors | Revision to owning content action_id |
+| `/_emdash/api/revisions/[revisionId]` | GET | core | Canonical ULID: System Admin only, campaign_pages parent required | Revision to owning content action_id |
 | `/_emdash/api/revisions/[revisionId]/restore` | POST | core | Denied for all actors | Revision to owning content action_id |
 | `/_emdash/api/schema` | GET | core | Denied for all actors | Global/identity surface; no campaign authority implied |
 | `/_emdash/api/schema/collections` | GET, POST | core | Denied for all actors | Global/identity surface; no campaign authority implied |
