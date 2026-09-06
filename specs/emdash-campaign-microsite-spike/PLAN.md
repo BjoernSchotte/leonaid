@@ -835,11 +835,35 @@ real HTTPS requests. `./leonaid check` passed at `d0c0cf5`: 208 unit tests,
 242 Python source-file type checks, all frontend/CMS checks, formatting,
 API/privacy/policy and route-inventory guards; committed worktree unchanged.
 
+Immutable-binding checkpoint (6 September 2026): `campaign-content` now proves
+real PostgreSQL rejection of content action/ID changes, invalid content inserts,
+revision inserts without matching action data, revision action changes and
+revision parent/collection changes. Legitimate EmDash draft revision writes and
+all scoped readers still pass. Operator installation is transactional, bounded,
+serialized, repeatable and rejects invalid existing bindings; it does not repair
+data or guard drift. Check-only validation rejects disabled triggers and changed
+function bodies, both tested against actual PostgreSQL objects with rollback.
+`campaign-runtime` passes with these guards installed and proves a live HTTP 503
+when a guard is deliberately disabled, successful reads after explicit fixture
+restoration, and subsequent Core session revocation. Both test projects use no
+host ports and clean only their own resources.
+
+These guards enforce application data invariants, not a security boundary against
+the trusted database owner issuing arbitrary DDL. They do not authorize creation
+for a Core action or substitute for request-scoped membership checks. Normal
+schema provisioning must install them after `campaign_pages` exists; so far that
+sequence is wired into the isolated fixture operator. Runtime never installs or
+repairs them. HTTP writes, creator authorization, the full editorial schema and
+restore/upgrade integration remain pending.
+
 - [x] Prove own/foreign item and revision read primitives against real EmDash
       content and revisions, with indistinguishable foreign/unknown responses.
 - [x] Wire the four read primitives into request-local EmDash handlers and
       prove the production HTTP path with Core System Admin sessions over
       verified TLS. Charity admission and all write operations remain closed.
+- [x] Add and prove operator-installed PostgreSQL invariants for immutable
+      content/action IDs and revision-parent bindings, plus check-only runtime
+      refusal when their exact definitions are missing, changed or disabled.
 - [x] Prove the campaign-list query primitive against real EmDash PostgreSQL
       records: both campaigns, total counts, cursor pagination, search and
       overriding hostile caller-supplied action filters. HTTP integration and

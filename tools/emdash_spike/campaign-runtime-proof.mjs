@@ -5,6 +5,7 @@ import { request } from "node:https";
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const ca = await readFile("/proof/root.crt");
 const revoked = process.argv.includes("--revoked");
+const guardUnavailable = process.argv.includes("--guard-unavailable");
 async function call(
   path,
   status,
@@ -52,7 +53,9 @@ async function call(
     : null;
 }
 const root = "/_emdash/api/content/campaign_pages";
-if (revoked) {
+if (guardUnavailable) {
+  await call(root, 503);
+} else if (revoked) {
   await call(root, 401);
 } else {
   const result = await call(root, 200);
@@ -91,5 +94,5 @@ if (revoked) {
   }
 }
 console.log(
-  `campaign-runtime: ${revoked ? "revocation" : "real Core session, TLS, list/item/revision routes and denied actors"} passed`,
+  `campaign-runtime: ${guardUnavailable ? "disabled binding guard fails closed" : revoked ? "revocation" : "real Core session, TLS, list/item/revision routes and denied actors"} passed`,
 );

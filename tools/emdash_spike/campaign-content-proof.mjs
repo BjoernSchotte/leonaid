@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import pg from "pg";
-import { Kysely } from "kysely";
+import { Kysely, sql } from "kysely";
 import { createDialect } from "emdash/db/postgres";
 import { runMigrations } from "emdash/db";
 import { applySeed } from "emdash/seed";
 import { ContentRepository } from "emdash";
+import {
+  installCampaignBindings,
+  requireCampaignBindings,
+} from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
 import { provisionPostgres } from "./provision-postgres.mjs";
 import {
   listCampaignContent,
@@ -92,7 +96,58 @@ try {
   };
   assert.equal((await list(system)).total, 4);
   const entries = (await list(system)).items;
+  await assert.rejects(
+    requireCampaignBindings(database),
+    /campaign_binding_guard_mismatch/,
+  );
+  const original = entries[0];
+  await sql`UPDATE ec_campaign_pages SET action_id='invalid' WHERE id=${original.id}`.execute(
+    database,
+  );
+  await assert.rejects(
+    installCampaignBindings(database),
+    /campaign_binding_existing_data_invalid/,
+  );
+  await sql`UPDATE ec_campaign_pages SET action_id=${original.data.action_id} WHERE id=${original.id}`.execute(
+    database,
+  );
+  await installCampaignBindings(database);
+  await installCampaignBindings(database);
+  await requireCampaignBindings(database);
+  await assert.rejects(
+    sql`UPDATE ec_campaign_pages SET action_id=${original.data.action_id === a ? b : a} WHERE id=${original.id}`.execute(
+      database,
+    ),
+    { code: "23514", message: "campaign_binding_immutable" },
+  );
+  await assert.rejects(
+    sql`UPDATE ec_campaign_pages SET id='00000000000000000000000000' WHERE id=${original.id}`.execute(
+      database,
+    ),
+    { code: "23514", message: "campaign_binding_immutable" },
+  );
+  await assert.rejects(
+    sql`UPDATE ec_campaign_pages SET action_id='invalid' WHERE id=${original.id}`.execute(
+      database,
+    ),
+    { code: "23514", message: "campaign_binding_invalid" },
+  );
   const repository = new ContentRepository(database);
+  await assert.rejects(
+    repository.create({
+      type: "campaign_pages",
+      slug: "invalid-binding",
+      data: { action_id: "invalid", title: "denied" },
+    }),
+    { code: "23514", message: "campaign_binding_invalid" },
+  );
+  await assert.rejects(
+    sql`INSERT INTO revisions (id, collection, entry_id, data)
+      VALUES ('00000000000000000000000001', 'campaign_pages', ${original.id}, '{}')`.execute(
+      database,
+    ),
+    { code: "23514", message: "campaign_revision_binding_invalid" },
+  );
   for (const entry of entries) {
     await repository.updateDraftAware("campaign_pages", entry.id, {
       data: { title: `${entry.data.title} revised` },
@@ -146,6 +201,24 @@ try {
       missing,
     );
     for (const revision of revisions.data.items) {
+      await assert.rejects(
+        sql`UPDATE revisions SET data=${JSON.stringify({ action_id: entry.data.action_id === a ? b : a })} WHERE id=${revision.id}`.execute(
+          database,
+        ),
+        { code: "23514", message: "campaign_revision_binding_invalid" },
+      );
+      await assert.rejects(
+        sql`UPDATE revisions SET entry_id='00000000000000000000000000' WHERE id=${revision.id}`.execute(
+          database,
+        ),
+        { code: "23514", message: "campaign_revision_parent_immutable" },
+      );
+      await assert.rejects(
+        sql`UPDATE revisions SET collection='other' WHERE id=${revision.id}`.execute(
+          database,
+        ),
+        { code: "23514", message: "campaign_revision_parent_immutable" },
+      );
       const ownRevision = await getCampaignRevision(
         database,
         owner,
@@ -195,8 +268,36 @@ try {
     }),
     /campaign_access_denied/,
   );
+  await assert.rejects(
+    database.transaction().execute(async (transaction) => {
+      await sql`ALTER TABLE ec_campaign_pages DISABLE TRIGGER leonaid_campaign_binding`.execute(
+        transaction,
+      );
+      await assert.rejects(
+        requireCampaignBindings(transaction),
+        /campaign_binding_guard_mismatch/,
+      );
+      throw new Error("rollback_guard_drift_probe");
+    }),
+    /rollback_guard_drift_probe/,
+  );
+  await requireCampaignBindings(database);
+  await assert.rejects(
+    database.transaction().execute(async (transaction) => {
+      await sql`CREATE OR REPLACE FUNCTION public.leonaid_campaign_binding() RETURNS trigger
+        LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog
+        AS 'BEGIN RETURN NEW; END;'`.execute(transaction);
+      await assert.rejects(
+        requireCampaignBindings(transaction),
+        /campaign_binding_guard_mismatch/,
+      );
+      throw new Error("rollback_guard_source_probe");
+    }),
+    /rollback_guard_source_probe/,
+  );
+  await requireCampaignBindings(database);
   console.log(
-    "campaign-content: real PostgreSQL/EmDash two-campaign lists, counts, cursors, search, hostile filters, item reads and revision reads passed; HTTP admission remains closed",
+    "campaign-content: real PostgreSQL/EmDash scoped reads, immutable content/revision bindings, invalid existing data and disabled-guard denial passed; Charity admission remains closed",
   );
 } finally {
   await database.destroy();

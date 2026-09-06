@@ -26,6 +26,15 @@ All Charity users and all write methods remain denied; positive Charity HTTP
 isolation is not yet claimed. The inventory surface probe uses non-admitted
 placeholder collections/IDs, so it complements rather than replaces this test.
 
+The admitted read routes additionally require exact, enabled PostgreSQL binding
+guards. Their operator installation refuses inconsistent existing rows. Content
+IDs and action bindings cannot change, and campaign revision snapshots must
+match their stored parent's action. The live proof disables a real guard and
+observes HTTP 503 until explicit restoration. This is defense in depth against
+application write paths, not protection against the trusted DB owner executing
+arbitrary DDL; caller authorization and the currently closed write routes still
+need their own complete proof.
+
 The table describes current deny/allow decisions and the data needed before a
 campaign-scoped implementation may replace them. It does not turn closed routes
 into completed positive authorization tests. Every enabled content operation

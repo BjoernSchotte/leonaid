@@ -1,6 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { readCoreIdentity, CoreIdentityError } from "./auth/core-identity";
 import { isCampaignReadRoute } from "./auth/campaign-routes.mjs";
+import { requireCampaignBindings } from "./auth/campaign-bindings.mjs";
 import {
   listCampaignContent,
   getCampaignContent,
@@ -19,6 +20,7 @@ export const onRequest = defineMiddleware(
       const emdash = locals.emdash;
       if (!emdash?.db) throw new CoreIdentityError(503);
       const database = emdash.db;
+      await requireCampaignBindings(database);
       // EmDash creates this object per request. Never mutate the shared runtime.
       emdash.handleContentList = (collection, parameters) =>
         listCampaignContent(database, profile, collection, parameters);

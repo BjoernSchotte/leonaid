@@ -3,6 +3,7 @@ import { Kysely } from "kysely";
 import { createDialect } from "emdash/db/postgres";
 import { applySeed } from "emdash/seed";
 import { ContentRepository, handleContentList } from "emdash";
+import { installCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
 
 const database = new Kysely({
   dialect: createDialect({
@@ -50,6 +51,7 @@ try {
     { includeContent: true, onConflict: "error" },
   );
   assert.equal(result.content.created, 4);
+  await installCampaignBindings(database);
   const entries = await handleContentList(database, "campaign_pages", {});
   assert.equal(entries.success, true);
   const repository = new ContentRepository(database);

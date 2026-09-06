@@ -83,6 +83,10 @@ if [ "$mode" != auth ]; then
         node tools/emdash_spike/campaign-runtime-proof.mjs "$@"
     }
     content_probe
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs disable
+    content_probe --guard-unavailable
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-guard-fixture.mjs restore
+    content_probe
     fixture /repo/tools/emdash_spike/core_auth_fixture.py revoke
     content_probe --revoked
   fi
