@@ -227,6 +227,40 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
     page.locator(`#delivery-window option[value="${replacementId}"]`),
   ).toHaveCount(1);
   await page.locator("#delivery-window").selectOption(replacementId);
+  const submissionPattern = "**/api/v1/actions/*/commitments";
+  let acceptedBeforeFailure;
+  let interceptedPosts = 0;
+  const loseResponse = async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    interceptedPosts += 1;
+    const accepted = await route.fetch();
+    expect(accepted.status()).toBe(201);
+    acceptedBeforeFailure = await accepted.json();
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "response_unavailable",
+          requestId: "delivery-response-loss-proof",
+          message: "Die Antwort konnte nicht zugestellt werden.",
+        },
+      }),
+    });
+  };
+  await page.route(submissionPattern, loseResponse);
+  await page.getByTestId("commitment-save-ready").click();
+  await expect(
+    page.getByText(/Die Serverantwort ist unklar/),
+  ).toBeVisible();
+  await page.locator("#delivery-streetLine1").fill("Geänderte Lieferstraße 12");
+  await page.getByTestId("commitment-save-ready").click();
+  await expect(
+    page.getByText(/Ausgang der letzten Übermittlung ist noch unklar/),
+  ).toBeVisible();
+  expect(interceptedPosts).toBe(1);
+  await page.locator("#delivery-streetLine1").fill("Lieferstraße 12");
+  await page.unroute(submissionPattern, loseResponse);
   const [response] = await Promise.all([
     page.waitForResponse(
       (candidate) =>
@@ -237,6 +271,8 @@ test("Akquisiteurin erfasst eine prüfbereite Bestellung aus dem Sponsorkontext"
   ]);
   expect(response.status(), await response.text()).toBe(201);
   const payload = await response.json();
+  expect(payload.id).toBe(acceptedBeforeFailure.id);
+  expect(payload.replayed).toBe(true);
   expect(payload.deliveryRecipient.streetLine1).toBe("Lieferstraße 12");
   expect(payload.invoiceRecipient.streetLine1).toBe("Lieferstraße 12");
   expect(payload.invoiceRecipient.email).toBe("rechnung@beispiel.invalid");

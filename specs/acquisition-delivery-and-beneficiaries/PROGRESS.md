@@ -1,6 +1,15 @@
 # Implementation evidence
 
 
+## Acquisition retry after accepted order and HTTP server failure — 2026-09-06
+
+Fixed Anna's changed-payload retry guard to treat HTTP 5xx responses as an unknown submission outcome, alongside network failures and incomplete idempotency receipts. Previously a typed server error allowed a changed payload to rotate the command key, potentially duplicating an order already accepted before the response failed. The UI now explains the uncertain outcome and requests an unchanged retry.
+
+The live browser proof sends the actual booking to Core, waits for its successful 201 response, and only then substitutes a typed 503 response. Changing the delivery street and resubmitting is blocked locally with exactly one intercepted POST; restoring the original address and retrying returns the identical order ID with `replayed=true`. Existing retirement recovery and saved delivery/billing/contact/window assertions still pass. The first run (`...commitments-20260906k`) used an incomplete simulated error without requestId and consequently exercised generic network-error handling; the corrected final run uses the full API error contract.
+
+Evidence: `./leonaid test-commitments` exited 0 with isolated project `leonaid-362a-delivery-commitments-20260906l`, ports 18263/18663 and worktree subnet override. Eleven browser checks passed (16 intentionally skipped combinations) across nine browser/viewport layouts in 41.8 seconds. Admin API and PostgreSQL agree on 10 orders, 31 boxes/744 pieces and EUR 1,116.00; no duplicate booking was created. Feature TypeScript and diff whitespace checks pass. Own Docker resources were cleaned up. Overall integrated In-App and EmDash acceptance remain open.
+
+
 ## Stale public delivery-policy submission proof — 2026-09-06
 
 Extended the real browser acceptance to load a disabled-delivery form, fill valid buyer/address/quantity/consent data, activate delivery through the admin API and submit the stale form without refreshing first. Both JavaScript and no-JavaScript requests are rejected with delivery feedback, preserve recipient/quantity/consent, and expose the now-required selector (explicit refresh for JavaScript; SSR error response for no JavaScript). Selecting a valid window remains possible. Authorized order-list counts before/after confirm that the rejected attempts create no orders. The existing three successful persisted order journeys remain unchanged.

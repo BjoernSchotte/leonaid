@@ -72,6 +72,9 @@ function captureError(error: unknown) {
     if (error.detail.code.startsWith("delivery_")) {
       return `${error.detail.message} Deine weiteren Eingaben bleiben erhalten.`;
     }
+    if (error.status >= 500) {
+      return "Die Serverantwort ist unklar. Die Bestellung könnte bereits gespeichert sein. Bitte sende die ursprünglichen Angaben unverändert erneut.";
+    }
     if (error.status === 403) {
       return "Du darfst für diesen Sponsor keine Bestellung erfassen. Wähle einen dir zugeordneten Sponsor.";
     }
@@ -340,6 +343,7 @@ export function CommitmentCapturePage({
       if (
         create.isError &&
         (!(create.error instanceof ApiError) ||
+          create.error.status >= 500 ||
           create.error.detail.code === "idempotency_incomplete")
       ) {
         setLocalError(
