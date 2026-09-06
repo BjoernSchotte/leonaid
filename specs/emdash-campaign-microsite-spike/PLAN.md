@@ -1400,6 +1400,32 @@ format checks, API parity and privacy/policy gates, with an unchanged worktree.
 
 Dependencies: EMS-030 successful
 
+- [x] Implement the campaign-media ownership database prerequisite without
+      admitting the global upstream media routes. `auth/campaign-media.mjs`
+      installs a separately versioned, immutable media-to-Core-action binding;
+      existing unbound media is not automatically assigned by author or hash.
+      Pending media and its binding are created in one transaction with a
+      server-generated object key, bounded metadata and a raster MIME allowlist.
+      Scoped get/list/count/search/pagination and SHA-256 lookup never hydrate
+      foreign or unbound media; pending media is excluded from ready lists.
+      Ready means upload-ready, not publicly published. Direct ownership changes
+      and binding removal are rejected; deleting the actual upstream media row
+      cascades its binding. Runtime checks fail on missing/disabled/altered guards
+      or schema/version drift; operator installation never silently repairs it.
+      Evidence (7 September 2026):
+      `./leonaid test-emdash-spike --case campaign-media-binding` passed against
+      real EmDash migrations/repositories and PostgreSQL in isolated project
+      `leonaid-emdash-tmp-2vinifvut3`. It covered concurrent installation,
+      same-author foreign media, different-author own media, global/unbound hash
+      denial, literal search, cursor scope, revoked policy inputs, immutable
+      ownership, actual PostgreSQL failure after media insertion with complete
+      transaction rollback, disabled guard/FK drift and upstream deletion.
+      The project published no host ports and removed its own networks/volume.
+      Actor profiles are policy inputs in this database proof, not real Core
+      authentication evidence. HTTP admission, native upload/selection, actual
+      raster-byte validation, RustFS object coordination, media references in
+      revisions, private previews, publication-gated delivery and restore remain
+      open; this does not close the full media or campaign-isolation gates.
 - [x] Implement and admit the bounded non-media editorial contract for the
       currently proven System Admin runtime. `src/campaign-schema.mjs` defines
       version 1 fields for title, hero heading/introduction, Portable Text story,
