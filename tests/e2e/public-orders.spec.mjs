@@ -51,6 +51,7 @@ async function fillOrder(
     familyName,
     givenName,
     postalCode = "86150",
+    deliveryEnabled = true,
     quantity,
     recipient,
     street = "Browserweg 72",
@@ -67,18 +68,20 @@ async function fillOrder(
   await form.locator('input[name="deliveryPostalCode"]').fill(postalCode);
   await form.locator('input[name="deliveryCity"]').fill(city);
   await form.locator('input[name="deliveryCountryCode"]').fill("at");
-  await form
-    .locator('select[name="deliveryWindowId"]')
-    .selectOption("90000000-0000-4000-8000-000000000072");
-  await form
-    .locator('input[name="deliveryContactName"]')
-    .fill("Alex Lieferung");
-  await form
-    .locator('input[name="deliveryContactPhone"]')
-    .fill("+49 821 765432");
-  await form
-    .locator('textarea[name="deliveryInstructions"]')
-    .fill("Abteilung Bildung\nEingang links <b>Hinweis</b>");
+  if (deliveryEnabled) {
+    await form
+      .locator('select[name="deliveryWindowId"]')
+      .selectOption("90000000-0000-4000-8000-000000000072");
+    await form
+      .locator('input[name="deliveryContactName"]')
+      .fill("Alex Lieferung");
+    await form
+      .locator('input[name="deliveryContactPhone"]')
+      .fill("+49 821 765432");
+    await form
+      .locator('textarea[name="deliveryInstructions"]')
+      .fill("Abteilung Bildung\nEingang links <b>Hinweis</b>");
+  }
   await expect(
     form.locator('input[name="billingSameAsDelivery"]'),
   ).toBeChecked();
@@ -443,6 +446,71 @@ test("Lieferregeln erreichen ein bereits geladenes öffentliches Formular", asyn
     await expect(form.locator('[name="deliveryWindowId"] option')).toHaveCount(
       original.windows.filter((window) => !window.retired).length + 1,
     );
+    const commitmentsUrl = url.replace(/\/delivery$/, "/commitments");
+    const before = await (await admin.request.get(commitmentsUrl)).json();
+    for (const javaScriptEnabled of [true, false]) {
+      await save(false, original.windows);
+      const staleContext = await browser.newContext({
+        javaScriptEnabled,
+        reducedMotion: "reduce",
+        viewport: { width: 390, height: 844 },
+        ignoreHTTPSErrors: true,
+      });
+      try {
+        const stalePage = await staleContext.newPage();
+        const staleForm = await openOrderForm(stalePage);
+        await fillOrder(staleForm, {
+          companyName: "Policy Test GmbH",
+          givenName: "Test",
+          familyName: "Policy",
+          email: "policy@example.invalid",
+          recipient: "Erhaltener Policy-Empfang",
+          city: "Augsburg",
+          quantity: 1,
+          deliveryEnabled: false,
+        });
+        await save(true, original.windows);
+        if (javaScriptEnabled) {
+          await staleForm.locator('button[type="submit"]').click();
+        } else {
+          await Promise.all([
+            stalePage.waitForNavigation(),
+            staleForm.locator('button[type="submit"]').click(),
+          ]);
+        }
+        await expect(staleForm.locator("[data-form-message]")).toBeVisible();
+        await expect(staleForm.locator("[data-form-message]")).toContainText(
+          "Liefer",
+        );
+        await expect(
+          staleForm.locator('[name="deliveryRecipientName"]'),
+        ).toHaveValue("Erhaltener Policy-Empfang");
+        await expect(
+          staleForm.locator('[name="quantity"]').first(),
+        ).toHaveValue("1");
+        await expect(
+          staleForm.locator('[name="privacyAcknowledged"]'),
+        ).toBeChecked();
+        if (javaScriptEnabled)
+          await staleForm.locator("[data-delivery-reload]").click();
+        await expect(
+          staleForm.locator('[name="deliveryWindowId"]'),
+        ).toBeEnabled();
+        await expect(
+          staleForm.locator('[name="deliveryWindowId"]'),
+        ).toHaveAttribute("required", "");
+        await staleForm
+          .locator('[name="deliveryWindowId"]')
+          .selectOption("90000000-0000-4000-8000-000000000072");
+        await expect(
+          staleForm.locator('[name="deliveryRecipientName"]'),
+        ).toHaveValue("Erhaltener Policy-Empfang");
+      } finally {
+        await staleContext.close();
+      }
+    }
+    const after = await (await admin.request.get(commitmentsUrl)).json();
+    expect(after.items.length).toBe(before.items.length);
   } finally {
     await save(original.enabled, original.windows);
     await admin.close();

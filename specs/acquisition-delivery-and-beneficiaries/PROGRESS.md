@@ -1,6 +1,15 @@
 # Implementation evidence
 
 
+## Stale public delivery-policy submission proof — 2026-09-06
+
+Extended the real browser acceptance to load a disabled-delivery form, fill valid buyer/address/quantity/consent data, activate delivery through the admin API and submit the stale form without refreshing first. Both JavaScript and no-JavaScript requests are rejected with delivery feedback, preserve recipient/quantity/consent, and expose the now-required selector (explicit refresh for JavaScript; SSR error response for no JavaScript). Selecting a valid window remains possible. Authorized order-list counts before/after confirm that the rejected attempts create no orders. The existing three successful persisted order journeys remain unchanged.
+
+The first run (`...public-20260906k`) timed out on checkbox interaction before submission; the new contexts now use the same reduced-motion/mobile settings as the established no-JavaScript test. The second (`...l`) reached submission but hit the accumulated rate limit from earlier scenarios. The gate now runs the two browser scenarios separately and clears only `public_submission_attempt` in its disposable database between them. Production rate-limit code is unchanged and remains proven by the preceding server contract.
+
+Final evidence: isolated project `leonaid-362a-delivery-public-20260906m`, HTTP 18265/HTTPS 18665 and worktree subnet override completed `./leonaid test-public-orders` with exit 0. Original order journey passed in 19.6 seconds; policy/empty-state/stale-submit journey passed in 9.8 seconds. Real Core/Twenty contract and PostgreSQL order verification pass. Original policy is restored and own Docker resources are cleaned up. Remaining integrated Anna/public/In-App/EmDash acceptance is not claimed complete.
+
+
 ## Public empty availability and required-label consistency — 2026-09-06
 
 The visible delivery-window required hint now follows the same Core requirement as the actual select, both on SSR and after policy refresh. The live policy test additionally retires all future configured windows while retaining an active past window, producing valid enabled configuration with no selectable future windows. The loaded JavaScript form shows only the empty option, explains unavailability and retains its recipient. A separate no-JavaScript page shows the same empty selection and explains that ordering needs an available window. Restoring the original configured windows makes the choices available again through refresh.

@@ -108,6 +108,12 @@ compose run --rm --no-deps \
 
 compose up --detach --wait --wait-timeout 420 public proxy
 
+for browser_case in 'neue Firma' 'Lieferregeln'; do
+  if [ "$browser_case" = 'Lieferregeln' ]; then
+    # Separate independent browser scenarios in this disposable test database.
+    # The contract above already proves production rate-limit behavior.
+    compose exec -T core-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM public_submission_attempt"' >/dev/null
+  fi
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
@@ -124,9 +130,11 @@ docker run --rm \
   --config=tests/e2e/public.config.mjs \
   public-orders.spec.mjs \
   --project=chromium \
+  --grep "$browser_case" \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
+done
 
 compose run --rm --no-deps \
   --env-from-file "$env_file" \
