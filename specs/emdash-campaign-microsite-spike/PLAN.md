@@ -391,13 +391,13 @@ Dependencies: none
 - [x] Add EmDash as an exact version, not a caret or floating range.
 - [x] Record the resolved package tarball integrity and license in the existing
       dependency-lock mechanism.
-- [ ] Confirm compatibility with Astro 7.1.3 and the pinned Node 22 runtime.
+- [x] Confirm compatibility with Astro 7.1.3 and the pinned Node 22 runtime.
 - [ ] Configure EmDash's PostgreSQL adapter and pin its required driver.
       Provision a dedicated database and role on the existing `core-postgres`
       server according to section 4.1, including existing-volume upgrades.
 - [ ] Use a dedicated RustFS bucket and least-privilege credentials for EmDash
       media. Do not expose the bucket publicly.
-- [ ] Disable marketplace plugins and sandboxed third-party plugins unless the
+- [x] Disable marketplace plugins and sandboxed third-party plugins unless the
       spike explicitly tests and pins `workerd`.
 - [x] Add a short `DECISIONS.md` beside this plan recording the selected EmDash
       version, database, storage, plugin policy, and the accepted spike-only
@@ -419,13 +419,19 @@ integrity and Docker workspace-manifest parity are checked. EMS-000 as a whole
 remains incomplete until production-build compatibility, provisioning, storage
 permissions, plugin configuration and the full `./leonaid check` gate pass.
 
+Production-build checkpoint: `./leonaid test-emdash-spike --case closed-runtime`
+passes with Astro 7.1.3/Node 22.23.0, zero type diagnostics, no marketplace or
+sandbox runner, and explicit empty plugin lists. This proves build/basic runtime
+compatibility only, not database/editor workflows. The S3 adapter additionally
+requires explicitly pinned AWS client and presigner packages (see DECISIONS.md).
+
 ### EMS-010 — Create the isolated EmDash Astro service
 
 Dependencies: EMS-000
 
-- [ ] Create `apps/campaign-site` as a private Astro server application using
+- [x] Create `apps/campaign-site` as a private Astro server application using
       the repository's existing workspace conventions.
-- [ ] Configure `@astrojs/node` in standalone server mode.
+- [x] Configure `@astrojs/node` in standalone server mode.
 - [ ] Configure EmDash with a persistent database, RustFS S3 storage, a fixed
       `EMDASH_SITE_URL`, and the public origin's Astro `security.allowedDomains`.
 - [ ] Bind the runtime to `0.0.0.0` only inside the container; do not publish a
@@ -437,7 +443,7 @@ Dependencies: EMS-000
       absent, unhealthy, uninitialized, or undergoing a failed migration. Do not
       make global proxy startup depend on CMS health or create an HTTPS/setup
       readiness cycle. Apply readiness gates only to CMS traffic activation.
-- [ ] Add a digest-pinned, non-root, multi-stage Docker image following
+- [x] Add a digest-pinned, non-root, multi-stage Docker image following
       `infra/compose/Dockerfile.public` conventions.
 - [ ] Add `campaign-site` to `edge`, storage, and the dedicated `cms-data`
       network; attach `core-postgres` to `cms-data` as well. The CMS must not

@@ -1,6 +1,7 @@
 # EmDash spike decisions
 
-Status: implementation in progress; no runtime or authorization gate passed.
+Status: dependency and closed-runtime checkpoints passed; database, authorization
+and public campaign delivery remain unproven.
 
 ## Dependency baseline (EMS-000)
 
@@ -10,8 +11,10 @@ Status: implementation in progress; no runtime or authorization gate passed.
 - Integrity: `sha512-a/lldbDMig8z3WycPliHwZ2VwFQl9ewT9OMvK9/2gvbzoJOXXUF73KTK7AThSss5SbT1oj0h9exGa/GyIr3vAw==`.
 - Astro `7.1.3`, Node `22.23.0`, Bun `1.2.19`: existing repository versions.
 - Node adapter `11.0.2`, React adapter `5.0.7`, React/React DOM `19.2.8`.
-- PostgreSQL driver `pg@8.16.3` (MIT). Runtime compatibility still needs a
-  production Docker build and real PostgreSQL proof.
+- PostgreSQL driver `pg@8.16.3` (MIT). Real PostgreSQL proof is still pending.
+- The S3 adapter imports packages not declared by EmDash itself. Explicitly add
+  `@aws-sdk/client-s3@3.1127.0` and `@aws-sdk/s3-request-presigner@3.1127.0`
+  (Apache-2.0); omission failed the first production build.
 - Direct versions live in `apps/campaign-site/package.json`; transitive versions
   and package integrity live in the existing root `bun.lock`.
 
@@ -42,3 +45,18 @@ Registry metadata was read inside the repository-pinned Node Docker image on
 6 September 2026. All listed package versions exist. Package availability is not
 proof of integration compatibility. Subsequent evidence must distinguish
 dependency, build, database, browser, authorization and recovery gates.
+
+- `./leonaid test-emdash-spike --case dependencies`: passed version, integrity,
+  license and workspace/Dockerfile parity checks.
+- `./leonaid test-emdash-spike --case closed-runtime`: production Docker build
+  and real HTTP proof passed. Astro check reported zero errors/warnings/hints;
+  Vite emitted upstream deprecated React-plugin option and bundle-size warnings.
+- EmDash's supported `middleware.outer` runs the closed bootstrap guard before
+  EmDash database, setup and auth middleware. Eighteen GET/POST requests to editor,
+  setup, plugin, login, MCP, campaign and readiness routes returned 503/no-store.
+  Liveness returned 200 without a database and with Docker networking disabled.
+- No host ports, named volumes or shared Compose networks were used. The test
+  runner builds to a per-invocation image-ID file, not a shared mutable image tag.
+- No full-spike success is reported: the unqualified test command exits nonzero
+  while the remaining cases are unimplemented. Closed access is a temporary
+  implementation checkpoint, not the target CMS functionality.

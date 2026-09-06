@@ -40,6 +40,8 @@ Commands:
                     Prove public alias switching and immutable archive routes
   test-public-orders
                     Prove public form, real Twenty reuse/create and ActivityEvents
+  test-emdash-spike --case <dependencies|closed-runtime>
+                    Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX
   test-testkit      Prove shared clients against all real PoC dependencies
@@ -1973,6 +1975,10 @@ case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
   check) check_all ;;
+  test-emdash-spike)
+    shift
+    /bin/sh "$root/tools/emdash_spike/test.sh" "$root" "$@"
+    ;;
   test-unit)
     require_docker
     run_python uv run --frozen --no-sync pytest tests/unit

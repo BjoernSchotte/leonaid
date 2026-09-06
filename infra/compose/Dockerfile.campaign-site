@@ -1,0 +1,36 @@
+FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS dependencies
+WORKDIR /workspace
+COPY package.json bun.lock ./
+COPY apps/campaign-site/package.json ./apps/campaign-site/package.json
+COPY apps/public/package.json ./apps/public/package.json
+COPY apps/pwa/package.json ./apps/pwa/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/api-client/package.json ./packages/api-client/package.json
+COPY packages/features/package.json ./packages/features/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+RUN bun install --frozen-lockfile --ignore-scripts
+
+FROM docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a AS build
+WORKDIR /workspace
+ENV ASTRO_TELEMETRY_DISABLED=1
+COPY --from=dependencies /workspace ./
+COPY apps/campaign-site ./apps/campaign-site
+WORKDIR /workspace/apps/campaign-site
+RUN node /workspace/node_modules/astro/bin/astro.mjs check
+RUN node /workspace/node_modules/astro/bin/astro.mjs build
+
+FROM docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55 AS runtime-dependencies
+WORKDIR /workspace
+COPY --from=dependencies /workspace ./
+RUN bun install --frozen-lockfile --production --ignore-scripts
+
+FROM docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+WORKDIR /app
+COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
+COPY --from=build /workspace/apps/campaign-site/dist ./dist
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV NODE_ENV=production
+USER node
+EXPOSE 3000
+CMD ["node", "./dist/server/entry.mjs"]
