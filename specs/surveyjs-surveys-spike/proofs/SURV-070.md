@@ -99,12 +99,20 @@ actual service produces `survey_analysis_unavailable`; starting it again repeats
 the full golden proof successfully. Its container and network were removed.
 [Sanitized aggregate result](assets/SURV-070-aggregates.json).
 
-The separate `./leonaid test-surveys-aggregates` run,
-`leonaid-surveys-833458328-10568`, is still pending in fresh-image dependency
-installation at this commit. It is not recorded as passed and was not replaced
-or restarted. The focused service test above does not prove the full fresh-image
-build or the infrastructure browser regression; retain that distinction when
-reconciling the next run.
+The first full `./leonaid test-surveys-aggregates` attempt,
+`leonaid-surveys-833458328-10568`, took 854 seconds in dependency installation.
+It was deliberately interrupted while preparing to continue development; logs
+subsequently showed installation had completed and service startup was underway.
+Exit 130 is not a passed test. Its owned containers, volumes and networks were
+independently confirmed absent after cleanup.
+
+The repeated full command then passed as
+`leonaid-surveys-833458328-13121`, exit **0**, using the completed images. The
+actual API-container adapter passed the golden/limit checks, stopped-engine
+failure and restored-engine repetition. PostgreSQL/API foundation and the
+existing infrastructure browser journey passed, and all isolated resources were
+removed. This proves the private engine in the full stack; it still does not
+prove the as-yet-unimplemented analysis UI or snapshot/query authorization.
 
 ## Acceptance boundary
 
