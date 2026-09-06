@@ -118,6 +118,7 @@ Commands:
   test-surveys-editor
   test-surveys-lifecycle
   test-surveys-invitations
+  test-surveys-aggregates
   test-surveys-migrations
   test-surveys-core
   test-surveys-validation-candidate
@@ -2007,6 +2008,7 @@ case "$command" in
   test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
   test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
   test-surveys-invitations) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" invitations ;;
+  test-surveys-aggregates) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" aggregates ;;
   test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
   test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)
@@ -2014,7 +2016,7 @@ case "$command" in
     run_bun bun tools/surveys/parity.mjs .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync pytest tests/unit/test_surveys.py tests/unit/test_survey_validation.py -q
-    run_bun bun test tools/surveys/saves.test.ts
+    run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts
     ;;
   test-surveys-validation-candidate)
     run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare

@@ -1,0 +1,26 @@
+{
+  "definition": {
+    "pages": [
+      {"name":"main","elements":[
+        {"type":"radiogroup","name":"gate","choices":["yes","no"]},
+        {"type":"checkbox","name":"multi","choices":[{"value":"a","text":"Alpha"},{"value":"b","text":"Beta"}]},
+        {"type":"rating","name":"nps","rateMin":0,"rateMax":10,"rateStep":1},
+        {"type":"text","name":"number","inputType":"number","min":0,"max":100},
+        {"type":"matrix","name":"matrix","rows":["r1","r2"],"columns":["good","bad"]},
+        {"type":"comment","name":"text"},
+        {"type":"text","name":"date","inputType":"date"}
+      ]},
+      {"name":"followup","visibleIf":"{gate} = 'yes'","elements":[
+        {"type":"text","name":"follow"},
+        {"type":"text","name":"conditional","visibleIf":"{number} >= 10"}
+      ]}
+    ]
+  },
+  "responses": [
+    {"gate":"yes","multi":["a","b"],"nps":10,"number":10,"matrix":{"r1":"good","r2":"bad"},"text":"SENSITIVE_FIRST_TEXT","date":"2026-09-01","follow":"SENSITIVE_FOLLOW","conditional":"SENSITIVE_CONDITIONAL"},
+    {"gate":"yes","multi":["a"],"nps":9,"number":20,"matrix":{"r1":"bad"},"text":"SENSITIVE_SECOND_TEXT","date":"not-a-date"},
+    {"gate":"no","multi":[],"nps":0,"number":"","matrix":{},"follow":"SENSITIVE_HIDDEN_FOLLOW","conditional":"SENSITIVE_HIDDEN_CONDITIONAL"},
+    {"gate":"yes","multi":["alien"],"nps":11,"number":"invalid","matrix":{"r1":"alien"},"text":123},
+    {}
+  ]
+}

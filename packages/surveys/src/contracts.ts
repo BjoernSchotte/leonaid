@@ -158,14 +158,27 @@ export interface AnalysisFilter {
 }
 export interface QuestionAggregate {
   questionId: string;
+  title: string;
+  kind: string;
   relevant: number;
   answered: number;
   unanswered: number;
   hidden: number;
   invalid: number;
-  counts: { value: JsonValue; count: number }[];
+  counts: { value: JsonValue; label: string; count: number; percentage: number | null }[];
+  sum: number | null;
   mean: number | null;
+  minimum: number | null;
+  maximum: number | null;
   nps: number | null;
+  matrixRows: {
+    rowId: string;
+    label: string;
+    answered: number;
+    unanswered: number;
+    invalid: number;
+    counts: QuestionAggregate["counts"];
+  }[];
 }
 /** Frozen snapshot IDs bind UI and all exports to the same result set. */
 export interface AnalysisSnapshot {

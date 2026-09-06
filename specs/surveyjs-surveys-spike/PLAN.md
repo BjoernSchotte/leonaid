@@ -725,7 +725,7 @@ Dependencies: SURV-040, SURV-050, SURV-060.
 Implementation tasks:
 
 - [ ] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators. Acceptance: **070.A1, 070.A2, 070.A3**.
-- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values. Acceptance: **070.A1, 070.A3**.
+- [ ] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values. Acceptance: **070.A1, 070.A3**. [Engine progress and remaining host/UI acceptance](proofs/SURV-070.md).
 - [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views. Acceptance: **070.A2, 070.A3, 070.A4**.
 
 Test implementation and verification tasks:

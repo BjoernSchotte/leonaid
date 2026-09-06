@@ -164,7 +164,7 @@ runner to persistence. This package does not import LeonAid's API client, UI,
 identity or domain modules. Own license decision: **UNDEFINED**; the package is
 private and is not being published.
 
-Entrypoints: `editor`, `runner`, `contracts`, `styles`, `editor-styles`. The current
+Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `styles`, `editor-styles`. The current
 spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
 React and React DOM are peer dependencies. Import the runner stylesheet once;
 the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
@@ -184,3 +184,27 @@ saves to SQLite through its own adapter. It is a consumer proof, not a hosted
 service or production backend. Editor-wide translation, analytics exports,
 compiled distribution and full cross-host theme/hydration acceptance remain
 tracked in the spike plan.
+
+## Server aggregate engine (in progress)
+
+The separate `analysis` entrypoint exports `aggregateApprovedSurvey(definition,
+responses)`. Use it in a trusted server process after approving a stored
+initial-v1 definition. It uses the same SurveyJS model and partial-answer rules
+as the respondent/validator. It does not provide authorization, response
+selection, immutable snapshot storage, charts or exports. Those host integrations
+remain pending. Do not send raw responses to an aggregate-only browser user.
+
+Every question reports relevant, answered, unanswered, hidden and invalid counts.
+`answered + unanswered + invalid = relevant`; `relevant + hidden` equals the
+selected response count. Missing ratings never become zero. Choice percentages
+use valid answered participants, so checkbox totals may exceed 100%. Matrix row
+percentages use valid answered cells for that row; an invalid matrix answer is
+excluded as a whole and increments each row's invalid count. Text/date values
+never become buckets. Numeric fields return sum/mean/minimum/maximum; selection
+and rating buckets come only from the approved definition.
+
+The initial NPS convention is the 0–10 rating template with step 1. It computes
+`100 * (promoters - detractors) / valid answered`, with 9–10 promoters and 0–6
+detractors. Zero answered yields null, not zero. Other scales have no NPS metric.
+Sum and bucket counts are retained for future host batch combination; do not
+average batch percentages, means or NPS values without their denominators.

@@ -93,6 +93,16 @@ if [ "$mode" = invitations ]; then
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = aggregates ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
+  compose stop survey-validator
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py unavailable
+  compose up --detach --wait --wait-timeout 60 survey-validator
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
+fi
 if [ "$mode" = invitations ]; then
   browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"
 fi
@@ -114,6 +124,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = aggregates ]; then
+  cp "$proof/surveys-aggregates.json" "$artifact/"
+fi
 if [ "$mode" = invitations ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/invitations.py verify

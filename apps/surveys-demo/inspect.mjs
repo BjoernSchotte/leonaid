@@ -6,6 +6,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import assert from "node:assert/strict";
+import { aggregateApprovedSurvey } from "@leonaid/surveys/analysis";
 const versions = {
   "@leonaid/surveys": "0.0.0",
   "survey-core": "3.0.3",
@@ -44,7 +45,7 @@ const map = JSON.parse(readFileSync("dist/client.js.map", "utf8"));
 assert(map.sources.some((source) => source.includes("surveys/src/runner")));
 assert(
   !map.sources.some((source) =>
-    /surveys\/src\/(editor|conditions|validation-candidate)/.test(source),
+    /surveys\/src\/(editor|conditions|validation-candidate|analysis)/.test(source),
   ),
   "Authoring or server modules leaked into respondent bundle",
 );
@@ -59,7 +60,19 @@ const proof = {
   tarballBytes: readFileSync("/artifact/surveys.tgz").length,
   workspaceResolution: false,
   editorInRespondentBundle: false,
+  analysisInRespondentBundle: false,
+  packedAnalysisVerified: true,
 };
+const [rating, text] = aggregateApprovedSurvey({pages:[{name:"one",elements:[
+  {type:"rating",name:"nps",rateMin:0,rateMax:10},
+  {type:"comment",name:"comment"},
+]}]}, [{nps:10,comment:"PRIVATE_CONSUMER_TEXT"},{nps:9},{nps:0},{}]);
+assert.equal(rating.answered, 3);
+assert.equal(rating.unanswered, 1);
+assert(Math.abs(rating.nps - 100 / 3) < 1e-9);
+assert.equal(text.answered, 1);
+assert.deepEqual(text.counts, []);
+assert(!JSON.stringify([rating,text]).includes("PRIVATE_CONSUMER_TEXT"));
 writeFileSync("package-proof.json", JSON.stringify(proof, null, 2));
 console.log(
   "PASS: packed independent consumer, exact permissive dependencies, font notices and respondent bundle boundary",

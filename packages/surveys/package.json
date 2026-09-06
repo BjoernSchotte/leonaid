@@ -11,6 +11,7 @@
   ],
   "exports": {
     "./contracts": "./src/contracts.ts",
+    "./analysis": "./src/analysis.ts",
     "./runner": "./src/runner.tsx",
     "./styles": "./src/styles.css",
     "./editor": "./src/editor.tsx",
