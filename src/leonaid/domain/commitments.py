@@ -206,8 +206,24 @@ class DeliveryRecipientSnapshot:
     postal_code: str
     city: str
     country_code: str = "DE"
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    instructions: str | None = None
 
     def __post_init__(self) -> None:
+        for field, limit in (
+            ("contact_name", 200),
+            ("contact_phone", 50),
+            ("instructions", 1000),
+        ):
+            value = getattr(self, field)
+            normalized = value.strip() if value is not None else None
+            if normalized and len(normalized) > limit:
+                raise DomainInvariantError(
+                    f"delivery_{field}_too_long",
+                    f"Die Lieferangabe darf höchstens {limit} Zeichen enthalten.",
+                )
+            object.__setattr__(self, field, normalized or None)
         for value, code, label in (
             (self.recipient_name, "delivery_recipient_name_empty", "Name"),
             (self.street_line_1, "delivery_recipient_street_empty", "Straße"),
@@ -236,6 +252,10 @@ class DeliveryRecipientSnapshot:
             "postalCode": self.postal_code,
             "city": self.city,
             "countryCode": self.country_code,
+            # Preserve fingerprints of historical requests with no delivery extras.
+            **({"contactName": self.contact_name} if self.contact_name else {}),
+            **({"contactPhone": self.contact_phone} if self.contact_phone else {}),
+            **({"instructions": self.instructions} if self.instructions else {}),
         }
 
     @classmethod
@@ -249,6 +269,15 @@ class DeliveryRecipientSnapshot:
             postal_code=str(payload["postalCode"]),
             city=str(payload["city"]),
             country_code=str(payload["countryCode"]),
+            contact_name=(
+                str(payload["contactName"]) if payload.get("contactName") else None
+            ),
+            contact_phone=(
+                str(payload["contactPhone"]) if payload.get("contactPhone") else None
+            ),
+            instructions=(
+                str(payload["instructions"]) if payload.get("instructions") else None
+            ),
         )
 
 

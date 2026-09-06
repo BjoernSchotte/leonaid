@@ -1,6 +1,6 @@
 # Acquisition orders: delivery details, delivery windows, and beneficiaries
 
-Status: Proposed implementation plan; no implementation performed.
+Status: Implementation in progress; foundation proven, end-to-end acceptance pending.
 Date: 2026-09-06
 
 ## Outcome and scope
@@ -15,7 +15,7 @@ Delivery capture is mandatory scope for both order-entry channels: Anna's acquis
 | Anna's acquisition interface | Capture delivery/billing addresses, a window, contact, and instructions under the same delivery rules; show compact beneficiaries on the overview |
 | Public Astro charity website | Render these fields from the Core-owned form definition and submit them to Core, including on the EmDash-backed campaign website after its cutover |
 
-This is a planning-only change. Implementation, migrations, deployment, and live order submission are not part of this task.
+Implementation and isolated live verification were authorized after the plan review. Progress and evidence are recorded in `PROGRESS.md`; production deployment is not implied.
 
 ## Evidence and current gaps
 
