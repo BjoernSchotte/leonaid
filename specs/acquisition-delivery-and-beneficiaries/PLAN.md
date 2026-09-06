@@ -177,8 +177,8 @@ Evidence: admin lifecycle/conflict checkpoints and effective-form/empty-availabi
 
 Dependencies: DEL-02; DEL-03 provides usable configured test actions.
 
-- [ ] Extend `commitment-capture.tsx`, `commitment-admin.tsx`, and related styling with delivery/billing/contact/instructions/window behavior.
-- [ ] Extend `PublicAction.astro`, `PublicOrderEnhancement.astro`, and `apps/public/src/actions/index.ts` using the same backend rules, preserving the existing public address toggle and validation flow.
+- [x] Extend `commitment-capture.tsx`, `commitment-admin.tsx`, and related styling with delivery/billing/contact/instructions/window behavior. Evidence: cross-surface persisted-order, administrator readback and direct mobile acceptance checkpoints in `PROGRESS.md`.
+- [x] Extend `PublicAction.astro`, `PublicOrderEnhancement.astro`, and `apps/public/src/actions/index.ts` using the same backend rules, preserving the existing public address toggle and validation flow. Evidence: cross-surface persisted-order, administrator readback and direct mobile acceptance checkpoints in `PROGRESS.md`.
 - [ ] Reconcile with EmDash EMS-010/050/085 and extend the actual `apps/campaign-site` form renderer and serving-app transport once available. Reuse shared definitions/components where appropriate; verify both canonical campaign and alias entry points rather than assuming parity from copied markup.
 - [ ] Preserve anonymous submission with and without JavaScript, consent/version checks, anti-abuse controls, idempotency, server pricing, and recoverable error/success feedback across the public renderer transition.
 - [ ] Preserve user input on validation, network, and retired-window errors; make exact retry versus edited resubmission explicit in command-key handling.

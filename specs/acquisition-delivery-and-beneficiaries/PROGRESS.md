@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Action core regression and existing-renderer implementation audit — 2026-09-06
+
+Ran the plan's `./leonaid test-actions` gate on the current delivery branch. Added optional `LEONAID_ACTION_TEST_COMPOSE_OVERRIDE` using the same scoped compose-argument construction as the other runners; default behavior is unchanged. Isolated project `leonaid-362a-delivery-actions-20260906a` used ports 18269/18669 and dedicated worktree subnets.
+
+The actual contract passed neutral action creation, beneficiaries, goals, capabilities, lifecycle and audit. The complete Charity Admin browser creation passed in 5.3 seconds. This is the requested action-core regression, complementary to delivery defaults/migration and action-management proofs already recorded.
+
+The DEL-04 internal capture/admin UI and existing public Astro implementation items are now checked against their concrete persisted-order, billing reuse/separation, contact/instructions/window, administrator readback, recovery and direct mobile evidence. This does not check the separate EmDash renderer/transport-transition items or declare the entire plan complete.
+
 ## Full PWA regression on the delivery branch — 2026-09-06
 
 Ran the plan's `./leonaid test-pwa` gate against current source after the capture/header integration. Added optional `LEONAID_PWA_TEST_COMPOSE_OVERRIDE` support using the same argument construction as the other isolated runners; default behavior remains unchanged. The test ran in project `leonaid-362a-delivery-pwa-20260906a`, HTTP 18268 / HTTPS 18668 and the dedicated worktree subnet override.
