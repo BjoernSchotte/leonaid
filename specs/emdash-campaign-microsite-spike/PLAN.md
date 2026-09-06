@@ -1416,6 +1416,16 @@ Dependencies: EMS-030 successful
       EmDash creates the content row directly; the corrected proof targets each
       actual write path. The failed isolated run was also fully cleaned.
       This is not atomic distributed revocation after the final Core read.
+      Post-commit verification at `2295b88`: `./leonaid check` passed 208 unit
+      tests, 242 Python source checks, 36 CMS files with no diagnostics, all
+      frontend/API/generated-type/format/privacy/policy gates and an unchanged
+      committed tree. `campaign-runtime` passed in
+      `leonaid-emdash-tmp-fw5zdztwwk`: all six earlier lock/logout races,
+      content/revision attribution, restore/discard, publication-window denial,
+      publish/private follow-up, unpublish/draft preservation, concurrent
+      creation and actual late database rollback. Sanitized/deferred-task checks,
+      bootstrap restart/database-failure closure and owned-resource cleanup
+      passed; no host ports were published.
 - [x] Add version-2 local image fields (`hero_image`, `social_image`, partner
       `logo`), strict bounded reference shapes and matching generated types.
       Explicit `upgradeFromVersion1` migration verifies the retained exact v1
@@ -1445,6 +1455,17 @@ Dependencies: EMS-030 successful
       corrected without admitting arbitrary metadata or weakening ownership.
       See [SCHEMA.md](SCHEMA.md). Native picker context, image preview/browser UX,
       public publication-gated delivery, cleanup and fresh restore remain open.
+      Follow-up regressions at `bfd7f79` also completed: `schema-runtime`
+      (`leonaid-emdash-tmp-ezdb3j5p5b`), `campaign-content`
+      (`leonaid-emdash-tmp-8jxw1skhw6`), `campaign-runtime`
+      (`leonaid-emdash-tmp-4mzjtdgybr`) and `campaign-editorial-isolation`
+      (`leonaid-emdash-tmp-yoy3jev56i`). The browser suite repeated actual SMTP
+      login/fresh confirmation/session rotation, native editing/conflicts,
+      publishing/private follow-up, creation/logout and both Charity actors'
+      scoped-list/foreign-editor checks in Chromium, Firefox and WebKit.
+      Membership withdrawal, restart/database failure and complete cleanup
+      passed. This covers the existing editorial workflows, not native image
+      picker/preview UX, which remains open.
 - [x] Admit the campaign-scoped native reservation/PUT/confirmation protocol and
       private file reads through real Core authentication. Global multipart,
       media mutation, folder, usage and image-optimizer alternatives stay closed.
