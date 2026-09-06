@@ -228,6 +228,71 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       delivery.getByLabel("Beginn 1", { exact: true }).first(),
     ).toHaveValue("08:00");
     await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    await delivery
+      .getByRole("button", { name: "Tag hinzufügen", exact: true })
+      .click();
+    const thirdDay = delivery.locator(".delivery-day").last();
+    await thirdDay.getByLabel("Datum", { exact: true }).fill("2028-10-03");
+    await thirdDay
+      .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+      .click();
+    await thirdDay.getByLabel("Beginn 1", { exact: true }).fill("09:00");
+    await thirdDay.getByLabel("Ende 1", { exact: true }).fill("08:00");
+    const saveDelivery = delivery.getByRole("button", {
+      name: "Lieferplanung speichern",
+      exact: true,
+    });
+    await saveDelivery.click();
+    await expect(delivery.getByTestId("delivery-feedback")).toBeFocused();
+    await expect(delivery.getByRole("alert")).toContainText("Ende");
+    await expect(thirdDay.getByLabel("Beginn 1", { exact: true })).toHaveValue(
+      "09:00",
+    );
+    await thirdDay.getByLabel("Ende 1", { exact: true }).fill("10:00");
+    await saveDelivery.click();
+    await expect(delivery).toContainText("Lieferplanung gespeichert");
+    const threeDays = await (await context.request.get(configUrl)).json();
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-01"),
+    ).toHaveLength(3);
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-02"),
+    ).toHaveLength(3);
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-03"),
+    ).toHaveLength(1);
+    delete threeDays.actionId;
+    threeDays.windows[0].retired = true;
+    expect(
+      (await context.request.put(configUrl, { data: threeDays })).ok(),
+    ).toBeTruthy();
+    await thirdDay.getByLabel("Beginn 1", { exact: true }).fill("07:00");
+    await saveDelivery.click();
+    await expect(delivery.getByTestId("delivery-feedback")).toBeFocused();
+    await delivery
+      .getByRole("button", { name: "Aktuelle Lieferplanung vergleichen" })
+      .click();
+    await delivery
+      .getByRole("button", {
+        name: "Eigene Eingaben verwerfen und gespeicherte Planung laden",
+      })
+      .click();
+    await expect(thirdDay.getByLabel("Beginn 1", { exact: true })).toHaveValue(
+      "09:00",
+    );
+    await expect(
+      delivery.getByLabel("Zur Auswahl", { exact: true }).first(),
+    ).not.toBeChecked();
+    const effective = await (
+      await context.request.get(`${configUrl}/order-form`)
+    ).json();
+    expect(effective.windows).toHaveLength(6);
+    expect(
+      effective.windows.some((w) => w.id === threeDays.windows[0].id),
+    ).toBeFalsy();
+    await page.reload();
+    await expect(delivery.locator(".delivery-day")).toHaveCount(3);
+    await expect(delivery.locator(".delivery-window")).toHaveCount(7);
     await page.screenshot({
       path: `${artifactDirectory}/delivery-admin-desktop.png`,
       fullPage: true,

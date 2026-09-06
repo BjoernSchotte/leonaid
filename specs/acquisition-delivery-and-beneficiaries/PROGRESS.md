@@ -1,6 +1,13 @@
 # Implementation evidence
 
 
+## Variable delivery days, discard recovery and error focus — 2026-09-06
+
+Delivery editor errors now receive programmatic focus on a single wrapper while the existing StatusMessage remains the alert. Expanded the real admin browser journey to save three days with 3/3/1 windows, reject an end before its start without losing the entered start, and verify error focus. A second real concurrent save retires a window; after conflict, explicitly discarding local edits restores the saved times and retirement checkbox. The effective order-form response contains six selectable windows while all seven configured windows survive reload.
+
+Validation: `./leonaid test-action-admin` with isolated project `leonaid-362a-delivery-admin-20260906l`, ports 18262/18662 and the worktree network override exited 0. The React component gate and full admin lifecycle browser journey passed (17.3 seconds), including existing mobile overflow/Axe checks. Feature TypeScript checking passed. Own Docker resources were cleaned up. This proves the previously untested discard branch and unequal-day counts, but does not replace the integrated Anna/public/EmDash acceptance or the final In-App Browser inspection.
+
+
 ## Delivery editor tab retention and conflict recovery — 2026-09-06
 
 The delivery editor remains mounted inside its hidden management panel, retaining unsaved dates/windows across tab switches. A revision conflict now offers an in-place read-only comparison of the latest saved configuration (revision, enabled policy, timezone, dates, times, retirement). The admin can explicitly retain their local plan on the compared revision and save, or explicitly discard their input and load the saved plan. The comparison explains that saving the retained plan replaces the compared configuration; immutable booked-window guards still apply server-side. A later concurrent write is still protected by revision validation.

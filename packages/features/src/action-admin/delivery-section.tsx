@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ApiError,
   type DeliveryConfigurationResponse,
@@ -66,6 +66,10 @@ function DeliveryEditor({
   const [days, setDays] = useState(() => daysFor(initial));
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{ error: boolean; text: string }>();
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (feedback?.error) feedbackRef.current?.focus();
+  }, [feedback]);
   function updateDay(key: string, change: Partial<Day>) {
     setDays((current) =>
       current.map((day) => (day.key === key ? { ...day, ...change } : day)),
@@ -379,9 +383,11 @@ function DeliveryEditor({
           </section>
         )}
         {feedback && (
-          <StatusMessage tone={feedback.error ? "error" : "success"}>
-            {feedback.text}
-          </StatusMessage>
+          <div ref={feedbackRef} tabIndex={-1} data-testid="delivery-feedback">
+            <StatusMessage tone={feedback.error ? "error" : "success"}>
+              {feedback.text}
+            </StatusMessage>
+          </div>
         )}
       </form>
     </section>
