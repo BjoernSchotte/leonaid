@@ -8,11 +8,11 @@ checks. This is an incremental proof; SURV-050 is not fully accepted.
 | Task | Required acceptance | Delivery / named evidence | Acceptance / remaining gap |
 |---|---|---|---|
 | 050.1 | A3, A5 | Existing runner and [SURV-010 browser proof](SURV-010.md#browser-autosave-and-recovery-proof) | Full runner acceptance remains open |
-| 050.2 | A1, A4 | Existing revision/idempotency contracts; timeout test repeats completion | Full restart/reordering/two-tab matrix remains open |
+| 050.2 | A1, A4 | Revision/idempotency plus real two-tab ordering and lost-completion acknowledgement below | Delivered; A4 passed, A1 still requires the full API-restart matrix |
 | 050.3 | A2, A5 | Timeout settings APIs, snapshot preservation, real classification worker and effective-status view; `tools/surveys/timeouts.py prepare/recover` | Backend delivery proven; A2 remains open for actual analysis integration under SURV-070 |
 | 050.4 | A3, A4, A5 | Existing protected restore and [SURV-020 reload evidence](SURV-020.md#browser-rendering-and-restoration-disposition) | Full conflict/recovery acceptance remains open |
 | 050.T1 | A1, A2 | Real worker stop/restart, settings/replay checks and delayed classification below | Partial: complete restart/concurrency and analysis coverage remain open |
-| 050.T2 | A3, A4, A5 | Seven runner browser scenarios; existing A5 is preserved | Two-tab and lost-completion-acknowledgement journey remains open |
+| 050.T2 | A3, A4, A5 | Eight runner browser scenarios; A4 and existing A5 proven | Full A3 unsent-tab-closure reconciliation remains open |
 
 ## Implementation contract
 
@@ -96,3 +96,66 @@ selected, no host ports were published, and container/volume/network teardown
 completed before successful exit. No full analysis, settings UI,
 large-backlog performance or arbitrary concurrency claim follows from the
 bounded scenarios above.
+
+## Two-tab ordering and lost completion acknowledgement
+
+Baseline: `5b94ed8` plus the source committed with this proof. Acceptance 050.A4
+and scenario 050.S4 are now checked; 050.2 records implementation delivery.
+Its overall acceptance remains open through 050.A1's full API-restart coverage.
+
+The coordinator previously offered a save-only retry after an uncertain
+completion. That could leave an already completed response unconfirmed in the
+UI. It now retains the exact completion operation/revision, freezes editing
+while its result is uncertain, and offers **Abschluss erneut bestätigen**.
+Retry and reconnection repeat that completion, rather than reporting a no-op
+save as success. Ordinary flushes cannot clear the unconfirmed state. A completed
+coordinator remains terminal across later online/flush/finish events. Explicit
+revision conflicts use the conflict state and require reloading the newer data.
+The neutral message contract includes `completing` and `retryCompletion`; the
+independent English consumer supplies its own text.
+
+`tests/e2e/surveys-runner.spec.mjs` — **two tabs reject a delayed stale save and
+retry a lost completion acknowledgement** — uses two real pages in one browser
+session, with actual public API and PostgreSQL persistence:
+
+1. Start one participation and save source `2`; restore the same URL in tab B.
+2. Hold tab A's PUT containing source `3` before it reaches the server. Save
+   source `4` from B first, then release A. A displays a revision conflict;
+   the API retains `4` at the winning revision. Reloading A restores `4`.
+3. Complete from B. Playwright forwards the completion to the real server and
+   checks HTTP 200, then aborts delivery to the browser. The UI shows an error
+   and no premature thank-you heading; a separate read proves completion was
+   actually persisted.
+4. Click the explicit completion retry. Its request body, operation ID and
+   expected revision exactly match the first call. The returned snapshot is
+   unchanged, the thank-you heading appears, and both an online event and reload
+   preserve the completed outcome and participation identity.
+5. `tools/surveys/recovery_verify.py` independently reads PostgreSQL afterward:
+   correct winning answer and revision, a completion timestamp, one recorded
+   start for this participation and exactly one completion operation in the
+   durable ledger. Its result matches the browser's acknowledged snapshot.
+
+Command `./leonaid test-surveys-runner` exited **0** in isolated project
+`leonaid-surveys-833458328-97903`. All eight Chromium tests passed in **32.1s**,
+followed by the SQL check. The same run passed 192 API/PostgreSQL validation
+cases, actual worker stop/restart and validator stop/pause/recovery checks.
+It used fresh synthetic fixtures, unused explicit subnets, no published host
+ports and verified container/volume/network teardown. Browser recovery artifact
+contains only synthetic IDs/answers and stays in the temporary proof directory.
+
+Supporting checks passed:
+
+- `./leonaid test-surveys-core`: 168 reference/SurveyJS comparisons, 23 Python
+  tests, four queue tests and 28 assertions. The new queue assertion verifies
+  uncertain completion does not permit a normal flush to claim success, exact
+  completion replay, and terminal state after another retry.
+- `./leonaid test-surveys-package`, project `surveys-package-833458328-98019`:
+  packed artifact works in the separate consumer, both browser phases pass
+  (3.2s/1.5s), real SQLite persistence survives backend restart, dependency/font
+  and bundle checks pass, no host ports and successful cleanup.
+- Pinned Bun TypeScript checking of `packages/surveys/tsconfig.json` and pinned
+  Python Ruff checking of the SQL verifier both exit zero.
+
+This bounded proof does not close 050.A1's API-restart contract or 050.A2's
+analysis-consumer integration. It does not claim that untransmitted edits
+survive destroying a browser tab. Full SURV-050/spike acceptance remains open.

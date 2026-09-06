@@ -111,6 +111,8 @@ if [ "$mode" = editor ]; then
   cp "$proof"/surveys-accessibility* "$artifact/"
 fi
 if [ "$mode" = runner ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
   cp "$proof/surveys-mid-page.png" "$artifact/"
 fi
 compose down --volumes --remove-orphans

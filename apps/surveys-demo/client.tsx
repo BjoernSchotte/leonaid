@@ -28,6 +28,8 @@ const messages: RunnerMessages = {
   saving: "Saving to the demo database",
   saveFailed: "Save unavailable; keep this tab open.",
   completionFailed: "Submission was not confirmed. Please retry.",
+  completing: "Confirming submission …",
+  retryCompletion: "Confirm submission again",
   completed: "Submitted",
   thankYouTitle: "Your feedback is safe",
   thankYouBody: "The independent host received your response.",

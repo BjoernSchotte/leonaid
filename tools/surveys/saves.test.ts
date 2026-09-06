@@ -145,3 +145,31 @@ test("a rejected invalid snapshot does not prevent saving a subsequent correctio
   expect(calls[1].operationId).not.toBe(calls[0].operationId);
   saves.dispose();
 });
+
+test("uncertain completion freezes edits and explicit retry reuses its exact operation", async () => {
+  const calls: unknown[] = [];
+  const model = new Model(participation.version.definition);
+  const api = adapter(async (_, input) => ok(input));
+  api.complete = async (_, input) => {
+    calls.push(structuredClone(input));
+    if (calls.length === 1) throw Error("lost completion acknowledgement");
+    return {
+      ok: true,
+      value: { ...participation.response, revision: 2, status: "completed" },
+    };
+  };
+  const saves = new SaveCoordinator(model, participation, api, () => {});
+  expect(await saves.finish()).toBe(false);
+  expect(saves.state).toBe("error");
+  expect(model.mode).toBe("display");
+  saves.changed();
+  expect(await saves.flush()).toBe(false);
+  expect(saves.state).toBe("error");
+  expect(await saves.retry()).toBe(true);
+  expect(calls[1]).toEqual(calls[0]);
+  expect(saves.state).toBe("completed");
+  expect(await saves.retry()).toBe(true);
+  expect(saves.state).toBe("completed");
+  expect(calls).toHaveLength(2);
+  saves.dispose();
+});

@@ -22,10 +22,12 @@ export interface RunnerMessages {
   saving: string;
   saveFailed: string;
   completionFailed: string;
+  completing: string;
   completed: string;
   thankYouTitle: string;
   thankYouBody: string;
   retry: string;
+  retryCompletion: string;
   conflict: string;
 }
 const defaultMessages: RunnerMessages = {
@@ -36,10 +38,12 @@ const defaultMessages: RunnerMessages = {
     "Speichern derzeit nicht möglich. Ihre Änderungen bleiben in diesem geöffneten Fenster erhalten.",
   completionFailed:
     "Der Abschluss konnte noch nicht bestätigt werden. Bitte versuchen Sie es erneut.",
+  completing: "Abschluss wird bestätigt …",
   completed: "Vielen Dank. Ihre Antworten sind eingegangen.",
   thankYouTitle: "Vielen Dank für Ihre Rückmeldung.",
   thankYouBody: "Ihre Antworten sind eingegangen.",
   retry: "Erneut speichern",
+  retryCompletion: "Abschluss erneut bestätigen",
   conflict:
     "Ein anderes Fenster hat neuere Antworten gespeichert. Laden Sie die Seite neu, um diesen Stand zu übernehmen.",
 };
@@ -62,6 +66,7 @@ export class SaveCoordinator {
     null;
   private restoring = false;
   private stopped = false;
+  completionUnconfirmed = false;
   state: SaveState = "saved";
   message: string;
   response: ResponseSnapshot;
@@ -81,7 +86,13 @@ export class SaveCoordinator {
     if (!this.stopped) this.notify();
   }
   changed(immediate = false) {
-    if (this.restoring || this.stopped || this.state === "completed") return;
+    if (
+      this.restoring ||
+      this.stopped ||
+      this.completionUnconfirmed ||
+      this.state === "completed"
+    )
+      return;
     this.generation++;
     this.dirty = true;
     if (this.state !== "conflict")
@@ -90,6 +101,8 @@ export class SaveCoordinator {
     this.timer = setTimeout(() => void this.flush(), immediate ? 0 : 400);
   }
   flush(): Promise<boolean> {
+    if (this.state === "completed") return Promise.resolve(true);
+    if (this.completionUnconfirmed) return Promise.resolve(false);
     if (this.running) return this.running;
     if (this.state === "conflict" || this.stopped)
       return Promise.resolve(false);
@@ -149,8 +162,9 @@ export class SaveCoordinator {
     return true;
   }
   async finish(): Promise<boolean> {
+    if (this.state === "completed") return true;
     this.model.mode = "display";
-    if (!(await this.flush())) {
+    if (!this.completionUnconfirmed && !(await this.flush())) {
       this.model.mode = "edit";
       return false;
     }
@@ -163,24 +177,35 @@ export class SaveCoordinator {
         expectedRevision: this.response.revision,
       };
     }
+    this.completionUnconfirmed = true;
+    this.status("saving", this.messages.completing);
     try {
       const result = await this.adapter.complete(
         this.participation.id,
         this.completion,
       );
       if (!result.ok) {
-        this.status("error", result.error.message);
-        this.model.mode = "edit";
+        this.completionUnconfirmed =
+          result.error.code === "temporarily_unavailable";
+        this.status(
+          result.error.code === "revision_conflict" ? "conflict" : "error",
+          result.error.message,
+        );
+        this.model.mode = this.completionUnconfirmed ? "display" : "edit";
         return false;
       }
+      this.completionUnconfirmed = false;
       this.response = result.value;
       this.status("completed", this.messages.completed);
       return true;
     } catch {
+      this.completionUnconfirmed = true;
       this.status("error", this.messages.completionFailed);
-      this.model.mode = "edit";
       return false;
     }
+  }
+  retry(): Promise<boolean> {
+    return this.completionUnconfirmed ? this.finish() : this.flush();
   }
   dispose() {
     this.stopped = true;
@@ -224,7 +249,7 @@ export function SurveyRunner({
       options.allow = await saves.finish();
       if (!options.allow) options.message = saves.message;
     };
-    const online = () => void saves.flush();
+    const online = () => void saves.retry();
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (["pending", "saving", "error", "conflict"].includes(saves.state)) {
         event.preventDefault();
@@ -265,8 +290,8 @@ export function SurveyRunner({
       >
         <span>{saves.message}</span>
         {saves.state === "error" && (
-          <button type="button" onClick={() => void saves.flush()}>
-            {copy.retry}
+          <button type="button" onClick={() => void saves.retry()}>
+            {saves.completionUnconfirmed ? copy.retryCompletion : copy.retry}
           </button>
         )}
         {saves.state === "conflict" && <p>{copy.conflict}</p>}
