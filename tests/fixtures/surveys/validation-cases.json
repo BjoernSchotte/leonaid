@@ -2563,5 +2563,2103 @@
       "closing"
     ],
     "expectedComplete": false
+  },
+  {
+    "name": "coercion-text-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "valid"
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-text-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-text-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-text-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-text-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-text-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "valid"
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-comment-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 2
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-number-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2026-09-06"
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-date-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-invalid-day",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2026-02-30"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-non-iso",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "06.09.2026"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-year-zero",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "0000-01-01"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 1
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-radio-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 2
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-dropdown-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-checkbox-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-duplicate",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        1
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-equivalent-numeric-duplicate",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        1.0
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-string-option",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        "1"
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-unknown",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        3
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": 7
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-rating-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-valid",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1,
+        "b": 2
+      }
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-matrix-boolean",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "forged": true
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-empty-object",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": null
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-numeric-string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-array",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-boolean-cell",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": true,
+        "b": 2
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-string-cell",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": "1",
+        "b": 2
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-unknown-row",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": true,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1,
+        "b": 2,
+        "c": 1
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-required-empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {}
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-required-one-row",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1
+      }
+    },
+    "expectedComplete": true
+  },
+  {
+    "name": "coercion-text-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedAnswers": {
+      "answer": [
+        1,
+        2
+      ]
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-comment-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "comment"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": false
+    },
+    "expectedAnswers": {
+      "answer": false
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-number-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "text",
+              "inputType": "number",
+              "min": 0,
+              "max": 10
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "1"
+    },
+    "expectedAnswers": {
+      "answer": "1"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-date-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "text",
+              "inputType": "date",
+              "min": "2026-01-01",
+              "max": "2026-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "2026-02-30"
+    },
+    "expectedAnswers": {
+      "answer": "2026-02-30"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-radio-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "radiogroup",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "unknown"
+    },
+    "expectedAnswers": {
+      "answer": "unknown"
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-dropdown-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "dropdown",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1
+      }
+    },
+    "expectedAnswers": {
+      "answer": {
+        "a": 1
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-checkbox-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": 1
+      }
+    },
+    "expectedAnswers": {
+      "answer": {
+        "a": 1
+      }
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-rating-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "rating",
+              "rateMin": 0,
+              "rateMax": 10,
+              "rateStep": 1
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": true
+    },
+    "expectedAnswers": {
+      "answer": true
+    },
+    "expectedComplete": false
+  },
+  {
+    "name": "coercion-matrix-optional-invalid-preserved",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "answer",
+              "isRequired": false,
+              "type": "matrix",
+              "rows": [
+                "a",
+                "b"
+              ],
+              "columns": [
+                1,
+                2
+              ],
+              "isAllRowRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": {
+        "a": true,
+        "b": 2
+      }
+    },
+    "expectedAnswers": {
+      "answer": {
+        "a": true,
+        "b": 2
+      }
+    },
+    "expectedComplete": false
   }
 ]

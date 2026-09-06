@@ -258,3 +258,64 @@ made by this model-only regression. Both live commands used fresh isolated
 volumes/networks and no host ports; both commands exited zero with verified
 teardown. Raw artifacts remain local and ignored. 010.T2 is checked against this
 commit's runner/fixture changes and the linked existing 010.A3/010.A4 evidence.
+
+## Strict answer types and matrix completion
+
+Implementation increment for 010.3 / 010.T1, based on `b86129b` plus this
+commit's changes. Full 010.A1 acceptance remains open.
+
+The shared model now validates actual answer types against the initial profile:
+text/comment, finite numbers, canonical dates, typed choices, unique checkbox
+values, rating bounds/steps and matrix rows/cells. Checks use the original
+question definition and raw model value rather than SurveyJS's potentially
+coerced validation-event value. Select questions no longer silently discard
+unknown supplied choices during validation; explicit guarded hidden-answer
+cleanup retains the existing question/page relevance behavior.
+
+Two server defects were corrected: checkbox values `1` and `1.0` count as a
+duplicate, and an empty required matrix cannot complete even when not every row
+is mandatory. Partial empty matrices remain saveable. No dependency was added.
+
+| Task | Acceptance scope | Test evidence | Result |
+|---|---|---|---|
+| 010.3 | Supplied types, incomplete versus invalid values, hidden cleanup; part of 010.A1 and existing 010.A2/010.A4 | `validation-cases.json`, actual model comparison, runner scenarios below | Implemented increment; full condition parity open |
+| 010.T1 | Shared type/choice/matrix fixtures and real rejected writes | `tools/surveys/parity.mjs`, `parity.py`, `surveys-runner.spec.mjs` | Listed checks pass; full work-package test task remains open |
+
+`./leonaid test-surveys-core` exited zero with 168 actual SurveyJS/Python
+comparisons, 23 Python tests and three save-coordinator tests (17 assertions).
+The 80 additional fixtures cover required and optional invalid types, invalid
+dates, numeric-string choices, duplicate selections and matrix constraints.
+Nine optional-invalid cases require the invalid value to remain present and
+completion to fail; silently deleting it cannot pass. Model answers are now
+captured **after** `validate()` to include any validation-time mutation.
+
+`./leonaid test-surveys-runner` exited zero in isolated project
+`leonaid-surveys-833458328-63646`: six Chromium scenarios passed in 20.9s,
+following actual migrations, API/PostgreSQL foundation and response-contract
+checks. In “forged answer types cannot advance persisted state and matrix
+completion requires correction”, nine direct invalid answer payloads and a raw
+JSON `[1,1.0]` selection receive HTTP 422 without changing stored answers or
+revision. Saving an empty matrix succeeds as partial; completion fails without
+changing the revision or setting completed. After reload, the actual UI shows
+the matrix error, accepts row corrections and completes with the exact expected
+server snapshot. Existing no-blur, offline/reconnect and chained-hidden-page
+journeys also pass. The command published no host ports and verified teardown.
+
+Web/package TypeScript, Ruff and strict mypy for the changed server validator
+passed in pinned runtimes. Browser runs use the pinned images in
+`infra/locks/images.env`, including SurveyJS core/React 3.0.3 from the lockfile.
+Fixtures are synthetic; raw browser traces remain ignored local artifacts.
+
+Remaining limitation confirmed by a separate actual-model probe: SurveyJS
+compares a valid text answer `"1"` equal to the numeric literal `1` and greater
+than `0`; the Python condition evaluator currently uses stricter types. It also
+supports lexical string ordering that the current Python candidate does not.
+These are unresolved relevance differences, not evidence that all condition
+semantics pass. 010.2, 010.3, 010.T1 and 010.A1 therefore remain unchecked.
+
+The shared-model editor regression also passed: `./leonaid test-surveys-editor`,
+project `leonaid-surveys-833458328-65127`, seven Chromium scenarios in 1.1 minutes,
+exit zero with verified teardown and no host ports. This covers both sample
+authoring journeys, keyboard/preview accessibility, persisted structural edits,
+safe import/publication rejection and draft-save recovery. It establishes no
+additional mobile/theme or full-profile compatibility claim.

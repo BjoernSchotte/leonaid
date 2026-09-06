@@ -429,7 +429,10 @@ def validate_answers(
                 if (
                     not isinstance(value, list)
                     or any(not contains_option(v, allowed) for v in value)
-                    or len(set(map(str, value))) != len(value)
+                    or any(
+                        contains_option(v, value[:index])
+                        for index, v in enumerate(value)
+                    )
                 ):
                     fail("invalid_response", name)
                 if (
@@ -447,7 +450,12 @@ def validate_answers(
                     or any(not contains_option(v, cols) for v in value.values())
                 ):
                     fail("invalid_response", name)
-                if complete and q.get("isAllRowRequired") and set(value) != set(rows):
+                if complete and (
+                    q.get("isRequired")
+                    and not value
+                    or q.get("isAllRowRequired")
+                    and set(value) != set(rows)
+                ):
                     fail("invalid_response", name)
             if kind == "rating" and not math.isclose(
                 (value - low) / q.get("rateStep", 1),

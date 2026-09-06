@@ -13,10 +13,11 @@ const results = cases.map((item) => {
       JSON.parse(readFileSync(new URL(`${item.fixture}.json`, fixture))),
   );
   restoreSurveyAnswers(model, item.answers);
+  const completeValid = model.validate();
   return {
     name: item.name,
     answers: model.data,
-    completeValid: model.validate(),
+    completeValid,
     visible: model
       .getAllQuestions()
       .filter((q) => q.isVisible && q.page.isVisible)

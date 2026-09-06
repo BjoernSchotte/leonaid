@@ -357,3 +357,157 @@ test("hidden pages clear chained answers through edits, direct saves and restora
     await context.close();
   }
 });
+
+test("forged answer types cannot advance persisted state and matrix completion requires correction", async ({
+  browser,
+}) => {
+  const id = process.env.SURVEY_VALIDATION_COERCION_ID;
+  if (!id) throw new Error("Coercion fixture required");
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${baseURL}/surveys/${id}`);
+    await page.getByRole("button", { name: "Umfrage beginnen" }).click();
+    await expect(page.locator("[data-name=text]")).toBeVisible();
+    const pid = new URL(page.url()).searchParams.get("participation");
+    const path = `/api/v1/public/surveys/${id}/participations/${pid}`;
+    const valid = {
+      text: "Text",
+      comment: "Kommentar",
+      number: 2,
+      date: "2026-09-06",
+      radio: 1,
+      dropdown: 2,
+      checkbox: [1, 2],
+      rating: 7,
+      matrix: { a: 1, b: 2 },
+    };
+    const attempts = await page.evaluate(
+      async ({ path, valid }) => {
+        const before = await (await fetch(path)).json();
+        const invalid = [
+          { text: true },
+          { comment: { forged: true } },
+          { number: "2" },
+          { date: "2026-02-30" },
+          { radio: "1" },
+          { dropdown: true },
+          { checkbox: [1, 1] },
+          { rating: 7.5 },
+          { matrix: { a: true, b: 2 } },
+        ];
+        const results = [];
+        for (const patch of invalid) {
+          const result = await fetch(path, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              operationId: crypto.randomUUID(),
+              expectedRevision: before.response.revision,
+              answers: { ...valid, ...patch },
+              currentPage: "types",
+            }),
+          });
+          const after = await (await fetch(path)).json();
+          results.push({
+            patch,
+            status: result.status,
+            revision: after.response.revision,
+            answers: after.response.answers,
+          });
+        }
+        // Keep JSON number spellings distinct to exercise Python 1 versus 1.0.
+        const duplicate = await fetch(path, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationId: crypto.randomUUID(),
+            expectedRevision: before.response.revision,
+            answers: { ...valid, checkbox: [1, 1] },
+            currentPage: "types",
+          }).replace('"checkbox":[1,1]', '"checkbox":[1,1.0]'),
+        });
+        const duplicateAfter = await (await fetch(path)).json();
+        return {
+          before: before.response,
+          results,
+          duplicate: {
+            status: duplicate.status,
+            after: duplicateAfter.response,
+          },
+        };
+      },
+      { path, valid },
+    );
+    for (const attempt of attempts.results) {
+      expect(attempt.status, JSON.stringify(attempt.patch)).toBe(422);
+      expect(attempt.revision).toBe(attempts.before.revision);
+      expect(attempt.answers).toEqual(attempts.before.answers);
+    }
+    expect(attempts.duplicate.status).toBe(422);
+    expect(attempts.duplicate.after.revision).toBe(attempts.before.revision);
+    expect(attempts.duplicate.after.answers).toEqual(attempts.before.answers);
+    const partial = await page.evaluate(
+      async ({ path, valid }) => {
+        const before = await (await fetch(path)).json();
+        const save = await fetch(path, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationId: crypto.randomUUID(),
+            expectedRevision: before.response.revision,
+            answers: { ...valid, matrix: {} },
+            currentPage: "types",
+          }),
+        });
+        const saved = await (await fetch(path)).json();
+        const complete = await fetch(`${path}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationId: crypto.randomUUID(),
+            expectedRevision: saved.response.revision,
+          }),
+        });
+        const after = await (await fetch(path)).json();
+        return {
+          saved: save.status,
+          rejected: complete.status,
+          before: saved.response,
+          after: after.response,
+        };
+      },
+      { path, valid },
+    );
+    expect(partial.saved).toBe(200);
+    expect(partial.rejected).toBe(422);
+    expect(partial.after.revision).toBe(partial.before.revision);
+    expect(partial.after.status).not.toBe("completed");
+    await page.reload();
+    await expect(page.locator("[data-name=text] input")).toHaveValue("Text");
+    await page
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(
+      page.locator("[data-name=matrix] .sd-error").first(),
+    ).toBeVisible();
+    const radios = page.locator("[data-name=matrix]").getByRole("radio");
+    await radios.nth(0).press("Space");
+    await radios.nth(3).press("Space");
+    await saved(page);
+    await page
+      .getByRole("button", { name: "Abschließen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Vielen Dank für Ihre Rückmeldung." }),
+    ).toBeVisible();
+    const final = await page.evaluate(
+      async (path) => (await fetch(path)).json(),
+      path,
+    );
+    expect(final.response.status).toBe("completed");
+    expect(final.response.answers).toEqual(valid);
+  } finally {
+    await context.close();
+  }
+});
