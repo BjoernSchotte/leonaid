@@ -1,0 +1,16 @@
+services:
+  core-postgres:
+    networks: !override [core-data]
+  api:
+    depends_on: !reset {}
+    networks: !override [edge, core-data]
+    # Identity needs real Core SQL only; dependency readiness is not this proof.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=3)"
+      interval: 3s
+      timeout: 4s
+      retries: 30

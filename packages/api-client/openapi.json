@@ -3269,6 +3269,10 @@
             "title": "Displayname",
             "type": "string"
           },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
           "freshLoginAt": {
             "format": "date-time",
             "title": "Freshloginat",
@@ -3324,6 +3328,7 @@
         "required": [
           "userId",
           "displayName",
+          "email",
           "globalRoles",
           "actionMemberships",
           "roleLabels",

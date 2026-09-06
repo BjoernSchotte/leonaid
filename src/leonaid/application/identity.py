@@ -116,6 +116,7 @@ class IdentityMembershipView:
 class CurrentIdentity:
     user_id: UUID
     display_name: str
+    email: str
     global_roles: tuple[GlobalRole, ...]
     action_memberships: tuple[IdentityMembershipView, ...]
     role_labels: tuple[str, ...]
@@ -468,6 +469,7 @@ class IdentityQueryService:
         return CurrentIdentity(
             user_id=principal.account.id,
             display_name=principal.account.display_name,
+            email=principal.account.email,
             global_roles=tuple(sorted(principal.global_roles, key=str)),
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),

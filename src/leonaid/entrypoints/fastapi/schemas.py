@@ -68,6 +68,7 @@ class NavigationItemResponse(TransportModel):
 class CurrentIdentityResponse(TransportModel):
     user_id: UUID
     display_name: str
+    email: str
     global_roles: list[Literal["system_admin", "finance_reader", "finance_manager"]]
     action_memberships: list[IdentityMembershipResponse]
     role_labels: list[str]

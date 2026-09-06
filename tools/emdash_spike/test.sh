@@ -7,13 +7,13 @@ shift
 test_case=all
 if [ "$#" -ne 0 ]; then
   if [ "$#" -ne 2 ] || [ "$1" != --case ]; then
-    echo "emdash-spike: expected --case dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing" >&2
+    echo "emdash-spike: expected --case dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile" >&2
     exit 2
   fi
   test_case=$2
 fi
 case "$test_case" in
-  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing) ;;
+  all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
 
@@ -46,6 +46,7 @@ if [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/rustfs-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/service-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/proxy-test.sh" "$root"
+  /bin/sh "$root/tools/emdash_spike/identity-profile-test.sh" "$root"
   echo "emdash-spike: INCOMPLETE: database, auth, isolation, rendering and recovery gates are pending" >&2
   exit 2
 fi
@@ -57,4 +58,7 @@ if [ "$test_case" = service-runtime ]; then
 fi
 if [ "$test_case" = proxy-routing ]; then
   /bin/sh "$root/tools/emdash_spike/proxy-test.sh" "$root"
+fi
+if [ "$test_case" = identity-profile ]; then
+  /bin/sh "$root/tools/emdash_spike/identity-profile-test.sh" "$root"
 fi

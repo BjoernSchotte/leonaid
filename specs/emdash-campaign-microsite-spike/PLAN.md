@@ -135,9 +135,11 @@ user Administrator. Returning `subject` alone does not implement stable identity
 Persist a unique Core UUID to EmDash user-ID mapping and resolve accounts through
 that mapping, using a supported extension or a narrowly reviewed, pinned patch.
 Email is mutable profile data, never an account-linking or account-merging key.
-The current Core identity response does not supply email; explicitly decide
-whether an authorized minimal profile extension is necessary. Do not invent an
-email or obtain it directly from the Core database to satisfy EmDash's adapter.
+The original Core identity response did not supply email. The minimal extension
+implemented in EMS-020 returns the authenticated user's own email through the
+existing identity service; no new profile directory or unauthenticated endpoint
+is introduced. Do not invent an email or obtain it directly from the Core
+database to satisfy EmDash's adapter.
 Concurrent provisioning must produce one mapping and no privilege escalation.
 
 Unauthenticated editor navigation returns to the existing LeonAid login with a
@@ -594,6 +596,11 @@ authenticated browser flows and pilot HTTPS still need their later gates.
 
 Dependencies: EMS-010
 
+- [x] Extend the existing authenticated Core profile with the current user's
+      own email, regenerate OpenAPI/TypeScript, and prove that email remains
+      mutable profile data while `userId` stays stable. Never expose this field
+      on anonymous or suspended-session responses.
+
 - [ ] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
       config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
       workspace package.
@@ -646,6 +653,18 @@ Expected cases:
   401/403 as appropriate;
 - removing the last relevant membership invalidates the next EmDash request;
 - no second login, Passkey, or EmDash-only session remains usable.
+
+Profile prerequisite checkpoint (6 September 2026):
+`./leonaid test-emdash-spike --case identity-profile` passed against the actual
+Core production image, migrations and a fresh Golden Dataset PostgreSQL volume
+in a unique Compose project without host ports. Two authenticated users receive
+only their respective profile; changing one synthetic account's email changes
+its next `/me` response without changing its UUID or the other user's profile.
+Suspension denies the next request. Both successful profile responses and
+401/403 authentication/authorization errors are explicitly `no-store`; the
+401 header gap found by this proof was fixed in the common error response.
+All temporary resources were removed. This closes only the minimal Core profile
+extension, not the CMS adapter, stable account mapping or shared-login gate.
 
 ### EMS-030 — Prove campaign-scoped authorization before enabling editors
 
