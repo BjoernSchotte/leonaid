@@ -395,7 +395,7 @@ Dependencies: none
 - [x] Configure EmDash's PostgreSQL adapter and pin its required driver.
       Provision a dedicated database and role on the existing `core-postgres`
       server according to section 4.1, including existing-volume upgrades.
-- [ ] Use a dedicated RustFS bucket and least-privilege credentials for EmDash
+- [x] Use a dedicated RustFS bucket and least-privilege credentials for EmDash
       media. Do not expose the bucket publicly.
 - [x] Disable marketplace plugins and sandboxed third-party plugins unless the
       spike explicitly tests and pins `workerd`.
@@ -441,6 +441,16 @@ privileged preexisting roles, and proves denied Core connections and role/databa
 creation. The actual EmDash adapter runs all migrations idempotently. After a
 database restart the test verifies existing Core/CMS rows and migration state
 before reapplying provisioning. CMS service wiring and RustFS proofs remain open.
+
+RustFS checkpoint: `./leonaid test-emdash-spike --case rustfs` passed against the
+pinned beta.11 image in a unique internal Docker network with no host ports.
+The real operator creates a private `emdash-media` bucket and a scoped
+`leonaid-emdash` IAM user, refuses unexpected existing bindings/policies, and is
+repeatable from both an empty volume and retained state after restart. Tests
+prove own-bucket object/list/delete access, denied foreign-bucket read/write/list,
+denied IAM and bucket deletion, and denied anonymous object downloads. The Core
+test object and CMS retained object survive restart. This closes the standalone
+storage provisioning proof, not the remaining HTTP-service/media UI wiring.
 
 ### EMS-010 — Create the isolated EmDash Astro service
 

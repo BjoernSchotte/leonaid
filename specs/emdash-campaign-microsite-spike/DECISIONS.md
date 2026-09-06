@@ -1,7 +1,7 @@
 # EmDash spike decisions
 
-Status: dependency, closed-runtime and PostgreSQL checkpoints passed; storage,
-authorization and public campaign delivery remain unproven.
+Status: dependency, closed-runtime, PostgreSQL and RustFS provisioning checkpoints
+passed; integrated service, authorization and public campaign delivery remain unproven.
 
 ## Dependency baseline (EMS-000)
 
@@ -24,7 +24,7 @@ authorization and public campaign delivery remain unproven.
 Use a dedicated `emdash` database and non-superuser role on the isolated
 installation's existing Core PostgreSQL server. Use a private CMS-only RustFS
 bucket with scoped credentials. No SQLite fallback and no Core database access.
-PostgreSQL provisioning is proven; RustFS provisioning and SQL/media recovery
+PostgreSQL and RustFS provisioning are proven; coordinated SQL/media recovery
 proofs remain outstanding.
 
 `tools/emdash_spike/provision-postgres.mjs` is operator-only. Its CLI requires
@@ -91,12 +91,29 @@ dependency, build, database, browser, authorization and recovery gates.
   206 unit tests, all existing quality gates plus CMS type/format checks, and
   an unchanged worktree. This does not prove the outstanding RustFS/auth gates.
 
-## Next storage proof
+## RustFS operator and proof
 
 Use the native signed RustFS admin API for scoped credentials and policy
 bindings, as described in the official
 [IAM documentation](https://docs.rustfs.com/en/security-compliance/iam/policies).
 The documented user/policy endpoints are under `/rustfs/admin/v3`. Verify their
-behavior against the pinned beta.11 image; documentation alone is not evidence
-of a successful provision or a working least-privilege policy. Test own-bucket
-object operations, denied unrelated bucket access and denied admin operations.
+behavior against the pinned beta.11 image rather than treating documentation as
+proof of a successful provision or a working least-privilege policy.
+
+- `python -m tools.emdash_spike.provision_rustfs` runs only in an operator
+  container. It needs `RUSTFS_ENDPOINT_URL`, root `RUSTFS_ACCESS_KEY` and
+  `RUSTFS_SECRET_KEY`, plus `CMS_S3_ACCESS_KEY_ID=leonaid-emdash` and a separately
+  supplied `CMS_S3_SECRET_ACCESS_KEY`. The runtime must receive only CMS keys.
+- The fixed `emdash-media` namespace has no anonymous policy. Existing bucket
+  policies, unexpected IAM attachments/groups and different named policies are
+  rejected for review rather than silently replaced. Signed admin requests do
+  not follow redirects or print credential-bearing response bodies.
+- beta.11 returns HTTP 500 for a missing individual policy lookup. Provisioning
+  uses the successful full policy inventory to establish absence; it does not
+  reinterpret arbitrary HTTP 500 errors as permission to create a policy.
+- `./leonaid test-emdash-spike --case rustfs` passed the real operator process,
+  repeated provisioning, private own-bucket operations, cross-bucket/admin/
+  anonymous denial, unexpected binding rejection, and IAM/object persistence
+  after restart. Only the fresh test project's resources were removed.
+- App runtime S3 wiring, browser media delivery and coordinated recovery are
+  still outstanding and must not be inferred from this provisioning proof.
