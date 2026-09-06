@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 root=$1
+case ${2:-content} in
+  content) proof_script=campaign-content-proof.mjs ;;
+  schema) proof_script=schema-runtime-proof.mjs ;;
+  *) echo "campaign-content: unsupported proof" >&2; exit 2 ;;
+esac
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
@@ -22,4 +27,4 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 compose up --detach --wait core-postgres
-compose run --rm --no-deps proof node tools/emdash_spike/campaign-content-proof.mjs
+compose run --rm --no-deps proof node "tools/emdash_spike/$proof_script"

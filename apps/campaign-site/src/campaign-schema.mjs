@@ -78,3 +78,16 @@ export const campaignCollection = {
     },
   ],
 };
+
+export function exportCampaignSchema() {
+  return (
+    JSON.stringify(
+      {
+        schema_version: campaignSchemaVersion,
+        seed: { version: "1", collections: [campaignCollection] },
+      },
+      null,
+      2,
+    ) + "\n"
+  );
+}

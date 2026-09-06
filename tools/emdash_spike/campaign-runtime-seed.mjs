@@ -4,7 +4,7 @@ import { createDialect } from "emdash/db/postgres";
 import { applySeed } from "emdash/seed";
 import { ContentRepository, handleContentList } from "emdash";
 import { installCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
-import { campaignCollection } from "../../apps/campaign-site/src/campaign-schema.mjs";
+import { installCampaignSchema } from "../../apps/campaign-site/src/install-campaign-schema.mjs";
 
 const database = new Kysely({
   dialect: createDialect({
@@ -15,11 +15,11 @@ const database = new Kysely({
   }),
 });
 try {
+  await installCampaignSchema(database);
   const result = await applySeed(
     database,
     {
       version: "1",
-      collections: [campaignCollection],
       content: {
         campaign_pages: [1, 1, 2, 2].map((action, index) => ({
           id: `proof-${index}`,

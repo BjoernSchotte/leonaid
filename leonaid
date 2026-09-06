@@ -43,6 +43,8 @@ Commands:
   test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser>
   test-emdash-spike --case <authorization-inventory|authorization-surface>
   test-emdash-spike --case <campaign-content|campaign-runtime>
+  test-emdash-spike --case schema-runtime
+  export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
                     Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX
@@ -1985,6 +1987,13 @@ case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
   check) check_all ;;
+  export-campaign-schema)
+    require_docker
+    docker_retry docker run --rm --network none \
+      --volume "$root/apps/campaign-site/src/campaign-schema.mjs:/workspace/apps/campaign-site/src/campaign-schema.mjs:ro" \
+      --volume "$root/tools/emdash_spike/export-schema.mjs:/workspace/tools/emdash_spike/export-schema.mjs:ro" \
+      --workdir /workspace "$NODE_IMAGE" node tools/emdash_spike/export-schema.mjs
+    ;;
   test-emdash-spike)
     shift
     /bin/sh "$root/tools/emdash_spike/test.sh" "$root" "$@"
