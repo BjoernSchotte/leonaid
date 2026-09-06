@@ -656,6 +656,9 @@ Dependencies: EMS-010
       cleanup removed only the proof project's resources. This proves the
       existing Core confirmation flow, not a new blanket fresh-login requirement
       for CMS edits or completion of the broader authentication gate.
+      Quality gate: `./leonaid check` passed on `33165e7`, including unit tests,
+      Python and frontend/CMS type checks, API parity, formatting and privacy/
+      policy checks; the committed working tree remained unchanged.
 - [x] Prove System Admin login through the actual Core email-code form from an
       empty browser context, SMTP delivery through the real Core worker, return
       to the native campaign editor, native editing and publication, and Core
