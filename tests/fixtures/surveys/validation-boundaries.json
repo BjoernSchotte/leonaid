@@ -1,0 +1,25 @@
+{
+  "title": "Validierung – Rückmeldung",
+  "pages": [
+    {
+      "name": "details",
+      "elements": [
+        {
+          "type": "text",
+          "name": "answer",
+          "title": "Kurzantwort",
+          "minLength": 2,
+          "maxLength": 3
+        },
+        {
+          "type": "comment",
+          "name": "follow",
+          "title": "Bitte erläutern",
+          "visibleIf": "{answer} = 'yes'",
+          "isRequired": true,
+          "maxLength": 100
+        }
+      ]
+    }
+  ]
+}

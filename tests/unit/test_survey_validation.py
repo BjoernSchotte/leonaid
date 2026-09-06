@@ -88,3 +88,43 @@ def test_empty_multiselect_with_minimum_is_partial_only():
     assert validate_answers(definition, {"choices": []}, complete=False) == {}
     with pytest.raises(DomainInvariantError):
         validate_answers(definition, {"choices": []}, complete=True)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        {"type": "checkbox", "choices": ["a"], "inputType": "number"},
+        {"type": "text", "inputType": []},
+        {"type": "text", "min": 1},
+        {"type": "comment", "rateMax": 10},
+        {"type": "rating", "rateMin": 0, "rateMax": 1000000},
+    ],
+)
+def test_misapplied_properties_cannot_change_validation_branch(question):
+    definition = {
+        "pages": [{"name": "page", "elements": [dict(question, name="answer")]}]
+    }
+    with pytest.raises(DomainInvariantError):
+        validate_definition(definition)
+
+
+def test_native_zero_upper_bounds_mean_default_not_forbidden_answers():
+    definition = {
+        "pages": [
+            {
+                "name": "page",
+                "elements": [
+                    {"type": "text", "name": "text", "maxLength": 0},
+                    {
+                        "type": "checkbox",
+                        "name": "choices",
+                        "choices": ["a"],
+                        "maxSelectedChoices": 0,
+                    },
+                ],
+            }
+        ]
+    }
+    assert validate_answers(
+        definition, {"text": "😀", "choices": ["a"]}, complete=True
+    ) == {"text": "😀", "choices": ["a"]}

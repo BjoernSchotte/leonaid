@@ -44,6 +44,23 @@ QUESTION_KEYS = {
     "maxSelectedChoices",
     "placeholder",
 }
+COMMON_QUESTION_KEYS = {
+    "type",
+    "name",
+    "title",
+    "description",
+    "isRequired",
+    "visibleIf",
+}
+TYPE_KEYS = {
+    "text": {"inputType", "min", "max", "minLength", "maxLength", "placeholder"},
+    "comment": {"minLength", "maxLength", "placeholder"},
+    "radiogroup": {"choices"},
+    "dropdown": {"choices", "placeholder"},
+    "checkbox": {"choices", "minSelectedChoices", "maxSelectedChoices"},
+    "rating": {"rateMin", "rateMax", "rateStep"},
+    "matrix": {"rows", "columns", "isAllRowRequired"},
+}
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,79}\Z")
 LEAF = re.compile(
     r"\{([A-Za-z][A-Za-z0-9_]*)\}\s*(notempty|empty|notcontains|contains|<=|>=|!=|<>|=|<|>)\s*(.*)\Z"
@@ -59,6 +76,14 @@ def json_size(value: Any) -> int:
         return len(json.dumps(value, allow_nan=False).encode())
     except (ValueError, TypeError, RecursionError):
         fail("invalid_response", "JSON")
+
+
+def utf16_length(value: str) -> int:
+    """Match JavaScript/native input length, including supplementary characters."""
+    try:
+        return len(value.encode("utf-16-le")) // 2
+    except UnicodeEncodeError:
+        fail("invalid_response", "invalid Unicode scalar")
 
 
 def contains_option(value: Any, allowed: list[Any]) -> bool:
@@ -111,6 +136,9 @@ def check_properties(value: dict[str, Any]) -> None:
     if value.get("type") == "rating" and (
         value.get("rateStep", 1) <= 0
         or value.get("rateMax", 5) < value.get("rateMin", 1)
+        or (value.get("rateMax", 5) - value.get("rateMin", 1))
+        / value.get("rateStep", 1)
+        > 99
     ):
         fail("invalid_definition", "rating")
 
@@ -179,6 +207,13 @@ def condition(expression: str, answers: dict[str, Any], preceding: set[str]) -> 
         and not math.isfinite(expected)
     ):
         fail("unsupported_capability", "visibleIf literal type")
+    # SurveyJS compares string expressions case-insensitively by default.
+    if isinstance(value, str):
+        value = value.lower()
+    if isinstance(expected, str):
+        expected = expected.lower()
+    if isinstance(value, list):
+        value = [item.lower() if isinstance(item, str) else item for item in value]
     if empty:
         return op in {"!=", "<>", "notcontains"}
     if op in {"=", "!=", "<>"}:
@@ -235,6 +270,16 @@ def validate_definition(definition: Any) -> None:
     if json_size(definition) > 262144:
         fail("limit_exceeded", "definition")
     check_properties(definition)
+    if "locale" in definition and definition["locale"] not in ("de", "en", ""):
+        fail("unsupported_capability", "locale")
+    if "showProgressBar" in definition and definition["showProgressBar"] not in (
+        "off",
+        "top",
+        "bottom",
+        "both",
+        "auto",
+    ):
+        fail("invalid_definition", "showProgressBar")
     pages = definition.get("pages")
     if not isinstance(pages, list) or not 1 <= len(pages) <= 25:
         fail("invalid_definition", "pages")
@@ -261,6 +306,21 @@ def validate_definition(definition: Any) -> None:
                 or question.get("type") not in TYPES
             ):
                 fail("unsupported_capability", "question")
+            kind = question["type"]
+            if set(question) - (COMMON_QUESTION_KEYS | TYPE_KEYS[kind]):
+                fail(
+                    "unsupported_capability", "property does not apply to question type"
+                )
+            input_type = question.get("inputType", "text")
+            if input_type not in ("text", "number", "date"):
+                fail("unsupported_capability", "inputType")
+            if kind == "text" and (
+                input_type == "text"
+                and {"min", "max"} & question.keys()
+                or input_type != "text"
+                and {"minLength", "maxLength"} & question.keys()
+            ):
+                fail("unsupported_capability", "input constraint does not apply")
             check_properties(question)
             name = question.get("name")
             if (
@@ -276,8 +336,6 @@ def validate_definition(definition: Any) -> None:
             if question["type"] == "matrix":
                 options(question.get("rows"), name)
                 options(question.get("columns"), name)
-            if question.get("inputType", "text") not in {"text", "number", "date"}:
-                fail("unsupported_capability", name)
             preceding.add(name)
     if len(preceding) > 150:
         fail("limit_exceeded", "questions")
@@ -320,9 +378,9 @@ def validate_answers(
                 "number",
                 "date",
             }:
-                if not isinstance(value, str) or not q.get("minLength", 0) <= len(
-                    value
-                ) <= q.get("maxLength", 10000):
+                if not isinstance(value, str) or not q.get(
+                    "minLength", 0
+                ) <= utf16_length(value) <= (q.get("maxLength", 0) or 10000):
                     fail("invalid_response", name)
             elif kind == "rating" or q.get("inputType") == "number":
                 low = q.get("rateMin", 1) if kind == "rating" else q.get("min", -1e12)
@@ -359,7 +417,7 @@ def validate_answers(
                 ):
                     fail("invalid_response", name)
                 if (
-                    len(value) > q.get("maxSelectedChoices", 100)
+                    len(value) > (q.get("maxSelectedChoices", 0) or 100)
                     or complete
                     and len(value) < q.get("minSelectedChoices", 0)
                 ):

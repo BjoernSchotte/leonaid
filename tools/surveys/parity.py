@@ -4,15 +4,25 @@ import json
 import sys
 from pathlib import Path
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import validate_answers, condition
+from leonaid.domain.surveys.validation import (
+    validate_answers,
+    validate_definition,
+    condition,
+)
 
 fixtures = Path("tests/fixtures/surveys")
 client_results = {row["name"]: row for row in json.loads(Path(sys.argv[1]).read_text())}
 failures = []
-for case in json.loads((fixtures / "validation-cases.json").read_text()):
+cases = json.loads((fixtures / "validation-cases.json").read_text())
+assert len({case["name"] for case in cases}) == len(cases), "Duplicate fixture name"
+assert set(client_results) == {case["name"] for case in cases}, (
+    "Missing or stale client results"
+)
+for case in cases:
     definition = case.get("definition") or json.loads(
         (fixtures / f"{case['fixture']}.json").read_text()
     )
+    validate_definition(definition)
     try:
         validate_answers(definition, case["answers"], complete=True)
         valid = True
@@ -34,7 +44,10 @@ for case in json.loads((fixtures / "validation-cases.json").read_text()):
             ):
                 visible.append(question["name"])
             preceding.add(question["name"])
-    assert visible == client_results[case["name"]]["visible"], case["name"]
+    if visible != client_results[case["name"]]["visible"]:
+        failures.append(
+            f"{case['name']}: visibility server={visible}, client={client_results[case['name']]['visible']}"
+        )
 assert not failures, "\n".join(failures)
 print(
     f"PASS: {len(client_results)} actual SurveyJS/Python validation and relevance comparisons"

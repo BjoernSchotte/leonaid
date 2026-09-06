@@ -19,7 +19,7 @@ async def main():
         headers={"Cookie": f"__Host-leonaid_session={token}"},
     ) as client:
         entries = []
-        for fixture in ["krapfentaxi", "golf"]:
+        for fixture in ["krapfentaxi", "golf", "validation-boundaries"]:
             survey_id = str(uuid4())
             definition = json.loads(
                 Path(f"tests/fixtures/surveys/{fixture}.json").read_text()
@@ -39,7 +39,9 @@ async def main():
                 json={"operationId": "browser-publish", "expectedRevision": 1},
             )
             assert result.status_code == 200, result.text
-            entries.append(f"SURVEY_{fixture.upper()}_ID={survey_id}")
+            entries.append(
+                f"SURVEY_{fixture.upper().replace(chr(45), chr(95))}_ID={survey_id}"
+            )
         path.write_text(path.read_text() + "\n".join(entries) + "\n")
     print("Published synthetic browser survey fixtures through actual API")
 

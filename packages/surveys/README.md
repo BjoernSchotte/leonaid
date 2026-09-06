@@ -83,3 +83,11 @@ upstream stylesheet and uses host-provided fonts.
 Tests live in `tools/surveys/saves.test.ts` and
 `tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys-runner` builds a fresh
 isolated stack and exercises actual services before the browser scenarios.
+
+
+The runner model maps the profile's minimum text length to a native SurveyJS
+TextValidator. Text limits use UTF-16 code units, consistent with JavaScript and
+browser inputs (an emoji outside the BMP counts as two units). The backend uses
+the same measure. Guided string conditions follow SurveyJS's case-insensitive
+default; answer data itself keeps its original case. `./leonaid test-surveys-core`
+compares these semantics in the actual pinned runtimes.

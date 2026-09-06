@@ -678,5 +678,1766 @@
         "b": 2
       }
     }
+  },
+  {
+    "name": "text-unicode-minimum-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "text-unicode-minimum-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "a"
+    }
+  },
+  {
+    "name": "text-unicode-minimum-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "ab"
+    }
+  },
+  {
+    "name": "text-unicode-minimum-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "abc"
+    }
+  },
+  {
+    "name": "text-unicode-minimum-4",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀"
+    }
+  },
+  {
+    "name": "text-unicode-minimum-5",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀a"
+    }
+  },
+  {
+    "name": "text-unicode-minimum-6",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀ab"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": ""
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "a"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "ab"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "abc"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-4",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-5",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀a"
+    }
+  },
+  {
+    "name": "comment-unicode-minimum-6",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "comment",
+              "name": "answer",
+              "minLength": 2,
+              "maxLength": 3
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "answer": "😀ab"
+    }
+  },
+  {
+    "name": "condition-0-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-0-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-0-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-0-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-1-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} != 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-1-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} != 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-1-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} != 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-1-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} != 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-2-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} empty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-2-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} empty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-2-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} empty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-2-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} empty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-3-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} notempty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-3-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} notempty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-3-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} notempty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-3-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} notempty",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-4-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{b} >= 2 and {a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-4-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{b} >= 2 and {a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-4-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{b} >= 2 and {a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-4-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{b} >= 2 and {a} = 'yes'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-5-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes' or {b} < 2",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-5-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes' or {b} < 2",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-5-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes' or {b} < 2",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-5-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} = 'yes' or {b} < 2",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-6-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "({a} = 'yes' or {b} < 2) and {c} contains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-6-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "({a} = 'yes' or {b} < 2) and {c} contains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-6-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "({a} = 'yes' or {b} < 2) and {c} contains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-6-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "({a} = 'yes' or {b} < 2) and {c} contains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-7-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{c} notcontains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-7-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{c} notcontains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-7-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{c} notcontains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-7-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{c} notcontains 'x'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-8-0",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} contains 'e'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {}
+  },
+  {
+    "name": "condition-8-1",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} contains 'e'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "yes",
+      "b": 2,
+      "c": [
+        "x"
+      ]
+    }
+  },
+  {
+    "name": "condition-8-2",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} contains 'e'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "no",
+      "b": 1,
+      "c": [
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "condition-8-3",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "type": "text",
+              "name": "a"
+            },
+            {
+              "type": "text",
+              "inputType": "number",
+              "name": "b"
+            },
+            {
+              "type": "checkbox",
+              "name": "c",
+              "choices": [
+                "x",
+                "y"
+              ]
+            },
+            {
+              "type": "comment",
+              "name": "follow",
+              "visibleIf": "{a} contains 'e'",
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "a": "YES",
+      "b": 3,
+      "c": [
+        "x",
+        "y"
+      ]
+    }
   }
 ]

@@ -143,3 +143,46 @@ A direct SurveyJS 3.0.3 metadata probe also confirmed that a question-level
 `minLength: 3` is discarded during serialization and a one-character answer is
 accepted by bare SurveyJS. Explicit client mapping for that profile rule remains
 required and is not covered by the newly passing upper-bound checks.
+
+
+## Minimum length, Unicode and compound conditions
+
+The shared fixture set now contains 82 cases. `./leonaid test-surveys-core`
+passed all actual runner/SurveyJS-versus-Python comparisons, 22 Python tests and
+three save-coordinator tests. Strict mypy for the validator and package TypeScript
+checking passed. This extends, rather than replaces, the earlier boundary proof.
+
+Observed upstream semantics and implementation:
+
+- Question-level minLength is mapped to SurveyJS's native TextValidator when the
+  runner model is created; its absence from SurveyJS question metadata no longer
+  silently disables the minimum. Optional empty input remains allowed.
+- Text length uses UTF-16 code units in both runtimes, matching native browser
+  maxlength. A supplementary emoji occupies two units; no normalization or
+  truncation is performed by the server. Invalid Unicode scalar input is rejected.
+- String equality/inequality and contains conditions are case-insensitive, matching
+  SurveyJS's default. Numeric comparisons, empty/notempty, all/any combinations
+  and nested parentheses are exercised by the new fixtures.
+- Publication rejects properties that do not apply to the question/input type,
+  including checkbox inputType=number, which previously could select the wrong
+  validation branch. Rating scales are bounded to at most 100 options to prevent
+  oversized controls. Zero maxLength/maxSelectedChoices use the bounded profile
+  default rather than prohibiting every nonempty response.
+
+The remaining parity audit still includes page-level/chained hidden relevance,
+coercion edge cases and exhaustive malformed-definition coverage. SURV-010 is
+not fully accepted by these additional cases alone.
+
+
+Live proof for this increment: `./leonaid test-surveys-runner`, isolated project
+`leonaid-surveys-833458328-20462`, passed real migration/API/PostgreSQL contracts
+and four Chromium tests in 16.0 seconds. The additional browser test publishes
+`validation-boundaries.json` through the real authoring API. It verifies a visible
+minimum-length error, recovery after correction, uppercase YES activating the
+persisted conditional question, and emoji input replacing and removing its hidden
+follow-up. A direct authenticated response request with four UTF-16 units against
+a three-unit maximum returns 422 and leaves both revision and answers unchanged.
+The valid three-unit emoji/text answer then completes through the actual UI.
+
+The comparison verifier now also independently validates every definition before
+comparing answers and rejects missing, stale or duplicate named fixture results.

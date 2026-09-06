@@ -169,3 +169,60 @@ test("offline edits stay pending and retry successfully after reconnect", async 
   ).toHaveValue("Unterwegs ohne Netz ergänzt");
   await context.close();
 });
+
+test("minimum length, Unicode and case-insensitive conditions use persisted profile rules", async ({
+  browser,
+}) => {
+  const id = process.env.SURVEY_VALIDATION_BOUNDARIES_ID;
+  if (!id) throw new Error("Validation fixture required");
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  await page.goto(`${baseURL}/surveys/${id}`);
+  await page.getByRole("button", { name: "Umfrage beginnen" }).click();
+  const field = page.locator("[data-name=answer] input[type=text]");
+  await field.fill("a");
+  await expect(page.locator("[data-save-state]")).toHaveAttribute(
+    "data-save-state",
+    "error",
+  );
+  await page.getByRole("button", { name: "Abschließen", exact: true }).click();
+  await expect(page.locator("[data-name=answer] .sd-error")).toBeVisible();
+  await field.fill("YES");
+  await expect(page.locator("[data-name=follow] textarea")).toBeVisible();
+  await page.locator("[data-name=follow] textarea").fill("Begründung");
+  await saved(page);
+  await page.reload();
+  await expect(page.locator("[data-name=follow] textarea")).toHaveValue(
+    "Begründung",
+  );
+  await field.fill("😀a");
+  await saved(page);
+  await expect(page.locator("[data-name=follow]")).toHaveCount(0);
+  const pid = new URL(page.url()).searchParams.get("participation");
+  const state = await page.evaluate(
+    async ({ id, pid }) => {
+      const path = `/api/v1/public/surveys/${id}/participations/${pid}`;
+      const before = await (await fetch(path)).json();
+      const invalid = await fetch(path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operationId: crypto.randomUUID(),
+          expectedRevision: before.response.revision,
+          answers: { answer: "😀ab" },
+        }),
+      });
+      const after = await (await fetch(path)).json();
+      return { before, after, rejected: invalid.status };
+    },
+    { id, pid },
+  );
+  expect(state.rejected).toBe(422);
+  expect(state.after.response.revision).toBe(state.before.response.revision);
+  expect(state.after.response.answers).toEqual({ answer: "😀a" });
+  await page.getByRole("button", { name: "Abschließen", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Vielen Dank für Ihre Rückmeldung." }),
+  ).toBeVisible();
+  await context.close();
+});
