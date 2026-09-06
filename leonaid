@@ -332,6 +332,9 @@ check_all() {
   require_docker
   check_clean_tree
   before=$(git -C "$root" status --porcelain --untracked-files=all)
+  # Linked worktrees use an absolute .git pointer outside the mounted checkout.
+  # Readiness must inspect the real repository, not a synthetic replacement.
+  check_git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
 
   docker run --rm \
     -v "$root:/workspace:ro" \
@@ -350,6 +353,7 @@ check_all() {
   docker run --rm \
     -e PYTHONPATH=/workspace \
     -v "$root:/workspace:ro" \
+    -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/pilot_readiness/test.py /workspace
   docker run --rm \
