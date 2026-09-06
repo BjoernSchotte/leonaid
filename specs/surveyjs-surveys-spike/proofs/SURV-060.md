@@ -241,7 +241,64 @@ been fault-injected here.
 060.A2 / 060.S2 remain open for complete retry/failure coverage and seeded
 credential scans of application logs and exports. Export implementation is still
 pending. Full persona/capability coverage and preview/test isolation also remain
-open. Delivery failure/cancellation status needs follow-up: a queued invitation
-skipped because its survey closed can still appear queued, and its encrypted
-mail body needs a defined cleanup path. No full production delivery-status,
-retention, visual or accessibility acceptance is claimed by this increment.
+open. At this increment, delivery failure/cancellation status still needed
+follow-up; the subsequent delivery-state increment below resolves the queued
+display and skipped-payload cleanup. No full production retention, visual or
+accessibility acceptance is claimed.
+
+## Invitation delivery states and SMTP recovery
+
+Baseline `e01d4d1` plus this increment, verified on 2026-09-07. The list API now
+derives `retrying` and `failed` from the existing outbox state, without exposing
+error details or mail content. A skipped unsent message whose encrypted payload
+has been cleared is `cancelled`. Revocation, expiry, redemption and confirmed
+delivery retain their existing precedence. The member UI names these states in
+German and provides an explicit status-refresh action. An exhausted automatic
+retry directs the member to administration; this increment does not add a second
+retry mechanism outside the existing outbox administration.
+
+Before skipping an expired/revoked invitation or a closed/deadline-expired survey,
+the worker removes its encrypted mail body in the same locked transaction.
+Transient delivery failure rolls that transaction back so a subsequent attempt
+can still deliver. A dead-letter message retains the protected body for existing
+administrative retry; revocation clears it. Global expiry/retention cleanup for
+dead-letter messages remains a SURV-090 obligation.
+
+The live fixture now creates five invitations with the actual worker stopped.
+It seeds one event at four prior attempts to exercise the final configured
+attempt without waiting through the earlier backoff intervals. The harness then
+stops the actual SMTP/Mailpit service and starts the worker. The failure phase
+requires these real API list states:
+
+| Fixture | Expected status | Persisted outcome |
+|---|---|---|
+| Valid, temporary SMTP failure | `retrying` | One invitation/event, protected mail retained for automatic retry |
+| Final attempt, SMTP failure | `failed` | Actual dead-letter transition after the worker's failed send |
+| Survey closed before processing | `cancelled` | No SMTP delivery; protected body cleared |
+| Invitation expired | `expired` | No SMTP delivery; protected body cleared |
+| Invitation revoked | `revoked` | No SMTP delivery; protected body cleared |
+
+After SMTP restarts, only the temporary-failure fixture is delivered. The
+dead-letter fixture remains failed and absent from Mailpit; revoking it clears
+its protected body and prevents redemption. The original exact-redemption,
+saved-answer, revoke and database-association checks still pass. The browser
+journey also explicitly refreshes the delivery status and sees `Versendet` before
+opening the delivered questionnaire.
+
+The first expanded run, `leonaid-surveys-833458328-7947`, passed the real outage,
+recovery, two Chromium tests (4.0s), SQL verification and isolated cleanup, exit
+zero. A parallel TypeScript check found a missing success-message argument on
+the refresh action. It was corrected after that run ended; final TypeScript and
+Mypy on the three changed application files then passed. Ruff passed the changed
+Python files.
+
+The final-source command `./leonaid test-surveys-invitations` passed as
+`leonaid-surveys-833458328-8538`, exit **0**: actual SMTP outage/recovery, all five
+delivery-state fixtures, two Chromium tests (4.0s), database verification and
+successful isolated teardown. Seven unused explicit subnets and no host ports
+kept the run separate from parallel worktrees. This repeated run includes the
+corrected status-refresh success message.
+
+This adds concrete coverage to 060.S2, but does not close 060.A2 / 060.S2: seeded
+credential scans in exports and captured application logs are still missing.
+The SMTP acknowledgement/local-ledger crash window described above is unchanged.

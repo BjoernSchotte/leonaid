@@ -9293,6 +9293,9 @@
           "status": {
             "enum": [
               "queued",
+              "retrying",
+              "failed",
+              "cancelled",
               "sent",
               "redeemed",
               "expired",

@@ -116,6 +116,8 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
         { timeout: 15000 },
       )
       .toBe(1);
+    await page.getByRole("button", { name: "Versandstatus aktualisieren", exact: true }).click();
+    await expect(page.getByText("Versendet", { exact: true })).toBeVisible();
     const messages = await (
       await request.get("http://mailpit:8025/mail/api/v1/messages")
     ).json();

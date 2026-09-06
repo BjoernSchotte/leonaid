@@ -84,7 +84,11 @@ if [ "$mode" = invitations ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/invitations.py prepare
+  compose stop mailpit
   compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitations.py failure
+  compose up --detach --wait --wait-timeout 60 mailpit
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi

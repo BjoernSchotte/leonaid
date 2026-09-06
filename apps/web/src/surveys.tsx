@@ -591,6 +591,21 @@ export function SurveysPage({
             {invitations && allowed("manage_invitations") && (
               <details className="surveys-settings">
                 <summary>Einladungen ({invitations.total})</summary>
+                <Button
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() =>
+                    void run(async () => {
+                      setInvitations(
+                        await client.listSurveyInvitations(summary.id, {
+                          offset: invitationOffset,
+                        }),
+                      );
+                    }, "Versandstatus wurde aktualisiert.")
+                  }
+                >
+                  Versandstatus aktualisieren
+                </Button>
                 {summary.status === "active" && (
                   <form
                     onSubmit={(e) => {
@@ -674,6 +689,9 @@ export function SurveysPage({
                         {
                           {
                             queued: "Zum Versand vorgemerkt",
+                            retrying: "Versand verzögert · erneuter Versuch folgt",
+                            failed: "Versand fehlgeschlagen · bitte Administration kontaktieren",
+                            cancelled: "Nicht versendet · Umfrage geschlossen",
                             sent: "Versendet",
                             redeemed: "Teilnahme begonnen",
                             expired: "Abgelaufen",

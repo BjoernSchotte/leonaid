@@ -655,6 +655,12 @@ class AsyncpgSurveyRepository:
             if row["redeemed_at"]
             else "sent"
             if row["sent_at"]
+            else "cancelled"
+            if row["mail_payload"] is None
+            else "failed"
+            if row.get("delivery_state") == "dead_letter"
+            else "retrying"
+            if row.get("delivery_error")
             else "queued"
         )
         return {
@@ -679,7 +685,10 @@ class AsyncpgSurveyRepository:
             raise Conflict("closed", "Die Umfrage wurde gelöscht.")
         if operation == "invitation-list":
             rows = await conn.fetch(
-                "SELECT * FROM survey_invitation WHERE survey_id=$1 ORDER BY created_at DESC,id LIMIT 100 OFFSET $2",
+                """SELECT i.*, e.status AS delivery_state, e.last_error_code AS delivery_error
+                FROM survey_invitation i LEFT JOIN outbox_event e
+                ON e.idempotency_key='survey-invitation:' || i.id::text
+                WHERE i.survey_id=$1 ORDER BY i.created_at DESC,i.id LIMIT 100 OFFSET $2""",
                 sid,
                 body["offset"],
             )

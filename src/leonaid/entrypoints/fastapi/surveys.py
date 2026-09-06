@@ -64,7 +64,16 @@ class SurveyInvitationResponse(SurveyInput):
     id: str
     recipientEmail: str
     recipientName: str
-    status: Literal["queued", "sent", "redeemed", "expired", "revoked"]
+    status: Literal[
+        "queued",
+        "retrying",
+        "failed",
+        "cancelled",
+        "sent",
+        "redeemed",
+        "expired",
+        "revoked",
+    ]
     expiresAt: str
     createdAt: str
 

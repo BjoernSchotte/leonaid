@@ -39,14 +39,18 @@ class SurveyInvitationSmtpHandler:
                 event.aggregate_id,
             )
             now = datetime.now(timezone.utc)
+            if invitation is None or invitation["sent_at"]:
+                return
             if (
-                invitation is None
-                or invitation["sent_at"]
-                or invitation["revoked_at"]
+                invitation["revoked_at"]
                 or invitation["expires_at"] <= now
                 or survey["status"] != "active"
                 or (survey["ends_at"] and survey["ends_at"] <= now)
             ):
+                await conn.execute(
+                    "UPDATE survey_invitation SET mail_payload=NULL WHERE id=$1",
+                    event.aggregate_id,
+                )
                 return
             payload = invitation["mail_payload"]
             if not payload:

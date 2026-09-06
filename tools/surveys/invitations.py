@@ -40,7 +40,7 @@ async def main():
 
         if sys.argv[1] == "prepare":
             state = []
-            for kind in ["normal", "revoked", "expired", "closed"]:
+            for kind in ["normal", "revoked", "expired", "closed", "failed"]:
                 sid = str(uuid4())
                 admin = f"/api/v1/surveys/{sid}"
                 await call(
@@ -168,6 +168,11 @@ async def main():
                         "UPDATE survey_invitation SET expires_at=now()-interval '1 second' WHERE id=$1",
                         UUID(invitation["id"]),
                     )
+                if kind == "failed":
+                    # Exercise the terminal attempt without waiting through prior backoff.
+                    await conn.execute(
+                        "UPDATE outbox_event SET attempts=4 WHERE id=$1", event["id"]
+                    )
                 if kind == "closed":
                     await call(
                         "POST",
@@ -183,11 +188,37 @@ async def main():
             print(
                 "PASS: atomic invite creation/replay, secret isolation, invalid inputs, immutable access mode and queued revocation/expiry/closure fixtures"
             )
+        elif sys.argv[1] == "failure":
+            state = json.loads(state_file.read_text())
+            for _ in range(100):
+                failed = await conn.fetchval(
+                    "SELECT count(*) FROM outbox_event WHERE event_type='survey.invitation.send.v1' AND last_error_code IS NOT NULL"
+                )
+                if failed == 2:
+                    break
+                await asyncio.sleep(0.1)
+            assert failed == 2, "Real SMTP outage did not reach the worker"
+            for entry in state:
+                listing = await call(
+                    "GET", f"/api/v1/surveys/{entry['survey']}/invitations", cookie=auth
+                )
+                expected = {
+                    "normal": "retrying",
+                    "failed": "failed",
+                    "closed": "cancelled",
+                    "expired": "expired",
+                    "revoked": "revoked",
+                }[entry["kind"]]
+                assert listing["items"][0]["status"] == expected
+                assert entry["token"] not in json.dumps(listing)
+            print(
+                "PASS: stopped SMTP yields retrying and terminal failed API states; skipped delivery is cancelled"
+            )
         elif sys.argv[1] == "recover":
             state = json.loads(state_file.read_text())
             for _ in range(100):
                 pending = await conn.fetchval(
-                    "SELECT count(*) FROM outbox_event WHERE event_type='survey.invitation.send.v1' AND status!='completed'"
+                    "SELECT count(*) FROM outbox_event WHERE event_type='survey.invitation.send.v1' AND status NOT IN ('completed','dead_letter')"
                 )
                 if pending == 0:
                     break
@@ -210,7 +241,27 @@ async def main():
             assert normal["token"] in delivered
             for entry in state:
                 path = f"/api/v1/public/surveys/{entry['survey']}/invitation/redeem"
+                if entry["kind"] == "failed":
+                    listing = await call(
+                        "GET",
+                        f"/api/v1/surveys/{entry['survey']}/invitations",
+                        cookie=auth,
+                    )
+                    assert listing["items"][0]["status"] == "failed"
+                    await call(
+                        "POST",
+                        f"/api/v1/surveys/{entry['survey']}/invitations/{entry['id']}/revoke",
+                        {
+                            "operationId": "revoke-failed",
+                            "expectedRevision": entry["revision"],
+                        },
+                        auth,
+                    )
                 if entry["kind"] != "normal":
+                    assert await conn.fetchval(
+                        "SELECT mail_payload IS NULL FROM survey_invitation WHERE id=$1",
+                        UUID(entry["id"]),
+                    ), "Skipped or revoked invitation retained its mail payload"
                     await call(
                         "POST",
                         path,
