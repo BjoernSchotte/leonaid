@@ -1426,6 +1426,10 @@ Dependencies: EMS-030 successful
       raster-byte validation, RustFS object coordination, media references in
       revisions, private previews, publication-gated delivery and restore remain
       open; this does not close the full media or campaign-isolation gates.
+      Quality checkpoint: `./leonaid check` passed on `090460e`: 208 unit tests,
+      242 Python source-file checks, frontend/API checks, 30 CMS files with no
+      diagnostics, generated-type parity, formatting and privacy/policy gates;
+      the committed worktree remained unchanged.
 - [x] Implement and admit the bounded non-media editorial contract for the
       currently proven System Admin runtime. `src/campaign-schema.mjs` defines
       version 1 fields for title, hero heading/introduction, Portable Text story,
