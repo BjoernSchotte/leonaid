@@ -416,14 +416,22 @@ Partial evidence (6 September 2026): Docker Node execution of
 `tools/emdash_spike/dependencies.mjs`, frozen Bun installation, and the existing
 `tools/pins/check.py` all passed. Exact EmDash version, MIT license, tarball
 integrity and Docker workspace-manifest parity are checked. EMS-000 as a whole
-remains incomplete until production-build compatibility, provisioning, storage
-permissions, plugin configuration and the full `./leonaid check` gate pass.
+remains incomplete until provisioning and storage-permission proofs pass. The
+later build and quality-gate evidence below supersedes the initial pending
+build/plugin/check status, not the outstanding database and storage work.
 
 Production-build checkpoint: `./leonaid test-emdash-spike --case closed-runtime`
 passes with Astro 7.1.3/Node 22.23.0, zero type diagnostics, no marketplace or
 sandbox runner, and explicit empty plugin lists. This proves build/basic runtime
 compatibility only, not database/editor workflows. The S3 adapter additionally
 requires explicitly pinned AWS client and presigner packages (see DECISIONS.md).
+
+Quality-gate checkpoint: `./leonaid check` passed at implementation commit
+`6d881f9` on 6 September 2026: 206 unit tests, Python and all frontend type
+checks, formatting, dependency/API/privacy/policy checks, and an unchanged
+working tree. Linked-worktree Git metadata is mounted read-only into the two
+Git-based test containers. This is not a substitute for any live integration
+gate in the remaining tasks.
 
 ### EMS-010 — Create the isolated EmDash Astro service
 

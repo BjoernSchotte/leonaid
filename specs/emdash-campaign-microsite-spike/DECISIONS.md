@@ -60,3 +60,10 @@ dependency, build, database, browser, authorization and recovery gates.
 - No full-spike success is reported: the unqualified test command exits nonzero
   while the remaining cases are unimplemented. Closed access is a temporary
   implementation checkpoint, not the target CMS functionality.
+- `./leonaid doctor` and `./leonaid check` passed; the latter at commit `6d881f9`
+  with 206 unit tests, all type/format/API/policy gates, and an unchanged tree.
+  Readiness/privacy tests needed read-only access to linked-worktree Git metadata.
+  One pre-existing identity-test line was mechanically reformatted; its 28 tests
+  passed independently before the complete suite.
+- The running-container/port inventory before and after the checkpoint matched;
+  the existing LeonAid stack on 8080/8443 was not restarted or reconfigured.
