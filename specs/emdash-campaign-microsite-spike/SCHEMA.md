@@ -35,6 +35,36 @@ Schema or version drift fails closed and remains untouched. Do not use a generic
 versions need reviewed migrations, backup and rollback evidence. This metadata
 comparison is not a complete physical PostgreSQL index/constraint audit.
 
+## Campaign binding constraints
+
+After collection installation, the operator must call `installCampaignBindings`.
+The binding contract is version 2 (`options.leonaid:campaign_binding_version`),
+separate from version 1 of the editorial collection. It installs the immutable
+content/revision binding triggers plus the physical PostgreSQL constraint
+`leonaid_campaign_action_unique UNIQUE (action_id)`.
+
+The constraint is immediate and covers every row, including soft-deleted content
+and all locales. A different CMS slug or language cannot create a second page
+for the same Core action. It also protects direct database writes outside the
+application's per-action creation lock. Permanent deletion remains a separately
+controlled operation; this constraint does not retain tombstones after a row
+has physically ceased to exist.
+
+Installation locks both content and revision tables in a bounded transaction,
+rejects invalid or duplicate existing bindings without changing content, and
+records the binding version only after successful installation. Existing
+pre-versioned guards can be upgraded only when their definitions match and the
+data is unique. Versioned installations are check-only on repetition; missing
+or changed constraints are not silently repaired. Conflicting legacy rows need
+an explicit reviewed resolution, not automatic deletion or reassignment.
+
+Runtime checks verify the exact unique key and its valid, ready, immediate,
+non-partial backing index as well as the existing trigger definitions and binding
+version. A missing, deferred or composite substitute is rejected. These checks
+protect application invariants, not a sandbox against the trusted database owner.
+The EmDash seed alone does not install these PostgreSQL constraints: deploying
+only the seed is insufficient even though the editorial schema is unchanged.
+
 ## Generated field types
 
 ```sh
@@ -80,6 +110,6 @@ The runtime regression exercises the same installer before real CMS/Core HTTP
 operations. Both use collision-checked project-specific networks and volumes,
 publish no host ports, and clean only owned resources.
 
-This does not complete EMS-040: global action uniqueness, media fields
-and the complete `content-model` gate remain open.
+This does not complete EMS-040: media fields and the complete `content-model`
+gate remain open.
 Pilot/release operator wiring and upgrade/restore integration also remain open.

@@ -1274,8 +1274,40 @@ Dependencies: EMS-030 successful
       and content, and rejects incompatible metadata or version drift without
       repair. This does not install the remaining media fields or global action
       uniqueness constraint. See [schema lifecycle](SCHEMA.md).
-- [ ] Include an immutable, required, unique `action_id` UUID field and a
+- [x] Include an immutable, required, unique `action_id` UUID field and a
       display-only cached action name if needed for editor usability.
+      The existing required UUID/immutable content and revision guards are now
+      supplemented by the immediate PostgreSQL constraint
+      `leonaid_campaign_action_unique UNIQUE (action_id)`, covering all locales
+      and soft-deleted rows. Binding operator version 2 is separate from the
+      editorial seed version: importing the seed alone does not install the
+      physical invariant. Installation is bounded, serialized and transactional;
+      invalid/duplicate legacy rows stop installation without automatic deletion
+      or reassignment. Repeated versioned installation checks rather than repairs
+      drift. Runtime verifies the exact key, backing index and binding version,
+      rejecting missing, deferred or composite substitutes. See [SCHEMA.md](SCHEMA.md).
+      Evidence on `c5d9515`: `campaign-content` passed in isolated project
+      `leonaid-emdash-tmp-k46xqvtqhm`, including direct concurrent SQL inserts
+      (one winner, three unique violations), trash/locale reservation, duplicate
+      preflight, immutable content/revisions and constraint-drift rejection.
+      Pagination/scoping still uses four records, now two distinct actions per
+      non-overlapping synthetic Charity profile, rather than duplicate pages.
+      `campaign-runtime` passed the full HTTPS regression in
+      `leonaid-emdash-tmp-ms23qju8pm`, including actual removal of the constraint,
+      503 denial across the admitted operations, explicit fixture restoration,
+      publication/unpublication, rollback, concurrent creation and revocation.
+      `admin-browser` passed native creation, seeded/new campaign editor routing,
+      duplicate rejection, trash reservation, editing/conflicts/publication,
+      actual SMTP login/fresh-login and revocation in Chromium, Firefox and WebKit
+      in `leonaid-emdash-tmp-hpywrjoqwt`. HTTP/browser fixtures now contain one
+      page per action; the earlier deliberately ambiguous binding fixture is
+      superseded by database rejection before such a state can be admitted.
+      All projects exposed no host ports and removed their owned resources.
+      `./leonaid check` passed on the same commit (208 unit tests, 242 Python
+      source-file checks, API parity, 28 CMS files, frontend/type generation,
+      formatting and privacy/policy gates; unchanged tree).
+      This supersedes earlier notes that global action uniqueness was open;
+      pilot operator wiring, full model/media and restore/upgrade gates remain open.
 - [ ] Define typed, bounded fields for hero content, content blocks, FAQ,
       partners, theme choice, SEO description, and social image.
 - [ ] Keep Core-owned values out of this schema.
