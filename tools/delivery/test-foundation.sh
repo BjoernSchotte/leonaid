@@ -31,6 +31,6 @@ until docker exec "$database" pg_isready -U postgres >/dev/null 2>&1; do
 done
 docker run --rm --network "$network" \
   -v "$root:/workspace:ro" -w /workspace \
-  -e PYTHONDONTWRITEBYTECODE=1 -e PYTHONPATH=/workspace/src \
+  -e PYTHONDONTWRITEBYTECODE=1 -e PYTHONPATH=/workspace/src:/workspace \
   -e CORE_DATABASE_URL=postgresql://postgres:isolated-delivery-proof@delivery-db/delivery_proof \
   "$UV_IMAGE" /workspace/.venv/bin/python tools/delivery/foundation.py

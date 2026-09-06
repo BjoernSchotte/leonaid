@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Order persistence checkpoint — 2026-09-06
+
+Both internal/public order drafts and transport mappings now carry delivery window IDs and delivery-specific contact/instructions. Their fingerprints include selected windows while preserving historical hashes when no window is supplied. Delivery fields no longer leak into the invoice request through inheritance. Both repositories derive and persist the selected time snapshot, then expose it on internal reads/replays.
+
+The isolated PostgreSQL proof now creates actual acquisition orders with real sponsor assignments and priced offerings through `AsyncpgCommitmentRepository`. It proves required delivery data, rejection of unknown windows, incomplete draft support, snapshot/contact readback, exact replay after retirement, refusal of fresh orders on retired windows, and changed-payload idempotency conflicts. Existing schedule/migration proofs continue to pass.
+
+Validation: 212 unit tests, full Python source Mypy, focused Ruff, generated OpenAPI/client, and all frontend type checks pass. The public repository is wired but its full anonymous submission path is not yet live-proven. Remaining work includes effective form/capture-context projection, action defaults and period changes, legacy order completion/review guards, all UI work, HTTP/browser tests, concurrency across booking/schedule transactions, and EmDash integration. Existing action SHARE locks conflict with schedule UPDATE locks; the adversarial booking race still needs its explicit proof.
+
 ## Delivery administration checkpoint — 2026-09-06
 
 Added the authorized delivery service, transactional PostgreSQL repository, GET/PUT action delivery endpoints, and regenerated OpenAPI/client. Acquirers can read their action configuration; only action managers can save it. Schedule saves share an action-row lock, check revisions and periods, protect booked windows/timezones, and reject foreign IDs even during upsert.

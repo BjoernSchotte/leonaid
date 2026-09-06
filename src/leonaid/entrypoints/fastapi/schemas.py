@@ -812,7 +812,7 @@ class PublicOrderPartyRequest(TransportModel):
     phone: str | None = Field(default=None, max_length=40)
 
 
-class PublicOrderDeliveryRecipientRequest(TransportModel):
+class OrderAddressRequest(TransportModel):
     recipient_name: str = Field(min_length=1, max_length=200)
     street_line_1: str = Field(min_length=1, max_length=200)
     postal_code: str = Field(min_length=1, max_length=20)
@@ -820,7 +820,13 @@ class PublicOrderDeliveryRecipientRequest(TransportModel):
     country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
 
 
-class PublicOrderInvoiceRecipientRequest(PublicOrderDeliveryRecipientRequest):
+class PublicOrderDeliveryRecipientRequest(OrderAddressRequest):
+    contact_name: str | None = Field(default=None, max_length=200)
+    contact_phone: str | None = Field(default=None, max_length=50)
+    instructions: str | None = Field(default=None, max_length=1000)
+
+
+class PublicOrderInvoiceRecipientRequest(OrderAddressRequest):
     email: str = Field(min_length=3, max_length=320)
 
 
@@ -832,6 +838,7 @@ class PublicOrderLineRequest(TransportModel):
 
 
 class CreatePublicOrderRequest(TransportModel):
+    delivery_window_id: UUID | None = None
     access_token: str = Field(min_length=40, max_length=2_000)
     command_id: UUID
     party: PublicOrderPartyRequest
@@ -980,6 +987,8 @@ class CommitmentLineRequest(TransportModel):
 
 
 class CreateCommitmentRequest(TransportModel):
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
     buyer: CommitmentBuyerRequest
@@ -1018,6 +1027,9 @@ class CommitmentLineResponse(TransportModel):
 
 
 class CommitmentResponse(TransportModel):
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None
+    delivery_window_id: UUID | None
+    delivery_window_snapshot: dict[str, str] | None
     id: UUID
     action_id: UUID
     source: Literal["acquisition", "public_form", "admin"]

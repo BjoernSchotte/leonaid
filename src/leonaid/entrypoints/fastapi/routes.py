@@ -8,6 +8,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationRequest,
     DeliveryConfigurationResponse,
     DeliveryWindowRequest,
+    PublicOrderDeliveryRecipientRequest,
 )
 
 import hashlib
@@ -1222,6 +1223,15 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        delivery_recipient=(
+            PublicOrderDeliveryRecipientRequest.model_validate(
+                commitment.delivery_recipient
+            )
+            if commitment.delivery_recipient
+            else None
+        ),
+        delivery_window_id=commitment.delivery_window_id,
+        delivery_window_snapshot=commitment.delivery_window_snapshot,
         id=commitment.id,
         action_id=commitment.action_id,
         source=commitment.source.value,
@@ -1569,6 +1579,12 @@ def generated_document_list_response(
 def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     recipient = body.invoice_recipient
     return CommitmentDraft(
+        delivery_recipient=(
+            DeliveryRecipientSnapshot(**body.delivery_recipient.model_dump())
+            if body.delivery_recipient
+            else None
+        ),
+        delivery_window_id=body.delivery_window_id,
         buyer=BuyerSnapshot(
             party_kind=CommitmentPartyKind(body.buyer.party_kind),
             twenty_id=body.buyer.twenty_id,
@@ -1715,6 +1731,7 @@ async def resolve_public_action_archive(
 
 def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
     return PublicOrderDraft(
+        delivery_window_id=body.delivery_window_id,
         party=PublicOrderPartyDraft(
             company_name=body.party.company_name,
             given_name=body.party.given_name,
@@ -1728,6 +1745,9 @@ def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
             postal_code=body.delivery_recipient.postal_code,
             city=body.delivery_recipient.city,
             country_code=body.delivery_recipient.country_code,
+            contact_name=body.delivery_recipient.contact_name,
+            contact_phone=body.delivery_recipient.contact_phone,
+            instructions=body.delivery_recipient.instructions,
         ),
         invoice_recipient=InvoiceRecipientSnapshot(
             recipient_name=body.invoice_recipient.recipient_name,

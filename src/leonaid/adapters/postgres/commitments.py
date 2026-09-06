@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from leonaid.adapters.postgres.delivery import (
+    select_order_window,
+    decode_window_snapshot,
+)
+
 import json
 from datetime import datetime
 from typing import Any
@@ -123,6 +128,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.invoice_recipient_snapshot,
                     commitment.delivery_recipient_snapshot,
                     commitment.message_snapshot,
+                    commitment.delivery_window_id, commitment.delivery_window_snapshot,
                     commitment.public_reference,
                     commitment.currency,
                     commitment.total_minor,
@@ -294,7 +300,17 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         total = Money(0, priced_lines[0].unit_price.currency)
         for line in priced_lines:
             total = total.plus(line.line_total)
+        selection = await select_order_window(
+            connection,
+            action_id,
+            window_id=draft.delivery_window_id,
+            recipient=draft.delivery_recipient,
+            complete=status is not CommitmentStatus.DRAFT,
+            now=occurred_at,
+        )
         commitment = Commitment(
+            delivery_window_id=draft.delivery_window_id,
+            delivery_window_snapshot=selection,
             id=uuid4(),
             action_id=action_id,
             source=source,
@@ -508,6 +524,10 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 if delivery_value is not None
                 else None
             ),
+            delivery_window_id=header["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                header["delivery_window_snapshot"]
+            ),
             message=(
                 str(header["message_snapshot"])
                 if header["message_snapshot"] is not None
@@ -590,6 +610,14 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             commitment.total.amount_minor,
             commitment.idempotency_key,
             occurred_at,
+        )
+        await connection.execute(
+            "UPDATE commitment SET delivery_window_id = $2, delivery_window_snapshot = $3::jsonb WHERE id = $1",
+            commitment.id,
+            commitment.delivery_window_id,
+            json.dumps(commitment.delivery_window_snapshot)
+            if commitment.delivery_window_snapshot is not None
+            else None,
         )
         await connection.executemany(
             """
@@ -680,6 +708,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 id, action_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
                 delivery_recipient_snapshot, message_snapshot, public_reference,
+                delivery_window_id, delivery_window_snapshot,
                 currency, total_minor, idempotency_key
             FROM commitment
             WHERE id = $1
@@ -745,6 +774,10 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 )
                 if delivery_value is not None
                 else None
+            ),
+            delivery_window_id=row["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                row["delivery_window_snapshot"]
             ),
             message=(
                 str(row["message_snapshot"])

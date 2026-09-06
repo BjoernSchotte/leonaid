@@ -444,6 +444,8 @@ class Commitment:
     public_reference: str | None = None
     idempotency_key: str | None = None
     replayed: bool = False
+    delivery_window_id: UUID | None = None
+    delivery_window_snapshot: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not self.lines:

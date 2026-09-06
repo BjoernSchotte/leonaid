@@ -25,6 +25,7 @@ from leonaid.domain.identity import (
 )
 from leonaid.domain.delivery import DeliveryWindow
 from leonaid.domain.errors import DomainInvariantError
+from tools.delivery.orders import prove_orders
 
 
 async def repository_proof(action_id: UUID, other_id: UUID) -> None:
@@ -104,6 +105,7 @@ async def repository_proof(action_id: UUID, other_id: UUID) -> None:
                     pass
                 else:
                     raise AssertionError("Non-admin could change delivery schedule")
+        await prove_orders(pool, action_id)
         print(
             "delivery-repository: PASS: concurrent revisions, booked timezone/window protection, foreign ID rollback"
         )

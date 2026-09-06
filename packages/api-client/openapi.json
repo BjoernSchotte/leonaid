@@ -2137,6 +2137,42 @@
             "title": "Currency",
             "type": "string"
           },
+          "deliveryRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
+          "deliveryWindowSnapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowsnapshot"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2200,6 +2236,9 @@
           }
         },
         "required": [
+          "deliveryRecipient",
+          "deliveryWindowId",
+          "deliveryWindowSnapshot",
           "id",
           "actionId",
           "source",
@@ -2696,6 +2735,28 @@
           "buyer": {
             "$ref": "#/components/schemas/CommitmentBuyerRequest"
           },
+          "deliveryRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
           "invoiceRecipient": {
             "anyOf": [
               {
@@ -2813,6 +2874,18 @@
           },
           "deliveryRecipient": {
             "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
           },
           "invoiceRecipient": {
             "$ref": "#/components/schemas/PublicOrderInvoiceRecipientRequest"
@@ -7411,11 +7484,47 @@
             "title": "City",
             "type": "string"
           },
+          "contactName": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contactname"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contactphone"
+          },
           "countryCode": {
             "default": "DE",
             "pattern": "^[A-Z]{2}$",
             "title": "Countrycode",
             "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
           },
           "postalCode": {
             "maxLength": 20,

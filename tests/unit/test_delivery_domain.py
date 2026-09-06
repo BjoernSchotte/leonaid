@@ -7,6 +7,8 @@ import pytest
 from leonaid.domain.commitments import DeliveryRecipientSnapshot
 from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow, local_instant
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.entrypoints.fastapi.schemas import PublicOrderInvoiceRecipientRequest
+from pydantic import ValidationError
 
 
 def test_variable_days_and_adjacent_windows_are_sorted_and_selectable() -> None:
@@ -101,3 +103,18 @@ def test_delivery_notes_roundtrip_and_old_snapshots() -> None:
     ):
         with pytest.raises(DomainInvariantError):
             replace(original, **{field: "x" * (limit + 1)})
+
+
+def test_invoice_contract_rejects_delivery_only_contact_and_notes() -> None:
+    address = dict(
+        recipientName="Test",
+        streetLine1="Testweg 1",
+        postalCode="00000",
+        city="Teststadt",
+        email="invoice@example.invalid",
+    )
+    for field in ("contactName", "contactPhone", "instructions"):
+        with pytest.raises(ValidationError):
+            PublicOrderInvoiceRecipientRequest.model_validate(
+                {**address, field: "Test"}
+            )

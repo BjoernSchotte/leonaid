@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +13,37 @@ import asyncpg
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.commitments import DeliveryRecipientSnapshot
+
+
+def decode_window_snapshot(value: object) -> dict[str, str] | None:
+    if value is None:
+        return None
+    payload = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid delivery window snapshot")
+    return {str(key): str(item) for key, item in payload.items()}
+
+
+async def select_order_window(
+    connection: asyncpg.Connection[Any],
+    action_id: UUID,
+    *,
+    window_id: UUID | None,
+    recipient: DeliveryRecipientSnapshot | None,
+    complete: bool,
+    now: datetime,
+) -> dict[str, str] | None:
+    """Caller holds the action row lock until the order is committed."""
+    configuration = await read_configuration(connection, action_id)
+    if configuration.enabled and complete and (recipient is None or window_id is None):
+        raise DomainInvariantError(
+            "delivery_details_required",
+            "Bitte Lieferadresse und Lieferfenster ergänzen.",
+        )
+    if window_id is None:
+        return None
+    return configuration.select(window_id, now=now).snapshot(configuration.timezone)
 
 
 async def read_configuration(
