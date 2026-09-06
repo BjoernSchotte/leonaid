@@ -20,6 +20,28 @@ export function patchEditorSource(source) {
     assert.equal(source.split(before).length, 2);
     source = source.replace(before, after);
   };
+  // Preserve a typed campaign handoff in the native router. It is form input,
+  // never an authorization grant; Core is checked on navigation and creation.
+  replace(
+    'const contentNewRoute = createRoute({\n\tgetParentRoute: () => adminLayoutRoute,\n\tpath: "/content/$collection/new",\n\tcomponent: ContentNewPage,\n\tstaticData: { fullBleed: true },\n\tvalidateSearch: (search) => ({ locale: typeof search.locale === "string" ? search.locale : void 0 })\n});',
+    'const contentNewRoute = createRoute({\n\tgetParentRoute: () => adminLayoutRoute,\n\tpath: "/content/$collection/new",\n\tcomponent: ContentNewPage,\n\tstaticData: { fullBleed: true },\n\tvalidateSearch: (search) => ({ locale: typeof search.locale === "string" ? search.locale : void 0, campaign: typeof search.campaign === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(search.campaign) ? search.campaign : void 0 })\n});',
+  );
+  replace(
+    'const { locale } = useSearch({ from: "/_admin/content/$collection/new" });',
+    'const { locale, campaign } = useSearch({ from: "/_admin/content/$collection/new" });',
+  );
+  replace(
+    "\t\tisNew: true,\n\t\tentryLocale: pickerLocale,",
+    '\t\tisNew: true,\n\t\tleonaidActionId: collection === "campaign_pages" ? campaign : void 0,\n\t\tkey: campaign ?? "unbound",\n\t\tentryLocale: pickerLocale,',
+  );
+  replace(
+    "function ContentEditor({ collection, collectionLabel, item, fields, isNew,",
+    "function ContentEditor({ leonaidActionId, collection, collectionLabel, item, fields, isNew,",
+  );
+  replace(
+    '\tconst [formData, setFormData] = React$1.useState(item?.data || {});\n\tconst [slug, setSlug] = React$1.useState(item?.slug || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug);',
+    '\tconst leonaidInitialAction = isNew && collection === "campaign_pages" ? leonaidActionId : void 0;\n\tconst [formData, setFormData] = React$1.useState(item?.data || (leonaidInitialAction ? { action_id: leonaidInitialAction } : {}));\n\tconst [slug, setSlug] = React$1.useState(item?.slug || leonaidInitialAction || "");\n\tconst [slugTouched, setSlugTouched] = React$1.useState(!!item?.slug || !!leonaidInitialAction);',
+  );
   for (const [name, message] of [
     ["fetchContent", "Failed to fetch content"],
     ["updateContent", "Failed to update content"],

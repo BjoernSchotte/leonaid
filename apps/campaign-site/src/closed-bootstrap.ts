@@ -1,7 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
-import { CoreIdentityError } from "./auth/core-identity";
+import { CoreIdentityError, requireCoreCampaign } from "./auth/core-identity";
 import { hasSecurePublicOrigin } from "./auth/public-origin";
 import {
   isCampaignEditorRoute,
@@ -83,6 +83,17 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
     url.pathname === "/_emdash/admin" || url.pathname === "/_emdash/admin/";
   const adminPage =
     adminHome || isCampaignEditorRoute(url.pathname, request.method);
+  const campaignNew =
+    /^\/_emdash\/admin\/content\/campaign_pages\/new\/?$/.test(url.pathname);
+  const campaignParameters = url.searchParams.getAll("campaign");
+  const campaignHandoff =
+    campaignNew &&
+    campaignParameters.length === 1 &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      campaignParameters[0],
+    )
+      ? campaignParameters[0]
+      : null;
   const adminRead =
     isCampaignReadRoute(url.pathname, request.method) ||
     ["/_emdash/api/manifest", "/_emdash/api/dashboard"].includes(url.pathname);
@@ -119,6 +130,10 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
       )
         return new Response("Invalid CMS request", { status: 403, headers });
       const identity = await authenticate(request);
+      if (campaignNew && campaignParameters.length) {
+        if (!campaignHandoff) throw new CoreIdentityError(403);
+        await requireCoreCampaign(request, campaignHandoff);
+      }
       if (setupManifest)
         await requireArmedBootstrap(bootstrapDirectory, identity.subject);
       else if (!(await setupIsComplete())) throw new Error();
@@ -132,7 +147,7 @@ export const onRequest = defineMiddleware(async ({ url, request }, next) => {
           status: 303,
           headers: {
             ...headers,
-            Location: `/login?returnTo=${encodeURIComponent(adminHome ? "/_emdash/admin/" : url.pathname)}`,
+            Location: `/login?returnTo=${encodeURIComponent(adminHome ? "/_emdash/admin/" : url.pathname + (campaignHandoff ? `?campaign=${campaignHandoff}` : ""))}`,
           },
         });
       }

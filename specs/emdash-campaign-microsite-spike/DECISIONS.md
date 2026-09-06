@@ -80,6 +80,12 @@ published admin bundle with SHA-256
 It preserves read/update tokens, remembers the revision loaded by each editor,
 sends that token on native manual/autosaves, and refreshes it after publishing.
 Background query refreshes must not silently advance a stale editor's token.
+The same pinned transform adds a typed `campaign` search parameter to the native
+new-page router and initializes the existing form's action binding and internal
+slug. Changing the campaign remounts the new form rather than retaining another
+campaign's input. This is an input handoff, not a replacement editor, a fabricated
+persisted content record, or authorization. The server validates the GET target
+against current Core access and independently validates creation on POST.
 The build checks every replacement anchor, rejects byte drift and repeat
 application, and fails if the production client transform did not execute.
 This is an additional narrow spike-only compatibility patch, not authorization

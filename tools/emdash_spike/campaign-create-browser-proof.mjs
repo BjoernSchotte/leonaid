@@ -26,14 +26,12 @@ for (const [index, [name, engine]] of engines.entries()) {
       httpOnly: true,
       sameSite: "Lax",
     });
-    await page.goto(origin + editorRoot + "/new");
-    await page.waitForURL("**/login?returnTo=**");
-    assert.equal(
-      new URL(page.url()).searchParams.get("returnTo"),
-      editorRoot + "/new",
-    );
-    await context.addCookies([cookie(tokens.system)]);
     const action = `20000000-0000-4000-8000-${String([3, 41, 42][index]).padStart(12, "0")}`;
+    const newPath = editorRoot + "/new?campaign=" + action;
+    await page.goto(origin + newPath);
+    await page.waitForURL("**/login?returnTo=**");
+    assert.equal(new URL(page.url()).searchParams.get("returnTo"), newPath);
+    await context.addCookies([cookie(tokens.system)]);
     const title = `Native ${name} new campaign`;
     const json = async (path) => {
       const response = await context.request.get(origin + path);
@@ -42,13 +40,12 @@ for (const [index, [name, engine]] of engines.entries()) {
     };
     const before = await json(apiRoot);
     const submit = async (status) => {
-      assert.equal(
-        (await page.goto(origin + editorRoot + "/new")).status(),
-        200,
-      );
+      assert.equal((await page.goto(origin + newPath)).status(), 200);
       await page.locator("#field-title").fill(title);
-      await page.locator("#field-action_id").fill(action);
-      await page.getByPlaceholder("my-post-slug", { exact: true }).fill(action);
+      await expect(page.locator("#field-action_id")).toHaveValue(action);
+      await expect(
+        page.getByPlaceholder("my-post-slug", { exact: true }),
+      ).toHaveValue(action);
       const pending = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === apiRoot &&
@@ -88,9 +85,20 @@ for (const [index, [name, engine]] of engines.entries()) {
     const stored = (await json(`${apiRoot}/${created.item.id}`)).item;
     assert.equal(stored.status, "draft");
     assert.equal(stored.data.action_id, action);
+    for (const query of [
+      "campaign=invalid",
+      `campaign=${action}&campaign=${action}`,
+      "campaign=20000000-0000-4000-8000-999999999999",
+    ]) {
+      const denied = await context.request.get(
+        origin + editorRoot + "/new?" + query,
+      );
+      assert.equal(denied.status(), query.endsWith("999999999999") ? 503 : 403);
+    }
     await context.clearCookies();
     await context.addCookies([cookie(tokens.charity)]);
     assert.equal((await page.goto(origin + editorRoot + "/new")).status(), 403);
+    assert.equal((await page.goto(origin + newPath)).status(), 403);
     await context.close();
     console.log(
       `campaign-create-browser: OK: ${name}: native draft creation, canonical editor return, duplicate rejection, subsequent autosave/reload and Charity denial`,

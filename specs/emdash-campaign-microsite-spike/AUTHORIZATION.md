@@ -46,8 +46,14 @@ Core login with that validated local path. APIs remain the data-access boundary.
 The same boundary now admits the native `campaign_pages/new` page; no other
 collection is opened. Creation accepts empty `bylines` and an optional slug only
 when it exactly equals `data.action_id`, then drops those immutable echoes before
-the guarded creator. The technical System Admin flow currently enters Core UUID
-and internal slug manually; campaign-aware LeonAid navigation remains pending.
+the guarded creator. A `?campaign=<Core UUID>` handoff on the native new page
+prefills the action binding and internal slug. The server validates a single
+canonical UUID and rechecks access through Core before rendering; invalid or
+unavailable targets fail closed. Anonymous login preserves only this validated
+parameter, never arbitrary query parameters. The client prefill conveys no
+authority: the creation POST still validates the complete body and current Core
+access. Without a handoff, the manual System Admin flow remains available.
+Campaign-aware LeonAid navigation and Charity admission remain pending.
 The narrow `auth/me` POST admits
 only upstream's own-user `dismissWelcome` action, with Origin and request-marker
 checks. This changes neither identity nor permissions and creates no session.
