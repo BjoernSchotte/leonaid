@@ -182,7 +182,7 @@ Dependencies: DEL-02; DEL-03 provides usable configured test actions.
 - [ ] Reconcile with EmDash EMS-010/050/085 and extend the actual `apps/campaign-site` form renderer and serving-app transport once available. Reuse shared definitions/components where appropriate; verify both canonical campaign and alias entry points rather than assuming parity from copied markup.
 - [ ] Preserve anonymous submission with and without JavaScript, consent/version checks, anti-abuse controls, idempotency, server pricing, and recoverable error/success feedback across the public renderer transition.
 - [ ] Preserve user input on validation, network, and retired-window errors; make exact retry versus edited resubmission explicit in command-key handling.
-- [ ] Verify saved details, legacy completion, and correct invoice recipient end to end.
+- [x] Verify saved details, legacy completion, and correct invoice recipient end to end. Evidence: same-action order readback, mobile public persistence, historical completion HTTP/invoice proof and completion retry checkpoint in `PROGRESS.md`.
 
 ### DEL-05 — Dashboard motivation
 

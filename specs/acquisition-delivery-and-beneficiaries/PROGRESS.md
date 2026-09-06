@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Full PWA regression on the delivery branch — 2026-09-06
+
+Ran the plan's `./leonaid test-pwa` gate against current source after the capture/header integration. Added optional `LEONAID_PWA_TEST_COMPOSE_OVERRIDE` support using the same argument construction as the other isolated runners; default behavior remains unchanged. The test ran in project `leonaid-362a-delivery-pwa-20260906a`, HTTP 18268 / HTTPS 18668 and the dedicated worktree subnet override.
+
+The gate exited 0 and cleaned its own resources. The responsive/visibility matrix passed ten checks in 24.3 seconds (eight intentional skips), covering Chromium/Firefox/WebKit at 390/768/1440px and empty work. Installation/manifest/update/offline passed in 2.0 seconds; the separately induced real Twenty outage passed in 1.7 seconds. Required screenshots were retained by the runner. Shell syntax and diff checks pass.
+
+The DEL-04 saved-details/legacy-completion/invoice-recipient item is now checked against the existing concrete cross-surface order readback and the latest successful completion/invoice gate, rather than left open despite its completed evidence. Other broader transition and EmDash items remain open. Read-only EmDash baseline `3ef958d` still contains editor/infrastructure work without a public campaign order renderer.
+
 ## Completion retry after accepted update and lost response — 2026-09-06
 
 Extended the actual administrator completion journey after its existing concurrent-edit comparison/reconciliation. The browser route first forwards the completion POST to the real server and confirms acceptance, then returns a synthetic 503 response to the browser. The open form retains its delivery recipient. Editing the recipient and submitting is blocked locally while the prior outcome is unknown; the test verifies only one request reached the interception. Restoring the original input and retrying sends the same Idempotency-Key and returns the originally accepted order ID and deliveryCompletionVersion. The form then closes, review-ready state and restored focus are checked, and the existing saved contact/invoice/window readback continues.
