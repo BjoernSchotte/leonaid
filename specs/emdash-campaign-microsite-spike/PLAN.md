@@ -948,7 +948,7 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
 - [x] Preserve upstream draft hydration and admit System Admin title-draft PUTs
       through the original runtime updater, with real HTTP save/read/revision
       proof, unchanged published values and stale-revision rejection.
-- [ ] Prove the native System Admin title editor in Chromium, Firefox and
+- [x] Prove the native System Admin title editor in Chromium, Firefox and
       WebKit: own welcome dismissal, canonical editor navigation, real autosave
       and explicit save, stale-tab conflict, attributed revision, reload,
       publication and subsequent private draft. Use the exact published admin
@@ -957,6 +957,25 @@ API/privacy/policy and route-inventory guards; worktree unchanged.
       No browser request interception or replacement editor may satisfy this
       gate. The complete editorial model, Charity access, remaining editor
       controls and anonymous edit-to-public delivery remain separate gates.
+      Evidence (6 September 2026): `admin-browser` passed all three engines,
+      including unchanged identity after welcome dismissal, stale-tab HTTP 409,
+      a new actor-attributed revision per autosave, reload persistence, native
+      publish, private follow-up/manual save, and revoked-session denial.
+      The complete command exited successfully, including setup closure after
+      restart/database failure and owned-resource cleanup. Earlier attempts
+      exposed missing native revision transport and locale forwarding, then the
+      welcome dialog and the need to await the rendered publish transition.
+      A launcher edited during one run caused an EOF error after successful
+      proofs/cleanup; the complete run was repeated with unchanged scripts.
+      `campaign-runtime` passed native slug/locale/autosave payloads, changed
+      slug/locale and invalid hint denial, own welcome action/denied actors,
+      and the complete prior mutation/publication/rollback regression.
+      `authorization-surface` passed 1,866 real HTTPS requests under the updated
+      narrow policy. Each run used an independent project, published no host
+      ports and removed only its owned resources.
+      `./leonaid check` passed at `fa394a7`: 208 unit tests, 242 Python source-file
+      type checks, all frontend/CMS checks (19 CMS files), formatting, API parity,
+      privacy/policy and inventory guards, with unchanged worktree.
 - [x] Reproduce and fix concurrent same-revision title saves; run the original
       runtime updater inside a checked PostgreSQL transaction with a row lock,
       and prove exactly one successful save per concurrent request group.
