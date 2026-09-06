@@ -460,6 +460,14 @@ All scenario tests assert outcomes, including persisted state and negative cases
 
 ### Task completion and test traceability
 
+The [scenario checklist](TEST-SCENARIOS.md) breaks the integration and E2E test
+tasks into individually checkable execution units with explicit expected results.
+Use it together with the implementation tasks below: each scenario identifies
+its owning test task and acceptance criteria. Its unchecked entries mean that
+scenario-level evidence has not yet been reconciled in that checklist; they do
+not invalidate existing linked proof. Before closing a test task, reconcile every
+associated scenario against a named test and its actual execution evidence.
+
 Use [TASK-ACCEPTANCE.md](TASK-ACCEPTANCE.md) as the task-level acceptance
 template inside each work-package proof. Every implementation task must have
 its own row; a work-package summary alone is insufficient. Expand each linked
