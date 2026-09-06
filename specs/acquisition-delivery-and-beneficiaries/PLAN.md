@@ -197,7 +197,7 @@ Dependencies: independent of DEL-01–04; requires its own dashboard contract/cl
 Dependencies: DEL-01–05.
 
 - [ ] Run relevant domain, repository, API contract, component, and browser checks.
-- [ ] Inspect the implemented mobile dashboard and ordering UI in the In-App Browser using synthetic data; compare collapsed goal-card height before/after at 360, 390, and 430 px widths.
+- [x] Inspect the implemented mobile dashboard and ordering UI in the In-App Browser using synthetic data; compare collapsed goal-card height before/after at 360, 390, and 430 px widths. Evidence: direct mobile dashboard, acquisition draft and public order checkpoints in `PROGRESS.md`; integrated EmDash remains a separate item below.
 - [ ] Verify 200% text zoom, keyboard disclosure operation, labels, error focus, touch targets, and absence of horizontal overflow.
 - [ ] Record commands/results and remaining limitations in this spec directory before marking implementation complete.
 - [ ] Prove the same configured action works through Anna's form, the existing public renderer, and the EmDash campaign renderer on the integrated baseline. An unfinished EmDash renderer leaves this acceptance item open.

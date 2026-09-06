@@ -39,6 +39,20 @@ async function openOrderForm(page) {
   await expect(
     form.getByText("Grundlage für die spätere Routenzuordnung."),
   ).toBeVisible();
+  for (const fontSize of ["16px", "32px"]) {
+    await page.evaluate((value) => {
+      document.documentElement.style.fontSize = value;
+    }, fontSize);
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth))
+        .toBeLessThanOrEqual(width);
+    }
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
   return form;
 }
 

@@ -55,9 +55,9 @@ html {
 }
 
 body {
-  min-width: 20rem;
+  min-width: 0;
   margin: 0;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   background: var(--canvas);
 }
 

@@ -1,5 +1,13 @@
 # Implementation evidence
 
+## Public mobile In-App order and enlarged-text correction — 2026-09-06
+
+Direct In-App review used isolated public stack `leonaid-362a-delivery-public-20260906y`, ports 18265/18665, after the full public gate exited 0. At 390px, a synthetic anonymous buyer selected the second day's 11:00–13:00 window, entered a delivery contact and multiline instructions, opened separate billing, and submitted successfully. The focused success region showed reference `LA-49D505B9B12045A6BC67B32CF683C3F9` and EUR 36. PostgreSQL readback confirmed review_ready, the distinct delivery/invoice streets, contact, literal markup in multiline notes and the 2026-10-02 Europe/Berlin window snapshot. This manual order was created after automated aggregate verification.
+
+Direct 200% text inspection exposed a real horizontal overflow: body's 20rem minimum became 640px. Removing that minimum alone left intrinsic word widths overflowing; allowing anywhere wrapping removes that second cause. Updated global body rules to min-width 0 and overflow-wrap anywhere. A freshly rebuilt public page, without temporary body overrides, measured document widths 345/375/415px at viewports 360/390/430px at both normal and 200% text size. Temporary inspection overrides were restored, the browser tab closed, and the review stack removed with exit 0.
+
+The public browser helper now verifies these three widths at normal and enlarged root text size before its existing order journeys, restoring normal font/viewport afterward. Integrated EmDash acceptance remains open. The final full public gate in isolated project `leonaid-362a-delivery-public-20260906z`, ports 18265/18665 and worktree subnet override, passed all order/policy/integration scenarios and final PostgreSQL verification.
+
 ## Capture header follows the selected action — 2026-09-06
 
 Resolved the context-label inconsistency found in direct mobile review. The PWA shell previously always displayed the first acquirer membership, even when capture selected another action. Capture now reports its selected action ID through an optional callback; the shell resolves the displayed name from authorized memberships. The optional interface preserves other consumers. No order payload, authorization or selection-reset behavior changes.
