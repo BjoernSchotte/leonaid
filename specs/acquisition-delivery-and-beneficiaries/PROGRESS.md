@@ -1,5 +1,15 @@
 # Implementation evidence
 
+## Core contract audit and fresh foundation verification — 2026-09-06
+
+Re-read the actual shared policy chain: `DeliveryConfiguration.form_definition()` in `src/leonaid/domain/delivery.py` defines required delivery address/window, optional contact/instructions and limits. `delivery_order_form_response()` in `src/leonaid/entrypoints/fastapi/routes.py` adds timezone, revision and eligible windows. Action configuration, acquisition capture and published public alias resolution call that same projection. The public route only obtains it after its publication/legal submission gate. Both internal and public PostgreSQL creation paths call `select_order_window()` for transactional enforcement rather than trusting browser fields. This source audit complements the already recorded same-action Admin-to-both-forms live order and stale-selection journey.
+
+Fresh `LEONAID_DELIVERY_FOUNDATION_SUBNET=172.30.81.0/24 sh tools/delivery/test-foundation.sh` exited 0. It used an isolated ephemeral database/network without host ports and cleaned up. Passed proofs cover actual template instantiation/persisted Krapfentaxi and blank defaults, legacy migration/read compatibility, effective fields/windows, action-period protection, sponsoring order creation/read/replay without delivery, order snapshots, both booking/retirement races, authorized completion, explicit historical confirmation, revision races and database references/downgrade/re-upgrade.
+
+`./leonaid generate-api-client` exited 0 and left the working tree unchanged, proving current OpenAPI/client agreement. Pydantic emitted existing field-alias metadata warnings; generation succeeded. Re-read `tools/commitments/contract.py` authorization assertions and the successful `...commitments-20260906r` terminal log: Anna receives 403 for admin-list access, forging an admin-source order, and ordering for an unassigned party. That full live gate passed after the most recent capture source change. No backend authorization source changed afterward.
+
+These concrete checks close the typed-policy/default/instance item in DEL-01 and the shared projection/enforcement plus generated-client/authorization items in DEL-02. They do not close the separate all-transitions/recovery or integrated EmDash items. The parallel EmDash checkout at `8d155d4` was inspected read-only; final public renderer integration remains outstanding.
+
 ## Public mobile In-App order and enlarged-text correction — 2026-09-06
 
 Direct In-App review used isolated public stack `leonaid-362a-delivery-public-20260906y`, ports 18265/18665, after the full public gate exited 0. At 390px, a synthetic anonymous buyer selected the second day's 11:00–13:00 window, entered a delivery contact and multiline instructions, opened separate billing, and submitted successfully. The focused success region showed reference `LA-49D505B9B12045A6BC67B32CF683C3F9` and EUR 36. PostgreSQL readback confirmed review_ready, the distinct delivery/invoice streets, contact, literal markup in multiline notes and the 2026-10-02 Europe/Berlin window snapshot. This manual order was created after automated aggregate verification.
