@@ -94,6 +94,10 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/request_limits_live.py
+fi
 if [ "$mode" = preview ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/preview_live.py seed
@@ -301,6 +305,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+  cp "$proof/request-limits-proof.json" "$artifact/"
+fi
 if [ "$mode" = preview ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/preview_live.py verify

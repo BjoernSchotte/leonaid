@@ -102,7 +102,14 @@ async def main() -> None:
             )
 
         if mode == "cases":
-            for case in cases:
+            for index, case in enumerate(cases):
+                # Independent synthetic respondents in the reserved benchmark
+                # address block. This private API fixture uses the deployment's
+                # trusted-proxy contract; do not exhaust one client's start quota
+                # while testing hundreds of unrelated validation semantics.
+                client.headers["X-Forwarded-For"] = (
+                    f"198.18.{index // 254}.{index % 254 + 1}"
+                )
                 item = await create(case)
                 initial = await state(item["pid"])
                 saved = await call(

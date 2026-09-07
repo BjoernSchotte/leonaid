@@ -555,3 +555,125 @@ acceptance. No application behavior was changed to satisfy the tests.
 090.A1 and parent implementation task 090.1 are now accepted together with the
 existing A2/A5 evidence. 090.T1 and the full work package remain open for recovery
 checkpoint continuity and limits/log acceptance.
+
+## Public request quota acceptance
+
+Task **090.3a** and scenario **090.S4a** are accepted for the public-request
+portion of 090.A4. Parent 090.3, 090.A4 and 090.T1 remain open: this increment
+does not establish the remaining payload/export boundaries or captured-log scan.
+Runtime baseline: `e49b530` plus the security change in the commit containing
+this record. The own-license decision remains UNDEFINED; no dependency changed.
+
+The existing PostgreSQL transport limiter now applies separate rolling
+60-second quotas to public survey routes: 30 starts/redemptions, 300
+writes/completions and 600 reads per client address across all survey IDs.
+Quota identity is a keyed digest, independent of cookies and User-Agent.
+The existing deployment proxy-trust setting controls address selection.
+See [the operating contract](../DECISIONS.md#public-survey-request-quotas),
+including shared-NAT and fixed-default limitations.
+
+`tools/surveys/request_limits_live.py::main` uses actual HTTP handlers and
+PostgreSQL, with the real member session established by the infrastructure
+fixture. It creates and publishes a synthetic survey and starts a participation.
+After each route category's first real attempt, it seeds only the preceding
+quota counters up to one remaining permit using the transport-generated digest.
+No survey handler, rate repository, lock or status is mocked.
+
+The combined regression uses a reserved synthetic forwarded address for this
+fixture, following the private API's trusted-proxy contract. Validation parity
+cases similarly use distinct synthetic addresses because they represent
+independent respondents. Quota tests retain one address across all their calls.
+The checked-in proxy explicitly overwrites `X-Forwarded-For` with its peer's
+address (`infra/proxy/Caddyfile`); direct fixture calls do not claim browser
+forwarding-header abuse coverage.
+
+- Two real concurrent starts compete for the final permit: one returns 200 and
+  one 429. SQL finds exactly two total participations including the initial one.
+- Further starts, a foreign survey ID and invitation redemption share the
+  exhausted quota even with changed cookies and User-Agent. No participation
+  is inserted by those rejected calls.
+- Compact and `urn:uuid:` survey paths share the start/read quota; compact
+  participation paths share the write quota. After expiry, actual compact/URN
+  definition reads return 200, proving the test addresses supported routes.
+- An accepted answer save and its idempotent replay exhaust the write quota.
+  Rejected changed answers and completion leave the original answers,
+  revision 2 and `in_progress` status unchanged in SQL.
+- Read exhaustion also returns 429; authorized member survey access still works.
+- Every rejected request has `request_rate_limited`, `Retry-After: 60` and no
+  session/resume token in its error response. This checks response envelopes,
+  not captured application logs.
+- The fixture ages only the synthetic quota timestamps by 61 seconds. Actual
+  start replay, restore and save replay succeed without adding participations.
+  This proves window cutoff evaluation without a wall-clock sleep; it is not a
+  real-time waiting benchmark.
+
+Execution:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" request-limits
+```
+
+Project `leonaid-surveys-833458328-23563`: the HTTP/SQL quota probe passed;
+the Chromium identity/public-host foundation test passed (1 test, 2.3 s).
+The complete command exited zero and verified removal of its owned resources.
+It used fresh volumes, currently unused explicit subnets and no published host
+ports. Sanitized output: [SURV-090-request-limits.json](assets/SURV-090-request-limits.json).
+Only boolean/count/interval results are retained, with no participant identifiers,
+answers or credentials.
+
+Supporting regression: `tests/unit/test_http_security.py` passed all four tests
+under the pinned UV/Python 3.13 image. The added test proves cookie/User-Agent
+rotation and untrusted forwarding headers cannot reset the public quota
+fingerprint, while distinct trusted addresses remain distinct. The existing
+CSRF/origin and proxy-selection checks also pass. Scoped Ruff check, shell
+syntax and diff whitespace checks pass.
+
+The unit invocation (absolute checkout mount abbreviated as `$PWD`) was:
+
+```sh
+rtk proxy docker run --rm --network none -e PYTHONPATH=/workspace/src \
+  -v "$PWD:/workspace" -w /workspace \
+  ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e \
+  uv run --frozen --no-sync pytest tests/unit/test_http_security.py -q
+```
+
+Two intermediate combined `runner` invocations exited 1 and are not acceptance
+evidence. `leonaid-surveys-833458328-24116` reached the new start quota while
+creating unrelated validation cases through one client address. The fixture now
+assigns each independent case a reserved synthetic proxy address; the production
+quota was not increased. `leonaid-surveys-833458328-25029` passed all 192 parity
+cases and validator stop/pause recovery, then failed the quota fixture's final
+permit assertion. Review found that its seed counted historical attempts outside
+the rolling window and depended on a potentially reused Docker client address.
+The fixture now selects active-window counts and a dedicated synthetic address.
+Both runs completed their cleanup traps before any test/runtime file was edited.
+The final runtime matcher also covers compact and URN UUID spellings identified
+during review; the first standalone run covered canonical UUID routes only.
+
+Final acceptance command:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" runner
+```
+
+Project `leonaid-surveys-833458328-26069` exited **0** on the final runtime and
+fixtures. It passed the complete quota probe (including compact/URN paths),
+192 actual API/PostgreSQL validation cases, response revision/idempotency and
+timeout checks, worker restart, stopped and paused validator recovery, and
+8 Chromium tests in 33.6 s. The browser tests are in
+`tests/e2e/surveys-infrastructure.spec.mjs` and `tests/e2e/surveys-runner.spec.mjs`;
+they include acknowledged text after closing mid-page, hidden-answer cleanup,
+offline/reconnect, required conditions and matrix correction, and two-tab stale
+saves with lost completion acknowledgement. Post-browser SQL and actual API /
+worker restart probes retained the exact operation results and one durable
+completion. Browser dependency: Playwright 1.54.1, locked container digest
+`sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f`.
+Other service image versions are pinned in `infra/locks/images.env` and Compose;
+Python and browser dependency lockfiles are unchanged.
+
+The final run used fresh volumes, selected unused explicit subnets, published
+no host ports, and verified owned-resource cleanup. Its sanitized quota JSON
+replaces the earlier canonical-only artifact. No new screenshots or manual
+visual/a11y acceptance are claimed. Existing httpx per-request-cookie
+deprecation warnings were non-failing. The full SURV-090 and SURV-100 gates remain
+open for the criteria identified above and in PLAN.md.

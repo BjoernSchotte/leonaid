@@ -279,6 +279,14 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S4**.
   E2E — work-package regression gate: **090.S5**.
 
+- [x] **090.3a** Enforce durable public request quotas across survey IDs and
+  client-controlled cookie/User-Agent rotation. Prove concurrent exhaustion,
+  HTTP 429/Retry-After, unchanged persisted survey state and expiry recovery.
+
+  Acceptance criteria: **090.A4, public-request portion only**.
+  Integration: **090.S4a**, [live evidence](proofs/SURV-090.md#public-request-quota-acceptance).
+  Parent 090.3 remains open for the rest of 090.A4.
+
 ## SURV-100 — Full acceptance and spike outcome
 
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.

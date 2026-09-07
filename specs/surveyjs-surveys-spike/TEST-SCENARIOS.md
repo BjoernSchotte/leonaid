@@ -98,6 +98,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 - [x] **090.S2 · Integration · 090.T1 → 090.A2:** Interrupt permanent deletion between database/object-store steps and retry; every targeted definition, answer, association and export is removed and repeated processing is safe. [Evidence](proofs/SURV-090.md#durable-erasure-and-process-crash-recovery).
 - [ ] **090.S3 · Integration · 090.T1 → 090.A3:** Restore a real synthetic backup and reapply content-free deletion records; previously deleted data is inaccessible and removed. Independently verify inactivity alone deletes nothing.
 - [ ] **090.S4 · Integration · 090.T1 → 090.A4:** Exceed configured payload/request/export limits; errors are predictable and no partial writes occur. Scan captured logs for seeded answer/credential markers.
+- [x] **090.S4a · Integration · 090.3a → 090.A4 (public requests):** Race two requests for the final start permit; test start/redeem, save/complete and read exhaustion, cookie/User-Agent rotation and cross-survey quota sharing. Assert HTTP 429 with Retry-After, no rejected participation or answer writes, independent member access and successful idempotent recovery after quota expiry. [Live evidence](proofs/SURV-090.md#public-request-quota-acceptance). Other 090.S4 requirements remain open.
 - [ ] **090.S5 · E2E · 090.T2 → 090.A5:** Trash while a respondent page is open; subsequent saving fails visibly, invitations/downloads stop, and restoring the survey does not silently reopen participation.
 
 ## SURV-100 — Final acceptance

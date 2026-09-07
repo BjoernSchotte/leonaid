@@ -60,6 +60,31 @@ must be recorded without silently changing the accepted product direction.
 | T-06 | Server-side chart generation for XLSX and Typst reports | SURV-080 | Shared aggregate data, no private browser screenshots as report pipeline. |
 | T-07 | SurveyJS 3 token mapping and SSR/hydration behavior in Astro/React | SURV-000/020 | Isolated styling, no duplicate autosave on hydration, no public caching of private participation content. |
 
+### Public survey request quotas
+
+The spike uses the existing PostgreSQL transport rate limiter with separate
+rolling 60-second quotas: 30 participation starts / invitation redemptions,
+300 response writes / completions, and 600 public reads per client address.
+Each quota spans all survey and participation IDs. A keyed address digest is
+stored; client-selected cookies and User-Agent values do not reset it. Existing
+identity-route fingerprint behavior is unchanged. Alternate UUID spellings use
+the same route quotas. Address selection follows the
+existing trusted-proxy configuration; public deployments must keep the API
+behind the configured proxy, which supplies the authoritative forwarding header.
+
+The limiter runs before survey handlers, including validation and idempotent
+replay. Exhaustion returns HTTP 429 with `request_rate_limited` and a conservative
+`Retry-After: 60`; rejected requests never invoke survey writes. A rolling window
+may admit a retry earlier, but the full delay is safe. Concurrent requests share
+the repository's transaction advisory lock. Member administration uses its
+existing policies and is independent of these public quotas.
+
+These are fixed spike defaults, not backend-adjustable inactivity settings.
+Users behind one NAT share a quota; tune the defaults against expected event
+traffic before production. This is bounded per-address abuse protection, not a
+distributed-denial-of-service defense or a load benchmark. Payload byte limits,
+export limits and sensitive-log acceptance remain separate parts of 090.A4.
+
 ### T-07 respondent rendering disposition
 
 The spike uses browser mounting in both the Astro public host and the packed

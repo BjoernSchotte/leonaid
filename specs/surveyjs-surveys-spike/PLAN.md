@@ -782,6 +782,7 @@ Implementation tasks:
 - [x] **090.2a** Prove the existing encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion: absent checkpoint blocks startup, valid checkpoint erases restored data before startup, and no-build restoration preserves source image identities. Acceptance: **090.A3, operator integration portion**. [Live evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
 - [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection. Acceptance: **090.A3, checkpoint continuity portion**; preserve the full parent task's scope and the recovery contract.
 - [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials. Acceptance: **090.A4**.
+- [x] **090.3a** Bound public starts/redemptions, writes/completions and reads with durable address quotas; verify concurrent exhaustion, retry timing, no survey writes after rejection and expiry recovery. Acceptance: **090.A4, public-request portion only**. [Live evidence](proofs/SURV-090.md#public-request-quota-acceptance). Parent 090.3 remains open for payload/export limits and captured-log inspection.
 
 Test implementation and verification tasks:
 
