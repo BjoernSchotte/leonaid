@@ -2872,6 +2872,10 @@ Dependencies: EMS-030, EMS-050, EMS-070
         upgrade and repeated upgrade. Exit 0; only the project's own resources
         were removed. This is the namespace foundation, not completion of the
         multiple-alias persistence/API/UI or redirect resolver gates.
+        Full `./leonaid check` at source commit `9479888` exited 0: 247 unit
+        tests, 252 Python source checks, 24 public and 47 CMS Astro files without
+        diagnostics, generated-type/format/privacy/policy gates and an unchanged
+        committed tree. Existing dependency deprecation warnings remain.
 - [ ] Enforce global uniqueness in the database, optimistic revision checks,
       idempotent mutation handling, and audit events recording actor, action,
       previous target, and new target. Concurrent claims must yield one winner
