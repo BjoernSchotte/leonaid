@@ -3089,6 +3089,10 @@ Dependencies: EMS-050, EMS-070
         inventory/provenance and operational integration. See
         [release contract](RELEASE_CONTRACT.md). No services or networks were
         started for these contract checks and no production activation occurred.
+        Full `./leonaid check` passed on source commit `56d2081`: 256 unit
+        tests, 265 Python files typechecked, both release contracts, both Astro
+        applications (25/47 files, zero diagnostics), frontend typechecks,
+        formatting and repository policy gates; committed source was unchanged.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
