@@ -1949,6 +1949,15 @@ fields are absent; generated TypeScript types compile.
       and alias-move race proofs, historical archive policy, public rendering and
       actual order submission remain open. Existing alias/archive endpoints and
       their canonical paths are unchanged at this prerequisite milestone.
+      The legacy HTTP serializer explicitly rejects the new internal route kind
+      until its transport contract is implemented. The extended live run in
+      `leonaid-emdash-tmp-7zvnlhvvbl` also passed actual HTTP GETs to both existing
+      alias/archive endpoints with unchanged route kinds and archive canonical
+      path; all owned resources were removed. `./leonaid check` passed at
+      `6f231b7` (208 unit tests, 243 Python source checks, 38 CMS files without
+      diagnostics, all frontend/API/typegen/format/privacy/policy gates and an
+      unchanged tree); the first check had identified the missing explicit
+      transport boundary after extending the internal route enum.
 
 Dependencies: EMS-040
 

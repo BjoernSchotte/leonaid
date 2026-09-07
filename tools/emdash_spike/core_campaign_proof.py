@@ -6,6 +6,7 @@ from datetime import timedelta
 from uuid import UUID
 
 import asyncpg
+import httpx
 
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.application.actions import CharityActionService, PublicActionAvailability
@@ -40,6 +41,21 @@ async def main() -> None:
         assert campaign.route_value == action.archive_slug
         assert campaign.canonical_path == f"/campaigns/{action.archive_slug}/"
         assert campaign.route_path == campaign.canonical_path
+        async with httpx.AsyncClient(base_url="http://api:8000", timeout=10) as client:
+            legacy_alias = await client.get(
+                f"/api/v1/public/actions/alias/{management.public_alias.value}"
+            )
+            legacy_archive = await client.get(
+                f"/api/v1/public/actions/archive/{action.archive_slug}"
+            )
+            assert legacy_alias.status_code == 200
+            assert legacy_archive.status_code == 200
+            assert legacy_alias.json()["routeKind"] == "alias"
+            assert legacy_archive.json()["routeKind"] == "archive"
+            assert (
+                legacy_archive.json()["canonicalPath"]
+                == f"/archive/{action.archive_slug}"
+            )
         if campaign.submissions_allowed:
             assert campaign.order_alias == management.public_alias.value
         for instant in (
