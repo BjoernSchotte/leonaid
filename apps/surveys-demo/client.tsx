@@ -53,6 +53,9 @@ function App() {
         <p className="eyebrow">Independent package consumer</p>
         <h1>Community feedback</h1>
         <p>This host saves progress to its own SQLite database.</p>
+        <p>
+          <a href="/exports">Download saved feedback</a>
+        </p>
         <button
           className="host-control"
           onClick={() => document.body.classList.toggle("warm")}

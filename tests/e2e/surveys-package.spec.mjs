@@ -51,6 +51,70 @@ test("packed consumer saves a multipage response in its own host", async ({
     path: `${proof}/consumer-before.png`,
     fullPage: true,
   });
+  await page
+    .getByRole("link", { name: "Download saved feedback", exact: true })
+    .click();
+  const panel = page.getByRole("region", {
+    name: "Download your saved feedback",
+    exact: true,
+  });
+  const exportRequests = [];
+  let dropped = false;
+  await page.route("**/api/exports", async (route) => {
+    exportRequests.push(route.request().postDataJSON());
+    if (!dropped) {
+      dropped = true;
+      expect((await route.fetch()).ok()).toBe(true);
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await panel
+    .getByRole("button", { name: "Prepare my file", exact: true })
+    .click();
+  await expect(panel.getByRole("alert")).toContainText(
+    "Connection interrupted",
+  );
+  const created = page.waitForResponse(
+    (r) => r.url().endsWith("/api/exports") && r.status() === 200,
+  );
+  await panel
+    .getByRole("button", { name: "Confirm the same request", exact: true })
+    .click();
+  const job = (await (await created).json()).value;
+  await expect(
+    panel.getByText("Your file is ready", { exact: true }),
+  ).toBeVisible();
+  expect(exportRequests).toHaveLength(2);
+  expect(exportRequests[0]).toEqual(exportRequests[1]);
+  const event = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Save my CSV", exact: true }).click();
+  const download = await event;
+  expect(await download.failure()).toBeNull();
+  expect(download.suggestedFilename()).toBe("my-feedback.csv");
+  const content = readFileSync(await download.path(), "utf8");
+  expect(content).toContain('"Independent respondent","More community events"');
+  expect(content).toContain(job.snapshotId);
+  writeFileSync(
+    `${proof}/consumer-export.json`,
+    JSON.stringify({ job, content }),
+  );
+  await page.screenshot({
+    path: `${proof}/consumer-exports.png`,
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    panel.getByRole("button", { name: "Save my CSV", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: `${proof}/consumer-exports-mobile.png`,
+    fullPage: true,
+  });
   await context.close();
 });
 
@@ -83,6 +147,28 @@ test("packed consumer restores after backend restart without an extra save", asy
     diagnostics: await (await fetch("/api/diagnostics")).json(),
   }));
   expect(restored).toEqual(before);
+  expect(writes).toEqual([]);
+  const exported = JSON.parse(
+    readFileSync(`${proof}/consumer-export.json`, "utf8"),
+  );
+  const job = await context.request.get(
+    `${baseURL}/api/exports/${exported.job.id}`,
+  );
+  expect((await job.json()).value).toEqual(exported.job);
+  const file = await context.request.get(
+    `${baseURL}/api/exports/${exported.job.id}/download`,
+  );
+  expect(file.headers()["cache-control"]).toBe("no-store");
+  expect(await file.text()).toBe(exported.content);
+  const anonymous = await browser.newContext();
+  expect(
+    (
+      await anonymous.request.get(
+        `${baseURL}/api/exports/${exported.job.id}/download`,
+      )
+    ).status(),
+  ).toBe(404);
+  await anonymous.close();
   expect(writes).toEqual([]);
   const cache = await page.evaluate(async () => {
     const response = await fetch("/api/participation");

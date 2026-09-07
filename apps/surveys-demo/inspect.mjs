@@ -48,11 +48,23 @@ const map = JSON.parse(readFileSync("dist/client.js.map", "utf8"));
 assert(map.sources.some((source) => source.includes("surveys/src/runner")));
 assert(
   !map.sources.some((source) =>
-    /surveys\/src\/(editor|conditions|validation-candidate|analysis|analytics)/.test(
+    /surveys\/src\/(editor|conditions|validation-candidate|analysis|analytics|exports)/.test(
       source,
     ),
   ),
   "Authoring or server modules leaked into respondent bundle",
+);
+const exportMap = JSON.parse(readFileSync("dist/exports.js.map", "utf8"));
+assert(
+  exportMap.sources.some((source) => source.includes("surveys/src/exports")),
+);
+assert(
+  !exportMap.sources.some((source) =>
+    /survey-core|survey-react-ui|surveys\/src\/(runner|editor|analysis|analytics)/.test(
+      source,
+    ),
+  ),
+  "Export consumer imported respondent/editor/analysis runtime",
 );
 assert(
   !/@font-face/.test(readFileSync("dist/client.css", "utf8")),
@@ -69,6 +81,9 @@ const proof = {
   packedAnalysisVerified: true,
   packedAnalyticsVerified: true,
   analyticsInRespondentBundle: false,
+  exportsInRespondentBundle: false,
+  packedExportsVerified: true,
+  exportClientBytes: readFileSync("dist/exports.js").length,
 };
 const [rating, text] = aggregateApprovedSurvey(
   {

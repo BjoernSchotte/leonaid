@@ -3,7 +3,8 @@
 Implementation in progress; the public package name and own OSS license remain
 UNDEFINED. The private package manifest uses UNLICENSED until that decision.
 The package now exposes initial contracts, a React respondent runner and scoped
-styles, an initial independent visual editor and aggregate charts/tables. The remaining
+styles, an initial independent visual editor, aggregate charts/tables and an
+adapter-driven export panel. The remaining
 authoring capabilities are still pending; this is not the accepted full spike.
 
 ## Host adapter protocol v1
@@ -164,7 +165,8 @@ runner to persistence. This package does not import LeonAid's API client, UI,
 identity or domain modules. Own license decision: **UNDEFINED**; the package is
 private and is not being published.
 
-Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `styles`, `editor-styles`, `analytics-styles`. The current
+Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `exports`,
+`styles`, `editor-styles`, `analytics-styles`, `export-styles`. The current
 spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
 React and React DOM are peer dependencies. Import the runner stylesheet once;
 the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
@@ -181,7 +183,8 @@ for cryptographic operation IDs.
 
 The independent demo installs an actual tarball outside workspace resolution and
 saves to SQLite through its own adapter. It is a consumer proof, not a hosted
-service or production backend. Editor-wide translation, analytics exports,
+service or production backend. The independent export page uses a separate
+bundle and the host's own SQLite-backed CSV adapter. Editor-wide translation,
 compiled distribution and full cross-host theme/hydration acceptance remain
 tracked in the spike plan.
 
@@ -227,3 +230,31 @@ exports are separate capabilities and are not provided by this component.
 Charts use scoped CSS without another runtime dependency. This entrypoint does
 not import the SurveyJS engine or host code and remains outside the respondent
 bundle. Own license remains UNDEFINED.
+
+## Export panel
+
+Import `SurveyExports` from `@leonaid/surveys/exports` and the separate
+`@leonaid/surveys/export-styles` stylesheet. Supply the selected immutable
+`snapshotId`, a stable `ExportAdapter`, allowed `products`, and optionally a
+complete `ExportMessages` translation object. Supported product identifiers are
+`responses_csv`, `responses_xlsx`, `analysis_xlsx`, and `analysis_pdf`; the host
+chooses which it implements and permits. The component generates no files and
+imports no host transport, SurveyJS renderer, editor or analysis engine.
+
+The adapter implements `requestExport`, `exportStatus` and `download` from the
+neutral analysis contract. Return `Result<ExportJob>` for creation/status and
+`Result<Blob>` for download. Jobs use queued, running, retrying, completed,
+failed or revoked states and may supply a filename. The host must freeze the
+selected data and recheck access on each operation. `temporarily_unavailable`
+preserves the original creation operation ID for an explicit retry. Authorization
+or missing-resource errors clear the affected job's download action.
+
+Pending jobs are polled; status errors stop polling until the user retries.
+Changing snapshots resets the displayed jobs, and unmounting aborts observation
+without implying cancellation of a server operation. This initial component
+keeps its job list in memory; restoring a job list after navigation is a separate
+host concern. Completed downloads use temporary object URLs that are revoked
+after triggering the download; the component does not persist response blobs.
+Import this entrypoint only in an authorized result/export view to keep it out
+of the respondent bundle. The independent demo demonstrates this separation
+with an actual packed installation and its own persisted CSV export adapter.

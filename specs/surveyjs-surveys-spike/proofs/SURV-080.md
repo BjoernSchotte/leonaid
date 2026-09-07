@@ -499,3 +499,39 @@ This closes the reproduced missing-reference defect, not the overall deletion
 feature: SURV-090 must still remove retained objects and database records,
 including retry/backup recovery. Full SURV-080 acceptance also remains open for
 the remaining permission/race and workbook-render gates.
+
+## Independent packed export consumer
+
+The increment based on `8dc42ad` adds a separate export page to the independent
+consumer. It installs the packed package in a fresh consumer directory, without
+workspace resolution or LeonAid application imports. Its own SQLite backend
+implements the export adapter and persists both the job and immutable CSV bytes.
+The host supplies its own messages, styling and supported product list.
+
+Verification: `rtk proxy sh tools/surveys/package.sh
+/Users/bjoern/.codex/worktrees/497a/leonaid` exited 0 in isolated Docker project
+`surveys-package-833458328-74032`. The first Chromium journey passed in 3.8s;
+the restart journey passed in 1.6s. No host ports were published, and teardown
+was verified. The test commits a real request before dropping its acknowledgement,
+then retries the identical operation through the UI. The downloaded CSV contains
+the saved answers and selected snapshot identity, with the expected filename.
+After backend restart, the same job and exact file contents remain available;
+an anonymous context receives HTTP 404 and downloads use no-store.
+
+The packed bundle inspection verifies that exports are absent from the respondent
+bundle and that the independent export bundle excludes the SurveyJS renderer,
+runner, editor and analytics. Exact dependency inventory and measured unminified
+bundle sizes are in [package evidence](assets/SURV-080-independent-package.json).
+No commercial component was introduced; own license remains UNDEFINED.
+
+The UI has [desktop evidence](assets/SURV-080-independent-exports.png) and
+[390px mobile evidence](assets/SURV-080-independent-exports-mobile.png).
+The browser asserts a visible download control and no horizontal overflow.
+Manual review of the mobile image confirms readable labels and no clipping.
+
+Scope: this minimal independent host intentionally implements synchronous CSV
+export only. It proves package integration, persistence, retry identity and
+bundle separation; it does not stand in for LeonAid worker, permission or
+four-format acceptance. Those have separate evidence above. The component keeps
+its displayed job in memory; host-driven restoration of job lists is not claimed.
+Remaining SURV-080 permission/race and workbook-render gates stay open.

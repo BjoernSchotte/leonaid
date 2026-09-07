@@ -5,6 +5,9 @@ const db = new Database("/data/demo.sqlite", { create: true });
 db.exec(
   "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS participation(id TEXT PRIMARY KEY, secret TEXT NOT NULL, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS operation(pid TEXT, id TEXT, input TEXT, result TEXT, PRIMARY KEY(pid,id));",
 );
+db.exec(
+  "CREATE TABLE IF NOT EXISTS export_job(id TEXT PRIMARY KEY,pid TEXT NOT NULL,operation_id TEXT NOT NULL,input TEXT NOT NULL,value TEXT NOT NULL,content TEXT NOT NULL,UNIQUE(pid,operation_id));",
+);
 const definition = {
   title: "Your community event",
   pages: [
@@ -51,6 +54,69 @@ const result = (value, headers = {}) =>
     { ok: true, value },
     { headers: { "Cache-Control": "no-store", ...headers } },
   );
+function exportRequest(request, row, input) {
+  if (!row) fail("not_found", "No participation");
+  if (
+    !input ||
+    typeof input.operationId !== "string" ||
+    !input.operationId.length ||
+    input.operationId.length > 128 ||
+    input.product !== "responses_csv"
+  )
+    fail("invalid_response", "This host supports response CSV only");
+  return db.transaction(() => {
+    const signature = JSON.stringify([input.snapshotId, input.product]);
+    const prior = db
+      .query("SELECT * FROM export_job WHERE pid=? AND operation_id=?")
+      .get(row.id, input.operationId);
+    if (prior) {
+      if (prior.input !== signature)
+        fail("idempotency_conflict", "Export request changed");
+      return result(JSON.parse(prior.value));
+    }
+    const response = JSON.parse(row.value).response;
+    if (input.snapshotId !== `${row.id}:${response.revision}`)
+      fail(
+        "revision_conflict",
+        "Feedback changed; reload to select its saved revision",
+      );
+    const id = randomUUID();
+    const value = {
+      id,
+      snapshotId: input.snapshotId,
+      product: input.product,
+      status: "completed",
+      filename: "my-feedback.csv",
+      error: null,
+    };
+    const cell = (v) => {
+      const text = String(v ?? "");
+      const safe = /^[\s]*[=+\-@']/.test(text) ? "'" + text : text;
+      return '"' + safe.replaceAll('"', '""') + '"';
+    };
+    const content =
+      [
+        ["snapshot_id", "status", "name", "feedback"],
+        [
+          input.snapshotId,
+          response.status,
+          response.answers.name,
+          response.answers.feedback,
+        ],
+      ]
+        .map((r) => r.map(cell).join(","))
+        .join("\r\n") + "\r\n";
+    db.query("INSERT INTO export_job VALUES(?,?,?,?,?,?)").run(
+      id,
+      row.id,
+      input.operationId,
+      signature,
+      JSON.stringify(value),
+      content,
+    );
+    return result(value);
+  })();
+}
 Bun.serve({
   port: 8080,
   hostname: "0.0.0.0",
@@ -58,15 +124,47 @@ Bun.serve({
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (path === "/health") return new Response("ok");
-    if (path === "/")
+    if (path === "/" || path === "/exports")
       return new Response(
-        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Independent surveys consumer</title><link rel="stylesheet" href="/client.css"><div id="app"></div><script type="module" src="/client.js"></script></html>`,
+        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Independent surveys consumer</title><link rel="stylesheet" href="/${path === "/exports" ? "exports" : "client"}.css"><div id="app"></div><script type="module" src="/${path === "/exports" ? "exports" : "client"}.js"></script></html>`,
         { headers: { "Content-Type": "text/html" } },
       );
-    if (path === "/client.js" || path === "/client.css")
+    if (
+      ["/client.js", "/client.css", "/exports.js", "/exports.css"].includes(
+        path,
+      )
+    )
       return new Response(Bun.file(`/consumer/dist${path}`));
     try {
       let row = current(request);
+      if (path === "/api/export-source" && request.method === "GET") {
+        if (!row) fail("not_found", "Start feedback first");
+        return result({
+          snapshotId: `${row.id}:${JSON.parse(row.value).response.revision}`,
+        });
+      }
+      if (path === "/api/exports" && request.method === "POST")
+        return exportRequest(request, row, await request.json());
+      if (path.startsWith("/api/exports/") && request.method === "GET") {
+        if (!row) fail("not_found", "Export not found");
+        const match = path.match(/^\/api\/exports\/([^/]+)(\/download)?$/);
+        const job =
+          match &&
+          db
+            .query("SELECT * FROM export_job WHERE id=? AND pid=?")
+            .get(match[1], row.id);
+        if (!job) fail("not_found", "Export not found");
+        return match[2]
+          ? new Response(job.content, {
+              headers: {
+                "Content-Type": "text/csv; charset=utf-8",
+                "Content-Disposition": 'attachment; filename="my-feedback.csv"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+              },
+            })
+          : result(JSON.parse(job.value));
+      }
       if (path === "/api/diagnostics" && request.method === "GET") {
         if (!row) fail("not_found", "No participation");
         return result({
