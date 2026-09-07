@@ -30,6 +30,7 @@ class RegressionIsolationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         for suite in (
             "compose/test.sh",
+            "surveys/infrastructure.sh",
             "core/test.sh",
             "schema/test.sh",
             "outbox/test.sh",

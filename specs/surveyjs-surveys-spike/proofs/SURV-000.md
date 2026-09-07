@@ -370,3 +370,40 @@ complete C-01–C-15 traceability, recovery continuity or the final whole-journe
 
 Post-run Docker queries verified that all four run-owned projects have no remaining
 containers, volumes or networks. Parallel worktrees were left untouched.
+
+
+## Competing revisions for every revision-bearing write
+
+`write_replay_live.py --competing-revisions` compares its 14-operation inventory
+with the actual router models containing `expectedRevision`. Every case uses
+fresh real HTTP setup and a PostgreSQL barrier: observe request A blocked, send
+B with the same revision and a distinct operation key where applicable, observe
+both blocked, then release the lock. Winning stored values and exact row/outbox
+deltas are verified; later retries of both requests preserve complete row
+contents. Rejected drafts, timeout settings and answers use different content
+so an accidental losing overwrite cannot satisfy the assertions.
+
+| Outcome | Operations |
+|---|---|
+| 200 then 409 `revision_conflict` | draft save, publication, global settings, survey timeout, scheduled end, access mode, lifecycle transition, response save |
+| 200 then 409 `closed` | completion: the first request has already completed the participation |
+| 200 then 409 `idempotency_conflict` | permanent deletion: the existing durable intent belongs to the first operation |
+| Both 200 with independent results | duplicate into distinct target IDs; invitations to distinct recipients |
+| Both 200 with documented semantics | read-only draft validation (no operation key or mutation); invitation revocation under two distinct receipt keys |
+
+The original 21-operation concurrent exact-replay suite, cross-survey resume
+credential collision, strict transport/error checks, response persistence
+regression and eight Chromium tests all passed in the same run. SQL verification
+confirmed the winning two-tab answer and exactly one durable completion after
+a lost acknowledgement. The worker stays stopped during full-row comparisons.
+
+Command: `sh tools/surveys/infrastructure.sh "$PWD" contracts`; project
+`leonaid-surveys-833458328-30053`, **exit 0**, 231.886 seconds; browser phase
+**8 passed in 30.0 seconds**. The strengthened shared harness reserves networks
+before startup, publishes no host ports and requires successful owned cleanup.
+An independent inventory confirmed zero owned containers, volumes and networks.
+[Per-operation results and tested source hashes](assets/SURV-000-competing-revisions.json).
+
+This accepts **000.T1c / 000.S1c**, the competing-revision portion. Full
+**000.A1 / 000.T1 / 000.S1** still require the remaining cross-operation,
+role and C-01–C-15 assertion reconciliation; the repeated aggregate is open.

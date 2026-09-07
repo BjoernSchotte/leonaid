@@ -347,3 +347,35 @@ new full lifecycle execution. **030.2 / 030.S3 remain open** until the strengthe
 invitation-populated duplication probe passes; a source with an empty invitation
 list is insufficient evidence for excluding copied recipients and credentials.
 The current overall CI and recovery gates remain open.
+
+
+## Populated invitation duplication
+
+The strengthened lifecycle probe creates an invitation-only source survey through
+the actual API. It publishes v1, sends an invitation through the real worker and
+Mailpit, redeems it and saves an answer; it then publishes v2 and repeats that
+flow with a second recipient. Restoring the first participation still returns
+v1 and its saved answer, while the second participation is bound to v2.
+
+After ending the source, the probe snapshots complete participation, invitation,
+version and grant rows. Duplication and its exact retry create a fresh draft
+with the latest published definition, no publication pointer and zero rows in
+all four child tables. Source rows are unchanged, including both recipients,
+version bindings, saved answers and access material. Tokens and email bodies
+remain inside the private test process; the retained result contains counts and
+boolean assertions only.
+
+`sh tools/surveys/infrastructure.sh "$PWD" lifecycle` passed in project
+`leonaid-surveys-833458328-28844`, **exit 0**, 211.791 seconds. The same run passed
+the complete 35-case lifecycle matrix, actual worker erasure, response and
+scheduled-cutoff regressions, three Chromium tests (6.8 seconds) and independent
+member-lifecycle PostgreSQL verification. Networks were reserved, no host ports
+published, and a separate inventory confirmed no remaining owned containers,
+volumes or networks. [Sanitized results and source hashes](assets/SURV-030-populated-duplication.json).
+
+The first strengthened attempt rejected an overlong synthetic email local part;
+that fixture was shortened. A second attempt failed Twenty readiness before
+assertions. Neither failed attempt is acceptance evidence. The final successful
+run above accepts **030.2 / 030.S3** and supersedes their open status in the earlier
+reconciliation section. Broader contract, repeated CI and recovery gates remain
+open.

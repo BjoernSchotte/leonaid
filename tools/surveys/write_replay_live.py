@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 import re
 from uuid import UUID, uuid4
@@ -53,13 +54,38 @@ DELTAS = {
 }
 
 
-async def main():
+REVISION_POLICIES = {
+    "saveSurveyDraft": "revision_conflict",
+    "validateSurveyDraft": None,
+    "publishSurvey": "revision_conflict",
+    "updateSurveySettings": "revision_conflict",
+    "updateSurveyTimeout": "revision_conflict",
+    "scheduleSurveyEnd": "revision_conflict",
+    "updateSurveyAccess": "revision_conflict",
+    "transitionSurvey": "revision_conflict",
+    "duplicateSurvey": None,
+    "deleteSurveyPermanently": "idempotency_conflict",
+    "createSurveyInvitation": None,
+    "revokeSurveyInvitation": None,
+    "saveSurveyResponse": "revision_conflict",
+    "completeSurveyResponse": "closed",
+}
+
+
+async def main(competing=False):
     routes = {
         r.operation_id: r
         for r in router.routes
         if r.methods & {"POST", "PUT", "PATCH", "DELETE"}
     }
     assert set(routes) == set(DELTAS), "Concurrent write inventory drift"
+    if competing:
+        revision_routes = {
+            name
+            for name, route in routes.items()
+            if "expectedRevision" in route.body_field.type_.model_fields
+        }
+        assert revision_routes == set(REVISION_POLICIES), "Revision inventory drift"
     env = dict(
         line.split("=", 1)
         for line in Path("/proof/session.env").read_text().splitlines()
@@ -121,7 +147,7 @@ async def main():
                 assert response.status_code == 200
                 return response.json()
 
-            for name in DELTAS:
+            for name in REVISION_POLICIES if competing else DELTAS:
                 ids = {"survey_id": str(uuid4())}
                 body = mutation()
                 headers = admin
@@ -281,6 +307,21 @@ async def main():
                         "currentPage": "one",
                     }
 
+                second = copy.deepcopy(body)
+                if competing:
+                    if "operationId" in second:
+                        second["operationId"] = str(uuid4())
+                    if name == "duplicateSurvey":
+                        second["targetSurveyId"] = str(uuid4())
+                        second["title"] = "Second independent copy"
+                    elif name == "createSurveyInvitation":
+                        second["recipientEmail"] = "second-recipient@example.com"
+                    elif name == "saveSurveyDraft":
+                        second["definition"]["title"] = "Rejected competing draft"
+                    elif name in {"updateSurveySettings", "updateSurveyTimeout"}:
+                        second["inactivityTimeoutSeconds"] = 7200
+                    elif name == "saveSurveyResponse":
+                        second["answers"] = {"answer": "Rejected competing answer"}
                 before = await state()
                 # Hold the real persistence lock until both HTTP calls demonstrably
                 # wait on it, so fast execution cannot turn this into a serial test.
@@ -307,10 +348,12 @@ async def main():
                                 ids["survey_id"],
                             )
                         backend = await conn.fetchval("SELECT pg_backend_pid()")
-                        tasks = [
-                            asyncio.create_task(send(name, body, ids, headers))
-                            for _ in range(2)
-                        ]
+                        # Observe A blocked before dispatching B: winning values are deterministic.
+                        tasks = [asyncio.create_task(send(name, body, ids, headers))]
+                        if not competing:
+                            tasks.append(
+                                asyncio.create_task(send(name, body, ids, headers))
+                            )
                         async with asyncio.timeout(10):
                             while True:
                                 await conn.execute("SELECT pg_stat_clear_snapshot()")
@@ -322,6 +365,13 @@ async def main():
                                 ) SELECT count(*) FROM blocked""",
                                     backend,
                                 )
+                                if competing and len(tasks) == 1 and blocked >= 1:
+                                    tasks.append(
+                                        asyncio.create_task(
+                                            send(name, second, ids, headers)
+                                        )
+                                    )
+                                    continue
                                 if blocked >= 2:
                                     break
                                 assert not any(t.done() for t in tasks), (
@@ -333,15 +383,51 @@ async def main():
                     await asyncio.gather(*tasks, return_exceptions=True)
                     raise
                 results = await asyncio.gather(*tasks)
-                assert [r.status_code for r in results] == [200, 200], (
+                conflict_code = REVISION_POLICIES[name] if competing else None
+                statuses = [200, 409 if conflict_code else 200]
+                assert [r.status_code for r in results] == statuses, (
                     name,
                     "concurrent",
                     [r.status_code for r in results],
                 )
-                assert results[0].json() == results[1].json(), (
-                    name,
-                    "replay response differs",
-                )
+                if not competing:
+                    assert results[0].json() == results[1].json(), (
+                        name,
+                        "replay response differs",
+                    )
+                elif conflict_code:
+                    ApiErrorResponse.model_validate(results[1].json())
+                    assert results[1].json()["error"]["code"] == conflict_code, (
+                        name,
+                        "competing conflict code",
+                    )
+                else:
+                    routes[name].response_model.model_validate(results[1].json())
+                    if name == "duplicateSurvey":
+                        second_row = await conn.fetchrow(
+                            "SELECT title,status FROM survey WHERE id=$1",
+                            UUID(second["targetSurveyId"]),
+                        )
+                        assert (
+                            second_row["title"] == second["title"]
+                            and second_row["status"] == "draft"
+                        )
+                        assert await conn.fetchval(
+                            "SELECT definition FROM survey_draft WHERE survey_id=$1",
+                            UUID(second["targetSurveyId"]),
+                        ) == await conn.fetchval(
+                            "SELECT definition FROM survey_draft WHERE survey_id=$1",
+                            UUID(body["targetSurveyId"]),
+                        )
+                    elif name == "createSurveyInvitation":
+                        assert results[0].json()["id"] != results[1].json()["id"]
+                        assert (
+                            await conn.fetchval(
+                                "SELECT recipient_email FROM survey_invitation WHERE id=$1",
+                                UUID(results[1].json()["id"]),
+                            )
+                            == second["recipientEmail"]
+                        )
                 routes[name].response_model.model_validate(results[0].json())
                 result = results[0].json()
                 sid = UUID(ids["survey_id"])
@@ -520,7 +606,11 @@ async def main():
                     for t in tables
                     if after[0][t] != before[0][t]
                 }
-                assert delta == DELTAS[name], (name, "unexpected row delta", delta)
+                multiplier = 2 if competing and not conflict_code else 1
+                expected_delta = {
+                    table: count * multiplier for table, count in DELTAS[name].items()
+                }
+                assert delta == expected_delta, (name, "unexpected row delta", delta)
                 if name == "validateSurveyDraft":
                     assert before == after, "Validation mutated persistent state"
                 repeated = await send(name, body, ids, headers)
@@ -528,6 +618,17 @@ async def main():
                     repeated.status_code == 200 and repeated.json() == results[0].json()
                 ), (name, "later replay")
                 assert await state() == after, (name, "later replay wrote data")
+                if competing:
+                    repeated_second = await send(name, second, ids, headers)
+                    assert repeated_second.status_code == statuses[1]
+                    if statuses[1] == 200:
+                        assert repeated_second.json() == results[1].json()
+                    else:
+                        assert repeated_second.json()["error"]["code"] == conflict_code
+                    assert await state() == after, (
+                        name,
+                        "second operation replay wrote data",
+                    )
                 changed = copy.deepcopy(body)
                 if "expectedRevision" in body:
                     changed["expectedRevision"] += 100
@@ -563,8 +664,10 @@ async def main():
                 evidence.append(
                     {
                         "operationId": name,
-                        "concurrentStatuses": [200, 200],
-                        "identicalResponse": True,
+                        "concurrentStatuses": statuses,
+                        "identicalResponse": results[0].json() == results[1].json(),
+                        "competingRevision": competing,
+                        "secondOperationConflictCode": conflict_code,
                         "bothRequestsObservedBlockedOnPersistenceLock": True,
                         "storedOperationOutcomeVerified": True,
                         "exactRowDeltas": delta,
@@ -572,7 +675,26 @@ async def main():
                         "changedRequestConflictCode": code,
                     }
                 )
-                print("PASS: concurrent and later replay:", name)
+                print(
+                    "PASS: competing revision and exact retry:"
+                    if competing
+                    else "PASS: concurrent and later replay:",
+                    name,
+                )
+            if competing:
+                Path("/proof/write-competing-revisions.json").write_text(
+                    json.dumps(
+                        {
+                            "syntheticOnly": True,
+                            "operations": evidence,
+                            "tablesChecked": tables,
+                            "scope": "All revision-bearing transport operations; two different operation keys at one revision with observed ordered lock contention and exact later retries",
+                        },
+                        indent=2,
+                    )
+                    + "\n"
+                )
+                return
             # A syntactically valid credential may collide across survey scopes.
             # Hold the participation table to force both independent inserts to wait
             # before its global uniqueness constraint selects one winner.
@@ -687,4 +809,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if sys.argv[1:] not in ([], ["--competing-revisions"]):
+        raise SystemExit("usage: write_replay_live.py [--competing-revisions]")
+    asyncio.run(main(competing=bool(sys.argv[1:])))

@@ -40,7 +40,7 @@ stored data; [evidence](proofs/SURV-000.md#complete-write-transport-inventory).
 This does not close the full contracts/persona/capability acceptance below.
 
 - [x] **000.T1b** Prove concurrent identical requests and later replay for all 21 survey write operations, with observed overlapping persistence-lock waits, exact database/outbox deltas, actual stored-value and response-model validation and unchanged complete row contents on replay/conflict. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**; full cross-operation/competing-revision and capability coverage remains required. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
-- [ ] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs.
+- [x] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs. [Live evidence](proofs/SURV-000.md#competing-revisions-for-every-revision-bearing-write).
 
 - [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
 
@@ -147,7 +147,7 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 ## SURV-030 — Lifecycle, migrations and immutable versions
 
-[Migration and lifecycle acceptance reconciliation](proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation) closes 030.1 and 030.3; populated invitation duplication remains open under 030.2.
+[Migration and lifecycle acceptance reconciliation](proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation) closes 030.1 and 030.3; [populated invitation duplication](proofs/SURV-030.md#populated-invitation-duplication) now closes 030.2.
 
 - [x] **030.T1a** Hold the real survey-row lock until two ordered HTTP operations are observed blocked. Prove both orders of competing draft saves, draft save/publication, competing publications and end/completion; verify exact persisted outcomes and guard-respecting retries without any row-content change. Acceptance: **030.A2, controlled-concurrency portion**; integration: **030.S2**. [Live evidence](proofs/SURV-030.md#observed-lifecycle-lock-orders).
 
@@ -157,7 +157,7 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
   Integration / supporting checks: **030.S1, 030.S5**.
   E2E: **030.S4, 030.S6**.
 
-- [ ] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers.
+- [x] **030.2** Implement revisioned draft editing, immutable publication, version-bound participation and duplication without recipients or answers.
 
   Acceptance criteria: **030.A2, 030.A3**.
   Integration / supporting checks: **030.S2, 030.S3**.

@@ -19,7 +19,6 @@ if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
   browser_reporter=./tools/surveys/foundation-reporter.mjs
   if [ "$mode" = infrastructure-failure ]; then foundation_failure=1; fi
 fi
-python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 compose() {
   docker compose --project-name "$project" --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
@@ -27,7 +26,7 @@ compose() {
 }
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     compose ps >&2 || true
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
     mkdir -p "$artifact"
@@ -37,9 +36,20 @@ cleanup() {
     fi
   fi
   if [ "$owned" = true ]; then
-    compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
   fi
-  if [ "$foundation" = true ]; then
+  if [ "$foundation" = true ] && [ "$owned" = true ]; then
     python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \
       "$proof" "$artifact/foundation" "$project" "$status" || status=1
   fi
@@ -49,9 +59,15 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 [ -f "$root/.env.local" ] || { echo 'Run ./leonaid bootstrap first' >&2; exit 1; }
 # Refuse to touch any project that already has resources, even on PID reuse.
-[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ] || exit 1
-[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ] || exit 1
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$proof/compose.yml"
 compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
@@ -72,6 +88,15 @@ if [ "$mode" = contracts ]; then
   fi
   cat "$proof/write-replay.log"
   cp "$proof/write-replay.json" "$artifact/"
+  if ! compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/write_replay_live.py --competing-revisions \
+    >"$proof/write-competing-revisions.log" 2>&1; then
+    cp "$proof/write-competing-revisions.log" "$artifact/"
+    cat "$proof/write-competing-revisions.log" >&2
+    exit 1
+  fi
+  cat "$proof/write-competing-revisions.log"
+  cp "$proof/write-competing-revisions.json" "$artifact/"
 fi
 if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ] || [ "$mode" = contracts ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

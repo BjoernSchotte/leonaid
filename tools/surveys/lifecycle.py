@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 import secrets
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -371,6 +372,169 @@ async def main():
                 await conn.fetchval("SELECT action_id FROM survey WHERE id=$1", target)
                 is None
             )
+            # Duplicate a populated invitation-only survey, not an empty recipient list.
+            invited_sid = await create()
+            invited_base = f"/api/v1/surveys/{invited_sid}"
+            await request(
+                "PUT",
+                invited_base + "/access",
+                {
+                    "operationId": "access",
+                    "expectedRevision": (await summary(invited_sid))["revision"],
+                    "accessMode": "invitation",
+                },
+            )
+            await request(
+                "POST",
+                invited_base + "/publish",
+                {"operationId": "publish", "expectedRevision": 1},
+            )
+
+            async def invited_start(label):
+                email = f"lifecycle-{invited_sid.hex[:16]}-{label}@example.com"
+                await request(
+                    "POST",
+                    invited_base + "/invitations",
+                    {
+                        "operationId": label,
+                        "expectedRevision": (await summary(invited_sid))["revision"],
+                        "recipientEmail": email,
+                        "recipientName": "Synthetic lifecycle recipient",
+                        "expiresInDays": 1,
+                    },
+                )
+                async with httpx.AsyncClient(
+                    base_url="http://mailpit:8025/mail"
+                ) as mail:
+                    async with asyncio.timeout(45):
+                        while True:
+                            messages = (await mail.get("/api/v1/messages")).json()[
+                                "messages"
+                            ]
+                            match = next(
+                                (
+                                    m
+                                    for m in messages
+                                    if any(to["Address"] == email for to in m["To"])
+                                ),
+                                None,
+                            )
+                            if match:
+                                text = (
+                                    await mail.get(f"/api/v1/message/{match['ID']}")
+                                ).json()["Text"]
+                                break
+                            await asyncio.sleep(0.1)
+                found = re.search(r"#invitation=([A-Za-z0-9_-]+)", text)
+                assert found is not None
+                secret = found.group(1)
+                public_base = f"/api/v1/public/surveys/{invited_sid}"
+                response = await request(
+                    "POST",
+                    public_base + "/invitation/redeem",
+                    {"token": secret},
+                    headers={},
+                )
+                credentials = {"Cookie": f"__Host-survey_{response['id']}={secret}"}
+                saved = await request(
+                    "PUT",
+                    public_base + f"/participations/{response['id']}",
+                    {
+                        "operationId": "save",
+                        "expectedRevision": response["response"]["revision"],
+                        "answers": {"note": label},
+                    },
+                    headers=credentials,
+                )
+                assert saved["answers"] == {"note": label}
+                return response, credentials
+
+            invited_v1, invited_auth = await invited_start("version-one-answer")
+            draft = await request("GET", invited_base + "/draft")
+            saved_draft = await request(
+                "PUT",
+                invited_base + "/draft",
+                {
+                    "operationId": "v2-draft",
+                    "expectedRevision": draft["revision"],
+                    "definition": dict(definition, title="Invited version two"),
+                },
+            )
+            invited_v2 = await request(
+                "POST",
+                invited_base + "/publish",
+                {
+                    "operationId": "v2-publish",
+                    "expectedRevision": saved_draft["revision"],
+                },
+            )
+            invited_new, _ = await invited_start("version-two-answer")
+            assert (
+                invited_new["version"]["id"]
+                == invited_v2["id"]
+                != invited_v1["version"]["id"]
+            )
+            restored_invited = await request(
+                "GET",
+                f"/api/v1/public/surveys/{invited_sid}/participations/{invited_v1['id']}",
+                headers=invited_auth,
+            )
+            assert restored_invited["version"] == invited_v1["version"]
+            assert restored_invited["response"]["answers"] == {
+                "note": "version-one-answer"
+            }
+            await transition(invited_sid, "end")
+            populated_target = uuid4()
+            ids.append(populated_target)
+            tables = (
+                "survey_participation",
+                "survey_invitation",
+                "survey_version",
+                "survey_grant",
+            )
+            before = {
+                table: await conn.fetchval(
+                    f"SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb)::text FROM {table} t WHERE survey_id=$1",
+                    invited_sid,
+                )
+                for table in tables
+            }
+            assert len(json.loads(before["survey_invitation"])) == 2
+            assert len(json.loads(before["survey_participation"])) == 2
+            body = {
+                "operationId": "populated-copy",
+                "expectedRevision": (await summary(invited_sid))["revision"],
+                "targetSurveyId": str(populated_target),
+                "title": "Next invited event",
+            }
+            copied_populated = await request("POST", invited_base + "/duplicate", body)
+            assert copied_populated == await request(
+                "POST", invited_base + "/duplicate", body
+            )
+            assert (
+                copied_populated["status"] == "draft"
+                and copied_populated["publishedVersionId"] is None
+            )
+            for table in tables:
+                assert (
+                    await conn.fetchval(
+                        f"SELECT count(*) FROM {table} WHERE survey_id=$1",
+                        populated_target,
+                    )
+                    == 0
+                )
+                assert (
+                    await conn.fetchval(
+                        f"SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb)::text FROM {table} t WHERE survey_id=$1",
+                        invited_sid,
+                    )
+                    == before[table]
+                )
+            target_draft = await request(
+                "GET", f"/api/v1/surveys/{populated_target}/draft"
+            )
+            assert target_draft["definition"] == invited_v2["definition"]
+
             await transition(sid, "archive")
             await transition(sid, "trash")
             assert (await transition(sid, "restore"))["status"] == "ended"
@@ -390,6 +554,13 @@ async def main():
                         "postErasurePublicationRejected": True,
                         "actualWorkerCompletedBothErasures": True,
                         "draftPublicationVersionAndDuplicationAssertions": True,
+                        "populatedInvitationDuplication": {
+                            "sourceRecipients": 2,
+                            "sourceResponses": 2,
+                            "versionBindingPreserved": True,
+                            "duplicateRecipientsResponsesCredentials": 0,
+                            "sourceRowsUnchanged": True,
+                        },
                     },
                     indent=2,
                 )

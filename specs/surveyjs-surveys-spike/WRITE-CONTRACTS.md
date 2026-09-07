@@ -178,3 +178,21 @@ The normal stored-receipt path still runs first for an exact successful retry.
 
 [Accepted live results](proofs/SURV-000.md#concurrent-replay-for-every-write) cover
 the complete concurrent inventory, collision handling and respondent regression.
+
+
+## Competing revision verification
+
+The `--competing-revisions` mode covers all 14 registered request models with
+`expectedRevision`, using two ordered, observed persistence-lock waiters.
+Distinct operation keys share one revision; validation has no key. Revision
+advancing operations reject the second request. Duplication and invitation
+creation can both succeed because they do not advance the source survey
+revision; distinct targets/recipients and exact persistence deltas are checked.
+Revocation coalesces the revoked state while retaining distinct operation
+receipts. Completion returns `closed` to the second operation, and a different
+permanent-deletion operation conflicts with the durable first intent.
+
+[Accepted real-service and browser evidence](proofs/SURV-000.md#competing-revisions-for-every-revision-bearing-write)
+records every expected result, winning stored value and unchanged later retry.
+These are operation-specific contracts, not a universal claim that every pair
+of requests at one revision must return exactly one success.
