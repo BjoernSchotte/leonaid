@@ -59,6 +59,7 @@ Commands:
   test-emdash-spike --case public-order-component
   test-emdash-spike --case order-ingress-pilot
   test-emdash-spike --case campaign-orders
+  test-emdash-spike --case krapfentaxi-source
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
   export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
@@ -352,6 +353,7 @@ check_all() {
   require_docker
   check_clean_tree
   before=$(git -C "$root" status --porcelain --untracked-files=all)
+  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case krapfentaxi-source
   # Linked worktrees use an absolute .git pointer outside the mounted checkout.
   # Readiness must inspect the real repository, not a synthetic replacement.
   check_git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)

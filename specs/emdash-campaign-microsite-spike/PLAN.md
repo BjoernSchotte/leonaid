@@ -2919,6 +2919,22 @@ another running checkout or authorize production deployment.
       `apps/public/src/components/KrapfentaxiIntro.astro`, the public layout,
       and `apps/public/src/assets/krapfentaxi/` into the campaign's EmDash record
       and dedicated media storage. Preserve asset attribution and existing design.
+- [x] Define the versioned import source package from the existing demo rather
+      than synthetic replacements. `krapfentaxi-source.mjs` pins the original
+      component, three raster files and `SOURCES.md`; its deterministic manifest
+      includes original asset provenance, source hashes and the unchanged rights
+      notice. It explicitly does not claim production rights clearance.
+      Editorial copy is compared against the actual pinned component; no Core
+      business snapshots are copied. The payload builder requires ready,
+      action-scoped media metadata and emits no storage keys. This is a payload
+      shape guard, not a substitute for database ownership verification.
+      `./leonaid test-emdash-spike --case krapfentaxi-source` passed offline in
+      pinned Docker with the checkout read-only: actual image decode, repeatable
+      fingerprints, isolated returned data, malformed/foreign/pending media
+      denial, and actual five-file drift plus symlink refusal in temporary copies.
+      This gate now runs in `./leonaid check`. It performs no database/storage
+      writes; durable import tracking, target resolution, idempotent apply and
+      repeat-run preservation of editor changes remain required below.
 - [x] Add the CMS-driven Krapfentaxi renderer without duplicating the existing
       Core-owned offering, order, beneficiary, goal and privacy sections.
       `PublicAction` accepts the typed campaign route and its explicit order
