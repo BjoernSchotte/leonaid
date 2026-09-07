@@ -2981,6 +2981,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
         This does not yet close the full gate: published destination delivery,
         reassignment/history, Core-outage behavior, the browser management UI
         and the primary demo cutover still need their corresponding proofs.
+        Full `./leonaid check` at source commit `04f4d8d` exited 0: 256 unit
+        tests, 259 Python source checks, 25 public and 47 CMS Astro files without
+        diagnostics, current generated contracts and all format/privacy/policy
+        gates; the committed worktree remained unchanged. Existing dependency
+        deprecation warnings remain.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.
