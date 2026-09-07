@@ -142,7 +142,10 @@ test("analysis filters, immutable results, chart/table agreement and lost acknow
     path: `${proof}/surveys-analytics-desktop.png`,
     fullPage: true,
   });
-  await nps.screenshot({ path: `${proof}/surveys-analytics-chart.png`, style: ".ui-topbar { position: static !important; }" });
+  await nps.screenshot({
+    path: `${proof}/surveys-analytics-chart.png`,
+    style: ".ui-topbar { position: static !important; }",
+  });
   await filters
     .getByLabel("Fragebogen-Version")
     .selectOption({ label: "Version 2" });

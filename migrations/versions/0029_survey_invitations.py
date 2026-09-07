@@ -16,7 +16,7 @@ DATA_MIGRATION_REFERENCE = (
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     ALTER TABLE survey_participation ADD CONSTRAINT survey_participation_survey_id_unique UNIQUE(survey_id,id);
     CREATE TABLE survey_invitation (
@@ -41,7 +41,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     op.execute(
         "DROP TABLE survey_invitation; ALTER TABLE survey_participation DROP CONSTRAINT survey_participation_survey_id_unique;"
     )

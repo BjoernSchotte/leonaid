@@ -16,7 +16,7 @@ DATA_MIGRATION_REFERENCE = (
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     ALTER TABLE survey_analysis_snapshot ADD CONSTRAINT survey_analysis_identity UNIQUE(survey_id,id);
     CREATE TABLE survey_export_job (
@@ -65,7 +65,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     op.execute("""
     DROP TABLE survey_export_job;
     DROP FUNCTION protect_survey_export_input();

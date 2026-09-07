@@ -14,7 +14,7 @@ DATA_MIGRATION_REFERENCE = "Additive erasure ledger; no existing survey is delet
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     CREATE TABLE survey_deletion (
       survey_id uuid PRIMARY KEY,
@@ -38,7 +38,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     # Dropping the ledger would allow erased IDs to be recreated. Restore only
     # after an explicit recovery procedure, never through an automatic downgrade.
     raise RuntimeError("Survey erasure records must be preserved during recovery.")

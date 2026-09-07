@@ -14,13 +14,14 @@ import stat
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 
-def canonical(value):
+def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
 
-def read_private(path):
+def read_private(path: str | Path) -> Any:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, "rb") as stream:
         info = os.fstat(stream.fileno())
@@ -33,7 +34,7 @@ def read_private(path):
         return json.loads(stream.read(65537))
 
 
-def atomic(path, value):
+def atomic(path: str | Path, value: object) -> None:
     path = Path(path)
     fd, temporary = tempfile.mkstemp(prefix=".restore-receipt-", dir=path.parent)
     try:
@@ -52,13 +53,13 @@ def atomic(path, value):
             os.unlink(temporary)
 
 
-def docker(*args):
+def docker(*args: str) -> str:
     return subprocess.check_output(
         ["docker", *args], text=True, stderr=subprocess.DEVNULL
     ).strip()
 
 
-def resources(target):
+def resources(target: str) -> dict[str, dict[str, str]]:
     ids = docker("ps", "-aq", "--filter", f"label=com.docker.compose.project={target}")
     if not ids:
         raise ValueError("restore services missing")
@@ -87,7 +88,7 @@ def resources(target):
     return volumes
 
 
-def context(args):
+def context(args: argparse.Namespace) -> tuple[bytes, dict[str, str]]:
     config = json.loads(Path(args.config).read_text())
     secret = config["services"]["api"]["environment"]["LEONAID_SESSION_ENCRYPTION_KEY"]
     if not isinstance(secret, str) or len(secret) < 32:
@@ -106,7 +107,7 @@ def context(args):
     return key, binding
 
 
-def cutoff(value):
+def cutoff(value: str | None) -> datetime | None:
     if not value:
         return None
     result = datetime.fromisoformat(value)
@@ -115,14 +116,14 @@ def cutoff(value):
     return result.astimezone(timezone.utc)
 
 
-def receipt(args):
+def receipt(args: argparse.Namespace) -> None:
     key, binding = context(args)
     required = cutoff(os.environ.get("LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH", ""))
     if args.action == "prepare":
         manifest_hash = hashlib.sha256(Path(args.manifest).read_bytes()).hexdigest()
         if binding.get("expectedManifestHash", manifest_hash) != manifest_hash:
             raise ValueError("selected backup mismatch")
-        payload = {
+        payload: dict[str, Any] = {
             "schema": 1,
             "binding": binding,
             "manifestHash": manifest_hash,
@@ -182,7 +183,7 @@ def receipt(args):
     print("restore-state: phase recorded")
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="action", required=True)
     lock = sub.add_parser("locked")

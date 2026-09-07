@@ -16,7 +16,7 @@ DATA_MIGRATION_REFERENCE = (
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     CREATE TABLE survey_analysis_snapshot (
         id uuid PRIMARY KEY,
@@ -42,7 +42,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     op.execute(
         "DROP TABLE survey_analysis_snapshot; DROP FUNCTION protect_survey_analysis_snapshot();"
     )

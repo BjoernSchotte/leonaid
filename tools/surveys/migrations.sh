@@ -29,7 +29,7 @@ docker run --detach --name "$project" --network "$project" --network-alias postg
   --volume "$project:/var/lib/postgresql/data" "$POSTGRES_IMAGE" >/dev/null
 container=true
 attempts=0
-until docker exec "$project" pg_isready -U postgres >/dev/null 2>&1; do
+until docker exec "$project" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do
   attempts=$((attempts + 1))
   [ "$attempts" -lt 60 ] || { echo 'Migration database did not start' >&2; exit 1; }
   sleep 1

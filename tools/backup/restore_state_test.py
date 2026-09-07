@@ -17,12 +17,13 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location(
     "restore_state", Path(__file__).with_name("restore-state.py")
 )
+assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
 class ReceiptTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -59,7 +60,7 @@ class ReceiptTests(unittest.TestCase):
         module.receipt(self.args)
         self.args.action = "check"
 
-    def test_phase_sequence(self):
+    def test_phase_sequence(self) -> None:
         module.receipt(self.args)
         self.args.action = "verified"
         module.receipt(self.args)
@@ -76,14 +77,14 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.receipt(self.args)
 
-    def test_changed_binding(self):
+    def test_changed_binding(self) -> None:
         for field in ("source", "target", "repository"):
             args = copy.copy(self.args)
             setattr(args, field, "changed")
             with self.subTest(field=field), self.assertRaises(ValueError):
                 module.receipt(args)
 
-    def test_changed_config_or_key(self):
+    def test_changed_config_or_key(self) -> None:
         for change in (
             {"extra": True},
             {
@@ -100,24 +101,24 @@ class ReceiptTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.receipt(self.args)
 
-    def test_manifest_changed(self):
+    def test_manifest_changed(self) -> None:
         self.manifest.write_text('{"fixture": false}')
         with self.assertRaises(ValueError):
             module.receipt(self.args)
 
-    def test_replaced_volume(self):
+    def test_replaced_volume(self) -> None:
         self.volumes["volume"]["createdAt"] = "replacement"
         with self.assertRaises(ValueError):
             module.receipt(self.args)
 
-    def test_application_container(self):
+    def test_application_container(self) -> None:
         with patch.object(
             module, "resources", side_effect=ValueError("application container")
         ):
             with self.assertRaises(ValueError):
                 module.receipt(self.args)
 
-    def test_tampering(self):
+    def test_tampering(self) -> None:
         p = Path(self.args.state)
         value = json.loads(p.read_text())
         value["payload"]["phase"] = "verified"
@@ -125,7 +126,7 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.receipt(self.args)
 
-    def test_missing_and_symlink(self):
+    def test_missing_and_symlink(self) -> None:
         p = Path(self.args.state)
         p.unlink()
         with self.assertRaises(OSError):
@@ -134,12 +135,12 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(OSError):
             module.receipt(self.args)
 
-    def test_permissions(self):
+    def test_permissions(self) -> None:
         os.chmod(self.args.state, 0o644)
         with self.assertRaises(ValueError):
             module.receipt(self.args)
 
-    def test_cutoff_cannot_regress_or_disappear(self):
+    def test_cutoff_cannot_regress_or_disappear(self) -> None:
         for value in ("", "2026-09-07T11:59:59+00:00", "2026-09-07T12:00:00"):
             with patch.dict(
                 os.environ, {"LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH": value}
@@ -149,13 +150,13 @@ class ReceiptTests(unittest.TestCase):
 
 
 class ResourceTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.target = "leonaid-restore-resources"
         self.services = ["core-postgres", "twenty-postgres", "rustfs"]
         self.owner = self.target
         self.ids = "container-1"
 
-    def docker(self, *args):
+    def docker(self, *args: str) -> str:
         if args[0] == "ps":
             self.assertIn("-aq", args)
             return self.ids
@@ -178,7 +179,7 @@ class ResourceTests(unittest.TestCase):
             ]
         )
 
-    def test_data_only_resources_are_bound(self):
+    def test_data_only_resources_are_bound(self) -> None:
         with patch.object(module, "docker", side_effect=self.docker):
             volumes = module.resources(self.target)
         self.assertEqual(
@@ -194,7 +195,7 @@ class ResourceTests(unittest.TestCase):
             all(v["name"].startswith(self.target + "_") for v in volumes.values())
         )
 
-    def test_any_application_container_blocks_including_stopped(self):
+    def test_any_application_container_blocks_including_stopped(self) -> None:
         for name in ("api", "public", "worker", "survey-validator", "proxy", "unknown"):
             with self.subTest(service=name):
                 self.services = ["core-postgres", name]
@@ -202,7 +203,7 @@ class ResourceTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         module.resources(self.target)
 
-    def test_missing_containers_and_foreign_volumes_block(self):
+    def test_missing_containers_and_foreign_volumes_block(self) -> None:
         with patch.object(module, "docker", side_effect=self.docker):
             self.ids = ""
             with self.assertRaises(ValueError):
@@ -214,7 +215,7 @@ class ResourceTests(unittest.TestCase):
 
 
 class LockTests(unittest.TestCase):
-    def test_same_target_is_exclusive(self):
+    def test_same_target_is_exclusive(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             marker = Path(directory) / "ready"
             target = "leonaid-restore-lock-" + uuid4().hex[:16]

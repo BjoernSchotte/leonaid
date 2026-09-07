@@ -18,7 +18,7 @@ Run from the repository root after `./leonaid bootstrap`:
 ./leonaid test-surveys-e2e
 ```
 
-The default aggregate executes all 37 entries in
+The default aggregate executes all 38 entries in
 [`tools/surveys/gate.json`](../../tools/surveys/gate.json), in manifest order.
 `--repeat 2` executes the whole selection twice; every service harness creates
 fresh owned resources each time. It does not rerun only failed cases. A nonzero
@@ -32,7 +32,7 @@ part of the full aggregate. Existing individual leaf commands remain available.
 | Group | Checks | Scope |
 |---|---:|---|
 | foundation | 7 | Controller process behavior, restore receipts, all survey unit tests, validation comparison, dependency inventory, empty/existing-data migrations and deliberate browser failure diagnostics |
-| integration | 9 | Real aggregate engine outage/restart, all write contracts, lifecycle, invitations, permissions, aggregates/analysis and public/payload limits |
+| integration | 10 | Real aggregate engine outage/restart, all write contracts, lifecycle and observed competing lock orders, invitations, permissions, aggregates/analysis and public/payload limits |
 | editor | 3 | Full editor/authoring/accessibility suite, preview isolation and host branding/completion/progress |
 | responses | 2 | Response API and complete autosave, validation-adapter, resume/restart/browser suite |
 | exports | 5 | Actual worker products, PDF/XLSX render fixtures, permissions, terminal states, recovery and admission limits |

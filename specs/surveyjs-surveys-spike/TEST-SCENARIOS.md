@@ -51,7 +51,7 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 ## SURV-030 — Lifecycle and versions
 
 - [ ] **030.S1 · Integration · 030.T1 → 030.A1:** Migrate both empty and baseline databases; enumerate every allowed/forbidden lifecycle edge from PLAN section 5 and assert resulting state or rejection without mutation.
-- [ ] **030.S2 · Integration · 030.T1 → 030.A2:** Race draft saves/publication and end/completion using controlled concurrency; revisions and immutable versions stay consistent and the transaction cutoff determines the accepted response.
+- [x] **030.S2 · Integration · 030.T1 → 030.A2:** Race draft saves/publication and end/completion using controlled concurrency; revisions and immutable versions stay consistent and the transaction cutoff determines the accepted response. [Observed lock-order evidence](proofs/SURV-030.md#observed-lifecycle-lock-orders).
 - [ ] **030.S3 · Integration · 030.T1 → 030.A3:** Publish v2 while v1 participations exist and duplicate the survey; old participations retain v1, new ones use v2, and the duplicate contains no answers, recipients or credentials.
 - [x] **030.S4 · E2E · 030.T2 → 030.A4:** After SURV-060 supplies the member UI, create, publish, end, archive, trash and restore; UI/database states agree and the public survey remains closed after restore. [Evidence](proofs/SURV-060.md).
 

@@ -653,6 +653,7 @@ Implementation tasks:
 Test implementation and verification tasks:
 
 - [x] **030.T1** Test migrations from empty and baseline databases, all lifecycle edges, simultaneous draft/publish writes, close/submit races, version binding and response-free duplication. Acceptance: **030.A1, 030.A2, 030.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **030.T1a** Hold the real survey-row lock until two ordered HTTP operations are observed blocked. Prove both orders of competing draft saves, draft save/publication, competing publications and end/completion; verify exact persisted outcomes and guard-respecting retries without any row-content change. Acceptance: **030.A2, controlled-concurrency portion**; integration: **030.S2**. [Live evidence](proofs/SURV-030.md#observed-lifecycle-lock-orders).
 - [x] **030.T2** Automate create, publish, end, archive, trash and restore through the member UI; compare persisted lifecycle state and verify public access remains closed after restoration. Acceptance: **030.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. [Member UI and PostgreSQL evidence](proofs/SURV-060.md).
 
 Acceptance criteria:

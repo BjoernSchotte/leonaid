@@ -16,7 +16,7 @@ DATA_MIGRATION_REFERENCE = (
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     CREATE TABLE survey_recovery_identity (
       singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
@@ -26,5 +26,5 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     raise RuntimeError("Recovery identity must be preserved with erasure checkpoints.")

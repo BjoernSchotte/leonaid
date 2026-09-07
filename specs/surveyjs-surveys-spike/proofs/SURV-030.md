@@ -258,3 +258,67 @@ both modified Python probes, shell syntax and `git diff --check` passed.
 Together these directly satisfy 030.A1–030.A4 and 030.T1/T2. This accepts SURV-030;
 it does not accept the remaining persona matrix, independent recovery checkpoint
 continuity, limits/log handling or overall SURV-100 gates.
+
+
+## Observed lifecycle lock orders
+
+The older lifecycle test used `asyncio.gather` for competing requests. It checked
+legal outcomes but did not prove actual overlap or both close/completion orders.
+The new `tools/surveys/lifecycle_concurrency.sh` invokes real HTTP/PostgreSQL
+assertions against a fresh owned stack, twice. Before dispatch it locks the
+survey row, observes the first request in PostgreSQL's blocking graph, starts
+the second and observes both blocked before releasing the barrier. An early
+response fails the test instead of silently becoming a sequential fixture.
+
+Both iterations passed all eight ordered cases: save A/B, save B/A, save/publish,
+publish/save, publication A/B, publication B/A, end/complete and complete/end.
+Competing draft/publication operations return 200 then 409 with exactly the
+winner's draft and expected immutable-version count/content. End first rejects
+completion and leaves the acknowledged partial response; completion first
+retains its completed revision/timestamp when end follows. Late saves cannot
+replace the acknowledged answer. Exact retries respect current lifecycle guards
+and leave complete survey, draft, version, participation and operation row
+contents unchanged. No mocked response or persistence adapter is involved.
+
+Command: `sh tools/surveys/lifecycle_concurrency.sh "$PWD"`. Project
+`leonaid-surveys-lifecycle-833458328-6584`, exit **0**, both eight-case iterations
+passed. All networks were reserved before startup, no host ports were published,
+and a separate inventory verified zero owned containers, volumes and networks.
+[Rerunnable case results and tested source hashes](assets/SURV-030-lifecycle-concurrency.json)
+record the scope. Ruff formatting/lint and shell syntax pass. The aggregate
+manifest now includes this additional integration leaf (38 checks total); the
+new complete aggregate has not yet passed.
+
+Two preceding attempts are not acceptance evidence. Project `99679` reached all
+ordered outcomes but the newly written test wrongly expected a public completion
+retry to succeed after survey end. The existing active-survey guard correctly
+returned 409; the assertion now checks that guard and unchanged stored results.
+Project `2756` failed Twenty readiness before reaching the corrected assertions.
+Both projects were independently verified removed. The final successful run used
+only two concurrent owned service stacks.
+
+This accepts **030.T1a / 030.S2**, the controlled-concurrency portion. It does not
+automatically close other unchecked companion scenarios, full contract coverage,
+the complete CI lane or recovery acceptance.
+
+
+## PostgreSQL migration readiness correction
+
+The migration harness now checks TCP readiness on `127.0.0.1`, matching the
+network path used by the migration client. A separate cold-start experiment with
+a delayed init script proved that the temporary initialization server can report
+Unix-socket readiness while TCP is still unavailable; the final TCP-ready server
+accepted real SQL writes. The fix changes readiness detection only.
+
+`sh tools/surveys/migrations.sh "$PWD"` then passed twice, exit **0** each time:
+projects `surveys-migrations-833458328-11520` and
+`surveys-migrations-833458328-11965`, approximately 65 and 37 seconds. Both runs
+proved empty and existing-data upgrades, repeat migration and 30 PostgreSQL
+invariants. Separate inventories confirmed zero owned containers, volumes and
+networks after both runs. No host ports were published.
+
+Related annotation corrections pass the actual CI mypy path selection (272
+source files); restore-state tests pass all 14 cases. The seven gate-controller
+tests and the network-test-double policy tests pass. Formatting-only browser
+changes preserve the reviewed network-fault behavior. These targeted results do
+not constitute a successful full aggregate or full CI run.

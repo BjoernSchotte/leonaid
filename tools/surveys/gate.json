@@ -65,6 +65,11 @@
       "infrastructureModes": ["lifecycle"]
     },
     {
+      "id": "lifecycle-concurrency",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/lifecycle_concurrency.sh", "{root}"]
+    },
+    {
       "id": "invitations",
       "group": "integration",
       "argv": [

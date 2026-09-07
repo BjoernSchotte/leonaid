@@ -14,7 +14,7 @@ DATA_MIGRATION_REFERENCE = "Retention defaults to disabled. Existing closed surv
 BACKUP_REFERENCE = "infra/backup/README.md#schemaändernde-migrationen"
 
 
-def upgrade():
+def upgrade() -> None:
     op.execute("""
     ALTER TABLE survey_settings
       ADD COLUMN ended_retention_seconds integer CHECK(ended_retention_seconds BETWEEN 1 AND 315360000),
@@ -47,7 +47,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     op.execute("""
     DROP TRIGGER survey_retention_clock ON survey;
     DROP FUNCTION survey_retention_clock();

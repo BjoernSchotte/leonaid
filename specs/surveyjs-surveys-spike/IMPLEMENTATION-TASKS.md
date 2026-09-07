@@ -146,6 +146,8 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 ## SURV-030 — Lifecycle, migrations and immutable versions
 
+- [x] **030.T1a** Hold the real survey-row lock until two ordered HTTP operations are observed blocked. Prove both orders of competing draft saves, draft save/publication, competing publications and end/completion; verify exact persisted outcomes and guard-respecting retries without any row-content change. Acceptance: **030.A2, controlled-concurrency portion**; integration: **030.S2**. [Live evidence](proofs/SURV-030.md#observed-lifecycle-lock-orders).
+
 - [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys.
 
   Acceptance criteria: **030.A1, 030.A4**.
