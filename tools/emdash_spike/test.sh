@@ -14,11 +14,20 @@ if [ "$#" -ne 0 ]; then
 fi
 case "$test_case" in
   release-legacy-boundary) ;;
+  release-manifest-compatibility) ;;
   krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence|alias-commands|alias-http|redirect-aliases|recovery-sql|recovery-local|recovery-app|recovery-orders|recovery-import) ;;
   campaign-public-content|campaign-public-http|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
+if [ "$test_case" = release-manifest-compatibility ]; then
+  docker run --rm --network none --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
+    python tools/pilot_release/cms_contract_test.py
+  docker run --rm --network none --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
+    python tools/pilot_release/contract_test.py
+fi
 if [ "$test_case" = release-legacy-boundary ]; then
   # Configuration-only proof: no services, host ports or Docker networks are
   # created. Keep rendered configuration on the pipe; never print its secrets.

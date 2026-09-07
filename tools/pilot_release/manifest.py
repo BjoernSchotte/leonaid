@@ -11,6 +11,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+if __package__ in (None, ""):
+    # Preserve direct `python tools/pilot_release/manifest.py` callers whose
+    # PYTHONPATH contains only src; import from this checkout, not the cwd.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.pilot_release.cms_identity import (
+    CMS_GATES,
+    CMS_ROLLBACK,
+    create_cms_identity,
+    validate_cms_identity,
+)
+
 PINNED_IMAGE = re.compile(r"^[^@\s]+:[^@:\s]+@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -75,16 +87,26 @@ def manifest_sha256(value: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def images_from_compose(value: dict[str, Any]) -> dict[str, str]:
+def _image_inventory(schema_version: object) -> set[str]:
+    _require(
+        type(schema_version) is int and schema_version in (1, 2),
+        "Release-Version muss 1 oder 2 sein",
+    )
+    return REQUIRED_IMAGES | ({"campaign-site"} if schema_version == 2 else set())
+
+
+def images_from_compose(
+    value: dict[str, Any], *, schema_version: int = 1
+) -> dict[str, str]:
     services = _object(value.get("services"), "Compose services")
     # Version 1 has no CMS image, migration, patch or rollback identity. Never
     # silently omit a configured CMS service while approving the legacy stack.
     _require(
-        "campaign-site" not in services,
+        schema_version == 2 or "campaign-site" not in services,
         "Release-Vertrag v1 erlaubt keine campaign-site; CMS-Release-Vertrag fehlt",
     )
     images: dict[str, str] = {}
-    for service in REQUIRED_IMAGES:
+    for service in _image_inventory(schema_version):
         configuration = _object(services.get(service), f"Compose service {service}")
         image = configuration.get("image")
         if not isinstance(image, str) or not image:
@@ -97,7 +119,9 @@ def validate_compose_images(
     manifest: dict[str, Any],
     compose_configuration: dict[str, Any],
 ) -> None:
-    compose_images = images_from_compose(compose_configuration)
+    compose_images = images_from_compose(
+        compose_configuration, schema_version=manifest.get("schemaVersion", 1)
+    )
     manifest_images = _object(manifest.get("images"), "images")
     _require(
         manifest_images == compose_images,
@@ -145,10 +169,11 @@ def create_manifest(
     git_commit: str,
     deployment_mode: str,
     images: dict[str, str],
+    schema_version: int = 1,
 ) -> dict[str, Any]:
     migrations = _migration_inventory(root)
     value: dict[str, Any] = {
-        "schemaVersion": 1,
+        "schemaVersion": schema_version,
         "releaseId": release_id,
         "version": version,
         "gitCommit": git_commit,
@@ -168,6 +193,13 @@ def create_manifest(
             "twenty": "backup_restore_after_migration",
         },
     }
+    if schema_version == 2:
+        try:
+            value["cms"] = create_cms_identity(root)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            raise InvalidManifest("CMS-Release-Identität ist ungültig") from error
+        value["requiredGates"].extend(CMS_GATES)
+        value["rollback"]["cms"] = CMS_ROLLBACK
     validate_manifest(value, root=root)
     return value
 
@@ -177,15 +209,24 @@ def validate_manifest(
     *,
     root: Path | None = None,
     expected_commit: str | None = None,
+    expected_schema_version: int | None = None,
 ) -> None:
+    schema_version = value.get("schemaVersion")
+    required_images = _image_inventory(schema_version)
+    if expected_schema_version is not None:
+        _require(
+            schema_version == expected_schema_version,
+            "Release-Version entspricht nicht dem expliziten Aufrufvertrag",
+        )
     _require(
-        type(value.get("schemaVersion")) is int and value["schemaVersion"] == 1,
-        "schemaVersion muss die Ganzzahl 1 sein",
-    )
-    _require(
-        "cms" not in value and "emdash" not in value,
+        (schema_version == 2 or "cms" not in value) and "emdash" not in value,
         "Release-Vertrag v1 erlaubt keine CMS-Metadaten",
     )
+    if schema_version == 2:
+        try:
+            validate_cms_identity(value.get("cms"), root)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            raise InvalidManifest("CMS-Release-Identität ist ungültig") from error
     release_id = value.get("releaseId")
     _require(
         isinstance(release_id, str) and RELEASE_ID.fullmatch(release_id) is not None,
@@ -207,7 +248,7 @@ def validate_manifest(
     mode = value.get("deploymentMode")
     _require(mode in {"production", "test"}, "deploymentMode ist ungültig")
     images = _object(value.get("images"), "images")
-    _require(set(images) == REQUIRED_IMAGES, "Image-Inventar ist unvollständig")
+    _require(set(images) == required_images, "Image-Inventar ist unvollständig")
     for service, image in images.items():
         _require(isinstance(image, str), f"{service}: Image ist kein String")
         if mode == "production":
@@ -290,7 +331,8 @@ def validate_manifest(
             )
 
     _require(
-        value.get("requiredGates") == list(REQUIRED_GATES),
+        value.get("requiredGates")
+        == list(REQUIRED_GATES + (CMS_GATES if schema_version == 2 else ())),
         "Release-Gates sind unvollständig oder ungeordnet",
     )
     _require(
@@ -299,6 +341,7 @@ def validate_manifest(
             "core": "backup_restore",
             "rustfs": "binary_before_write_else_backup_restore",
             "twenty": "backup_restore_after_migration",
+            **({"cms": CMS_ROLLBACK} if schema_version == 2 else {}),
         },
         "Rollbackgrenzen sind unvollständig",
     )
@@ -312,6 +355,7 @@ def _parse_arguments() -> argparse.Namespace:
     create.add_argument("--root", type=Path, required=True)
     create.add_argument("--release-id", required=True)
     create.add_argument("--version", required=True)
+    create.add_argument("--schema-version", type=int, choices=(1, 2), default=1)
     create.add_argument("--git-commit", required=True)
     create.add_argument(
         "--deployment-mode",
@@ -327,6 +371,9 @@ def _parse_arguments() -> argparse.Namespace:
     verify.add_argument("--root", type=Path, required=True)
     verify.add_argument("--manifest", type=Path, required=True)
     verify.add_argument("--expected-commit")
+    verify.add_argument(
+        "--expected-schema-version", type=int, choices=(1, 2), default=1
+    )
     verify.add_argument("--compose-config", type=Path)
     return parser.parse_args()
 
@@ -337,7 +384,10 @@ def main() -> int:
         root = arguments.root.resolve()
         if arguments.command == "create":
             if arguments.compose_config is not None:
-                images = images_from_compose(_load_object(arguments.compose_config))
+                images = images_from_compose(
+                    _load_object(arguments.compose_config),
+                    schema_version=arguments.schema_version,
+                )
             else:
                 if arguments.images is None:
                     raise InvalidManifest("Imagequelle fehlt")
@@ -349,6 +399,7 @@ def main() -> int:
                 git_commit=arguments.git_commit,
                 deployment_mode=arguments.deployment_mode,
                 images={str(service): str(image) for service, image in images.items()},
+                schema_version=arguments.schema_version,
             )
             arguments.output.write_bytes(canonical_bytes(manifest))
             print(f"pilot-release-manifest: OK: {manifest_sha256(manifest)}")
@@ -358,6 +409,7 @@ def main() -> int:
             manifest,
             root=root,
             expected_commit=arguments.expected_commit,
+            expected_schema_version=arguments.expected_schema_version,
         )
         if arguments.compose_config is not None:
             validate_compose_images(

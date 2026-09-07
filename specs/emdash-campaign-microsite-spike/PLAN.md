@@ -3067,6 +3067,28 @@ Dependencies: EMS-050, EMS-070
         tests, 263 Python files typechecked, both Astro applications (25/47
         files, zero diagnostics), frontend typechecks, formatting and repository
         policy gates. The committed working tree was unchanged.
+  - [x] Implement the explicit version-2 CMS manifest contract while retaining
+        the version-1 boundary. `release-manifest-compatibility` passed against
+        actual checkout sources: exact thirteen-image inventory, pinned
+        production/local immutable test image policy, EmDash package integrity,
+        exact six-patch and seventeen-source hashes, editorial schema identity,
+        operator-only migration policy, CMS release gates and rollback boundary.
+        Missing/drifted images or source entries, malformed schema/migration
+        metadata, actual edits to every source in temporary copies, source
+        symlinks and implicit CLI v2 verification were rejected. Explicit CLI v2
+        verification and legacy contract/promotion regression cases passed.
+        Both suites now run in `./leonaid check`. The release overlay requires
+        `LEONAID_CAMPAIGN_SITE_IMAGE` and removes the source-build fallback.
+        Actual Compose rendering against the previously built campaign image
+        `sha256:ceb6fd5f27d2203ccb099b2205193ab1a42aad84c3bffc2ee705aa3ed232a0b3`
+        retained its ID without a build fallback or CMS host ports. The initial
+        attempt at a complete local image inventory correctly failed because
+        other source-built services have no release image; no full release was
+        fabricated. Structural tests use synthetic registry references, not
+        published-image evidence. The parent remains open for complete release
+        inventory/provenance and operational integration. See
+        [release contract](RELEASE_CONTRACT.md). No services or networks were
+        started for these contract checks and no production activation occurred.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
