@@ -216,6 +216,33 @@ def test_empty_selection_keeps_metadata_and_raw_scope_is_required():
         render_tabular("responses_csv", SurveyExportSource(data.title, data.snapshot))
 
 
+@pytest.mark.parametrize("empty", [False, True])
+def test_analysis_without_distributions_has_a_valid_printable_empty_state(empty):
+    data = source()
+    payload = data.snapshot.model_dump()
+    payload["questions"] = (
+        []
+        if empty
+        else [
+            question
+            for question in payload["questions"]
+            if question["kind"] == "comment"
+        ]
+    )
+    assert empty or payload["questions"]
+    report = workbook(
+        render_tabular(
+            "analysis_xlsx",
+            SurveyExportSource(data.title, AnalysisSnapshot.model_validate(payload)),
+        )
+    )
+    charts = report["Charts"]
+    assert not charts._charts
+    assert charts["A2"].value == "No response distributions for this selection."
+    assert "$A$1:$D$2" in str(charts.print_area)
+    assert report["Metrics"].max_row == 1 + len(payload["questions"])
+
+
 def test_raw_types_preserve_empty_null_boolean_and_high_precision_numbers():
     data = source()
     first = data.responses[0].model_copy(

@@ -371,7 +371,9 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 charts.row_breaks.append(Break(id=anchor - 2))
             charts.add_chart(chart, f"A{anchor}")
             anchor += 44
-    charts.print_area = f"A1:D{anchor - 3}"
+    if anchor == 3:
+        append(charts, ["No response distributions for this selection."])
+    charts.print_area = f"A1:D{max(2, anchor - 3)}"
     pages = workbook.create_sheet("Last page")
     append(
         pages,

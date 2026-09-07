@@ -14,7 +14,7 @@ from leonaid.adapters.postgres.identity import account_from_record
 from leonaid.adapters.postgres.survey_analysis import read_snapshot
 from leonaid.adapters.survey_tabular_exports import render_tabular
 from leonaid.adapters.typst.survey_renderer import TypstSurveyRenderer
-from leonaid.application.errors import Conflict, ResourceNotFound
+from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.object_storage import (
     ObjectLocation,
     ObjectStorage,
@@ -116,6 +116,9 @@ async def authorize(conn: Any, user_id: UUID, survey: Any, product: str) -> bool
 JOB_SELECT = """SELECT j.*, e.status AS event_status, e.attempts, e.last_error_code
     FROM survey_export_job j JOIN outbox_event e ON e.id=j.event_id"""
 
+EXPORT_JOBS_PER_WINDOW = 60
+EXPORT_WINDOW_SECONDS = 600
+
 
 def job_payload(row: Any) -> SurveyExportJob:
     status = row["status"]
@@ -214,6 +217,25 @@ class AsyncpgSurveyExports:
                         "Diese Operation wurde mit anderen Daten verwendet.",
                     )
                 return job_payload(existing)
+            # Serialize admission across surveys for the same requester. Keep
+            # authorization and exact replay ahead of the quota; rejected jobs
+            # must leave neither a job nor an outbox receipt behind.
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+                f"survey-export-admission:{user_id}",
+            )
+            recent = await conn.fetchval(
+                """SELECT count(*) FROM survey_export_job
+                   WHERE requested_by=$1
+                     AND created_at >= clock_timestamp()-($2 * interval '1 second')""",
+                user_id,
+                EXPORT_WINDOW_SECONDS,
+            )
+            if recent >= EXPORT_JOBS_PER_WINDOW:
+                raise RateLimited(
+                    "limit_exceeded",
+                    "Zu viele Exportaufträge. Bitte warte zehn Minuten und versuche es erneut.",
+                )
             job_id, event_id = uuid4(), uuid4()
             await conn.execute(
                 """INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload)
@@ -223,8 +245,8 @@ class AsyncpgSurveyExports:
                 f"survey-export:{job_id}",
             )
             await conn.execute(
-                """INSERT INTO survey_export_job(id,survey_id,snapshot_id,requested_by,operation_id,request_hash,title,product,event_id)
-              VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
+                """INSERT INTO survey_export_job(id,survey_id,snapshot_id,requested_by,operation_id,request_hash,title,product,event_id,created_at)
+              VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,clock_timestamp())""",
                 job_id,
                 survey_id,
                 UUID(body.snapshotId),

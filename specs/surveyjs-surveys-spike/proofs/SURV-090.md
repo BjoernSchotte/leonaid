@@ -5,8 +5,9 @@ Status: **in progress**. Own license remains **UNDEFINED**. 090.1, 090.A1, 090.A
 remains open. The recovery section proves checkpoint reapplication
 after an actual DB/object restore. The generic Restic operator is now proven
 below; checkpoint continuity remains open.
-Public request quotas (090.3a) and payload/participation-log checks (090.3b) are
-accepted below; export operating-limit/log coverage remains open under 090.A4.
+Public request quotas, payload boundaries and export admission/log checks are
+accepted below: 090.3 / 090.A4 / 090.S4 are complete. Recovery checkpoint
+continuity still prevents completion of 090.T1 and the full work package.
 
 ## Durable erasure and process-crash recovery
 
@@ -767,3 +768,121 @@ real API/worker restart verified exact replay results, preserved revisions and
 one completed participation after lost acknowledgement. The harness verified
 cleanup of its fresh no-host-port project. No runtime/test files were changed
 during either executing proof, and no new manual visual acceptance is claimed.
+
+## Export admission and log acceptance
+
+**090.3c / 090.S4c and consolidated 090.3 / 090.A4 / 090.S4 are accepted.**
+Runtime baseline: `c1a1fba` plus the admission check and text-only XLSX correction
+in the commit containing this record. No dependency, migration or license
+selection changed. Full 090.T1 remains open for checkpoint continuity.
+
+The [export operating contract](../DECISIONS.md#export-operating-limits) limits
+new jobs to 60 per requester across all surveys/products in a rolling 600-second
+window. All retained recent job states count. Authorization and exact operation
+replay precede a per-requester transaction advisory lock, count and atomic
+job/outbox creation. Rejection returns 429 / `limit_exceeded`. Permanent erasure
+removes the affected retained jobs from this quota; worker concurrency and
+unlimited retained storage are not promised.
+
+`tools/surveys/export_limits_live.py::main` exercises actual HTTP, PostgreSQL,
+the production worker and private versioned RustFS objects:
+
+- Two surveys are created/published, actual public responses containing a fresh
+  private marker are saved/completed, and immutable snapshots are created.
+- One real CSV job plus 58 explicitly seeded recent cancelled/completed history
+  rows leave one permit. Two simultaneous HTTP requests for different surveys
+  yield exactly one 200 and one 429; SQL finds 60 jobs for the requester.
+- Another authorized user creates a job while the first user's quota is full.
+  Exact authorized replay returns the original job; changed payload conflicts,
+  anonymous access returns 401 and an unavailable survey returns 404.
+- A rejected operation leaves no job and no extra outbox event. Only synthetic
+  history rows are replaced by equivalent expired history older than 600 seconds;
+  actual job timestamps and immutable inputs are never edited. The same rejected
+  operation then succeeds and replays exactly. This tests the timestamp predicate
+  deterministically, not a ten-minute wall-clock wait or production throughput.
+- Actual jobs produce CSV, raw XLSX, analysis XLSX and Typst PDF. Downloads are
+  independently parsed with csv, openpyxl and pypdf. The raw answer marker is
+  present in the raw products and absent from the analysis workbooks/PDF.
+  SQL confirms available state, exact byte size and a committed object version.
+- Captured API/worker/validator logs contain actual HTTP diagnostics and none
+  of the seeded answer marker, member sessions or participation resume secrets.
+  Raw logs, credentials and markers remain in the private temporary directory
+  and are removed during cleanup. Only the sanitized counts/booleans in
+  [SURV-090-export-limits.json](assets/SURV-090-export-limits.json) are retained.
+
+### Discovered renderer failure and correction
+
+The first runs, `leonaid-surveys-833458328-32157` and
+`leonaid-surveys-833458328-33313`, exited 1 after admission checks passed. The first
+timed out waiting for a file; added safe status diagnostics in the second showed
+the analysis-XLSX job reached failed state. Live SQL showed raw CSV/XLSX and PDF
+jobs available, while analysis-XLSX retried with the generic
+`survey_export_failed` code. A read-only renderer probe against the same snapshot
+identified `analysis_sheets` setting `Charts.print_area` to `A1:D0` when there
+were no distributions. Only the exception type and stack were printed, without
+source content.
+
+The renderer now provides a "No response distributions for this selection."
+message and a valid `A1:D2` area for this case. Existing distribution chart areas
+are unchanged. `test_analysis_without_distributions_has_a_valid_printable_empty_state`
+reopens actual workbooks for text-only and empty question sets, checking the
+empty-state message, valid print range, absent charts and retained metric rows.
+The live fixture deliberately remains a text-only questionnaire so the real
+worker/storage/download path proves the corrected case. No new manual visual
+or print-render acceptance is claimed.
+
+### Execution evidence
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" export-limits
+```
+
+Final project `leonaid-surveys-833458328-34430` exited **0**. All admission,
+worker/file and log checks passed, followed by the Chromium member/public-host
+foundation test (1 test, 2.1 s). Fresh volumes, selected unused explicit subnets,
+no published host ports and complete owned-resource cleanup were verified.
+Every earlier process was terminal before its test/runtime files were edited.
+Service/image versions remain pinned in `infra/locks/images.env` and Compose;
+renderers use the existing openpyxl 3.1.5 / Typst 0.13.1 dependency baseline.
+
+The complete tabular unit suite passed **20 tests in 1.33 s**:
+
+```sh
+rtk proxy docker run --rm --network none -e PYTHONPATH=/workspace/src \
+  -v "$PWD:/workspace" -w /workspace \
+  ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e \
+  uv run --frozen --no-sync pytest tests/unit/test_survey_tabular_exports.py -q
+```
+
+Scoped Ruff check/format, shell syntax and diff whitespace checks passed.
+
+### Consolidated 090.A4 evidence
+
+The affected existing export regression passed on the final runtime:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" exports
+```
+
+Project `leonaid-surveys-833458328-35079` exited **0**. The API/worker/storage
+probe parsed all four products against the existing golden snapshot and checked
+cancellation, revoked access, anonymous object access and deletion protection.
+The browser phases passed **5 Chromium tests** (2 in 11.0 s, 2 in 23.4 s, 1 in
+6.0 s) from `surveys-exports.spec.mjs`, `surveys-infrastructure.spec.mjs` and
+`surveys-export-values.spec.mjs`: empty and populated snapshots, lost creation
+acknowledgement, visible/downloaded values, report-only and export-only personas,
+revoked downloads and stale actions after trash. The fresh project published no
+host ports and verified owned-resource teardown. Existing image/dependency pins
+were used; no additional visual/print inspection is claimed for this regression.
+
+| Boundary | Authoritative evidence |
+|---|---|
+| Public request quotas, no rejected participation/answer writes, expiry/replay | [090.3a](#public-request-quota-acceptance) |
+| Exact and excessive wire/definition/answer bytes, chunked input, unchanged SQL, participation-log scan | [090.3b](#payload-boundaries-and-participation-log-acceptance) |
+| Export source selection: 5,001 responses or over 32 MiB rejected without snapshot/operation receipt; same operation succeeds after narrowing | [SURV-070 snapshot proof](SURV-070.md) and its recorded actual API/SQL limit cases |
+| Export admission, no rejected job/outbox writes, real four-product output, export-log scan | This section and its sanitized artifact |
+| Renderer rejection avoids silent data truncation; durable generic failure/retry state | [SURV-080](SURV-080.md), the tabular regression suite and the live failed-XLSX diagnosis above |
+
+These complete the requested documented limit/log criteria; they do not constitute
+load testing, independent backup-checkpoint continuity, invitation-log acceptance
+under SURV-060, or the full cross-module SURV-100 gate.

@@ -273,7 +273,7 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3**.
   E2E — work-package regression gate: **090.S5**.
 
-- [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
+- [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
   Acceptance criteria: **090.A4**.
   Integration / supporting checks: **090.S4**.
@@ -285,7 +285,7 @@ remain open until their remaining criteria pass.
 
   Acceptance criteria: **090.A4, public-request portion only**.
   Integration: **090.S4a**, [live evidence](proofs/SURV-090.md#public-request-quota-acceptance).
-  Parent 090.3 remains open for the rest of 090.A4.
+  Parent 090.3 is accepted with the other limit/log sub-tasks.
 
 - [x] **090.3b** Enforce the raw request-body byte limit before JSON parsing;
   prove exact and excessive definition/answer payloads, chunked excess,
@@ -293,7 +293,16 @@ remain open until their remaining criteria pass.
 
   Acceptance criteria: **090.A4, payload and participation-log portion**.
   Integration: **090.S4b**, [live evidence](proofs/SURV-090.md#payload-boundaries-and-participation-log-acceptance).
-  Parent 090.3 remains open for export operating-limit and export-log coverage.
+  Parent 090.3 is accepted with the other limit/log sub-tasks.
+
+- [x] **090.3c** Bound new export-job admission across surveys per requester;
+  prove exhaustion, independent users, authorization/replay precedence,
+  absence of rejected job/outbox writes and expiry selection. Parse all four
+  real worker products and scan export logs for private markers.
+
+  Acceptance criteria: **090.A4, export portion**; completes parent 090.3
+  with 090.3a/b. Integration: **090.S4c**.
+  [Consolidated evidence](proofs/SURV-090.md#export-admission-and-log-acceptance).
 
 ## SURV-100 — Full acceptance and spike outcome
 

@@ -94,6 +94,24 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = export-limits ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_limits_live.py
+  compose logs --no-color api worker survey-validator > "$proof/export-limit-logs.txt"
+  python3 - "$proof" <<'PY'
+import json
+import sys
+from pathlib import Path
+proof = Path(sys.argv[1])
+logs = (proof / "export-limit-logs.txt").read_text()
+assert "http.request.completed" in logs
+assert all(marker not in logs for marker in json.loads((proof / "export-limit-markers.json").read_text())), "Sensitive marker in export logs"
+result = json.loads((proof / "export-limits-proof.json").read_text())
+result["apiWorkerValidatorLogsScanned"] = True
+(proof / "export-limits-proof.json").write_text(json.dumps(result, indent=2) + "\n")
+print("PASS: captured export logs omit seeded answer, resume and member session markers")
+PY
+fi
 if [ "$mode" = payload-limits ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/payload_limits_live.py
@@ -323,6 +341,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = export-limits ]; then
+  cp "$proof/export-limits-proof.json" "$artifact/"
+fi
 if [ "$mode" = payload-limits ]; then
   cp "$proof/payload-limits-proof.json" "$artifact/"
 fi

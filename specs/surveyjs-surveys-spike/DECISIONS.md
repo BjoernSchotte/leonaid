@@ -106,6 +106,30 @@ per-question constraints still apply. Oversized drafts and answers must not
 advance revisions or leave operation receipts. The raw body guard's 413 response
 is included in generated survey OpenAPI responses.
 
+### Export operating limits
+
+New export jobs are limited to 60 per requesting user in a rolling 600-second
+window across all surveys and products. All retained recent jobs count, including
+available, cancelled and failed jobs. Authorization, snapshot access and exact
+operation replay precede admission. A per-requester transaction advisory lock
+serializes the count and job/outbox insertion across surveys. Exhaustion returns
+HTTP 429 with `limit_exceeded` and a ten-minute retry message; it writes neither
+a job nor an outbox receipt. An exact authorized replay remains available at the
+limit, and changed-payload reuse still conflicts. Other users have independent
+quotas. These are fixed spike defaults; this is admission control, not a claimed
+worker-concurrency cap or production load benchmark. Permanent erasure removes
+the affected jobs and consequently their contribution to this retained-job quota.
+
+Export inputs remain immutable AnalysisSnapshots. Their source selection is
+bounded at 5,000 responses and 32 MiB of serialized source answers, checked in
+SQL before loading source rows; excessive selection creates no snapshot or
+operation receipt (SURV-070's recorded limit evidence). XLSX rejects unsupported
+cell content instead of silently truncating it. Typst compilation uses one job
+and a 30-second timeout; existing retry/dead-letter and renderer proof remains
+in SURV-080. There is no promise of unlimited report size, unlimited retained
+storage or a fixed output-byte cap. Independent storage capacity, scheduled
+retention and production traffic sizing remain operator concerns.
+
 ### T-07 respondent rendering disposition
 
 The spike uses browser mounting in both the Astro public host and the packed

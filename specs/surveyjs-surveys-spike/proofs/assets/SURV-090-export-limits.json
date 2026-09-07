@@ -1,0 +1,23 @@
+{
+  "syntheticOnly": true,
+  "jobsPerWindow": 60,
+  "windowSeconds": 600,
+  "syntheticHistoryRows": 58,
+  "concurrentCrossSurveyStatuses": [
+    200,
+    429
+  ],
+  "noRejectedJobOrOutboxReceipt": true,
+  "replaySurvivesExhaustion": true,
+  "authorizationPrecedesQuota": true,
+  "expiredHistoryAllowsExactRejectedOperation": true,
+  "otherAuthorizedRequesterHasIndependentQuota": true,
+  "realWorkerProductsDownloadedAndParsed": [
+    "analysis_pdf",
+    "analysis_xlsx",
+    "responses_csv",
+    "responses_xlsx"
+  ],
+  "rawAnswerPresentOnlyInRawProducts": true,
+  "apiWorkerValidatorLogsScanned": true
+}
