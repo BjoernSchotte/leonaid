@@ -34,6 +34,16 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+assert.ok(revisioned.includes("handleClick(view, _position, event)"));
+assert.ok(revisioned.includes("resolved.parent.content.size !== 0"));
+assert.ok(
+  revisioned.includes(
+    "event.shiftKey || event.ctrlKey || event.metaKey || event.altKey",
+  ),
+);
+assert.ok(
+  revisioned.includes("TextSelection.create(view.state.doc, position)"),
+);
 assert.ok(revisioned.includes("React$1.useContext(LeonAidMediaCampaign)"));
 assert.ok(revisioned.includes('"media",\n\t\tcampaign,'));
 assert.ok(

@@ -99,6 +99,27 @@ for every accepted save. Measure resulting history/storage cost in the resource
 and recovery gates. Publication still uses the actual 0.36 server contract;
 no revision-token publication guarantee is inferred from newer checkout code.
 
+## Empty-paragraph pointer compatibility
+
+The same exact-source editor transform adds one supported ProseMirror
+`editorProps.handleClick` handler. In the real pinned Firefox editor, a first
+click on a saved empty paragraph after reload retained the previous heading
+selection despite correct event targets and stable geometry. The handler maps
+the clicked top-level empty paragraph to its actual document position and
+dispatches only a `TextSelection`, then focuses the native view. It rejects
+read-only/composing views, modified or non-left clicks, nested/nonempty nodes,
+and schema positions that are not empty paragraphs. It does not rewrite content,
+intercept requests, substitute an editor, or introduce a browser-specific fork.
+
+The three-browser proof creates the empty paragraph with native Enter, saves,
+reloads, clicks and immediately types, then verifies persistence and unchanged
+preceding text/formatting. The full media gate includes this proof. The focused
+`campaign-editor-pointer` command is a faster diagnostic entry point with the
+same isolated real prerequisites, not evidence for full media/recovery closure.
+The additional client seam must be reviewed with the existing upstream proposal
+and removed if a proven published upstream fix makes it unnecessary; broad
+fork approval and production activation are still not implied.
+
 ## Local execution boundary
 
 Do not operate the existing `leonaid` Compose project. Every spike test owns a

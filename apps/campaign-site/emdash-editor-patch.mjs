@@ -21,6 +21,25 @@ export function patchEditorSource(source) {
     assert.equal(source.split(before).length, 2);
     source = source.replace(before, after);
   };
+  // Firefox can retain the old selection when an unfocused editor receives a
+  // click in an empty paragraph. Use the supported ProseMirror click seam;
+  // preserve modifier/drag/keyboard behavior and never modify document content.
+  replace(
+    "\tconst editorProps = React$1.useMemo(() => ({ attributes: {",
+    `\tconst editorProps = React$1.useMemo(() => ({
+\t\thandleClick(view, _position, event) {
+\t\t\tif (!view.editable || view.composing || event.button !== 0 ||
+\t\t\t\tevent.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return false;
+\t\t\tconst paragraph = event.target?.closest?.("p");
+\t\t\tif (!paragraph || paragraph.parentElement !== view.dom || paragraph.textContent !== "") return false;
+\t\t\tconst position = view.posAtDOM(paragraph, 0);
+\t\t\tconst resolved = view.state.doc.resolve(position);
+\t\t\tif (resolved.parent.type.name !== "paragraph" || resolved.parent.content.size !== 0) return false;
+\t\t\tview.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)));
+\t\t\tview.focus();
+\t\t\treturn true;
+\t\t}, attributes: {`,
+  );
   // Preserve a typed campaign handoff in the native router. It is form input,
   // never an authorization grant; Core is checked on navigation and creation.
   replace(

@@ -2,14 +2,14 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
 compose() {
   set -- --profile emdash "$@"
-  if [ "$mode" = media ]; then
+  if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
     set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
   fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
@@ -56,7 +56,7 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
-if [ "$mode" = media ]; then
+if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
   compose up --detach --wait rustfs
   compose run --rm --no-deps cms-storage-operator
 fi
@@ -91,7 +91,7 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
-  if [ "$mode" = media ]; then
+  if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-isolation
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs --isolation
@@ -105,11 +105,17 @@ if [ "$mode" != auth ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
       node tools/emdash_spike/campaign-media-reference-proof.mjs
     compose up --no-deps --build --detach --wait public mailpit worker
-    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
-      node tools/emdash_spike/campaign-media-browser-proof.mjs
+    if [ "$mode" = media ]; then
+      compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+        node tools/emdash_spike/campaign-media-browser-proof.mjs
+    fi
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-charity-browser
     compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/campaign-image-create-browser-proof.mjs
+    if [ "$mode" = media-editor ]; then
+      echo "campaign-editor-pointer: focused browser proof only; full campaign-media-http gate remains required"
+      exit 0
+    fi
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs fail-confirm
     media_probe --confirm-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs restore-confirm

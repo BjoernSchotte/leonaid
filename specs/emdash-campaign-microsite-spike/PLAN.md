@@ -1526,13 +1526,33 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `135031b`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
-- [ ] Resolve and prove pointer placement in empty rich-text paragraphs after
-      reload, including immediate typing in all three browsers. A diagnostic
-      run in `leonaid-emdash-tmp-88hmfhqknc` preserved content but placed the
-      Firefox addition after the heading instead of the clicked last paragraph;
-      earlier immediate-input runs prefixed the heading. Do not close this from
-      the document-end keyboard proof. Full rich-field reorder/remove/link UX,
-      accessibility, public delivery and recovery also remain open.
+- [x] Resolve and prove pointer placement in empty rich-text paragraphs after
+      reload, including immediate typing in all three browsers. A real saved
+      empty paragraph reproduced Firefox retaining the heading selection even
+      though mouse-down/up/click all targeted the paragraph, with unchanged
+      geometry. The exact-source editor patch now uses ProseMirror's supported
+      `handleClick` seam to select the document position of a directly clicked,
+      empty top-level paragraph. It changes no content and declines modified
+      clicks, composition, read-only views, nested/nonempty paragraphs and
+      non-left buttons. See `DECISIONS.md` for the spike-only maintenance boundary.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-3i7dpn2460` with
+      Chromium, Firefox and WebKit: native Enter creates the empty paragraph,
+      autosave/reload retains it, direct click immediately followed by typing
+      updates the correct paragraph, and another reload plus API readback proves
+      persistence and unchanged preceding block/span content and formatting.
+      No diagnostic listeners, injected selection, delay or keyboard positioning
+      occurs between this click and typing. Existing rich-field/image creation,
+      media/search/recovery, reference isolation, five SQL-wait/logout races,
+      storage failure/retry, revocation, Core outage and bootstrap restart/database
+      failure checks passed. No host ports; all owned test resources were removed.
+      The focused `campaign-editor-pointer` command retains the real Core login,
+      TLS/SQL/storage setup and three-browser creation proof; it explicitly does
+      not replace the complete media gate. Its first independent run exposed an
+      implicit prior-test dependency on CMS onboarding; the actual Get Started
+      dialog is now handled when required. Diagnostic runs with the fix passed
+      in `leonaid-emdash-tmp-jpc191kvsj`; earlier failing projects were cleaned.
+      Full rich-field reorder/remove/link UX, modifier/drag/mobile accessibility,
+      public delivery and recovery remain open.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation

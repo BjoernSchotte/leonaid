@@ -45,6 +45,12 @@ for (const [index, [name, engine]] of Object.entries({
       assert.equal(response.status(), 200);
       return (await response.json()).data;
     };
+    if ((await json("/_emdash/api/auth/me")).isFirstLogin) {
+      await page
+        .getByRole("button", { name: "Get Started", exact: true })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    }
     const before = await json(root);
     assert.ok(before.items.every((item) => item.data.action_id !== action));
     await expect(page.locator("#field-action_id")).toHaveValue(action);
@@ -266,6 +272,67 @@ for (const [index, [name, engine]] of Object.entries({
         .children.map((span) => span.text)
         .join(""),
       "Thank you for helping.",
+    );
+    // Create and persist an actual empty paragraph through native keyboard UX;
+    // the editor does not automatically append one after a normal paragraph.
+    await story.click();
+    await expect(story).toBeFocused();
+    await story.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+    );
+    await page.keyboard.press("Control+End");
+    const emptySaved = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${root}/${item.id}` &&
+        response.request().method() === "PUT",
+    );
+    await page.keyboard.press("Enter");
+    assert.equal((await emptySaved).status(), 200);
+    await expect(
+      page.getByRole("button", { name: "Saved", exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    // Click-to-type after reload, without waits, selection injection or keyboard
+    // repositioning between the actual pointer click and the first character.
+    const emptyParagraph = story.locator("p").last();
+    await expect(emptyParagraph).toHaveText("");
+    const pointerSaved = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${root}/${item.id}` &&
+        response.request().method() === "PUT",
+    );
+    await emptyParagraph.click();
+    await page.keyboard.type("Pointer insertion at the end.");
+    await expect(emptyParagraph).toHaveText("Pointer insertion at the end.");
+    assert.equal((await pointerSaved).status(), 200);
+    await expect(
+      page.getByRole("button", { name: "Saved", exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(emptyParagraph).toHaveText("Pointer insertion at the end.");
+    const pointerData = (await json(`${root}/${item.id}`)).item.data;
+    assertEditorial(pointerData);
+    // Native conversion regenerates Portable Text keys on each update. Compare
+    // all actual block/span content and formatting, not those generated IDs.
+    const semanticBlocks = (blocks) =>
+      blocks.map(({ _key, ...block }) => ({
+        ...block,
+        children: block.children.map(({ _key, ...span }) => span),
+      }));
+    assert.deepEqual(
+      semanticBlocks(pointerData.body.slice(0, -1)),
+      semanticBlocks(edited.body),
+    );
+    assert.equal(pointerData.body.at(-1).style, "normal");
+    assert.equal(
+      pointerData.body
+        .at(-1)
+        .children.map((span) => span.text)
+        .join(""),
+      "Pointer insertion at the end.",
     );
     for (const field of ["hero_image", "social_image"]) {
       await expect
