@@ -2,6 +2,11 @@
 set -eu
 root=$1
 . "$root/infra/locks/images.env"
+docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+  "$NODE_IMAGE" node tools/emdash_spike/recovery-key-proof.mjs
+docker run --rm --network none --env PYTHONPATH=/workspace \
+  --volume "$root:/workspace:ro" --workdir /workspace \
+  "$PYTHON_IMAGE" python tools/backup/manifest_test.py
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 source_project="leonaid-poc112-$suffix"

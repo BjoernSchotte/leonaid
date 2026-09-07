@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -34,6 +35,13 @@ class ManifestError(RuntimeError):
 
 def key_fingerprint(key: str | None) -> str:
     if key is None or CMS_KEY.fullmatch(key) is None:
+        raise ManifestError("cms_encryption_key_missing_or_invalid")
+    body = key.removeprefix("emdash_enc_v1_")
+    decoded = base64.urlsafe_b64decode(body + "=")
+    if (
+        len(decoded) != 32
+        or base64.urlsafe_b64encode(decoded).decode().rstrip("=") != body
+    ):
         raise ManifestError("cms_encryption_key_missing_or_invalid")
     return hashlib.sha256(key.encode("ascii")).hexdigest()
 

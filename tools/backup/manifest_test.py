@@ -81,6 +81,15 @@ def write_backup(
 
 def main() -> None:
     project = "leonaid-production-test"
+    # EmDash requires canonical base64url, not merely 43 allowed characters.
+    for last in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_":
+        candidate = "emdash_enc_v1_" + "A" * 42 + last
+        if last in "AEIMQUYcgkosw048":
+            assert len(key_fingerprint(candidate)) == 64
+        else:
+            rejected(
+                "non-canonical key padding bits", lambda: key_fingerprint(candidate)
+            )
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         for fault in ("symlink", "oversize", "duplicate", "invalid-encoding"):
@@ -143,7 +152,7 @@ def main() -> None:
         for cli_key, expected in (
             (SYNTHETIC_KEY, 0),
             ("", 1),
-            ("emdash_enc_v1_" + "B" * 43, 1),
+            ("emdash_enc_v1_" + "B" * 42 + "A", 1),
         ):
             checked = subprocess.run(
                 command + ["--require-cms-key"],

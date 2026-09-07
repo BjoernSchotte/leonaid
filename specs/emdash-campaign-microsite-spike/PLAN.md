@@ -2807,6 +2807,27 @@ Dependencies: EMS-050, EMS-070
         does not substitute for the remaining live recovery gates above.
 - [ ] Preserve the EmDash encryption key outside its database and include only
       a presence/fingerprint check in committed evidence.
+  - [x] Pinned-key compatibility checkpoint (2026-09-07): the actual EmDash
+        0.36.0 `secrets fingerprint` CLI accepts canonical synthetic keys and
+        rejects non-canonical base64url padding bits. The backup validator now
+        decodes and re-encodes the 32-byte key, with all 64 possible final
+        characters tested. `recovery-local` runs both upstream CLI and manifest
+        checks before allocating its test stack. Source inspection of
+        `node_modules/emdash/src/config/secrets.ts` (`resolveSecrets` and
+        `validateEncryptionKeyAtStartup`) and `src/emdash-runtime.ts` establishes
+        an important version limit: 0.36.0 validates this key but describes the
+        plugin-secret encryption layer as future work. There is no implemented
+        upstream plugin-secret ciphertext round trip to prove in this version.
+        Do not represent editorial SQL or the Restic encryption proof as such a
+        test. Preserve the configured key and require its fingerprint match on
+        recovery now; add a real upstream ciphertext recovery test when the
+        selected upgrade introduces encrypted plugin-secret storage. Runtime
+        activation and release compatibility gates remain open.
+        The enhanced `recovery-local` runner passed again in isolated projects
+        `leonaid-poc112-tmp-nod0shk2nd` and `leonaid-restore-tmp-nod0shk2nd`:
+        upstream key checks, manifest negatives, Restic read-data verification,
+        fresh SQL/media byte comparison and closed bootstrap all passed; both
+        projects were cleaned up. No restored HTTP/authentication claim is added.
 - [ ] Add a separate `emdash.dump` using PostgreSQL `pg_dump` to backup manifests,
       inventory validation, and restore tooling. Stop EmDash HTTP and scheduled
       writers while taking the coordinated SQL/media recovery point. Restore
