@@ -6,6 +6,7 @@ import type {
 } from "@leonaid/api-client";
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
 import { money, offeringPrice, offeringUnit } from "../lib/order-presentation";
+import { readOrderRedisplay } from "../lib/order-redisplay";
 
 interface Props {
   action: NonNullable<PublicActionRouteResponse["action"]>;
@@ -21,7 +22,22 @@ interface Props {
 const { action, orderForm, publicAlias, orderResult } = Astro.props;
 const serverOrder = orderResult?.data;
 const serverError = orderResult?.error?.message;
-const commandId = crypto.randomUUID();
+const redisplay = serverError
+  ? await readOrderRedisplay(Astro.request, publicAlias)
+  : null;
+const commandId = redisplay?.commandId ?? crypto.randomUUID();
+const quantityFor = (id: string, index: number) =>
+  redisplay?.quantities[id] ?? (index === 0 ? 1 : 0);
+const totalMinor = action.offerings.reduce(
+  (sum, offering, index) =>
+    sum + quantityFor(offering.id, index) * offering.unitPriceMinor,
+  0,
+);
+const totalPieces = action.offerings.reduce(
+  (sum, offering, index) =>
+    sum + quantityFor(offering.id, index) * (offering.piecesPerUnit ?? 1),
+  0,
+);
 ---
 
 <section class="order-section" id="bestellen" aria-labelledby="order-heading">
@@ -164,6 +180,12 @@ const commandId = crypto.randomUUID();
                 hidden={!serverError}
               >
                 {serverError}
+                {redisplay && (
+                  <p>
+                    Deine Eingaben wurden übernommen. Prüfe den aktuellen
+                    Bestellwert und bestätige die Bestellung erneut.
+                  </p>
+                )}
               </div>
 
               <fieldset class="order-step">
@@ -210,7 +232,7 @@ const commandId = crypto.randomUUID();
                           min={index === 0 ? "1" : "0"}
                           max="5000"
                           step="1"
-                          value={index === 0 ? "1" : "0"}
+                          value={quantityFor(offering.id, index)}
                           required={index === 0}
                           data-quantity
                           data-unit-price={offering.unitPriceMinor}
@@ -234,15 +256,10 @@ const commandId = crypto.randomUUID();
                 <div class="order-total" aria-live="polite">
                   <span>Aktueller Bestellwert</span>
                   <strong data-order-preview-total>
-                    {money(
-                      action.offerings[0]?.unitPriceMinor ?? 0,
-                      action.offerings[0]?.currency ?? "EUR",
-                    )}
+                    {money(totalMinor, action.offerings[0]?.currency ?? "EUR")}
                   </strong>
                   <small data-order-preview-quantity>
-                    {action.offerings[0]?.piecesPerUnit
-                      ? `${action.offerings[0].piecesPerUnit} Stück`
-                      : "1 Einheit"}
+                    {`${totalPieces} ${action.offerings[0]?.piecesPerUnit ? "Stück" : "Einheiten"}`}
                   </small>
                 </div>
               </fieldset>
@@ -264,6 +281,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="companyName"
                       name="companyName"
+                      value={redisplay?.fields.companyName ?? ""}
                       autocomplete="organization"
                       maxlength="300"
                       required={orderForm.requireCompanyName}
@@ -286,6 +304,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="givenName"
                       name="givenName"
+                      value={redisplay?.fields.givenName ?? ""}
                       autocomplete="given-name"
                       maxlength="200"
                       required
@@ -307,6 +326,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="familyName"
                       name="familyName"
+                      value={redisplay?.fields.familyName ?? ""}
                       autocomplete="family-name"
                       maxlength="200"
                       required
@@ -328,6 +348,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="email"
                       name="email"
+                      value={redisplay?.fields.email ?? ""}
                       type="email"
                       autocomplete="email"
                       maxlength="320"
@@ -351,6 +372,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="phone"
                       name="phone"
+                      value={redisplay?.fields.phone ?? ""}
                       type="tel"
                       autocomplete="tel"
                       maxlength="40"
@@ -386,6 +408,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="deliveryRecipientName"
                       name="deliveryRecipientName"
+                      value={redisplay?.fields.deliveryRecipientName ?? ""}
                       autocomplete="shipping name"
                       maxlength="300"
                       required
@@ -407,6 +430,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="deliveryStreetLine1"
                       name="deliveryStreetLine1"
+                      value={redisplay?.fields.deliveryStreetLine1 ?? ""}
                       autocomplete="shipping street-address"
                       maxlength="300"
                       required
@@ -428,6 +452,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="deliveryPostalCode"
                       name="deliveryPostalCode"
+                      value={redisplay?.fields.deliveryPostalCode ?? ""}
                       autocomplete="shipping postal-code"
                       inputmode="numeric"
                       maxlength="24"
@@ -450,6 +475,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="deliveryCity"
                       name="deliveryCity"
+                      value={redisplay?.fields.deliveryCity ?? ""}
                       autocomplete="shipping address-level2"
                       maxlength="200"
                       required
@@ -478,7 +504,7 @@ const commandId = crypto.randomUUID();
                     type="checkbox"
                     name="billingSameAsDelivery"
                     value="true"
-                    checked
+                    checked={redisplay?.billingSameAsDelivery ?? true}
                     data-billing-same
                   />
                   <span>
@@ -491,12 +517,12 @@ const commandId = crypto.randomUUID();
                     </small>
                   </span>
                 </label>
-                <div
-                  class="form-grid billing-fields"
-                  data-billing-fields
-                  aria-hidden="true"
-                  hidden
-                >
+                <div class="form-grid billing-fields" data-billing-fields>
+                  <p class="form-field--wide">
+                    Nur ausfüllen, wenn die Rechnungsadresse von der
+                    Lieferadresse abweicht. Bei gesetztem Häkchen verwenden wir
+                    die Lieferadresse.
+                  </p>
                   <div class="form-field form-field--wide">
                     <label for="invoiceRecipientName">
                       Rechnungsempfänger:in <em>Pflichtfeld</em>
@@ -504,6 +530,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="invoiceRecipientName"
                       name="invoiceRecipientName"
+                      value={redisplay?.fields.invoiceRecipientName ?? ""}
                       autocomplete="billing name"
                       maxlength="300"
                       aria-describedby="invoiceRecipientName-help invoiceRecipientName-error"
@@ -524,6 +551,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="invoiceStreetLine1"
                       name="invoiceStreetLine1"
+                      value={redisplay?.fields.invoiceStreetLine1 ?? ""}
                       autocomplete="billing street-address"
                       maxlength="300"
                       aria-describedby="invoiceStreetLine1-help invoiceStreetLine1-error"
@@ -544,6 +572,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="invoicePostalCode"
                       name="invoicePostalCode"
+                      value={redisplay?.fields.invoicePostalCode ?? ""}
                       autocomplete="billing postal-code"
                       inputmode="numeric"
                       maxlength="24"
@@ -565,6 +594,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="invoiceCity"
                       name="invoiceCity"
+                      value={redisplay?.fields.invoiceCity ?? ""}
                       autocomplete="billing address-level2"
                       maxlength="200"
                       aria-describedby="invoiceCity-help invoiceCity-error"
@@ -585,6 +615,7 @@ const commandId = crypto.randomUUID();
                     <input
                       id="invoiceEmail"
                       name="invoiceEmail"
+                      value={redisplay?.fields.invoiceEmail ?? ""}
                       type="email"
                       autocomplete="billing email"
                       maxlength="320"
@@ -619,6 +650,7 @@ const commandId = crypto.randomUUID();
                       rows="4"
                       maxlength="1000"
                       aria-describedby="message-help message-error"
+                      set:text={redisplay?.fields.message ?? ""}
                     />
                     <small id="message-help">
                       Zum Beispiel Hinweise zur Anlieferung. Bitte keine

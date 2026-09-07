@@ -21,6 +21,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.match(response.headers()["cache-control"], /no-store/);
       const form = page.locator("[data-order-form]");
       await form.waitFor();
+      const commandId = await form.locator('[name="commandId"]').inputValue();
       assert.equal(await form.count(), 1);
       assert.equal(
         await form.locator('[name="publicAlias"]').inputValue(),
@@ -30,8 +31,10 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         (await form.locator('[name="accessToken"]').inputValue()).length >= 32,
       );
       assert.equal(await page.locator("h1").count(), 1);
-      for (const [field, value] of Object.entries({
-        companyName: "Synthetic Form Proof",
+      await form.locator('[name="billingSameAsDelivery"]').uncheck();
+      const inputs = {
+        companyName:
+          '\" /><script id="redisplay-injection">window.redisplayInjected=true</script>',
         givenName: "Synthetic",
         familyName: "Order",
         email: "form-proof@leonaid.invalid",
@@ -40,8 +43,16 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         deliveryStreetLine1: "Testweg 1",
         deliveryPostalCode: "86150",
         deliveryCity: "Augsburg",
-      }))
+        invoiceRecipientName: "Synthetic Invoice",
+        invoiceStreetLine1: "Rechnungsweg 2",
+        invoicePostalCode: "86150",
+        invoiceCity: "Augsburg",
+        invoiceEmail: "invoice-proof@leonaid.invalid",
+        message: "Synthetic delivery note",
+      };
+      for (const [field, value] of Object.entries(inputs))
         await form.locator(`[name="${field}"]`).fill(value);
+      await form.locator('[name="quantity"]').first().fill("3");
       await form.locator('[name="privacyAcknowledged"]').check();
       await form.locator('[name="bindingOrderConfirmed"]').check();
       assert.equal(
@@ -59,9 +70,51 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.equal(submission.request().redirectedFrom(), null);
       await page.locator('[data-form-message][data-state="error"]').waitFor();
       assert.equal(
-        (await page.locator("[data-form-message]").textContent()).trim(),
+        await page.locator("[data-form-message]").evaluate((element) =>
+          [...element.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join("")
+            .trim(),
+        ),
         "Das Bestellformular ist vorübergehend nicht verfügbar.",
       );
+      for (const [field, value] of Object.entries(inputs))
+        assert.equal(
+          await form.locator(`[name="${field}"]`).inputValue(),
+          value,
+        );
+      assert.equal(
+        await form.locator('[name="commandId"]').inputValue(),
+        commandId,
+      );
+      assert.equal(
+        await form.locator('[name="quantity"]').first().inputValue(),
+        "3",
+      );
+      assert.match(
+        await form.locator("[data-order-preview-total]").textContent(),
+        /108,00/,
+      );
+      assert.equal(
+        await form.locator('[name="billingSameAsDelivery"]').isChecked(),
+        false,
+      );
+      assert.equal(await page.locator("script#redisplay-injection").count(), 0);
+      assert.equal(
+        await page.evaluate(() => window.redisplayInjected),
+        undefined,
+      );
+      if (!javaScriptEnabled) {
+        assert.equal(
+          await form.locator('[name="bindingOrderConfirmed"]').isChecked(),
+          false,
+        );
+        assert.equal(
+          await form.locator('[name="privacyAcknowledged"]').isChecked(),
+          false,
+        );
+      }
       assert.equal(await page.locator("[data-order-form]").isVisible(), true);
       assert.equal(
         await page.locator("[data-order-success]:visible").count(),
@@ -91,7 +144,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         });
       await context.close();
       console.log(
-        `public-order-component: campaign=${campaign} ${name} JS=${javaScriptEnabled}; shared form, actual POST without redirect, real unavailable-CRM response, no false success and responsive error state passed`,
+        `public-order-component: campaign=${campaign} ${name} JS=${javaScriptEnabled}; real POST/error, escaped retained fields, separate billing, quantities and command ID, no false success or cookie passed`,
       );
     }
   } finally {

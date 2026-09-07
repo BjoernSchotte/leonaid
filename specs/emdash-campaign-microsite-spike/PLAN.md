@@ -1996,6 +1996,31 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Preserve request-local order inputs on native form errors without cookies,
+      CMS storage or another identity. The shared form uses a bounded 64 KiB
+      redisplay reader with a two-second read deadline, explicit text-field
+      limits, matching Core alias, validated quantities and retained valid
+      command ID. Prices, offering metadata and access tokens remain freshly
+      supplied by Core. Native error redisplay requires renewed privacy and
+      binding confirmation and explains that the current total must be reviewed.
+      Separate billing fields are reachable without JavaScript; the existing
+      enhancement still hides/disables them when the delivery address is used.
+      `public-order-component` passed in `leonaid-emdash-tmp-pukzlsqcjh` and
+      `campaign-public-http` passed in `leonaid-emdash-tmp-z3j2pdug9z`, serially:
+      both actual Astro pages, Chromium/Firefox/WebKit, with and without JS.
+      All 15 contact/address/message fields, separate-billing selection, three
+      Krapfentaxi boxes, their 108 EUR total and the command ID survived the real
+      Core CRM-unavailable response. Hostile markup remained an escaped input
+      value, not an executable element. No cookie or false success appeared.
+      The focused redisplay proof covered alias mismatch, duplicate/oversized
+      values, invalid quantity/UUID and credential/quote exclusion. An initial
+      browser run found textarea formatting whitespace; `set:text` fixed the
+      exact round trip before both passing runs. Publication/TLS/Core-outage
+      regressions passed; all owned Docker resources were removed, no host ports
+      published. This proves error redisplay, not accepted-order idempotency,
+      uncertain-outcome retry, mixed-offering summaries or the complete no-JS
+      success/validation matrix; those remain required with the Twenty journey.
+
 - [x] Embed the shared order form in `/campaigns/<archive_slug>/` using fresh
       Core offerings, form configuration, token and authoritative `orderAlias`.
       The CTA now targets `#bestellen`; it no longer hands off to the legacy

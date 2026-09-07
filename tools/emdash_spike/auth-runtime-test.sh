@@ -4,6 +4,10 @@ root=$1
 mode=${2:-auth}
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
+fi
 if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/editorial-html-proof.mjs
