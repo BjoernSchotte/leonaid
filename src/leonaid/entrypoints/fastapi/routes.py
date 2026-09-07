@@ -1040,10 +1040,14 @@ def public_action_route_response(
     access_token: str | None = None,
     legal_configuration: LegalConfigurationVersion | None = None,
 ) -> PublicActionRouteResponse:
+    if route.route_kind.value not in {"alias", "archive"}:
+        raise ValueError(
+            "Dieser öffentliche Routentyp benötigt einen eigenen Transportvertrag."
+        )
     action = route.action
     submissions_allowed = route.submissions_allowed and legal_configuration is not None
     return PublicActionRouteResponse(
-        route_kind=route.route_kind.value,
+        route_kind="alias" if route.route_kind.value == "alias" else "archive",
         route_value=route.route_value,
         route_path=route.route_path,
         canonical_path=route.canonical_path,
