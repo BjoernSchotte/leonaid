@@ -766,6 +766,8 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim is proven; retention, backup restore and complete module E2E acceptance remain open.
+
 Dependencies: SURV-050, SURV-060, SURV-080.
 
 Implementation tasks:
@@ -782,7 +784,7 @@ Test implementation and verification tasks:
 Acceptance criteria:
 
 - [ ] **090.A1 — Integration:** race deletion against autosave, completion and export workers; no late write recreates deleted data or leaves a downloadable export.
-- [ ] **090.A2 — Integration:** crash/retry permanent deletion across PostgreSQL and RustFS; all targeted content is removed and repeated processing remains safe.
+- [x] **090.A2 — Integration:** crash/retry permanent deletion across PostgreSQL and RustFS; all targeted content is removed and repeated processing remains safe. [Evidence](proofs/SURV-090.md#durable-erasure-and-process-crash-recovery).
 - [ ] **090.A3 — Integration:** restore a real test backup, reapply deletion records and verify previously deleted survey data is inaccessible and removed; demonstrate that inactivity alone deletes nothing.
 - [ ] **090.A4 — Integration:** over-limit requests fail predictably without partial writes; inspect captured logs for seeded sensitive markers and credentials.
 - [ ] **090.A5 — E2E:** trash a survey while its public page is open; subsequent saves fail visibly, invitations/downloads stop working, and restore keeps participation closed until the permitted lifecycle action.

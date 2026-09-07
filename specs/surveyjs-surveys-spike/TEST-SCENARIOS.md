@@ -95,7 +95,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 ## SURV-090 — Deletion and operations
 
 - [ ] **090.S1 · Integration · 090.T1 → 090.A1:** Race trash/permanent deletion against autosave, completion and exports; no late operation recreates deleted content or leaves a downloadable artifact.
-- [ ] **090.S2 · Integration · 090.T1 → 090.A2:** Interrupt permanent deletion between database/object-store steps and retry; every targeted definition, answer, association and export is removed and repeated processing is safe.
+- [x] **090.S2 · Integration · 090.T1 → 090.A2:** Interrupt permanent deletion between database/object-store steps and retry; every targeted definition, answer, association and export is removed and repeated processing is safe. [Evidence](proofs/SURV-090.md#durable-erasure-and-process-crash-recovery).
 - [ ] **090.S3 · Integration · 090.T1 → 090.A3:** Restore a real synthetic backup and reapply content-free deletion records; previously deleted data is inaccessible and removed. Independently verify inactivity alone deletes nothing.
 - [ ] **090.S4 · Integration · 090.T1 → 090.A4:** Exceed configured payload/request/export limits; errors are predictable and no partial writes occur. Scan captured logs for seeded answer/credential markers.
 - [ ] **090.S5 · E2E · 090.T2 → 090.A5:** Trash while a respondent page is open; subsequent saving fails visibly, invitations/downloads stop, and restoring the survey does not silently reopen participation.
