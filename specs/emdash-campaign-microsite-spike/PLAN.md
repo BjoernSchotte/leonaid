@@ -2510,6 +2510,10 @@ keyboard and 200% zoom checks.
       NOT a pilot live proof, production deployment, successful Twenty-backed
       order, database mutation audit or exclusive internal caller authorization.
       Those broader requirements in section 2.1 remain open.
+      Quality gate: `./leonaid check` passed at `d9cce21`: 208 unit tests,
+      244 Python source files, 24 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 Dependencies: EMS-010, EMS-020
 
