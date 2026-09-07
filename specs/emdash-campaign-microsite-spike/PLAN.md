@@ -1949,6 +1949,9 @@ fields are absent; generated TypeScript types compile.
       limits are implemented, but whole-request/pool acquisition deadlines,
       Core integration, media delivery and public HTTP/browser rendering remain
       open. The command is included in `all`, which still reports incomplete.
+      Post-commit `./leonaid check` passed at `f00de47`: 208 unit tests, 244
+      Python source checks, 39 CMS files without diagnostics, frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Verify the HTTP-issued campaign token with the real Core codec and make
       the positive form fixture mandatory. The signature binds the expected
