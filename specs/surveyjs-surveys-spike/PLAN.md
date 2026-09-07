@@ -13,6 +13,7 @@ Companion documents: [Decisions](DECISIONS.md), [Capability matrix](CAPABILITIES
 
 Implementation tracking:
 
+- [Survey test gate](TEST-GATE.md): implemented local/CI command inventory; aggregate and remote execution acceptance remain open until their actual results pass.
 - [Implementation task checklist](IMPLEMENTATION-TASKS.md): one checkable acceptance entry per implementation task, with acceptance criteria and integration/E2E scenario references.
 - [Test scenario checklist](TEST-SCENARIOS.md): independently checkable tests with observable expected results, including persistence, rejection and recovery.
 - [Task acceptance template](TASK-ACCEPTANCE.md): required execution evidence before accepting a task.

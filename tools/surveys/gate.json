@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    "foundation",
+    "integration",
+    "editor",
+    "responses",
+    "exports",
+    "recovery",
+    "package",
+    "e2e"
+  ],
+  "checks": [
+    {
+      "id": "gate-controller",
+      "group": "foundation",
+      "argv": ["python3", "tools/surveys/gate_test.py"]
+    },
+    {
+      "id": "restore-receipts",
+      "group": "foundation",
+      "argv": ["python3", "tools/backup/restore_state_test.py"]
+    },
+    {
+      "id": "core",
+      "group": "foundation",
+      "argv": ["./leonaid", "test-surveys-core"]
+    },
+    {
+      "id": "validation-candidate",
+      "group": "foundation",
+      "argv": ["./leonaid", "test-surveys-validation-candidate"]
+    },
+    {
+      "id": "dependencies",
+      "group": "foundation",
+      "argv": ["./leonaid", "test-surveys-dependencies"]
+    },
+    {
+      "id": "migrations",
+      "group": "foundation",
+      "argv": ["./leonaid", "test-surveys-migrations"]
+    },
+    {
+      "id": "foundation-diagnostics",
+      "group": "foundation",
+      "argv": ["python3", "tools/surveys/foundation_acceptance.py", "{root}"],
+      "infrastructureModes": ["infrastructure", "infrastructure-failure"]
+    },
+    {
+      "id": "aggregate-engine",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/aggregate-engine.sh", "{root}"]
+    },
+    {
+      "id": "contracts",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "contracts"],
+      "infrastructureModes": ["contracts"]
+    },
+    {
+      "id": "lifecycle",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "lifecycle"],
+      "infrastructureModes": ["lifecycle"]
+    },
+    {
+      "id": "invitations",
+      "group": "integration",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "invitations"
+      ],
+      "infrastructureModes": ["invitations"]
+    },
+    {
+      "id": "permissions",
+      "group": "integration",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "permissions"
+      ],
+      "infrastructureModes": ["permissions"]
+    },
+    {
+      "id": "aggregates",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "aggregates"],
+      "infrastructureModes": ["aggregates"]
+    },
+    {
+      "id": "analysis",
+      "group": "integration",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "analysis"],
+      "infrastructureModes": ["analysis"]
+    },
+    {
+      "id": "request-limits",
+      "group": "integration",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "request-limits"
+      ],
+      "infrastructureModes": ["request-limits"]
+    },
+    {
+      "id": "payload-limits",
+      "group": "integration",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "payload-limits"
+      ],
+      "infrastructureModes": ["payload-limits"]
+    },
+    {
+      "id": "editor",
+      "group": "editor",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "editor"],
+      "infrastructureModes": ["editor"]
+    },
+    {
+      "id": "preview",
+      "group": "editor",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "preview"],
+      "infrastructureModes": ["preview"]
+    },
+    {
+      "id": "branding",
+      "group": "editor",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "branding"],
+      "infrastructureModes": ["branding"]
+    },
+    {
+      "id": "responses",
+      "group": "responses",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "responses"],
+      "infrastructureModes": ["responses"]
+    },
+    {
+      "id": "runner",
+      "group": "responses",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "runner"],
+      "infrastructureModes": ["runner"]
+    },
+    {
+      "id": "exports",
+      "group": "exports",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "exports"],
+      "infrastructureModes": ["exports"]
+    },
+    {
+      "id": "export-permissions",
+      "group": "exports",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "export-permissions"
+      ],
+      "infrastructureModes": ["export-permissions"]
+    },
+    {
+      "id": "export-states",
+      "group": "exports",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "export-states"
+      ],
+      "infrastructureModes": ["export-states"]
+    },
+    {
+      "id": "export-recovery",
+      "group": "exports",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "export-recovery"
+      ],
+      "infrastructureModes": ["export-recovery"]
+    },
+    {
+      "id": "export-limits",
+      "group": "exports",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "export-limits"
+      ],
+      "infrastructureModes": ["export-limits"]
+    },
+    {
+      "id": "deletion",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "deletion"],
+      "infrastructureModes": ["deletion"]
+    },
+    {
+      "id": "deletion-races",
+      "group": "recovery",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "deletion-races"
+      ],
+      "infrastructureModes": ["deletion-races"]
+    },
+    {
+      "id": "deletion-ui",
+      "group": "recovery",
+      "argv": [
+        "sh",
+        "tools/surveys/infrastructure.sh",
+        "{root}",
+        "deletion-ui"
+      ],
+      "infrastructureModes": ["deletion-ui"]
+    },
+    {
+      "id": "retention",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "retention"],
+      "infrastructureModes": ["retention"]
+    },
+    {
+      "id": "recovery",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "recovery"],
+      "infrastructureModes": ["recovery"]
+    },
+    {
+      "id": "restic-manual",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/restic_recovery.sh", "{root}", "manual"]
+    },
+    {
+      "id": "restic-archive",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/restic_recovery.sh", "{root}", "archive"]
+    },
+    {
+      "id": "restic-durable",
+      "group": "recovery",
+      "argv": ["sh", "tools/surveys/restic_recovery.sh", "{root}", "durable"]
+    },
+    {
+      "id": "pilot-survey-recovery",
+      "group": "recovery",
+      "argv": ["sh", "tools/pilot_deployment/test.sh", "{root}", "surveys"]
+    },
+    {
+      "id": "packed-consumer",
+      "group": "package",
+      "argv": ["./leonaid", "test-surveys-package"]
+    },
+    {
+      "id": "journeys",
+      "group": "e2e",
+      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "journeys"],
+      "infrastructureModes": ["journeys"]
+    }
+  ],
+  "manualReviewRequired": [
+    "specs/surveyjs-surveys-spike/proofs/SURV-080.md#consolidated-render-acceptance",
+    "specs/surveyjs-surveys-spike/CAPABILITIES.md",
+    "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
+  ]
+}

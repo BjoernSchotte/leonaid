@@ -365,3 +365,23 @@ regressions. These negative process-boundary fixtures assert that no compose,
 remove or down command occurs; real service behavior is proven by the live run
 above, not by those fixtures. This is operator/HTTP integration evidence, not
 browser E2E. The other existing regression suites and full **100.A3** remain open.
+
+
+## Aggregate command and CI lane under verification
+
+The new `./leonaid test-surveys` command reads one manifest of 37 checks in eight
+ordered groups. Each selected check runs sequentially in a checkout, with an
+exclusive aggregate lock, owner-only raw logs and separate structured result
+metadata. Seven real process-control tests pass, covering nonzero/missing child
+commands, repeated execution, log redaction, competing locks, forwarded termination
+and cleanup, and manifest coverage/recursion rejection. The integration, exports
+and E2E aliases select documented groups; [TEST-GATE.md](../TEST-GATE.md) records
+scope and operator instructions.
+
+The workflow uses that same group inventory on separate ephemeral runners and
+executes each group twice. It uploads only structured result JSON, never raw
+service output, downloads or traces. Publishing the workflow to the draft PR
+starts actual remote verification; it is not acceptance of **100.1 / 100.A1**.
+The local full `--repeat 2` run started at `b18b534` is also still in progress.
+The earlier deliberately interrupted run remains unaccepted. Final results and
+their tested-source scope must be recorded before checking the aggregate criteria.

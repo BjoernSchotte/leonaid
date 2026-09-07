@@ -1,0 +1,56 @@
+name: Survey acceptance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: survey-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    outputs:
+      groups: ${{ steps.manifest.outputs.groups }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Read the same group inventory as the local aggregate
+        id: manifest
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          print('groups=' + json.dumps(json.loads(Path('tools/surveys/gate.json').read_text())['groups']))
+          PY
+
+  surveys:
+    name: Surveys / ${{ matrix.group }}
+    needs: inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.inventory.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Bootstrap pinned Docker toolchains
+        run: ./leonaid bootstrap
+      - name: Execute the complete group twice with fresh owned service state
+        env:
+          SURVEY_GATE_GROUP: ${{ matrix.group }}
+        run: ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
+      - name: Publish structured results only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: surveys-${{ matrix.group }}
+          path: .artifacts/surveys-gate/results/*.json
+          if-no-files-found: error
+          retention-days: 14

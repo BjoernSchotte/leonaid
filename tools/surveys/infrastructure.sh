@@ -353,6 +353,12 @@ if [ "$mode" = export-recovery ]; then
   recovery recover
 fi
 if [ "$mode" = exports ]; then
+  mkdir -p "$root/.artifacts"
+  for renderer in pdf_render xlsx_render; do
+    compose run --rm --no-deps --volume "$root:/repo:ro" \
+      --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
+      --entrypoint python api "tools/surveys/$renderer.py"
+  done
   browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
