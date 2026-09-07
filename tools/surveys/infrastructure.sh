@@ -175,6 +175,11 @@ if [ "$mode" = retention ]; then
     --workdir /repo --entrypoint python api tools/surveys/retention_live.py recover
   browser_specs="$browser_specs tests/e2e/surveys-retention.spec.mjs"
 fi
+if [ "$mode" = deletion-races ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/deletion_races_live.py
+fi
 if [ "$mode" = deletion ]; then
   compose stop worker
   deletion_probe() {
@@ -303,6 +308,9 @@ if [ "$mode" = retention ]; then
   cp "$proof/retention-proof.json" "$artifact/"
   cp "$proof/retention-browser-proof.json" "$artifact/"
   cp "$proof/retention-mobile.png" "$artifact/"
+fi
+if [ "$mode" = deletion-races ]; then
+  cp "$proof/deletion-races-proof.json" "$artifact/"
 fi
 if [ "$mode" = deletion ]; then
   cp "$proof/deletion-proof.json" "$artifact/"

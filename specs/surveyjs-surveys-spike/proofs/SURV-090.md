@@ -1,8 +1,8 @@
 # SURV-090 — Deletion, recovery and operational limits
 
-Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 and 090.A5 / 090.T2 are accepted. The retention section adds proven behavior for
+Status: **in progress**. Own license remains **UNDEFINED**. 090.1, 090.A1, 090.A2 / 090.S2 and 090.A5 / 090.T2 are accepted. The retention section adds proven behavior for
 090.1 and the inactivity-preservation part of 090.A3. The complete work package
-and task 090.1 remain open. The recovery section proves checkpoint reapplication
+remains open. The recovery section proves checkpoint reapplication
 after an actual DB/object restore. The generic Restic operator is now proven
 below; checkpoint continuity remains open.
 
@@ -104,10 +104,10 @@ These checks do not replace the live erasure assertions.
 | Item | Result | Evidence / remaining work |
 | --- | --- | --- |
 | 090.A2 / 090.S2 | Passed | Actual version deletion, process termination, lease reclaim and complete relational/object cleanup above. |
-| 090.1 | Open | Durable erasure, retention and manual deletion/status/retry UI delivered; A5 passed below. Full A1 interleavings remain. |
+| 090.1 | Passed | Durable erasure/reclaim, retention, manual status/retry UI and the deterministic A1 interleavings below satisfy A1/A2/A5. |
 | 090.2 / 090.A3 | Open | The authenticated checkpoint gate and full generic Restic/fresh-target restore are proven below (090.2a); independent latest-checkpoint continuity remains open (090.2b). |
 | 090.3 / 090.A4 | Open | Full limits and log-marker acceptance remains. |
-| 090.A1 | Open | A late export is covered; full concurrent autosave/completion/export/deletion interleavings remain. |
+| 090.A1 | Passed | Six observed-lock interleavings cover autosave, completion and export before/after deletion below. |
 | 090.T1 | Open | A2 subset passed; remaining integration criteria are not waived. |
 | 090.T2 / 090.A5 | Passed | Open-browser rejected save, closed restore, invitation/download denial and manual erasure/status/retry journeys below. |
 
@@ -489,3 +489,69 @@ warnings and exited zero.
   publication requires the draft revision. The fixture now reads `/draft`.
 - Every failed process was confirmed terminal before edits. The final fresh
   run above includes every corrected fixture and assertion.
+
+## Deterministic deletion interleavings
+
+The production code at `07a5861` required no change for this acceptance increment.
+The new probe is [deletion_races_live.py](../../../tools/surveys/deletion_races_live.py);
+its final content was unchanged during the accepted run. The harness adds the
+`deletion-races` mode. Runtime image pins remain those in the existing Dockerfiles
+and `infra/locks/images.env`.
+
+### Ordering and assertions
+
+The probe uses real HTTP endpoints, PostgreSQL transactions, production export
+and deletion handlers, and RustFS. It observes `pg_stat_activity` lock waits and
+`pg_blocking_pids`; the 20 ms polling interval does not determine ordering.
+Each wait has a deadline. Survey revisions are loaded before starting the races,
+so the actual POST trash mutation, rather than its preliminary GET, is queued.
+
+| Case | Deliberately forced order | Verified outcome |
+| --- | --- | --- |
+| Autosave first | Hold the participation row; observe the API save holding the survey row while waiting; queue POST trash behind that save; release. | Save commits revision 3, trash succeeds, durable erasure removes the accepted answer and its operation record. |
+| Completion first | The same observed row-lock chain with POST complete. | Completion commits revision 3 with completed status; subsequent trash and erasure remove it. |
+| Deletion before autosave | Commit trash and deletion intent; hold the survey row; queue eraser first, then the API save; release only after both wait. | Erasure commits; save returns 404 and recreates no content. |
+| Deletion before completion | The same observed lock chain with POST complete. | Completion returns 404 and recreates no content. |
+| Export first | Pause the production handler after an actual S3 upload while it retains the survey locks; queue POST trash on that handler's advisory lock; release upload acknowledgement. | Export commits, trash succeeds, erasure removes the exact uploaded version and current object; download returns 404. |
+| Deletion before export | With committed deletion intent, hold the survey advisory lock; observe eraser queued first, then the exporter after its preliminary job lookup; release. | Eraser removes the job; the waiting exporter becomes a no-op without calling upload. |
+
+For every case, the probe checks absence of all survey-scoped rows in `survey`,
+`survey_draft`, `survey_version`, `survey_participation`, `survey_operation`,
+`survey_invitation`, `survey_grant`, `survey_analysis_snapshot` and
+`survey_export_job`, plus a completed content-free deletion ledger entry.
+Late save and completion requests return 404. Repeated erasure remains safe.
+Both export cases additionally redeliver the persisted event after deletion and
+check that no export becomes downloadable. Export fixtures contain a completed
+synthetic response before snapshot creation.
+
+The probe delivers persisted export events directly to the production handler;
+it does not claim new queue-lease coverage. Actual queue reclaim, process crash
+and uncommitted-upload cleanup are covered by the earlier A2 proof. It tests the
+two serialization orders at the relevant locks, not exhaustive instruction-level
+scheduling or load performance. Public writes cannot remain authorized once a
+survey is trashed, so response-first cases race the trash cutoff, followed by
+permanent erasure; deletion-first cases race the actual eraser.
+
+### Execution evidence
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" deletion-races
+```
+
+Final project: `leonaid-surveys-833458328-14668`. All six integration cases passed;
+the existing Chromium identity/public-host foundation test passed (1 test, 1.4 s).
+The harness used fresh volumes, selected currently unused subnets, published no
+host ports, and verified teardown. The full command exited zero. Ruff check and
+format, shell syntax and `git diff --check` passed for the changed test/harness.
+Sanitized results: [SURV-090-deletion-races.json](assets/SURV-090-deletion-races.json).
+No sessions, participation secrets, record identifiers or answer payloads are
+retained in that artifact.
+
+An earlier run (`leonaid-surveys-833458328-14213`) passed, but review found its
+trash helper first waited in a summary read. The final run above preloads the
+revision and proves the actual mutation waits; only this final run is used for
+acceptance. No application behavior was changed to satisfy the tests.
+
+090.A1 and parent implementation task 090.1 are now accepted together with the
+existing A2/A5 evidence. 090.T1 and the full work package remain open for recovery
+checkpoint continuity and limits/log acceptance.

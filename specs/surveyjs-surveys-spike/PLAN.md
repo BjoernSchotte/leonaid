@@ -766,14 +766,14 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
-Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim, configurable retention, manual erasure controls and the open-respondent deletion journey are proven. The restore operator invokes the checkpoint gate before startup; missing/tampered/stale-input rejection is proven. The encrypted Restic backup and fresh-target restore pass with source volumes removed, no-build startup and image-identity checks. Independent latest-checkpoint continuity, full deletion interleavings, limits/log checks and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim, configurable retention, manual erasure controls and the open-respondent deletion journey are proven. The restore operator invokes the checkpoint gate before startup; missing/tampered/stale-input rejection is proven. The encrypted Restic backup and fresh-target restore pass with source volumes removed, no-build startup and image-identity checks. Six deterministic deletion interleavings now pass for saves, completion and export handlers. Independent latest-checkpoint continuity, limits/log checks and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
 
 Dependencies: SURV-050, SURV-060, SURV-080.
 
 Implementation tasks:
 
-- [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects. Acceptance: **090.A1, 090.A2, 090.A5**.
-- [x] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey. Acceptance: **090.A5**, plus actual pending/failure/retry/completed states and access checks. [Evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance). Parent 090.1 remains open for the full 090.A1 interleavings.
+- [x] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects. Acceptance: **090.A1, 090.A2, 090.A5**. [Consolidated evidence](proofs/SURV-090.md#deterministic-deletion-interleavings).
+- [x] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey. Acceptance: **090.A5**, plus actual pending/failure/retry/completed states and access checks. [Evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance). Parent 090.1 is now accepted with the deterministic 090.A1 interleavings.
 - [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data. Acceptance: **090.A3**.
 - [x] **090.2a** Prove the existing encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion: absent checkpoint blocks startup, valid checkpoint erases restored data before startup, and no-build restoration preserves source image identities. Acceptance: **090.A3, operator integration portion**. [Live evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
 - [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection. Acceptance: **090.A3, checkpoint continuity portion**; preserve the full parent task's scope and the recovery contract.
@@ -786,7 +786,7 @@ Test implementation and verification tasks:
 
 Acceptance criteria:
 
-- [ ] **090.A1 — Integration:** race deletion against autosave, completion and export workers; no late write recreates deleted data or leaves a downloadable export.
+- [x] **090.A1 — Integration:** race deletion against autosave, completion and export workers; no late write recreates deleted data or leaves a downloadable export. [Six real lock-order cases](proofs/SURV-090.md#deterministic-deletion-interleavings).
 - [x] **090.A2 — Integration:** crash/retry permanent deletion across PostgreSQL and RustFS; all targeted content is removed and repeated processing remains safe. [Evidence](proofs/SURV-090.md#durable-erasure-and-process-crash-recovery).
 - [ ] **090.A3 — Integration:** restore a real test backup, reapply deletion records and verify previously deleted survey data is inaccessible and removed; demonstrate that inactivity alone deletes nothing.
 - [ ] **090.A4 — Integration:** over-limit requests fail predictably without partial writes; inspect captured logs for seeded sensitive markers and credentials.
