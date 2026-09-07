@@ -72,6 +72,7 @@ Commands:
   test-emdash-spike --case recovery-app
   test-emdash-spike --case recovery-orders
   test-emdash-spike --case recovery-import
+  test-emdash-spike --case release-legacy-boundary
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
   export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated

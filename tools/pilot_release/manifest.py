@@ -77,6 +77,12 @@ def manifest_sha256(value: dict[str, Any]) -> str:
 
 def images_from_compose(value: dict[str, Any]) -> dict[str, str]:
     services = _object(value.get("services"), "Compose services")
+    # Version 1 has no CMS image, migration, patch or rollback identity. Never
+    # silently omit a configured CMS service while approving the legacy stack.
+    _require(
+        "campaign-site" not in services,
+        "Release-Vertrag v1 erlaubt keine campaign-site; CMS-Release-Vertrag fehlt",
+    )
     images: dict[str, str] = {}
     for service in REQUIRED_IMAGES:
         configuration = _object(services.get(service), f"Compose service {service}")
@@ -172,7 +178,14 @@ def validate_manifest(
     root: Path | None = None,
     expected_commit: str | None = None,
 ) -> None:
-    _require(value.get("schemaVersion") == 1, "schemaVersion muss 1 sein")
+    _require(
+        type(value.get("schemaVersion")) is int and value["schemaVersion"] == 1,
+        "schemaVersion muss die Ganzzahl 1 sein",
+    )
+    _require(
+        "cms" not in value and "emdash" not in value,
+        "Release-Vertrag v1 erlaubt keine CMS-Metadaten",
+    )
     release_id = value.get("releaseId")
     _require(
         isinstance(release_id, str) and RELEASE_ID.fullmatch(release_id) is not None,
@@ -210,6 +223,10 @@ def validate_manifest(
             )
 
     schemas = _object(value.get("schemas"), "schemas")
+    _require(
+        set(schemas) == {"coreAlembicHead", "goldenData"},
+        "Release-Vertrag v1 erlaubt nur das bestehende Core-Schemainventar",
+    )
     head = schemas.get("coreAlembicHead")
     _require(
         isinstance(head, str) and re.fullmatch(r"[0-9]{4}", head) is not None,

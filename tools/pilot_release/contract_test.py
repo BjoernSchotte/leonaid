@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Callable
 from tools.pilot_release.manifest import (
     InvalidManifest,
     create_manifest,
+    images_from_compose,
     validate_compose_images,
     validate_manifest,
 )
@@ -52,6 +54,18 @@ def _must_reject(callback: Callable[[], object], label: str) -> None:
 
 
 def main() -> int:
+    if sys.argv[1:] == ["--cms-compose-stdin"]:
+        configuration = json.load(sys.stdin)
+        assert "campaign-site" in configuration["services"]
+        _must_reject(
+            lambda: images_from_compose(configuration),
+            "actual rendered CMS configuration accepted by legacy contract",
+        )
+        print(
+            "pilot-release-contract: actual CMS Compose denied; no configuration output"
+        )
+    else:
+        assert not sys.argv[1:]
     root = Path(__file__).resolve().parents[2]
     manifest = create_manifest(
         root=root,
@@ -68,6 +82,37 @@ def main() -> int:
         }
     }
     validate_compose_images(manifest, compose)
+
+    cms_compose = deepcopy(compose)
+    cms_compose["services"]["campaign-site"] = {"image": _images()["public"]}
+    _must_reject(
+        lambda: images_from_compose(cms_compose),
+        "legacy manifest creation silently ignores configured CMS",
+    )
+    _must_reject(
+        lambda: validate_compose_images(manifest, cms_compose),
+        "legacy manifest verification silently ignores configured CMS",
+    )
+    for schema_version in (True, 1.0, "1", 2):
+        invalid_version = deepcopy(manifest)
+        invalid_version["schemaVersion"] = schema_version
+        _must_reject(
+            lambda: validate_manifest(invalid_version),
+            "noninteger or unsupported release version",
+        )
+    for field in ("cms", "emdash"):
+        hidden_cms = deepcopy(manifest)
+        hidden_cms[field] = {"version": "0.36.0"}
+        _must_reject(
+            lambda: validate_manifest(hidden_cms),
+            "ignored CMS release metadata",
+        )
+    hidden_schema = deepcopy(manifest)
+    hidden_schema["schemas"]["emdash"] = "0.36.0"
+    _must_reject(lambda: validate_manifest(hidden_schema), "ignored CMS schema")
+    cms_images = deepcopy(manifest)
+    cms_images["images"]["campaign-site"] = _images()["public"]
+    _must_reject(lambda: validate_manifest(cms_images), "CMS image in v1 inventory")
 
     missing_image = deepcopy(manifest)
     del missing_image["images"]["worker"]

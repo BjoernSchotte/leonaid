@@ -3051,6 +3051,18 @@ Dependencies: EMS-050, EMS-070
       and schema/migration identity alongside existing Core migration metadata.
       Define explicit handling of pre-CMS release manifests; never silently
       relax exact inventory checks to permit missing images or migrations.
+  - [x] Close the legacy manifest's silent CMS omission before extending it.
+        `./leonaid test-emdash-spike --case release-legacy-boundary` runs the
+        actual Compose renderer with the EmDash profile and feeds its output
+        directly to the pinned Python validator, without logging configuration
+        or creating services/networks/host ports. Version 1 now rejects a
+        configured campaign-site during image extraction and Compose comparison;
+        it cannot approve a stack while silently dropping the CMS image from
+        its inventory. Contract tests retain the legacy positive path and
+        reject missing/floating/drifted images, CMS images or schema metadata
+        in v1, boolean/float/string/unsupported versions, and premature release
+        promotion. This is a fail-closed prerequisite, not the completed v2 CMS
+        image/package/patch/schema contract or a deployment/upgrade proof.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
