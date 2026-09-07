@@ -2986,6 +2986,22 @@ Dependencies: EMS-030, EMS-050, EMS-070
         diagnostics, current generated contracts and all format/privacy/policy
         gates; the committed worktree remained unchanged. Existing dependency
         deprecation warnings remain.
+  - [x] Published destination checkpoint: `krapfentaxi-migration` passed in
+        isolated project `leonaid-emdash-tmp-6csvzq4jvo`, including the real
+        importer and Charity editor login/text/image/draft/publication journeys
+        in Chromium, Firefox and WebKit. The subsequent CA-verified HTTPS
+        redirect proof ran with `--published`: alias GET/HEAD returns one 302
+        to `/campaigns/krapfentaxi-2026/`; that exact destination returns 200,
+        no further Location header and the existing order form. The legacy
+        primary form remains available and inactive/disabled/window checks
+        continue to pass. The first run exposed a real transport regression:
+        the campaign response reused alias serialization and accidentally
+        included the new `redirect_path` field in its strict separate schema.
+        Excluding that alias-only field fixes the campaign endpoint without
+        weakening its schema. The corrected full live case exited 0 and removed
+        only its own containers, networks and volumes. Actual order acceptance
+        after this fix, reassignment/history, outage and primary-cutover gates
+        remain separate; this checkpoint proves published target delivery.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.

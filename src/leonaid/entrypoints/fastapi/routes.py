@@ -1768,7 +1768,7 @@ async def resolve_public_campaign(
         legal_configuration=legal,
     )
     return PublicCampaignRouteResponse(
-        **payload.model_dump(exclude={"route_kind"}),
+        **payload.model_dump(exclude={"route_kind", "redirect_path"}),
         order_alias=route.order_alias if payload.submissions_allowed else None,
     )
 
