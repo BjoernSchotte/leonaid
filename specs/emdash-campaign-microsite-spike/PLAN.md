@@ -2563,6 +2563,11 @@ keyboard and 200% zoom checks.
       or disabled. Earlier unbounded failures were observed in projects
       `leonaid-emdash-tmp-iefyq9xuvg` and `leonaid-emdash-tmp-bwmrkpeu7j`; the exact
       historical wait source was not instrumented and is not claimed proven.
+      Full `./leonaid check` passed at `bcccf2c`: 210 unit tests, 250 Python
+      source-file type checks, 24 public and 46 campaign Astro files with zero
+      diagnostics, API/schema/type generation, formatting and privacy/CI gates.
+      The working tree remained unchanged; existing upstream Pydantic/Vite
+      deprecation warnings remain.
 - [ ] Complete burst/uncertain-outcome acceptance beyond the measured cases:
       native-browser timeout recovery, cancellation during partial CRM writes,
       body/whole-response deadlines, and acceptable resource use under combined
