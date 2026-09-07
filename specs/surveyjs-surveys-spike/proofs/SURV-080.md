@@ -1,27 +1,27 @@
 # SURV-080 — Export implementation evidence
 
-Baseline `8add0a6`. The first increment supplies the tabular rendering boundary;
+The initial tabular increment started at `8add0a6`; subsequent baselines are below.
 **no SURV-080 acceptance criterion or complete implementation task is accepted**.
-Worker/storage/API/UI/PDF integration remains required by PLAN.md.
+The complete browser, recovery, permission and workbook render gates remain open.
 
 ## Task ledger
 
 | Task | Delivered building block | Remaining acceptance |
 |---|---|---|
 | 080.1 | CSV, response XLSX and analysis XLSX through real worker/private storage and parsed API downloads | Export UI and complete raw-export denial journey |
-| 080.2 | Native workbook chart definitions only | Server report charts, dedicated Typst template, PDF and rendered XLSX review |
+| 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review | Export UI and rendered XLSX review |
 | 080.3 | Durable jobs, current permission checks, private storage and protected downloads | Failure/retry/crash tests and complete revocation/deletion matrix |
-| 080.T1 | 18 artifact-level tests, three real tabular pipelines and 22 database invariants | PDF, complete permission matrix and failure/recovery integration |
-| 080.T2 | No delivery claim | All browser downloads and rendering review |
+| 080.T1 | 18 tabular artifact tests, four real export pipelines, controlled PDF glyph failure and 22 database invariants | Complete permission matrix and failure/recovery integration |
+| 080.T2 | Normal, long-label, empty and actual-worker PDF pages visually inspected | All browser export journeys and XLSX rendering review |
 
 ## Rendering contract
 
 `SurveyExportSource` carries the immutable AnalysisSnapshot, a host-supplied
 captured document title and optional typed private responses. `SurveyExportArtifact`
 returns bytes, filename, MIME type, render version and SHA-256. It does not reuse
-invoice-domain documents or perform authorization. The forthcoming worker must
-load private responses only for a permitted raw-export product and freeze its
-document title as part of the job input.
+invoice-domain documents or perform authorization. The worker loads private
+responses only for a permitted raw-export product and freezes its document title
+as part of the job input.
 
 `render_tabular` supports responses_csv, responses_xlsx and analysis_xlsx using
 Python CSV and the already pinned openpyxl 3.1.5 dependency. It rejects missing,
@@ -113,11 +113,11 @@ application integration or browser journeys.
 
 ## Next required integration
 
-Add the dedicated Typst report renderer, export UI and explicit failure/recovery
-scenarios, then execute all four real worker/storage/browser products. Only those
+Add the export UI and explicit failure/recovery scenarios, then execute all four
+real worker/storage/browser products. Only those
 passing integration, E2E and rendering gates can close the still-open SURV-080
-criteria. The `analysis_pdf` contract is reserved but its renderer is not yet
-implemented; this increment does not claim PDF availability.
+criteria. PDF rendering is now implemented and proven through the worker; the
+export UI, complete XLSX visual review and recovery matrix remain open.
 
 ## Durable tabular jobs — 2026-09-07
 
@@ -193,3 +193,81 @@ modules and proof scripts. OpenAPI generation succeeded and the generated
 The binary OpenAPI description was added after the live run; it changes the
 generated contract, not download execution. Proof links and whitespace checks
 passed. No complete SURV-080 task or acceptance checkbox has been checked.
+
+## Dedicated Typst reports and all four products — 2026-09-07
+
+Baseline `84f4c85` plus the PDF increment. `TypstSurveyRenderer` and
+`survey-analysis-v1.typ` use the existing pinned Typst 0.13.1 binary and pypdf
+5.8.0 dependency. No new dependency, external chart service, commercial component
+or own-license choice is introduced. The report receives aggregate presentation
+data only; even explicitly supplying private response rows leaves its bytes
+unchanged. Author strings are JSON data, never evaluated Typst code.
+
+Reports include frozen selection/version/date metadata, scoped status totals,
+per-question relevant/answered/unanswered/hidden/invalid counts, sums, means,
+extrema, NPS, matrix row completeness, vector horizontal percentage bars with
+count/denominator/table alternatives, and last saved page counts. German labels
+explain denominators and round displayed metrics to at most two decimal places.
+Missing percentages read `Nicht verfügbar`, rather than falsely reporting zero.
+Question headings remain with their first count table. Chart tables repeat their
+question number and distribution context across pages; ordinary long labels
+remain with the corresponding row. The implementation uses the documented
+[Typst table cell and repeated-header controls](https://typst.app/docs/reference/model/table/).
+
+`python tools/surveys/pdf_render.py` ran against the pinned Dockerfile.core runtime
+with the worktree mounted at `/workspace`, exit 0. Normal (4 pages), long-label
+(8 pages) and empty (4 pages) reports have byte-identical repeated rendering.
+The script parses actual PDFs, verifies IDs and selected golden metrics (NPS
+33.33, mean 15), checks page numbering and absence of active annotations/private
+text, proves literal handling of `#panic(...)`/HTML text, and exercises stable
+errors for a wrong runtime and missing template. Results and hashes:
+[render proof](assets/SURV-080-pdf-render.json).
+
+### Font correctness and visual review
+
+An additional Japanese-title probe revealed that Typst silently emits replacement
+boxes without compiler warnings. The final adapter therefore inspects actual PDF
+text-showing operators using pypdf and rejects glyph zero in the pinned CFF
+Identity-H font profile, including form content streams. Unknown font profiles
+also fail verification. A real Typst Japanese-title regression now raises
+`typst_font_glyph_missing`; ordinary German/Greek Unicode fixtures pass with
+unchanged bytes. This is explicit font coverage, **not universal Unicode font
+support**. Adding fonts requires extending and proving the font profile.
+
+All final pages of [normal](assets/SURV-080-pdf-normal.pdf),
+[long-label](assets/SURV-080-pdf-long-labels.pdf),
+[empty](assets/SURV-080-pdf-empty.pdf) and the
+[actual worker report](assets/SURV-080-pdf-worker.pdf) were rendered with Poppler
+(`pdftoppm -scale-to 1100 -png`) and visually inspected by the assistant.
+No clipping, overlap, replacement glyphs or unreadable labels were observed in
+these 20 pages. The initial heading and continuation-context issues were fixed
+before this final review. This is a recorded visual check, not a PDF accessibility
+certification. [Review record and source hashes](assets/SURV-080-pdf-review.json).
+
+### Actual API/worker/storage proof
+
+The final command was:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports
+```
+
+Project `leonaid-surveys-833458328-41834`, exit 0, no host ports, owned resources
+removed and verified. All four jobs were created while the worker was stopped,
+then processed and downloaded through the actual API after worker startup.
+CSV/XLSX parsing and the PDF text checks passed; the PDF was stored as an exact
+private object version. Existing idempotency, raw-export denial, queued grant
+revocation, anonymous storage denial and deleted-survey download checks passed
+for this extended product set. A separate queued Japanese-title PDF job failed
+without storing an artifact; download returned 409, and the persisted outbox error
+was only `survey_export_failed`, with no title or raw diagnostics. The host browser
+regression passed (897 ms); it remains distinct from the unimplemented export UI
+journeys. [All-products result](assets/SURV-080-all-products-api.json).
+
+An earlier all-products run (`40433`) passed before the glyph guard was added.
+Only the final `41834` run supports the glyph-failure claim. During local renderer
+development, two fixture assertions were corrected (normal results need not
+contain missing percentages; Typst emits empty annotation arrays), and an edit
+temporarily misplaced the glyph function inside payload construction. The real
+render check caught that error; the final rerun and Mypy passed. Final Ruff,
+format checks and Mypy pass; no whole SURV-080 acceptance gate is closed here.

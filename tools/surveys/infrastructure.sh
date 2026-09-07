@@ -145,6 +145,7 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
 mkdir -p "$artifact"
 if [ "$mode" = exports ]; then
   cp "$proof/survey-exports-proof.json" "$artifact/"
+  cp "$proof/survey-worker-report.pdf" "$artifact/"
 fi
 if [ "$mode" = analysis ]; then
   cp "$proof/survey-analysis-snapshot.json" "$artifact/"

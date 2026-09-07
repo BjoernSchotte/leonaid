@@ -13,6 +13,7 @@ import asyncpg
 from leonaid.adapters.postgres.identity import account_from_record
 from leonaid.adapters.postgres.survey_analysis import read_snapshot
 from leonaid.adapters.survey_tabular_exports import render_tabular
+from leonaid.adapters.typst.survey_renderer import TypstSurveyRenderer
 from leonaid.application.errors import Conflict, ResourceNotFound
 from leonaid.application.object_storage import (
     ObjectLocation,
@@ -305,7 +306,11 @@ class AsyncpgSurveyExports:
             source = SurveyExportSource(
                 row["title"], AnalysisSnapshot.model_validate(payload), responses
             )
-            artifact = await asyncio.to_thread(render_tabular, row["product"], source)
+            artifact = (
+                await asyncio.to_thread(TypstSurveyRenderer().render, source)
+                if row["product"] == "analysis_pdf"
+                else await asyncio.to_thread(render_tabular, row["product"], source)
+            )
             await self.storage.ensure_private_versioned_bucket()
             stored = await self.storage.put_immutable(
                 ObjectWrite(

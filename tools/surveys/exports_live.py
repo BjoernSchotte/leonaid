@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
@@ -100,7 +101,12 @@ async def main():
             )
             member = {"Cookie": f"__Host-leonaid_session={member_token}"}
             jobs = {}
-            for product in ("responses_csv", "responses_xlsx", "analysis_xlsx"):
+            for product in (
+                "responses_csv",
+                "responses_xlsx",
+                "analysis_xlsx",
+                "analysis_pdf",
+            ):
                 body = {
                     "operationId": product,
                     "snapshotId": snapshot["id"],
@@ -114,7 +120,12 @@ async def main():
                 await call(
                     "POST",
                     path + "/exports",
-                    {**body, "product": "analysis_pdf"},
+                    {
+                        **body,
+                        "product": "responses_csv"
+                        if product == "analysis_pdf"
+                        else "analysis_pdf",
+                    },
                     expected=409,
                 )
                 await call("GET", path + f"/exports/{job['id']}/download", expected=409)
@@ -168,7 +179,7 @@ async def main():
                 await conn.fetchval(
                     "SELECT count(*) FROM survey_export_job WHERE survey_id=$1", sid
                 )
-                == 4
+                == 5
             )
             try:
                 await conn.execute(
@@ -178,6 +189,44 @@ async def main():
                 raise AssertionError("Export input mutation succeeded")
             except asyncpg.IntegrityConstraintViolationError:
                 pass
+            missing_font_path = f"/api/v1/surveys/{uuid4()}"
+            await call(
+                "POST",
+                missing_font_path,
+                {
+                    "operationId": "create",
+                    "title": "日本語",
+                    "definition": fixture["definition"],
+                },
+            )
+            missing_font_version = (
+                await call(
+                    "POST",
+                    missing_font_path + "/publish",
+                    {"operationId": "publish", "expectedRevision": 1},
+                )
+            ).json()
+            missing_font_snapshot = (
+                await call(
+                    "POST",
+                    missing_font_path + "/analysis",
+                    {
+                        "operationId": "snapshot",
+                        "filter": {"versionId": missing_font_version["id"]},
+                    },
+                )
+            ).json()
+            missing_font_job = (
+                await call(
+                    "POST",
+                    missing_font_path + "/exports",
+                    {
+                        "operationId": "missing-font",
+                        "snapshotId": missing_font_snapshot["id"],
+                        "product": "analysis_pdf",
+                    },
+                )
+            ).json()
             state_path.write_text(
                 json.dumps(
                     {
@@ -188,11 +237,13 @@ async def main():
                         "memberId": str(uid),
                         "memberToken": member_token,
                         "cancelledJob": member_job["id"],
+                        "missingFontPath": missing_font_path,
+                        "missingFontJob": missing_font_job["id"],
                     }
                 )
             )
             print(
-                "PASS: queued tabular exports, atomic idempotency, immutable inputs, permission and unauthenticated denial; worker is stopped"
+                "PASS: queued all four exports, atomic idempotency, immutable inputs, permission and unauthenticated denial; worker is stopped"
             )
         else:
             state = json.loads(state_path.read_text())
@@ -227,6 +278,16 @@ async def main():
                         == state["snapshot"]["participationCount"]
                     )
                     assert records[0]["snapshot_id"] == state["snapshot"]["id"]
+                elif product == "analysis_pdf":
+                    reader = PdfReader(io.BytesIO(content))
+                    text = "\n".join(page.extract_text() for page in reader.pages)
+                    assert (
+                        state["snapshot"]["id"] in text
+                        and state["snapshot"]["filter"]["versionId"] in text
+                    )
+                    assert "33,33" in text and "Mittelwert" in text
+                    assert "SENSITIVE_" not in text and len(reader.pages) >= 2
+                    Path("/proof/survey-worker-report.pdf").write_bytes(content)
                 else:
                     workbook = load_workbook(io.BytesIO(content), data_only=False)
                     meta = dict(list(workbook["Metadata"].values)[1:])
@@ -275,6 +336,35 @@ async def main():
                 UUID(state["cancelledJob"]),
             )
             assert dict(cancelled) == {"status": "cancelled", "bucket": None}
+            for _ in range(100):
+                failed = (
+                    await call(
+                        "GET",
+                        state["missingFontPath"]
+                        + f"/exports/{state['missingFontJob']}",
+                    )
+                ).json()
+                if failed["status"] in {"retrying", "failed"}:
+                    break
+                await asyncio.sleep(0.2)
+            assert (
+                failed["status"] in {"retrying", "failed"}
+                and failed["errorCode"] == "survey_export_failed"
+            )
+            await call(
+                "GET",
+                state["missingFontPath"]
+                + f"/exports/{state['missingFontJob']}/download",
+                expected=409,
+            )
+            failed_record = await conn.fetchrow(
+                "SELECT j.bucket, e.last_error_detail FROM survey_export_job j JOIN outbox_event e ON e.id=j.event_id WHERE j.id=$1",
+                UUID(state["missingFontJob"]),
+            )
+            assert dict(failed_record) == {
+                "bucket": None,
+                "last_error_detail": "survey_export_failed",
+            }
             assert await conn.fetchval(
                 "SELECT bool_and(payload='{}'::jsonb) FROM outbox_event WHERE event_type='survey.export.render.v1'"
             )
@@ -305,18 +395,19 @@ async def main():
                     {
                         "products": list(state["jobs"]),
                         "realWorker": True,
-                        "parsedDownloads": 3,
+                        "parsedDownloads": 4,
                         "anonymousObjectAccessDenied": True,
                         "revokedQueuedJobCancelled": True,
                         "deletedSurveyDownloadsDenied": True,
                         "outboxPayloadsContainNoAnswers": True,
                         "objectReferencesRetained": True,
+                        "missingGlyphJobFailedWithoutArtifact": True,
                     }
                 )
             )
             state_path.unlink()
             print(
-                "PASS: three real worker/private-storage tabular downloads parsed against snapshot; cancellation, deletion, anonymous storage and orphan prevention proven"
+                "PASS: all four real worker/private-storage downloads parsed against snapshot; cancellation, deletion, anonymous storage and orphan prevention proven"
             )
     await conn.close()
 

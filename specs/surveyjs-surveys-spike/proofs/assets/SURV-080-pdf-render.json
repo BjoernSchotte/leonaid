@@ -1,0 +1,26 @@
+[
+  {
+    "name": "normal",
+    "pages": 4,
+    "sizeBytes": 36145,
+    "sha256": "3f9819b1c4e899906504b10d103c0566ee930e52718bd14686382e494bfce229",
+    "deterministic": true,
+    "aggregateOnly": true
+  },
+  {
+    "name": "long-labels",
+    "pages": 8,
+    "sizeBytes": 47238,
+    "sha256": "ede3401261b097f7ae3ee4ab4dcf14252c9bd38d1a53c462c3ea4ab071d2d032",
+    "deterministic": true,
+    "aggregateOnly": true
+  },
+  {
+    "name": "empty",
+    "pages": 4,
+    "sizeBytes": 35117,
+    "sha256": "a5ac7c5a449268e5b33bc797fa2c796468e4ca7db566b33e4e1f2ff54a500cb2",
+    "deterministic": true,
+    "aggregateOnly": true
+  }
+]
