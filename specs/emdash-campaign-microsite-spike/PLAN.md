@@ -450,6 +450,49 @@ authorize skipping a later gate:
    recommending pilot activation. Record remaining failures in `RESULT.md`;
    keep unfinished gates unchecked. Production activation needs separate approval.
 
+### 4.5 Final infrastructure compatibility checklist
+
+The requirements above must also be tested together against the existing
+deployment, not only against a standalone CMS fixture. These are remaining
+acceptance obligations, not additional infrastructure services:
+
+- [ ] **Activation and readiness (EMS-010/070/080):** verify the base and merged
+      pilot stack with the CMS profile both off and on. Keep liveness separate
+      from readiness: a running Node process is not proof that bootstrap,
+      migrations, authorization guards and required dependencies are ready.
+      Public CMS routes stay unavailable until readiness passes; failure must
+      not make Caddy or the existing Core services restart in a loop.
+- [ ] **Exact storage configuration (EMS-040/080):** prove the selected S3
+      client's endpoint, region, path-style addressing and signing against the
+      pinned RustFS image. Keep the internal storage hostname out of rendered
+      browser URLs. Test upload, read, delete, restart and restore using only
+      the scoped CMS credentials; do not substitute root credentials when a
+      compatibility test fails.
+- [ ] **Shared-server capacity (EMS-010/050):** record the combined PostgreSQL
+      connection budget, including Core, worker, CMS and operator headroom.
+      Test bounded whole-request latency as well as individual SQL timeouts.
+      Exercise CMS publishing, media uploads and dependency failures alongside
+      actual Core login and accepted orders with Twenty available. A read-only
+      Core health check or an expected CRM-unavailable error is not an order
+      availability proof. Run resource-heavy proof stacks serially when Docker
+      address pools or host capacity cannot safely accommodate them together.
+- [ ] **Route and order compatibility (EMS-050/082/085):** inventory both Astro
+      applications' generated assets and action endpoints in the final build.
+      Verify native form POST and JavaScript submissions on the canonical
+      microsite, validation feedback, retained input and Core idempotency before
+      converting the old alias into a redirect. Use the authoritative Core
+      order alias, not the canonical archive slug, for the order contract.
+- [ ] **Recoverable release boundary (EMS-080):** rehearse the exact pinned
+      image, patch, migration, encryption-key and bootstrap-state combination.
+      Restore CMS SQL and objects from one consistent recovery point into fresh
+      resources. Prove that a CMS-only rollback leaves newer Core orders intact,
+      and that missing state never reopens first-run setup. Keep deployment
+      disabled if inventory or recovery verification fails.
+
+Record these outcomes under their existing named gates in `RESULT.md`, including
+the tested release identity and any remaining STOP condition. Do not mark the
+integration complete merely because this checklist has been added to the plan.
+
 ## 5. Canonical commands and proof gates
 
 All product and verification work remains Docker-only. Do not require host
