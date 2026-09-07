@@ -2810,6 +2810,22 @@ Dependencies: EMS-050, EMS-070
       CMS dump as valid for the new format. Restore legacy backups only into the
       matching pre-CMS topology or require explicit CMS initialization with
       setup locked. Test old, new, missing-dump, and unknown-version fixtures.
+  - [x] Manifest contract checkpoint (2026-09-07): `tools/backup/manifest_test.py`
+        passes in the pinned Python container with real files, TAR archives and
+        CLI subprocesses. Version 1 requires the original four files and explicit
+        legacy topology; version 2 requires those files plus `emdash.dump` and
+        `cms-bootstrap-state.tar`, and a CMS encryption-key SHA-256 fingerprint.
+        CMS manifest creation requires the external key; `--require-cms-key`
+        rejects a missing, malformed or different recovery key. The key itself
+        is absent from manifests and diagnostics. Complete bootstrap state is
+        required: armed, consumed, missing, linked, traversing, duplicate and
+        incorrectly permissioned state is rejected even with matching archive
+        hashes. Missing parts, corrupt bytes, unknown versions, duplicate JSON
+        keys, oversized manifests and symlinked files are rejected. Archive
+        hashing uses bounded memory. Scoped Ruff, format and mypy checks pass.
+        Integration into a coordinated encrypted recovery point, actual restored
+        CMS decryption and end-to-end fresh-topology recovery remain unproven;
+        the parent gate remains open.
 - [ ] Restore into a fresh Compose project and prove users still authenticate
       through Core, campaign authorization remains correct, drafts/revisions
       exist, and media renders.
