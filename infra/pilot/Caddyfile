@@ -22,12 +22,22 @@
 	}
 }
 
-:80 {
+# A host-specific HTTP route precedes Caddy's automatic HTTPS redirect.
+http://{$LEONAID_PUBLIC_DOMAIN} {
 	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
 	handle @internal_orders {
 		header Cache-Control no-store
 		respond "Not Found" 404
 	}
+	handle /_health {
+		respond "ready" 200
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}
+
+:80 {
 	handle /_health {
 		respond "ready" 200
 	}

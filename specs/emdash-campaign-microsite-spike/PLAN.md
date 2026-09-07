@@ -88,7 +88,7 @@ The Core order endpoint `/api/v1/public/actions/{public_alias}/orders` must NOT
 be reachable through public web ingress. The `public` segment is an application
 contract name, not permission to expose this endpoint on the internet.
 
-- [ ] Deny the Core order route at every public ingress before generic API
+- [x] Deny the Core order route at every public ingress before generic API
       forwarding, independently of request method, including trailing-slash and
       encoded/normalized path variants. Apply the same policy to local and pilot
       routing and the pilot test configuration; preserve unrelated Core API
@@ -2483,6 +2483,28 @@ Back returns to the correct LeonAid action; Chromium, Firefox, and WebKit pass
 keyboard and 200% zoom checks.
 
 ### EMS-070 — Add same-domain TLS routing and secure first-run setup
+
+- [x] Live-prove both pilot Caddyfiles with the new `order-ingress-pilot` case
+      (also included in `all` and CLI help). Each run uses only pinned Caddy and
+      Node containers in a fresh, internal-only Docker network, no host ports,
+      no operational environment and its own removable certificate volumes.
+      The actual pilot source is mounted read-only, not rewritten for the test;
+      synthetic `localhost` domains select local CA issuance instead of ACME.
+      The first live attempt found that Caddy's automatic host-specific HTTPS
+      redirect preceded the prior hostless port-80 denial. Add an explicit HTTP
+      site for the public domain, retain the separate hostless health endpoint,
+      and preserve the normal 308 redirect for non-order GET/POST requests.
+      Final runs passed with `Caddyfile` in `leonaid-emdash-tmp-jopaazc86s` and
+      `Caddyfile.test` in `leonaid-emdash-tmp-ey2exx8hli`: 182 raw-path requests
+      each across seven methods, HTTP and CA-verified HTTPS; every order path
+      was denied without redirect/cookie despite forged internal headers.
+      Health requests remained 200, non-order HTTP GET/POST remained 308, and
+      unrelated HTTPS API forwarding reached the expected unavailable upstream
+      (502). No backend is started in this ingress-only proof. All owned
+      networks, containers and volumes were removed, including failed attempts.
+      This supersedes the prior pilot-validation-only limitation. It does not
+      prove public ACME issuance, production activation, successful orders,
+      committed-row invariance or exclusive internal caller authorization.
 
 - [x] Add the public Core-order ingress deny prerequisite. Local, pilot and
       pilot-test Caddy API handlers use an explicit `route` block that returns

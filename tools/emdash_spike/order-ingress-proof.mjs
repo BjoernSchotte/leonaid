@@ -4,18 +4,22 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 
 const ca = await readFile("/proof/root.crt");
+const pilot = process.argv.includes("--pilot");
 // Pass the raw path to Node: URL construction would normalize away attack cases.
 function call(path, method, secure, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = (secure ? httpsRequest : httpRequest)(
       {
         hostname: "proxy",
-        port: secure ? 8443 : 8080,
+        port: secure ? (pilot ? 443 : 8443) : pilot ? 80 : 8080,
         ca,
-        servername: "proxy",
+        servername: pilot ? "localhost" : "proxy",
         path,
         method,
-        headers,
+        headers: {
+          ...headers,
+          ...(pilot ? { Host: "localhost" } : {}),
+        },
       },
       (res) => {
         const chunks = [];
@@ -81,7 +85,20 @@ for (const secure of [false, true]) {
     }
   }
 }
-if (!process.argv.includes("--core-stopped")) {
+if (pilot) {
+  assert.equal((await call("/_health", "GET", false)).status, 200);
+  assert.equal((await call("/_health", "GET", true)).status, 200);
+  for (const method of ["GET", "POST"]) {
+    const redirect = await call("/api/v1/platform", method, false);
+    assert.equal(redirect.status, 308);
+    assert.equal(
+      redirect.headers.location,
+      "https://localhost/api/v1/platform",
+    );
+  }
+  // No backend is started: distinguish an upstream attempt from the fixed deny.
+  assert.equal((await call("/api/v1/platform", "GET", true)).status, 502);
+} else if (!process.argv.includes("--core-stopped")) {
   assert.equal((await call("/api/v1/platform", "GET", true)).status, 200);
   const internal = await fetch(`http://api:8000${canonical}`, {
     method: "POST",
@@ -97,5 +114,5 @@ if (!process.argv.includes("--core-stopped")) {
   );
 }
 console.log(
-  `order-ingress: ${count} raw HTTP/HTTPS method/path/forged-header requests denied without redirect or cookie; coreStopped=${process.argv.includes("--core-stopped")}`,
+  `order-ingress: ${count} raw HTTP/HTTPS method/path/forged-header requests denied without redirect or cookie; pilot=${pilot}; coreStopped=${process.argv.includes("--core-stopped")}`,
 );
