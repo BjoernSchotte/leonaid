@@ -423,6 +423,29 @@ async def main():
         assert await fingerprint() == before, (
             "Matrix requests changed persisted author state"
         )
+        Path("/proof/permission-browser-private.json").write_text(
+            json.dumps(
+                {
+                    "actors": {
+                        name: {
+                            "token": actor["token"],
+                            "resources": [
+                                {
+                                    "id": str(resource["id"]),
+                                    "kind": resource["kind"],
+                                    "snapshot": resource["snapshot"],
+                                    "capabilities": sorted(
+                                        expected_caps(name, resource["kind"])
+                                    ),
+                                }
+                                for resource in resources
+                            ],
+                        }
+                        for name, actor in actors.items()
+                    }
+                }
+            )
+        )
         sid = uuid4()
         await call(
             "POST",

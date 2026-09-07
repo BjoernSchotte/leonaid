@@ -213,6 +213,12 @@ a substitute for completing an individual task.
   Integration/E2E: **060.S4a**, [live evidence](proofs/SURV-060.md#publisher-only-review-and-publication).
   Parent 060.2 and full 060.A4 remain open.
 
+- [x] **060.2c** Exercise all 14 personas against the four active-survey resource scopes in desktop/mobile browsers; verify scoped list links, controls and direct response-selection navigation, with direct API checks from the same session.
+
+  Acceptance criteria: **060.A4, active-survey portion**.
+  E2E: **060.S4b**, [live evidence](proofs/SURV-060.md#active-survey-browser-permission-matrix).
+  Full parent 060.2/A4 acceptance remains open.
+
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.

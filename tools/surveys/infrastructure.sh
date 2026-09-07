@@ -100,7 +100,7 @@ if [ "$mode" = permissions ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = permissions ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs"
 fi
 state_worker_pid=""
 if [ "$mode" = export-limits ]; then
@@ -356,6 +356,15 @@ if [ "$mode" = permissions ]; then
   cp "$proof/permissions-proof.json" "$artifact/"
   cp "$proof/publisher-proof.json" "$artifact/"
   cp "$proof/publisher-review-mobile.png" "$artifact/"
+  python3 - "$proof" "$artifact" <<'PYMATRIX'
+import json
+import sys
+from pathlib import Path
+proof, artifact = map(Path, sys.argv[1:])
+rows = [json.loads(path.read_text()) for path in sorted(proof.glob("permission-browser-*-*.json"))]
+assert len(rows) == 28 and sum(row["resourcePairs"] for row in rows) == 112
+(artifact / "permissions-browser-proof.json").write_text(json.dumps({"syntheticOnly": True, "cases": rows}, indent=2) + "\n")
+PYMATRIX
 fi
 if [ "$mode" = export-limits ]; then
   cp "$proof/export-limits-proof.json" "$artifact/"

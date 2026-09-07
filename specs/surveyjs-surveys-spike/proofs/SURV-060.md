@@ -577,3 +577,58 @@ The state now uses `SurveyDraftResponse`; the final repeated run above includes
 that correction and the optional preview locale. All executing runs were terminal
 before source/test edits; unrestricted artifacts and private session fixtures were
 not committed.
+
+
+## Active-survey browser permission matrix
+
+**060.2c / 060.S4b are accepted.** Production baseline `1584a79` is unchanged.
+The new `tests/e2e/surveys-permissions.spec.mjs` consumes the independent expected
+capabilities already specified by the API fixture; it does not derive expectations
+from the UI's returned capabilities. Private actor/session/resource fixture data
+stays in the temporary proof directory and is never copied to retained artifacts.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+Project `leonaid-surveys-833458328-44658` exited **0**. The existing full API
+matrix again passed 127 positive reads, 723 denied reads and 891 denied writes,
+including unchanged persisted state. The browser phase passed **30 Chromium
+tests in 34.2 s**: foundation, publisher-only review/retry and 28 new persona tests.
+The publisher's independent SQL verifier also passed.
+
+Each of 14 personas runs on both **1440 × 1000** and **390 × 844**, traversing
+four resources: standalone owned/shared, action with membership, foreign action
+without membership and unrelated standalone. This gives **112 combinations**.
+The personas are nine separate single-grant accounts, owner, charity administrator,
+ordinary member, outsider and system administrator.
+
+- Searching the actual module yields exactly the permitted fixture links. Global
+  timeout settings are visible only to the system administrator.
+- Direct navigation includes a real `responseSelection` ID. A foreign survey
+  displays the not-found error and no management/editor region. Access to a
+  permitted survey without response-reading rights displays an explicit denial
+  instead of mounting the individual-response panel.
+- End, trash and editor-publication buttons match their respective capabilities.
+  Schedule, inactivity, aggregate-analysis, export-only and individual-response
+  panels match independent expectations. The design editor and publisher-only
+  review are mutually scoped as intended.
+- The same browser session directly requests the draft API and attempts
+  publication when forbidden; API responses independently enforce the expected
+  access, without relying on hidden controls.
+
+The harness requires exactly 28 sanitized result files totalling 112 pairs before
+writing [SURV-060-permissions-browser.json](assets/SURV-060-permissions-browser.json).
+That artifact contains only persona/viewport labels, counts and booleans. Raw
+session fixtures are excluded from the glob and deleted during cleanup. No new
+manual screenshot/a11y review is claimed; this is automated controls/navigation
+acceptance for active anonymous surveys.
+
+Scoped Ruff, Prettier, shell syntax and diff whitespace checks passed. The fresh
+project used seven unused explicit subnets and no host ports, and verified full
+owned-resource teardown. No runtime/test files changed during execution.
+
+The full 060.A4/060.2 matrix remains open for other lifecycle states, attributable
+invitation management with single grants and successful role-specific mutations.
+Remaining 060.A1 scope and recovery/final-gate work are unchanged; these tests do
+not narrow or complete those parent requirements.

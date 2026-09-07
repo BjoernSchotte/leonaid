@@ -76,6 +76,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 - [x] **060.S3 · E2E · 060.T2 → 060.A3:** Send an invitation from the member UI through the real worker, retrieve it from Mailpit and complete its linked questionnaire; a revoked invitation subsequently fails. [Evidence](proofs/SURV-060.md#personal-invitations).
 - [ ] **060.S4 · E2E · 060.T2 → 060.A4:** Navigate action-linked and standalone surveys with different personas; visible actions match permissions and direct navigation/API calls cannot bypass them.
 - [x] **060.S4a · Integration/E2E · 060.2b → 060.A1/A4 (publisher only):** Review and complete a local preview without persistence, reject a changed draft, reload the reviewed revision, retry an unacknowledged publication exactly and verify one published version in SQL. The publisher cannot edit and the designer cannot open the publication route. [Live evidence](proofs/SURV-060.md#publisher-only-review-and-publication).
+- [x] **060.S4b · E2E · 060.2c → 060.A4 (active surveys):** Verify 112 persona/resource/viewport combinations against the real module: list links, design/publish/delete/read/analysis/export controls, foreign navigation and protected response-selection deep links. [Live evidence](proofs/SURV-060.md#active-survey-browser-permission-matrix).
 - [x] **060.S5 · E2E · 060.T2 → 060.A5:** Change the timeout in the backend UI; a new participation uses it and an existing participation retains its effective setting. Preview/test responses remain excluded from collected-response analysis.
 
 ## SURV-070 — Analysis
