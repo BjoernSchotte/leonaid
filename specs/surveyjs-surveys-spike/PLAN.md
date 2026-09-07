@@ -766,7 +766,7 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
-Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim and configurable retention with its settings UI are proven. The restore operator now invokes the shared checkpoint gate before startup; missing/tampered/stale-input rejection and reapplication are proven against real restored DB/object data. The complete Restic/fresh-target invocation, independent checkpoint continuity, manual erasure controls and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim and configurable retention with its settings UI are proven. The restore operator invokes the checkpoint gate before startup; missing/tampered/stale-input rejection is proven. The existing encrypted Restic backup and fresh-target restore now pass with source volumes removed, successful no-build application startup and exact image-identity checks. Independent latest-checkpoint continuity, manual erasure controls and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
 
 Dependencies: SURV-050, SURV-060, SURV-080.
 
@@ -774,6 +774,8 @@ Implementation tasks:
 
 - [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects. Acceptance: **090.A1, 090.A2, 090.A5**.
 - [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data. Acceptance: **090.A3**.
+- [x] **090.2a** Prove the existing encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion: absent checkpoint blocks startup, valid checkpoint erases restored data before startup, and no-build restoration preserves source image identities. Acceptance: **090.A3, operator integration portion**. [Live evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
+- [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection. Acceptance: **090.A3, checkpoint continuity portion**; preserve the full parent task's scope and the recovery contract.
 - [ ] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials. Acceptance: **090.A4**.
 
 Test implementation and verification tasks:

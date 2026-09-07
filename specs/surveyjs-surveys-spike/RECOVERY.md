@@ -91,20 +91,37 @@ identity does not bypass it; preceding survey-schema backups remain unsupported.
 Empty survey tables still require a checkpoint: later deletions may have left
 records that prevent recreation even when no response needs immediate erasure.
 
+## Proven complete generic restore invocation
+
+`tools/surveys/restic_recovery.sh` runs the existing encrypted backup command,
+its rotation policy and `check --read-data`, then deletes a survey and explicitly
+exports its newer checkpoint. It removes all source-project containers and
+volumes before running the actual fresh-target restore command twice: first
+without a checkpoint (blocked, restored data inspected offline), then after
+removing those target volumes with a valid checkpoint (full application startup).
+
+The successful target runs with `LEONAID_RESTORE_NO_BUILD=true`. All six built
+services use the exact source image IDs, checked against running containers.
+Relational content and the original exact object version are absent; old session
+and public access are denied; a Chromium foundation journey passes. Both projects
+publish no host ports and their containers/volumes are removed and checked.
+See [the complete run evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
+
+This proves the generic command, not the separate pilot Doctor/release-manifest
+wrapper. Local encrypted Restic storage and an explicitly exported file model
+independent recovery material; loss of that entire host and automatic retention
+of the newest checkpoint are not established by this test.
+
 ## Remaining integration before acceptance
 
-- Prove the complete Restic-backed operator invocation, including its
-  application-start step and no-build release-image path, beyond the shared-gate
-  integration test.
+- Exercise the separate pilot Doctor/release-manifest wrapper with survey
+  recovery inputs; the generic no-build restore path is proven above.
 - Retain current checkpoints independently of the source database and its old
   recovery point, with a demonstrated source-loss recovery procedure. A local
   export alone does not provide that continuity.
 - Define and prove how the operator obtains the required cutoff and detects a
   missing latest checkpoint. Authentication proves provenance and integrity,
   not that the supplied file is the newest file ever exported.
-- Exercise the existing backup rotation, manifest validation and fresh-target
-  restore path together with survey erasure. The current isolated survey proof
-  restores actual PostgreSQL/RustFS data but does not replace those operator tests.
 - Prove interrupted reapplication, key/identity errors through that wrapper and
   migration compatibility with supported preceding backup revisions.
 

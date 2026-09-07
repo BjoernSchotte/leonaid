@@ -266,7 +266,7 @@ async def main():
                 print(
                     "PASS: restored data erased again, repeat reapplication safe, known deletion omission rejected"
                 )
-            elif sys.argv[1] == "online":
+            elif sys.argv[1] in {"online", "online-restic"}:
                 await call(sid, "GET", "", expected=404)
                 await call(
                     sid, "GET", f"/exports/{state['job']}/download", expected=404
@@ -274,12 +274,41 @@ async def main():
                 assert (
                     await client.get(f"/api/v1/public/surveys/{sid}")
                 ).status_code == 404
-                result = json.loads((PROOF / "recovery-proof.json").read_text())
+                if sys.argv[1] == "online-restic":
+                    for table in (
+                        "survey_participation",
+                        "survey_export_job",
+                        "survey_analysis_snapshot",
+                        "survey_version",
+                        "survey_draft",
+                    ):
+                        assert await conn.fetchval(
+                            f"SELECT count(*) FROM {table} WHERE survey_id=$1", sid
+                        ) == 0
+                    assert await conn.fetchval(
+                        "SELECT count(*) FROM survey WHERE id=$1", sid
+                    ) == 0
+                    assert await conn.fetchval(
+                        "SELECT completed_at IS NOT NULL FROM survey_deletion WHERE survey_id=$1",
+                        sid,
+                    )
+                    assert await storage().head(location) is None
+                    result_path = PROOF / "restic-recovery-proof.json"
+                    result = {
+                        "syntheticOnly": True,
+                        "postBackupDeletionReappliedByRestoreOperator": True,
+                        "restoredRelationalContentAndExactExportVersionAbsent": True,
+                        "limitations": [
+                            "The checkpoint was explicitly exported and retained before source-project removal; automatic newest-checkpoint retention across host loss remains unproven",
+                            "The local encrypted Restic repository models independent storage; physical remote-host placement is not covered",
+                        ],
+                    }
+                else:
+                    result_path = PROOF / "recovery-proof.json"
+                    result = json.loads(result_path.read_text())
                 result["cliCheckpointExportMode600"] = True
                 result["restoredSessionAndPublicAccessDeniedAfterRestart"] = True
-                (PROOF / "recovery-proof.json").write_text(
-                    json.dumps(result, indent=2) + "\n"
-                )
+                result_path.write_text(json.dumps(result, indent=2) + "\n")
                 print(
                     "PASS: old authenticated session and public route cannot retrieve erased survey or export after startup"
                 )

@@ -3,7 +3,8 @@
 Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 are accepted. The retention section adds proven behavior for
 090.1 and the inactivity-preservation part of 090.A3. The complete work package
 and task 090.1 remain open. The recovery section proves checkpoint reapplication
-after an actual DB/object restore; full operator integration remains open.
+after an actual DB/object restore. The generic Restic operator is now proven
+below; checkpoint continuity remains open.
 
 ## Durable erasure and process-crash recovery
 
@@ -104,7 +105,7 @@ These checks do not replace the live erasure assertions.
 | --- | --- | --- |
 | 090.A2 / 090.S2 | Passed | Actual version deletion, process termination, lease reclaim and complete relational/object cleanup above. |
 | 090.1 | Open | Durable erasure and configurable retention (including settings UI) delivered; manual deletion/status UI and full A1/A5 acceptance remain. |
-| 090.2 / 090.A3 | Open | Authenticated checkpoints and real DB/object restore reapplication are proven below; independent source-loss continuity and existing Restic/operator integration remain open. |
+| 090.2 / 090.A3 | Open | The authenticated checkpoint gate and full generic Restic/fresh-target restore are proven below (090.2a); independent latest-checkpoint continuity remains open (090.2b). |
 | 090.3 / 090.A4 | Open | Full limits and log-marker acceptance remains. |
 | 090.A1 | Open | A late export is covered; full concurrent autosave/completion/export/deletion interleavings remain. |
 | 090.T1 | Open | A2 subset passed; remaining integration criteria are not waived. |
@@ -328,3 +329,72 @@ the complete Restic restore invocation, fresh target, legacy-schema branch and
 no-build release-image path remain unproven here. Latest-checkpoint/source-loss
 continuity and migration compatibility remain open as specified in
 [RECOVERY.md](../RECOVERY.md). **090.2 and 090.A3 remain unchecked.**
+
+## Full Restic backup and fresh-target restore
+
+Accepted subtask: **090.2a**. The full 090.2 / 090.A3 scope still includes
+independent latest-checkpoint continuity; 090.2b records that remaining work.
+This run supersedes earlier sections' missing generic Restic/fresh-target proof.
+
+Command from the checkout root:
+
+```sh
+rtk proxy sh tools/surveys/restic_recovery.sh "$PWD"
+```
+
+The source/probe changes committed with this section ran unchanged from start
+to completion. Source project `leonaid-poc112-surveys-833458328-3251`; target
+`leonaid-restore-surveys-833458328-3251`. Exit **0**. Chromium foundation journey:
+**1 passed, 1.0 seconds**. Runtime images use the repository's existing pinned
+build inputs and `infra/locks/images.env`.
+
+### Assertions and actual operator behavior
+
+- [x] Create a published survey and populated synthetic response, then generate
+  a real CSV export using the production API/outbox/PostgreSQL/RustFS adapters.
+- [x] Run `tools/backup/backup.sh` with its existing writer-stop boundary. Restic
+  encrypts the four cross-system backup components and manifest, executes the
+  7-daily/5-weekly/12-monthly/3-yearly policy and completes `check --read-data`
+  with no errors. This runs the policy on one snapshot; it does not simulate
+  years of retention or replace the separate rotation contract tests.
+- [x] After that backup, use the real API/worker to permanently delete the survey
+  and file. Export a newer authenticated checkpoint explicitly to a separate
+  temporary location, with mode 600 and the fixture's post-deletion,
+  pre-CLI-export cutoff. Remove the source containers and volumes and assert absence.
+- [x] Invoke the actual `tools/backup/restore.sh` against a fresh target without
+  the required checkpoint. Restic restore and manifest byte/hash validation
+  succeed; the survey gate exits exactly 1 before application startup.
+- [x] Inspect that rejected restore: the old active survey, absent deletion
+  record, original exact object version, SHA-256 and seeded answer bytes are
+  really present. API, public, proxy and worker are not running. An earlier
+  manifest/restore failure cannot substitute for this assertion.
+- [x] Remove the rejected target volumes and rerun the actual restore with the
+  valid checkpoint and `LEONAID_RESTORE_NO_BUILD=true`. The gate reapplies erasure
+  before the command starts the full stack; all services reach their health gates.
+- [x] Verify the target's API, worker, web, PWA, public and survey-validator image
+  IDs equal the recorded source IDs. No target-side build or mutable image
+  substitution supplies the successful application.
+- [x] After startup, inspect absence of survey, draft, version, participation,
+  analysis snapshot and export-job rows, completed erasure state, and absence of
+  the original exact object version. Old authenticated survey/download requests
+  and the public definition request return 404. The foundation browser case passes.
+- [x] Remove the target containers/volumes and assert absence. The unique source
+  and target overlays disable host port publication and use selected unused
+  subnets; no other worktree's Docker resources are changed.
+
+Sanitized result: [SURV-090-restic-recovery.json](assets/SURV-090-restic-recovery.json).
+The trap removes the private checkpoint, session, manifest, password, Restic
+repository and generated overlays. Only content-free boolean results and
+explicit limitations are retained. Scoped Ruff, shell syntax and diff whitespace
+checks passed. No production dependency or license policy changed.
+
+### Remaining scope
+
+The checkpoint was exported before deliberate removal of the source project.
+The whole host holding that file was not lost, and automatic independent
+publication of the newest checkpoint is not implemented. HMAC validity alone
+does not prove freshness; do not close 090.2b or claim completed disaster recovery.
+This run uses the generic restore's no-build branch with exact local image IDs;
+the separate pilot Doctor/release-manifest wrapper and preceding survey-schema
+compatibility are not covered. Manual deletion UI, concurrency and limits/log
+criteria elsewhere in SURV-090 remain unchanged.
