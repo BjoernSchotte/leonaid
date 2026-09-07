@@ -2985,6 +2985,10 @@ another running checkout or authorize production deployment.
       This creates a draft, not a cutover. Process-kill/restart recovery, final
       imported-image visual acceptance, browser publication and backup/restore
       remain unproven and are required before migration acceptance.
+      Post-commit `./leonaid check` at `76d25cb` passed the original-source gate,
+      210 unit tests, 250 Python source checks, 24 public and 47 CMS Astro files
+      without diagnostics, generated-type/format/privacy/policy gates and an
+      unchanged committed tree. Existing dependency deprecation warnings remain.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.
