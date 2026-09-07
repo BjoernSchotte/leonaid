@@ -35,6 +35,8 @@ core_image_tag="$build_project-api:latest"
 web_image_tag="$build_project-web:latest"
 pwa_image_tag="$build_project-pwa:latest"
 public_image_tag="$build_project-public:latest"
+survey_validator_image_tag="$build_project-survey-validator:latest"
+export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE="$survey_validator_image_tag"
 core_image="$core_image_tag"
 web_image="$web_image_tag"
 pwa_image="$pwa_image_tag"
@@ -102,7 +104,7 @@ print(
   docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
   docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
   docker image rm \
-    "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" \
+    "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" \
     >/dev/null 2>&1 || true
   rm -rf "$manifest_proof_directory"
   rm -rf "$workspace"
@@ -200,6 +202,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_WEB_IMAGE=registry.example.org/leonaid/web@sha256:$digest" \
     "LEONAID_PWA_IMAGE=registry.example.org/leonaid/pwa@sha256:$digest" \
     "LEONAID_PUBLIC_IMAGE=registry.example.org/leonaid/public@sha256:$digest" \
+    "LEONAID_SURVEY_VALIDATOR_IMAGE=registry.example.org/leonaid/survey-validator@sha256:$digest" \
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://portal.leonaid.org" \
@@ -255,19 +258,19 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
 
-echo "pilot-deployment-test: baut vier Release-Images vor dem Deployment"
+echo "pilot-deployment-test: baut fünf Release-Images vor dem Deployment"
 docker compose \
   --project-name "$build_project" \
   --env-file "$root/.env.local" \
   --file "$root/infra/compose/compose.yml" \
-  build api web pwa public
+  build api web pwa public survey-validator
 
 echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
 runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
-  api core-postgres proxy public pwa rustfs twenty-postgres twenty-redis \
+  api core-postgres proxy public pwa rustfs survey-validator twenty-postgres twenty-redis \
   twenty-server twenty-worker web worker | sort)
 actual_services=$(runtime_compose ps --services --filter status=running | sort)
 if [ "$actual_services" != "$expected_services" ]; then
@@ -390,6 +393,8 @@ core_image=$(docker image inspect --format '{{.Id}}' "$core_image_tag")
 web_image=$(docker image inspect --format '{{.Id}}' "$web_image_tag")
 pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
 public_image=$(docker image inspect --format '{{.Id}}' "$public_image_tag")
+LEONAID_TEST_SURVEY_VALIDATOR_IMAGE=$(docker image inspect --format '{{.Id}}' "$survey_validator_image_tag")
+export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE
 runtime_compose config --format json >"$config"
 docker run --rm \
   --user "$(id -u):$(id -g)" \

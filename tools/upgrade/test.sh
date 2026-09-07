@@ -128,12 +128,14 @@ create_release_manifest() {
   web_id=$(docker image inspect --format '{{.Id}}' "${source_project}-web:latest")
   pwa_id=$(docker image inspect --format '{{.Id}}' "${source_project}-pwa:latest")
   public_id=$(docker image inspect --format '{{.Id}}' "${source_project}-public:latest")
+  survey_validator_id=$(docker image inspect --format '{{.Id}}' "${source_project}-survey-validator:latest")
   docker run --rm \
     --user "$(id -u):$(id -g)" \
     --env "API_IMAGE=$api_id" \
     --env "WEB_IMAGE=$web_id" \
     --env "PWA_IMAGE=$pwa_id" \
     --env "PUBLIC_IMAGE=$public_id" \
+    --env "SURVEY_VALIDATOR_IMAGE=$survey_validator_id" \
     --env "TWENTY_RELEASE_IMAGE=$twenty_image" \
     --env "RUSTFS_RELEASE_IMAGE=$rustfs_image" \
     --env "POSTGRES_RELEASE_IMAGE=$POSTGRES_IMAGE" \
@@ -149,6 +151,7 @@ pathlib.Path(os.environ["IMAGE_OUTPUT"]).write_text(json.dumps({
   "web":os.environ["WEB_IMAGE"],
   "pwa":os.environ["PWA_IMAGE"],
   "public":os.environ["PUBLIC_IMAGE"],
+  "survey-validator":os.environ["SURVEY_VALIDATOR_IMAGE"],
   "twenty-server":os.environ["TWENTY_RELEASE_IMAGE"],
   "twenty-worker":os.environ["TWENTY_RELEASE_IMAGE"],
   "rustfs":os.environ["RUSTFS_RELEASE_IMAGE"],
@@ -494,7 +497,7 @@ pathlib.Path("/proof/restic-password").write_text(secrets.token_urlsafe(48)+"\n"
 chmod 600 "$password_file"
 
 run_plan_gate
-source_old build api public pwa web
+source_old build api public pwa web survey-validator
 create_release_manifest \
   pilot-release-v1 1.0.0 \
   "$TWENTY_UPGRADE_SOURCE_IMAGE" "$RUSTFS_UPGRADE_SOURCE_IMAGE" \
@@ -594,7 +597,7 @@ record_release_event \
   2026-07-28T08:40:00Z
 
 restore_source_version
-rollback_old build api public pwa web
+rollback_old build api public pwa web survey-validator
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback failure-clone-before golden
@@ -682,7 +685,7 @@ record_release_event \
   "$release_v2" rollback_started passed PILOT-043-POST-SMOKE-ROLLBACK \
   2026-07-28T09:42:00Z
 restore_source_version
-rollback_old build api public pwa web
+rollback_old build api public pwa web survey-validator
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback rollback-restored golden

@@ -8,8 +8,10 @@ keine der in `specs/leonaid-pilot/DECISIONS.md` fälligen Entscheidungen.
 
 ## Rollen und harte Grenzen
 
-- **Release-Verantwortlicher** baut, scannt und publiziert die vier
-  LeonAid-Images in CI und erzeugt das Release-Manifest.
+- **Release-Verantwortlicher** baut, scannt und publiziert die fünf
+  LeonAid-Images (Core, Web, PWA, Public und Survey-Validator) in CI und erzeugt
+  das Release-Manifest. `LEONAID_SURVEY_VALIDATOR_IMAGE` muss wie die übrigen
+  Release-Images unveränderlich per Digest gebunden sein.
 - **Operator** promoted exakt dieses Manifest zuerst nach Staging und erst
   nach grünen Gates nach Produktion.
 - **Fachliche Freigabe** bestätigt Golden Journey, Rechnungsinhalt und

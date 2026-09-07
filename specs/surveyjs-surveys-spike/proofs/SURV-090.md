@@ -146,6 +146,69 @@ This accepts retention-originated interrupted-publication recovery. Independent
 whole-host-loss cutoff provenance, pilot Doctor/release-wrapper behavior and
 preceding-backup compatibility remain open under 090.2b / 090.A3.
 
+## Offline pilot preflight and validator release binding
+
+**090.2f / 090.S3d accepted.** Source is the implementation committed with this
+section, based on `1ca232b`. The operator audit found two concrete integration
+defects: the Doctor unconditionally probed the original installation before
+`pilot-restore`, and the pilot overlay/release inventory did not bind the new
+validator service, leaving its build configuration active.
+
+The restore-only Doctor now performs its existing local environment, image,
+backup metadata/age, disk and decision checks without the source HTTPS probes.
+Other gates still use the original DNS/TLS/API/CRM/mail/time checks. JSON reports
+label these checks `not_checked_restore`; human output also distinguishes
+preflight from target readiness. The validator has a mandatory immutable image,
+no pilot build, and membership in both deployment and release-manifest inventories.
+Existing deployment/upgrade harnesses and the image-reference allowlist include it.
+
+Command from the checkout root, using the previously built, retained image set:
+
+```sh
+rtk proxy env PYTHONPATH=. python3 tools/surveys/pilot_preflight_live.py \
+  "$PWD" leonaid-surveys-833458328-68909
+```
+
+Final command exit **0**. The test merges the actual base/pilot Compose files with
+an isolated configuration-only port overlay; it starts no Compose project and
+binds no host ports. Every Doctor/manifest CLI process uses `--network none`.
+Environment and approved/open decision files are temporary synthetic inputs;
+the repository decision register is not edited. Backup metadata is synthetic and
+tests only preflight validation, not actual Restic contents or storage availability.
+
+Observed assertions:
+
+- Restore preflight reports ready with approved inputs and explicitly unperformed
+  live checks. Open decisions return exit **2**; a 27-hour-old backup returns exit
+  **1**. `pilot-deploy` still returns exit **1**, specifically `dns_failed`, when
+  run without network access.
+- The merged pilot validator configuration has no `build` and selects the actual
+  image ID read from Docker. A mutable tag is rejected by the Doctor.
+- Real release-manifest CLI creation and verification bind this validator ID;
+  exchanging it for another immutable image or omitting it is rejected.
+- A fresh, read-only validator container starts from that exact image with
+  `--network none`, dropped capabilities and no published ports. Its health
+  reports SurveyJS **3.0.3**; an empty required answer fails completion validation
+  and a supplied synthetic answer passes. Docker inspection confirms the exact
+  image and network/port settings, then the container is removed by its returned ID.
+
+Sanitized result: [SURV-090-pilot-preflight.json](assets/SURV-090-pilot-preflight.json).
+The initial fixture omitted the required integration API key and correctly failed
+environment validation; generating all required synthetic secret fields fixed the
+fixture. The final full command above passes without changing production validation.
+
+Supporting checks: existing `tools/pilot_release/contract_test.py` passes;
+scoped Ruff passes; strict MyPy passes for Doctor, deployment validation, manifest
+and pin checker; both changed shell harnesses pass `sh -n`. Repository Docker
+image-reference checks pass. The **full pin check remains failed** on the unchanged
+React/React-DOM peer ranges `^19.2.8`; this is tracked under SURV-100 and has not
+been silently exempted or represented as green.
+
+This does not accept the complete pilot deployment/upgrade harness, pilot wrapper
+restore, image availability in a production registry, restored target readiness,
+host-loss cutoff provenance or preceding-backup/release compatibility. Those
+remaining scopes still block full recovery and spike acceptance.
+
 ## Durable erasure and process-crash recovery
 
 Source revision: `8432163` (the unchanged implementation and probe content that

@@ -32,6 +32,10 @@ services:
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
 
+  survey-validator:
+    image: ${LEONAID_SURVEY_VALIDATOR_IMAGE:?LEONAID_SURVEY_VALIDATOR_IMAGE fehlt}
+    build: !reset null
+
   worker:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}
     build: !reset null

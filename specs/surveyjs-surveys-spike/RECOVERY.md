@@ -207,6 +207,23 @@ of the newest checkpoint are not established by this test.
 
 ## Remaining integration before acceptance
 
+The pilot Doctor treats `pilot-restore` as an offline preflight. It checks the
+environment, immutable Compose image inventory, source-project/backup metadata,
+backup age, local disk and required decision register. It does not require the
+lost source installation's DNS, TLS, API, CRM or mail endpoints to respond. JSON
+reports mark these live checks `not_checked_restore`; successful preflight does
+not assert target readiness or authenticate the actual backup/checkpoint bytes.
+Other deployment gates still perform their live probes. The restore operator must
+still validate and restore the actual backup, apply the survey erasure gate and
+prove target readiness before admitting access.
+
+The pilot overlay now binds `survey-validator` through the required
+`LEONAID_SURVEY_VALIDATOR_IMAGE`, disables target-side builds and includes it in
+the release manifest. Missing, mutable or changed validator images fail the
+applicable configuration/manifest check. Older image inventories need an explicit
+compatible release checkout; do not remove the validator from a current manifest
+to force a restore through validation.
+
 - Exercise the separate pilot Doctor/release-manifest wrapper with survey
   recovery inputs; the generic no-build restore path is proven above.
 - Prove unexpected source-host loss. Retention-originated interrupted publication

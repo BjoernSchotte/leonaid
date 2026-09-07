@@ -22,6 +22,7 @@ REQUIRED_IMAGES = {
     "public",
     "pwa",
     "rustfs",
+    "survey-validator",
     "twenty-postgres",
     "twenty-redis",
     "twenty-server",

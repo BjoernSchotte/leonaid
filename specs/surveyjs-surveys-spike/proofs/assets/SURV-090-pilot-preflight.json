@@ -1,0 +1,18 @@
+{
+  "syntheticOnly": true,
+  "realDoctorCliWithNetworkNone": true,
+  "sourceUnreachableDoesNotBlockRestorePreflight": true,
+  "liveChecksExplicitlyNotClaimed": true,
+  "deploymentStillRequiresLiveSource": true,
+  "openDecisionsStillBlockRestore": true,
+  "staleBackupStillBlocksRestore": true,
+  "validatorHasNoProductionBuildAndUsesImmutableImage": true,
+  "mutableValidatorImageRejected": true,
+  "releaseManifestBindsValidatorImage": true,
+  "changedOrMissingValidatorImageRejected": true,
+  "exactPinnedValidatorRunsWithNetworkNone": true,
+  "requiredAnswerSemanticsVerified": true,
+  "limitations": [
+    "Synthetic backup metadata checks preflight only; actual pilot wrapper and Restic restore remain separate acceptance"
+  ]
+}

@@ -22,3 +22,6 @@ services:
 
   public:
     image: ${LEONAID_TEST_PUBLIC_IMAGE:?LEONAID_TEST_PUBLIC_IMAGE fehlt}
+
+  survey-validator:
+    image: ${LEONAID_TEST_SURVEY_VALIDATOR_IMAGE:?LEONAID_TEST_SURVEY_VALIDATOR_IMAGE fehlt}

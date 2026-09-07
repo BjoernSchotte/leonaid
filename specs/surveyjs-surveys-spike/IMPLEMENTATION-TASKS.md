@@ -327,6 +327,12 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3c**; existing retention browser regression.
   Full recovery acceptance remains open for independent host-loss cutoff and operator compatibility.
 
+- [x] **090.2f** Remove live-source availability from restore-only pilot preflight, explicitly report unperformed live checks, and retain environment/backup/decision validation. Require an immutable validator image in pilot Compose and release manifests, with no production build.
+
+  Acceptance criteria: **090.A3, operator preflight portion**.
+  Integration: **090.S3d**, [live evidence](proofs/SURV-090.md#offline-pilot-preflight-and-validator-release-binding).
+  Full pilot-wrapper restoration and preceding-release compatibility remain open.
+
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
   Acceptance criteria: **090.A4**.
