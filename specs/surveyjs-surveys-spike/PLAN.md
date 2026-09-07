@@ -618,9 +618,11 @@ Acceptance criteria:
 
 ### SURV-030 — Lifecycle, migrations and immutable versions
 
-Current evidence: [SURV-030](proofs/SURV-030.md), including member UI, baseline upgrades
-and scheduled closure. Acceptance 030.A1 remains open until SURV-090 proves the
-permanent-deletion edge from section 5; implementation delivery is distinct from acceptance.
+Accepted evidence: [SURV-030](proofs/SURV-030.md#complete-lifecycle-acceptance), including
+current-schema empty/baseline upgrades, all 35 lifecycle-command/state pairs,
+real worker erasure, immutable-version/concurrency checks and member UI. The
+SURV-090 storage/crash and deterministic deletion-race proofs complete the
+permanent-deletion boundary; the overall spike remains open.
 
 Dependencies: SURV-010.
 
@@ -632,12 +634,12 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **030.T1** Test migrations from empty and baseline databases, all lifecycle edges, simultaneous draft/publish writes, close/submit races, version binding and response-free duplication. Acceptance: **030.A1, 030.A2, 030.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **030.T1** Test migrations from empty and baseline databases, all lifecycle edges, simultaneous draft/publish writes, close/submit races, version binding and response-free duplication. Acceptance: **030.A1, 030.A2, 030.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 - [x] **030.T2** Automate create, publish, end, archive, trash and restore through the member UI; compare persisted lifecycle state and verify public access remains closed after restoration. Acceptance: **030.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. [Member UI and PostgreSQL evidence](proofs/SURV-060.md).
 
 Acceptance criteria:
 
-- [ ] **030.A1 — Integration:** migrations work on an empty database and an existing baseline fixture; lifecycle transition tests cover every allowed and forbidden edge in section 5.
+- [x] **030.A1 — Integration:** migrations work on an empty database and an existing baseline fixture; lifecycle transition tests cover every allowed and forbidden edge in section 5. [Current-schema and complete lifecycle evidence](proofs/SURV-030.md#complete-lifecycle-acceptance).
 - [x] **030.A2 — Integration:** simultaneous draft saves/publications cannot lose edits or create inconsistent published versions; close/submit races obey the documented transaction cutoff.
 - [x] **030.A3 — Integration:** publishing v2 leaves existing v1 participations bound to v1; new participations use v2, and duplication includes no responses or access credentials.
 - [x] **030.A4 — E2E:** after SURV-060 UI integration, create, publish, end, archive, trash and restore a survey; UI state matches the API and restoration never silently reopens participation. [Evidence](proofs/SURV-060.md).

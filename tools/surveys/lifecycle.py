@@ -1,6 +1,7 @@
 """Real API/PostgreSQL lifecycle, version and concurrency acceptance."""
 
 import asyncio
+import json
 import os
 import secrets
 from pathlib import Path
@@ -127,6 +128,106 @@ async def main():
                             response.text,
                         )
                         assert await summary(sid) == before
+            # Publication is a separate command, so include its five status edges explicitly.
+            for status in allowed:
+                sid = await create(status)
+                before = await summary(sid)
+                draft_revision = await conn.fetchval(
+                    "SELECT revision FROM survey_draft WHERE survey_id=$1", sid
+                )
+                count = await conn.fetchval(
+                    "SELECT count(*) FROM survey_version WHERE survey_id=$1", sid
+                )
+                await request(
+                    "POST",
+                    f"/api/v1/surveys/{sid}/publish",
+                    {
+                        "operationId": "publication-edge",
+                        "expectedRevision": draft_revision,
+                    },
+                    expected=200 if status in {"draft", "active"} else 409,
+                )
+                assert await conn.fetchval(
+                    "SELECT count(*) FROM survey_version WHERE survey_id=$1", sid
+                ) == count + (1 if status in {"draft", "active"} else 0)
+                if status in {"draft", "active"}:
+                    assert (await summary(sid))["status"] == "active"
+                else:
+                    assert await summary(sid) == before
+
+            # Permanent deletion is legal only from trash, for published and unpublished surveys.
+            for status in allowed:
+                sid = await create(status)
+                before = await summary(sid)
+                body = {
+                    "operationId": "permanent-edge",
+                    "expectedRevision": before["revision"],
+                }
+                await request(
+                    "POST",
+                    f"/api/v1/surveys/{sid}/delete-permanently",
+                    body,
+                    expected=200 if status == "deleted" else 409,
+                )
+                if status != "deleted":
+                    assert await summary(sid) == before
+                    assert not await conn.fetchval(
+                        "SELECT EXISTS(SELECT 1 FROM survey_deletion WHERE survey_id=$1)",
+                        sid,
+                    )
+                    continue
+                async with asyncio.timeout(30):
+                    while not await conn.fetchval(
+                        "SELECT completed_at IS NOT NULL FROM survey_deletion WHERE survey_id=$1",
+                        sid,
+                    ):
+                        await asyncio.sleep(0.1)
+                assert (
+                    await request(
+                        "POST", f"/api/v1/surveys/{sid}/delete-permanently", body
+                    )
+                )["status"] == "completed"
+                for action in ("end", "archive", "unarchive", "trash", "restore"):
+                    await request(
+                        "POST",
+                        f"/api/v1/surveys/{sid}/transition",
+                        {
+                            "operationId": str(uuid4()),
+                            "expectedRevision": before["revision"],
+                            "action": action,
+                        },
+                        expected=404,
+                    )
+                await request(
+                    "POST",
+                    f"/api/v1/surveys/{sid}/publish",
+                    {"operationId": "republish-erased", "expectedRevision": 1},
+                    expected=404,
+                )
+                assert not await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM survey WHERE id=$1)", sid
+                )
+            unpublished = await create()
+            trashed = await transition(unpublished, "trash")
+            await request(
+                "POST",
+                f"/api/v1/surveys/{unpublished}/delete-permanently",
+                {
+                    "operationId": "erase-unpublished",
+                    "expectedRevision": trashed["revision"],
+                },
+            )
+            async with asyncio.timeout(30):
+                while not await conn.fetchval(
+                    "SELECT completed_at IS NOT NULL FROM survey_deletion WHERE survey_id=$1",
+                    unpublished,
+                ):
+                    await asyncio.sleep(0.1)
+            assert not await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM survey_draft WHERE survey_id=$1)",
+                unpublished,
+            )
+
             # Restoring an unpublished draft is the only restore-to-draft edge.
             draft_id = await create()
             await transition(draft_id, "trash")
@@ -277,8 +378,25 @@ async def main():
                 "GET", f"/api/v1/public/surveys/{sid}", headers={}, expected=409
             )
             await request("GET", base, headers={}, expected=401)
+            Path("/proof/lifecycle-proof.json").write_text(
+                json.dumps(
+                    {
+                        "syntheticOnly": True,
+                        "lifecycleActionPairs": 25,
+                        "permanentDeletionStatusCases": 5,
+                        "publicationStatusCases": 5,
+                        "unpublishedErasure": True,
+                        "postErasureTransitionsRejected": 5,
+                        "postErasurePublicationRejected": True,
+                        "actualWorkerCompletedBothErasures": True,
+                        "draftPublicationVersionAndDuplicationAssertions": True,
+                    },
+                    indent=2,
+                )
+                + "\n"
+            )
             print(
-                "PASS: 25 lifecycle/action pairs, draft restore, stale edits/publication races, immutable versions, close/complete cutoff, idempotent end and isolated duplication"
+                "PASS: permanent deletion state matrix and real worker erasure; 25 lifecycle/action pairs, draft restore, stale edits/publication races, immutable versions, close/complete cutoff, idempotent end and isolated duplication"
             )
         finally:
             await conn.execute("DELETE FROM survey WHERE id=ANY($1::uuid[])", ids)

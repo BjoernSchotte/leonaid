@@ -1,8 +1,9 @@
 # SURV-030 — Lifecycle and version evidence
 
-Date: 2026-09-06. Status: partial. Member lifecycle UI, baseline migration and
-scheduled closure evidence are recorded below. Permanent deletion is still open
-in SURV-090 and prevents claiming every edge of PLAN section 5 is accepted.
+Status: **accepted** for SURV-030. The final lifecycle matrix and current-schema
+migration acceptance below close 030.A1 and 030.T1. Earlier dated sections retain
+the evidence and limitations at their execution time; later sections supersede
+their open acceptance status. The complete spike remains in progress.
 
 ## Implementation
 
@@ -157,15 +158,15 @@ Ruff checks passed. The generated OpenAPI/client contains the schedule route.
 
 | Task | Delivered scope | Required criteria | Named integration / E2E proof | Acceptance gap |
 |---|---|---|---|---|
-| 030.1 | Schema/repository and draft/active/ended/archived/trash lifecycle | 030.A1, 030.A4 | migrations.py empty/upgrade; lifecycle.py transitions; surveys-module.spec.mjs member journey | A1 includes permanent deletion edge, still pending SURV-090 |
+| 030.1 | Schema/repository and draft/active/ended/archived/trash lifecycle | 030.A1, 030.A4 | migrations.py empty/upgrade; lifecycle.py transitions; surveys-module.spec.mjs member journey | Passed: current-schema migration and final lifecycle matrix below, plus SURV-090 erasure evidence |
 | 030.2 | Revisioned drafts, immutable versions, version binding, isolated duplicate | 030.A2, 030.A3 | lifecycle.py concurrent saves/publications, v1/v2 binding and duplicate SQL checks | Passed in recorded lifecycle runs |
-| 030.3 | Transactional manual/scheduled closure and closed restoration | 030.A1, 030.A2, 030.A4 | schedule.py prepare/recover; lifecycle.py cutoff and transition matrix; member UI journey | A1 remains open for permanent deletion |
-| 030.T1 | Live migrations, transition/race/version tests, schedule restart test | 030.A1–030.A3 | Named scripts above, actual API/PostgreSQL/worker | Full section-5 edge coverage awaits permanent deletion |
+| 030.3 | Transactional manual/scheduled closure and closed restoration | 030.A1, 030.A2, 030.A4 | schedule.py prepare/recover; lifecycle.py cutoff and transition matrix; member UI journey | Passed: final lifecycle matrix and actual erasure below |
+| 030.T1 | Live migrations, transition/race/version tests, schedule restart test | 030.A1–030.A3 | Named scripts above, actual API/PostgreSQL/worker | Passed: final 35-case matrix, unpublished restore/erasure and post-erasure rejection below |
 | 030.T2 | Full member lifecycle and public closure UI | 030.A4 | surveys-module.spec.mjs member manages lifecycle and timeout through the real module | Passed; scheduled date field additionally covered |
 
-No permanent deletion implementation or full spike acceptance is inferred from
-SQL fixture cleanup. The implementation checkboxes for 030.1/030.3 record the
-delivered domain/lifecycle scope; their task acceptance stays open through A1.
+Permanent deletion acceptance now uses real durable worker erasure below and
+SURV-090 evidence, not SQL fixture cleanup. The current-schema migration and
+complete lifecycle matrix close A1; the full spike remains open.
 
 ## Worker/runner regression after scheduled closure
 
@@ -181,3 +182,79 @@ Its isolated networks/volumes were removed; no host ports were published.
 The source tested by these runs is committed together with this proof update;
 only documentation was changed after execution. No public push was performed:
 the existing automatic publication rejection still requires explicit approval.
+
+## Current-schema migration acceptance
+
+The previous harness expected revision `0031_survey_exports`. It now requires
+`0034_survey_recovery_identity`, includes the deletion ledger and installation
+identity tables, and validates disabled retention defaults and one non-null
+installation identity. The underlying production migrations were unchanged.
+
+```sh
+rtk proxy sh tools/surveys/migrations.sh "$PWD"
+```
+
+Project `surveys-migrations-833458328-15860` completed with exit 0. Empty → head
+and populated pre-survey baseline → head both passed, including repeated upgrades.
+All 46 legacy table row counts and SHA-256 fingerprints remained identical before
+and after migration and the rolled-back constraint tests. Both paths passed 30
+PostgreSQL invariant checks. New checks cover retention bounds and accountable
+configuration, recovery identity singleton enforcement, content-free deletion
+operation digests, blocked writes/recreation after erasure intent, and persistence
+of the ledger after the referenced survey is removed. The temporary container,
+volume, image and internal network were removed; no host ports were published.
+
+Sanitized reports: [empty at 0034](assets/SURV-030-migration-0034-empty.json) and
+[baseline upgrade at 0034](assets/SURV-030-migration-0034-upgrade.json). These add
+current-schema evidence without overwriting the earlier migration reports. They
+do not simulate pre-existing closed surveys at 0031 for retention backfill, nor
+claim checkpoint continuity or recovery across schema downgrades.
+
+## Complete lifecycle acceptance
+
+Production source remains `99b363e`; this increment changes test coverage and
+proof records. The final `tools/surveys/lifecycle.py` and harness content were
+unchanged during the accepted run.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" lifecycle
+```
+
+Final project `leonaid-surveys-833458328-16460` completed with exit 0. In addition
+to the existing response, scheduled closure/restart, version binding, concurrent
+publication/save and duplication checks, the live API/PostgreSQL test now covers:
+
+- 25 manual transition pairs: five states times end/archive/unarchive/trash/restore.
+- Five publication pairs: draft and active create a new immutable version;
+  ended, archived and trash reject with 409, preserving both summary and version count.
+- Five permanent-deletion pairs: only trash accepts a durable request; the four
+  other states return 409 without a ledger entry or summary change.
+- The actual background worker completes published and unpublished erasure.
+  A repeated published-erasure request reports completed; all five later manual
+  transitions and publication return 404. PostgreSQL confirms the published survey
+  and unpublished draft are absent. This is not direct SQL fixture deletion.
+- Unpublished trash still restores to draft; published trash restores to ended.
+  The existing manual/scheduled cutoff checks reject public reopening and late writes.
+
+The three Chromium tests passed in 4.6 s: real member/public host identity,
+member lifecycle and timeout/schedule controls, and the mobile scoped designer.
+The subsequent independent PostgreSQL check confirmed lifecycle/restoration,
+action association and settings. Existing response/schedule scripts emitted an
+httpx per-request-cookie deprecation warning; their assertions and command passed.
+Fresh isolated volumes and currently unused explicit subnets were used without
+host ports; owned resources were removed and teardown verified.
+
+An earlier run (`leonaid-surveys-833458328-15893`) passed the new permanent-deletion
+matrix and three browser tests (4.7 s). Review then identified missing explicit
+publication-from-each-state assertions. The final run above includes those five
+additional cases; it is the basis for complete transition acceptance.
+
+Sanitized matrix result: [SURV-030-lifecycle-complete.json](assets/SURV-030-lifecycle-complete.json).
+The detailed actual storage deletion/crash and deterministic autosave/completion/
+export race proofs remain in [SURV-090](SURV-090.md#deterministic-deletion-interleavings).
+Current empty/baseline migration evidence is in the preceding section. Ruff for
+both modified Python probes, shell syntax and `git diff --check` passed.
+
+Together these directly satisfy 030.A1–030.A4 and 030.T1/T2. This accepts SURV-030;
+it does not accept the remaining persona matrix, independent recovery checkpoint
+continuity, limits/log handling or overall SURV-100 gates.

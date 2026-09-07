@@ -296,6 +296,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = lifecycle ]; then
+  cp "$proof/lifecycle-proof.json" "$artifact/"
+fi
 if [ "$mode" = deletion-ui ]; then
   cp "$proof/deletion-ui-proof.json" "$artifact/"
   cp "$proof/deletion-confirm-mobile.png" "$artifact/"

@@ -22,9 +22,11 @@ TABLES = {
     "survey_invitation",
     "survey_analysis_snapshot",
     "survey_export_job",
+    "survey_deletion",
+    "survey_recovery_identity",
 }
 BASELINE = "0026_invoice_payment_snapshot"
-HEAD = "0031_survey_exports"
+HEAD = "0034_survey_recovery_identity"
 
 
 async def fingerprints(conn, tables):
@@ -278,6 +280,58 @@ async def constraints(conn):
             "answer": "Synthetic retained answer"
         }
         checked.append("effective partial status preserves answers")
+        await rejected(
+            "positive retention duration",
+            "UPDATE survey_settings SET ended_retention_seconds=0,retention_configured_by=$1",
+            owner,
+        )
+        await rejected(
+            "bounded retention duration",
+            "UPDATE survey_settings SET trash_retention_seconds=315360001,retention_configured_by=$1",
+            owner,
+        )
+        await rejected(
+            "retention requires accountable actor",
+            "UPDATE survey_settings SET ended_retention_seconds=3600,retention_configured_by=NULL",
+        )
+        await rejected(
+            "singleton recovery identity",
+            "INSERT INTO survey_recovery_identity(singleton) VALUES(false)",
+        )
+        await rejected(
+            "deletion record requires content-free operation digest",
+            "INSERT INTO survey_deletion(survey_id,requested_by,operation_hash,expected_revision,event_id) VALUES($1,$2,'raw operation',1,$3)",
+            second,
+            owner,
+            uuid4(),
+        )
+        await conn.execute(
+            "INSERT INTO survey_deletion(survey_id,requested_by,operation_hash,expected_revision,event_id) VALUES($1,$2,$3,1,$4)",
+            second,
+            owner,
+            "0" * 64,
+            uuid4(),
+        )
+        await rejected(
+            "erasure intent blocks updates",
+            "UPDATE survey SET title='recreated content' WHERE id=$1",
+            second,
+        )
+        await conn.execute("DELETE FROM survey WHERE id=$1", second)
+        await rejected(
+            "erasure intent blocks identity recreation",
+            "INSERT INTO survey(id,title,owner_user_id) VALUES($1,'recreated',$2)",
+            second,
+            owner,
+        )
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM survey_deletion WHERE survey_id=$1", second
+            )
+            == 1
+        )
+        checked.append("deletion ledger survives survey removal")
+
     finally:
         await transaction.rollback()
     return checked
@@ -318,7 +372,7 @@ async def main():
             await conn.fetchval("SELECT revision FROM survey_settings WHERE singleton")
             == 1
         )
-        for table in TABLES - {"survey_settings"}:
+        for table in TABLES - {"survey_settings", "survey_recovery_identity"}:
             assert await conn.fetchval(f"SELECT count(*) FROM {table}") == 0
         if mode == "upgrade":
             baseline = json.loads(baseline_path.read_text())
@@ -326,6 +380,13 @@ async def main():
             assert actual == baseline["tables"], (
                 "Pre-existing data changed during survey migrations"
             )
+        assert await conn.fetchval("SELECT count(*) FROM survey_recovery_identity") == 1
+        assert await conn.fetchval(
+            "SELECT installation_id FROM survey_recovery_identity WHERE singleton"
+        )
+        assert await conn.fetchval(
+            "SELECT ended_retention_seconds IS NULL AND trash_retention_seconds IS NULL AND retention_configured_by IS NULL FROM survey_settings WHERE singleton"
+        )
         checked = await constraints(conn)
         if mode == "upgrade":
             assert (
