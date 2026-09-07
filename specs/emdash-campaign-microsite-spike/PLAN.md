@@ -2506,6 +2506,37 @@ keyboard and 200% zoom checks.
 
 ### EMS-070 — Add same-domain TLS routing and secure first-run setup
 
+- [x] Show mixed-unit accepted-order quantities from persisted Core line
+      snapshots in both native SSR and enhanced JavaScript confirmations.
+      Verify box, package, piece and sponsoring together, including exact native
+      POST retries, against actual Core SQL and isolated Twenty.
+      `./leonaid test-emdash-spike --case campaign-orders` passed in isolated
+      project `leonaid-emdash-tmp-htjxpzo4bi`: 24 accepted browser orders across
+      Chromium, Firefox and WebKit, desktop JS and mobile no-JS, including six
+      mixed orders. All twelve native POST retries kept the original reference
+      and quantity summary with no extra orders. The additive Core `quantities`
+      response uses persisted line snapshots with deterministic ordering; legacy
+      totals remain available. Mixed confirmations show three boxes (72 pieces),
+      two packages, four pieces and one sponsoring for 115 EUR. Actual Core SQL
+      verified line units, contents, prices, consent and audit evidence; actual
+      Twenty reads verified company/person records. Chromium and WebKit mobile
+      screenshots in `tmp.KOLjkVELx8` were visually inspected. All twelve prior
+      failure/redisplay cases, 84 valid-payload public denials, 364 ingress
+      method/path denials, publication states and Core outage checks passed.
+      All owned containers, volumes and networks were removed; no host ports
+      were published. This is paced functional evidence, not burst acceptance.
+- [ ] Resolve and live-prove bounded burst/uncertain-outcome behaviour. Two
+      unpaced 24-order browser runs (`leonaid-emdash-tmp-iefyq9xuvg` and
+      `leonaid-emdash-tmp-bwmrkpeu7j`) accepted the first 17 orders but the next
+      WebKit native existing-company order returned Astro HTTP 200 with an
+      uncertain-submission message instead of a confirmation. The latter's
+      synthetic screenshot was inspected; all owned resources were cleaned.
+      Core's 100 CRM requests/minute limiter versus Astro's 12-second mutation
+      timeout is a hypothesis, not yet a measured cause. Functional acceptance
+      now spaces visitors eight seconds apart, without changing either limit;
+      a paced pass must not be reported as resolving this burst failure. Prove
+      bounded rejection/retry, preserved command identity, no duplicate orders
+      or CRM records, and acceptable resource use under combined Core/CMS load.
 - [x] Live-prove accepted campaign orders against real isolated Twenty using
       `./leonaid test-emdash-spike --case campaign-orders`. The pinned stack
       provisions its own Twenty database, Redis, worker and schema. A short-lived

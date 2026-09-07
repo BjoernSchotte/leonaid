@@ -307,6 +307,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
+    PublicOrderQuantityResponse,
     PublicOrderResultResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
@@ -1808,6 +1809,21 @@ def public_order_result_response(
         currency=result.commitment.total.currency,
         total_boxes=result.commitment.total_boxes,
         total_pieces=result.commitment.total_pieces,
+        quantities=[
+            PublicOrderQuantityResponse(
+                unit=line.unit_snapshot.value,
+                quantity=line.quantity,
+                pieces_per_unit=line.pieces_per_unit_snapshot,
+            )
+            for line in sorted(
+                result.commitment.lines,
+                key=lambda line: (
+                    line.unit_snapshot.value,
+                    line.pieces_per_unit_snapshot or 0,
+                    str(line.offering_id),
+                ),
+            )
+        ],
         crm_outcome=result.crm_outcome.value,
         replayed=result.replayed,
     )

@@ -195,10 +195,7 @@
           }).format(result.data.totalMinor / 100);
         }
         if (quantity) {
-          quantity.textContent =
-            result.data.totalBoxes > 0
-              ? `${result.data.totalBoxes} ${result.data.totalBoxes === 1 ? "Box" : "Boxen"} · ${result.data.totalPieces} Stück`
-              : `${result.data.totalPieces} Stück`;
+          quantity.textContent = orderQuantitySummary(result.data.quantities);
         }
         form.hidden = true;
         success.hidden = false;

@@ -4,6 +4,11 @@ import { chromium, firefox, webkit } from "playwright";
 
 const path = "/campaigns/krapfentaxi-2026/";
 const orders = [];
+// Functional acceptance, not a burst/load test: each order performs several
+// CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
+// synthetic visitors eight seconds apart; deadline/load behaviour is a separate
+// required gate, including the observed unpaced 18th-order failure.
+let nextOrderAt = 0;
 for (const [engineName, engine] of Object.entries({
   chromium,
   firefox,
@@ -12,8 +17,17 @@ for (const [engineName, engine] of Object.entries({
   const browser = await engine.launch({ headless: true });
   try {
     for (const javaScriptEnabled of [false, true]) {
-      for (const scenario of ["new-company", "existing-company", "person"]) {
+      for (const scenario of [
+        "new-company",
+        "existing-company",
+        "person",
+        "mixed",
+      ]) {
         const label = `${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
+        );
+        nextOrderAt = Date.now() + 8000;
         console.log(`campaign-orders: starting ${label}`);
         const context = await browser.newContext({
           ignoreHTTPSErrors: true,
@@ -32,13 +46,16 @@ for (const [engineName, engine] of Object.entries({
         );
         const form = page.locator("[data-order-form]");
         const quantity =
-          scenario === "new-company" ? 2 : scenario === "person" ? 3 : 1;
-        const company =
           scenario === "new-company"
-            ? `Synthetic ${label} GmbH`
-            : scenario === "existing-company"
-              ? "Musterwerk GmbH"
-              : "";
+            ? 2
+            : ["person", "mixed"].includes(scenario)
+              ? 3
+              : 1;
+        const company = ["new-company", "mixed"].includes(scenario)
+          ? `Synthetic ${label} GmbH`
+          : scenario === "existing-company"
+            ? "Musterwerk GmbH"
+            : "";
         const email = `${label}@leonaid.invalid`;
         const fields = {
           companyName: company,
@@ -55,6 +72,14 @@ for (const [engineName, engine] of Object.entries({
         // Follow the visible form order instead of jumping back to its top
         // immediately before clicking consent on a long, smoothly scrolled page.
         await form.locator('[name="quantity"]').first().fill(String(quantity));
+        if (scenario === "mixed") {
+          for (const [index, value] of [3, 2, 4, 1].entries()) {
+            await form
+              .locator('[name="quantity"]')
+              .nth(index)
+              .fill(String(value));
+          }
+        }
         for (const [name, value] of Object.entries(fields))
           await form.locator(`[name="${name}"]`).fill(value);
         try {
@@ -92,8 +117,12 @@ for (const [engineName, engine] of Object.entries({
             new URL(response.url()).pathname ===
               (javaScriptEnabled ? "/_actions/createPublicOrder/" : path),
         );
+        const submissionStartedAt = Date.now();
         await form.locator('[type="submit"]').click();
         const response = await submitted;
+        console.log(
+          `campaign-orders: ${label}; Astro response after ${Date.now() - submissionStartedAt}ms`,
+        );
         assert.equal(response.request().redirectedFrom(), null);
         assert.equal(
           response.status(),
@@ -101,14 +130,33 @@ for (const [engineName, engine] of Object.entries({
           `Astro order response for ${label}`,
         );
         const success = page.locator("[data-order-success]:visible");
-        await success.waitFor({ timeout: 20000 });
+        try {
+          await success.waitFor({ timeout: 20000 });
+        } catch (error) {
+          await page.screenshot({
+            path: `/visual-proof/order-failure-${label}.png`,
+            fullPage: true,
+          });
+          console.log(
+            `campaign-orders: failure screenshot retained for ${label}`,
+          );
+          throw error;
+        }
         const reference = (
           await success.locator("[data-order-reference]").textContent()
         ).trim();
         assert.match(reference, /^LA-[A-F0-9]{32}$/);
         assert.match(
           await success.locator("[data-order-total]").textContent(),
-          new RegExp(`${quantity * 36},00`),
+          new RegExp(`${scenario === "mixed" ? 115 : quantity * 36},00`),
+        );
+        const expectedQuantity =
+          scenario === "mixed"
+            ? "3 Boxen (72 Stück) · 2 Pakete · 4 Stück · 1 Sponsoring"
+            : `${quantity} ${quantity === 1 ? "Box" : "Boxen"} (${quantity * 24} Stück)`;
+        assert.equal(
+          (await success.locator("[data-order-quantity]").textContent()).trim(),
+          expectedQuantity,
         );
         assert.equal(
           await page.locator("[data-order-form]:visible").count(),
@@ -145,6 +193,10 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(
             (await page.locator("[data-order-reference]").textContent()).trim(),
             reference,
+          );
+          assert.equal(
+            (await page.locator("[data-order-quantity]").textContent()).trim(),
+            expectedQuantity,
           );
           nativeReplay = true;
         }

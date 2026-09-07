@@ -8346,6 +8346,45 @@
         "title": "PublicOrderPartyRequest",
         "type": "object"
       },
+      "PublicOrderQuantityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "piecesPerUnit": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Piecesperunit"
+          },
+          "quantity": {
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "piece",
+              "package",
+              "sponsoring"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "quantity",
+          "piecesPerUnit"
+        ],
+        "title": "PublicOrderQuantityResponse",
+        "type": "object"
+      },
       "PublicOrderResultResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8369,6 +8408,14 @@
           "publicReference": {
             "title": "Publicreference",
             "type": "string"
+          },
+          "quantities": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderQuantityResponse"
+            },
+            "minItems": 1,
+            "title": "Quantities",
+            "type": "array"
           },
           "replayed": {
             "title": "Replayed",
@@ -8403,6 +8450,7 @@
           "currency",
           "totalBoxes",
           "totalPieces",
+          "quantities",
           "crmOutcome",
           "replayed"
         ],

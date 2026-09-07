@@ -112,9 +112,7 @@ const quantitySummary = orderQuantitySummary(
               <div>
                 <dt>Menge</dt>
                 <dd data-order-quantity>
-                  {serverOrder.totalBoxes > 0
-                    ? `${serverOrder.totalBoxes} ${serverOrder.totalBoxes === 1 ? "Box" : "Boxen"} · ${serverOrder.totalPieces} Stück`
-                    : `${serverOrder.totalPieces} Stück`}
+                  {orderQuantitySummary(serverOrder.quantities)}
                 </dd>
               </div>
             </dl>

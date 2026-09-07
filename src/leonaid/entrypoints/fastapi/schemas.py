@@ -843,6 +843,12 @@ class CreatePublicOrderRequest(TransportModel):
     website: str | None = Field(default=None, max_length=300)
 
 
+class PublicOrderQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int = Field(gt=0)
+    pieces_per_unit: int | None = Field(gt=0)
+
+
 class PublicOrderResultResponse(TransportModel):
     commitment_id: UUID
     public_reference: str
@@ -851,6 +857,7 @@ class PublicOrderResultResponse(TransportModel):
     currency: str
     total_boxes: int = Field(ge=0)
     total_pieces: int = Field(ge=0)
+    quantities: list[PublicOrderQuantityResponse] = Field(min_length=1)
     crm_outcome: Literal["created", "reused"]
     replayed: bool
 
