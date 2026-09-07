@@ -1421,8 +1421,8 @@ Dependencies: EMS-030 successful
       Initial runs exposed missing image validation in the Charity manifest
       and an incorrect test assumption about `liveData` after publication; both
       were corrected and those isolated stacks were fully cleaned.
-      Remaining image UX evidence includes same-SPA campaign switching and
-      creation, social/partner-logo selection, search/pagination, upload failure
+      Remaining image UX evidence at this checkpoint included same-SPA campaign
+      switching, creation, social/partner-logo selection, search/pagination, upload failure
       recovery, mobile/keyboard/accessibility and comprehensive two-actor browser
       isolation. Public media delivery and fresh restore are still open.
       Post-commit gates at `4106a21`: `./leonaid check` passed all 208 unit tests,
@@ -1432,6 +1432,26 @@ Dependencies: EMS-030 successful
       HTTPS requests in `leonaid-emdash-tmp-nof8giez6b`, including bootstrap
       closure after restart/database failure and complete owned-resource cleanup;
       no host ports were published.
+- [x] Preserve nested partner-logo MIME validation in the pinned native image
+      renderer and prove hero, social and partner images through the real editor.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-ukugo7kgxq` with real
+      Core, EmDash, PostgreSQL, private RustFS and project-CA-verified HTTPS.
+      Chromium, Firefox and WebKit each used SMTP Core login, uploaded a hero
+      image, removed/reassigned social and partner images, saved/reloaded their
+      actual previews and published matching image references. Native list/editor
+      links switched between two assigned campaigns without a document reload
+      (`performance.timeOrigin` unchanged): each picker showed only its own
+      images and a second-campaign save left the first published item unchanged.
+      Logout denied subsequent private image reads. The same run passed reference
+      isolation, five real database-wait/logout races, storage failure/retry,
+      membership withdrawal, Core outage and closed bootstrap after restart and
+      database failure. No host ports were published; owned resources were removed.
+      The preceding run reached publication but exposed a test selector that
+      omitted native locale query parameters; that selector was corrected without
+      replacing native navigation or weakening same-document assertions.
+      Creation with images, search/pagination, browser upload failure recovery,
+      mobile/keyboard/accessibility, full two-actor browser isolation, public
+      media and fresh restore remain open. This does not complete EMS-040.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation

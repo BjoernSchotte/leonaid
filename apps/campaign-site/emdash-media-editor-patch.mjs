@@ -45,6 +45,10 @@ export function patchCampaignMediaEditor(source) {
     "mutationFn: (file) => uploadMedia(file, { fieldId, campaign }),",
   );
   replace(
+    "\t\t\tonChange: (v) => onChange(v),\n\t\t\trequired: subField.required\n\t\t});\n\t\tdefault:",
+    "\t\t\tonChange: (v) => onChange(v),\n\t\t\trequired: subField.required,\n\t\t\tallowedMimeTypes: subField.validation?.allowedMimeTypes\n\t\t});\n\t\tdefault:",
+  );
+  replace(
     "async function fetchMediaList(options) {\n\tconst params = new URLSearchParams();",
     'async function fetchMediaList(options) {\n\tconst params = new URLSearchParams();\n\tif (options?.campaign) params.set("campaign", options.campaign);',
   );

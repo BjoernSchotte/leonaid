@@ -7,6 +7,7 @@ const origin = "https://proxy:8443";
 const root = "/_emdash/api/content/campaign_pages";
 const editor = "/_emdash/admin/content/campaign_pages";
 const action = "20000000-0000-4000-8000-000000000001";
+const secondAction = "20000000-0000-4000-8000-000000000041";
 const state = JSON.parse(
   await readFile("/proof/media-http-state.json", "utf8"),
 );
@@ -131,6 +132,74 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       )
       .toBe(true);
     assert.equal((await json(apiPath)).item.data.hero_image.id, uploaded.id);
+    const selectExisting = async (widget, targetFilename, targetPath) => {
+      const change = widget.getByRole("button", {
+        name: "Change",
+        exact: true,
+      });
+      if (await change.count()) {
+        const removed = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === targetPath &&
+            response.request().method() === "PUT",
+        );
+        await widget
+          .getByRole("button", { name: "Remove image", exact: true })
+          .click();
+        assert.equal((await removed).status(), 200);
+        await expect(
+          page.getByRole("button", { name: "Saved", exact: true }),
+        ).toBeVisible();
+      }
+      await widget
+        .getByRole("button", { name: "Select image", exact: true })
+        .click();
+      const picker = page.getByRole("dialog");
+      await picker
+        .getByRole("button", { name: targetFilename, exact: true })
+        .click();
+      const accepted = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === targetPath &&
+          response.request().method() === "PUT",
+      );
+      await picker.getByRole("button", { name: "Insert", exact: true }).click();
+      assert.equal((await accepted).status(), 200);
+      await expect(picker).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Saved", exact: true }),
+      ).toBeVisible();
+    };
+    await selectExisting(
+      page.locator("#field-social_image"),
+      filename,
+      apiPath,
+    );
+    await selectExisting(
+      page.getByText("Partner logo", { exact: true }).locator(".."),
+      filename,
+      apiPath,
+    );
+    const extendedDraft = (await json(apiPath)).item;
+    assert.equal(extendedDraft.data.social_image.id, uploaded.id);
+    assert.equal(extendedDraft.data.partners[0].logo.id, uploaded.id);
+    await page.reload();
+    await expect
+      .poll(() =>
+        page
+          .locator("#field-social_image img")
+          .evaluate((img) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page
+          .getByText("Partner logo", { exact: true })
+          .locator("..")
+          .locator("img")
+          .evaluate((img) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
     const published = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === `${apiPath}/publish` &&
@@ -146,11 +215,108 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.equal(live.draftRevisionId, null);
     assert.ok(live.liveRevisionId);
     assert.equal(live.data.hero_image.id, uploaded.id);
+    assert.equal(live.data.social_image.id, uploaded.id);
+    assert.equal(live.data.partners[0].logo.id, uploaded.id);
     assert.equal(
       (await json(`/_emdash/api/revisions/${live.liveRevisionId}`)).item.data
         .hero_image.id,
       uploaded.id,
     );
+    // Real native links retain this document and its React Query cache. Prove
+    // campaign switching, not a hard navigation that would erase a stale cache.
+    const documentTime = await page.evaluate(() => performance.timeOrigin);
+    const second = list.items.find(
+      (item) => item.data.action_id === secondAction,
+    );
+    assert.ok(second);
+    const secondPath = `${root}/${second.id}`;
+    const secondBefore = (await json(secondPath)).item;
+    const secondMedia = (
+      await json(`/_emdash/api/media?campaign=${secondAction}`)
+    ).items;
+    assert.equal(secondMedia.length, 1);
+    await page.getByRole("link", { name: /^Back to .* list$/ }).click();
+    await page.waitForURL((url) => url.pathname === editor);
+    await page
+      .locator(
+        `a[href="${editor}/${second.id}"], a[href^="${editor}/${second.id}?"]`,
+      )
+      .first()
+      .click();
+    await page.waitForURL((url) => url.pathname === `${editor}/${second.id}`);
+    await expect(page.locator("#field-title")).toHaveValue(
+      secondBefore.data.title,
+    );
+    assert.equal(
+      await page.evaluate(() => performance.timeOrigin),
+      documentTime,
+    );
+    const changedList = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/_emdash/api/media" &&
+        new URL(response.url()).searchParams.get("campaign") === secondAction,
+    );
+    await page
+      .locator("#field-hero_image")
+      .getByRole("button", { name: "Change", exact: true })
+      .click();
+    assert.equal((await changedList).status(), 200);
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: filename, exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: secondMedia[0].filename, exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await selectExisting(
+      page.locator("#field-social_image"),
+      secondMedia[0].filename,
+      secondPath,
+    );
+    assert.equal(
+      (await json(secondPath)).item.data.social_image.id,
+      secondMedia[0].id,
+    );
+    assert.deepEqual((await json(apiPath)).item, live);
+    await page.getByRole("link", { name: /^Back to .* list$/ }).click();
+    await page.waitForURL((url) => url.pathname === editor);
+    await page
+      .locator(
+        `a[href="${editor}/${entry.id}"], a[href^="${editor}/${entry.id}?"]`,
+      )
+      .first()
+      .click();
+    await page.waitForURL((url) => url.pathname === `${editor}/${entry.id}`);
+    await expect(page.locator("#field-title")).toHaveValue(live.data.title);
+    assert.equal(
+      await page.evaluate(() => performance.timeOrigin),
+      documentTime,
+    );
+    await page
+      .locator("#field-hero_image")
+      .getByRole("button", { name: "Change", exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: filename, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: secondMedia[0].filename, exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
     await coreLogout(context, page, editor, root);
     assert.equal(
       (
@@ -162,7 +328,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     await context.close();
     console.log(
-      `campaign-media-browser: ${name}: actual SMTP Core login, scoped native picker/list/thumbnail, native upload/insert/save/reload/publish and private preview denied after logout`,
+      `campaign-media-browser: ${name}: actual SMTP Core login; native hero upload, social image and nested partner logo save/reload/publication; same-document two-campaign picker switching with isolated cache and writes; private preview denied after logout`,
     );
   } finally {
     await browser.close();

@@ -36,6 +36,11 @@ const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
 assert.ok(revisioned.includes("React$1.useContext(LeonAidMediaCampaign)"));
 assert.ok(revisioned.includes('"media",\n\t\tcampaign,'));
+assert.ok(
+  revisioned.includes(
+    "required: subField.required,\n\t\t\tallowedMimeTypes: subField.validation?.allowedMimeTypes",
+  ),
+);
 const mediaKey =
   "campaigns/20000000-0000-4000-8000-000000000001/30000000-0000-4000-8000-000000000001.png";
 for (const representation of [mediaKey, encodeURIComponent(mediaKey)]) {

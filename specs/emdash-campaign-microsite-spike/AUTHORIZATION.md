@@ -167,6 +167,17 @@ denied. Normal Core, ready-state and byte/hash checks apply to both accepted
 representations. The native picker exposes local storage only, no URL/provider
 selection. Existing field widgets, upload feedback and persistence flows remain
 EmDash's own; no fetch interception or substitute editor was introduced.
+The pinned nested image-field renderer also forwards its source validation to
+the native picker, preserving the same exact raster MIME allowlist for partner
+logos as for top-level images. It does not broaden server-side admission.
+The three-browser proof now exercises native hero upload, social-image and
+partner-logo removal/selection, autosave, persisted previews and publication.
+Native list/editor links then switch between two assigned campaigns in the same
+document (verified by an unchanged `performance.timeOrigin`), proving picker
+cache isolation and that editing the second campaign leaves the first unchanged.
+This is distinct from two-actor browser isolation, creation with images,
+pagination, failure recovery and anonymous published-media delivery; those
+requirements remain open.
 
 Canonical authorized admin editor/list HTML routes under
 `/_emdash/admin/content/campaign_pages` now use the same completed-bootstrap,
