@@ -2,19 +2,19 @@
 
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
 **080.1 is accepted; 080.2 and 080.3 remain open.**
-Criteria 080.A1, A2, A4 and A6 are proven below. Permission-race and workbook
-render gates remain open; SURV-080 is not complete. Earlier sections record the
+Criteria 080.A1, A2, A3, A4 and A6 are proven below; 080.T1 is accepted. The
+workbook render gate and remaining task review stay open; SURV-080 is not complete. Earlier sections record the
 evidence and limitations of their respective increments.
 
 ## Task ledger
 
 | Task | Delivered building block | Remaining acceptance |
 |---|---|---|
-| 080.1 | CSV, response XLSX and analysis XLSX through real worker/private storage and parsed API downloads | Export UI and complete raw-export denial journey |
-| 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review | Export UI and rendered XLSX review |
-| 080.3 | Durable jobs, current permission checks, private storage and protected downloads | Failure/retry/crash tests and complete revocation/deletion matrix |
-| 080.T1 | 18 tabular artifact tests, four real export pipelines, controlled PDF glyph failure and 22 database invariants | Complete permission matrix and failure/recovery integration |
-| 080.T2 | Normal, long-label, empty and actual-worker PDF pages visually inspected | All browser export journeys and XLSX rendering review |
+| 080.1 | CSV, response XLSX and analysis XLSX through real worker/private storage and parsed API/browser downloads | Accepted; see tabular task acceptance below |
+| 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review and browser downloads | Rendered XLSX review |
+| 080.3 | Durable jobs, current permission checks, private storage, recovery and protected downloads | Final task review including terminal failure/retry browser states |
+| 080.T1 | Artifact parsing, four export pipelines, real recovery and permission/deletion integration | Accepted against A1, A2 and A3 below |
+| 080.T2 | Normal, long-label, empty and actual-worker PDF review; all four browser downloads | XLSX rendering review |
 
 ## Rendering contract
 
@@ -584,3 +584,46 @@ This resolves the export-only navigation gap. It does not close the overall
 SURV-080 permission/race gate or the workbook-render review. In particular,
 selection-time grant revocation races still need dedicated coverage, alongside
 the remaining job and deletion scenarios.
+
+## Permission boundary acceptance
+
+The test increment based on `8e5a977` exercises the production outbox and S3
+adapters with a member whose only permission is `export_raw`. A test-only storage
+subclass commits grant deletion on a separate database connection after an actual
+upload or read. It does not replace file IO, authorization, rendering or queue
+processing and adds no production fault-injection option.
+
+`rtk proxy sh tools/surveys/infrastructure.sh
+/Users/bjoern/.codex/worktrees/497a/leonaid export-permissions` ran in project
+`leonaid-surveys-833458328-77821`. All integration assertions passed, as did the
+real member/public browser foundation case (902ms). The run exited 0, with no
+published host ports and verified resource cleanup.
+
+The executable `tools/surveys/export_permissions_live.py` proves:
+
+- Revocation before processing cancels the real queued job without an object.
+- Revocation after actual PUT cancels the job and retains the versioned object
+  reference for retention; it never becomes an authorized download.
+- Revocation after actual GET but before return rejects delivery with
+  ResourceNotFound. A successful authenticated HTTP download before revocation
+  establishes that the file existed and was readable; later HTTP requests deny it.
+- In every revoked state, selection replay, version listing, job replay, job
+  status and download return HTTP 404. Error responses contain no attachment header.
+
+Evidence: [sanitized boundary assertions](assets/SURV-080-permission-boundaries.json).
+No session tokens, object paths or file contents are in that artifact.
+
+Acceptance 080.A3 / scenario 080.S3 now combines this evidence with the previous
+`76423` exports run (deleted-survey downloads and anonymous object access),
+`70559` recovery run (survey trashed after upload/crash, then reclaimed and
+cancelled with original reference), and the populated browser revocation checks.
+Together they prove queued and existing artifacts are inaccessible after grant
+revocation or survey deletion. 080.T1 is accepted because its A1/A2 golden-data,
+formula-safety and real failure/recovery evidence was already accepted above.
+
+This does not claim permanent deletion of objects: that is SURV-090. Selection
+revocation during an in-flight aggregation, broader role changes and terminal
+failure browser states remain further hardening/acceptance work. The scope of
+A3 is the specified queue/download revocation gate, not all possible concurrency
+interleavings across the entire module. SURV-080 remains incomplete until its
+remaining tasks and workbook-render gate pass.

@@ -93,6 +93,11 @@ if [ "$mode" = invitations ]; then
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = export-permissions ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_permissions_live.py
+fi
 if [ "$mode" = export-recovery ]; then
   recovery() {
     compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -182,6 +187,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = export-permissions ]; then
+  cp "$proof/export-permission-boundaries.json" "$artifact/"
+fi
 if [ "$mode" = export-recovery ]; then
   cp "$proof/export-recovery-proof.json" "$artifact/"
 fi
