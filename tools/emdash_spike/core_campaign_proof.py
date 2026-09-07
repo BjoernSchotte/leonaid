@@ -1,8 +1,8 @@
-"""Live PostgreSQL prerequisite; not HTTP, rendering or order-submit evidence."""
+"""Live PostgreSQL/Core HTTP prerequisite; not rendering or order-submit evidence."""
 
 import asyncio
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import asyncpg
@@ -56,6 +56,65 @@ async def main() -> None:
                 legacy_archive.json()["canonicalPath"]
                 == f"/archive/{action.archive_slug}"
             )
+            campaign_path = f"/api/v1/public/actions/campaign/{action.archive_slug}"
+            now = datetime.now(timezone.utc)
+            try:
+                await pool.execute(
+                    "UPDATE charity_action SET publication_starts_at=$2, publication_ends_at=$3 WHERE id=$1",
+                    action.id,
+                    now - timedelta(days=1),
+                    now + timedelta(days=1),
+                )
+                current = await client.get(campaign_path)
+                assert current.status_code == 200
+                assert current.headers["cache-control"] == "no-store"
+                payload = current.json()
+                assert payload["routeKind"] == "campaign"
+                assert payload["routeValue"] == action.archive_slug
+                assert payload["canonicalPath"] == campaign.canonical_path
+                assert payload["availability"] == "published"
+                assert payload["action"]["id"] == str(action.id)
+                assert "set-cookie" not in current.headers
+                if payload["submissionsAllowed"]:
+                    assert payload["orderAlias"] == management.public_alias.value
+                    assert payload["action"]["orderForm"]["accessToken"]
+                else:
+                    assert payload["orderAlias"] is None
+                    assert payload["action"]["orderForm"] is None
+                for start, end in (
+                    (None, None),
+                    (now + timedelta(days=1), now + timedelta(days=2)),
+                    (now - timedelta(days=2), now - timedelta(days=1)),
+                ):
+                    await pool.execute(
+                        "UPDATE charity_action SET publication_starts_at=$2, publication_ends_at=$3 WHERE id=$1",
+                        action.id,
+                        start,
+                        end,
+                    )
+                    denied_http = await client.get(campaign_path)
+                    assert denied_http.status_code == 200
+                    assert denied_http.headers["cache-control"] == "no-store"
+                    denied_payload = denied_http.json()
+                    assert denied_payload["availability"] == "inactive"
+                    assert denied_payload["action"] is None
+                    assert denied_payload["orderAlias"] is None
+                    assert not denied_payload["submissionsAllowed"]
+                missing_http = await client.get(
+                    "/api/v1/public/actions/campaign/no-such-synthetic-campaign"
+                )
+                assert missing_http.status_code == 404
+                assert missing_http.headers["cache-control"] == "no-store"
+                wrong_method = await client.post(campaign_path)
+                assert wrong_method.status_code == 405
+                assert wrong_method.headers["cache-control"] == "no-store"
+            finally:
+                await pool.execute(
+                    "UPDATE charity_action SET publication_starts_at=$2, publication_ends_at=$3 WHERE id=$1",
+                    action.id,
+                    window.starts_at,
+                    window.ends_at,
+                )
         if campaign.submissions_allowed:
             assert campaign.order_alias == management.public_alias.value
         for instant in (
@@ -106,7 +165,7 @@ async def main() -> None:
         else:
             raise AssertionError("Missing campaign was exposed")
         print(
-            "core-campaign: real PostgreSQL active alias parity, stable URL, order-alias binding, expired/future/draft/archive concealment and missing slug passed; HTTP/public renderer remain pending"
+            "core-campaign: real PostgreSQL resolver and Core HTTP publication/no-store/withdrawal checks passed; legacy alias/archive HTTP retained; public renderer and order submission remain pending"
         )
     finally:
         await pool.close()

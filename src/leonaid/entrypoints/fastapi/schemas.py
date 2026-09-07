@@ -787,6 +787,17 @@ class PublicActionRouteResponse(TransportModel):
     action: PublicCharityActionResponse | None
 
 
+class PublicCampaignRouteResponse(TransportModel):
+    route_kind: Literal["campaign"] = "campaign"
+    route_value: str
+    route_path: str
+    canonical_path: str
+    availability: Literal["published", "inactive", "archive"]
+    submissions_allowed: bool
+    action: PublicCharityActionResponse | None
+    order_alias: str | None
+
+
 class PublicOrderPartyRequest(TransportModel):
     company_name: str | None = Field(default=None, max_length=300)
     given_name: str = Field(min_length=1, max_length=200)

@@ -138,7 +138,10 @@ def error_response(
     request.state.error_code = code
     return JSONResponse(
         status_code=status_code,
-        headers={"Cache-Control": "no-store"} if status_code in {401, 403} else None,
+        headers={"Cache-Control": "no-store"}
+        if status_code in {401, 403}
+        or request.url.path.startswith("/api/v1/public/actions/campaign/")
+        else None,
         content={
             "error": {
                 "code": code,

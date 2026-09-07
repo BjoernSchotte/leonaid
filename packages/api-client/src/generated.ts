@@ -169,6 +169,7 @@ export type PrivacySubjectReportResponse = { readonly consents: Array<PrivacyCon
 export type PrivacySubjectRequest = { readonly email: string; };
 export type PrivacySuppressionResponse = { readonly channel: "email" | "phone" | "postal"; readonly id: string; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly reason: string; readonly suppressedAt: string; };
 export type PublicActionRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly routeKind: "alias" | "archive"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
+export type PublicCampaignRouteResponse = { readonly action: PublicCharityActionResponse | null; readonly availability: "published" | "inactive" | "archive"; readonly canonicalPath: string; readonly orderAlias: string | null; readonly routeKind?: "campaign"; readonly routePath: string; readonly routeValue: string; readonly submissionsAllowed: boolean; };
 export type PublicCharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly name: string; readonly offerings: Array<PublicOfferingResponse>; readonly orderForm: PublicOrderFormResponse | null; readonly purpose: string; readonly startsOn: string; };
 export type PublicOfferingResponse = { readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
 export type PublicOrderDeliveryRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
@@ -1584,6 +1585,17 @@ export class LeonAidApiClient {
   ): Promise<PublicActionRouteResponse> {
     return this.request<PublicActionRouteResponse>(
       `/api/v1/public/actions/archive/${encodeURIComponent(String(archiveSlug))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async resolvePublicCampaign(
+    archiveSlug: string,
+    options: RequestOptions = {},
+  ): Promise<PublicCampaignRouteResponse> {
+    return this.request<PublicCampaignRouteResponse>(
+      `/api/v1/public/actions/campaign/${encodeURIComponent(String(archiveSlug))}`,
       { method: "GET" },
       options,
     );

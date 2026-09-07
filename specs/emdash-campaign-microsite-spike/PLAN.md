@@ -1932,6 +1932,22 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Expose the active-campaign Core HTTP prerequisite at
+      `/api/v1/public/actions/campaign/{archive_slug}` with a dedicated
+      `PublicCampaignRouteResponse` and generated `resolvePublicCampaign` client.
+      The stable URL slug is separate from `orderAlias`; existing form/legal
+      serialization and alias-bound token issuance are retained. Forms and
+      order alias are omitted when Core legal/availability checks disallow
+      submission. Success and campaign-path error responses use `no-store`.
+      `campaign-core-public` passed in `leonaid-emdash-tmp-gzxxfwoipz`: actual
+      anonymous HTTP published response, stable route metadata, no session
+      cookie, immediate committed withdrawal/future/expired-window concealment,
+      404/405 no-store, and unchanged legacy alias/archive responses. Existing
+      PostgreSQL resolver/withdrawal/recovery assertions also passed. All owned
+      resources removed; no host ports. This is direct Core HTTP evidence, not
+      public TLS/browser cache acceptance, token redemption/order submission,
+      dependency-failure deadlines, historical archive policy or Astro delivery.
+
 - [x] Add and live-prove the internal active-campaign Core resolver prerequisite.
       `resolve_public_campaign` resolves the stable archive slug but applies fresh
       active/publication-window checks, never the legacy archive disclosure rule.

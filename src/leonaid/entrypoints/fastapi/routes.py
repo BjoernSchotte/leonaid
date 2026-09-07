@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
@@ -70,6 +71,7 @@ from leonaid.application.actions import (
     CreateActionDraft,
     CreateActionFromTemplateDraft,
     PublicActionRoute,
+    PublicActionRouteKind,
     UpdateActionDetailsDraft,
 )
 from leonaid.application.errors import (
@@ -301,6 +303,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
+    PublicCampaignRouteResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
@@ -1708,6 +1711,46 @@ async def resolve_public_action_archive(
         "public, max-age=300, stale-while-revalidate=3600"
     )
     return public_action_route_response(route)
+
+
+@router.get(
+    "/api/v1/public/actions/campaign/{archive_slug}",
+    operation_id="resolvePublicCampaign",
+    response_model=PublicCampaignRouteResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def resolve_public_campaign(
+    archive_slug: str,
+    request: Request,
+    response: Response,
+) -> PublicCampaignRouteResponse:
+    route = await action_service(request).resolve_public_campaign(archive_slug)
+    legal = (
+        await legal_configuration_service(request).active_configuration()
+        if route.submissions_allowed
+        else None
+    )
+    response.headers["Cache-Control"] = "no-store"
+    token = (
+        public_order_tokens(request).issue(route.action.id, route.order_alias)
+        if legal is not None
+        and route.action is not None
+        and route.order_alias is not None
+        else None
+    )
+    # Reuse only the established field/legal serialization, not alias lookup
+    # or its cache policy. The dedicated transport keeps slug and order alias
+    # separate so the stable URL cannot silently retarget an order to a new year.
+    payload = public_action_route_response(
+        replace(route, route_kind=PublicActionRouteKind.ALIAS),
+        access_token=token,
+        legal_configuration=legal,
+    )
+    return PublicCampaignRouteResponse(
+        **payload.model_dump(exclude={"route_kind"}),
+        order_alias=route.order_alias if payload.submissions_allowed else None,
+    )
 
 
 def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:

@@ -7866,6 +7866,74 @@
         "title": "PublicActionRouteResponse",
         "type": "object"
       },
+      "PublicCampaignRouteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicCharityActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availability": {
+            "enum": [
+              "published",
+              "inactive",
+              "archive"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "canonicalPath": {
+            "title": "Canonicalpath",
+            "type": "string"
+          },
+          "orderAlias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderalias"
+          },
+          "routeKind": {
+            "const": "campaign",
+            "default": "campaign",
+            "title": "Routekind",
+            "type": "string"
+          },
+          "routePath": {
+            "title": "Routepath",
+            "type": "string"
+          },
+          "routeValue": {
+            "title": "Routevalue",
+            "type": "string"
+          },
+          "submissionsAllowed": {
+            "title": "Submissionsallowed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "routeValue",
+          "routePath",
+          "canonicalPath",
+          "availability",
+          "submissionsAllowed",
+          "action",
+          "orderAlias"
+        ],
+        "title": "PublicCampaignRouteResponse",
+        "type": "object"
+      },
       "PublicCharityActionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -20195,6 +20263,78 @@
           }
         },
         "summary": "Resolve Public Action Archive",
+        "tags": [
+          "public-actions"
+        ]
+      }
+    },
+    "/api/v1/public/actions/campaign/{archive_slug}": {
+      "get": {
+        "operationId": "resolvePublicCampaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archive_slug",
+            "required": true,
+            "schema": {
+              "title": "Archive Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCampaignRouteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Resolve Public Campaign",
         "tags": [
           "public-actions"
         ]
