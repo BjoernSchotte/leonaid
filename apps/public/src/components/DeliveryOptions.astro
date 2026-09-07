@@ -1,0 +1,142 @@
+---
+import type { DeliveryOrderFormResponse } from "@leonaid/api-client";
+interface Props {
+  definition: DeliveryOrderFormResponse;
+  posted?: FormData | null;
+}
+const { definition, posted } = Astro.props;
+const postedText = (name: string) => {
+  const value = posted?.get(name);
+  return typeof value === "string" ? value : "";
+};
+const dates = [
+  ...new Set(definition.windows.map((window) => window.deliveryOn)),
+].sort();
+const dateLabel = (date: string) =>
+  new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "full",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+---
+
+<div class="form-grid" data-delivery-options>
+  <div class="form-field form-field--wide">
+    <label for="deliveryWindowId"
+      >Lieferzeitfenster <em
+        data-delivery-required
+        hidden={!definition.requireWindow}>Pflichtfeld</em
+      ></label
+    >
+    <select
+      id="deliveryWindowId"
+      name="deliveryWindowId"
+      required={definition.requireWindow}
+      disabled={!definition.enabled}
+      aria-describedby="deliveryWindowId-help deliveryWindowId-error"
+    >
+      <option value="">Liefertag und Zeitfenster auswählen</option>
+      {
+        dates.map((date) => (
+          <optgroup label={dateLabel(date)}>
+            {definition.windows
+              .filter((window) => window.deliveryOn === date)
+              .map((window) => (
+                <option
+                  value={window.id}
+                  selected={postedText("deliveryWindowId") === window.id}
+                >
+                  {dateLabel(date)} · {window.startsAt.slice(0, 5)}–
+                  {window.endsAt.slice(0, 5)} Uhr
+                </option>
+              ))}
+          </optgroup>
+        ))
+      }
+    </select>
+    <small id="deliveryWindowId-help"
+      >Zeitzone: {definition.timezone}. {
+        !definition.enabled
+          ? "Für diese Aktion ist keine Lieferfensterauswahl vorgesehen."
+          : dates.length
+            ? "Bitte wähle ein Fenster aus."
+            : "Aktuell sind keine Lieferfenster verfügbar. Eine Bestellung ist erst mit einem verfügbaren Fenster möglich."
+      }</small
+    >
+    <button type="button" class="delivery-reload" data-delivery-reload hidden
+      >Lieferfenster aktualisieren</button
+    >
+    <span
+      id="deliveryWindowId-error"
+      class="field-error"
+      data-error-for="deliveryWindowId"></span>
+  </div>
+  {
+    (
+      <>
+        <div
+          class="form-field"
+          data-delivery-contact
+          hidden={!definition.allowContact}
+        >
+          <>
+            <label for="deliveryContactName">
+              Ansprechpartner bei der Lieferung (optional)
+            </label>
+            <input
+              id="deliveryContactName"
+              name="deliveryContactName"
+              value={postedText("deliveryContactName")}
+              autocomplete="shipping name"
+              maxlength={definition.contactNameMaxLength}
+            />
+          </>
+        </div>
+        <div
+          class="form-field"
+          data-delivery-contact
+          hidden={!definition.allowContact}
+        >
+          <>
+            <label for="deliveryContactPhone">
+              Telefonnummer am Liefertag (optional)
+            </label>
+            <input
+              id="deliveryContactPhone"
+              name="deliveryContactPhone"
+              value={postedText("deliveryContactPhone")}
+              type="tel"
+              autocomplete="shipping tel"
+              maxlength={definition.contactPhoneMaxLength}
+            />
+          </>
+        </div>
+      </>
+    )
+  }
+  {
+    (
+      <div
+        class="form-field form-field--wide"
+        data-delivery-instructions
+        hidden={!definition.allowInstructions}
+      >
+        <>
+          <label for="deliveryInstructions">
+            Abteilung / Lieferhinweise (optional)
+          </label>
+          <textarea
+            id="deliveryInstructions"
+            name="deliveryInstructions"
+            rows="3"
+            maxlength={definition.instructionsMaxLength}
+            aria-describedby="deliveryInstructions-help"
+            set:text={postedText("deliveryInstructions")}
+          />
+          <small id="deliveryInstructions-help">
+            Zum Beispiel Abteilung, Eingang, Stockwerk oder Wegbeschreibung.
+          </small>
+        </>
+      </div>
+    )
+  }
+</div>

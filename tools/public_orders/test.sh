@@ -15,13 +15,17 @@ proof=$(mktemp -d)
 integration_key=""
 
 compose() {
+  if [ -n "${LEONAID_PUBLIC_ORDER_TEST_COMPOSE_OVERRIDE:-}" ]; then
+    set -- --file "$compose_file" --file "$LEONAID_PUBLIC_ORDER_TEST_COMPOSE_OVERRIDE" "$@"
+  else
+    set -- --file "$compose_file" "$@"
+  fi
   LEONAID_HTTP_PORT="$http_port" \
     LEONAID_HTTPS_PORT="$https_port" \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
-      --file "$compose_file" \
       "$@"
 }
 
@@ -35,7 +39,12 @@ cleanup() {
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$status" -eq 0 ] && [ "${LEONAID_PUBLIC_ORDER_TEST_KEEP_FOR_REVIEW:-0}" = 1 ]; then
+    echo "public-order-test: Review stack retained: $project at https://localhost:$https_port/krapfentaxi"
+    echo "public-order-test: Remove this project's containers, volumes and networks after review."
+  else
+    compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -94,11 +103,26 @@ compose run --rm --no-deps \
   --entrypoint python \
   api tools/public_orders/contract.py
 
-compose up --detach --wait --wait-timeout 420 public proxy
+compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --volume "$proof:/proof" \
+  --entrypoint python \
+  api /repo/tools/delivery/public_policy_session.py /proof/policy.env
 
+compose up --detach --wait --wait-timeout 420 public pwa web proxy
+
+for browser_case in 'neue Firma' 'Lieferregeln' 'Gemeinsame Lieferplanung'; do
+  if [ "$browser_case" != 'neue Firma' ]; then
+    # Separate independent browser scenarios in this disposable test database.
+    # The contract above already proves production rate-limit behavior.
+    compose exec -T core-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM public_submission_attempt"' >/dev/null
+  fi
 docker run --rm \
   --network "${project}_edge" \
   --env CI=1 \
+  --env-file "$proof/policy.env" \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof \
@@ -111,9 +135,11 @@ docker run --rm \
   --config=tests/e2e/public.config.mjs \
   public-orders.spec.mjs \
   --project=chromium \
+  --grep "$browser_case" \
   --output=/proof/test-results \
   --trace=retain-on-failure \
   --reporter=line
+done
 
 compose run --rm --no-deps \
   --env-from-file "$env_file" \
@@ -134,7 +160,8 @@ for artifact in \
   public-order-success-existing-company.png \
   public-order-success-person.png \
   public-order-form-desktop.png \
-  public-orders-ui-proof.json; do
+  public-orders-ui-proof.json \
+  delivery-cross-surface-policy.json; do
   if [ ! -s "$proof/$artifact" ]; then
     echo "public-order-test: ERROR: Browsernachweis fehlt: $artifact" >&2
     exit 1
@@ -144,6 +171,7 @@ done
 mkdir -p "$root/.artifacts/poc072"
 cp "$proof"/public-order-*.png "$root/.artifacts/poc072/"
 cp "$proof/public-orders-ui-proof.json" "$root/.artifacts/poc072/"
+cp "$proof/delivery-cross-surface-policy.json" "$root/.artifacts/poc072/"
 
 echo "public-order-test: OK: realer Core/Twenty-Vertrag, sichtbare Formular-UX,"
 echo "public-order-test:     drei Bestellwege, Idempotenz, Schutzregeln und ActivityEvents bewiesen"

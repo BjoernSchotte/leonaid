@@ -134,6 +134,21 @@ async def prepare(
     baseline_path: Path,
 ) -> None:
     tokens = await seed_sessions(connection, sessions_path)
+    await connection.execute(
+        """
+        UPDATE commitment
+        SET delivery_recipient_snapshot = delivery_recipient_snapshot || $1::jsonb
+        WHERE id = '80000000-0000-4000-8000-000000000005'
+        """,
+        json.dumps(
+            {
+                "contactName": "Delivery erasure canary",
+                "contactPhone": "+49 931 987654",
+                "instructions": "Private department\nPrivate entrance directions",
+            }
+        ),
+    )
+
     baseline_path.write_text(
         json.dumps(await immutable_hashes(connection), indent=2) + "\n",
         encoding="utf-8",
@@ -296,6 +311,12 @@ async def assert_result(
         or commitment["message_snapshot"] is not None
     ):
         raise ContractFailure("Operative Bestelldaten wurden nicht anonymisiert")
+
+    delivery = json.loads(commitment["delivery_recipient_snapshot"])
+    if any(key in delivery for key in ("contactName", "contactPhone", "instructions")):
+        raise ContractFailure(
+            "Neue Lieferkontakt- und Hinweisfelder wurden nicht entfernt"
+        )
 
     erasure = await connection.fetchrow(
         """

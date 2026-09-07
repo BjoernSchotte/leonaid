@@ -19,6 +19,7 @@ import {
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
+import { DeliverySection } from "./delivery-section";
 import {
   AdministratorsSection,
   BeneficiariesSection,
@@ -44,6 +45,13 @@ const panels = [
     id: "basics",
     label: "Grundlagen",
     legacyHashes: ["details", "goal"],
+  },
+  {
+    description: "Liefertage und Zeitfenster für Bestellungen",
+    icon: Calendar03Icon,
+    id: "delivery",
+    label: "Lieferplanung",
+    legacyHashes: [],
   },
   {
     description: "Organisationen, denen die Aktion hilft",
@@ -271,6 +279,21 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
       </div>
 
       <div className="action-edit-stack">
+        <div
+          aria-labelledby="tab-delivery"
+          className="action-edit-panel"
+          hidden={activePanel !== "delivery"}
+          id="panel-delivery"
+          role="tabpanel"
+        >
+          <DeliverySection
+            client={client}
+            actionId={actionId}
+            startsOn={shared.state.action.startsOn}
+            endsOn={shared.state.action.endsOn}
+            disabled={archived}
+          />
+        </div>
         <div
           aria-labelledby="tab-basics"
           className="action-edit-panel"

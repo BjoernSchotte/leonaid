@@ -339,6 +339,23 @@ async def run() -> None:
             if anna_response.headers.get("cache-control") != "private, no-store":
                 raise ContractFailure("Dashboard-Antwort ist cachebar")
             anna = as_object(anna_response.json(), "Anna-Dashboard")
+            expected_beneficiaries = await connection.fetch(
+                "SELECT id, organization_name, public_description, sort_order FROM beneficiary WHERE action_id = $1 ORDER BY sort_order, id",
+                ACTION_ID,
+            )
+            expected_projection = [
+                {
+                    "id": str(row["id"]),
+                    "organizationName": row["organization_name"],
+                    "publicDescription": row["public_description"],
+                    "sortOrder": row["sort_order"],
+                }
+                for row in expected_beneficiaries
+            ]
+            if anna.get("beneficiaries") != expected_projection:
+                raise ContractFailure(
+                    "Dashboard beneficiaries differ from scoped database records"
+                )
             goal = as_object(anna.get("goal"), "Aktionsziel")
             if (
                 goal.get("actualValue") != "900"
@@ -386,6 +403,9 @@ async def run() -> None:
             if concealed.status_code != 404:
                 raise ContractFailure("Fremdes Dashboard wird nicht verborgen")
 
+            await connection.execute(
+                "DELETE FROM beneficiary WHERE action_id = $1", EMPTY_ACTION_ID
+            )
             empty_response = await dashboard(
                 api,
                 action_id=EMPTY_ACTION_ID,
@@ -394,6 +414,10 @@ async def run() -> None:
             )
             empty_response.raise_for_status()
             empty = as_object(empty_response.json(), "Leeres Dashboard")
+            if empty.get("beneficiaries") != []:
+                raise ContractFailure(
+                    "Empty action inherited another action's beneficiaries"
+                )
             empty_goal = as_object(empty.get("goal"), "Teilkonfiguriertes Ziel")
             empty_admin = as_object(empty.get("charityAdmin"), "Leere Admin-Sicht")
             if (

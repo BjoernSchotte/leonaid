@@ -73,6 +73,23 @@ Astro.response.headers.set(
   state === "action" && route ? route.availability : state,
 );
 
+// Give each open form its own opaque attempt ID in history. This carries no
+// personal data and prevents a GET reload after a lost POST response from
+// accidentally starting a second order. Never redirect an order POST.
+if (
+  Astro.request.method === "GET" &&
+  state === "action" &&
+  route?.submissionsAllowed &&
+  route.action?.orderForm &&
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    Astro.url.searchParams.get("orderAttempt") ?? "",
+  )
+) {
+  const target = new URL(Astro.url);
+  target.searchParams.set("orderAttempt", crypto.randomUUID());
+  return Astro.redirect(`${target.pathname}${target.search}`, 302);
+}
+
 const title =
   state === "action" && route?.action
     ? `${route.action.name} · LeonAid`

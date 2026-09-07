@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
@@ -32,6 +32,44 @@ class TransportModel(BaseModel):
 class PlatformStatusResponse(TransportModel):
     service: str = Field(examples=["leonaid-api"])
     status: Literal["live"] = Field(examples=["live"])
+
+
+class DeliveryWindowRequest(TransportModel):
+    id: UUID
+    delivery_on: date
+    starts_at: time
+    ends_at: time
+    retired: bool = False
+
+
+class DeliveryConfigurationRequest(TransportModel):
+    enabled: bool
+    timezone: str = Field(default="Europe/Berlin", min_length=1, max_length=100)
+    revision: int = Field(ge=1)
+    windows: list[DeliveryWindowRequest]
+
+
+class DeliveryConfigurationResponse(DeliveryConfigurationRequest):
+    action_id: UUID
+
+
+class DeliveryOrderFormResponse(TransportModel):
+    enabled: bool
+    require_address: bool
+    require_window: bool
+    allow_contact: bool
+    allow_instructions: bool
+    contact_name_max_length: int
+    contact_phone_max_length: int
+    instructions_max_length: int
+    timezone: str
+    revision: int
+    windows: list[DeliveryWindowRequest]
+
+
+class DeliveryCompletionContextResponse(TransportModel):
+    form: DeliveryOrderFormResponse
+    historical_windows: list[DeliveryWindowRequest]
 
 
 class PlatformInformationResponse(TransportModel):
@@ -743,6 +781,7 @@ class PublicOfferingResponse(TransportModel):
 
 
 class PublicOrderFormResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     form_key: str
     title: str
     introduction: str
@@ -793,7 +832,7 @@ class PublicOrderPartyRequest(TransportModel):
     phone: str | None = Field(default=None, max_length=40)
 
 
-class PublicOrderDeliveryRecipientRequest(TransportModel):
+class OrderAddressRequest(TransportModel):
     recipient_name: str = Field(min_length=1, max_length=200)
     street_line_1: str = Field(min_length=1, max_length=200)
     postal_code: str = Field(min_length=1, max_length=20)
@@ -801,7 +840,13 @@ class PublicOrderDeliveryRecipientRequest(TransportModel):
     country_code: str = Field(default="DE", pattern=r"^[A-Z]{2}$")
 
 
-class PublicOrderInvoiceRecipientRequest(PublicOrderDeliveryRecipientRequest):
+class PublicOrderDeliveryRecipientRequest(OrderAddressRequest):
+    contact_name: str | None = Field(default=None, max_length=200)
+    contact_phone: str | None = Field(default=None, max_length=50)
+    instructions: str | None = Field(default=None, max_length=1000)
+
+
+class PublicOrderInvoiceRecipientRequest(OrderAddressRequest):
     email: str = Field(min_length=3, max_length=320)
 
 
@@ -813,6 +858,7 @@ class PublicOrderLineRequest(TransportModel):
 
 
 class CreatePublicOrderRequest(TransportModel):
+    delivery_window_id: UUID | None = None
     access_token: str = Field(min_length=40, max_length=2_000)
     command_id: UUID
     party: PublicOrderPartyRequest
@@ -906,6 +952,7 @@ class ConfiguredOfferingResponse(TransportModel):
 
 
 class OrderFormConfigurationResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     id: UUID
     form_key: str
     title: str
@@ -961,11 +1008,21 @@ class CommitmentLineRequest(TransportModel):
 
 
 class CreateCommitmentRequest(TransportModel):
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
     buyer: CommitmentBuyerRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
+
+
+class CompleteDeliveryRequest(TransportModel):
+    confirm_historical_delivery: bool = Field(default=False, strict=True)
+    expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    delivery_recipient: PublicOrderDeliveryRecipientRequest
+    invoice_recipient: CommitmentInvoiceRecipientRequest
+    window_id: UUID | None = None
 
 
 class CommitmentBuyerResponse(TransportModel):
@@ -999,6 +1056,10 @@ class CommitmentLineResponse(TransportModel):
 
 
 class CommitmentResponse(TransportModel):
+    delivery_completion_version: str
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None
+    delivery_window_id: UUID | None
+    delivery_window_snapshot: dict[str, str] | None
     id: UUID
     action_id: UUID
     source: Literal["acquisition", "public_form", "admin"]
@@ -1020,6 +1081,7 @@ class CommitmentResponse(TransportModel):
 
 
 class CommitmentCaptureContextResponse(TransportModel):
+    delivery: DeliveryOrderFormResponse | None = None
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
@@ -1270,6 +1332,7 @@ class DashboardMetricDefinitionResponse(TransportModel):
 
 
 class DashboardResponse(TransportModel):
+    beneficiaries: list[BeneficiaryResponse]
     action_id: UUID
     action_name: str
     goal: DashboardGoalResponse

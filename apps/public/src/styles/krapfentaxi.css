@@ -278,6 +278,7 @@
   box-shadow: none;
 }
 
+.taxi-site .form-field select,
 .taxi-site .form-field input,
 .taxi-site .form-field textarea,
 .taxi-site .quantity-control input {

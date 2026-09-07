@@ -54,6 +54,36 @@ async def twenty_record(
 async def exercise(connection: asyncpg.Connection[Any]) -> None:
     proof_path = Path(require_env("UI_PROOF_PATH"))
     proof = json.loads(proof_path.read_text(encoding="utf-8"))
+    shared = json.loads(
+        proof_path.with_name("delivery-cross-surface-policy.json").read_text()
+    )
+    shared_rows = await connection.fetch(
+        """
+        SELECT id, source, delivery_recipient_snapshot, invoice_recipient_snapshot,
+               delivery_window_id, delivery_window_snapshot
+        FROM commitment
+        WHERE id = $1 OR public_reference = $2
+        """,
+        UUID(shared["annaOrderId"]),
+        shared["publicReference"],
+    )
+    if len(shared_rows) != 2:
+        raise VerificationFailure("Shared action orders missing from PostgreSQL")
+    for row in shared_rows:
+        delivery = json.loads(row["delivery_recipient_snapshot"])
+        billing = json.loads(row["invoice_recipient_snapshot"])
+        window = json.loads(row["delivery_window_snapshot"])
+        if (
+            delivery["contactName"] != "Gemeinsamer Lieferkontakt"
+            or delivery["contactPhone"] != "+49 931 313131"
+            or delivery["instructions"] != "Abteilung Integration\nEingang links"
+            or delivery["streetLine1"] != "Lieferweg 31"
+            or str(row["delivery_window_id"]) != shared["selectedWindow"]["id"]
+            or window["deliveryOn"] != shared["selectedWindow"]["deliveryOn"]
+            or billing["streetLine1"]
+            != ("Lieferweg 31" if row["source"] == "acquisition" else "Rechnungsweg 32")
+        ):
+            raise VerificationFailure("Shared action delivery/billing snapshots differ")
     validation = proof.get("validation")
     orders = proof.get("orders")
     if validation != {
@@ -65,6 +95,19 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
         item.get("scenario") for item in orders if isinstance(item, dict)
     } != {"new-company", "existing-company", "person-without-company"}:
         raise VerificationFailure("Die drei öffentlichen E2E-Personas fehlen")
+
+    browser_orders = await connection.fetchval(
+        """
+        SELECT count(*) FROM commitment
+        WHERE action_id = $1 AND source = 'public_form'
+          AND delivery_recipient_snapshot ->> 'contactName' = 'Alex Lieferung'
+        """,
+        ACTION_ID,
+    )
+    if browser_orders != 3:
+        raise VerificationFailure(
+            "Browser retries did not preserve exactly three orders"
+        )
 
     expected: dict[str, dict[str, str | int | UUID]] = {
         "new-company": {
@@ -100,7 +143,7 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 """
                 SELECT
                     id, twenty_company_id, twenty_person_id,
-                    customer_snapshot, source, status, total_minor
+                    customer_snapshot, source, status, total_minor, delivery_recipient_snapshot, delivery_window_snapshot, invoice_recipient_snapshot
                 FROM commitment
                 WHERE action_id = $1
                   AND public_reference = $2
@@ -110,6 +153,50 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             )
             if row is None:
                 raise VerificationFailure(f"UI-Bestellung fehlt: {scenario}")
+            invoice = (
+                json.loads(row["invoice_recipient_snapshot"])
+                if isinstance(row["invoice_recipient_snapshot"], str)
+                else row["invoice_recipient_snapshot"]
+            )
+            if (
+                not invoice
+                or invoice.get("countryCode")
+                != ("DE" if scenario == "person-without-company" else "AT")
+                or invoice.get("email") != "rechnung@leonaid.invalid"
+                or invoice.get("streetLine1")
+                != (
+                    "Rechnungsweg 8"
+                    if scenario == "person-without-company"
+                    else "Browserweg 72"
+                )
+            ):
+                raise VerificationFailure(
+                    f"Public billing address/email did not round-trip: {scenario}"
+                )
+            delivery = (
+                json.loads(row["delivery_recipient_snapshot"])
+                if isinstance(row["delivery_recipient_snapshot"], str)
+                else row["delivery_recipient_snapshot"]
+            )
+            window = (
+                json.loads(row["delivery_window_snapshot"])
+                if isinstance(row["delivery_window_snapshot"], str)
+                else row["delivery_window_snapshot"]
+            )
+            if (
+                not delivery
+                or delivery.get("countryCode") != "AT"
+                or delivery.get("contactName") != "Alex Lieferung"
+                or delivery.get("contactPhone") != "+49 821 765432"
+                or delivery.get("instructions")
+                != "Abteilung Bildung\nEingang links <b>Hinweis</b>"
+                or not window
+                or window.get("deliveryOn") != "2026-10-01"
+                or window.get("startsAt") != "09:00"
+            ):
+                raise VerificationFailure(
+                    f"Public delivery snapshots did not round-trip: {scenario}; contact={bool(delivery and delivery.get('contactName') == 'Alex Lieferung')}; phone={bool(delivery and delivery.get('contactPhone') == '+49 821 765432')}; date={bool(window and window.get('deliveryOn') == '2026-10-01')}; start={bool(window and window.get('startsAt') == '09:00')}"
+                )
             line = await connection.fetchrow(
                 """
                 SELECT quantity, pieces_per_unit_snapshot, unit_price_minor

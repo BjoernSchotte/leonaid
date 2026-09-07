@@ -60,6 +60,7 @@ class CommitmentDraft:
     lines: tuple[CommitmentLineDraft, ...]
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     message: str | None = None
+    delivery_window_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -82,6 +83,11 @@ class CommitmentDraft:
         status: CommitmentStatus,
     ) -> str:
         payload = {
+            **(
+                {"deliveryWindowId": str(self.delivery_window_id)}
+                if self.delivery_window_id
+                else {}
+            ),
             "actionId": str(action_id),
             "source": source.value,
             "status": status.value,

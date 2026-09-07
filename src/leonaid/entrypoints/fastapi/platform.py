@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
+from leonaid.application.delivery import DeliveryService
+
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -28,6 +31,10 @@ from leonaid.adapters.postgres.acquisition import (
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+from leonaid.adapters.postgres.delivery_completion import (
+    AsyncpgDeliveryCompletionRepository,
+)
+from leonaid.application.delivery_completion import DeliveryCompletionService
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
 from leonaid.adapters.postgres.email_changes import AsyncpgEmailChangeRepository
@@ -219,6 +226,12 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)
+        )
+        application.state.delivery_completion_service = DeliveryCompletionService(
+            AsyncpgDeliveryCompletionRepository(pool)
+        )
+        application.state.delivery_service = DeliveryService(
+            AsyncpgDeliveryRepository(pool)
         )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)

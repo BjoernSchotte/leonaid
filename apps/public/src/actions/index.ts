@@ -76,15 +76,35 @@ export const server = {
       familyName: requiredText(200),
       email: z.email().trim().max(320),
       phone: optionalText(40),
-      deliveryRecipientName: requiredText(300),
-      deliveryStreetLine1: requiredText(300),
-      deliveryPostalCode: requiredText(24),
-      deliveryCity: requiredText(200),
+      deliveryRecipientName: requiredText(200),
+      deliveryStreetLine1: requiredText(200),
+      deliveryPostalCode: requiredText(20),
+      deliveryCity: requiredText(120),
+      deliveryCountryCode: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z]{2}$/)
+        .default("DE"),
+      deliveryWindowId: z.union([z.uuid(), z.literal("")]).optional(),
+      deliveryContactName: optionalText(200),
+      deliveryContactPhone: optionalText(50),
+      deliveryInstructions: z
+        .string()
+        .transform((value) => value.replace(/\r\n?/g, "\n").trim())
+        .pipe(z.string().max(1_000))
+        .optional(),
       billingSameAsDelivery: z.boolean(),
-      invoiceRecipientName: optionalText(300),
-      invoiceStreetLine1: optionalText(300),
-      invoicePostalCode: optionalText(24),
-      invoiceCity: optionalText(200),
+      invoiceRecipientName: optionalText(200),
+      invoiceStreetLine1: optionalText(200),
+      invoicePostalCode: optionalText(20),
+      invoiceCity: optionalText(120),
+      invoiceCountryCode: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z]{2}$/)
+        .default("DE"),
       invoiceEmail: optionalText(320),
       offeringId: z.array(z.uuid()).min(1).max(20),
       quantity: z.array(z.number().int().min(0).max(5_000)).min(1).max(20),
@@ -135,16 +155,16 @@ export const server = {
             streetLine1: input.deliveryStreetLine1,
             postalCode: input.deliveryPostalCode,
             city: input.deliveryCity,
-            email: input.email,
-            countryCode: "DE",
+            email: input.invoiceEmail || input.email,
+            countryCode: input.deliveryCountryCode,
           }
         : {
             recipientName: input.invoiceRecipientName ?? "",
             streetLine1: input.invoiceStreetLine1 ?? "",
             postalCode: input.invoicePostalCode ?? "",
             city: input.invoiceCity ?? "",
-            email: input.invoiceEmail ?? input.email,
-            countryCode: "DE",
+            email: input.invoiceEmail || input.email,
+            countryCode: input.invoiceCountryCode,
           };
       try {
         return await submitPublicOrder(
@@ -159,12 +179,16 @@ export const server = {
               email: input.email,
               phone: input.phone || null,
             },
+            deliveryWindowId: input.deliveryWindowId || null,
             deliveryRecipient: {
+              contactName: input.deliveryContactName || null,
+              contactPhone: input.deliveryContactPhone || null,
+              instructions: input.deliveryInstructions || null,
               recipientName: input.deliveryRecipientName,
               streetLine1: input.deliveryStreetLine1,
               postalCode: input.deliveryPostalCode,
               city: input.deliveryCity,
-              countryCode: "DE",
+              countryCode: input.deliveryCountryCode,
             },
             invoiceRecipient,
             lines,

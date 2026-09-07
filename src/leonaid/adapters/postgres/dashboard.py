@@ -23,6 +23,8 @@ from leonaid.application.dashboard import (
     progress_basis_points,
 )
 
+from leonaid.domain.actions import Beneficiary
+
 BERLIN = ZoneInfo("Europe/Berlin")
 
 
@@ -72,6 +74,20 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 if action is None:
                     return None
 
+                beneficiary_rows = await connection.fetch(
+                    "SELECT id, organization_name, public_description, sort_order FROM beneficiary WHERE action_id = $1 ORDER BY sort_order, id",
+                    action_id,
+                )
+                beneficiaries = tuple(
+                    Beneficiary(
+                        UUID(str(row["id"])),
+                        action_id,
+                        str(row["organization_name"]),
+                        str(row["public_description"]),
+                        int(row["sort_order"]),
+                    )
+                    for row in beneficiary_rows
+                )
                 acquirer: AcquirerDashboard | None = None
                 if include_acquirer:
                     personal_pipeline = await self._pipeline(
@@ -164,6 +180,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
             acquirer=acquirer,
             charity_admin=charity_admin,
             generated_at=evaluated_at,
+            beneficiaries=beneficiaries,
         )
 
     @staticmethod

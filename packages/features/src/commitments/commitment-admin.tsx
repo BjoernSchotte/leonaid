@@ -18,6 +18,9 @@ import type {
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { DeliveryDetails } from "./delivery-fields";
+import { DeliveryCompletion } from "./delivery-completion";
+
 import { actionErrorMessage } from "../action-admin/errors";
 
 interface CommitmentAdminPageProps {
@@ -46,6 +49,16 @@ const sourceLabels = {
   admin: "Admin",
   public_form: "Öffentliches Formular",
 } as const;
+
+function focusCompletionTrigger(id: string) {
+  requestAnimationFrame(() => {
+    const target =
+      document.querySelector<HTMLElement>(
+        `[data-commitment-id="${id}"] [data-completion-toggle]`,
+      ) ?? document.querySelector<HTMLElement>(".commitment-page--admin h1");
+    target?.focus();
+  });
+}
 
 function formatMoney(amountMinor: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
@@ -265,6 +278,10 @@ function InvoiceReview({
 }
 
 function CommitmentRow({
+  client,
+  completionOpen,
+  onToggleCompletion,
+  onCompleted,
   context,
   error,
   issuing,
@@ -273,6 +290,10 @@ function CommitmentRow({
   record,
   reviewOpen,
 }: {
+  readonly client: LeonAidApiClient;
+  readonly completionOpen: boolean;
+  readonly onToggleCompletion: () => void;
+  readonly onCompleted: () => void;
   readonly context?: InvoiceContextResponse;
   readonly error?: string;
   readonly issuing: boolean;
@@ -324,6 +345,16 @@ function CommitmentRow({
         {formatMoney(commitment.totalMinor, commitment.currency)}
       </strong>
       <div className="commitment-ledger-row__action">
+        {["draft", "review_ready"].includes(commitment.status) && (
+          <Button
+            variant="secondary"
+            data-completion-toggle
+            aria-expanded={completionOpen}
+            onClick={onToggleCompletion}
+          >
+            Lieferdaten ergänzen
+          </Button>
+        )}
         {commitment.status === "review_ready" ? (
           <Button
             aria-expanded={reviewOpen}
@@ -337,6 +368,29 @@ function CommitmentRow({
           <a href="/admin/invoices">Rechnung ansehen</a>
         ) : null}
       </div>
+      {(commitment.deliveryRecipient || commitment.deliveryWindowSnapshot) && (
+        <details className="commitment-delivery-review">
+          <summary>Liefer- und Rechnungsdaten ansehen</summary>
+          <DeliveryDetails commitment={commitment} />
+          {commitment.invoiceRecipient && (
+            <p>
+              Rechnung: {commitment.invoiceRecipient.recipientName},{" "}
+              {commitment.invoiceRecipient.streetLine1},{" "}
+              {commitment.invoiceRecipient.postalCode}{" "}
+              {commitment.invoiceRecipient.city} ·{" "}
+              {commitment.invoiceRecipient.countryCode}
+            </p>
+          )}
+        </details>
+      )}
+      {completionOpen && (
+        <DeliveryCompletion
+          client={client}
+          order={commitment}
+          onSaved={onCompleted}
+          onCancel={onToggleCompletion}
+        />
+      )}
       {reviewOpen && context ? (
         <InvoiceReview
           context={context}
@@ -355,6 +409,7 @@ export function CommitmentAdminPage({
   client,
   identity,
 }: CommitmentAdminPageProps) {
+  const [completionId, setCompletionId] = useState("");
   const memberships = useMemo(
     () =>
       identity.actionMemberships.filter(
@@ -437,7 +492,7 @@ export function CommitmentAdminPage({
       <header className="commitment-page__header commitment-page__header--admin">
         <div>
           <p className="commitment-eyebrow">Bestellarbeitsvorrat</p>
-          <h1>Bestellungen prüfen</h1>
+          <h1 tabIndex={-1}>Bestellungen prüfen</h1>
           <p>
             Entwürfe, prüfbereite Eingänge und fakturierte Bestellungen in einer
             belastbaren Sicht.
@@ -608,6 +663,23 @@ export function CommitmentAdminPage({
             <section aria-label="Bestellliste" className="commitment-ledger">
               {visible.map((record) => (
                 <CommitmentRow
+                  client={client}
+                  completionOpen={completionId === record.commitment.id}
+                  onToggleCompletion={() => {
+                    setCompletionId(
+                      completionId === record.commitment.id
+                        ? ""
+                        : record.commitment.id,
+                    );
+                    setSelectedCommitmentId("");
+                    if (completionId === record.commitment.id)
+                      focusCompletionTrigger(record.commitment.id);
+                  }}
+                  onCompleted={async () => {
+                    setCompletionId("");
+                    await commitments.refetch();
+                    focusCompletionTrigger(record.commitment.id);
+                  }}
                   context={invoiceContext.data}
                   error={
                     selectedCommitmentId === record.commitment.id

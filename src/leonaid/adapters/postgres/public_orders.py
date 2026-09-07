@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from leonaid.adapters.postgres.delivery import (
+    select_order_window,
+    decode_window_snapshot,
+)
+
 import json
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -404,7 +409,17 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         for priced_line in priced_lines:
             total = total.plus(priced_line.line_total)
         commitment_id = uuid4()
+        selection = await select_order_window(
+            connection,
+            action_id,
+            window_id=draft.delivery_window_id,
+            recipient=draft.delivery_recipient,
+            complete=True,
+            now=occurred_at,
+        )
         commitment = Commitment(
+            delivery_window_id=draft.delivery_window_id,
+            delivery_window_snapshot=selection,
             id=commitment_id,
             action_id=action_id,
             source=CommitmentSource.PUBLIC_FORM,
@@ -642,6 +657,14 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             commitment.idempotency_key,
             occurred_at,
         )
+        await connection.execute(
+            "UPDATE commitment SET delivery_window_id = $2, delivery_window_snapshot = $3::jsonb WHERE id = $1",
+            commitment.id,
+            commitment.delivery_window_id,
+            json.dumps(commitment.delivery_window_snapshot)
+            if commitment.delivery_window_snapshot is not None
+            else None,
+        )
         await connection.executemany(
             """
             INSERT INTO commitment_line (
@@ -770,6 +793,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 id, action_id, source, status, customer_snapshot,
                 invoice_recipient_snapshot, delivery_recipient_snapshot,
                 message_snapshot, public_reference, currency, total_minor,
+                delivery_window_id, delivery_window_snapshot,
                 idempotency_key
             FROM commitment
             WHERE id = $1
@@ -814,6 +838,10 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 )
                 if delivery is not None
                 else None
+            ),
+            delivery_window_id=row["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                row["delivery_window_snapshot"]
             ),
             message=(
                 str(row["message_snapshot"])

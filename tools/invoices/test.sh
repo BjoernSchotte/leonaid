@@ -15,13 +15,17 @@ proof=$(mktemp -d)
 integration_key=""
 
 compose() {
+  if [ -n "${LEONAID_INVOICE_TEST_COMPOSE_OVERRIDE:-}" ]; then
+    set -- --file "$compose_file" --file "$LEONAID_INVOICE_TEST_COMPOSE_OVERRIDE" "$@"
+  else
+    set -- --file "$compose_file" "$@"
+  fi
   LEONAID_HTTP_PORT="$http_port" \
     LEONAID_HTTPS_PORT="$https_port" \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
-      --file "$compose_file" \
       "$@"
 }
 
@@ -158,6 +162,14 @@ done
 
 mkdir -p "$root/.artifacts/poc090"
 cp "$proof"/invoice-*.png "$root/.artifacts/poc090/"
+
+compose run --rm --no-deps \
+  --env-from-file "$env_file" \
+  --env PYTHONPATH=/repo:/workspace/src \
+  --volume "$root:/repo:ro" \
+  --workdir /repo \
+  --entrypoint python \
+  api tools/delivery/http_completion.py
 
 echo "invoice-test: OK: Serververtrag, Fresh Login, Rechnungsfreigabe,"
 echo "invoice-test:     Finanz-Lesesicht und echte Twenty-Snapshots bewiesen"

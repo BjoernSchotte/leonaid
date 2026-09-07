@@ -55,9 +55,9 @@ html {
 }
 
 body {
-  min-width: 20rem;
+  min-width: 0;
   margin: 0;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   background: var(--canvas);
 }
 
@@ -899,6 +899,7 @@ select {
   text-transform: uppercase;
 }
 
+.form-field select,
 .form-field input,
 .form-field textarea {
   width: 100%;
@@ -925,6 +926,7 @@ select {
   border-color: color-mix(in oklch, var(--lions-blue-700) 58%, var(--rule));
 }
 
+.form-field select:focus,
 .form-field input:focus,
 .form-field textarea:focus,
 .quantity-control input:focus {
@@ -994,6 +996,23 @@ select {
 
 .order-step--confirm {
   background: color-mix(in oklch, var(--canvas-deep) 62%, var(--surface));
+}
+
+/* Keep the optional refresh action touch-friendly without competing with submit. */
+.delivery-reload:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .order-submit {

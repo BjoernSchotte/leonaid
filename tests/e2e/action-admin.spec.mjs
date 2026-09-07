@@ -155,6 +155,169 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
       "Krapfentaxi Golden UI 2028",
     );
     await expect(page.getByTestId("management-status")).toHaveText("Entwurf");
+    await page.getByTestId("management-tab-delivery").click();
+    const delivery = page.locator(".delivery-editor");
+    await delivery.getByLabel("Lieferung für diese Aktion aktivieren").check();
+    await delivery
+      .getByRole("button", { name: "Tag hinzufügen", exact: true })
+      .click();
+    await delivery.getByLabel("Datum", { exact: true }).fill("2028-10-01");
+    await delivery
+      .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+      .click();
+    await delivery.getByLabel("Beginn 1", { exact: true }).fill("08:00");
+    await delivery.getByLabel("Ende 1", { exact: true }).fill("10:00");
+    for (const [slot, start, end] of [
+      [2, "10:00", "12:00"],
+      [3, "12:00", "14:00"],
+    ]) {
+      await delivery
+        .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+        .click();
+      await delivery.getByLabel(`Beginn ${slot}`, { exact: true }).fill(start);
+      await delivery.getByLabel(`Ende ${slot}`, { exact: true }).fill(end);
+    }
+    await delivery
+      .getByRole("button", { name: "Fenster auf neuen Tag kopieren" })
+      .click();
+    await delivery
+      .getByLabel("Datum", { exact: true })
+      .last()
+      .fill("2028-10-02");
+    await page.getByTestId("management-tab-basics").click();
+    await page.getByTestId("management-tab-delivery").click();
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    const configUrl = `${baseUrl}/api/v1/actions/${actionId}/delivery`;
+    const configResponse = await context.request.get(configUrl);
+    const remote = await configResponse.json();
+    delete remote.actionId;
+    remote.windows = [
+      {
+        id: crypto.randomUUID(),
+        deliveryOn: "2028-10-03",
+        startsAt: "09:00",
+        endsAt: "10:00",
+        retired: false,
+      },
+    ];
+    expect(
+      (await context.request.put(configUrl, { data: remote })).ok(),
+    ).toBeTruthy();
+    await delivery
+      .getByRole("button", { name: "Lieferplanung speichern", exact: true })
+      .click();
+    await expect(delivery).toContainText("inzwischen geändert");
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    await delivery
+      .getByRole("button", { name: "Aktuelle Lieferplanung vergleichen" })
+      .click();
+    await expect(
+      delivery.getByRole("region", {
+        name: "Aktuell gespeicherte Lieferplanung",
+      }),
+    ).toContainText("2028-10-03");
+    await delivery
+      .getByRole("button", { name: "Eigene Planung nach Abgleich übernehmen" })
+      .click();
+    await delivery
+      .getByRole("button", { name: "Lieferplanung speichern", exact: true })
+      .click();
+    await expect(delivery).toContainText("Lieferplanung gespeichert");
+    await page.reload();
+    await expect(
+      delivery.getByLabel("Beginn 1", { exact: true }).first(),
+    ).toHaveValue("08:00");
+    await expect(delivery.locator(".delivery-window")).toHaveCount(6);
+    await delivery
+      .getByRole("button", { name: "Tag hinzufügen", exact: true })
+      .click();
+    const thirdDay = delivery.locator(".delivery-day").last();
+    await thirdDay.getByLabel("Datum", { exact: true }).fill("2028-10-03");
+    await thirdDay
+      .getByRole("button", { name: "Zeitfenster hinzufügen", exact: true })
+      .click();
+    await thirdDay.getByLabel("Beginn 1", { exact: true }).fill("09:00");
+    await thirdDay.getByLabel("Ende 1", { exact: true }).fill("08:00");
+    const saveDelivery = delivery.getByRole("button", {
+      name: "Lieferplanung speichern",
+      exact: true,
+    });
+    await saveDelivery.click();
+    await expect(delivery.getByTestId("delivery-feedback")).toBeFocused();
+    await expect(delivery.getByRole("alert")).toContainText("Ende");
+    await expect(thirdDay.getByLabel("Beginn 1", { exact: true })).toHaveValue(
+      "09:00",
+    );
+    await thirdDay.getByLabel("Ende 1", { exact: true }).fill("10:00");
+    await saveDelivery.click();
+    await expect(delivery).toContainText("Lieferplanung gespeichert");
+    const threeDays = await (await context.request.get(configUrl)).json();
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-01"),
+    ).toHaveLength(3);
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-02"),
+    ).toHaveLength(3);
+    expect(
+      threeDays.windows.filter((w) => w.deliveryOn === "2028-10-03"),
+    ).toHaveLength(1);
+    delete threeDays.actionId;
+    threeDays.windows[0].retired = true;
+    expect(
+      (await context.request.put(configUrl, { data: threeDays })).ok(),
+    ).toBeTruthy();
+    await thirdDay.getByLabel("Beginn 1", { exact: true }).fill("07:00");
+    await saveDelivery.click();
+    await expect(delivery.getByTestId("delivery-feedback")).toBeFocused();
+    await delivery
+      .getByRole("button", { name: "Aktuelle Lieferplanung vergleichen" })
+      .click();
+    await delivery
+      .getByRole("button", {
+        name: "Eigene Eingaben verwerfen und gespeicherte Planung laden",
+      })
+      .click();
+    await expect(thirdDay.getByLabel("Beginn 1", { exact: true })).toHaveValue(
+      "09:00",
+    );
+    await expect(
+      delivery.getByLabel("Zur Auswahl", { exact: true }).first(),
+    ).not.toBeChecked();
+    const effective = await (
+      await context.request.get(`${configUrl}/order-form`)
+    ).json();
+    expect(effective.windows).toHaveLength(6);
+    expect(
+      effective.windows.some((w) => w.id === threeDays.windows[0].id),
+    ).toBeFalsy();
+    await page.reload();
+    await expect(delivery.locator(".delivery-day")).toHaveCount(3);
+    await expect(delivery.locator(".delivery-window")).toHaveCount(7);
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-desktop.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(delivery).toBeVisible();
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-mobile.png`,
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    const deliveryA11y = await new AxeBuilder({ page })
+      .include(".delivery-editor")
+      .analyze();
+    expect(deliveryA11y.violations).toEqual([]);
+    await page.screenshot({
+      path: `${artifactDirectory}/delivery-admin-mobile.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.getByTestId("management-tab-basics").click();
     await expect(page.getByTestId("current-action")).toHaveText(
       "Krapfentaxi Golden UI 2028",
     );
@@ -214,6 +377,8 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     ).toEqual([]);
 
     await page.getByTestId("management-tab-basics").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("management-tab-delivery")).toBeFocused();
     await page.keyboard.press("ArrowRight");
     await expect(
       page.getByTestId("management-tab-beneficiaries"),

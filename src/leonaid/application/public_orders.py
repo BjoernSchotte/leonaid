@@ -184,6 +184,7 @@ class PublicOrderDraft:
     binding_order_confirmed: bool
     privacy_notice_version: str
     website: str | None = None
+    delivery_window_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -237,6 +238,11 @@ class PublicOrderDraft:
 
     def request_hash(self, *, action_id: UUID, public_alias: str) -> str:
         payload = {
+            **(
+                {"deliveryWindowId": str(self.delivery_window_id)}
+                if self.delivery_window_id
+                else {}
+            ),
             "actionId": str(action_id),
             "publicAlias": public_alias,
             "party": self.party.payload(),

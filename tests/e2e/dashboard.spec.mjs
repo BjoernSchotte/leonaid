@@ -207,6 +207,7 @@ test("Teilkonfigurierte leere Aktion erklärt den Zustand ohne leere Grafik", as
       "Ein Zielwert ist noch nicht vollständig gepflegt.",
     );
     await expect(page.getByRole("progressbar")).toHaveCount(0);
+    await expect(page.getByTestId("dashboard-beneficiaries")).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Die Pipeline ist noch leer" }),
     ).toBeVisible();
@@ -224,5 +225,123 @@ test("Teilkonfigurierte leere Aktion erklärt den Zustand ohne leere Grafik", as
     expectNoUnexpectedPageErrors(pageErrors);
   } finally {
     await context.close();
+  }
+});
+
+test("Begünstigte bleiben kompakt und sind vollständig per Tastatur erreichbar", async ({
+  browser,
+}) => {
+  const { context: admin, page: adminPage } = await pageFor(
+    browser,
+    klaraSession,
+    {
+      width: 1440,
+      height: 1100,
+    },
+  );
+  const { context, page } = await pageFor(browser, annaSession, {
+    width: 390,
+    height: 844,
+  });
+  const management = `${baseUrl}/api/v1/actions/${actionId}/management`;
+  async function setNames(names) {
+    const state = await (await admin.request.get(management)).json();
+    const result = await admin.request.put(
+      `${baseUrl}/api/v1/actions/${actionId}/beneficiaries`,
+      {
+        data: {
+          revision: state.action.revision,
+          beneficiaries: names.map((organizationName) => ({
+            organizationName,
+            publicDescription: "Unterstützung für Bildung und Teilhabe.",
+          })),
+        },
+      },
+    );
+    expect(result.status(), await result.text()).toBe(200);
+    await page.goto(`${baseUrl}/app/?action=${actionId}`);
+    await expect(page.getByTestId("dashboard-beneficiaries")).toContainText(
+      names[0],
+    );
+  }
+  try {
+    await setNames(["Kinderhafen Beispielstadt"]);
+    const row = page.getByTestId("dashboard-beneficiaries");
+    await expect(row).not.toHaveAttribute("open", "");
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      const addedHeight = await row.evaluate((element) => {
+        const card = element.closest(".dashboard-goal");
+        const withRow = card.getBoundingClientRect().height;
+        element.style.display = "none";
+        const without = card.getBoundingClientRect().height;
+        element.style.display = "";
+        return withRow - without;
+      });
+      expect(addedHeight).toBeLessThanOrEqual(64);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      await page.screenshot({
+        path: `${artifactDirectory}/dashboard-beneficiary-${width}.png`,
+        fullPage: true,
+      });
+    }
+    const longName =
+      "Bildungshilfe für Kinder und Jugendliche mit besonders langen Organisationsnamen in Beispielstadt";
+    await setNames([longName, "Jugendhilfe Musterbogen", "Nordhilfe Muster"]);
+    await expect(row.locator("summary")).toContainText("+2 weitere");
+    expect((await row.boundingBox()).height).toBeLessThanOrEqual(64);
+    await row.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(row).toHaveAttribute("open", "");
+    await expect(row.locator("li")).toHaveCount(3);
+    await expect(row.locator("li").first()).toContainText(longName);
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "32px";
+    });
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    }
+    await expectNoSeriousAccessibilityViolations(
+      page,
+      "Begünstigte bei vergrößerter Schrift",
+    );
+    const state = await (await admin.request.get(management)).json();
+    const noGoal = await admin.request.put(
+      `${baseUrl}/api/v1/actions/${actionId}/goal`,
+      {
+        data: {
+          revision: state.action.revision,
+          actualValue: "900",
+          goalValue: null,
+          unit: null,
+          currency: "EUR",
+        },
+      },
+    );
+    expect(noGoal.status(), await noGoal.text()).toBe(200);
+    await page.reload();
+    await expect(page.getByTestId("dashboard-goal")).toHaveAttribute(
+      "data-configured",
+      "false",
+    );
+    await expect(row.locator("summary")).toContainText(longName);
+    await adminPage.goto(`${baseUrl}/admin/?action=${actionId}`);
+    const adminRow = adminPage.getByTestId("dashboard-beneficiaries");
+    await adminRow.locator("summary").click();
+    await expect(adminRow).toHaveAttribute("open", "");
+    await adminPage
+      .getByTestId("dashboard-action")
+      .selectOption("20000000-0000-4000-8000-000000000002");
+    await expect(adminRow).toContainText("Archivhilfe Beispiel");
+    await expect(adminRow).not.toHaveAttribute("open", "");
+    await expect(adminRow).not.toContainText(longName);
+  } finally {
+    await context.close();
+    await admin.close();
   }
 });

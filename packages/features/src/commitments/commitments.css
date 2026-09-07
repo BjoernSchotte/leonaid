@@ -1,5 +1,6 @@
 .commitment-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(1.1rem, 2.4vw, 1.8rem);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -62,7 +63,7 @@
   color: var(--foreground);
 }
 
-.commitment-capture {
+.commitment-capture-lock {
   display: grid;
   min-width: 0;
   gap: 1.25rem;
@@ -141,7 +142,8 @@
 }
 
 .commitment-field input,
-.commitment-field select {
+.commitment-field select,
+.commitment-field textarea {
   width: 100%;
   min-height: 2.95rem;
   padding: 0.68rem 0.76rem;
@@ -156,7 +158,8 @@
 }
 
 .commitment-field input:focus,
-.commitment-field select:focus {
+.commitment-field select:focus,
+.commitment-field textarea:focus {
   border-color: var(--focus);
   outline: 3px solid color-mix(in oklch, var(--focus) 32%, transparent);
   outline-offset: 0;
@@ -542,11 +545,14 @@
 
 .commitment-ledger {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   border-block: 1px solid var(--border);
 }
 
 .commitment-ledger-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 0.85rem;
   padding: 1rem 0.2rem;
@@ -602,6 +608,9 @@
 
 .commitment-ledger-row__action {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
   align-items: center;
 }
 
@@ -853,7 +862,7 @@
 }
 
 @media (min-width: 940px) {
-  .commitment-capture {
+  .commitment-capture-lock {
     grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.72fr);
     align-items: start;
     gap: clamp(1.5rem, 4vw, 3rem);
@@ -948,4 +957,66 @@
   .commitment-loading span {
     animation: none;
   }
+}
+
+.commitment-capture-lock {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.commitment-delivery-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+}
+.commitment-delivery-toggle input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.commitment-field textarea {
+  resize: vertical;
+  font: inherit;
+}
+.commitment-delivery-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.commitment-delivery-instructions {
+  white-space: pre-wrap;
+}
+.commitment-delivery-review {
+  grid-column: 1 / -1;
+}
+.commitment-delivery-review > summary {
+  min-height: 44px;
+  padding-block: 0.7rem;
+  cursor: pointer;
+}
+
+.commitment-delivery-completion {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 1.25rem;
+}
+.commitment-delivery-completion > fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.commitment-delivery-completion .ui-button {
+  white-space: normal;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 44px;
+}
+.commitment-delivery-completion input,
+.commitment-delivery-completion select,
+.commitment-delivery-completion textarea {
+  min-width: 0;
+  max-width: 100%;
 }

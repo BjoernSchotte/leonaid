@@ -15,12 +15,16 @@ host_user_id=$(id -u)
 host_group_id=$(id -g)
 
 compose() {
+  if [ -n "${LEONAID_ACTION_ADMIN_TEST_COMPOSE_OVERRIDE:-}" ]; then
+    set -- --file "$compose_file" --file "$LEONAID_ACTION_ADMIN_TEST_COMPOSE_OVERRIDE" "$@"
+  else
+    set -- --file "$compose_file" "$@"
+  fi
   LEONAID_HTTP_PORT="$http_port" \
     LEONAID_HTTPS_PORT="$https_port" \
     docker compose \
       --project-name "$project" \
       --env-file "$env_file" \
-      --file "$compose_file" \
       "$@"
 }
 

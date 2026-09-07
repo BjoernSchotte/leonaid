@@ -31,6 +31,109 @@
       "[data-order-success]",
     );
     form.noValidate = true;
+    const command = form.querySelector<HTMLInputElement>(
+      'input[name="commandId"]',
+    );
+    const slot = form.querySelector<HTMLSelectElement>(
+      'select[name="deliveryWindowId"]',
+    );
+    const reloadDelivery = form.querySelector<HTMLButtonElement>(
+      "[data-delivery-reload]",
+    );
+    if (reloadDelivery) reloadDelivery.hidden = false;
+    let pending = false;
+    let lastPayload = "";
+    let outcome: "known-rejection" | "unknown" | null = null;
+    const fingerprint = (data: FormData) =>
+      JSON.stringify(
+        [...data.entries()].filter(
+          ([name]) => !["commandId", "accessToken"].includes(name),
+        ),
+      );
+    reloadDelivery?.addEventListener("click", async () => {
+      reloadDelivery.disabled = true;
+      try {
+        const alias =
+          form.querySelector<HTMLInputElement>('input[name="publicAlias"]')
+            ?.value ?? "";
+        const response = await actions.resolvePublicAction({
+          routeKind: "alias",
+          routeValue: alias,
+        });
+        if (response.error) {
+          showFailure(response.error.message);
+          return;
+        }
+        const definition = response.data.action?.orderForm?.delivery;
+        if (!slot || !definition) {
+          showFailure(
+            "Die Lieferplanung ist nicht verfügbar. Deine Eingaben bleiben erhalten.",
+          );
+          return;
+        }
+        slot.required = definition.requireWindow;
+        const requiredHint = form.querySelector<HTMLElement>(
+          "[data-delivery-required]",
+        );
+        if (requiredHint) requiredHint.hidden = !definition.requireWindow;
+        slot.disabled = !definition.enabled;
+        for (const field of form.querySelectorAll<HTMLElement>(
+          "[data-delivery-contact]",
+        ))
+          field.hidden = !definition.allowContact;
+        for (const field of form.querySelectorAll<HTMLElement>(
+          "[data-delivery-instructions]",
+        ))
+          field.hidden = !definition.allowInstructions;
+        const selected = slot.value;
+        slot.replaceChildren(
+          new Option("Liefertag und Zeitfenster auswählen", ""),
+        );
+        const groups = new Map<string, HTMLOptGroupElement>();
+        for (const window of definition.windows) {
+          const date = new Intl.DateTimeFormat("de-DE", {
+            dateStyle: "full",
+            timeZone: "UTC",
+          }).format(new Date(`${window.deliveryOn}T12:00:00Z`));
+          let group = groups.get(window.deliveryOn);
+          if (!group) {
+            group = document.createElement("optgroup");
+            group.label = date;
+            groups.set(window.deliveryOn, group);
+            slot.append(group);
+          }
+          group.append(
+            new Option(
+              `${date} · ${window.startsAt.slice(0, 5)}–${window.endsAt.slice(0, 5)} Uhr`,
+              window.id,
+            ),
+          );
+        }
+        slot.value = definition.windows.some((window) => window.id === selected)
+          ? selected
+          : "";
+        const token = form.querySelector<HTMLInputElement>(
+          'input[name="accessToken"]',
+        );
+        if (token && response.data.action?.orderForm)
+          token.value = response.data.action.orderForm.accessToken;
+        const help = form.querySelector<HTMLElement>("#deliveryWindowId-help");
+        if (help)
+          help.textContent = !definition.enabled
+            ? "Für diese Aktion ist keine Lieferfensterauswahl vorgesehen. Deine Eingaben bleiben erhalten."
+            : definition.windows.length
+              ? "Lieferfenster aktualisiert. Bitte wähle ein verfügbares Fenster aus."
+              : "Aktuell sind keine Lieferfenster verfügbar. Deine Eingaben bleiben erhalten.";
+        if (definition.enabled) slot.focus();
+        else reloadDelivery.focus();
+      } catch {
+        showFailure(
+          "Lieferfenster konnten nicht geladen werden. Deine Eingaben bleiben erhalten.",
+        );
+      } finally {
+        reloadDelivery.disabled = false;
+      }
+    });
 
     const syncBillingFields = () => {
       if (!billingSame || !billingFields || !billingInputs) return;
@@ -146,11 +249,12 @@
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (pending) return;
       clearErrors();
       if (!form.checkValidity()) {
         const fields: Record<string, readonly string[]> = {};
         for (const control of form.querySelectorAll<HTMLInputElement>(
-          "input:invalid",
+          "input:invalid, select:invalid, textarea:invalid",
         )) {
           if (!control.name) continue;
           fields[control.name] = [
@@ -167,6 +271,21 @@
         );
         return;
       }
+      const data = new FormData(form);
+      const payload = fingerprint(data);
+      if (outcome === "unknown" && lastPayload !== payload) {
+        showFailure(
+          "Der Ausgang der letzten Übermittlung ist unklar. Bitte sende zunächst die ursprünglichen Angaben unverändert erneut, damit keine doppelte Bestellung entsteht.",
+        );
+        return;
+      }
+      if (outcome === "known-rejection" && lastPayload !== payload && command) {
+        command.value = crypto.randomUUID();
+        data.set("commandId", command.value);
+      }
+      lastPayload = payload;
+      outcome = "unknown";
+      pending = true;
       if (submitButton) {
         submitButton.disabled = true;
         submitButton.setAttribute("aria-busy", "true");
@@ -174,8 +293,18 @@
       if (submitLabel) submitLabel.textContent = "Wird sicher übermittelt …";
 
       try {
-        const result = await actions.createPublicOrder(new FormData(form));
+        const result = await actions.createPublicOrder(data);
         if (result.error) {
+          if (
+            [
+              "BAD_REQUEST",
+              "UNPROCESSABLE_CONTENT",
+              "FORBIDDEN",
+              "TOO_MANY_REQUESTS",
+            ].includes(result.error.code)
+          )
+            outcome = "known-rejection";
+          if (reloadDelivery) reloadDelivery.hidden = false;
           showFailure(
             isInputError(result.error)
               ? "Bitte prüfe die markierten Angaben."
@@ -214,6 +343,7 @@
           "Die Bestellung konnte gerade nicht übermittelt werden. Deine Eingaben bleiben erhalten.",
         );
       } finally {
+        pending = false;
         if (submitButton) {
           submitButton.disabled = false;
           submitButton.removeAttribute("aria-busy");

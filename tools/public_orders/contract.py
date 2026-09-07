@@ -843,6 +843,32 @@ async def main() -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"), timeout=10)
     try:
         await exercise(connection)
+        from dataclasses import replace
+        from datetime import date, time
+        from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
+        from leonaid.domain.delivery import DeliveryWindow
+
+        pool = await asyncpg.create_pool(require_env("CORE_DATABASE_URL"))
+        try:
+            repository = AsyncpgDeliveryRepository(pool)
+            config = await repository.get(ACTION_ID)
+            await repository.save(
+                replace(
+                    config,
+                    enabled=True,
+                    windows=(
+                        DeliveryWindow(
+                            UUID("90000000-0000-4000-8000-000000000072"),
+                            ACTION_ID,
+                            date(2026, 10, 1),
+                            time(9),
+                            time(11),
+                        ),
+                    ),
+                )
+            )
+        finally:
+            await pool.close()
     finally:
         await connection.close()
 

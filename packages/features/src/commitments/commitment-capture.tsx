@@ -13,18 +13,27 @@ import {
   ApiError,
   type AcquisitionActivityWorkItemResponse,
   type CommitmentResponse,
-  type ConfiguredOfferingResponse,
+  type CreateCommitmentRequest,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import {
+  DeliveryFields,
+  DeliveryDetails,
+  emptyDelivery,
+  type DeliveryDraft,
+} from "./delivery-fields";
+
 interface CommitmentCapturePageProps {
+  readonly onActionChange?: (actionId: string) => void;
   readonly client: LeonAidApiClient;
   readonly identity: CurrentIdentityResponse;
 }
 
 interface RecipientDraft {
+  readonly countryCode: string;
   readonly city: string;
   readonly email: string;
   readonly postalCode: string;
@@ -61,6 +70,12 @@ function captureError(error: unknown) {
     if (error.detail.code === "offering_not_available") {
       return "Das gewählte Angebot ist nicht mehr verfügbar. Lade die Angebote neu und wähle erneut.";
     }
+    if (error.detail.code.startsWith("delivery_")) {
+      return `${error.detail.message} Deine weiteren Eingaben bleiben erhalten.`;
+    }
+    if (error.status >= 500) {
+      return "Die Serverantwort ist unklar. Die Bestellung könnte bereits gespeichert sein. Bitte sende die ursprünglichen Angaben unverändert erneut.";
+    }
     if (error.status === 403) {
       return "Du darfst für diesen Sponsor keine Bestellung erfassen. Wähle einen dir zugeordneten Sponsor.";
     }
@@ -72,6 +87,7 @@ function recipientFor(
   sponsor: AcquisitionActivityWorkItemResponse | undefined,
 ): RecipientDraft {
   return {
+    countryCode: "DE",
     city: sponsor?.city ?? "",
     email: sponsor?.email ?? "",
     postalCode: sponsor?.postalCode ?? "",
@@ -87,6 +103,11 @@ function CaptureSuccess({
   readonly commitment: CommitmentResponse;
   readonly onContinue: () => void;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
   const ready = commitment.status === "review_ready";
   return (
     <section
@@ -103,7 +124,7 @@ function CaptureSuccess({
         />
       </span>
       <p className="commitment-eyebrow">Bestellung gespeichert</p>
-      <h1 id="commitment-success-heading">
+      <h1 id="commitment-success-heading" ref={heading} tabIndex={-1}>
         {ready ? "Bereit für die Prüfung" : "Als Entwurf gesichert"}
       </h1>
       <p>
@@ -129,6 +150,15 @@ function CaptureSuccess({
           <dd>{formatMoney(commitment.totalMinor, commitment.currency)}</dd>
         </div>
       </dl>
+      <DeliveryDetails commitment={commitment} />
+      {commitment.invoiceRecipient && (
+        <p>
+          Rechnung: {commitment.invoiceRecipient.recipientName},{" "}
+          {commitment.invoiceRecipient.streetLine1},{" "}
+          {commitment.invoiceRecipient.postalCode}{" "}
+          {commitment.invoiceRecipient.city}
+        </p>
+      )}
       <div className="commitment-success__actions">
         <a className="ui-button ui-button--secondary" href="/app/sponsors">
           Zurück zu meinen Sponsoren
@@ -144,6 +174,7 @@ function CaptureSuccess({
 export function CommitmentCapturePage({
   client,
   identity,
+  onActionChange,
 }: CommitmentCapturePageProps) {
   const memberships = useMemo(
     () =>
@@ -163,6 +194,9 @@ export function CommitmentCapturePage({
     ? requestedActionId
     : (memberships[0]?.actionId ?? "");
   const [actionId, setActionId] = useState(initialActionId);
+  useEffect(() => {
+    onActionChange?.(actionId);
+  }, [actionId, onActionChange]);
   const [assignmentId, setAssignmentId] = useState(
     initialParameters.get("assignment") ?? "",
   );
@@ -172,6 +206,14 @@ export function CommitmentCapturePage({
     recipientFor(undefined),
   );
   const commandId = useRef(crypto.randomUUID());
+  const lastPayload = useRef("");
+  const [delivery, setDelivery] = useState<DeliveryDraft>(emptyDelivery);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliveryWindowId, setDeliveryWindowId] = useState("");
+  const [sameAddress, setSameAddress] = useState(true);
+  const [deferredDelivery, setDeferredDelivery] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const errorFocus = useRef<HTMLDivElement>(null);
 
   const context = useQuery({
     enabled: Boolean(actionId),
@@ -212,68 +254,121 @@ export function CommitmentCapturePage({
 
   useEffect(() => {
     setRecipient(recipientFor(selectedSponsor));
+    setDelivery({
+      ...emptyDelivery(),
+      recipientName: selectedSponsor?.partyDisplayName ?? "",
+      postalCode: selectedSponsor?.postalCode ?? "",
+      city: selectedSponsor?.city ?? "",
+    });
+    setDeliveryWindowId("");
+    setDeliveryDate("");
+    setSameAddress(true);
+    setDeferredDelivery(false);
+    setLocalError("");
+    commandId.current = crypto.randomUUID();
+    lastPayload.current = "";
   }, [selectedSponsor?.assignmentId]);
 
+  const deliveryDefinition = context.data?.delivery;
+  const deliveryEnabled = Boolean(deliveryDefinition?.enabled);
   const create = useMutation({
-    mutationFn: ({
-      readyForReview,
-      sponsor,
-      offering,
-    }: {
-      readonly readyForReview: boolean;
-      readonly sponsor: AcquisitionActivityWorkItemResponse;
-      readonly offering: ConfiguredOfferingResponse;
-    }) =>
-      client.createCommitment(
-        actionId,
-        {
-          buyer: {
-            displayName: sponsor.partyDisplayName,
-            email: sponsor.email,
-            partyKind: sponsor.partyKind,
-            twentyId: sponsor.partyId,
-          },
-          invoiceRecipient: {
-            city: recipient.city.trim(),
-            countryCode: "DE",
-            email: recipient.email.trim() || null,
-            postalCode: recipient.postalCode.trim(),
-            recipientName: recipient.recipientName.trim(),
-            streetLine1: recipient.streetLine1.trim(),
-          },
-          lines: [
-            {
-              offeringId: offering.id,
-              quantity,
-              quotedUnitPriceMinor: offering.unitPriceMinor,
-              unit: offering.unit,
-            },
-          ],
-          readyForReview,
-          source: "acquisition",
-        },
-        {
-          headers: {
-            "Idempotency-Key": `poc081:${commandId.current}`,
-          },
-        },
-      ),
+    mutationFn: (payload: CreateCommitmentRequest) =>
+      client.createCommitment(actionId, payload, {
+        headers: { "Idempotency-Key": `delivery:${commandId.current}` },
+      }),
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        error.detail.code.startsWith("delivery_")
+      )
+        void context.refetch();
+    },
   });
+
+  useEffect(() => {
+    if (create.isError || localError) errorFocus.current?.focus();
+  }, [create.isError, localError]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent)
       .submitter as HTMLButtonElement | null;
-    if (!selectedSponsor || !selectedOffering || !submitter) return;
-    create.mutate({
-      offering: selectedOffering,
-      readyForReview: submitter.value === "review_ready",
-      sponsor: selectedSponsor,
-    });
+    if (!selectedSponsor || !selectedOffering || !submitter || create.isPending)
+      return;
+    const readyForReview = submitter.value === "review_ready";
+    const address = deliveryEnabled && sameAddress ? delivery : recipient;
+    const omitInvoice = deliveryEnabled && sameAddress && deferredDelivery;
+    const payload: CreateCommitmentRequest = {
+      buyer: {
+        displayName: selectedSponsor.partyDisplayName,
+        email: selectedSponsor.email,
+        partyKind: selectedSponsor.partyKind,
+        twentyId: selectedSponsor.partyId,
+      },
+      invoiceRecipient: omitInvoice
+        ? null
+        : {
+            recipientName: address.recipientName.trim(),
+            streetLine1: address.streetLine1.trim(),
+            postalCode: address.postalCode.trim(),
+            city: address.city.trim(),
+            countryCode: address.countryCode,
+            email: recipient.email.trim() || null,
+          },
+      deliveryRecipient:
+        deliveryEnabled && !deferredDelivery
+          ? {
+              ...delivery,
+              contactName: deliveryDefinition?.allowContact
+                ? delivery.contactName.trim() || null
+                : null,
+              contactPhone: deliveryDefinition?.allowContact
+                ? delivery.contactPhone.trim() || null
+                : null,
+              instructions: deliveryDefinition?.allowInstructions
+                ? delivery.instructions.trim() || null
+                : null,
+            }
+          : null,
+      deliveryWindowId:
+        deliveryEnabled && !deferredDelivery ? deliveryWindowId || null : null,
+      lines: [
+        {
+          offeringId: selectedOffering.id,
+          quantity,
+          quotedUnitPriceMinor: selectedOffering.unitPriceMinor,
+          unit: selectedOffering.unit,
+        },
+      ],
+      readyForReview,
+      source: "acquisition",
+    };
+    const serialized = JSON.stringify(payload);
+    if (lastPayload.current && lastPayload.current !== serialized) {
+      if (
+        create.isError &&
+        (!(create.error instanceof ApiError) ||
+          create.error.status >= 500 ||
+          create.error.detail.code === "idempotency_incomplete")
+      ) {
+        setLocalError(
+          "Der Ausgang der letzten Übermittlung ist noch unklar. Bitte die ursprünglichen Angaben unverändert erneut senden oder zuerst die gespeicherten Bestellungen prüfen.",
+        );
+        return;
+      }
+      commandId.current = crypto.randomUUID();
+    }
+    lastPayload.current = serialized;
+    setLocalError("");
+    create.mutate(payload);
   }
 
   function reset() {
     commandId.current = crypto.randomUUID();
+    lastPayload.current = "";
+    setDeliveryWindowId("");
+    setDeliveryDate("");
+    setLocalError("");
     setQuantity(1);
     create.reset();
   }
@@ -301,8 +396,8 @@ export function CommitmentCapturePage({
         <p className="commitment-eyebrow">Bestellung oder Zusage</p>
         <h1>Vom Gespräch zur klaren Bestellung.</h1>
         <p>
-          Sponsor, Angebot und Rechnungsanschrift bleiben auf einer Seite.
-          LeonAid berechnet den verbindlichen Preis beim Speichern erneut.
+          Besteller, Angebot und Anschriften bleiben auf einer Seite. LeonAid
+          berechnet den verbindlichen Preis beim Speichern erneut.
         </p>
       </header>
 
@@ -328,349 +423,441 @@ export function CommitmentCapturePage({
         </div>
       ) : (
         <form className="commitment-capture" onSubmit={submit}>
-          <div className="commitment-capture__form">
-            {memberships.length > 1 ? (
-              <div className="commitment-field">
-                <label htmlFor="commitment-action">Charity-Aktion</label>
-                <small id="commitment-action-help">
-                  Die Aktion bestimmt verfügbare Angebote und Zuständigkeiten.
-                </small>
-                <select
-                  aria-describedby="commitment-action-help"
-                  id="commitment-action"
-                  onChange={(event) => {
-                    setActionId(event.target.value);
-                    setAssignmentId("");
-                    create.reset();
-                  }}
-                  value={actionId}
-                >
-                  {memberships.map((membership) => (
-                    <option
-                      key={membership.actionId}
-                      value={membership.actionId}
-                    >
-                      {membership.actionName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+          <fieldset
+            className="commitment-capture-lock"
+            disabled={create.isPending}
+          >
+            <div className="commitment-capture__form">
+              {memberships.length > 1 ? (
+                <div className="commitment-field">
+                  <label htmlFor="commitment-action">Charity-Aktion</label>
+                  <small id="commitment-action-help">
+                    Die Aktion bestimmt verfügbare Angebote und Zuständigkeiten.
+                  </small>
+                  <select
+                    aria-describedby="commitment-action-help"
+                    id="commitment-action"
+                    onChange={(event) => {
+                      setActionId(event.target.value);
+                      setAssignmentId("");
+                      create.reset();
+                    }}
+                    value={actionId}
+                  >
+                    {memberships.map((membership) => (
+                      <option
+                        key={membership.actionId}
+                        value={membership.actionId}
+                      >
+                        {membership.actionName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
-            <fieldset className="commitment-step">
-              <legend>
-                <span>1</span>
-                Besteller
-              </legend>
-              <div className="commitment-field">
-                <label htmlFor="commitment-sponsor">Zugeordneter Sponsor</label>
-                <small id="commitment-sponsor-help">
-                  Die Bestellung wird diesem CRM-Kontakt und deiner
-                  Zuständigkeit zugeordnet.
-                </small>
-                <select
-                  aria-describedby="commitment-sponsor-help"
-                  data-testid="commitment-sponsor"
-                  id="commitment-sponsor"
-                  onChange={(event) => setAssignmentId(event.target.value)}
-                  required
-                  value={assignmentId}
-                >
-                  <option disabled value="">
-                    Sponsor auswählen
-                  </option>
-                  {(sponsors.data?.workItems ?? []).map((item) => (
-                    <option key={item.assignmentId} value={item.assignmentId}>
-                      {item.partyDisplayName}
+              <fieldset className="commitment-step">
+                <legend>
+                  <span>1</span>
+                  Besteller
+                </legend>
+                <div className="commitment-field">
+                  <label htmlFor="commitment-sponsor">
+                    Zugeordneter Sponsor
+                  </label>
+                  <small id="commitment-sponsor-help">
+                    Die Bestellung wird diesem CRM-Kontakt und deiner
+                    Zuständigkeit zugeordnet.
+                  </small>
+                  <select
+                    aria-describedby="commitment-sponsor-help"
+                    data-testid="commitment-sponsor"
+                    id="commitment-sponsor"
+                    onChange={(event) => {
+                      setAssignmentId(event.target.value);
+                      create.reset();
+                    }}
+                    required
+                    value={assignmentId}
+                  >
+                    <option disabled value="">
+                      Sponsor auswählen
                     </option>
-                  ))}
-                </select>
-              </div>
-              {selectedSponsor ? (
-                <div
-                  className="commitment-party"
-                  data-testid="commitment-party"
-                >
-                  <span aria-hidden="true">
+                    {(sponsors.data?.workItems ?? []).map((item) => (
+                      <option key={item.assignmentId} value={item.assignmentId}>
+                        {item.partyDisplayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedSponsor ? (
+                  <div
+                    className="commitment-party"
+                    data-testid="commitment-party"
+                  >
+                    <span aria-hidden="true">
+                      <HugeiconsIcon
+                        icon={UserMultiple02Icon}
+                        size={20}
+                        strokeWidth={1.8}
+                      />
+                    </span>
+                    <div>
+                      <strong>{selectedSponsor.partyDisplayName}</strong>
+                      <small>
+                        {[selectedSponsor.postalCode, selectedSponsor.city]
+                          .filter(Boolean)
+                          .join(" ") || "Keine Ortsangabe"}
+                      </small>
+                    </div>
+                  </div>
+                ) : null}
+              </fieldset>
+
+              <fieldset className="commitment-step">
+                <legend>
+                  <span>2</span>
+                  Angebot und Menge
+                </legend>
+                {context.data?.offerings.length ? (
+                  <div className="commitment-offering-grid">
+                    <div className="commitment-field">
+                      <label htmlFor="commitment-offering">Angebot</label>
+                      <small id="commitment-offering-help">
+                        Es werden nur aktuell bestellbare Angebote angezeigt.
+                      </small>
+                      <select
+                        aria-describedby="commitment-offering-help"
+                        data-testid="commitment-offering"
+                        id="commitment-offering"
+                        onChange={(event) => setOfferingId(event.target.value)}
+                        required
+                        value={offeringId}
+                      >
+                        {context.data.offerings.map((offering) => (
+                          <option key={offering.id} value={offering.id}>
+                            {offering.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="commitment-field">
+                      <label htmlFor="commitment-quantity">Menge</label>
+                      <small id="commitment-quantity-help">
+                        Einheit:{" "}
+                        {selectedOffering
+                          ? quantityLabel(2, selectedOffering.unit)
+                          : "–"}
+                      </small>
+                      <input
+                        aria-describedby="commitment-quantity-help"
+                        data-testid="commitment-quantity"
+                        id="commitment-quantity"
+                        inputMode="numeric"
+                        max={1_000_000}
+                        min={1}
+                        onChange={(event) =>
+                          setQuantity(
+                            Math.max(
+                              1,
+                              Number.parseInt(event.target.value, 10) || 1,
+                            ),
+                          )
+                        }
+                        required
+                        type="number"
+                        value={quantity}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="commitment-empty">
                     <HugeiconsIcon
-                      icon={UserMultiple02Icon}
-                      size={20}
+                      aria-hidden="true"
+                      icon={Package01Icon}
+                      size={24}
                       strokeWidth={1.8}
                     />
-                  </span>
-                  <div>
-                    <strong>{selectedSponsor.partyDisplayName}</strong>
-                    <small>
-                      {[selectedSponsor.postalCode, selectedSponsor.city]
-                        .filter(Boolean)
-                        .join(" ") || "Keine Ortsangabe"}
-                    </small>
+                    <strong>Kein Angebot bestellbar</strong>
+                    <span>
+                      Bitte den Charity-Admin, Angebot und Zeitraum zu prüfen.
+                    </span>
                   </div>
-                </div>
-              ) : null}
-            </fieldset>
+                )}
+              </fieldset>
 
-            <fieldset className="commitment-step">
-              <legend>
-                <span>2</span>
-                Angebot und Menge
-              </legend>
-              {context.data?.offerings.length ? (
-                <div className="commitment-offering-grid">
-                  <div className="commitment-field">
-                    <label htmlFor="commitment-offering">Angebot</label>
-                    <small id="commitment-offering-help">
-                      Es werden nur aktuell bestellbare Angebote angezeigt.
-                    </small>
-                    <select
-                      aria-describedby="commitment-offering-help"
-                      data-testid="commitment-offering"
-                      id="commitment-offering"
-                      onChange={(event) => setOfferingId(event.target.value)}
-                      required
-                      value={offeringId}
-                    >
-                      {context.data.offerings.map((offering) => (
-                        <option key={offering.id} value={offering.id}>
-                          {offering.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="commitment-field">
-                    <label htmlFor="commitment-quantity">Menge</label>
-                    <small id="commitment-quantity-help">
-                      Einheit:{" "}
-                      {selectedOffering
-                        ? quantityLabel(2, selectedOffering.unit)
-                        : "–"}
+              {deliveryEnabled && deliveryDefinition && (
+                <DeliveryFields
+                  definition={deliveryDefinition}
+                  value={delivery}
+                  onChange={setDelivery}
+                  date={deliveryDate}
+                  onDate={(date) => {
+                    setDeliveryDate(date);
+                    setDeliveryWindowId("");
+                  }}
+                  windowId={deliveryWindowId}
+                  onWindow={setDeliveryWindowId}
+                  deferred={deferredDelivery}
+                  onDeferred={setDeferredDelivery}
+                />
+              )}
+              <fieldset className="commitment-step">
+                <legend>
+                  <span>{deliveryEnabled ? 4 : 3}</span>
+                  Rechnungsempfänger
+                </legend>
+                <p className="commitment-step__intro">
+                  Diese Anschrift wird mit der Bestellung gespeichert und kann
+                  vom Besteller abweichen.
+                </p>
+                {deliveryEnabled && (
+                  <label className="commitment-delivery-toggle">
+                    <input
+                      type="checkbox"
+                      checked={sameAddress}
+                      onChange={(e) => setSameAddress(e.target.checked)}
+                    />
+                    Rechnungsadresse entspricht der Lieferadresse
+                  </label>
+                )}
+                <div className="commitment-recipient-grid">
+                  {(!deliveryEnabled || !sameAddress) && (
+                    <>
+                      <div className="commitment-field commitment-field--wide">
+                        <label htmlFor="commitment-recipient-name">Name</label>
+                        <input
+                          autoComplete="organization"
+                          id="commitment-recipient-name"
+                          maxLength={200}
+                          onChange={(event) =>
+                            setRecipient({
+                              ...recipient,
+                              recipientName: event.target.value,
+                            })
+                          }
+                          required
+                          value={recipient.recipientName}
+                        />
+                      </div>
+                      <div className="commitment-field commitment-field--wide">
+                        <label htmlFor="commitment-street">
+                          Straße und Hausnummer
+                        </label>
+                        <input
+                          autoComplete="address-line1"
+                          data-testid="commitment-street"
+                          id="commitment-street"
+                          maxLength={200}
+                          onChange={(event) =>
+                            setRecipient({
+                              ...recipient,
+                              streetLine1: event.target.value,
+                            })
+                          }
+                          placeholder="Musterstraße 12"
+                          required
+                          value={recipient.streetLine1}
+                        />
+                      </div>
+                      <div className="commitment-field">
+                        <label htmlFor="commitment-postal-code">PLZ</label>
+                        <input
+                          autoComplete="postal-code"
+                          id="commitment-postal-code"
+                          maxLength={20}
+                          onChange={(event) =>
+                            setRecipient({
+                              ...recipient,
+                              postalCode: event.target.value,
+                            })
+                          }
+                          required
+                          value={recipient.postalCode}
+                        />
+                      </div>
+                      <div className="commitment-field">
+                        <label htmlFor="commitment-city">Ort</label>
+                        <input
+                          autoComplete="address-level2"
+                          id="commitment-city"
+                          maxLength={120}
+                          onChange={(event) =>
+                            setRecipient({
+                              ...recipient,
+                              city: event.target.value,
+                            })
+                          }
+                          required
+                          value={recipient.city}
+                        />
+                      </div>
+                      <div className="commitment-field">
+                        <label htmlFor="commitment-country">
+                          Ländercode (z. B. DE)
+                        </label>
+                        <input
+                          id="commitment-country"
+                          autoComplete="billing country"
+                          minLength={2}
+                          maxLength={2}
+                          required
+                          value={recipient.countryCode}
+                          onChange={(e) =>
+                            setRecipient({
+                              ...recipient,
+                              countryCode: e.target.value.toUpperCase(),
+                            })
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                  <div className="commitment-field commitment-field--wide">
+                    <label htmlFor="commitment-email">Rechnungs-E-Mail</label>
+                    <small id="commitment-email-help">
+                      Optional; kann von der Kontaktadresse abweichen.
                     </small>
                     <input
-                      aria-describedby="commitment-quantity-help"
-                      data-testid="commitment-quantity"
-                      id="commitment-quantity"
-                      inputMode="numeric"
-                      max={1_000_000}
-                      min={1}
+                      aria-describedby="commitment-email-help"
+                      autoComplete="email"
+                      id="commitment-email"
+                      maxLength={320}
                       onChange={(event) =>
-                        setQuantity(
-                          Math.max(
-                            1,
-                            Number.parseInt(event.target.value, 10) || 1,
-                          ),
-                        )
+                        setRecipient({
+                          ...recipient,
+                          email: event.target.value,
+                        })
                       }
-                      required
-                      type="number"
-                      value={quantity}
+                      type="email"
+                      value={recipient.email}
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="commitment-empty">
+              </fieldset>
+            </div>
+
+            <aside
+              aria-labelledby="commitment-summary-heading"
+              className="commitment-summary"
+            >
+              <div className="commitment-summary__heading">
+                <span aria-hidden="true">
                   <HugeiconsIcon
-                    aria-hidden="true"
-                    icon={Package01Icon}
-                    size={24}
+                    icon={Invoice03Icon}
+                    size={21}
                     strokeWidth={1.8}
                   />
-                  <strong>Kein Angebot bestellbar</strong>
-                  <span>
-                    Bitte den Charity-Admin, Angebot und Zeitraum zu prüfen.
-                  </span>
-                </div>
-              )}
-            </fieldset>
-
-            <fieldset className="commitment-step">
-              <legend>
-                <span>3</span>
-                Rechnungsempfänger
-              </legend>
-              <p className="commitment-step__intro">
-                Diese Anschrift wird als unveränderlicher Snapshot gespeichert
-                und kann vom Besteller abweichen.
-              </p>
-              <div className="commitment-recipient-grid">
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-recipient-name">Name</label>
-                  <input
-                    autoComplete="organization"
-                    id="commitment-recipient-name"
-                    maxLength={200}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        recipientName: event.target.value,
-                      })
-                    }
-                    required
-                    value={recipient.recipientName}
-                  />
-                </div>
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-street">
-                    Straße und Hausnummer
-                  </label>
-                  <input
-                    autoComplete="address-line1"
-                    data-testid="commitment-street"
-                    id="commitment-street"
-                    maxLength={200}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        streetLine1: event.target.value,
-                      })
-                    }
-                    placeholder="Musterstraße 12"
-                    required
-                    value={recipient.streetLine1}
-                  />
-                </div>
-                <div className="commitment-field">
-                  <label htmlFor="commitment-postal-code">PLZ</label>
-                  <input
-                    autoComplete="postal-code"
-                    id="commitment-postal-code"
-                    maxLength={20}
-                    onChange={(event) =>
-                      setRecipient({
-                        ...recipient,
-                        postalCode: event.target.value,
-                      })
-                    }
-                    required
-                    value={recipient.postalCode}
-                  />
-                </div>
-                <div className="commitment-field">
-                  <label htmlFor="commitment-city">Ort</label>
-                  <input
-                    autoComplete="address-level2"
-                    id="commitment-city"
-                    maxLength={120}
-                    onChange={(event) =>
-                      setRecipient({ ...recipient, city: event.target.value })
-                    }
-                    required
-                    value={recipient.city}
-                  />
-                </div>
-                <div className="commitment-field commitment-field--wide">
-                  <label htmlFor="commitment-email">Rechnungs-E-Mail</label>
-                  <small id="commitment-email-help">
-                    Optional; kann von der Kontaktadresse abweichen.
-                  </small>
-                  <input
-                    aria-describedby="commitment-email-help"
-                    autoComplete="email"
-                    id="commitment-email"
-                    maxLength={320}
-                    onChange={(event) =>
-                      setRecipient({ ...recipient, email: event.target.value })
-                    }
-                    type="email"
-                    value={recipient.email}
-                  />
-                </div>
-              </div>
-            </fieldset>
-          </div>
-
-          <aside
-            aria-labelledby="commitment-summary-heading"
-            className="commitment-summary"
-          >
-            <div className="commitment-summary__heading">
-              <span aria-hidden="true">
-                <HugeiconsIcon
-                  icon={Invoice03Icon}
-                  size={21}
-                  strokeWidth={1.8}
-                />
-              </span>
-              <div>
-                <h2 id="commitment-summary-heading">Bestellübersicht</h2>
-                <p>Vor dem Speichern noch einmal klar zusammengefasst.</p>
-              </div>
-            </div>
-            <dl className="commitment-summary__facts">
-              <div>
-                <dt>Besteller</dt>
-                <dd>{selectedSponsor?.partyDisplayName ?? "Noch auswählen"}</dd>
-              </div>
-              <div>
-                <dt>Angebot</dt>
-                <dd>{selectedOffering?.name ?? "Nicht verfügbar"}</dd>
-              </div>
-              <div>
-                <dt>Menge</dt>
-                <dd>
-                  {selectedOffering
-                    ? `${quantity} ${quantityLabel(quantity, selectedOffering.unit)}`
-                    : "–"}
-                </dd>
-              </div>
-              {selectedOffering?.piecesPerUnit ? (
+                </span>
                 <div>
-                  <dt>Enthaltene Stückzahl</dt>
-                  <dd>{quantity * selectedOffering.piecesPerUnit} Stück</dd>
+                  <h2 id="commitment-summary-heading">Bestellübersicht</h2>
+                  <p>Vor dem Speichern noch einmal klar zusammengefasst.</p>
                 </div>
-              ) : null}
-            </dl>
-            <div className="commitment-summary__total">
-              <span>Voraussichtlicher Gesamtbetrag</span>
-              <strong data-testid="commitment-preview-total">
-                {selectedOffering
-                  ? formatMoney(totalMinor, selectedOffering.currency)
-                  : "–"}
-              </strong>
-              <small>
-                Der Core übernimmt beim Speichern den aktuellen Angebotspreis.
-              </small>
-            </div>
-            {create.isError ? (
-              <StatusMessage tone="error">
-                {captureError(create.error)}
-              </StatusMessage>
-            ) : null}
-            <div className="commitment-submit-choices">
-              <div>
-                <Button
-                  data-testid="commitment-save-draft"
-                  disabled={
-                    create.isPending || !selectedSponsor || !selectedOffering
-                  }
-                  name="readiness"
-                  type="submit"
-                  value="draft"
-                  variant="secondary"
-                >
-                  {create.isPending
-                    ? "Wird gespeichert …"
-                    : "Als Entwurf speichern"}
-                </Button>
-                <small>Bleibt intern und kann später geprüft werden.</small>
               </div>
-              <div>
-                <Button
-                  data-testid="commitment-save-ready"
-                  disabled={
-                    create.isPending || !selectedSponsor || !selectedOffering
-                  }
-                  name="readiness"
-                  type="submit"
-                  value="review_ready"
-                >
-                  {create.isPending
-                    ? "Wird gespeichert …"
-                    : "Prüfbereit erfassen"}
-                </Button>
-                <small>Erscheint sofort beim Charity-Admin.</small>
+              <dl className="commitment-summary__facts">
+                <div>
+                  <dt>Besteller</dt>
+                  <dd>
+                    {selectedSponsor?.partyDisplayName ?? "Noch auswählen"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Angebot</dt>
+                  <dd>{selectedOffering?.name ?? "Nicht verfügbar"}</dd>
+                </div>
+                <div>
+                  <dt>Menge</dt>
+                  <dd>
+                    {selectedOffering
+                      ? `${quantity} ${quantityLabel(quantity, selectedOffering.unit)}`
+                      : "–"}
+                  </dd>
+                </div>
+                {selectedOffering?.piecesPerUnit ? (
+                  <div>
+                    <dt>Enthaltene Stückzahl</dt>
+                    <dd>{quantity * selectedOffering.piecesPerUnit} Stück</dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="commitment-summary__total">
+                <span>Voraussichtlicher Gesamtbetrag</span>
+                <strong data-testid="commitment-preview-total">
+                  {selectedOffering
+                    ? formatMoney(totalMinor, selectedOffering.currency)
+                    : "–"}
+                </strong>
+                <small>
+                  Der Core übernimmt beim Speichern den aktuellen Angebotspreis.
+                </small>
               </div>
-            </div>
-          </aside>
+              <div ref={errorFocus} tabIndex={-1}>
+                {localError && (
+                  <StatusMessage tone="error">{localError}</StatusMessage>
+                )}
+                {deliveryEnabled && deferredDelivery && (
+                  <p>
+                    Lieferadresse und Zeitfenster fehlen im Entwurf. Vor der
+                    Prüfung müssen sie ergänzt werden.
+                  </p>
+                )}
+                {create.isError ? (
+                  <StatusMessage tone="error">
+                    {captureError(create.error)}
+                  </StatusMessage>
+                ) : null}
+                {create.isError && deliveryEnabled && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void context.refetch()}
+                  >
+                    Lieferfenster neu laden
+                  </Button>
+                )}
+              </div>
+              <div className="commitment-submit-choices">
+                <div>
+                  <Button
+                    data-testid="commitment-save-draft"
+                    formNoValidate
+                    disabled={
+                      create.isPending || !selectedSponsor || !selectedOffering
+                    }
+                    name="readiness"
+                    type="submit"
+                    value="draft"
+                    variant="secondary"
+                  >
+                    {create.isPending
+                      ? "Wird gespeichert …"
+                      : "Als Entwurf speichern"}
+                  </Button>
+                  <small>Bleibt intern und kann später geprüft werden.</small>
+                </div>
+                <div>
+                  <Button
+                    data-testid="commitment-save-ready"
+                    disabled={
+                      create.isPending ||
+                      !selectedSponsor ||
+                      !selectedOffering ||
+                      (deliveryEnabled &&
+                        (deferredDelivery ||
+                          !deliveryDefinition?.windows.length))
+                    }
+                    name="readiness"
+                    type="submit"
+                    value="review_ready"
+                  >
+                    {create.isPending
+                      ? "Wird gespeichert …"
+                      : "Prüfbereit erfassen"}
+                  </Button>
+                  <small>Erscheint sofort beim Charity-Admin.</small>
+                </div>
+              </div>
+            </aside>
+          </fieldset>
         </form>
       )}
     </div>
