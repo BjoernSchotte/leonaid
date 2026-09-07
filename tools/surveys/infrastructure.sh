@@ -94,6 +94,18 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = deletion ]; then
+  compose stop worker
+  deletion_probe() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/deletion_live.py "$1"
+  }
+  deletion_probe prepare
+  crash_status=0
+  deletion_probe crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected deletion probe exit 73' >&2; exit 1; }
+  deletion_probe recover
+fi
 if [ "$mode" = export-states ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -197,6 +209,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = deletion ]; then
+  cp "$proof/deletion-proof.json" "$artifact/"
+fi
 if [ "$mode" = export-states ]; then
   wait "$state_worker_pid"
   cp "$proof/export-state-worker-proof.json" "$artifact/"

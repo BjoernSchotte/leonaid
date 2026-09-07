@@ -15,6 +15,7 @@ import asyncpg
 from leonaid.adapters.surveyjs_validation import validate_answers
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.survey_analysis import create_snapshot, read_snapshot
+from leonaid.adapters.postgres.survey_deletion import deletion_payload
 from leonaid.application.surveys.analysis_snapshot import AnalysisFilter
 from leonaid.application.surveys.exports import SurveyExportSelection
 from leonaid.adapters.postgres.survey_responses import (
@@ -326,6 +327,26 @@ class AsyncpgSurveyRepository:
             await conn.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", str(survey_id)
             )
+            deletion = await conn.fetchrow(
+                "SELECT * FROM survey_deletion WHERE survey_id=$1", survey_id
+            )
+            if deletion is not None:
+                if (
+                    operation != "delete-permanently"
+                    or deletion["requested_by"] != actor.account.id
+                    or not actor.account.can_authenticate
+                ):
+                    raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
+                if (
+                    deletion["operation_hash"]
+                    != hashlib.sha256(body["operationId"].encode()).hexdigest()
+                    or deletion["expected_revision"] != body["expectedRevision"]
+                ):
+                    raise Conflict(
+                        "idempotency_conflict",
+                        "Die endgültige Löschung wurde bereits beauftragt.",
+                    )
+                return deletion_payload(deletion)
             if operation == "create":
                 if not actor.account.can_authenticate:
                     raise PermissionDenied("forbidden", "Kein Zugriff.")
@@ -357,6 +378,8 @@ class AsyncpgSurveyRepository:
                 )
             )
             capability = Capability.DESIGN
+            if operation == "delete-permanently":
+                capability = Capability.DELETE
             if operation.startswith("analysis-"):
                 capability = Capability.VIEW_AGGREGATES
             if operation.startswith("response-"):
@@ -395,6 +418,35 @@ class AsyncpgSurveyRepository:
                 grants=grants,
             ):
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
+            if operation == "delete-permanently":
+                if survey["status"] != "deleted":
+                    raise Conflict(
+                        "survey_transition_invalid",
+                        "Die Umfrage muss zuerst im Papierkorb liegen.",
+                    )
+                if survey["revision"] != body["expectedRevision"]:
+                    raise Conflict(
+                        "revision_conflict",
+                        "Die Umfrage wurde zwischenzeitlich geändert.",
+                    )
+                event_id = uuid4()
+                await conn.execute(
+                    """INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload)
+                    VALUES($1,'survey',$2,'survey.delete.v1',$3,'{}'::jsonb)""",
+                    event_id,
+                    survey_id,
+                    f"survey-delete:{survey_id}",
+                )
+                deletion = await conn.fetchrow(
+                    """INSERT INTO survey_deletion(survey_id,requested_by,operation_hash,expected_revision,event_id)
+                    VALUES($1,$2,$3,$4,$5) RETURNING *""",
+                    survey_id,
+                    actor.account.id,
+                    hashlib.sha256(body["operationId"].encode()).hexdigest(),
+                    body["expectedRevision"],
+                    event_id,
+                )
+                return deletion_payload(deletion)
             if operation.startswith("invitation"):
                 return await self._invitation(conn, actor, survey, operation, body)
             if operation.startswith(("analysis-", "response-", "export-selection-")):

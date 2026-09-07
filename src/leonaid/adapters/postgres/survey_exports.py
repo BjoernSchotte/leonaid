@@ -312,6 +312,10 @@ class AsyncpgSurveyExports:
                 "SELECT * FROM survey_export_job WHERE id=$1 FOR UPDATE",
                 event.aggregate_id,
             )
+            if row is None:
+                # Permanent deletion may have won the survey lock after the
+                # preliminary identity lookup. There is nothing left to render.
+                return
             if row["status"] in {"available", "cancelled"}:
                 return
             try:
