@@ -100,7 +100,7 @@ if [ "$mode" = permissions ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = permissions ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
 fi
 state_worker_pid=""
 if [ "$mode" = export-limits ]; then
@@ -358,6 +358,10 @@ if [ "$mode" = permissions ]; then
   cp "$proof/role-lifecycle-proof.json" "$artifact/"
   cp "$proof/permissions-proof.json" "$artifact/"
   cp "$proof/permission-boundaries-proof.json" "$artifact/"
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/special_permissions_verify.py
+  cp "$proof/invitation-scope-proof.json" "$artifact/"
+  cp "$proof/special-permissions-proof.json" "$artifact/"
   cp "$proof/publisher-proof.json" "$artifact/"
   cp "$proof/publisher-review-mobile.png" "$artifact/"
   python3 - "$proof" "$artifact" <<'PYMATRIX'

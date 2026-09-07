@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
+from invitation_roles_live import prepare_invitation_roles
 from permission_boundaries_live import verify_boundaries
 
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
@@ -426,6 +427,9 @@ async def main():
         )
         await verify_boundaries(
             conn, call, actors, resources, actions, own_jobs, fingerprint
+        )
+        await prepare_invitation_roles(
+            conn, call, actors, resources, actions, fingerprint
         )
         Path("/proof/permission-browser-private.json").write_text(
             json.dumps(

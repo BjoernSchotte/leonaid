@@ -1,21 +1,19 @@
 # SURV-060 — Member module and scoped management
 
-Baseline `c75b8c7` plus this commit's module, API/client and browser changes.
-The initial increment delivered member navigation, lifecycle and timeout UI.
-The personal invitation increment below adds live evidence for 060.A3;
-preview isolation and timeout snapshot behavior are now accepted below. Complete
-capability coverage remains open; invitation credentials and expired resume access are accepted in the final section.
+**SURV-060 is accepted.** See the [consolidated acceptance](#consolidated-surv-060-acceptance)
+for the criterion-by-criterion evidence. The sections below preserve the individual
+implementation increments and their historical remaining-work statements.
 
 ## Task ledger
 
 | Task | Criteria | Delivery / named evidence | Remaining acceptance |
 |---|---|---|---|
-| 060.1 | A4, A5 | `apps/web/src/surveys.tsx`, generated client, scoped list/summary and action creation; `surveys-module.spec.mjs` | Delivered; A5 accepted below; complete persona coverage remains open |
-| 060.2 | A1, A4 | Existing policies now govern lists/counts, summary capabilities, action linking and hidden publish controls; `module.py seed` | Aggregate/export/invitation/deletion capability matrix is not complete |
+| 060.1 | A4, A5 | Member navigation, lifecycle and timeout UI; persona matrices and preview/timeout proof below | Accepted |
+| 060.2 | A1, A4 | Static/dynamic API matrices, active and invitation browser matrices, separate-role lifecycle/invitation writes and completed deletion scope | Accepted |
 | 060.3 | A2, A3 | Anonymous runner plus personal invitation API, member UI, worker/Mailpit delivery and PostgreSQL verification | A2/A3 accepted; final credential and expired-resume evidence below |
 | 060.4 | A5 | Actual preview completion, backend timeout change, public participation and separate persisted analysis snapshots below | Accepted |
-| 060.T1 | A1, A2 | Real member list/count/search/pagination and action-scope negative scenarios | Full capability and invitation coverage remain open |
-| 060.T2 | A3, A4, A5 | Admin lifecycle/settings, mobile designer and personal invitation browser scenarios | A5 accepted below; full persona coverage remains open |
+| 060.T1 | A1, A2 | Real HTTP/SQL permission and invitation matrices, anonymous association review, credential and expiry proof | Accepted |
+| 060.T2 | A3, A4, A5 | Desktop/mobile role matrices and mutation journeys, real Mailpit delivery, preview and timeout isolation | Accepted |
 
 ## Behavior and boundaries
 
@@ -745,3 +743,105 @@ This closes the tested dynamic authority and analysis/response/export child-ID
 boundaries. Single-grant invitation management, invitation/deletion special routes,
 the consolidated anonymous identity-association audit and full parent 060.A1/A4
 acceptance remain open, along with recovery continuity and full spike gates.
+
+## Invitation and deletion special scopes
+
+**060.2f / 060.S4d are accepted.** Production baseline `770cc01` is unchanged.
+The final isolated project `leonaid-surveys-833458328-53352` exited **0**:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+`tools/surveys/invitation_roles_live.py` creates separate standalone/action-linked
+invitation fixtures before publication. Each has an actual invitation containing
+a synthetic recipient address. All fourteen personas are checked against populated
+lists, totals and offset pagination. Unauthorized revocation and an administrator's
+foreign invitation ID substitution are rejected. **14 positive populated reads and
+65 denied requests** pass without changes to the ten-table survey/outbox fingerprint.
+Fixture invitations are then revoked before the worker resumes.
+
+`tests/e2e/surveys-invitation-roles.spec.mjs` adds two complementary browser checks:
+
+- **56 persona/resource/viewport combinations** verify invitation controls and
+  recipient data on standalone/action-linked invitation surveys at **1440 × 1000**
+  and **390 × 844**. Direct API access from each browser session has the same scope.
+  The existing 112-combination anonymous-survey matrix also verifies that anonymous
+  access does not expose an invitation panel, even for an invitation manager.
+- **Four successful single-grant journeys** use only `manage_invitations`, with
+  ordinary acquirer membership for action-linked surveys. The member has no design,
+  publish, delete or response-reading access. It sends through the real UI/worker,
+  receives exactly one matching Mailpit message, and the recipient saves and completes
+  a real response. UI revocation then blocks both the original link and saved resume
+  access. These cases cover both resource types at both viewport sizes.
+
+`tools/surveys/special_permissions_verify.py` independently checks PostgreSQL:
+one invitation and one completed response per journey; correct action association;
+the manager is not the owner and has exactly the single grant; send/redeem/revoke
+timestamps exist, the protected mail payload is removed and the saved answer remains.
+Actual create/revoke operation receipts belong to the invitation-only account.
+
+The separate-role lifecycle browser records its actual permanent-deletion request
+in a private fixture. After real worker erasure of the two mobile surveys, the verifier
+checks all fourteen personas. Only the requester and administrator can read completed
+status (**4 allowed / 24 denied reads**). Only the original requester can replay the
+exact request (**2 allowed / 26 denied replays**, including administrator rejection).
+A changed operation ID conflicts for the requester. The durable deletion records
+remain unchanged and no survey is recreated. Pending/retry/failed status branches use
+the same authorization guard before status calculation in
+`src/leonaid/adapters/postgres/surveys.py:344`; this increment's live status matrix
+specifically exercises completed deletion.
+
+The whole run passed **40 Chromium tests in 1.4 minutes**, the original 127/723/891
+API read/write matrix, changed-authority/child-ID probes and all three post-browser
+SQL verifiers. Safe evidence is retained in
+[SURV-060-invitation-scope.json](assets/SURV-060-invitation-scope.json) and
+[SURV-060-special-permissions.json](assets/SURV-060-special-permissions.json).
+Cookies, recipient identifiers, invitation links and original deletion request bodies
+remain in the private temporary directory, removed at teardown. No new visual or
+accessibility audit is claimed. Ruff, browser formatting of the new test, shell syntax
+and diff whitespace checks passed. Fresh volumes, seven unused subnets and no host
+ports were used; complete owned-resource teardown was verified.
+
+Two earlier attempts exposed incorrect test expectations, without runtime changes:
+`...51190` tried to change access mode after publication and correctly received 409;
+`...51990` passed all four new invitation journeys but failed eight added expectations
+that anonymous surveys should show an invitation panel. The final fixtures set access
+while in draft and verify both modes separately. Both failed runs terminated and
+cleaned up before their test files were corrected.
+
+## Consolidated SURV-060 acceptance
+
+The remaining A1/A4 gaps are closed by the special-scope proof above and review of
+the current anonymous participation path. `src/leonaid/entrypoints/fastapi/surveys.py:805`
+passes questionnaire data and a participation secret to the public start use case;
+it does not resolve a member, CRM person or order. `SurveyService.participate` delegates
+only those arguments to its repository. The anonymous insert in
+`src/leonaid/adapters/postgres/surveys.py:977` stores survey/version IDs, a resume digest
+and timeout. Save/complete update answers and participation state and record survey
+operation receipts; they do not invoke CRM/order adapters or associate an account.
+The separate invitation branch at line 937 alone writes the invitation/participation
+association. Schema review of `0027_surveys.py:79` and all later migrations touching
+`survey_participation` finds no CRM/person/order/account column or relationship;
+`0029_survey_invitations.py:35` adds the explicit invitation relationship.
+
+That review complements the actual anonymous start/save/complete requests for all
+four original API fixtures and their SQL assertion that no invitation is associated.
+It establishes absence of automatic respondent identity linkage. Survey ownership
+and optional action association still exist, and respondent-supplied free text can
+contain personal information; neither is claimed to be anonymized away.
+
+| Criterion | Authoritative evidence | Result |
+|---|---|---|
+| 060.A1 | Static persona/resource HTTP matrix and unchanged SQL; changed grants/memberships/accounts; foreign snapshot/response/version/job/invitation IDs; populated invitation and deletion special scopes; anonymous path/schema review above and live unassociated responses | Accepted |
+| 060.A2 | [Invitation credential and expired-resume acceptance](#invitation-credential-and-expired-resume-acceptance): retry/idempotency, expiry/revocation, populated exports and captured log scans | Accepted |
+| 060.A3 | [Personal invitations](#personal-invitations), credential/retry browser proof and four current single-grant Mailpit/complete/revoke journeys | Accepted |
+| 060.A4 | 112 active-anonymous and 56 invitation persona/resource/viewport combinations; publisher stale-review/retry proof; four separate-role lifecycle and four invitation journeys; direct authenticated API checks | Accepted |
+| 060.A5 | [Preview isolation and timeout snapshot acceptance](#preview-isolation-and-timeout-snapshot-acceptance): UI timeout changes, old/new participation snapshots, worker partial state and isolated real/test analysis | Accepted |
+
+The current run changes tests and evidence only; the earlier A2/A3/A5 production
+paths remain unchanged. Their distinct SMTP recovery, export/log and timeout scenarios
+are credited to their recorded runs, not claimed as rerun by `permissions` mode.
+Tasks **060.1–060.4, 060.T1 and 060.T2**, scenarios **060.S1–060.S5** and all five
+SURV-060 acceptance criteria are now accepted. Recovery continuity, broad contract
+consolidation and the full spike/CI acceptance in other work packages remain open.

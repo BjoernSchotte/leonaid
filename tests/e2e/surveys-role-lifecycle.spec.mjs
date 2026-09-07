@@ -131,6 +131,14 @@ for (const kind of ["standalone", "action"])
         );
         expect(closed.status()).toBe(409);
         if (mobile) {
+          const deletionRequests = [];
+          deleter.on("request", (request) => {
+            if (
+              request.method() === "POST" &&
+              request.url().endsWith("/delete-permanently")
+            )
+              deletionRequests.push(request.postDataJSON());
+          });
           await button(deleter, "In Papierkorb verschieben").click();
           await button(deleter, "Jetzt in Papierkorb verschieben").click();
           await state(deleter, "deleted");
@@ -150,6 +158,11 @@ for (const kind of ["standalone", "action"])
               .getByRole("region", { name: "Endgültige Löschung", exact: true })
               .getByRole("status"),
           ).toContainText("wurde endgültig gelöscht", { timeout: 30000 });
+          expect(deletionRequests.length).toBeGreaterThan(0);
+          writeFileSync(
+            `${proof}/role-deletion-${kind}-private.json`,
+            JSON.stringify(deletionRequests[0]),
+          );
         }
         writeFileSync(
           `${proof}/role-lifecycle-${kind}-${mobile}.json`,

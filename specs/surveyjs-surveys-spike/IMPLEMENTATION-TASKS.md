@@ -195,7 +195,7 @@ a substitute for completing an individual task.
   Integration / supporting checks — work-package regression gate: **060.S1, 060.S2**.
   E2E: **060.S4, 060.S5**.
 
-- [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions.
+- [x] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions.
 
   Acceptance criteria: **060.A1, 060.A4**.
   Integration / supporting checks: **060.S1**.
@@ -205,31 +205,37 @@ a substitute for completing an individual task.
 
   Acceptance criteria: **060.A1, static API matrix portion**.
   Integration: **060.S1a**, [live evidence](proofs/SURV-060.md#persona-resource-api-matrix).
-  Parent 060.2 remains open for remaining route/state and browser coverage.
+  [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
 - [x] **060.2b** Give publication-only members a validated publication review and submit action without granting draft editing. Bind publication to the reviewed revision and retain the exact operation after lost acknowledgement.
 
   Acceptance criteria: **060.A1/A4, publisher-only portion**.
   Integration/E2E: **060.S4a**, [live evidence](proofs/SURV-060.md#publisher-only-review-and-publication).
-  Parent 060.2 and full 060.A4 remain open.
+  [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
 - [x] **060.2c** Exercise all 14 personas against the four active-survey resource scopes in desktop/mobile browsers; verify scoped list links, controls and direct response-selection navigation, with direct API checks from the same session.
 
   Acceptance criteria: **060.A4, active-survey portion**.
   E2E: **060.S4b**, [live evidence](proofs/SURV-060.md#active-survey-browser-permission-matrix).
-  Full parent 060.2/A4 acceptance remains open.
+  [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
 - [x] **060.2d** Exercise successful lifecycle handoffs between separate design, publish, archive and delete accounts; preserve completed answers through restore and prove requester-specific permanent erasure.
 
   Acceptance criteria: **060.A1/A4, lifecycle role journeys**.
   Integration/E2E: **060.S4c**, [live evidence](proofs/SURV-060.md#separate-role-lifecycle-journeys).
-  Full parent 060.2/A1/A4 acceptance remains open.
+  [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
 - [x] **060.2e** Prove that existing sessions immediately lose revoked survey grants, expired action scope and suspended-account access. Reject foreign child IDs even for an administrator with access to both surveys; preserve the survey SQL fingerprint.
 
   Acceptance criteria: **060.A1, dynamic authority and child-resource boundaries**.
   Integration: **060.S1b**, [live evidence](proofs/SURV-060.md#changed-authority-and-child-resource-boundaries).
-  Regression: **060.S4a–060.S4c**. Parent 060.2/A1 remains open for invitation/special-route scope and consolidated identity separation.
+  Regression: **060.S4a–060.S4c**. [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
+
+- [x] **060.2f** Verify populated invitation list/revocation scopes, successful single-grant invitation journeys and completed deletion status/replay ownership.
+
+  Acceptance criteria: **060.A1, 060.A4**.
+  Integration/E2E: **060.S4d**, [live evidence](proofs/SURV-060.md#invitation-and-deletion-special-scopes).
+  [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 

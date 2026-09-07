@@ -124,6 +124,8 @@ for (const mobile of [false, true]) {
                 exact: true,
               }),
             ).toHaveCount(has("publish") && !has("design") ? 1 : 0);
+            // These four fixtures use anonymous access; invitation mode has its own matrix.
+            await expect(page.getByText(/^Einladungen \(\d+\)$/)).toHaveCount(0);
             if (!has("read_responses"))
               await expect(page.getByRole("alert")).toContainText(
                 "Antwortstand ist für Sie nicht zugänglich",
