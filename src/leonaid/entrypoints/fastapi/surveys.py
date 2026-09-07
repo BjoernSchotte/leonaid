@@ -61,9 +61,10 @@ class DraftValidation(SurveyInput):
 
 class SurveyDeletionResponse(SurveyInput):
     surveyId: str
-    status: Literal["pending", "completed"]
+    status: Literal["pending", "retrying", "failed", "completed"]
     requestedAt: str
     completedAt: str | None
+    retryEventId: str | None = None
 
 
 class TimeoutSettings(Mutation):
@@ -608,6 +609,18 @@ async def delete_permanently(
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
     return await author(request, survey_id, "delete-permanently", body.model_dump())
+
+
+@router.get(
+    "/surveys/{survey_id}/deletion",
+    operation_id="getSurveyDeletion",
+    response_model=SurveyDeletionResponse,
+)
+async def deletion_status(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "deletion-status", {})
 
 
 @router.post(

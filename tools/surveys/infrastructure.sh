@@ -94,6 +94,27 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = deletion-ui ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_live.py seed
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-deletion.spec.mjs \
+    --grep 'trash and request' --browser=chromium --output=/proof/test-results --reporter=line
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/deletion_ui_live.py
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-deletion.spec.mjs \
+    --grep 'failed deletion' --browser=chromium --output=/proof/test-results --reporter=line
+  compose up --detach --wait --wait-timeout 60 worker
+  browser_specs="$browser_specs tests/e2e/surveys-deletion.spec.mjs"
+fi
 if [ "$mode" = recovery ]; then
   recovery_probe() {
     compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -267,8 +288,14 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test $browser_specs \
+  --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = deletion-ui ]; then
+  cp "$proof/deletion-ui-proof.json" "$artifact/"
+  cp "$proof/deletion-confirm-mobile.png" "$artifact/"
+  cp "$proof/deletion-completed-mobile.png" "$artifact/"
+fi
 if [ "$mode" = recovery ]; then
   cp "$proof/recovery-proof.json" "$artifact/"
 fi

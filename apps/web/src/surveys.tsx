@@ -8,6 +8,7 @@ import {
   type TimeoutSettingsResponse,
   type SurveyInvitationsResponse,
   type SurveyInvitationCreate,
+  type SurveyDeletionResponse,
 } from "@leonaid/api-client";
 import { Button } from "@leonaid/ui";
 import { SurveyEditor } from "@leonaid/surveys/editor";
@@ -107,6 +108,13 @@ export function SurveysPage({
   const [endedRetentionDays, setEndedRetentionDays] = useState("");
   const [trashRetentionDays, setTrashRetentionDays] = useState("");
   const [confirmTrash, setConfirmTrash] = useState(false);
+  const [confirmErasure, setConfirmErasure] = useState(false);
+  const [understoodErasure, setUnderstoodErasure] = useState(false);
+  const [deletion, setDeletion] = useState<SurveyDeletionResponse | null>(null);
+  const erasureRequest = useRef<{
+    operationId: string;
+    expectedRevision: number;
+  } | null>(null);
   const [saveState, setSaveState] = useState("saved");
   const adapter = useMemo<AuthoringAdapter>(
     () => ({
@@ -122,6 +130,16 @@ export function SurveysPage({
   );
   const refresh = useCallback(
     async (key: string) => {
+      try {
+        const status = await client.getSurveyDeletion(key);
+        setDeletion(status);
+        setSummary(null);
+        setDraft(null);
+        setInvitations(null);
+        return;
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      }
       const value = await client.getSurvey(key);
       setSummary(value);
       setAccessMode(value.accessMode);
@@ -174,6 +192,32 @@ export function SurveysPage({
       stopped = true;
     };
   }, [client, id, filter, search, offset, refresh]);
+  useEffect(() => {
+    if (!id || !deletion || ["completed", "failed"].includes(deletion.status))
+      return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const status = await client.getSurveyDeletion(id);
+        if (!stopped) {
+          setDeletion(status);
+          setMessage("");
+          if (!["completed", "failed"].includes(status.status))
+            timer = setTimeout(poll, 2000);
+        }
+      } catch (error) {
+        if (!stopped) setMessage(errorMessage(error));
+        // An unavailable status is not success. The reload control explicitly
+        // retries using the durable server record, without another delete request.
+      }
+    };
+    timer = setTimeout(poll, 1000);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [client, id, deletion?.status]);
   useEffect(() => {
     if (!identity.globalRoles.includes("system_admin") || id || createNew)
       return;
@@ -264,14 +308,49 @@ export function SurveysPage({
   const allowed = (capability: string) =>
     summary?.capabilities?.includes(capability) ?? false;
   const pending = busy || (draft !== null && saveState !== "saved");
+  async function erase() {
+    if (!summary || !understoodErasure) return;
+    erasureRequest.current ??= {
+      operationId: crypto.randomUUID(),
+      expectedRevision: summary.revision,
+    };
+    await run(async () => {
+      let status: SurveyDeletionResponse;
+      try {
+        status = await client.deleteSurveyPermanently(
+          summary.id,
+          erasureRequest.current!,
+        );
+      } catch (error) {
+        // A committed request with a lost acknowledgement must be recoverable
+        // from the server, including after a full browser reload.
+        try {
+          status = await client.getSurveyDeletion(summary.id);
+        } catch {
+          throw error;
+        }
+      }
+      setDeletion(status);
+      setSummary(null);
+      setDraft(null);
+      setInvitations(null);
+      setConfirmErasure(false);
+    }, "");
+  }
   return (
     <section className="surveys-module" aria-label="Umfragen">
       <header className="surveys-heading">
         <div>
           {(id || createNew) && <a href="/admin/surveys">← Alle Umfragen</a>}
           <h1>
-            {summary?.title ??
-              (id ? "Umfrage laden" : createNew ? "Neue Umfrage" : "Umfragen")}
+            {deletion
+              ? "Umfrage löschen"
+              : (summary?.title ??
+                (id
+                  ? "Umfrage laden"
+                  : createNew
+                    ? "Neue Umfrage"
+                    : "Umfragen"))}
           </h1>
           <p>
             {id
@@ -297,6 +376,46 @@ export function SurveysPage({
       )}
       {notice && <p role="status">{notice}</p>}
       {loading && <p role="status">Umfragen werden geladen …</p>}
+      {deletion && (
+        <section
+          className="surveys-management"
+          aria-label="Endgültige Löschung"
+        >
+          <p role="status">
+            {
+              {
+                pending:
+                  "Die endgültige Löschung wurde beauftragt. Antworten und Exportdateien sind nicht mehr zugänglich.",
+                retrying:
+                  "Die Löschung ist noch nicht abgeschlossen. Der Server bearbeitet den Auftrag weiter; Antworten und Exportdateien bleiben gesperrt.",
+                failed: deletion.retryEventId
+                  ? "Die Löschung konnte nicht abgeschlossen werden. Sie können den Auftrag erneut ausführen. Die Daten bleiben gesperrt."
+                  : "Die Löschung konnte nicht abgeschlossen werden. Bitte wenden Sie sich an die Administration, damit der Auftrag erneut ausgeführt wird. Die Daten bleiben gesperrt.",
+                completed:
+                  "Die Umfrage einschließlich Antworten, Einladungen und Exportdateien wurde endgültig gelöscht.",
+              }[deletion.status]
+            }
+          </p>
+          <p>
+            Der Löschauftrag bleibt auch nach dem Schließen dieser Seite
+            bestehen.
+          </p>
+          {deletion.status === "failed" && deletion.retryEventId && (
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await client.retryOperationalJob(deletion.retryEventId!);
+                  await refresh(deletion.surveyId);
+                }, "Der Löschauftrag wurde erneut zur Bearbeitung vorgemerkt.")
+              }
+            >
+              Löschung erneut versuchen
+            </Button>
+          )}
+          <a href="/admin/surveys">Zur Umfragenübersicht</a>
+        </section>
+      )}
       {!id && !createNew && list && (
         <>
           <form
@@ -580,13 +699,22 @@ export function SurveysPage({
                 </Button>
               )}
               {summary.status === "deleted" && allowed("delete") && (
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => void mutate("restore")}
-                >
-                  Wiederherstellen
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => void mutate("restore")}
+                  >
+                    Wiederherstellen
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={pending}
+                    onClick={() => setConfirmErasure(true)}
+                  >
+                    Endgültig löschen
+                  </Button>
+                </>
               )}
               {summary.status !== "deleted" && allowed("delete") && (
                 <Button
@@ -627,6 +755,51 @@ export function SurveysPage({
                 </div>
               </div>
             )}
+            {confirmErasure &&
+              summary.status === "deleted" &&
+              allowed("delete") && (
+                <div
+                  className="surveys-confirm"
+                  role="group"
+                  aria-label="Endgültige Löschung bestätigen"
+                >
+                  <p>
+                    Der Fragebogen, alle Antworten, Einladungen und
+                    Exportdateien werden unwiderruflich gelöscht. Eine
+                    Wiederherstellung ist danach nicht möglich.
+                  </p>
+                  <label className="surveys-erasure-consent">
+                    <input
+                      type="checkbox"
+                      checked={understoodErasure}
+                      onChange={(event) =>
+                        setUnderstoodErasure(event.target.checked)
+                      }
+                    />
+                    Ich möchte diese Umfrage mit allen zugehörigen Daten
+                    endgültig löschen.
+                  </label>
+                  <div className="surveys-actions">
+                    <Button
+                      variant="danger"
+                      disabled={pending || !understoodErasure}
+                      onClick={() => void erase()}
+                    >
+                      Löschung jetzt beauftragen
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setConfirmErasure(false);
+                        setUnderstoodErasure(false);
+                      }}
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
+                </div>
+              )}
             <p>
               {summary.accessMode === "invitation"
                 ? "Persönliche Einladungen: Antworten sind dem jeweiligen Empfänger zuordenbar."

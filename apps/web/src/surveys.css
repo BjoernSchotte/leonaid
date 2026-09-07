@@ -36,6 +36,19 @@
   gap: 0.4rem;
   font-weight: 600;
 }
+.surveys-module .surveys-erasure-consent {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 44px;
+  max-width: 65ch;
+  cursor: pointer;
+}
+.surveys-module .surveys-erasure-consent input {
+  width: 1.25rem;
+  min-height: 1.25rem;
+  height: 1.25rem;
+}
 .surveys-filters,
 .surveys-actions {
   display: flex;
@@ -130,28 +143,109 @@
   }
 }
 
-.surveys-analysis { --survey-border: var(--border); --survey-accent: var(--primary); --survey-track: var(--surface-muted); }
-.surveys-settings .surveys-analysis form { max-width: none; }
-.surveys-analysis-filters { display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem 0; border: 0; }
-.surveys-analysis-filters > label { flex: 1 1 14rem; }
-.surveys-analysis-filters > p { flex-basis: 100%; margin: 0; }
-.surveys-analysis-statuses { display: flex; flex-wrap: wrap; gap: 1rem; border: 0; padding: 0; flex-basis: 100%; }
-.surveys-analysis-statuses label { display: flex; align-items: center; min-height: 44px; }
-.surveys-analysis-statuses input { min-height: auto; width: 1.2rem; height: 1.2rem; }
-.surveys-analysis legend { font-weight: 650; padding-block: 0.5rem; }
-.surveys-analysis-applied { margin-block: 2rem 1rem; padding-block: 1rem; border-block: 1px solid var(--border); }
-.surveys-analysis [role=alert] { color: var(--destructive); }
+.surveys-analysis {
+  --survey-border: var(--border);
+  --survey-accent: var(--primary);
+  --survey-track: var(--surface-muted);
+}
+.surveys-settings .surveys-analysis form {
+  max-width: none;
+}
+.surveys-analysis-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 0;
+  border: 0;
+}
+.surveys-analysis-filters > label {
+  flex: 1 1 14rem;
+}
+.surveys-analysis-filters > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.surveys-analysis-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border: 0;
+  padding: 0;
+  flex-basis: 100%;
+}
+.surveys-analysis-statuses label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.surveys-analysis-statuses input {
+  min-height: auto;
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.surveys-analysis legend {
+  font-weight: 650;
+  padding-block: 0.5rem;
+}
+.surveys-analysis-applied {
+  margin-block: 2rem 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--border);
+}
+.surveys-analysis [role="alert"] {
+  color: var(--destructive);
+}
 
-.surveys-settings .surveys-responses form { max-width: none; }
-.surveys-responses [role="alert"] { color: var(--destructive); }
-.surveys-response-list { padding-inline-start: 1.5rem; }
-.surveys-response-list li { padding-block: 0.65rem; border-bottom: 1px solid var(--border); }
-.surveys-response-list li > span { display: inline-block; margin-inline-end: 1rem; }
-.surveys-individual, .surveys-free-text { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-.surveys-individual dl > div { padding-block: 0.75rem; border-bottom: 1px solid var(--border); }
-.surveys-individual dt { font-weight: 650; }
-.surveys-individual dd { margin: 0.4rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
-.surveys-free-text label { max-width: 36rem; margin-bottom: 1rem; }
-.surveys-free-text li { padding-block: 1rem; }
-.surveys-free-text li p { white-space: pre-wrap; overflow-wrap: anywhere; }
-@media (max-width: 600px) { .surveys-response-list li > span { display: block; margin-block: 0.5rem; } }
+.surveys-settings .surveys-responses form {
+  max-width: none;
+}
+.surveys-responses [role="alert"] {
+  color: var(--destructive);
+}
+.surveys-response-list {
+  padding-inline-start: 1.5rem;
+}
+.surveys-response-list li {
+  padding-block: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+.surveys-response-list li > span {
+  display: inline-block;
+  margin-inline-end: 1rem;
+}
+.surveys-individual,
+.surveys-free-text {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.surveys-individual dl > div {
+  padding-block: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.surveys-individual dt {
+  font-weight: 650;
+}
+.surveys-individual dd {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.surveys-free-text label {
+  max-width: 36rem;
+  margin-bottom: 1rem;
+}
+.surveys-free-text li {
+  padding-block: 1rem;
+}
+.surveys-free-text li p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .surveys-response-list li > span {
+    display: block;
+    margin-block: 0.5rem;
+  }
+}

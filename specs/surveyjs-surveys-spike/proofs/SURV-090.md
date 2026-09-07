@@ -1,6 +1,6 @@
 # SURV-090 — Deletion, recovery and operational limits
 
-Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 are accepted. The retention section adds proven behavior for
+Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 and 090.A5 / 090.T2 are accepted. The retention section adds proven behavior for
 090.1 and the inactivity-preservation part of 090.A3. The complete work package
 and task 090.1 remain open. The recovery section proves checkpoint reapplication
 after an actual DB/object restore. The generic Restic operator is now proven
@@ -104,12 +104,12 @@ These checks do not replace the live erasure assertions.
 | Item | Result | Evidence / remaining work |
 | --- | --- | --- |
 | 090.A2 / 090.S2 | Passed | Actual version deletion, process termination, lease reclaim and complete relational/object cleanup above. |
-| 090.1 | Open | Durable erasure and configurable retention (including settings UI) delivered; manual deletion/status UI and full A1/A5 acceptance remain. |
+| 090.1 | Open | Durable erasure, retention and manual deletion/status/retry UI delivered; A5 passed below. Full A1 interleavings remain. |
 | 090.2 / 090.A3 | Open | The authenticated checkpoint gate and full generic Restic/fresh-target restore are proven below (090.2a); independent latest-checkpoint continuity remains open (090.2b). |
 | 090.3 / 090.A4 | Open | Full limits and log-marker acceptance remains. |
 | 090.A1 | Open | A late export is covered; full concurrent autosave/completion/export/deletion interleavings remain. |
 | 090.T1 | Open | A2 subset passed; remaining integration criteria are not waived. |
-| 090.T2 / 090.A5 | Open | Required open-browser trash/save/recovery and backend deletion UI journeys remain. |
+| 090.T2 / 090.A5 | Passed | Open-browser rejected save, closed restore, invitation/download denial and manual erasure/status/retry journeys below. |
 
 Operational boundaries: this proof keeps one configured object-storage bucket.
 A historical bucket migration or externally created extra object versions is
@@ -398,3 +398,94 @@ This run uses the generic restore's no-build branch with exact local image IDs;
 the separate pilot Doctor/release-manifest wrapper and preceding survey-schema
 compatibility are not covered. Manual deletion UI, concurrency and limits/log
 criteria elsewhere in SURV-090 remain unchanged.
+
+## Manual erasure, status and open-respondent browser acceptance
+
+Accepted: **090.1a, 090.T2 and 090.A5**. Parent 090.1 remains open for the full
+autosave/completion/export/deletion interleavings in 090.A1. Source/probe content
+committed with this section was unchanged throughout the final successful run.
+
+Command: `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" deletion-ui`.
+Successful project: `leonaid-surveys-833458328-10022`, exit **0**, fresh networks
+and volumes, no published host ports, teardown and resource absence verified.
+Chromium results: open-respondent/erasure case **1 passed (4.8s)**; administrator
+retry **1 passed (1.4s)**; worker-completion and foundation cases **2 passed (1.3s)**.
+Member pages use a 390×844 viewport; the separate public participant uses the
+browser's default desktop viewport. All identities and answer values are synthetic.
+
+### Implemented behavior
+
+- A trashed survey with delete capability exposes an explicit final-erasure
+  confirmation. Its submit control remains disabled until the user acknowledges
+  removal of the questionnaire, answers, invitations and export files. Existing
+  server authorization and revision/idempotency checks still authorize the write.
+- `GET /api/v1/surveys/{survey_id}/deletion` reads the durable content-free record
+  even after the survey row is gone. Only an active original requester or current
+  system administrator may read it; other principals receive 404, unauthenticated
+  requests receive 401. Responses are `no-store`. States are pending, retrying,
+  failed and completed; an unknown status is never displayed as successful erasure.
+- The response contains only survey ID, status, request/completion timestamps and
+  a nullable retry event ID. That event ID is supplied only to current system
+  administrators when the existing outbox event is dead-lettered. No title,
+  definition, answer, recipient or credential is returned.
+- Status polling and full reload recover from the server. A lost POST response
+  triggers a status lookup; it does not trigger a second erasure request. No
+  browser-persisted operation record or credential is needed for reload recovery.
+- Administrators can retry a failed job through the existing fresh-authentication
+  `retryOperationalJob` endpoint. Its existing permission/audit boundary is
+  retained. Other requesters see an instruction to contact administration.
+
+### Live assertions
+
+- [x] The public participant begins the real published fixture and receives a
+  save acknowledgement. The member trashes it through the module while that
+  public page remains open. Further input produces `data-save-state=error` and
+  the visible message “Diese Umfrage nimmt keine Antworten mehr an.”
+- [x] The already-rendered export download returns 404 after trash. Invitation
+  creation returns 409. A separate invitation-mode fixture establishes a real
+  successful pre-trash invitation creation, then rejects the same operation type
+  after trash; anonymous-mode rejection alone is not used as that proof. This
+  case verifies invitation creation, not a new mail-delivery/token-redemption run.
+- [x] UI restoration returns the published survey to ended. Public definition
+  access remains closed and reloading the respondent does not offer a new start.
+- [x] The member trashes it again, checks the explicit confirmation and submits.
+  Playwright forwards the real POST, verifies its committed pending response,
+  then drops that response. The module recovers via GET, displays pending and
+  retains that status after reload; no restore control remains. Exactly one POST
+  committed in this lost-acknowledgement scenario.
+- [x] `deletion_ui_live.py` verifies that an unrelated active member receives 404
+  for status and 403 for operational retry. PostgreSQL still contains the earlier
+  accepted text and contains none of the attempted post-trash text.
+- [x] The probe seeds a real persisted dead-letter state for the deletion event.
+  This is a UI/state fixture, not a newly claimed storage-outage proof. The admin
+  browser sees failure, clicks retry and observes retrying through the real API.
+- [x] Starting the actual production worker completes erasure. A newly opened
+  member page displays completion; reload retains it and the ordinary survey
+  endpoint returns 404. Existing object-crash/reclaim evidence above proves the
+  underlying eraser's storage cleanup; this new case proves its member workflow.
+
+Artifacts: [sanitized assertions](assets/SURV-090-deletion-ui.json),
+[mobile confirmation](assets/SURV-090-deletion-confirm-mobile.png),
+[mobile completion](assets/SURV-090-deletion-completed-mobile.png).
+Both mobile captures were manually inspected: consequence text, acknowledgement,
+buttons and completion text are readable; the confirmation's automated overflow
+assertion passes. This is scoped visual observation, not full accessibility or
+cross-browser certification. Raw traces/session files were not committed.
+
+Scoped Ruff and MyPy for both changed server modules passed, as did web TypeScript
+checking, OpenAPI/client regeneration, shell syntax and diff whitespace checks.
+OpenAPI generation emitted the repository's existing unrelated Pydantic alias
+warnings and exited zero.
+
+### Failed attempts
+
+- `...-7173` correctly produced the closed-survey error, but the test expected the
+  generic network-failure wording. The retained public screenshot established
+  the actual more specific wording; the assertion was corrected.
+- `...-8620` used a `.invalid` recipient address rejected by the existing email
+  validator with 422 before the intended lifecycle check. Reserved `example.com`
+  fixture addresses fixed that setup; test mail stays in isolated Mailpit.
+- `...-9298` used the summary revision when publishing the invitation fixture;
+  publication requires the draft revision. The fixture now reads `/draft`.
+- Every failed process was confirmed terminal before edits. The final fresh
+  run above includes every corrected fixture and assertion.

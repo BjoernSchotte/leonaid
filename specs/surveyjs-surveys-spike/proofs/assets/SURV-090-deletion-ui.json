@@ -1,0 +1,16 @@
+{
+  "openRespondentSaveRejected": true,
+  "trashBlocksDownloadAndInvitationCreation": true,
+  "restoreRemainsClosed": true,
+  "explicitConsentRequired": true,
+  "lostAcknowledgementRecovered": true,
+  "pendingStatusSurvivesReload": true,
+  "contentFreeStatus": true,
+  "anonymousStatusDenied": true,
+  "unrelatedMemberStatusDenied": true,
+  "unrelatedMemberRetryDenied": true,
+  "rejectedSaveNeverPersisted": true,
+  "persistedFailureStatus": true,
+  "adminRetriesPersistedFailureThroughExistingJobApi": true,
+  "productionWorkerCompletionAndReload": true
+}

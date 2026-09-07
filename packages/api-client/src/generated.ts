@@ -210,7 +210,7 @@ export type Start = { readonly operationId: string; readonly resumeSecret: strin
 export type SupportRequestDiagnosticResponse = { readonly errorCode: string | null; readonly impact: string; readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; readonly nextStep: string; readonly occurredAt: string; readonly outcome: "successful" | "rejected" | "failed"; readonly release: string; readonly route: string; readonly statusCode: number; readonly supportCode: string; };
 export type SurveyAccess = { readonly accessMode: "anonymous" | "invitation"; readonly expectedRevision: number; readonly operationId: string; };
 export type SurveyActionOption = { readonly id: string; readonly name: string; };
-export type SurveyDeletionResponse = { readonly completedAt: string | null; readonly requestedAt: string; readonly status: "pending" | "completed"; readonly surveyId: string; };
+export type SurveyDeletionResponse = { readonly completedAt: string | null; readonly requestedAt: string; readonly retryEventId?: string | null; readonly status: "pending" | "retrying" | "failed" | "completed"; readonly surveyId: string; };
 export type SurveyDiagnostic = { readonly code: string; readonly message: string; readonly path: string; readonly severity: "error" | "warning" | "information"; };
 export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
 export type SurveyExportJob = { readonly completedAt: string | null; readonly createdAt: string; readonly errorCode: string | null; readonly filename: string | null; readonly id: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly sizeBytes: number | null; readonly snapshotId: string; readonly status: "queued" | "processing" | "retrying" | "failed" | "available" | "cancelled"; readonly surveyId: string; };
@@ -1836,6 +1836,17 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getSurveyDeletion(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyDeletionResponse> {
+    return this.request<SurveyDeletionResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/deletion`,
+      { method: "GET" },
       options,
     );
   }

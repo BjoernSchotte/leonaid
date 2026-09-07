@@ -24,7 +24,7 @@ from leonaid.adapters.postgres.survey_responses import (
 )
 
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
-from leonaid.domain.identity import IdentityPrincipal
+from leonaid.domain.identity import GlobalRole, IdentityPrincipal
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.policies import may_manage_action
 from leonaid.domain.surveys import (
@@ -341,6 +341,32 @@ class AsyncpgSurveyRepository:
             deletion = await conn.fetchrow(
                 "SELECT * FROM survey_deletion WHERE survey_id=$1", survey_id
             )
+            if operation == "deletion-status":
+                if (
+                    deletion is None
+                    or not actor.account.can_authenticate
+                    or (
+                        deletion["requested_by"] != actor.account.id
+                        and GlobalRole.SYSTEM_ADMIN not in actor.global_roles
+                    )
+                ):
+                    raise ResourceNotFound("not_found", "Löschauftrag nicht gefunden.")
+                result = deletion_payload(deletion)
+                if not deletion["completed_at"]:
+                    event = await conn.fetchrow(
+                        "SELECT status,attempts FROM outbox_event WHERE id=$1",
+                        deletion["event_id"],
+                    )
+                    if event is None or event["status"] == "dead_letter":
+                        result["status"] = "failed"
+                        if (
+                            event is not None
+                            and GlobalRole.SYSTEM_ADMIN in actor.global_roles
+                        ):
+                            result["retryEventId"] = str(deletion["event_id"])
+                    elif event["attempts"] > 0:
+                        result["status"] = "retrying"
+                return result
             if deletion is not None:
                 if (
                     operation != "delete-permanently"
