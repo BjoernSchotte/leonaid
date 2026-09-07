@@ -3470,14 +3470,41 @@ Dependencies: EMS-030, EMS-050, EMS-070
       later orders remain EMS-085 requirements, not completed by this gate.
       A combined order-recovery attempt failed during fresh Twenty startup
       before backup, not during alias verification. The separate exact-topology
-      `twenty-startup` proof passed in `leonaid-emdash-tmp-ldpgumknpa`; the
-      combined post-alias order/recovery rerun remains required. Its diagnostic
+      `twenty-startup` proof passed in `leonaid-emdash-tmp-ldpgumknpa`. Its diagnostic
       helper emits only allowlisted error classes/codes, never raw startup logs.
       Repository verification on committed source `18eab01` subsequently passed
       `./leonaid check`: 256 unit tests, 267 Python files without type errors,
       Astro checks for 25 public and 49 campaign-site files without diagnostics,
       release contracts, formatting and policy gates; the worktree remained
-      unchanged. This check does not replace the pending combined LIVE rerun.
+      unchanged. The combined LIVE rerun is recorded separately below.
+  - [x] Combine restored aliases and durable command replay with real orders
+        and the restored Twenty application. On committed checkout `63e5e57`,
+        `./leonaid test-emdash-spike --case recovery-orders` exited zero from
+        source `leonaid-poc112-tmp-e0dfktkkhe` into fresh target
+        `leonaid-restore-tmp-e0dfktkkhe`. All seven alias commands, exact restored
+        rows/targets/receipts/audit, old-command replay and anonymous redirects
+        passed alongside the actual original-asset import and three-browser
+        restored login, draft/media editing and current-membership/isolation
+        journeys. Twenty started successfully from fresh source volumes; the
+        target reused its restored database and restricted integration key
+        without seed, provisioning or migrations. The encrypted v2 backup
+        contained exactly seven files and passed a full Restic integrity read.
+        Wrong-image restoration was rejected before any target resources;
+        actual target CMS image identity was verified before browser access.
+        All 24 pre-backup and 24 post-restore browser orders passed exact Core
+        SQL, completed idempotency receipt, line, consent/audit and real Twenty
+        verification. Twelve native POST replays in each phase made no duplicate
+        orders. All 84 valid-payload public Core requests were denied, including
+        valid service credentials; seven Core tables and Twenty stayed unchanged,
+        while the authorized internal positive control succeeded. The complete
+        alias HTTP mutation/authorization suite then passed on restored volumes,
+        followed by another successful verification of both sets of 24 orders.
+        Both projects used isolated subnets and no host ports; after exit,
+        independent Docker label checks confirmed no owned containers, volumes
+        or networks remained. This closes the combined rerun left open above,
+        not primary-alias cutover, post-cutover rollback, off-host backup or
+        production activation. No source changes were needed for this rerun;
+        the full repository check on implementation commit `18eab01` applies.
 
 Verification (new case implemented by this task):
 
