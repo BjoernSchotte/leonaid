@@ -179,6 +179,9 @@ if [ "$mode" != auth ]; then
   if [ "$mode" = migration ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
+    compose up --no-deps --build --detach --wait public mailpit worker
+    compose run --rm --no-deps admin-browser \
+      node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
     exit 0
   fi
   if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then

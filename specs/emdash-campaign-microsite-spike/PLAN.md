@@ -3007,6 +3007,22 @@ another running checkout or authorize production deployment.
       display the changes on the next normal request without manual cache bypass,
       image rebuild, process restart, or deployment. A subsequent draft must
       remain private.
+  - [x] Canonical-page portion against the actual imported demo: the
+        `krapfentaxi-migration` case now continues into native editor/browser
+        checks after the importer revokes its operator session. In isolated
+        project `leonaid-emdash-tmp-8lzp6htxtv`, Chromium, Firefox and WebKit
+        each logged in as the assigned Charity Admin through real Core SMTP,
+        edited story text and uploaded a replacement image, kept both private
+        until Publish, and observed publication on the next ordinary anonymous
+        canonical GET. A later draft remained private. Each engine checked the
+        rendered taxi theme, loaded images, a single order form, mobile/no-JS
+        and desktop/JS rendering, no horizontal overflow and no visitor cookies.
+        The initial imported draft returned 404 before any browser publication.
+        Exit 0; the project's own containers, volumes and networks were removed.
+        This does not complete the parent gate: short-alias delivery, final
+        original-asset visual acceptance and accepted themed-page orders remain
+        separate outstanding checks. No deployment or CMS restart occurred
+        between editor changes and public reads.
 - [ ] Prove Core changes (such as offering price and order availability) appear
       independently of editorial publishing. Complete an anonymous test order
       through the new page and verify the existing backend effects.

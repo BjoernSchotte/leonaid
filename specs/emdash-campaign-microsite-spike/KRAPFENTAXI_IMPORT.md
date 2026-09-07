@@ -75,9 +75,17 @@ whole Core database to undo an import: subsequently accepted orders must survive
 The live proof covers real Core authorization, actual original assets in private
 RustFS, dry-run/CLI permissions, durable interruption checkpoints, concurrency,
 real final-write database failure, ambiguous success, later-editor preservation,
-and logout denial. Process-kill/restart recovery, backup/restore, final visual
-acceptance with the imported assets, the assigned Charity Admin's publish journey,
-themed-page accepted orders and alias cutover remain open in `PLAN.md`.
+and logout denial. The same isolated case then starts its own login frontend,
+SMTP capture and worker, and proves actual assigned Charity Admin login and
+native text/image editing in Chromium, Firefox and WebKit. Drafts remain private;
+Publish exposes changes on the next ordinary anonymous canonical-page request
+without restarting or rebuilding the CMS. A subsequent draft remains private.
+Mobile/no-JavaScript and desktop/JavaScript rendering are checked in each engine.
+
+Process-kill/restart recovery, backup/restore, final visual acceptance with the
+original assets, themed-page accepted orders and alias cutover remain open in
+`PLAN.md`. The canonical-page browser proof does not prove short-alias delivery
+or successful order processing merely by finding the order form.
 
 Original image provenance and rights notices are retained in the manifest. This
 does not grant or claim production publication rights.
