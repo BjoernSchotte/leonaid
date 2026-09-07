@@ -319,7 +319,13 @@ remain open until their remaining criteria pass.
 
   Acceptance criteria: **090.A3, acknowledgement portion**.
   Integration / supporting checks: **090.S3b**.
-  Parent recovery acceptance remains open for retention interruption, independent host-loss cutoff and the operator compatibility contract.
+  Retention interruption is covered by 090.2e. Parent recovery acceptance remains open for independent host-loss cutoff and the operator compatibility contract.
+
+- [x] **090.2e** Prove interruption of a retention-originated publication after its database transaction commits and the pending archive document is durable. Recover through a zero-candidate sweep, preserving original deletion/outbox identities, then restart the production worker and verify eventual erasure plus inactive-answer preservation. [Live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).
+
+  Acceptance criteria: **090.A3, retention continuity portion**.
+  Integration / supporting checks: **090.S3c**; existing retention browser regression.
+  Full recovery acceptance remains open for independent host-loss cutoff and operator compatibility.
 
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 

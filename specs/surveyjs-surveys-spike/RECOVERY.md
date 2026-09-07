@@ -209,8 +209,10 @@ of the newest checkpoint are not established by this test.
 
 - Exercise the separate pilot Doctor/release-manifest wrapper with survey
   recovery inputs; the generic no-build restore path is proven above.
-- Prove retention-originated interrupted publication and unexpected source-host
-  loss. Manual acknowledgement and production worker archive gates now have
+- Prove unexpected source-host loss. Retention-originated interrupted publication
+  and recovery by a zero-candidate sweep now have
+  [live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).
+  Manual acknowledgement and production worker archive gates also have
   [live evidence](proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate),
   including real Restic recovery using only automatically retained material after
   source-project removal. Independently placed storage and complete host-loss

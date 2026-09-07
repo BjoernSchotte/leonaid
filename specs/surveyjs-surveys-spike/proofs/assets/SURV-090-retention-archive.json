@@ -1,0 +1,10 @@
+{
+  "syntheticOnly": true,
+  "abruptExitAfterCommittedIntentAndDurablePending": true,
+  "committedRetentionIntents": 2,
+  "noPhysicalCleanupBeforeRecovery": true,
+  "oldCurrentCannotBypassPendingPublication": true,
+  "zeroCandidateSweepFinishesPublication": true,
+  "originalLedgerAndOutboxIdentitiesUnchanged": true,
+  "unchangedSweepDoesNotGrowArchive": true
+}

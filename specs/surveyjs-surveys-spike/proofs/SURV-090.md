@@ -18,7 +18,7 @@ The production API publishes the committed erasure ledger before acknowledging a
 manual deletion or returning its status. The worker composition root independently
 publishes before physical erasure. Both use the configured archive; failures leave
 the original local operation/event identity retryable. The retention loop is also
-wired to this publisher, but retention-originated interruption acceptance remains open.
+wired to this publisher; retention interruption is accepted in the dedicated section below.
 Unchanged ledgers verify retained bytes without writing a new timestamp/history file.
 
 Command from the checkout root:
@@ -66,8 +66,7 @@ survey identities, answer payloads and unrestricted logs remain private test mat
 The proof retains the cutoff observed at the known successful acknowledgement to
 test that exact ledger after source-project loss. It does not establish how an
 operator knows the final cutoff after unexpected whole-host loss. Independently
-placed storage, retention-originated interruption coverage, pilot wrapper behavior
-and preceding-backup compatibility still prevent full 090.2b / 090.A3 acceptance.
+placed storage, pilot wrapper behavior and preceding-backup compatibility still prevent full 090.2b / 090.A3 acceptance.
 
 ### Supporting verification
 
@@ -98,6 +97,54 @@ than the API service's environment. These attempts are not accepted recovery run
 The first two new filesystem tests initially used future timestamps and correctly
 failed the existing freshness check. Their fixtures now use observed current time;
 production timestamp validation was not relaxed.
+
+## Retention publication interruption and recovery
+
+**090.2e / 090.S3c accepted.** Production code is unchanged from `3ddd4b0`;
+this change adds a real process-interruption probe to the existing retention harness.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" retention
+```
+
+Successful project: `leonaid-surveys-833458328-68909`, full harness exit **0**.
+The harness selected seven unused subnets, published no host ports and verified
+owned container/volume cleanup. Both Chromium tests passed in **3.9 seconds**:
+the member/public foundation and the existing administrator/member retention UI
+journey. Scope is synthetic PostgreSQL/archive/process recovery on one Docker host.
+
+`tools/surveys/retention_live.py prepare` configures the real policy through the API,
+checks disabled defaults, invalid/stale requests, exact replay, lock skipping and
+lifecycle clocks, then leaves two trash-retention candidates with the worker stopped.
+The new `retention_archive_live.py` probe runs in the worker service environment:
+
+1. Wait for both candidates to become eligible under the actual configured policy.
+   Run the production retention sweep with the configured archive publisher.
+2. Terminate the process with `os._exit(73)` immediately after the pending checkpoint
+   has been atomically written and fsynced. The harness requires exactly exit 73.
+3. In a fresh process, inspect two committed, unfinished deletion records and both
+   original survey rows. The current archive still has zero erasures, while the
+   authenticated pending document contains the exact two committed ledger records.
+   Fetch refuses this incomplete archive even with the old current cutoff.
+4. Run the production sweep again. It returns **zero changes**, because committed
+   intents are no longer candidates, yet it completes their archive publication.
+   Verify the authenticated document covers the pending cutoff, every original
+   ledger field is unchanged and exactly two original pending outbox events remain.
+5. Repeat the zero-change sweep and require byte-identical current archive contents.
+   Restart the actual production worker. The existing recovery probe verifies both
+   due surveys disappear, each event completes exactly once, and draft/active/ended
+   surveys plus the active survey's partial answer remain intact.
+
+Sanitized interruption result:
+[SURV-090-retention-archive.json](assets/SURV-090-retention-archive.json).
+The complete worker/policy and browser assertions remain in `retention_live.py` and
+`tests/e2e/surveys-retention.spec.mjs`; their fresh execution is recorded above.
+Ruff and shell syntax checks passed. No credentials, checkpoint documents or raw
+runtime logs are committed. No production changes were needed to pass this probe.
+
+This accepts retention-originated interrupted-publication recovery. Independent
+whole-host-loss cutoff provenance, pilot Doctor/release-wrapper behavior and
+preceding-backup compatibility remain open under 090.2b / 090.A3.
 
 ## Durable erasure and process-crash recovery
 

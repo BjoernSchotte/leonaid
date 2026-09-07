@@ -224,6 +224,12 @@ if [ "$mode" = retention ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/retention_live.py prepare
+  retention_crash_status=0
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python worker tools/surveys/retention_archive_live.py crash || retention_crash_status=$?
+  [ "$retention_crash_status" -eq 73 ] || { echo 'Expected retention publisher crash after pending checkpoint' >&2; exit 1; }
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python worker tools/surveys/retention_archive_live.py recover
   compose up --detach --wait --wait-timeout 60 worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/retention_live.py recover
@@ -401,6 +407,7 @@ if [ "$mode" = recovery ]; then
 fi
 if [ "$mode" = retention ]; then
   cp "$proof/retention-proof.json" "$artifact/"
+  cp "$proof/retention-archive-proof.json" "$artifact/"
   cp "$proof/retention-browser-proof.json" "$artifact/"
   cp "$proof/retention-mobile.png" "$artifact/"
 fi
