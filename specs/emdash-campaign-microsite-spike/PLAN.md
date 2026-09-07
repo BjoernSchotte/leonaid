@@ -3468,6 +3468,10 @@ another running checkout or authorize production deployment.
       evidence was temporary and removed, not committed. This closes incomplete
       journal recovery at the first ready-asset boundary, not off-host recovery,
       arbitrary in-flight writer coordination, upgrade or alias cutover/rollback.
+      Full `./leonaid check` passed on source commit `e2c05ca`: Python lint,
+      formatting, unit tests and 263-file typecheck; both Astro applications
+      (25/47 files, zero diagnostics); frontend typechecks, generated contracts
+      and repository policy gates. The committed working tree was unchanged.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.
