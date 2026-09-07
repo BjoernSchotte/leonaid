@@ -3441,6 +3441,10 @@ another running checkout or authorize production deployment.
       no host ports and removed its own containers, volumes and networks.
       This closes process-kill/restart recovery, not resuming an incomplete
       import journal from a restored backup or primary-alias cutover.
+      Full `./leonaid check` passed on source commit `53d5a0e`: 256 unit
+      tests, 263 Python files typechecked, both Astro applications (25/47 files,
+      zero diagnostics), frontend typechecks, formatting and repository policy
+      gates; the committed working tree remained unchanged.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.
