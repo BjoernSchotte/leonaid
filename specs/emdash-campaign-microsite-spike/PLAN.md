@@ -1452,6 +1452,11 @@ Dependencies: EMS-030 successful
       Creation with images, search/pagination, browser upload failure recovery,
       mobile/keyboard/accessibility, full two-actor browser isolation, public
       media and fresh restore remain open. This does not complete EMS-040.
+      Post-commit `./leonaid check` passed at `a77a82d`: 208 unit tests, 242
+      Python source checks, all frontend/API/generated-type/format/privacy/policy
+      gates and 37 CMS files with no diagnostics; the committed tree stayed
+      unchanged. The exact-source patch proof also explicitly checks nested
+      image validation forwarding and rejects upstream source drift.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
