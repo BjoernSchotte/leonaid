@@ -6,6 +6,7 @@ case ${2:-content} in
   schema) proof_script=schema-runtime-proof.mjs ;;
   schema-migration) proof_script=schema-migration-proof.mjs ;;
   media) proof_script=campaign-media-proof.mjs ;;
+  public) proof_script=published-campaign-proof.mjs ;;
   *) echo "campaign-content: unsupported proof" >&2; exit 2 ;;
 esac
 proof=$(mktemp -d)

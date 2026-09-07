@@ -1932,6 +1932,24 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Add the server-only published-content reader prerequisite, separate from
+      the draft-hydrating editor runtime. `readPublishedCampaign` accepts only
+      a Core action UUID, checks binding guards, locks a published/non-trashed
+      record through live-column hydration and editorial/media-reference
+      validation, and returns no author or draft/revision metadata. Callers
+      MUST first resolve current Core public availability; this reader does
+      not grant public visibility or enable any HTTP route on its own.
+      `campaign-public-content` passed against real PostgreSQL in isolated
+      project `leonaid-emdash-tmp-ffleaettpc`: private follow-up draft concealment,
+      next-read publish/unpublish, two published campaign bindings, missing and
+      invalid selectors, scheduled/trashed concealment, malformed editorial
+      data and disabled-guard rejection/recovery. An actual second connection
+      holding a row write lock proves bounded lock failure and post-release
+      recovery. No host ports; all owned resources removed. Per-statement/lock
+      limits are implemented, but whole-request/pool acquisition deadlines,
+      Core integration, media delivery and public HTTP/browser rendering remain
+      open. The command is included in `all`, which still reports incomplete.
+
 - [x] Verify the HTTP-issued campaign token with the real Core codec and make
       the positive form fixture mandatory. The signature binds the expected
       action ID and current order alias, not the stable campaign slug; the
