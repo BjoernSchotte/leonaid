@@ -369,12 +369,12 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3**.
   E2E — work-package regression gate: **090.S5**.
 
-- [ ] **090.2a** Prove encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion; block startup without a checkpoint, erase restored content with a valid checkpoint and preserve source image identities during no-build restoration.
+- [x] **090.2a** Prove encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion; block startup without a checkpoint, erase restored content with a valid checkpoint and preserve source image identities during no-build restoration.
 
   Acceptance criteria: **090.A3, operator integration portion**.
   Integration / supporting checks: **090.S3**, restricted to the operator assertions above; [existing evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
   E2E — work-package regression gate: **090.S5**. The operator CLI proof does not replace browser coverage or complete the parent recovery criterion.
-  Leave task acceptance open until its existing evidence is reconciled assertion by assertion.
+  [Assertion reconciliation](proofs/TASK-STATUS-RECONCILIATION.md) accepts this operator portion; parent 090.2 / 090.A3 remain open.
 
 - [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection.
 
