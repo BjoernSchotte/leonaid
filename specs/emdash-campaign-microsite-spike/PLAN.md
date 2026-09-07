@@ -3023,6 +3023,10 @@ another running checkout or authorize production deployment.
         original-asset visual acceptance and accepted themed-page orders remain
         separate outstanding checks. No deployment or CMS restart occurred
         between editor changes and public reads.
+        Full `./leonaid check` at source commit `1de8faf` exited 0: 210 unit
+        tests, 250 Python source checks, 24 public and 47 CMS Astro files without
+        diagnostics, generated-type/format/privacy/policy gates and an unchanged
+        committed tree. Existing dependency deprecation warnings remain.
 - [ ] Prove Core changes (such as offering price and order availability) appear
       independently of editorial publishing. Complete an anonymous test order
       through the new page and verify the existing backend effects.
