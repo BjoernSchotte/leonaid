@@ -94,6 +94,11 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = preview ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/preview_live.py seed
+  browser_specs="$browser_specs tests/e2e/surveys-preview.spec.mjs"
+fi
 if [ "$mode" = deletion-ui ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -296,6 +301,11 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = preview ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/preview_live.py verify
+  cp "$proof/preview-proof.json" "$artifact/"
+fi
 if [ "$mode" = lifecycle ]; then
   cp "$proof/lifecycle-proof.json" "$artifact/"
 fi

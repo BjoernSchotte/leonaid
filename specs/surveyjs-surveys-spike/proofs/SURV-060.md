@@ -3,18 +3,19 @@
 Baseline `c75b8c7` plus this commit's module, API/client and browser changes.
 The initial increment delivered member navigation, lifecycle and timeout UI.
 The personal invitation increment below adds live evidence for 060.A3;
-complete capability coverage, credential scans and test-participation isolation remain open.
+preview isolation and timeout snapshot behavior are now accepted below. Complete
+capability coverage and credential scans remain open.
 
 ## Task ledger
 
 | Task | Criteria | Delivery / named evidence | Remaining acceptance |
 |---|---|---|---|
-| 060.1 | A4, A5 | `apps/web/src/surveys.tsx`, generated client, scoped list/summary and action creation; `surveys-module.spec.mjs` | Delivered; complete persona coverage and new-versus-existing participation/test-data UI evidence remain open |
+| 060.1 | A4, A5 | `apps/web/src/surveys.tsx`, generated client, scoped list/summary and action creation; `surveys-module.spec.mjs` | Delivered; A5 accepted below; complete persona coverage remains open |
 | 060.2 | A1, A4 | Existing policies now govern lists/counts, summary capabilities, action linking and hidden publish controls; `module.py seed` | Aggregate/export/invitation/deletion capability matrix is not complete |
 | 060.3 | A2, A3 | Anonymous runner plus personal invitation API, member UI, worker/Mailpit delivery and PostgreSQL verification | A3 accepted below; A2 credential scans and full retry/failure coverage remain open |
-| 060.4 | A5 | No completion claim | Preview/test participation isolation remains open |
+| 060.4 | A5 | Actual preview completion, backend timeout change, public participation and separate persisted analysis snapshots below | Accepted |
 | 060.T1 | A1, A2 | Real member list/count/search/pagination and action-scope negative scenarios | Full capability and invitation coverage remain open |
-| 060.T2 | A3, A4, A5 | Admin lifecycle/settings, mobile designer and personal invitation browser scenarios | Full persona coverage, timeout snapshot effect and test-data exclusion remain open |
+| 060.T2 | A3, A4, A5 | Admin lifecycle/settings, mobile designer and personal invitation browser scenarios | A5 accepted below; full persona coverage remains open |
 
 ## Behavior and boundaries
 
@@ -302,3 +303,59 @@ corrected status-refresh success message.
 This adds concrete coverage to 060.S2, but does not close 060.A2 / 060.S2: seeded
 credential scans in exports and captured application logs are still missing.
 The SMTP acknowledgement/local-ledger crash window described above is unchanged.
+
+
+## Preview isolation and timeout snapshot acceptance
+
+Production source: `a5ed129`, unchanged for this increment. New test paths:
+`tests/e2e/surveys-preview.spec.mjs` and `tools/surveys/preview_live.py`, wired
+through the isolated harness's `preview` mode.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" preview
+```
+
+Final project `leonaid-surveys-833458328-21306` completed with exit **0**. Both
+Chromium tests passed in 5.5 s, followed by independent PostgreSQL verification.
+The named scenario `backend timeout changes preserve existing participation and
+preview stays outside real analysis` runs at 1440 × 1000 against actual services.
+
+1. The seed creates and publishes a real single-question survey through the API,
+   with a 60-second override. It inserts exactly one completed synthetic response
+   with `is_test=true` directly into PostgreSQL, explicitly as test setup.
+2. The browser opens the actual editor preview, enters a unique preview marker,
+   completes it and returns to editing. No public participation POST/PUT is sent.
+3. It starts and saves an ordinary response through the public API, obtaining a
+   60-second participation timeout. Through the real backend UI it changes the
+   survey override to one second, then starts and saves another ordinary response.
+4. The new participation becomes partial under its one-second snapshot. Restoring
+   the first participation still reports 60 seconds, in-progress status and its
+   exact answer. The test then completes that older participation normally.
+5. After reload, it opens **Antworten auswerten** and submits the default real-data
+   analysis through the UI: its actual returned snapshot contains exactly two
+   participations. Selecting **Nur Testteilnahmen** and submitting again yields
+   exactly one participation and `isTest=true`.
+6. The SQL verifier waits, with a bounded deadline, for the real worker's durable
+   partial mark. It confirms exactly three stored participation rows, two real
+   timeout snapshots (60 and 1), completed/partial statuses, no preview marker,
+   and two stored analysis snapshots with the expected distinct sources/counts.
+
+The preview intentionally remains an in-browser simulation; it does not persist
+an author test participation. The separate seeded `is_test` row proves the existing
+analysis exclusion boundary and is not described as a browser-created test response.
+This acceptance does not introduce or claim a persisted test-response authoring UI.
+
+The initial run `...20657` reached the analysis step but failed because the test
+had not expanded the collapsed analysis panel. The corrected final run performs
+that actual UI navigation. No production validation, timing or access rule was
+relaxed. Raw failure artifacts remain ignored locally; the retained result is
+[SURV-060-preview-timeout.json](assets/SURV-060-preview-timeout.json), containing
+only counts, configured synthetic intervals and boolean assertions.
+
+The final run used fresh volumes and currently unused explicit subnets, published
+no host ports and verified owned-resource teardown. Probe Ruff, browser formatting,
+shell syntax and `git diff --check` passed. No new visual/a11y review is claimed.
+
+060.A5, its 060.S5 scenario and implementation task 060.4 are accepted. The parent
+060.T2 remains open for full persona/resource E2E coverage (A4); the whole module
+also retains its A1/A2 permission and credential-log acceptance work.

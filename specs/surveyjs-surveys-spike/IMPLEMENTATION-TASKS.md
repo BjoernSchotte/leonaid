@@ -208,7 +208,7 @@ a substitute for completing an individual task.
   Integration / supporting checks: **060.S2**.
   E2E: **060.S3**.
 
-- [ ] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis.
+- [x] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis.
 
   Acceptance criteria: **060.A5**.
   Integration / supporting checks — work-package regression gate: **060.S1, 060.S2**.
