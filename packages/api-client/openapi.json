@@ -7977,6 +7977,17 @@
             "title": "Canonicalpath",
             "type": "string"
           },
+          "redirectPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirectpath"
+          },
           "routeKind": {
             "enum": [
               "alias",

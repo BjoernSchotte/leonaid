@@ -111,6 +111,7 @@ class PublicActionRoute:
     offerings: tuple[ConfiguredOffering, ...] = ()
     order_form: ConfiguredOrderForm | None = None
     order_alias: str | None = None
+    redirect_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.availability is PublicActionAvailability.INACTIVE:
@@ -120,11 +121,20 @@ class PublicActionRoute:
                 or self.order_form is not None
                 or self.submissions_allowed
                 or self.order_alias is not None
+                or self.redirect_path is not None
             ):
                 raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
             return
         if self.action is None:
             raise ValueError("Eine öffentliche Aktionsroute benötigt eine Aktion.")
+        if self.redirect_path is not None and (
+            self.route_kind is not PublicActionRouteKind.ALIAS
+            or self.availability is not PublicActionAvailability.PUBLISHED
+            or self.submissions_allowed
+            or self.redirect_path != f"/campaigns/{self.action.archive_slug}/"
+            or self.canonical_path != self.redirect_path
+        ):
+            raise ValueError("Ungültige öffentliche Kampagnenweiterleitung.")
         if self.submissions_allowed and (
             self.route_kind
             not in {PublicActionRouteKind.ALIAS, PublicActionRouteKind.CAMPAIGN}
@@ -184,6 +194,11 @@ class CharityActionRepository(Protocol):
         self,
         public_alias: PublicActionAlias,
     ) -> tuple[CharityAction, ActionConfiguration | None] | None: ...
+
+    async def get_by_alias_route(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> tuple[CharityAction, ActionConfiguration | None, bool] | None: ...
 
     async def get_by_archive_slug(
         self,
@@ -423,7 +438,7 @@ class CharityActionService:
         evaluated_at: datetime | None = None,
     ) -> PublicActionRoute:
         alias = PublicActionAlias(public_alias.strip())
-        snapshot = await self._repository.get_by_public_alias(alias)
+        snapshot = await self._repository.get_by_alias_route(alias)
         now = evaluated_at or datetime.now(timezone.utc)
         route_path = f"/{alias.value}"
         if snapshot is None or not snapshot[0].is_published_at(now):
@@ -436,7 +451,19 @@ class CharityActionService:
                 submissions_allowed=False,
                 action=None,
             )
-        action, configuration = snapshot
+        action, configuration, is_primary = snapshot
+        if not is_primary:
+            target = f"/campaigns/{action.archive_slug}/"
+            return PublicActionRoute(
+                route_kind=PublicActionRouteKind.ALIAS,
+                route_value=alias.value,
+                route_path=route_path,
+                canonical_path=target,
+                redirect_path=target,
+                availability=PublicActionAvailability.PUBLISHED,
+                submissions_allowed=False,
+                action=action,
+            )
         offerings = self._public_offerings(
             configuration,
             evaluated_at=now,

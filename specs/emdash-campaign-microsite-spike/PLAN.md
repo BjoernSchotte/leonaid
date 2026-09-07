@@ -2961,6 +2961,26 @@ Dependencies: EMS-030, EMS-050, EMS-070
 - [ ] Render redirects through the Core resolver and `apps/public` catch-all
       according to section 2.5. No alias-to-alias or arbitrary URL targets exist,
       so cycles and external redirects are impossible by construction.
+  - [x] Additional-alias transport checkpoint: the existing Core resolver reads
+        enabled primary/secondary aliases in one repeatable-read snapshot and
+        returns a canonical campaign redirect only within Core's publication
+        window. The generated contract includes nullable `redirectPath`.
+        Astro accepts only the matching Core action slug, emits a relative
+        `302` with `no-store` for GET/HEAD, and never redirects mutation methods.
+        Single-segment inactive responses also use `no-store`. The legacy
+        primary alias keeps rendering its existing page and order form.
+        Twenty-four pure transport tests passed, rejecting external, malformed,
+        unpublished and writable redirect payloads. The extended real PostgreSQL
+        `alias-persistence` case passed in `leonaid-emdash-tmp-m5zi4dvy0a`.
+        `alias-http` passed in `leonaid-emdash-tmp-gq0nb5jdcx` with CA-verified
+        HTTPS against actual Astro/Core: API-created aliases, GET/HEAD with and
+        without trailing slash, discarded query strings, mutation 405 without
+        Location, disabled/unknown/draft/future/expired/withdrawn states and
+        immediate restoration. Existing Core alias authority/concurrency tests
+        also passed. Both projects exited 0 and removed only owned resources.
+        This does not yet close the full gate: published destination delivery,
+        reassignment/history, Core-outage behavior, the browser management UI
+        and the primary demo cutover still need their corresponding proofs.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.

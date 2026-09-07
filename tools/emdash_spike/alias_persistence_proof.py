@@ -16,6 +16,7 @@ import psycopg
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.application.errors import Conflict
+from leonaid.application.actions import CharityActionService, PublicActionAvailability
 from leonaid.domain.actions import CharityActionStatus, PublicActionAlias
 
 PREVIOUS = "0027_campaign_alias_namespaces"
@@ -52,6 +53,40 @@ async def repositories() -> None:
         assert await repo.get_by_public_alias(PublicActionAlias("extra-one")) is None
         assert await repo.get_alias_target(PublicActionAlias("extra-one")) == ACTION
         now = datetime.now(timezone.utc)
+        service = CharityActionService(repo)
+        redirect = await service.resolve_public_alias("extra-one", evaluated_at=now)
+        assert redirect.redirect_path == "/campaigns/krapfentaxi-2026/"
+        assert redirect.canonical_path == redirect.redirect_path
+        assert not redirect.submissions_allowed
+        assert not redirect.offerings and redirect.order_form is None
+        assert redirect.order_alias is None
+        primary = await service.resolve_public_alias("krapfentaxi", evaluated_at=now)
+        assert primary.redirect_path is None and primary.submissions_allowed
+        for alias, evaluated_at in (
+            ("extra-two", now),
+            ("unknown-alias", now),
+            ("extra-one", now - timedelta(days=2)),
+            ("extra-one", now + timedelta(days=2)),
+        ):
+            inactive = await service.resolve_public_alias(
+                alias, evaluated_at=evaluated_at
+            )
+            assert inactive.availability is PublicActionAvailability.INACTIVE
+            assert inactive.action is None and inactive.redirect_path is None
+            assert inactive.canonical_path == f"/{alias}"
+        async with pool.acquire() as db:
+            await db.execute(
+                "UPDATE public_action_alias SET enabled=false WHERE alias='extra-one'"
+            )
+        disabled = await service.resolve_public_alias("extra-one", evaluated_at=now)
+        assert disabled.action is None and disabled.redirect_path is None
+        async with pool.acquire() as db:
+            await db.execute(
+                "UPDATE public_action_alias SET enabled=true WHERE alias='extra-one'"
+            )
+        assert (
+            await service.resolve_public_alias("extra-one", evaluated_at=now)
+        ).redirect_path == redirect.redirect_path
         async with pool.acquire() as db:
             # Additional redirect rows must not multiply or randomly replace
             # the legacy primary-alias join used by real order processing.

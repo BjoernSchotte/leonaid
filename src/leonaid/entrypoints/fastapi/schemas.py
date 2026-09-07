@@ -785,6 +785,7 @@ class PublicActionRouteResponse(TransportModel):
     availability: Literal["published", "inactive", "archive"]
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
+    redirect_path: str | None = None
 
 
 class PublicCampaignRouteResponse(TransportModel):

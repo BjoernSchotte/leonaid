@@ -1073,6 +1073,7 @@ def public_action_route_response(
         route_value=route.route_value,
         route_path=route.route_path,
         canonical_path=route.canonical_path,
+        redirect_path=route.redirect_path,
         availability=route.availability.value,
         submissions_allowed=submissions_allowed,
         action=(

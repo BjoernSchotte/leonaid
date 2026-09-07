@@ -8,6 +8,10 @@ TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+if [ "$mode" = alias-http ]; then
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$BUN_IMAGE" bun test tools/emdash_spike/campaign-redirect-unit.test.ts
+fi
 # Each proof has an independent server-only key; never reuse a parallel stack's.
 LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
   node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
@@ -177,6 +181,9 @@ if [ "$mode" != auth ]; then
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
   if [ "$mode" = alias-http ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    compose up --no-deps --build --detach --wait public
+    fixture /repo/tools/emdash_spike/redirect_http_proof.py
     fixture /repo/tools/emdash_spike/alias_http_proof.py
     exit 0
   fi
@@ -186,6 +193,7 @@ if [ "$mode" != auth ]; then
     compose up --no-deps --build --detach --wait public mailpit worker
     compose run --rm --no-deps admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
+    fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
     if [ "$orders" = true ]; then
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
