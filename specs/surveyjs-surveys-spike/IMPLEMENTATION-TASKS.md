@@ -503,6 +503,8 @@ capability/task reconciliation gate; successful journeys do not close that audit
   Acceptance criteria: **100.A3, four named regressions**. Every original assertion must pass; failed teardown must return failure and leave unrelated resources untouched.
   Integration / E2E: **100.S2b**, including real service contracts and existing desktop/mobile/multi-browser checks where defined by the individual suite. Full `test-integration` and **100.3** remain open.
 
+- [x] **100.3d** Isolate and execute the complete existing Compose regression using a unique project, unused explicit subnets and two free loopback ports. Acceptance: **100.A3, Compose regression portion**; validate the real default service inventory including `survey-validator`, readiness, host routing, PostgreSQL/RustFS persistence across restart, Twenty schema stability, optional profiles and complete owned cleanup. Integration: **100.S2c**; E2E scope is operator CLI and real HTTP/TLS, not browser interaction. [Live evidence](proofs/SURV-100.md#isolated-compose-regression). Full **100.3 / 100.A3** remains open.
+
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
   Acceptance criteria: **100.A4, 100.A5**.
@@ -511,7 +513,7 @@ capability/task reconciliation gate; successful journeys do not close that audit
 
 ## Final reconciliation
 
-- [x] Every implementation task in PLAN.md has exactly one entry above (66 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
+- [x] Every implementation task in PLAN.md has exactly one entry above (67 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
 - [ ] Every completed task links to its task-level proof; no inferred passing status.
 - [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
 - [ ] Remaining open tasks are listed in the spike report and prevent full completion.

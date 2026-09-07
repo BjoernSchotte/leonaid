@@ -334,3 +334,34 @@ successfully. No failed run is counted as passing evidence.
 
 Full existing integration regression, aggregate repetition, remote workflow
 results and the remaining recovery/capability audit stay open.
+
+
+## Isolated Compose regression
+
+**100.3d / 100.S2c** accepted against `b18b534` plus the exact source hashes in
+[the sanitized result](assets/SURV-100-compose-regression.json).
+The existing Compose test expected the pre-survey service inventory and selected
+a fixed project with a destructive initial reset. It now includes the actual
+validator service and selects a checkout/PID-specific project, seven unused
+explicit subnets and two distinct free loopback ports. The optional configured
+ports are checked by binding actual sockets before Docker starts. Only the proxy
+may publish ports, as verified from every running container's real bindings.
+There is no initial `down`; unreadable inventories or existing project resources
+stop execution before any Docker mutation. Cleanup failure/remaining resources
+produce failure rather than a false success.
+
+Command: `rtk proxy sh tools/compose/test.sh "$PWD"`, executed by a private-log
+wrapper. Exit **0**, project `leonaid-poc010-test-833458328-72306`. The complete
+original assertion sequence passed: all thirteen default services and health,
+HTTP/TLS readiness and host routes, golden PostgreSQL/RustFS writes, full restart,
+exact persisted golden data and unchanged Twenty schema count, optional Mailpit,
+Listmonk and OpenTelemetry readiness, and the real proxy mail/mailing routes.
+Successful teardown was followed by a separate empty Docker label inventory for
+containers, volumes and networks. Other worktree resources were not selected.
+
+`rtk proxy python3 tools/testing/regression_isolation_test.py` exited **0** with
+**20 collision/inventory cases** across Compose and the four previously isolated
+regressions. These negative process-boundary fixtures assert that no compose,
+remove or down command occurs; real service behavior is proven by the live run
+above, not by those fixtures. This is operator/HTTP integration evidence, not
+browser E2E. The other existing regression suites and full **100.A3** remain open.

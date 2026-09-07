@@ -3,9 +3,11 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
-project=${LEONAID_COMPOSE_TEST_PROJECT:-leonaid-poc010-test}
-port=${LEONAID_COMPOSE_TEST_PORT:-18080}
-https_port=${LEONAID_COMPOSE_TEST_HTTPS_PORT:-18443}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_COMPOSE_TEST_PROJECT:-leonaid-poc010-test}-$suffix
+owned=false
+proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 fixture="/repo/tests/fixtures/golden/v1"
@@ -20,6 +22,7 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --file "$isolation_file" \
     "$@"
 }
 
@@ -29,17 +32,63 @@ compose_all_profiles() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "compose-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=80 >&2 || true
   fi
-  compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-compose_all_profiles down --volumes --remove-orphans >/dev/null 2>&1 || true
+# Refuse collisions and inventory failures before any Docker mutation.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+# This regression explicitly proves host bindings. Reserve two distinct free
+# loopback ports while selecting them, then let Docker bind or fail closed.
+python3 - "$proof/ports" "$isolation_file" "${LEONAID_COMPOSE_TEST_PORT:-0}" "${LEONAID_COMPOSE_TEST_HTTPS_PORT:-0}" <<'PYPORTS'
+import socket
+import sys
+from contextlib import ExitStack
+from pathlib import Path
+with ExitStack() as stack:
+    ports = []
+    for requested in sys.argv[3:]:
+        listener = stack.enter_context(socket.socket())
+        listener.bind(("127.0.0.1", int(requested)))
+        ports.append(listener.getsockname()[1])
+    Path(sys.argv[1]).write_text(" ".join(map(str, ports)) + "\n")
+    path = Path(sys.argv[2])
+    path.write_text(path.read_text().replace(
+        "    ports: !reset []",
+        "    ports: !override\n"
+        f'      - "127.0.0.1:{ports[0]}:8080"\n'
+        f'      - "127.0.0.1:{ports[1]}:8443"',
+    ))
+PYPORTS
+read -r port https_port < "$proof/ports"
+owned=true
 
 profiles=$(compose config --profiles | sort)
 expected_profiles=$(printf '%s\n' \
@@ -53,7 +102,7 @@ echo "compose-test: starte Standardstack aus leeren, projektspezifischen Volumes
 compose up --build --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
-  api core-postgres proxy public pwa rustfs twenty-postgres twenty-redis \
+  api core-postgres proxy public pwa rustfs survey-validator twenty-postgres twenty-redis \
   twenty-server twenty-worker web worker | sort)
 actual_services=$(compose ps --services --filter status=running | sort)
 if [ "$actual_services" != "$expected_services" ]; then

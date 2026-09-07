@@ -28,7 +28,7 @@ if mode == kind:
 class RegressionIsolationTests(unittest.TestCase):
     def test_collision_and_inventory_failure_do_not_clean_other_resources(self):
         root = Path(__file__).resolve().parents[2]
-        for suite in ("identity", "policy", "public_actions", "public_orders"):
+        for suite in ("compose", "identity", "policy", "public_actions", "public_orders"):
             for case in ("containers", "volumes", "networks", "inventory-error"):
                 with (
                     self.subTest(suite=suite, case=case),
