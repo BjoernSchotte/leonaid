@@ -2,7 +2,22 @@ import { test, expect } from "@playwright/test";
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const surveyId = process.env.SURVEY_KRAPFENTAXI_ID;
 if (!baseURL || !surveyId) throw new Error("Published survey fixture required");
-for (const width of [1440, 390]) {
+async function rate(page, name, value) {
+  const question = page.locator(`[data-name=${name}]`);
+  await expect(question).toBeVisible();
+  const dropdown = question.getByRole("combobox");
+  if (await dropdown.count()) {
+    await dropdown.click();
+    await page
+      .getByRole("option", { name: String(value), exact: true })
+      .click();
+  } else {
+    await question
+      .locator(`input[type=radio][value="${value}"]`)
+      .press("Space");
+  }
+}
+for (const width of [1440, 390, 320]) {
   test(`host logo loads with saved participation at width ${width}`, async ({
     browser,
   }) => {
@@ -22,11 +37,7 @@ for (const width of [1440, 390]) {
       await expect
         .poll(() => logo.evaluate((img) => img.naturalWidth))
         .toBeGreaterThan(0);
-      await page
-        .locator("[data-name=delivery_rating]")
-        .getByRole("radio")
-        .nth(4)
-        .press("Space");
+      await rate(page, "delivery_rating", 5);
       await expect(page.locator("[data-save-state]")).toHaveAttribute(
         "data-save-state",
         "saved",
@@ -41,9 +52,13 @@ for (const width of [1440, 390]) {
       expect(stored.response.answers.delivery_rating).toBe(5);
       await page.reload();
       await expect(logo).toBeVisible();
-      await expect(
-        page.locator("[data-name=delivery_rating]").getByRole("radio").nth(4),
-      ).toBeChecked();
+      const rating = page.locator("[data-name=delivery_rating]");
+      if (await rating.getByRole("combobox").count())
+        await expect(rating.getByRole("combobox")).toContainText("5");
+      else
+        await expect(
+          rating.locator('input[type=radio][value="5"]'),
+        ).toBeChecked();
       const restored = await page.evaluate(
         async (path) => (await fetch(path)).json(),
         endpoint,
@@ -54,6 +69,67 @@ for (const width of [1440, 390]) {
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true);
+      async function progressFits() {
+        const buttons = page.locator(
+          ".survey-runner .sd-progress-buttons__button",
+        );
+        await expect(buttons).toHaveCount(3);
+        expect(
+          await buttons.evaluateAll((elements) =>
+            elements.every((element) => {
+              const box = element.getBoundingClientRect();
+              const container = element
+                .closest(".sd-progress-buttons__list-container")
+                .getBoundingClientRect();
+              return (
+                box.left >= container.left - 1 &&
+                box.right <= container.right + 1 &&
+                box.left >= 0 &&
+                box.right <= innerWidth
+              );
+            }),
+          ),
+        ).toBe(true);
+      }
+      await progressFits();
+      await page.screenshot({
+        path: `${process.env.LEONAID_E2E_ARTIFACT_DIR}/surveys-branding-progress-${width}.png`,
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "Weiter", exact: true }).click();
+      await page
+        .locator("[data-name=freshness]")
+        .getByRole("radio")
+        .first()
+        .press("Space");
+      await progressFits();
+      await page.getByRole("button", { name: "Weiter", exact: true }).click();
+      await rate(page, "nps", 10);
+      await progressFits();
+      await page.getByRole("button", { name: "Zurück", exact: true }).click();
+      await expect(
+        page.locator("[data-name=freshness]").getByRole("radio").first(),
+      ).toBeChecked();
+      await progressFits();
+      await page.getByRole("button", { name: "Weiter", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Abschließen", exact: true })
+        .click();
+      await expect(
+        page.getByRole("heading", {
+          name: "Vielen Dank für Ihre Rückmeldung.",
+        }),
+      ).toBeVisible();
+      const completed = await page.evaluate(
+        async (path) => (await fetch(path)).json(),
+        endpoint,
+      );
+      expect(completed.response.status).toBe("completed");
+      expect(completed.response.answers).toEqual({
+        delivery_rating: 5,
+        freshness: "fresh",
+        nps: 10,
+      });
       await page.screenshot({
         path: `${process.env.LEONAID_E2E_ARTIFACT_DIR}/surveys-branding-${width}.png`,
         fullPage: true,

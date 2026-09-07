@@ -43,6 +43,8 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 
 - [x] **020.S6 · Integration / E2E · 020.1a:** In the packed consumer, switch local logos and reject external/encoded/traversal/query paths while retaining answers and page; verify mobile layout, backend restart and completion. In LeonAid, load the real local asset on desktop/mobile, persist an answer through the real API and restore identical response/revision after reload. Verify owned-stack teardown. [Live evidence](proofs/SURV-020.md#bounded-host-logo-integration).
 
+- [x] **020.S7 · Integration / E2E · 020.3a:** At 320, 390 and 1440 pixels, assert all three progress controls are inside their scroll container and viewport on every page. Navigate forward/back, retain the previous answer, complete and read the exact final answers/status from the real API; verify isolated teardown. [Live evidence](proofs/SURV-020.md#responsive-progress-navigation).
+
 ## SURV-030 — Lifecycle and versions
 
 - [ ] **030.S1 · Integration · 030.T1 → 030.A1:** Migrate both empty and baseline databases; enumerate every allowed/forbidden lifecycle edge from PLAN section 5 and assert resulting state or rejection without mutation.

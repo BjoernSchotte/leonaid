@@ -305,8 +305,8 @@ Inspected evidence: [LeonAid desktop](assets/SURV-020-logo-desktop.png),
 [LeonAid mobile](assets/SURV-020-logo-mobile.png), and the
 [independent host mobile](assets/SURV-020-logo-consumer.png). The existing SurveyJS
 mobile progress strip partly clips its last step; the logo and answer controls
-remain within bounds. This is retained as a SURV-100 visual audit issue, not a
-claim that all mobile presentation is complete.
+remain within bounds. This was retained as a SURV-100 visual audit issue; the responsive-progress
+proof below resolves this specific defect.
 
 Package TypeScript and Linux-container Astro checks passed (22 Astro files,
 zero errors/warnings/hints). The initial macOS Astro invocation could not load
@@ -314,3 +314,39 @@ the Darwin native binding from the Linux dependency installation; the pinned
 Linux check completed successfully without reinstalling dependencies. Prettier,
 shell syntax and diff whitespace checks passed. No dependency or license choice
 changed; own license remains **UNDEFINED**.
+
+## Responsive progress navigation
+
+**020.3a / 020.S7 accepted.** Baseline `1319be2` plus this change.
+The actual SurveyJS 3 stylesheet gives every progress column a minimum width;
+the resulting internal horizontal overflow clipped the last step at 390px.
+Scoped CSS now wraps the progress grid in narrow containers, enlarges controls
+to at least 2.75rem, and omits connector lines in that wrapped layout. Wide
+containers retain upstream presentation. CSS size containment is confined to the
+progress region; it must not contain the question popups.
+
+`rtk proxy sh tools/surveys/infrastructure.sh "$PWD" branding` exited **0**,
+project `leonaid-surveys-833458328-14298`, with **four Chromium tests passed (8.0s)**.
+Three real respondent journeys ran at 1440x900, 390x900 and 320x900. Each checks
+that all three step controls stay inside both their scroll container and viewport
+on every page, restores an unchanged saved response after reload, navigates
+forward/back, and completes through the real API. The final server response has
+status `completed` and exactly `delivery_rating: 5`, `freshness: "fresh"`, `nps: 10`.
+The fourth test covers the real member/public identity foundation. The harness
+also verifies PostgreSQL persistence and removes its owned volumes, containers
+and networks without publishing ports.
+
+Two preceding attempts exposed useful boundaries. Project `12255` passed desktop
+but the test incorrectly assumed mobile ratings were always radio controls.
+Project `13561` exercised the actual dropdowns and found that applying CSS
+containment to the entire runner displaced a long popup at 320px. Moving
+containment to the progress region fixed that behavior; the final run selects
+the last option by a normal pointer click, without forced clicks or bypassing
+hit-testing. Both failed projects were separately checked for full owned cleanup.
+
+[320px evidence](assets/SURV-020-progress-320.png) shows the formerly clipped steps
+fully visible and was visually inspected. The browser test retains desktop and
+390px images locally as well. Prettier and diff whitespace checks passed. This
+accepts the responsive navigation defect and its three-page regression, not the
+remaining full SURV-100 aggregate/CI or author-to-deletion acceptance. No dependency
+or license choice changed.

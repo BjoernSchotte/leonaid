@@ -50,3 +50,26 @@
   object-position: left center;
   margin-block-end: 1rem;
 }
+
+/* Fit the step controls to the host container, including narrow desktop embeds. */
+.survey-runner .sd-progress-buttons {
+  container-type: inline-size;
+}
+@container (max-width: 32rem) {
+  .survey-runner .sd-progress-buttons__list {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr));
+    gap: 0.5rem;
+  }
+  .survey-runner .sd-progress-buttons__list li {
+    min-width: 0;
+    align-items: center;
+  }
+  .survey-runner .sd-progress-buttons__list li::after {
+    display: none;
+  }
+  .survey-runner .sd-progress-buttons__button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}

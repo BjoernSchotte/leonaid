@@ -128,6 +128,8 @@ Task **000.4** is accepted after the full persona/fixture review and current per
   Integration / supporting checks — work-package regression gate: **020.S1, 020.S2**.
   E2E: **020.S3, 020.S4**.
 
+- [x] **020.3a** Keep all progress steps visible in narrow host containers with usable controls. Acceptance: real three-page surveys at 320/390/1440 pixels expose every step without clipping, preserve answers through forward/back navigation, and complete through the real API. Integration/E2E: **020.S7**; isolated branding harness. [Live evidence](proofs/SURV-020.md#responsive-progress-navigation).
+
 - [ ] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling.
 
   Acceptance criteria: **020.A2**.

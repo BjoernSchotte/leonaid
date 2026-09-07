@@ -317,3 +317,12 @@ put participant data in a filename. The image sends no referrer and fits a
 160-by-64 CSS box constrained to the available width. No image upload or remote
 asset fetching service is added. LeonAid supplies its existing local brand mark;
 the independent demo supplies its own mark and an interactive configuration field.
+
+### Narrow progress navigation
+
+The progress region is an inline-size CSS container. At widths up to 32rem, the SurveyJS
+page-step grid wraps within the host container and uses at least 44px step
+controls. Connecting lines are omitted in the wrapped layout; desktop layout
+remains the SurveyJS default. This applies to narrow embedded hosts as well as
+mobile viewports. SurveyJS may independently render rating questions as dropdowns
+when there is insufficient width for their radio choices.
