@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-namespaces}
-case "$mode" in namespaces|persistence) ;; *) exit 2 ;; esac
+case "$mode" in namespaces|persistence|commands) ;; *) exit 2 ;; esac
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"

@@ -2907,6 +2907,25 @@ Dependencies: EMS-030, EMS-050, EMS-070
       idempotent mutation handling, and audit events recording actor, action,
       previous target, and new target. Concurrent claims must yield one winner
       and a clear conflict; UI checks alone are insufficient.
+  - [x] Server-side redirect mutation core, not yet wired to HTTP: the typed
+        `CampaignAliasCommand`/service and PostgreSQL adapter implement create,
+        update (including disable/enable and action moves), and remove. Commands
+        bind actor, source/target action, alias UUID, payload and revision to a
+        durable receipt. Each transaction rechecks active Core account and
+        current Charity memberships (both actions for moves), protects the
+        legacy primary alias, uses bounded locks and stores mutation, audit and
+        receipt atomically. Replays recheck current authority, including a
+        subsequently moved alias's current action. `alias-commands` passed in
+        isolated project `leonaid-emdash-tmp-mqb3ygudas`: actual role denial,
+        own-action create/disable, rejected unauthorized move, System Admin
+        move/remove, stale revision/name/payload conflicts, duplicate-free
+        retries, withdrawal, one-winner concurrent claims, and real audit-trigger
+        failure with full rollback followed by same-command retry. Nine unit
+        cases additionally cover normalized paths, command invariants and bound
+        fingerprints. Exit 0; the project's database/network/volume were removed.
+        The new HTTP API, list contract, fresh-session handling, UI and complete
+        request-level authorization/concurrency gates remain open; this test
+        exercises the actual database mutation boundary directly.
 - [ ] Render redirects through the Core resolver and `apps/public` catch-all
       according to section 2.5. No alias-to-alias or arbitrary URL targets exist,
       so cycles and external redirects are impossible by construction.
@@ -2921,6 +2940,7 @@ Verification (new case implemented by this task):
 ./leonaid test-emdash-spike --case redirect-aliases
 ./leonaid test-emdash-spike --case alias-namespaces
 ./leonaid test-emdash-spike --case alias-persistence
+./leonaid test-emdash-spike --case alias-commands
 ./leonaid test-public-actions
 ```
 

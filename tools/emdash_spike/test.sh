@@ -13,11 +13,14 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence) ;;
+  krapfentaxi-source|krapfentaxi-migration|krapfentaxi-orders|alias-namespaces|alias-persistence|alias-commands) ;;
   campaign-public-content|campaign-public-http|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
+if [ "$test_case" = alias-commands ] || [ "$test_case" = all ]; then
+  /bin/sh "$root/tools/emdash_spike/alias-namespaces-test.sh" "$root" commands
+fi
 if [ "$test_case" = alias-persistence ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/alias-namespaces-test.sh" "$root" persistence
 fi
