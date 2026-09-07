@@ -1,9 +1,9 @@
 # SURV-080 — Export implementation evidence
 
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
-**080.1 and 080.2 are accepted; 080.3 remains open.**
-Criteria 080.A1–A6 are proven below; 080.T1 and 080.T2 are accepted. The
-remaining 080.3 task review stays open; SURV-080 is not complete. Earlier sections record the
+**080.1–080.3 and 080.T1–080.T2 are accepted.**
+Criteria 080.A1–A6 are proven below. SURV-080 is accepted for the specified spike
+scope; the overall plan and SURV-090 deletion work remain incomplete. Earlier sections record the
 evidence and limitations of their respective increments.
 
 ## Task ledger
@@ -12,7 +12,7 @@ evidence and limitations of their respective increments.
 |---|---|---|
 | 080.1 | CSV, response XLSX and analysis XLSX through real worker/private storage and parsed API/browser downloads | Accepted; see tabular task acceptance below |
 | 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review and browser downloads | Accepted in consolidated render review below |
-| 080.3 | Durable jobs, current permission checks, private storage, recovery and protected downloads | Final task review including terminal failure/retry browser states |
+| 080.3 | Durable jobs, current permission checks, private storage, recovery and protected downloads | Accepted by terminal job-state review below |
 | 080.T1 | Artifact parsing, four export pipelines, real recovery and permission/deletion integration | Accepted against A1, A2 and A3 below |
 | 080.T2 | Normal, long-label, empty and actual-worker PDF review; all four browser downloads | Accepted in consolidated render review below |
 
@@ -795,3 +795,43 @@ not universal font support, PDF accessibility certification or a promise that
 arbitrary text fits on a printed page. The final review required no further
 source edits or rerun of unchanged integration code. 080.3 still needs its final
 job-state/UI review; SURV-090 and the remaining overall plan are not completed.
+
+## Terminal job-state acceptance
+
+The increment based on `fbb141f` adds `export-states` mode to the isolated live
+harness. `tests/e2e/surveys-export-states.spec.mjs` creates a real PDF export in
+the member UI. `tools/surveys/export_states_live.py` processes that exact event
+using the production outbox, handler and S3 adapter. The test process temporarily
+uses a PATH without Typst, so all five attempts execute a real failing renderer
+lookup. The retry policy retains five attempts but uses zero delay for this
+bounded test. Atomic fixture-file signals stop processing until the browser has
+observed the retry state; no job-status API response is mocked.
+
+The browser proves queued status, a failed status-network request and recovery
+through the status-check button, visible automatic retry, and terminal failure
+without a download button. It then requests a fresh job through the same UI.
+The restored real Typst renderer generates the PDF, the worker stores it, and the
+browser downloads the actual file. The replacement has a new operation and job
+ID but the same immutable snapshot. The failed job remains a dead-letter record
+with no object; its persisted error code/detail contain only the generic failure.
+
+Command: `rtk proxy sh tools/surveys/infrastructure.sh
+/Users/bjoern/.codex/worktrees/497a/leonaid export-states` exited 0 in project
+`leonaid-surveys-833458328-82845`. The export journey and member/public foundation
+case passed (two Chromium cases, 8.0s). The worker probe passed and was joined
+before teardown. No host ports were published; cleanup was verified.
+
+Evidence: [worker assertions](assets/SURV-080-state-worker.json),
+[browser assertions](assets/SURV-080-state-browser.json), and
+[captured failure state](assets/SURV-080-state-failed.png). Session credentials,
+job handshakes and temporary downloads were not copied into published proof files.
+Formatting and `git diff --check` passed. No production source change was needed
+for these states: this increment proves the previously implemented behavior.
+
+080.3 is now accepted against A3/A4/A6 plus the requested retry/error-state
+behavior. The earlier proofs cover atomic creation, restart/crash and real storage
+outage recovery, current permissions, deletion invalidation, private downloads,
+all four products and independent package integration. All tasks and acceptance
+criteria in SURV-080 are accepted within the documented spike boundaries.
+This does not complete the larger plan: permanent deletion/retention/backup
+recovery, remaining module/package work and final combined journeys remain open.

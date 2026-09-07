@@ -253,7 +253,7 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **080.S1, 080.S5**.
   E2E: **080.S4**.
 
-- [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation.
+- [x] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation. [Accepted evidence](proofs/SURV-080.md#terminal-job-state-acceptance).
 
   Acceptance criteria: **080.A3, 080.A4, 080.A6**.
   Integration / supporting checks: **080.S3**.

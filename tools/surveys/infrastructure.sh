@@ -93,6 +93,16 @@ if [ "$mode" = invitations ]; then
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+state_worker_pid=""
+if [ "$mode" = export-states ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_states_live.py &
+  state_worker_pid=$!
+  browser_specs="$browser_specs tests/e2e/surveys-export-states.spec.mjs"
+fi
 if [ "$mode" = export-permissions ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -187,6 +197,12 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = export-states ]; then
+  wait "$state_worker_pid"
+  cp "$proof/export-state-worker-proof.json" "$artifact/"
+  cp "$proof/export-state-browser-proof.json" "$artifact/"
+  cp "$proof/export-state-failed.png" "$artifact/"
+fi
 if [ "$mode" = export-permissions ]; then
   cp "$proof/export-permission-boundaries.json" "$artifact/"
 fi
