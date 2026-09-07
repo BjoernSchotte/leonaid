@@ -16,6 +16,29 @@ spec.loader.exec_module(module)
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_colored_playwright_assertions_keep_only_fixed_categories(self):
+        raw = (
+            "Error: \x1b[2mexpect(\x1b[22m\x1b[31mreceived\x1b[39m)\n"
+            "Expected: PRIVATE_CANARY_answer\nReceived: PRIVATE_CANARY_cookie\n"
+            "Timed out 5000ms waiting for expect(\x1b[31mlocator\x1b[39m)\n"
+            "tests/e2e/surveys-runner.spec.mjs:\x1b[33m282\x1b[39m:1"
+        )
+        report = module.classify(raw, {"tests/e2e/surveys-runner.spec.mjs": 700})
+        self.assertEqual(
+            report["observedMarkers"],
+            [
+                "browser-assertion",
+                "browser-assertion-timeout",
+                "browser-locator-assertion",
+            ],
+        )
+        self.assertEqual(
+            report["publicLocations"],
+            [{"file": "tests/e2e/surveys-runner.spec.mjs", "line": 282}],
+        )
+        self.assertNotIn("PRIVATE_CANARY", json.dumps(report))
+        self.assertNotIn("5000", json.dumps(report))
+
     def test_private_values_are_never_serialized(self):
         raw = """Permission denied SECRET_CANARY_token answer=PRIVATE_CANARY_answer
 email=private-person@example.com cookie=VERY_PRIVATE_COOKIE

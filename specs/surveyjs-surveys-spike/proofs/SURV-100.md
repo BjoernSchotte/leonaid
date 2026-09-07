@@ -565,3 +565,54 @@ and unknown-upload-action rejection cases remain unchanged. All four bounded
 survey diagnostic tests pass, as do scoped Ruff formatting and lint checks.
 This corrects the observed CI failure; a complete new Security/CI run is still
 required and is not inferred from these targeted checks.
+
+## Colored browser failure classification
+
+The current CI metadata listed browser source locations but missed some assertion
+categories. Playwright inserts ANSI SGR color sequences inside `expect(received)`;
+the previous literal substring check therefore did not match those errors.
+`ci_diagnostics.py` now strips only these presentation sequences before matching
+its fixed categories. Locator assertions and assertion-wait timeouts also have
+explicit categories. Normalized logs, expected/received values and locator text
+are never included in the exported JSON.
+
+`python3 tools/surveys/ci_diagnostics_test.py` passes **5 tests**, including colored
+assertions with private answer/cookie canaries, a colored public line number and
+the existing unknown-file, symlink and manifest-boundary checks. Reprocessing the
+retained real Chromium Golf trace classified all **9 colored assertion records**
+that contain `expect(received)` without exporting their messages. Those records
+include failed retry assertions, so this count is not a count of failed tests.
+Pinned-runtime Ruff formatting and lint checks pass.
+
+This improves diagnosis for **100.1**; it neither fixes the underlying browser
+failures nor accepts the complete CI/aggregate gate. The next complete runs must
+still prove their required scenarios.
+
+
+## Six more isolated regressions
+
+All six original commands passed against real services with reserved owned
+networks, checkout/PID project names and no published host ports. The complete
+sequence from the initial build/start through every original assertion remains
+byte-identical to the preceding revision. Independent Docker inventories
+confirmed zero owned containers, volumes and networks for each accepted project.
+
+| Suite | Successful checks |
+|---|---|
+| PWA | 10 browser tests (3.5 minutes), plus two separate one-test runs (5.1 and 3.4 seconds); original nine browser/viewport combinations, offline/update and real Twenty-outage checks retained |
+| Templates | Real API/database versioning, snapshot and previous-year-copy contract; this script has no browser phase |
+| Action administration | Real server contract, one React component test and one browser lifecycle test (42.6 seconds) |
+| Commitments | Real server/SQL contract and 11 browser tests (1.4 minutes), including nine browser/viewport combinations and stored UI verification |
+| Activity feed | Real feed/access contract, three browser journeys (6.5 seconds) and independent stored read-state verification |
+| Invoices | Real contract, Fresh Login, finance-role document view and Twenty snapshots; one browser journey (8.9 seconds) |
+
+[Commands, projects, elapsed times and source hashes](assets/SURV-100-six-more-regressions.json)
+record the accepted runs. An earlier Commitments attempt failed Twenty readiness
+before its assertions; it is not counted. The accepted Commitments, Activity Feed
+and Invoices runs used one owned full stack at a time. This scheduling choice
+does not establish the cause of the earlier startup failure.
+
+This accepts **100.3g / 100.S2f**. Twenty-four of the 42 legacy regression scripts
+have now passed in isolation. The next six scripts, whole-survey repeated gate,
+current browser CI failures and independent recovery requirements remain open.
+Screenshot existence is not treated as a new visual accessibility audit.

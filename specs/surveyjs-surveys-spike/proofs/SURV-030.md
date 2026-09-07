@@ -322,3 +322,28 @@ source files); restore-state tests pass all 14 cases. The seven gate-controller
 tests and the network-test-double policy tests pass. Formatting-only browser
 changes preserve the reviewed network-fault behavior. These targeted results do
 not constitute a successful full aggregate or full CI run.
+
+
+## Migration and lifecycle task reconciliation
+
+A current assertion review closes companion tasks **030.1**, **030.3** and
+scenario **030.S1** using the complete live evidence above. The empty/current
+schema and populated baseline upgrade reports each contain all 30 PostgreSQL
+invariant checks; the upgrade preserves existing table fingerprints. The TCP
+readiness correction subsequently passed both migration paths twice.
+
+The lifecycle probe explicitly covers all 25 manual status/action pairs, five
+publication pairs and five permanent-deletion pairs, plus distinct unpublished
+and published restoration. Forbidden transitions preserve the survey summary;
+forbidden publication also preserves the version count, and forbidden erasure
+creates no deletion intent. The worker completes actual erasure and subsequent
+operations are rejected. The accepted member journey checks the same lifecycle
+in the UI and independently in PostgreSQL. Scheduled closure/worker restart
+(030.S5/S6) and both observed end/completion lock orders (030.S2) retain their
+separate accepted results.
+
+This is reconciliation of inspected assertions and retained live results, not a
+new full lifecycle execution. **030.2 / 030.S3 remain open** until the strengthened
+invitation-populated duplication probe passes; a source with an empty invitation
+list is insufficient evidence for excluding copied recipients and credentials.
+The current overall CI and recovery gates remain open.

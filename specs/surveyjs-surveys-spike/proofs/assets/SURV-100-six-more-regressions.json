@@ -1,0 +1,67 @@
+{
+  "syntheticOnly": true,
+  "runs": [
+    {
+      "suite": "pwa",
+      "command": "sh tools/pwa/test.sh \"$PWD\"",
+      "project": "leonaid-poc062-test-833458328-13406",
+      "exitCode": 0,
+      "seconds": 793.235,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "6dc297116fb4604eaba52726f2d215b1cf1e7fb106a24b3a65b37e4927ba4d38"
+    },
+    {
+      "suite": "templates",
+      "command": "sh tools/templates/test.sh \"$PWD\"",
+      "project": "leonaid-poc051-test-833458328-17675",
+      "exitCode": 0,
+      "seconds": 364.564,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "ecc257769469e02f33fa86286d7ff306367ae2d951c795cabe29ac0b63242ba9"
+    },
+    {
+      "suite": "action_admin",
+      "command": "sh tools/action_admin/test.sh \"$PWD\"",
+      "project": "leonaid-poc052-test-833458328-19297",
+      "exitCode": 0,
+      "seconds": 467.122,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "0402ec0dbf9ca07dbed945dad11896fae27b94a860f797d9be87819ba4b73c58"
+    },
+    {
+      "suite": "commitments",
+      "command": "sh tools/commitments/test.sh \"$PWD\"",
+      "project": "leonaid-poc081-test-833458328-24000",
+      "exitCode": 0,
+      "seconds": 548.244,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "aff071ce720b0365364e234d0c6542d51503a94aaf8e78ac21dcf6a154299036"
+    },
+    {
+      "suite": "activity_feed",
+      "command": "sh tools/activity_feed/test.sh \"$PWD\"",
+      "project": "leonaid-poc082-test-833458328-26089",
+      "exitCode": 0,
+      "seconds": 196.294,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "71046deee0860ab76fcab458482be855e6dfbc23ba4ae244d72ab23d11a3d098"
+    },
+    {
+      "suite": "invoices",
+      "command": "sh tools/invoices/test.sh \"$PWD\"",
+      "project": "leonaid-poc090-test-833458328-27001",
+      "exitCode": 0,
+      "seconds": 225.217,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "0b9bd594f283a306dc4bd408e5caef3de4f200c8e87b9e908841d3fe4c99b273"
+    }
+  ],
+  "hostPortsPublished": false,
+  "networksReservedBeforeStartup": true
+}

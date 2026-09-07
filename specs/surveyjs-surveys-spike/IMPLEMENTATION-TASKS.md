@@ -147,9 +147,11 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 ## SURV-030 — Lifecycle, migrations and immutable versions
 
+[Migration and lifecycle acceptance reconciliation](proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation) closes 030.1 and 030.3; populated invitation duplication remains open under 030.2.
+
 - [x] **030.T1a** Hold the real survey-row lock until two ordered HTTP operations are observed blocked. Prove both orders of competing draft saves, draft save/publication, competing publications and end/completion; verify exact persisted outcomes and guard-respecting retries without any row-content change. Acceptance: **030.A2, controlled-concurrency portion**; integration: **030.S2**. [Live evidence](proofs/SURV-030.md#observed-lifecycle-lock-orders).
 
-- [ ] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys.
+- [x] **030.1** Implement schema migrations, repositories and lifecycle use cases for draft, active, ended, archived and deleted surveys.
 
   Acceptance criteria: **030.A1, 030.A4**.
   Integration / supporting checks: **030.S1, 030.S5**.
@@ -161,7 +163,7 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
   Integration / supporting checks: **030.S2, 030.S3**.
   E2E — work-package regression gate: **030.S4, 030.S6**.
 
-- [ ] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions.
+- [x] **030.3** Enforce allowed transitions, transactional survey-end cutoff and restore behavior in server policies and database transactions.
 
   Acceptance criteria: **030.A1, 030.A2, 030.A4**.
   Integration / supporting checks: **030.S1, 030.S2, 030.S5**.
@@ -517,7 +519,8 @@ capability/task reconciliation gate; successful journeys do not close that audit
 - [x] **100.3d** Isolate and execute the complete existing Compose regression using a unique project, unused explicit subnets and two free loopback ports. Acceptance: **100.A3, Compose regression portion**; validate the real default service inventory including `survey-validator`, readiness, host routing, PostgreSQL/RustFS persistence across restart, Twenty schema stability, optional profiles and complete owned cleanup. Integration: **100.S2c**; E2E scope is operator CLI and real HTTP/TLS, not browser interaction. [Live evidence](proofs/SURV-100.md#isolated-compose-regression). Full **100.3 / 100.A3** remains open.
 - [x] **100.3e** Isolate and execute the seven core, schema, outbox, OpenAPI, Twenty metadata, CRM gateway and CRM import regressions. Acceptance: **100.A3, seven named suites only**; reserve all owned networks before starting any service, resolve real subnet allocation collisions, preserve the original service/data assertions and verify complete owned cleanup. Integration/operator E2E: **100.S2d**; browser journeys remain separate. [Live evidence](proofs/SURV-100.md#reserved-networks-and-seven-backend-regressions). Full **100.3 / 100.A3** remains open.
 - [x] **100.3f** Isolate and execute the existing invitation, session, matching, assignment, activity and action regressions. Acceptance: **100.A3, six named suites only**; preserve real API/SQL/SMTP/CRM assertions and complete browser journeys, reserve owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2e**; the remaining legacy suites and full **100.3 / 100.A3** stay open. [Live evidence](proofs/SURV-100.md#six-isolated-browser-regressions).
-- [ ] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone.
+- [x] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone. [Live evidence](proofs/SURV-100.md#six-more-isolated-regressions).
+- [ ] **100.3h** Isolate and execute the existing Typst, storage, documents, mail relay, invoice delivery and invoice settlement regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/SMTP/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2g**. Guard-only results do not accept the real-service requirement.
 
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 

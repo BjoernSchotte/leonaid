@@ -24,6 +24,8 @@ MARKERS = {
     "timeout": "TimeoutError",
     "assertion": "AssertionError",
     "browser-assertion": "expect(received)",
+    "browser-locator-assertion": "expect(locator)",
+    "browser-assertion-timeout": "waiting for expect(",
     "no-browser-tests": "No tests found",
     "javascript-module-missing": "Cannot find module",
     "javascript-import-missing": "Could not resolve",
@@ -40,9 +42,13 @@ MARKERS = {
 LOCATION = re.compile(
     r"((?:tests|tools|apps|packages|src)/[A-Za-z0-9_./-]+)(?::|\", line )(\d+)"
 )
+ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def classify(text: str, public_files: dict[str, int]) -> dict:
+    # Playwright colors individual tokens, including the middle of expect(...).
+    # Normalize presentation before matching; never serialize the resulting text.
+    text = ANSI_SGR.sub("", text)
     categories = sorted(
         key for key, marker in MARKERS.items() if marker.casefold() in text.casefold()
     )
