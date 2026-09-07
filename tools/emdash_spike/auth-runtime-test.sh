@@ -2,8 +2,12 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+if [ "$mode" = public-http ]; then
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$NODE_IMAGE" node tools/emdash_spike/editorial-html-proof.mjs
+fi
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
@@ -95,6 +99,31 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = public-http ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
+    public_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+        node tools/emdash_spike/public-campaign-http-proof.mjs "$@"
+    }
+    if ! public_probe; then
+      compose logs --no-color campaign-site | docker run --rm -i --network none "$NODE_IMAGE" \
+        node --input-type=module -e 'let input=""; for await (const chunk of process.stdin) input+=chunk; for (const signal of ["public_campaign_core_unavailable", "public_campaign_content_unavailable", "public_campaign_pipeline_unavailable"]) if(input.includes(signal)) console.log(signal);'
+      exit 1
+    fi
+    visual_proof=$(mktemp -d)
+    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+      node tools/emdash_spike/public-campaign-browser-proof.mjs
+    echo "public-campaign: synthetic screenshots retained in $visual_proof"
+    for publication_state in none future expired; do
+      fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"
+      public_probe --inactive
+    done
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    compose stop api
+    public_probe --unavailable
+    exit 0
+  fi
   if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-publication
     fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-isolation

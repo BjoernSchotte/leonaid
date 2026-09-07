@@ -1932,6 +1932,36 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Deliver the first public text-rendering milestone at
+      `/campaigns/<archive_slug>/`: fresh bounded/no-redirect Core GET through
+      the generated client, then action-bound live-only CMS reading through
+      the supported server runtime API. Anonymous EmDash locals deliberately
+      omit `db`; the initial live failure identified and corrected this wiring.
+      Reuse the existing public LeonAid layout, fonts and tokens. Render CMS
+      hero text, validated Portable Text, FAQ and partner text/links alongside
+      Core carrier, purpose and offering prices. The temporary order CTA links
+      to the existing alias-based order journey; it must be replaced by the
+      integrated form BEFORE redirect-alias cutover to avoid a redirect loop.
+      This is not final demo migration or complete EMS-050 acceptance.
+      `campaign-public-http` passed in `leonaid-emdash-tmp-qy8wgfzker`: actual
+      CA-verified HTTPS, GET/HEAD/no-store/no-cookie, canonical slash redirect,
+      escaped markup, native API publish/unpublish/recovery without rebuild,
+      identical public HTML after a private draft (also with Core login and
+      non-native preview parameters), explicit native preview/edit-cookie
+      rejection, missing/archive concealment and POST rejection. Committed
+      Core withdrawal/future/expired windows hide both content and the order
+      CTA on the next HTTP request; stopping Core gives a no-store 503 page.
+      Chromium/Firefox/WebKit passed anonymous desktop/mobile, JS/no-JS,
+      repeat navigation, native FAQ, no horizontal overflow and keyboard
+      skip-link/main-focus tests. Synthetic desktop/mobile screenshots were
+      visually reviewed. Renderer tests cover escaping, styles/marks, nested
+      lists, prototype-like link keys and unsafe URL/markup rejection.
+      All owned Docker resources removed; no host ports exposed. Public media,
+      all remaining Core presentation fields, integrated ordering, theme-specific
+      Krapfentaxi rendering, authenticated preview, full browser cache/failure
+      matrix, whole-request/pool deadlines and historical archives remain open.
+      Public pages are still gated by completed bootstrap and secure ingress.
+
 - [x] Add the server-only published-content reader prerequisite, separate from
       the draft-hydrating editor runtime. `readPublishedCampaign` accepts only
       a Core action UUID, checks binding guards, locks a published/non-trashed
