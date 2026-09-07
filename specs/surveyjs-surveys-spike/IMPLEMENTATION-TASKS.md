@@ -236,6 +236,10 @@ a substitute for completing an individual task.
 
 ## SURV-080 — CSV, XLSX and Typst exports
 
+Browser criteria **080.A4 / 080.S4** and **080.A6 / 080.S6** are
+[accepted](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
+The tasks below remain open until their other required criteria pass.
+
 - [ ] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text.
 
   Acceptance criteria: **080.A1, 080.A2, 080.A4, 080.A6**.

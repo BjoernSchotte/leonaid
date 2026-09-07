@@ -1,8 +1,9 @@
 # SURV-080 — Export implementation evidence
 
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
-**no SURV-080 acceptance criterion or complete implementation task is accepted**.
-The complete browser, recovery, permission and workbook render gates remain open.
+**No complete SURV-080 implementation task is accepted yet.**
+Browser acceptance 080.A4 and 080.A6 is now proven below. Full recovery,
+permission-race and workbook render gates remain open; SURV-080 is not complete.
 
 ## Task ledger
 
@@ -318,3 +319,67 @@ This is incremental evidence, not acceptance of 080.A4 or SURV-080. Remaining:
 populated-snapshot browser value comparisons, report-only/raw-denied and revoked
 download journeys, failed/retrying worker and storage recovery UI, independent
 packed export consumer, XLSX rendered-chart review, and remaining criteria below.
+
+## Populated browser exports and permission revocation
+
+Accepted **080.A4 / 080.S4** and **080.A6 / 080.S6**. The implementation baseline
+is `627e02a`; this section, the tests and fixture/parser changes are committed
+together. No other SURV-080 criterion or implementation task is accepted here.
+
+| Task | Required criteria | Evidence and disposition |
+|---|---|---|
+| 080.T2 | A4, A5, A6 | A4/A6 pass through the named browser journeys and independent file parsing; A5 remains open for rendered XLSX review. |
+| 080.1 | A1, A2, A4, A6 | A4/A6 accepted; full task remains open pending remaining integration gates. |
+| 080.2 | A1, A4, A5 | A4 accepted; full task remains open. |
+| 080.3 | A3, A4, A6 | A4/A6 accepted; full task remains open pending complete worker/storage recovery and permission-race gates. |
+
+`tests/e2e/surveys-export-values.spec.mjs` contains two real Chromium journeys:
+
+1. **populated snapshot exports match visible metrics and report-only access denies raw jobs**
+   starts with five synthetic responses (four completed, one partial), creates
+   analysis through the member UI and compares visible per-question counts,
+   means and NPS with its immutable snapshot. It edits an unapplied status
+   filter and then requests all four products through the UI: all jobs still
+   reference the displayed snapshot, not the unapplied filter. It observes
+   completion and saves the authenticated browser downloads for independent
+   parsing. A second member has only `view_aggregates` and `export_reports`:
+   report actions and a real report download work, both raw actions are absent,
+   and direct raw job creation/download requests return 404 without attachments.
+2. **revoked report access blocks existing downloads and trash clears a stale download action**
+   runs after the fixture removes only the report grant in PostgreSQL. The same
+   member can still create/view aggregate analysis, but cannot create reports
+   or fetch/download its previously available report. Then an administrator
+   creates a PDF, the real lifecycle API trashes the survey while the export
+   panel remains open, and the stale download action receives 404. The UI shows
+   the access rejection, removes the download button and emits no download.
+
+`tools/surveys/export_browser_live.py verify-revoke` parses the **actual browser
+downloads**, not fresh files downloaded by a different client:
+
+- CSV/XLSX contain the same five participation IDs and matching raw text,
+  multiselect, matrix, type and status values, including the partial response.
+- XLSX snapshot metadata and every question's counts, mean, bounds and NPS
+  match the snapshot asserted in the browser.
+- PDF contains that snapshot ID, each question's exact count table, NPS 33.33,
+  numeric sum 30/mean 15/minimum 10/maximum 20, multiselect 100/50 percentages,
+  and matrix 50/50 and 0/100 percentages. Aggregate PDF/XLSX contain no seeded
+  private text markers. XLSX includes charts; their visual rendering remains a
+  separate, still-open gate.
+
+Execution: `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports`
+exited 0 in project `leonaid-surveys-833458328-48277`. Four browser tests passed:
+two foundation/empty-export cases in 9.8s, populated export in 12.7s, revocation
+in 4.5s. The existing four-product API/worker/private-storage proof also passed.
+The preceding run `47430` passed; `48277` repeated the full sequence after adding
+the stronger PDF count/metric/distribution assertions. Both used isolated
+networks without host ports and completed verified teardown. Python syntax,
+shell syntax and `git diff --check` passed; Python/JS files were formatted.
+
+Temporary persona credentials, detailed snapshots and raw downloads stay in
+the disposable proof directory and are deleted on teardown. Only sanitized
+summaries are retained: [values](assets/SURV-080-browser-values.json),
+[permissions](assets/SURV-080-browser-permissions.json).
+
+Remaining work includes renderer/storage retry and crash recovery, complete
+job-time revocation/deletion races, rendered XLSX inspection, packed independent
+export consumer, export-only navigation, and the other open plan work packages.

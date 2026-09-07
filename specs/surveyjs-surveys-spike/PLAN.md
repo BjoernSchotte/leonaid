@@ -760,9 +760,9 @@ Acceptance criteria:
 - [ ] **080.A1 — Integration:** real worker jobs generate all four export products; parse CSV/XLSX and extract PDF text to verify golden snapshot values, filter metadata and absence of access tokens.
 - [ ] **080.A2 — Integration:** malicious formula-like text remains inert in CSV/XLSX; Unicode, empty cells and matrices survive parsing, and report generation failures are retryable without false success.
 - [ ] **080.A3 — Integration:** permission revocation and survey deletion block queued jobs and downloads, including previously created artifacts; object access is not public.
-- [ ] **080.A4 — E2E:** request each export from the analysis UI, observe job completion and download through the authenticated route; exported numbers match the displayed snapshot.
+- [x] **080.A4 — E2E:** request each export from the analysis UI, observe job completion and download through the authenticated route; exported numbers match the displayed snapshot. [Accepted evidence](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
 - [ ] **080.A5 — Render review:** inspect rendered PDF pages and XLSX charts for clipping, legends, fonts and pagination; retain synthetic visual evidence and record any manual checks separately from automated tests.
-- [ ] **080.A6 — E2E:** a user without raw-export permission cannot request or download raw files even when aggregate-report export is allowed.
+- [x] **080.A6 — E2E:** a user without raw-export permission cannot request or download raw files even when aggregate-report export is allowed. [Accepted evidence](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
 
 ### SURV-090 — Deletion, recovery and operational limits
 

@@ -101,6 +101,8 @@ if [ "$mode" = exports ]; then
   compose up --detach --wait --wait-timeout 60 worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py recover
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
 fi
 if [ "$mode" = analysis ]; then
   browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
@@ -145,6 +147,22 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
 if [ "$mode" = exports ]; then
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot' \
+    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'revoked report' \
+    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  cp "$proof/export-browser-values-proof.json" "$artifact/"
+  cp "$proof/export-browser-permissions-proof.json" "$artifact/"
   cp "$proof/survey-exports-proof.json" "$artifact/"
   cp "$proof/survey-worker-report.pdf" "$artifact/"
   cp "$proof/survey-export-browser.json" "$artifact/"
