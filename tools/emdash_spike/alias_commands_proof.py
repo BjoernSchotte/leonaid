@@ -11,7 +11,10 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepository
-from leonaid.application.campaign_aliases import CampaignAliasCommand
+from leonaid.application.campaign_aliases import (
+    CampaignAliasCommand,
+    CampaignAliasResult,
+)
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from tools.emdash_spike.alias_persistence_proof import command
 
@@ -29,10 +32,12 @@ async def proof() -> None:
     assert pool is not None
     repo = AsyncpgCampaignAliasRepository(pool)
 
-    async def mutate(cmd: CampaignAliasCommand, actor: UUID = CHARITY):
+    async def mutate(
+        cmd: CampaignAliasCommand, actor: UUID = CHARITY
+    ) -> CampaignAliasResult:
         return await repo.mutate(actor, cmd, request_id="synthetic-alias-command")
 
-    async def snapshot():
+    async def snapshot() -> list[list[asyncpg.Record]]:
         async with pool.acquire() as db:
             return [
                 await db.fetch(f"SELECT * FROM {table} ORDER BY {key}")
@@ -43,7 +48,9 @@ async def proof() -> None:
                 )
             ]
 
-    async def denied(cmd, actor, error):
+    async def denied(
+        cmd: CampaignAliasCommand, actor: UUID, error: type[Exception]
+    ) -> None:
         before = await snapshot()
         try:
             await mutate(cmd, actor)
