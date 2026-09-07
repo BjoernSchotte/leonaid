@@ -94,6 +94,15 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = retention ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/retention_live.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/retention_live.py recover
+  browser_specs="$browser_specs tests/e2e/surveys-retention.spec.mjs"
+fi
 if [ "$mode" = deletion ]; then
   compose stop worker
   deletion_probe() {
@@ -209,6 +218,11 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = retention ]; then
+  cp "$proof/retention-proof.json" "$artifact/"
+  cp "$proof/retention-browser-proof.json" "$artifact/"
+  cp "$proof/retention-mobile.png" "$artifact/"
+fi
 if [ "$mode" = deletion ]; then
   cp "$proof/deletion-proof.json" "$artifact/"
 fi

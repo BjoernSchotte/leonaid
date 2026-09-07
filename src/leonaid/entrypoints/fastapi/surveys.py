@@ -68,6 +68,8 @@ class SurveyDeletionResponse(SurveyInput):
 
 class TimeoutSettings(Mutation):
     inactivityTimeoutSeconds: int = Field(ge=1, le=604800)
+    endedRetentionSeconds: int | None = Field(default=None, ge=1, le=315360000)
+    trashRetentionSeconds: int | None = Field(default=None, ge=1, le=315360000)
 
 
 class SurveyTimeoutSettings(Mutation):
@@ -127,6 +129,8 @@ class SurveySchedule(Mutation):
 
 class TimeoutSettingsResponse(SurveyInput):
     inactivityTimeoutSeconds: int
+    endedRetentionSeconds: int | None = None
+    trashRetentionSeconds: int | None = None
     revision: int
 
 
@@ -544,7 +548,9 @@ async def update_settings(
     principal = await request.app.state.identity_service.authenticate(
         request.cookies.get(SESSION_COOKIE_NAME)
     )
-    return await service(request).settings(principal, body.model_dump())
+    return await service(request).settings(
+        principal, body.model_dump(exclude_unset=True)
+    )
 
 
 @router.put(

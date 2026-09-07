@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
+import hashlib
+from uuid import UUID, uuid4
 
 import asyncpg
 
@@ -22,6 +24,31 @@ def deletion_payload(row: Any) -> dict[str, Any]:
         "requestedAt": row["requested_at"].isoformat(),
         "completedAt": row["completed_at"].isoformat() if row["completed_at"] else None,
     }
+
+
+async def request_deletion(
+    conn: Any, survey: Any, actor_id: UUID, operation_id: str
+) -> dict[str, Any]:
+    """Caller holds the survey locks and has authorized erasure of a trashed row."""
+    event_id = uuid4()
+    sid = survey["id"]
+    await conn.execute(
+        """INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload)
+        VALUES($1,'survey',$2,'survey.delete.v1',$3,'{}'::jsonb)""",
+        event_id,
+        sid,
+        f"survey-delete:{sid}",
+    )
+    row = await conn.fetchrow(
+        """INSERT INTO survey_deletion(survey_id,requested_by,operation_hash,expected_revision,event_id)
+        VALUES($1,$2,$3,$4,$5) RETURNING *""",
+        sid,
+        actor_id,
+        hashlib.sha256(operation_id.encode()).hexdigest(),
+        survey["revision"],
+        event_id,
+    )
+    return deletion_payload(row)
 
 
 class SurveyDeletionError(RuntimeError):

@@ -104,6 +104,8 @@ export function SurveysPage({
     null,
   );
   const [defaultValue, setDefaultValue] = useState("");
+  const [endedRetentionDays, setEndedRetentionDays] = useState("");
+  const [trashRetentionDays, setTrashRetentionDays] = useState("");
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [saveState, setSaveState] = useState("saved");
   const adapter = useMemo<AuthoringAdapter>(
@@ -182,6 +184,16 @@ export function SurveysPage({
         if (!stopped) {
           setDefaults(value);
           setDefaultValue(String(value.inactivityTimeoutSeconds));
+          setEndedRetentionDays(
+            value.endedRetentionSeconds == null
+              ? ""
+              : String(value.endedRetentionSeconds / 86400),
+          );
+          setTrashRetentionDays(
+            value.trashRetentionSeconds == null
+              ? ""
+              : String(value.trashRetentionSeconds / 86400),
+          );
         }
       })
       .catch((error) => {
@@ -371,6 +383,75 @@ export function SurveysPage({
                 Nächste Seite
               </Button>
             </nav>
+          )}
+          {defaults && (
+            <details className="surveys-settings">
+              <summary>Aufbewahrung und Papierkorb</summary>
+              <p>
+                Diese Fristen gelten für alle Umfragen, auch für bereits
+                beendete. Leere Felder schalten den jeweiligen automatischen
+                Schritt aus. Inaktivität beim Ausfüllen löscht keine Antworten.
+              </p>
+              <p>
+                Nach Ablauf der ersten Frist kommen beendete und archivierte
+                Umfragen in den Papierkorb. Die zweite Frist beginnt dort und
+                führt zur endgültigen Löschung einschließlich Antworten und
+                Exportdateien. Bereits beauftragte endgültige Löschungen lassen
+                sich nicht zurücknehmen.
+              </p>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(async () => {
+                    const value = await client.updateSurveySettings({
+                      operationId: crypto.randomUUID(),
+                      expectedRevision: defaults.revision,
+                      inactivityTimeoutSeconds:
+                        defaults.inactivityTimeoutSeconds,
+                      endedRetentionSeconds:
+                        endedRetentionDays === ""
+                          ? null
+                          : Math.round(Number(endedRetentionDays) * 86400),
+                      trashRetentionSeconds:
+                        trashRetentionDays === ""
+                          ? null
+                          : Math.round(Number(trashRetentionDays) * 86400),
+                    });
+                    setDefaults(value);
+                  }, "Aufbewahrungsfristen wurden gespeichert.");
+                }}
+              >
+                <label>
+                  Tage nach Ende bis zum Papierkorb
+                  <input
+                    type="number"
+                    min={1 / 86400}
+                    max={3650}
+                    step="any"
+                    value={endedRetentionDays}
+                    onChange={(event) =>
+                      setEndedRetentionDays(event.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Tage im Papierkorb bis zur endgültigen Löschung
+                  <input
+                    type="number"
+                    min={1 / 86400}
+                    max={3650}
+                    step="any"
+                    value={trashRetentionDays}
+                    onChange={(event) =>
+                      setTrashRetentionDays(event.target.value)
+                    }
+                  />
+                </label>
+                <Button type="submit" disabled={busy}>
+                  Aufbewahrungsfristen speichern
+                </Button>
+              </form>
+            </details>
           )}
           {defaults && (
             <details className="surveys-settings">
@@ -691,8 +772,10 @@ export function SurveysPage({
                         {
                           {
                             queued: "Zum Versand vorgemerkt",
-                            retrying: "Versand verzögert · erneuter Versuch folgt",
-                            failed: "Versand fehlgeschlagen · bitte Administration kontaktieren",
+                            retrying:
+                              "Versand verzögert · erneuter Versuch folgt",
+                            failed:
+                              "Versand fehlgeschlagen · bitte Administration kontaktieren",
                             cancelled: "Nicht versendet · Umfrage geschlossen",
                             sent: "Versendet",
                             redeemed: "Teilnahme begonnen",
@@ -863,22 +946,54 @@ export function SurveysPage({
           {summary.status !== "deleted" && allowed("view_aggregates") && (
             <details className="surveys-settings">
               <summary>Antworten auswerten</summary>
-              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} canExportRaw={allowed("export_raw")} canExportReports={allowed("export_reports")} />
+              <SurveyAnalysis
+                key={summary.id}
+                client={client}
+                surveyId={summary.id}
+                canTest={allowed("design")}
+                canExportRaw={allowed("export_raw")}
+                canExportReports={allowed("export_reports")}
+              />
             </details>
           )}
-          {summary.status !== "deleted" && !allowed("view_aggregates") && (allowed("export_raw") || allowed("export_reports")) && (
-            <details className="surveys-settings">
-              <summary>Antworten exportieren</summary>
-              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} canExportRaw={allowed("export_raw")} canExportReports={allowed("export_reports")} exportOnly />
-            </details>
-          )}
+          {summary.status !== "deleted" &&
+            !allowed("view_aggregates") &&
+            (allowed("export_raw") || allowed("export_reports")) && (
+              <details className="surveys-settings">
+                <summary>Antworten exportieren</summary>
+                <SurveyAnalysis
+                  key={summary.id}
+                  client={client}
+                  surveyId={summary.id}
+                  canTest={allowed("design")}
+                  canExportRaw={allowed("export_raw")}
+                  canExportReports={allowed("export_reports")}
+                  exportOnly
+                />
+              </details>
+            )}
           {summary.status !== "deleted" && allowed("read_responses") && (
-            <details className="surveys-settings" open={Boolean(new URLSearchParams(location.search).get("responseSelection"))}>
+            <details
+              className="surveys-settings"
+              open={Boolean(
+                new URLSearchParams(location.search).get("responseSelection"),
+              )}
+            >
               <summary>Einzelantworten lesen</summary>
-              <SurveyResponses key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} />
+              <SurveyResponses
+                key={summary.id}
+                client={client}
+                surveyId={summary.id}
+                canTest={allowed("design")}
+              />
             </details>
           )}
-          {new URLSearchParams(location.search).has("responseSelection") && (!allowed("read_responses") || summary.status === "deleted") && <p role="alert">Dieser Antwortstand ist für Sie nicht zugänglich.</p>}
+          {new URLSearchParams(location.search).has("responseSelection") &&
+            (!allowed("read_responses") || summary.status === "deleted") && (
+              <p role="alert">
+                Dieser Antwortstand ist für Sie nicht zugänglich.
+              </p>
+            )}
           {draft && (
             <SurveyEditor
               draft={draft}

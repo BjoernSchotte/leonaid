@@ -10818,6 +10818,19 @@
       "TimeoutSettings": {
         "additionalProperties": false,
         "properties": {
+          "endedRetentionSeconds": {
+            "anyOf": [
+              {
+                "maximum": 315360000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endedretentionseconds"
+          },
           "expectedRevision": {
             "minimum": 1.0,
             "title": "Expectedrevision",
@@ -10834,6 +10847,19 @@
             "minLength": 1,
             "title": "Operationid",
             "type": "string"
+          },
+          "trashRetentionSeconds": {
+            "anyOf": [
+              {
+                "maximum": 315360000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trashretentionseconds"
           }
         },
         "required": [
@@ -10847,6 +10873,17 @@
       "TimeoutSettingsResponse": {
         "additionalProperties": false,
         "properties": {
+          "endedRetentionSeconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endedretentionseconds"
+          },
           "inactivityTimeoutSeconds": {
             "title": "Inactivitytimeoutseconds",
             "type": "integer"
@@ -10854,6 +10891,17 @@
           "revision": {
             "title": "Revision",
             "type": "integer"
+          },
+          "trashRetentionSeconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trashretentionseconds"
           }
         },
         "required": [

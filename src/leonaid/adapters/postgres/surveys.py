@@ -15,7 +15,7 @@ import asyncpg
 from leonaid.adapters.surveyjs_validation import validate_answers
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.survey_analysis import create_snapshot, read_snapshot
-from leonaid.adapters.postgres.survey_deletion import deletion_payload
+from leonaid.adapters.postgres.survey_deletion import deletion_payload, request_deletion
 from leonaid.application.surveys.analysis_snapshot import AnalysisFilter
 from leonaid.application.surveys.exports import SurveyExportSelection
 from leonaid.adapters.postgres.survey_responses import (
@@ -254,11 +254,22 @@ class AsyncpgSurveyRepository:
                         "revision_conflict", "Die Grundeinstellung wurde geändert."
                     )
                 row = await conn.fetchrow(
-                    "UPDATE survey_settings SET inactivity_timeout_seconds=$1,revision=revision+1 WHERE singleton RETURNING *",
+                    """UPDATE survey_settings SET inactivity_timeout_seconds=$1,
+                    ended_retention_seconds=CASE WHEN $2 THEN $3 ELSE ended_retention_seconds END,
+                    trash_retention_seconds=CASE WHEN $4 THEN $5 ELSE trash_retention_seconds END,
+                    retention_configured_by=CASE WHEN $2 OR $4 THEN $6 ELSE retention_configured_by END,
+                    revision=revision+1 WHERE singleton RETURNING *""",
                     body["inactivityTimeoutSeconds"],
+                    "endedRetentionSeconds" in body,
+                    body.get("endedRetentionSeconds"),
+                    "trashRetentionSeconds" in body,
+                    body.get("trashRetentionSeconds"),
+                    actor.account.id,
                 )
             result = {
                 "inactivityTimeoutSeconds": row["inactivity_timeout_seconds"],
+                "endedRetentionSeconds": row["ended_retention_seconds"],
+                "trashRetentionSeconds": row["trash_retention_seconds"],
                 "revision": row["revision"],
             }
             if body is not None:
@@ -429,24 +440,9 @@ class AsyncpgSurveyRepository:
                         "revision_conflict",
                         "Die Umfrage wurde zwischenzeitlich geändert.",
                     )
-                event_id = uuid4()
-                await conn.execute(
-                    """INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload)
-                    VALUES($1,'survey',$2,'survey.delete.v1',$3,'{}'::jsonb)""",
-                    event_id,
-                    survey_id,
-                    f"survey-delete:{survey_id}",
+                return await request_deletion(
+                    conn, survey, actor.account.id, body["operationId"]
                 )
-                deletion = await conn.fetchrow(
-                    """INSERT INTO survey_deletion(survey_id,requested_by,operation_hash,expected_revision,event_id)
-                    VALUES($1,$2,$3,$4,$5) RETURNING *""",
-                    survey_id,
-                    actor.account.id,
-                    hashlib.sha256(body["operationId"].encode()).hexdigest(),
-                    body["expectedRevision"],
-                    event_id,
-                )
-                return deletion_payload(deletion)
             if operation.startswith("invitation"):
                 return await self._invitation(conn, actor, survey, operation, body)
             if operation.startswith(("analysis-", "response-", "export-selection-")):

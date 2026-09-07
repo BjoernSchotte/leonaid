@@ -13,6 +13,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.adapters.postgres.survey_retention import sweep_retention
 from leonaid.entrypoints.worker.outbox import build_worker
 
 last_database_success = 0.0
@@ -125,7 +126,10 @@ async def survey_timeout_loop() -> None:
             while True:
                 closed = await repository.close_due_surveys()
                 count = await repository.classify_overdue()
-                await asyncio.sleep(0.25 if count == 1000 or closed == 100 else 5)
+                retained = await sweep_retention(pool)
+                await asyncio.sleep(
+                    0.25 if count == 1000 or closed == 100 or retained == 100 else 5
+                )
         except Exception:
             # Migration/startup/database outages are retried without logging private rows.
             await asyncio.sleep(2)
