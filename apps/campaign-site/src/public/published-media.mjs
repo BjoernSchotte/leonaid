@@ -19,6 +19,7 @@ export async function readPublishedMedia(database, actionId, id) {
   const references = [
     page.data.hero_image,
     page.data.social_image,
+    page.data.brand_logo,
     ...(page.data.partners ?? []).map((partner) => partner.logo),
   ];
   if (!references.some((reference) => reference?.id === id)) return null;

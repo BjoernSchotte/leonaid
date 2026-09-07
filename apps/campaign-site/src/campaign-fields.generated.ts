@@ -2,7 +2,7 @@
 // Field shapes only: authorization and campaignEditorial validation are required.
 import type { PortableTextBlock } from "emdash";
 
-export type CampaignSchemaVersion = 2;
+export type CampaignSchemaVersion = 3;
 
 export interface CampaignImageReference {
   id: string;
@@ -23,6 +23,7 @@ export interface CampaignImageReference {
 export interface CampaignPageFields {
   action_id: string;
   body?: PortableTextBlock[] | null;
+  brand_logo?: CampaignImageReference | null;
   faq?: { _key?: string; question: string; answer: string }[] | null;
   hero_image?: CampaignImageReference | null;
   hero_summary?: string | null;
@@ -34,10 +35,14 @@ export interface CampaignPageFields {
         description?: string | null;
         website?: string | null;
         logo?: CampaignImageReference | null;
+        eyebrow?: string | null;
+        link_label?: string | null;
       }[]
     | null;
   seo_description?: string | null;
   social_image?: CampaignImageReference | null;
+  story_eyebrow?: string | null;
+  story_title?: string | null;
   theme?: "leonaid" | "krapfentaxi" | null;
   title?: string | null;
 }

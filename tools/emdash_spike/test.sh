@@ -100,6 +100,7 @@ if [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root"
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema-migration
+  /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema-migration-v2
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" public
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" media
   /bin/sh "$root/tools/emdash_spike/campaign-media-upload-test.sh" "$root"
@@ -149,6 +150,7 @@ if [ "$test_case" = schema-runtime ]; then
 fi
 if [ "$test_case" = schema-migration ]; then
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema-migration
+  /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" schema-migration-v2
 fi
 if [ "$test_case" = campaign-media-binding ]; then
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" media

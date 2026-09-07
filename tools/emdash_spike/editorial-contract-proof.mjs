@@ -42,6 +42,8 @@ for (const [field, limit] of Object.entries({
   hero_title: 180,
   hero_summary: 1200,
   seo_description: 320,
+  story_eyebrow: 180,
+  story_title: 180,
 })) {
   assert.equal(
     validCampaignEditorial({ title: "Campaign", [field]: "x".repeat(limit) }),
@@ -61,6 +63,22 @@ for (const [field, limit, item] of [
     true,
   );
   deny({ title: "Campaign", [field]: rows(limit + 1) });
+}
+for (const [field, limit] of [
+  ["eyebrow", 180],
+  ["link_label", 120],
+]) {
+  assert.equal(
+    validCampaignEditorial({
+      ...valid,
+      partners: [{ name: "Partner", [field]: "x".repeat(limit) }],
+    }),
+    true,
+  );
+  deny({
+    ...valid,
+    partners: [{ name: "Partner", [field]: "x".repeat(limit + 1) }],
+  });
 }
 for (const candidate of [
   { ...block, _type: "html", html: "<script>unsafe()</script>" },
@@ -111,6 +129,7 @@ for (const website of [
 for (const data of [
   { ...valid, price: 1 },
   { ...valid, hero_image: { id: "unscoped" } },
+  { ...valid, brand_logo: { id: "unscoped" } },
   { ...valid, theme: "custom" },
   { ...valid, faq: [{ question: "Question", answer: "Answer", price: 1 }] },
   { ...valid, faq: [{ question: "x".repeat(301), answer: "Answer" }] },

@@ -145,6 +145,32 @@ if (
     width: item.width,
     height: item.height,
   });
+  // A logo-only reference must grant access independently of hero/social/partner
+  // references, and a saved replacement must not leak before publication.
+  const logo = await upload(a);
+  const logoCurrent = (await call(editor, 200, { admin: true })).json;
+  await call(editor, 200, {
+    admin: true,
+    method: "PUT",
+    body: {
+      _rev: logoCurrent.data._rev,
+      data: {
+        title: logoCurrent.data.item.data.title,
+        hero_image: null,
+        social_image: null,
+        partners: [],
+        brand_logo: reference(logo),
+      },
+    },
+  });
+  await call(url(logo.id), 404);
+  await call(`${editor}/publish`, 200, { admin: true, method: "POST" });
+  assert.equal(
+    createHash("sha256")
+      .update((await call(url(logo.id))).bytes)
+      .digest("hex"),
+    logo.contentHash,
+  );
   const update = async (item) => {
     const current = (await call(editor, 200, { admin: true })).json;
     await call(editor, 200, {
@@ -156,6 +182,7 @@ if (
           title: current.data.item.data.title,
           hero_image: reference(item),
           social_image: reference(item),
+          brand_logo: reference(item),
           partners: [{ name: "Synthetic partner", logo: reference(item) }],
         },
       },
@@ -163,7 +190,9 @@ if (
   };
   await update(first);
   await call(url(first.id), 404);
+  await call(url(logo.id));
   await call(`${editor}/publish`, 200, { admin: true, method: "POST" });
+  await call(url(logo.id), 404);
   const live = await call(url(first.id));
   assert.equal(live.headers["content-type"], "image/png");
   assert.equal(live.headers["x-content-type-options"], "nosniff");

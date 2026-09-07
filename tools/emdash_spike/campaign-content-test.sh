@@ -1,10 +1,12 @@
 #!/bin/sh
 set -eu
 root=$1
+proof_argument=
 case ${2:-content} in
   content) proof_script=campaign-content-proof.mjs ;;
   schema) proof_script=schema-runtime-proof.mjs ;;
   schema-migration) proof_script=schema-migration-proof.mjs ;;
+  schema-migration-v2) proof_script=schema-migration-proof.mjs; proof_argument=--from-v2 ;;
   media) proof_script=campaign-media-proof.mjs ;;
   public) proof_script=published-campaign-proof.mjs ;;
   pool) proof_script=postgres-pool-proof.mjs ;;
@@ -31,4 +33,8 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 compose up --detach --wait core-postgres
-compose run --rm --no-deps proof node "tools/emdash_spike/$proof_script"
+if [ -n "$proof_argument" ]; then
+  compose run --rm --no-deps proof node "tools/emdash_spike/$proof_script" "$proof_argument"
+else
+  compose run --rm --no-deps proof node "tools/emdash_spike/$proof_script"
+fi

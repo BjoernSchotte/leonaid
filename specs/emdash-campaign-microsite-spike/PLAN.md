@@ -2890,6 +2890,27 @@ Dependencies: EMS-060, EMS-080, EMS-082
 This task runs in the isolated worktree/demo Compose project. It does not change
 another running checkout or authorize production deployment.
 
+- [x] Prepare the generic editorial schema needed to preserve the demo design:
+      version 3 adds `brand_logo`, `story_eyebrow`, `story_title` and partner
+      `eyebrow`/`link_label`, with bounded validation and generated types. Explicit
+      v1/v2 upgrades refuse drift and ambiguous options. `schema-migration`
+      passed in `leonaid-emdash-tmp-8y31un7ozp` and
+      `leonaid-emdash-tmp-thhhjlz8il`: actual mid-DDL failure rollback,
+      concurrent one-winner upgrade, retained published/draft/revision data
+      including populated v2 image references, and repeatability.
+      `schema-runtime` passed in `leonaid-emdash-tmp-w16y2u2kxw`.
+      `campaign-public-media` passed in `leonaid-emdash-tmp-3k5zp4nb3w`:
+      logo-only publication, private replacement draft, withdrawal of the old
+      published logo, actual private RustFS bytes and HTTP failure recovery.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-bt1jlkogzq`:
+      cross-action logo denial, actual Core-login editing of the new fields in
+      Chromium/Firefox/WebKit, native partner-field reorder/save/reload, and
+      existing upload, revocation and bootstrap failure/recovery gates.
+      The first media run caught outdated repeater expectations for the new
+      empty text fields; the corrected proof enters and verifies actual values.
+      Each run used unique Docker resources, no host ports and complete cleanup.
+      This prepares the schema only: operator migration CLI, demo import,
+      renderer integration, cutover and complete recovery remain open below.
 - [ ] Import the current demo's Krapfentaxi editorial texts and assets from
       `apps/public/src/components/KrapfentaxiIntro.astro`, the public layout,
       and `apps/public/src/assets/krapfentaxi/` into the campaign's EmDash record

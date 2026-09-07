@@ -165,6 +165,13 @@ try {
   };
   await call("charity", root, 403, "POST", create);
   await call("system", root, 403, "POST", create);
+  await call("charity", root, 403, "POST", {
+    data: {
+      action_id: newAction,
+      title: "Synthetic foreign logo",
+      brand_logo: { id: media.ready.id },
+    },
+  });
   assert.deepEqual(await call("charity", root), initial);
   const image = await sharp({
     create: { width: 5, height: 3, channels: 3, background: "blue" },

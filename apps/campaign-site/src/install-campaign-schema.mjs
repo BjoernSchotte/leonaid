@@ -5,6 +5,7 @@ import { applySeed } from "emdash/seed";
 import {
   campaignCollection,
   campaignCollectionV1,
+  campaignCollectionV2,
   campaignSchemaVersion,
 } from "./campaign-schema.mjs";
 
@@ -48,8 +49,10 @@ async function assertSchema(registry, expected) {
 // schemas must match exactly; incompatible upgrades need an explicit migration.
 export async function installCampaignSchema(
   database,
-  { upgradeFromVersion1 = false } = {},
+  { upgradeFromVersion1 = false, upgradeFromVersion2 = false } = {},
 ) {
+  if (upgradeFromVersion1 && upgradeFromVersion2)
+    throw new Error("campaign_schema_upgrade_ambiguous");
   return database.transaction().execute(async (transaction) => {
     await sql`SET LOCAL lock_timeout = '3s'`.execute(transaction);
     await sql`SET LOCAL statement_timeout = '5s'`.execute(transaction);
@@ -59,7 +62,13 @@ export async function installCampaignSchema(
       .select("value")
       .where("name", "=", "leonaid:campaign_schema_version")
       .executeTakeFirst();
-    const upgrade = version?.value === "1" && upgradeFromVersion1;
+    const previousCollection =
+      version?.value === "1" && upgradeFromVersion1
+        ? campaignCollectionV1
+        : version?.value === "2" && upgradeFromVersion2
+          ? campaignCollectionV2
+          : null;
+    const upgrade = Boolean(previousCollection);
     if (
       version &&
       version.value !== JSON.stringify(campaignSchemaVersion) &&
@@ -69,9 +78,9 @@ export async function installCampaignSchema(
     const registry = new SchemaRegistry(transaction);
     const existing = await registry.getCollection(campaignCollection.slug);
     if (upgrade) {
-      await assertSchema(registry, campaignCollectionV1);
+      await assertSchema(registry, previousCollection);
       for (const field of campaignCollection.fields) {
-        const previous = campaignCollectionV1.fields.find(
+        const previous = previousCollection.fields.find(
           (item) => item.slug === field.slug,
         );
         if (!previous)

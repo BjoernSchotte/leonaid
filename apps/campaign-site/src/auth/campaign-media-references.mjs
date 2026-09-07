@@ -30,13 +30,14 @@ export async function requireCampaignMediaReferences(
   const refs = [
     data?.hero_image,
     data?.social_image,
+    data?.brand_logo,
     ...(Array.isArray(data?.partners)
       ? data.partners.map((partner) => partner?.logo)
       : []),
   ].filter((value) => value !== null && value !== undefined);
   if (!refs.length) return;
   if (
-    refs.length > 32 ||
+    refs.length > 33 ||
     refs.some((value) => !campaignImageReference.safeParse(value).success)
   )
     throw new CampaignMediaReferenceError();

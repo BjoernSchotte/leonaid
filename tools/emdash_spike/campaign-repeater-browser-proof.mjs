@@ -16,6 +16,8 @@ export async function proveCampaignRepeaters({ page, json, apiPath }) {
         description: "Community support.",
         website: "https://example.org/partner",
         logo: null,
+        eyebrow: "From our community",
+        link_label: "Meet the partner",
       },
     ],
   ]) {
@@ -52,7 +54,11 @@ export async function proveCampaignRepeaters({ page, json, apiPath }) {
     for (const [name, value] of Object.entries(additions)) {
       if (name === "logo") continue;
       await widget
-        .getByLabel(name[0].toUpperCase() + name.slice(1), { exact: true })
+        .getByLabel(
+          { eyebrow: "Section label", link_label: "Link label" }[name] ??
+            name[0].toUpperCase() + name.slice(1),
+          { exact: true },
+        )
         .last()
         .fill(value);
     }

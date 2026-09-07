@@ -101,6 +101,9 @@ export const campaignEditorial = z
     hero_summary: text(1200).nullish(),
     hero_image: campaignImageReference.nullish(),
     social_image: campaignImageReference.nullish(),
+    brand_logo: campaignImageReference.nullish(),
+    story_eyebrow: text(180).nullish(),
+    story_title: text(180).nullish(),
     body: z
       .array(block)
       .max(60)
@@ -130,6 +133,8 @@ export const campaignEditorial = z
             description: text(800).nullish(),
             website: href.or(z.literal("")).nullish(),
             logo: campaignImageReference.nullish(),
+            eyebrow: text(180).nullish(),
+            link_label: text(120).nullish(),
           })
           .strict(),
       )

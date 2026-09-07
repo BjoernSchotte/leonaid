@@ -60,6 +60,8 @@ for (const [index, [name, engine]] of Object.entries({
     await page
       .locator("#field-hero_title")
       .fill("A new campaign with an image");
+    await page.locator("#field-story_eyebrow").fill("Our local campaign");
+    await page.locator("#field-story_title").fill("Helping our community");
     const story = page.locator('#field-body [contenteditable="true"]');
     await story.click();
     await story.pressSequentially("## Helping together");
@@ -158,6 +160,13 @@ for (const [index, [name, engine]] of Object.entries({
     await dialog.getByRole("button", { name: "Insert", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     // Uploading for a Core action must not silently create its CMS record.
+    await page
+      .locator("#field-brand_logo")
+      .getByRole("button", { name: "Select image", exact: true })
+      .click();
+    await dialog.getByRole("button", { name: filename, exact: true }).click();
+    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
     assert.deepEqual(await json(root), before);
     const createdResponse = page.waitForResponse(
       (response) =>
@@ -173,6 +182,9 @@ for (const [index, [name, engine]] of Object.entries({
     assert.equal(item.data.hero_image.id, uploaded.id);
     assert.equal(item.data.social_image.id, uploaded.id);
     const assertEditorial = (data) => {
+      assert.equal(data.brand_logo.id, uploaded.id);
+      assert.equal(data.story_eyebrow, "Our local campaign");
+      assert.equal(data.story_title, "Helping our community");
       assert.equal(data.body[0].style, "h2");
       assert.equal(
         data.body[0].children.map((span) => span.text).join(""),

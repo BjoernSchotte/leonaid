@@ -3,7 +3,7 @@ import type {
   CampaignSchemaVersion,
 } from "../../apps/campaign-site/src/campaign-fields.generated.js";
 
-const version: CampaignSchemaVersion = 2;
+const version: CampaignSchemaVersion = 3;
 const minimal: CampaignPageFields = { action_id: "synthetic-core-id" };
 const page: CampaignPageFields = {
   action_id: minimal.action_id,

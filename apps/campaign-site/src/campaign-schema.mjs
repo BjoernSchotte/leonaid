@@ -1,5 +1,5 @@
 // Versioned editorial schema. Core remains authoritative for all business data.
-export const campaignSchemaVersion = 2;
+export const campaignSchemaVersion = 3;
 // Retained verbatim for strict, explicit version-1 migration preflight.
 export const campaignCollectionV1 = {
   slug: "campaign_pages",
@@ -85,7 +85,7 @@ const imageField = (slug, label) => ({
   type: "image",
   validation: { allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"] },
 });
-export const campaignCollection = {
+export const campaignCollectionV2 = {
   ...campaignCollectionV1,
   fields: [
     ...campaignCollectionV1.fields.map((field) =>
@@ -104,6 +104,51 @@ export const campaignCollection = {
     ),
     imageField("hero_image", "Hero image"),
     imageField("social_image", "Social sharing image"),
+  ],
+};
+
+// Editorial branding stays campaign-owned; no business facts are copied here.
+export const campaignCollection = {
+  ...campaignCollectionV2,
+  fields: [
+    ...campaignCollectionV2.fields.map((field) =>
+      field.slug === "partners"
+        ? {
+            ...field,
+            validation: {
+              ...field.validation,
+              subFields: [
+                ...field.validation.subFields,
+                {
+                  slug: "eyebrow",
+                  label: "Section label",
+                  type: "string",
+                  validation: { maxLength: 180 },
+                },
+                {
+                  slug: "link_label",
+                  label: "Link label",
+                  type: "string",
+                  validation: { maxLength: 120 },
+                },
+              ],
+            },
+          }
+        : field,
+    ),
+    imageField("brand_logo", "Campaign logo"),
+    {
+      slug: "story_eyebrow",
+      label: "Story section label",
+      type: "string",
+      validation: { maxLength: 180 },
+    },
+    {
+      slug: "story_title",
+      label: "Story heading",
+      type: "text",
+      validation: { maxLength: 180 },
+    },
   ],
 };
 
