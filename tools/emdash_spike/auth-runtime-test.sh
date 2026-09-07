@@ -2,9 +2,9 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
-if [ "$mode" = public-http ]; then
+if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/editorial-html-proof.mjs
 fi
@@ -13,7 +13,7 @@ suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
 compose() {
   set -- --profile emdash "$@"
-  if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
+  if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ]; then
     set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
   fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
@@ -34,7 +34,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
-  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json"
+  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -60,7 +60,7 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
-if [ "$mode" = media ] || [ "$mode" = media-editor ]; then
+if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ]; then
   compose up --detach --wait rustfs
   compose run --rm --no-deps cms-storage-operator
 fi
@@ -99,7 +99,7 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
-  if [ "$mode" = public-http ]; then
+  if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
     public_probe() {
@@ -111,17 +111,33 @@ if [ "$mode" != auth ]; then
         node --input-type=module -e 'let input=""; for await (const chunk of process.stdin) input+=chunk; for (const signal of ["public_campaign_core_unavailable", "public_campaign_content_unavailable", "public_campaign_pipeline_unavailable"]) if(input.includes(signal)) console.log(signal);'
       exit 1
     fi
+    if [ "$mode" = public-media ]; then
+      compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs install
+      public_media_probe() {
+        compose run --rm --no-deps --volume "$proof:/proof" bootstrap-probe \
+          node tools/emdash_spike/public-media-http-proof.mjs "$@"
+      }
+      public_media_probe
+    fi
     visual_proof=$(mktemp -d)
-    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/public-campaign-browser-proof.mjs
     echo "public-campaign: synthetic screenshots retained in $visual_proof"
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"
       public_probe --inactive
+      if [ "$mode" = public-media ]; then public_media_probe --inactive; fi
     done
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    if [ "$mode" = public-media ]; then
+      compose stop rustfs
+      public_media_probe --unavailable
+      compose up --detach --wait rustfs
+      public_media_probe --ready
+    fi
     compose stop api
     public_probe --unavailable
+    if [ "$mode" = public-media ]; then public_media_probe --unavailable; fi
     exit 0
   fi
   if [ "$mode" = media ] || [ "$mode" = media-editor ]; then

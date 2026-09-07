@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "playwright";
+import { readFile } from "node:fs/promises";
+
+const media = JSON.parse(
+  await readFile("/proof/public-media.json", "utf8").catch(() => "null"),
+);
 
 // TLS certificate trust is proved separately by the Node HTTPS probe against
 // the project's CA. Browser contexts here test rendering, not certificate UI.
@@ -28,6 +33,50 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         "/krapfentaxi#bestellen",
       );
       assert.equal(await page.locator("h1").count(), 1);
+      if (media) {
+        for (const selector of [
+          ".campaign-hero-image",
+          ".campaign-partner-logo",
+        ]) {
+          const img = page.locator(selector);
+          await img.scrollIntoViewIfNeeded();
+          await page.waitForFunction((selector) => {
+            const image = document.querySelector(selector);
+            return image?.complete && image.naturalWidth > 0;
+          }, selector);
+          assert.equal(await img.getAttribute("src"), media.url);
+          assert.equal(
+            await img.getAttribute("alt"),
+            "Synthetisches blaues Kampagnenbild",
+          );
+          assert.equal(
+            await img.evaluate((image) => image.naturalWidth),
+            media.width,
+          );
+          assert.equal(
+            await img.evaluate((image) => image.naturalHeight),
+            media.height,
+          );
+        }
+        assert.equal(
+          await page
+            .locator('meta[property="og:image"]')
+            .getAttribute("content"),
+          `https://proxy:8443${media.url}`,
+        );
+        assert.equal(
+          await page
+            .locator('meta[property="og:image:width"]')
+            .getAttribute("content"),
+          String(media.width),
+        );
+        assert.equal(
+          await page
+            .locator('meta[property="og:image:height"]')
+            .getAttribute("content"),
+          String(media.height),
+        );
+      }
       assert.equal(await page.locator(".editorial script").count(), 0);
       assert.match(
         await page.locator(".editorial").textContent(),

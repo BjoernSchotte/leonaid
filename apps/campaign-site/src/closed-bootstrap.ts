@@ -43,7 +43,11 @@ export const onRequest = defineMiddleware(
         headers,
       });
     }
-    if (/^\/campaigns\/[a-z0-9]+(?:-[a-z0-9]+)*\/?$/.test(url.pathname)) {
+    if (
+      /^\/campaigns\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/media\/[0-9A-HJKMNP-TV-Z]{26})?\/?$/.test(
+        url.pathname,
+      )
+    ) {
       // Public paths never enter EmDash's native preview/edit-mode hydration.
       // A separately authorized preview flow remains a later acceptance gate.
       if (

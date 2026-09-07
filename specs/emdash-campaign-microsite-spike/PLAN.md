@@ -1953,6 +1953,33 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Deliver publication-gated public raster images at
+      `/campaigns/<archive_slug>/media/<media_id>`, backed by the existing
+      private RustFS bucket. Resolve a ready, action-bound media ID referenced
+      by live CMS content only; accept no object key from the caller. Check
+      stored MIME and SHA-256, then recheck Core availability and the live CMS
+      reference after storage I/O. Return no-store responses with nosniff and
+      a restrictive image CSP. Use these URLs for responsive hero/partner
+      images and accurate social-image metadata in the existing public layout.
+      `campaign-public-media` passed in `leonaid-emdash-tmp-nsakvr2urm`:
+      actual uploads and native CMS edit/publish over CA-verified HTTPS,
+      byte/hash identity, GET/HEAD, method/preview rejection, draft and pending
+      concealment, foreign IDs and replaced live URLs denied, unpublish and
+      republish without rebuilding, and no leaked private storage URLs.
+      Core withdrawal/future/expired windows hide images on the next request;
+      stopped RustFS/Core produce 503, and RustFS restart restores identical
+      bytes. Chromium/Firefox/WebKit decode hero and partner images on desktop
+      with JavaScript and mobile without JavaScript; alt text, dimensions,
+      social metadata, repeat visits, keyboard navigation and overflow checks
+      pass. Synthetic desktop/mobile screenshots were visually reviewed.
+      No host ports were published; all owned resources were removed.
+      Initial proof failures identified a missing required title in the test
+      update and an overly narrow assertion for Caddy's additional CSP;
+      neither required weakening authorization or response security.
+      This is not complete public-media acceptance: concurrent withdrawal
+      races, tamper/recovery, fresh backup restore and whole-request/resource
+      budgets remain open, as do final demo migration and integrated ordering.
+
 - [x] Deliver the first public text-rendering milestone at
       `/campaigns/<archive_slug>/`: fresh bounded/no-redirect Core GET through
       the generated client, then action-bound live-only CMS reading through

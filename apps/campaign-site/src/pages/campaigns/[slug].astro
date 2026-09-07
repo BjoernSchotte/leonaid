@@ -8,6 +8,7 @@ import {
 } from "../../public/core-campaign";
 import { readPublishedCampaign } from "../../public/published-campaign.mjs";
 import { editorialHtml } from "../../public/editorial-html.mjs";
+import { publicMediaPath } from "../../public/published-media.mjs";
 import type { CampaignPageFields } from "../../campaign-fields.generated";
 
 let state: "published" | "inactive" | "missing" | "unavailable" = "missing";
@@ -55,6 +56,7 @@ const action = state === "published" ? route?.action : null;
 const title =
   content && action ? `${content.title} · LeonAid` : "Aktionsseite · LeonAid";
 const origin = new URL(process.env.EMDASH_SITE_URL!);
+const socialImage = content?.social_image ?? content?.hero_image;
 const canonicalUrl = new URL(route?.canonicalPath ?? Astro.url.pathname, origin)
   .href;
 const money = (amount: number, currency: string) =>
@@ -76,7 +78,19 @@ const units = {
     action?.purpose ??
     "Gemeinsam helfen vor Ort."}
   canonicalUrl={canonicalUrl}
-  imageUrl={new URL("/community-routes.png", origin).href}
+  imageUrl={new URL(
+    socialImage && action
+      ? publicMediaPath(action.archiveSlug, socialImage.id)
+      : "/community-routes.png",
+    origin,
+  ).href}
+  imageMetadata={socialImage
+    ? {
+        width: socialImage.width,
+        height: socialImage.height,
+        alt: socialImage.alt ?? "",
+      }
+    : undefined}
   robots={state === "published" ? "index,follow" : "noindex,follow"}
 >
   {
@@ -97,6 +111,16 @@ const units = {
             </a>
           )}
         </header>
+        {content.hero_image && (
+          <img
+            class="campaign-hero-image"
+            src={publicMediaPath(action.archiveSlug, content.hero_image.id)}
+            alt={content.hero_image.alt ?? ""}
+            width={content.hero_image.width}
+            height={content.hero_image.height}
+            fetchpriority="high"
+          />
+        )}
         <section
           aria-label="Über die Aktion"
           class="editorial"
@@ -141,6 +165,16 @@ const units = {
             <ul class="partners">
               {content.partners.map((partner) => (
                 <li>
+                  {partner.logo && (
+                    <img
+                      class="campaign-partner-logo"
+                      src={publicMediaPath(action.archiveSlug, partner.logo.id)}
+                      alt={partner.logo.alt ?? ""}
+                      width={partner.logo.width}
+                      height={partner.logo.height}
+                      loading="lazy"
+                    />
+                  )}
                   <h3>
                     {partner.website ? (
                       <a href={partner.website} rel="noopener noreferrer">
@@ -184,6 +218,18 @@ const units = {
   }
 </PublicLayout>
 <style>
+  .campaign-hero-image {
+    width: 100%;
+    max-width: 48rem;
+    height: auto;
+    margin-block: 2rem;
+  }
+  .campaign-partner-logo {
+    width: 8rem;
+    height: 6rem;
+    object-fit: contain;
+    object-position: left center;
+  }
   .campaign-story {
     max-width: 64rem;
     padding-block: clamp(2rem, 6vw, 5rem);
