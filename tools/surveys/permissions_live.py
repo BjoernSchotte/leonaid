@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
+from permission_boundaries_live import verify_boundaries
 
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
@@ -422,6 +423,9 @@ async def main():
                         counts["deniedReads"] += 1
         assert await fingerprint() == before, (
             "Matrix requests changed persisted author state"
+        )
+        await verify_boundaries(
+            conn, call, actors, resources, actions, own_jobs, fingerprint
         )
         Path("/proof/permission-browser-private.json").write_text(
             json.dumps(

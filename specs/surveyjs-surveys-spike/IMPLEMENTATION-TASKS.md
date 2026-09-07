@@ -225,6 +225,12 @@ a substitute for completing an individual task.
   Integration/E2E: **060.S4c**, [live evidence](proofs/SURV-060.md#separate-role-lifecycle-journeys).
   Full parent 060.2/A1/A4 acceptance remains open.
 
+- [x] **060.2e** Prove that existing sessions immediately lose revoked survey grants, expired action scope and suspended-account access. Reject foreign child IDs even for an administrator with access to both surveys; preserve the survey SQL fingerprint.
+
+  Acceptance criteria: **060.A1, dynamic authority and child-resource boundaries**.
+  Integration: **060.S1b**, [live evidence](proofs/SURV-060.md#changed-authority-and-child-resource-boundaries).
+  Regression: **060.S4a–060.S4c**. Parent 060.2/A1 remains open for invitation/special-route scope and consolidated identity separation.
+
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.

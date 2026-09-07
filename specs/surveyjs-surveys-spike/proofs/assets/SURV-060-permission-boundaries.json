@@ -1,0 +1,10 @@
+{
+  "syntheticOnly": true,
+  "revokedGrants": 9,
+  "expiredMemberships": 11,
+  "suspendedAccounts": 13,
+  "foreignChildRequests": 15,
+  "sameSessionRechecks": true,
+  "fixtureAuthorityRestored": true,
+  "surveySqlFingerprintUnchanged": true
+}

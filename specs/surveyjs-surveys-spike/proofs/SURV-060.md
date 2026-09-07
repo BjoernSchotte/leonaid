@@ -692,3 +692,56 @@ preservation and erasure of real responses. They do not close the original paren
 060.A1/A4 requirements: single-grant invitation management, remaining child-ID and
 dynamic membership/account boundaries and final consolidated permission acceptance
 still require evidence. Recovery and full spike gates remain open.
+
+## Changed authority and child-resource boundaries
+
+**060.2e / 060.S1b are accepted.** Production baseline `d7ecba0` is unchanged.
+`tools/surveys/permission_boundaries_live.py` extends the existing live HTTP matrix.
+The worker remains stopped during its database fingerprint comparison; all identity
+fixture changes are restored before the browser regression starts.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+Project `leonaid-surveys-833458328-47809` exited **0** on the first run. The probe
+uses the same session cookie throughout each authority change:
+
+- Revoke each of nine single grants on the standalone survey. Summary and the
+  capability-specific route return 404; lists/counts retain only the still-authorized
+  action survey. Raw/report exporters also lose their own job metadata/download
+  access. Reinserting the grant restores the exact single capability.
+- Expire eleven memberships: the nine single-grant accounts, the owner and the
+  action administrator. The linked survey disappears from lists/counts, action
+  choices disappear, and summary/capability/job requests return 404 despite retained
+  ownership or grants. Restoring membership restores summary access.
+- Suspend thirteen non-admin accounts directly in the fixture database. Existing
+  cookies receive 401 for module list, summary and draft requests, plus their own
+  export job/download routes where applicable. Reactivating each fixture restores
+  list access. This tests request-time account status enforcement, not the account
+  administration UI or session-revocation side effects of its commands.
+- Make fifteen requests as an administrator authorized for both surveys, substituting
+  the other survey's snapshot, participation, version or job ID. Analysis and response
+  reads, response/free-text lists, an individual response under a valid local snapshot,
+  job/download reads, three selection-creation routes and two export products all
+  return 404. Invalid selection/export creation leaves no receipt or queued work.
+
+The fingerprint of the ten survey/outbox tables used by the existing matrix remains
+unchanged. Identity/session/grant tables are intentionally outside that fingerprint;
+authority restoration is checked through subsequent requests and the browser suite.
+The sanitized output is retained as
+[SURV-060-permission-boundaries.json](assets/SURV-060-permission-boundaries.json).
+No cookies, survey IDs, account IDs or answer payloads are retained in that artifact.
+
+The original API matrix again passed **127 positive reads, 723 denied reads and
+891 denied writes** across 56 persona/resource pairs. **34 Chromium tests passed
+in 53.2 s**, including desktop/mobile active permissions, publisher retry and all
+four separate-role lifecycle journeys. Both post-browser SQL verifiers passed.
+Scoped Ruff format/check, shell syntax and diff whitespace checks passed. Fresh
+volumes, seven unused explicit subnets and no host ports were used; full owned
+resource teardown was verified. No new visual or accessibility review is claimed.
+
+This closes the tested dynamic authority and analysis/response/export child-ID
+boundaries. Single-grant invitation management, invitation/deletion special routes,
+the consolidated anonymous identity-association audit and full parent 060.A1/A4
+acceptance remain open, along with recovery continuity and full spike gates.

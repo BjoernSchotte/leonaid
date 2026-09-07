@@ -357,6 +357,7 @@ if [ "$mode" = permissions ]; then
     --workdir /repo --entrypoint python api tools/surveys/role_lifecycle_verify.py
   cp "$proof/role-lifecycle-proof.json" "$artifact/"
   cp "$proof/permissions-proof.json" "$artifact/"
+  cp "$proof/permission-boundaries-proof.json" "$artifact/"
   cp "$proof/publisher-proof.json" "$artifact/"
   cp "$proof/publisher-review-mobile.png" "$artifact/"
   python3 - "$proof" "$artifact" <<'PYMATRIX'
