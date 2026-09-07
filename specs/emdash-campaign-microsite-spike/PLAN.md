@@ -2792,6 +2792,18 @@ Dependencies: EMS-050, EMS-070
       cross-database denial again after recovery.
       Restore and verify the exact enabled campaign binding functions/triggers;
       missing or altered guards must leave campaign HTTP access closed.
+  - [x] SQL recovery checkpoint: `./leonaid test-emdash-spike --case recovery-sql`
+        passed in `leonaid-emdash-tmp-zbyvojrvvz` on 2026-09-07. Real custom-format
+        `pg_dump`/`pg_restore` between separate fresh PostgreSQL instances preserves
+        all public CMS table rows, published/draft revisions, sequence states and
+        dedicated table ownership. The recovery operator verifies campaign binding
+        guards and denial of CMS-role access to the Core database. Disabling or
+        dropping the binding trigger causes verification to fail; restoring the
+        dump restores successful verification without an implicit migration or
+        guard repair. The test uses its own internal network, no host ports, and
+        removes only its own containers, network and volumes. This is not yet proof
+        of coordinated encrypted backup, HTTP startup denial, media restoration,
+        restored authentication or release/key compatibility; those gates remain open.
 - [ ] Version the backup manifest inventory: `tools/backup/manifest.py` currently
       requires schema version 1 and an exact four-file set. Define an explicit
       legacy restore path for pre-CMS backups without silently treating a missing
