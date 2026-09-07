@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { access, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 
@@ -8,6 +9,36 @@ const root = "/_emdash/api/content/campaign_pages";
 const editor = "/_emdash/admin/content/campaign_pages";
 const action = "20000000-0000-4000-8000-000000000001";
 let expectedDraft = "Private follow-up webkit";
+function stablePublicHtml(html) {
+  const command =
+    /(<input type="hidden" name="commandId" value=")[0-9a-f-]{36}("\s*\/?>)/g;
+  const token =
+    /(<input type="hidden" name="accessToken" value=")([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)("\s*\/?>)/g;
+  assert.equal([...html.matchAll(command)].length, 1);
+  assert.equal([...html.matchAll(token)].length, 1);
+  return html
+    .replace(command, "$1COMMAND_ID$2")
+    .replace(token, (_match, prefix, encoded, _signature, suffix) => {
+      // Core issues a newly timed HMAC token for each public page request.
+      // Preserve all non-time claims and the lifetime in the comparison.
+      const { issuedAt, expiresAt, ...claims } = JSON.parse(
+        Buffer.from(encoded, "base64url").toString("utf8"),
+      );
+      assert.ok(Number.isSafeInteger(issuedAt));
+      assert.ok(Number.isSafeInteger(expiresAt) && expiresAt > issuedAt);
+      assert.equal(claims.actionId, action);
+      return (
+        prefix +
+        Buffer.from(
+          JSON.stringify({
+            ...claims,
+            lifetime: expiresAt - issuedAt,
+          }),
+        ).toString("base64url") +
+        suffix
+      );
+    });
+}
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   const browser = await engine.launch({ headless: true });
   try {
@@ -77,6 +108,102 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.ok(html.includes("Published imported campaign webkit"));
     assert.ok(!html.includes(marker));
     expectedDraft = marker;
+    const retainedResponse = (
+      await (await context.request.get(origin + api)).json()
+    ).data;
+    const retained = retainedResponse.item;
+    assert.equal(typeof retainedResponse._rev, "string");
+    assert.ok(retainedResponse._rev.length > 0);
+    const authorizedMarker = `Restored authorized edit ${name}`;
+    const edit = {
+      _rev: retainedResponse._rev,
+      data: { ...retained.data, story_title: authorizedMarker },
+    };
+    const sessionBefore = await context.cookies();
+    const waitForOperator = async (phase) => {
+      await expect
+        .poll(
+          async () => {
+            try {
+              await access(`/recovery-control/${name}-${phase}`);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+          { timeout: 90000, intervals: [100, 200, 400] },
+        )
+        .toBe(true);
+    };
+    await writeFile(`/recovery-control/${name}-ready`, "ready", { flag: "wx" });
+    await waitForOperator("revoked");
+    assert.equal(
+      (await context.request.get(origin + "/api/v1/identity/me")).status(),
+      200,
+    );
+    assert.equal((await context.request.get(origin + api)).status(), 404);
+    assert.equal(
+      (
+        await context.request.get(
+          `${origin}/_emdash/api/revisions/${retained.draftRevisionId}`,
+        )
+      ).status(),
+      404,
+    );
+    const headers = {
+      Origin: origin,
+      "Sec-Fetch-Site": "same-origin",
+      "X-EmDash-Request": "1",
+    };
+    assert.equal(
+      (
+        await context.request.put(origin + api, {
+          headers,
+          data: edit,
+        })
+      ).status(),
+      404,
+    );
+    assert.equal(
+      (
+        await context.request.post(`${origin}${api}/publish`, {
+          headers,
+          data: {},
+        })
+      ).status(),
+      404,
+    );
+    await writeFile(`/recovery-control/${name}-denied`, "denied", {
+      flag: "wx",
+    });
+    await waitForOperator("restored");
+    const allowedAgain = await context.request.get(origin + api);
+    assert.equal(allowedAgain.status(), 200);
+    assert.ok(
+      JSON.stringify((await allowedAgain.json()).data.item) ===
+        JSON.stringify(retained),
+    );
+    assert.ok(
+      JSON.stringify(await context.cookies()) === JSON.stringify(sessionBefore),
+    );
+    // Replay the identical previously denied request after regrant. This must
+    // succeed, proving denial was authority-based, not CSRF or invalid input.
+    assert.equal(
+      (
+        await context.request.put(origin + api, { headers, data: edit })
+      ).status(),
+      200,
+    );
+    expectedDraft = authorizedMarker;
+    assert.ok(
+      stablePublicHtml(
+        await (await anonymous.request.get(origin + path)).text(),
+      ) === stablePublicHtml(html),
+      "Published HTML changed beyond per-request order command ID and token timing/signature",
+    );
+    console.log(
+      `recovery-authority ${name}: same valid Core session loses item/revision/write/publish access on membership expiry; regrant reveals unchanged draft and accepts identical write; public content unchanged`,
+    );
     await coreLogout(context, page, editor, root);
     await context.close();
     await anonymous.close();

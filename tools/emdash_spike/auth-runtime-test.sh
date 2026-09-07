@@ -103,6 +103,16 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   if [ "$recovery" = true ]; then
+    if [ -n "${recovery_authority_pid:-}" ]; then
+      authority_container=$(docker ps -aq \
+        --filter "name=^/${recovery_authority_name}$" \
+        --filter "label=com.docker.compose.project=$recovery_target" \
+        --filter "label=com.docker.compose.service=api" \
+        --filter "label=com.docker.compose.oneoff=True")
+      if [ -n "$authority_container" ]; then docker stop "$authority_container" >/dev/null || true; fi
+      wait "$recovery_authority_pid" || true
+      recovery_authority_pid=
+    fi
     project=$recovery_target
     LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
     compose down --volumes >/dev/null
@@ -112,7 +122,7 @@ cleanup() {
   compose down --volumes >/dev/null
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json"
-  if [ "$recovery" = true ]; then rm -rf "$proof/repository"; rm -f "$proof/restic-password"; fi
+  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control"; rm -f "$proof/restic-password"; fi
   rmdir "$proof"
 }
 trap cleanup EXIT

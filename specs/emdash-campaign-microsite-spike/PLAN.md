@@ -2906,6 +2906,33 @@ Dependencies: EMS-050, EMS-070
         tests, 262 Python files typechecked, both Astro applications (25/47 files,
         zero diagnostics), frontend typechecks, overlay-list rejection tests,
         format and repository policy gates. The working tree was unchanged.
+  - [x] Current-membership recovery checkpoint (2026-09-07): the complete
+        `./leonaid test-emdash-spike --case recovery-app` passed from
+        `leonaid-poc112-tmp-pbczowas9i` into fresh
+        `leonaid-restore-tmp-pbczowas9i`. After encrypted backup/restore and a
+        real new Core SMTP login, an isolated test operator expires the actual
+        restored campaign membership while each Chromium/Firefox/WebKit browser
+        retains the same session. Core identity remains valid (`200`), but CMS
+        item/revision reads, draft updates and publication return `404`, hiding
+        inaccessible content. Restoring the membership makes the unchanged
+        draft readable again with unchanged cookies. The identical previously
+        rejected write, including its valid revision and EmDash CSRF marker,
+        then succeeds (`200`), proving the denial was authorization-based.
+        Public HTML remains identical except for the per-request command UUID
+        and order-token timestamps/signature; all other token claims and its
+        lifetime remain in the comparison. No draft is published by this test.
+        Earlier trials exposed incorrect status assumptions, missing request
+        revision/CSRF metadata, and an overly strict dynamic-HTML comparison;
+        those test defects are corrected in the passing full run above.
+        The named operator is stopped before Compose teardown on failures,
+        restricted to its exact project/service/one-off labels. Failure cleanup
+        and successful cleanup were observed; the final run exited zero and
+        removed both isolated projects and their test volumes/networks.
+        Scoped Ruff and mypy checks pass. This closes current-membership expiry
+        and regrant proof after restore, not the parent recovery gate: restored
+        cross-campaign negative paths, orders/Twenty convergence, importer
+        journal resume and operational release/off-host/rollback gates remain
+        open. Twenty is still an empty database in this application fixture.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.

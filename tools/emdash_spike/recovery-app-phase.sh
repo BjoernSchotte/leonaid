@@ -26,5 +26,15 @@ project=$recovery_target
 # schema installation on the restore target. This is test-only activation;
 # the operational release gate is still closed in restore.sh.
 compose up --no-deps --no-build --detach --wait api campaign-site public mailpit worker proxy
-compose run --rm --no-deps admin-browser node tools/emdash_spike/recovery-app-browser-proof.mjs
+mkdir "$proof/recovery-control"
+recovery_authority_name="${project}-recovery-authority"
+compose run --rm --no-deps --name "$recovery_authority_name" \
+  --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  --user "$(id -u):$(id -g)" --env PYTHONPATH=/repo:/workspace/src \
+  --entrypoint python api /repo/tools/emdash_spike/recovery_authority.py &
+recovery_authority_pid=$!
+compose run --rm --no-deps --volume "$proof/recovery-control:/recovery-control" \
+  admin-browser node tools/emdash_spike/recovery-app-browser-proof.mjs
+wait "$recovery_authority_pid"
+recovery_authority_pid=
 echo "recovery-app: restored Core login, campaign draft/public content and media rendered; no production activation"
