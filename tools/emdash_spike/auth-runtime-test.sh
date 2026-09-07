@@ -34,7 +34,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
-  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json"
+  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -118,6 +118,14 @@ if [ "$mode" != auth ]; then
           node tools/emdash_spike/public-media-http-proof.mjs "$@"
       }
       public_media_probe
+      for storage_fault in bytes mime missing; do
+        compose run --rm --no-deps --volume "$proof:/proof:ro" cms-db-operator \
+          node tools/emdash_spike/public-media-storage-proof.mjs "$storage_fault"
+        public_media_probe --unavailable
+        compose run --rm --no-deps --volume "$proof:/proof:ro" cms-db-operator \
+          node tools/emdash_spike/public-media-storage-proof.mjs restore
+        public_media_probe --ready
+      done
     fi
     visual_proof=$(mktemp -d)
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" --volume "$proof:/proof:ro" admin-browser \

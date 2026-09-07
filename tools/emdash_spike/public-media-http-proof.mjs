@@ -219,7 +219,8 @@ if (
       hash: second.contentHash,
     }),
   );
+  await writeFile("/proof/public-media.png", png);
 }
 console.log(
-  "public-media-http: real private RustFS image/publication checks passed for selected state; concurrent withdrawal races, tamper recovery and complete resource budgets remain pending",
+  "public-media-http: real private RustFS image/publication checks passed for selected state; concurrent withdrawal races, fresh backup restore and complete resource budgets remain pending",
 );

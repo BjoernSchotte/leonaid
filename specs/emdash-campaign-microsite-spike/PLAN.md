@@ -1953,6 +1953,26 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Extend the public-media live gate with real RustFS corruption and repair,
+      without replacing the storage client or HTTP responses. The isolated
+      operator targets only the proof's known synthetic campaign/media ID and
+      validates its original hash before changing any object. Independently
+      inject same-length byte corruption, incorrect object MIME with intact
+      bytes, and object deletion. Anonymous HTTPS must return no-store 503
+      rather than damaged bytes or a cached image; restore the original object
+      after each fault and require the original hash through anonymous HTTP.
+      Before/after SQL snapshots prove unchanged media metadata, campaign
+      bindings, content and revision history for every fault/repair operation.
+      `campaign-public-media` passed in `leonaid-emdash-tmp-m27lauksr4`, including
+      all three fault/repair pairs, real image decoding in Chromium/Firefox/
+      WebKit on desktop/mobile with/without JavaScript, and the existing
+      publication, private-draft, Core-window, RustFS/Core-outage and restart
+      regressions. The probe remains Edge-only; only the isolated operator has
+      scoped S3/database access. No host ports were exposed; owned containers,
+      networks, volumes and transient proof files were removed. This proves
+      individual object repair, not coordinated fresh backup restoration or
+      concurrent withdrawal during object I/O; those gates remain open.
+
 - [x] Deliver publication-gated public raster images at
       `/campaigns/<archive_slug>/media/<media_id>`, backed by the existing
       private RustFS bucket. Resolve a ready, action-bound media ID referenced
