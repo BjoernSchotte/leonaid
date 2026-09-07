@@ -1457,6 +1457,23 @@ Dependencies: EMS-030 successful
       gates and 37 CMS files with no diagnostics; the committed tree stayed
       unchanged. The exact-source patch proof also explicitly checks nested
       image validation forwarding and rejects upstream source drift.
+- [x] Prove native filename search and recovery after a rejected invalid image
+      in Chromium, Firefox and WebKit. The browser proof supplies invalid PNG
+      bytes through the actual file input, observes the real upload PUT return
+      400, checks the visible error and disabled Insert control, and verifies
+      unchanged campaign content and visible ready-media inventory. A valid
+      upload succeeds in that same open dialog without reload or injected state;
+      the error disappears and the resulting image can be saved and published.
+      Native full-filename and partial-name searches send the exact campaign
+      context and return the expected media before social/partner selection.
+      This proves malformed-image recovery, not browser recovery from dependency
+      outages; pagination, no-result/foreign searches, creation with images,
+      full two-actor isolation, accessibility and public delivery remain open.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-f3whqmamhp`, including
+      the existing real TLS, media/reference isolation, five database-wait/logout
+      races, storage failure/retry, membership withdrawal, Core outage and
+      bootstrap restart/database-failure checks. The project published no host
+      ports and removed all of its owned containers, networks and volumes.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation

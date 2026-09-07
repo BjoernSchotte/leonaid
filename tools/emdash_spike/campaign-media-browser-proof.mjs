@@ -103,6 +103,31 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       `${origin}/_emdash/api/media/file/${state.ready.storageKey}`,
     );
     assert.equal(bytes.status(), 200);
+    const beforeFailure = (await json(apiPath)).item;
+    const beforeMedia = await json(`/_emdash/api/media?campaign=${action}`);
+    const rejectedUpload = page.waitForResponse(
+      (response) =>
+        /\/_emdash\/api\/media\/[0-9A-Z]+\/upload$/.test(
+          new URL(response.url()).pathname,
+        ) && response.request().method() === "PUT",
+    );
+    await dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+      name: `invalid-${name}.png`,
+      mimeType: "image/png",
+      buffer: Buffer.from("not a PNG image"),
+    });
+    assert.equal((await rejectedUpload).status(), 400);
+    await expect(dialog.getByText(/^Upload failed:/)).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Insert", exact: true }),
+    ).toBeDisabled();
+    assert.deepEqual((await json(apiPath)).item, beforeFailure);
+    assert.deepEqual(
+      await json(`/_emdash/api/media?campaign=${action}`),
+      beforeMedia,
+    );
+    // Recover in the same open native dialog, without resetting application
+    // state or substituting a successful response for the rejected upload.
     const filename = `native-${name}-campaign.png`;
     const confirmed = page.waitForResponse(
       (response) =>
@@ -119,6 +144,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     assert.equal(confirmation.status(), 200);
     const uploaded = (await confirmation.json()).data.item;
     assert.ok(uploaded.storageKey.startsWith(`campaigns/${action}/`));
+    await expect(dialog.getByText(/^Upload failed:/)).toHaveCount(0);
     const saved = nativeSave();
     await dialog.getByRole("button", { name: "Insert", exact: true }).click();
     assert.equal((await saved).status(), 200);
@@ -132,7 +158,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       )
       .toBe(true);
     assert.equal((await json(apiPath)).item.data.hero_image.id, uploaded.id);
-    const selectExisting = async (widget, targetFilename, targetPath) => {
+    const selectExisting = async (
+      widget,
+      targetFilename,
+      targetPath,
+      searchTerm = targetFilename,
+    ) => {
       const change = widget.getByRole("button", {
         name: "Change",
         exact: true,
@@ -155,6 +186,26 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         .getByRole("button", { name: "Select image", exact: true })
         .click();
       const picker = page.getByRole("dialog");
+      const searched = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/_emdash/api/media" &&
+          url.searchParams.get("q") === searchTerm &&
+          response.request().method() === "GET"
+        );
+      });
+      await picker
+        .getByRole("searchbox", { name: "Search media" })
+        .fill(searchTerm);
+      const searchResponse = await searched;
+      assert.equal(searchResponse.status(), 200);
+      assert.equal(
+        new URL(searchResponse.url()).searchParams.get("campaign"),
+        targetPath === apiPath ? action : secondAction,
+      );
+      const searchItems = (await searchResponse.json()).data.items;
+      assert.ok(searchItems.length > 0);
+      assert.ok(searchItems.every((item) => item.filename === targetFilename));
       await picker
         .getByRole("button", { name: targetFilename, exact: true })
         .click();
@@ -179,6 +230,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       page.getByText("Partner logo", { exact: true }).locator(".."),
       filename,
       apiPath,
+      filename.slice(0, -4),
     );
     const extendedDraft = (await json(apiPath)).item;
     assert.equal(extendedDraft.data.social_image.id, uploaded.id);
@@ -328,7 +380,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     );
     await context.close();
     console.log(
-      `campaign-media-browser: ${name}: actual SMTP Core login; native hero upload, social image and nested partner logo save/reload/publication; same-document two-campaign picker switching with isolated cache and writes; private preview denied after logout`,
+      `campaign-media-browser: ${name}: actual SMTP Core login; rejected invalid image with visible error and same-dialog upload recovery; scoped native filename search; hero, social and partner image save/reload/publication; same-document two-campaign picker switching with isolated cache and writes; private preview denied after logout`,
     );
   } finally {
     await browser.close();
