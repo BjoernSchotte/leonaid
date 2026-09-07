@@ -385,3 +385,12 @@ starts actual remote verification; it is not acceptance of **100.1 / 100.A1**.
 The local full `--repeat 2` run started at `b18b534` is also still in progress.
 The earlier deliberately interrupted run remains unaccepted. Final results and
 their tested-source scope must be recorded before checking the aggregate criteria.
+
+
+The first actual Survey acceptance run, `34154722678` at `4eaab14`, failed
+before any survey test: the existing pin scanner interpreted the workflow's
+inline Python `from pathlib import Path` as a Docker `FROM pathlib` instruction.
+The workflow now uses `import pathlib`; the full current pin check and workflow
+format check pass. No image selection or pin rule was weakened. The initial
+missing-artifact errors are consequences of bootstrap failing before the gate
+created a result. That remote run is not accepted; a new run is required.
