@@ -220,6 +220,7 @@ if [ "$mode" != auth ]; then
       compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
         node tools/emdash_spike/campaign-orders-browser-proof.mjs
       fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+      LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
     fi
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"

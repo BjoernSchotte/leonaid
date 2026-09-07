@@ -99,12 +99,30 @@ contract name, not permission to expose this endpoint on the internet.
       its shared action/legacy form remains in use. A deny rule at ingress is
       not proof of exclusive service-to-service authorization; inventory and
       enforce that boundary separately if other containers can reach Core.
-- [ ] Live-prove direct public Core order requests are denied without redirects
+- [x] Live-prove direct public Core order requests are denied without redirects
       or Core mutations, while real browser submissions through Astro still
       reach Core and complete successfully with Twenty. Include forged internal
       headers, both JS and native form transport, and unrelated API regression
       checks. Retain Core's own token, price, publication, validation and
       idempotency checks; internal reachability never bypasses them.
+      Evidence: `campaign-orders` project `leonaid-emdash-tmp-kzgfhdhn3t`
+      passed all 18 real browser orders and nine native retries, then denied
+      84 direct public requests with a valid, freshly issued order payload:
+      HTTP/HTTPS, canonical/trailing-slash paths, seven methods and missing,
+      invalid or valid service keys, with forged forwarded/internal headers.
+      Every rejection was 404/no-store without redirect or cookie. In-memory
+      before/after snapshots of seven complete Core tables (orders, lines,
+      consent, audit, submission attempts, command receipts and outbox) and
+      actual Twenty companies/people were unchanged. An internal call without
+      the key was also rejected without mutation. Exactly the same payload
+      succeeded with the authorized internal caller key, returning 201 and
+      passing persisted order/line/consent checks. This positive control proves
+      the public rejection was not caused by invalid order data. Public platform
+      reads, publication withdrawal and Core-outage checks also passed, including
+      the existing 364 raw path/method ingress cases. The project published no
+      host ports and removed all its owned containers, networks and volumes.
+      This closes the isolated order-transport gate, not production activation,
+      key rotation/recovery, load limits or the remaining full-spike gates.
 
 ### 2.2 Preserve the LeonAid frontend shell; do not embed EmDash in an iframe
 
