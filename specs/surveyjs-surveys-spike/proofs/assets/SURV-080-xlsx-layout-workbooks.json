@@ -1,0 +1,14 @@
+[
+  {
+    "name": "normal",
+    "sha256": "64d0fdbf0da1558b2cb169046cc5ace8ebdc262ed418aa2cef1853eacd511b1b",
+    "sizeBytes": 17896,
+    "renderer": "survey-tabular-v2"
+  },
+  {
+    "name": "long-labels",
+    "sha256": "7a9e82363fa041f0304987b7ac79d468e703b1cf923a3bf05db6cf2efaf6f604",
+    "sizeBytes": 19172,
+    "renderer": "survey-tabular-v2"
+  }
+]

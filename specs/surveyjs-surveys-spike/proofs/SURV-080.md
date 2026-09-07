@@ -664,3 +664,51 @@ layout and print areas, chart placement that does not split a chart across pages
 and readable handling of long titles/labels while retaining full source labels
 in the workbook. Re-render and inspect corrected consumer output before accepting
 080.2 or the overall export-render gate. No renderer fix is claimed in this increment.
+
+## XLSX layout correction and consumer regression
+
+The increment after `fa18089` corrects the reproduced chart/page split in the
+production tabular renderer. Renderer metadata advances to `survey-tabular-v2`.
+Tables have explicit print areas, fit one page wide on A3 landscape, repeat their
+headers, and use wrapped cells with calculated row heights. Metadata values have
+a wider column. Numeric metrics retain their full stored precision with a
+readable two-decimal display format.
+
+Charts use A4 portrait, explicit print bounds and a manual page break between
+charts. Each chart includes its question/row identity. Long titles and category
+labels use explicit ellipses; the full source text remains in Questions and
+Distributions. Numbered `chart_label` values in Distributions map the displayed
+labels back to the full choices without changing counts, denominators or values.
+There is no legend because each chart contains a single percentage series.
+
+LibreOffice 7.1.1.2 rendered the two production XLSX fixtures again. The normal
+fixture now has 12 pages and the long-label fixture 16, compared with 24 each
+before correction. Extracted text places five charts on five separate pages in
+each file; every chart page contains its complete 100-percent scale and axis
+caption. [Workbook hashes](assets/SURV-080-xlsx-layout-workbooks.json) and
+[consumer page assertions](assets/SURV-080-xlsx-layout-consumer.json) identify
+this revision. Manual inspection covered the normal chart, the long-label NPS
+chart and a long-label distribution table. The full scale, question reference,
+numbered choices and wrapped source text are visible in the inspected views:
+[normal chart](assets/SURV-080-xlsx-layout-normal.png),
+[long NPS chart](assets/SURV-080-xlsx-layout-long.png),
+[full-label table](assets/SURV-080-xlsx-layout-table.png).
+
+Validation:
+
+- Pinned UV container: `pytest -q tests/unit/test_survey_tabular_exports.py`:
+  18 passed in 0.47s, including unchanged values, safe text and deterministic output.
+- `infrastructure.sh <worktree> exports`: exit 0, project
+  `leonaid-surveys-833458328-80100`, no published ports and verified cleanup.
+  All four worker files passed parsing; five Chromium cases passed (foundation
+  and empty exports 9.6s, populated and export-only cases 21.1s, revocation 3.7s).
+- Mypy found a reused string/integer loop variable. After the test process fully
+  terminated, renaming that variable passed Mypy. Re-generating both workbooks
+  produced the exact same hashes as before the rename, so rendered evidence
+  still matches the final source. `git diff --check` passed.
+
+This is a proven correction of the observed split-chart defect, not completion
+of 080.A5: full page-by-page review, empty analysis and response-workbook visual
+coverage remain open. Very long cells are still bounded by Excel row-height
+limits; no claim of unlimited text fitting on printed pages is made. The initial
+A3 table/A4 chart paper choices should be evaluated in that remaining review.

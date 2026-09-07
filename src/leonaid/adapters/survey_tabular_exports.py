@@ -15,6 +15,8 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.pagebreak import Break
+from openpyxl.worksheet.page import PageMargins
 
 from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
 from leonaid.application.surveys.analysis import AggregateCount
@@ -26,7 +28,7 @@ from leonaid.application.surveys.export_rendering import (
     export_filename,
 )
 
-RENDER_VERSION = "survey-tabular-v1"
+RENDER_VERSION = "survey-tabular-v2"
 XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 BASE_COLUMNS = [
@@ -255,6 +257,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             "count",
             "denominator",
             "percentage",
+            "chart_label",
         ],
     )
     matrix = workbook.create_sheet("Matrix rows")
@@ -266,7 +269,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
     append(
         charts,
         [
-            "Charts use the same percentages and valid-answer denominators as Distributions."
+            "Percentages of valid answers. Full titles and numbered labels: Questions / Distributions."
         ],
     )
     anchor = 3
@@ -307,7 +310,7 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             groups.append((row.rowId, row.label, row.answered, row.counts))
         for row_id, row_label, denominator, counts in groups:
             start = distributions.max_row + 1
-            for bucket in counts:
+            for ordinal, bucket in enumerate(counts, 1):
                 append(
                     distributions,
                     [
@@ -320,19 +323,28 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                         bucket.count,
                         denominator,
                         bucket.percentage,
+                        f"{ordinal}. {bucket.label[:55]}"
+                        + ("…" if len(bucket.label) > 55 else ""),
                     ],
                 )
             if not counts:
                 continue
             chart = BarChart()
             chart.type = "bar"
-            chart.title = excel_text(q.title + (f" / {row_label}" if row_label else ""))
+            full_title = q.title + (f" / {row_label}" if row_label else "")
+            chart.title = excel_text(
+                f"{q.questionId}"
+                + (f" / {row_id}" if row_id else "")
+                + ": "
+                + full_title[:70]
+                + ("…" if len(full_title) > 70 else "")
+            )
             chart.y_axis.title = "Share (%)"
             chart.y_axis.scaling.min = 0
             chart.y_axis.scaling.max = 100
             chart.legend = None
-            chart.width = 24
-            chart.height = max(8, min(24, len(counts) * 0.65 + 3))
+            chart.width = 18
+            chart.height = max(10, min(18, len(counts) * 0.65 + 5))
             chart.add_data(
                 Reference(
                     distributions,
@@ -344,13 +356,16 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
             chart.set_categories(
                 Reference(
                     distributions,
-                    min_col=6,
+                    min_col=10,
                     min_row=start,
                     max_row=distributions.max_row,
                 )
             )
+            if anchor > 3:
+                charts.row_breaks.append(Break(id=anchor - 2))
             charts.add_chart(chart, f"A{anchor}")
-            anchor += math.ceil(chart.height * 2.2) + 4
+            anchor += 44
+    charts.print_area = f"A1:D{anchor - 3}"
     pages = workbook.create_sheet("Last page")
     append(
         pages,
@@ -379,10 +394,68 @@ def workbook_bytes(workbook: Any, timestamp: str) -> bytes:
         for cell in sheet[1]:
             cell.font = Font(bold=True, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor="00338D")
+        sheet.page_setup.orientation = "landscape"
+        sheet.page_setup.paperSize = sheet.PAPERSIZE_A3
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        sheet.page_margins = PageMargins(
+            left=0.3, right=0.3, top=0.4, bottom=0.4, header=0.15, footer=0.15
+        )
+        sheet.oddFooter.center.text = "Page &P of &N"
+        if sheet.title == "Charts":
+            sheet.page_setup.orientation = "portrait"
+            sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+            for letter in "ABCD":
+                sheet.column_dimensions[letter].width = 26
+            sheet.merge_cells("A1:D1")
+            sheet["A1"].alignment = Alignment(wrap_text=True, vertical="top")
+            sheet.row_dimensions[1].height = 32
+            sheet.sheet_format.defaultRowHeight = 15
+            continue
+        sheet.print_area = sheet.dimensions
         for column in range(1, sheet.max_column + 1):
-            sheet.column_dimensions[get_column_letter(column)].width = (
-                28 if column != 2 else 42
+            header = str(sheet.cell(1, column).value or "")
+            width = (
+                90
+                if sheet.title == "Metadata" and header == "value"
+                else 42
+                if header
+                in {
+                    "title",
+                    "label",
+                    "choice_label",
+                    "row_label",
+                    "value",
+                    "page_title",
+                }
+                else 22
+                if "id" in header
+                else 16
             )
+            sheet.column_dimensions[get_column_letter(column)].width = width
+        for row in sheet:
+            lines = 1
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                if isinstance(cell.value, (int, float)) and not isinstance(
+                    cell.value, bool
+                ):
+                    cell.number_format = (
+                        "0.00"
+                        if str(sheet.cell(1, cell.column).value)
+                        in {"mean", "sum", "minimum", "maximum", "nps", "percentage"}
+                        else "0"
+                    )
+                width = sheet.column_dimensions[cell.column_letter].width - 2
+                lines = max(
+                    lines,
+                    sum(
+                        max(1, math.ceil(len(part) / width))
+                        for part in str(cell.value or "").split("\n")
+                    ),
+                )
+            sheet.row_dimensions[row[0].row].height = min(409, max(30, lines * 16 + 8))
     raw = io.BytesIO()
     workbook.save(raw)
     # Normalize both ZIP timestamps and openpyxl's save-time modified property.
