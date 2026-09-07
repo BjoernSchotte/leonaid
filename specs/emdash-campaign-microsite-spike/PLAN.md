@@ -1979,6 +1979,9 @@ fields are absent; generated TypeScript types compile.
       This is not complete public-media acceptance: concurrent withdrawal
       races, tamper/recovery, fresh backup restore and whole-request/resource
       budgets remain open, as do final demo migration and integrated ordering.
+      Post-commit `./leonaid check` passed at `1ba5ed0`: 208 unit tests, 244
+      Python source checks, 44 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Deliver the first public text-rendering milestone at
       `/campaigns/<archive_slug>/`: fresh bounded/no-redirect Core GET through
