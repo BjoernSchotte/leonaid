@@ -81,7 +81,7 @@ remains unaccepted and requires checking its exact owned resources.
 
 [`surveys.yml`](../../.github/workflows/surveys.yml) reads the same manifest groups
 into a matrix. Each group uses a separate ephemeral runner and runs twice after
-bootstrap. Only `results/*.json` is uploaded; private logs and general `.artifacts`
+bootstrap. Only `results/*.json` and `results/diagnostics/*.json` are uploaded; private logs and general `.artifacts`
 contents are excluded. All matrix jobs must pass for the same revision. Local
 proof does not substitute for observing the actual GitHub Actions run.
 
@@ -90,3 +90,16 @@ This survey aggregate does not invoke the repository's 42-command
 have their own acceptance, including safe isolation of their legacy harnesses.
 The unresolved host-loss recovery and other open criteria remain required even
 when a narrower recovery fixture or the complete automated gate passes.
+
+
+## Bounded CI diagnostics
+
+After a CI group stops, `ci_diagnostics.py` emits fixed error-category names and
+locations in tracked public source files. It reads only manifest-named gate logs
+and the two known foundation logs, ignores symlinks and never serializes raw
+messages, source excerpts, expected/actual values, private paths or attachments.
+Locations must point to an existing line in a tracked source file. Presence of a
+marker is diagnostic context, not proof of a root cause or failed assertion.
+Four tests cover private markers, unknown paths, impossible lines, unreviewed log
+names, symlinked logs and actual repository-file selection. The metadata lives
+under `results/diagnostics/`; it is separate from per-run acceptance results.

@@ -46,11 +46,18 @@ jobs:
         env:
           SURVEY_GATE_GROUP: ${{ matrix.group }}
         run: ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
+      - name: Collect bounded diagnostic metadata
+        if: always()
+        run: |
+          python3 tools/surveys/ci_diagnostics_test.py
+          python3 tools/surveys/ci_diagnostics.py .
       - name: Publish structured results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: surveys-${{ matrix.group }}
-          path: .artifacts/surveys-gate/results/*.json
+          path: |
+            .artifacts/surveys-gate/results/*.json
+            .artifacts/surveys-gate/results/diagnostics/*.json
           if-no-files-found: error
           retention-days: 14

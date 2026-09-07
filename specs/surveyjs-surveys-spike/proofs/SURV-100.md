@@ -394,3 +394,14 @@ The workflow now uses `import pathlib`; the full current pin check and workflow
 format check pass. No image selection or pin rule was weakened. The initial
 missing-artifact errors are consequences of bootstrap failing before the gate
 created a result. That remote run is not accepted; a new run is required.
+
+
+The second remote run, `34154993662` at `cdf6976`, passed bootstrap but failed
+inside every group's actual test command. Foundation reached its real-browser
+diagnostics check; package failed its packed-consumer check. The structured exit
+records alone did not expose the underlying cause. Four passing bounded-diagnostic
+tests and a local extraction against actual logs now verify fixed category/public
+location output without raw messages or private values. The workflow publishes
+that separate metadata on subsequent runs. This improves failure investigation;
+it does not convert either failed run or the local in-progress aggregate to an
+accepted gate. The new metadata must be inspected from the next actual run.
