@@ -2,6 +2,8 @@
 import { actions } from "astro:actions";
 import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
 import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
+import PublicAction from "../../../../public/src/components/PublicAction.astro";
+import KrapfentaxiCampaignIntro from "../../components/KrapfentaxiCampaignIntro.astro";
 import { withEmDashRuntime } from "emdash/middleware";
 import PublicState from "../../../../public/src/components/PublicState.astro";
 import {
@@ -56,6 +58,7 @@ if (
 )
   return Astro.redirect(route.canonicalPath, 308);
 const action = state === "published" ? route?.action : null;
+const isKrapfentaxi = Boolean(action && content?.theme === "krapfentaxi");
 const orderForm =
   action && route?.submissionsAllowed && route.orderAlias
     ? action.orderForm
@@ -101,9 +104,46 @@ const units = {
   robots={state === "published" ? "index,follow" : "noindex,follow"}
   canOrder={Boolean(orderForm)}
   carrierName={action?.carrierName}
+  isKrapfentaxi={isKrapfentaxi}
+  campaignBrand={isKrapfentaxi && action
+    ? {
+        name: action.name,
+        logo: content?.brand_logo
+          ? {
+              src: publicMediaPath(action.archiveSlug, content.brand_logo.id),
+              alt: "",
+              width: content.brand_logo.width,
+              height: content.brand_logo.height,
+            }
+          : null,
+      }
+    : undefined}
 >
   {
-    content && action ? (
+    content && action && route && isKrapfentaxi ? (
+      <PublicAction route={route} orderResult={orderResult}>
+        <KrapfentaxiCampaignIntro
+          slot="intro"
+          route={route}
+          content={content}
+        />
+        {!!content.faq?.length && (
+          <section
+            slot="after-intro"
+            class="site-shell"
+            aria-labelledby="faq-heading"
+          >
+            <h2 id="faq-heading">Häufige Fragen</h2>
+            {content.faq.map((item) => (
+              <details>
+                <summary>{item.question}</summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </section>
+        )}
+      </PublicAction>
+    ) : content && action ? (
       <article
         class="site-shell campaign-story"
         data-campaign-state="published"
@@ -226,7 +266,7 @@ const units = {
     )
   }
   {
-    action && orderForm && route?.orderAlias && (
+    !isKrapfentaxi && action && orderForm && route?.orderAlias && (
       <PublicOrder
         action={action}
         orderForm={orderForm}

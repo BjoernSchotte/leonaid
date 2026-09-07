@@ -1,6 +1,7 @@
 ---
 import type {
   PublicActionRouteResponse,
+  PublicCampaignRouteResponse,
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 
@@ -16,12 +17,15 @@ interface OrderActionResult {
 
 interface Props {
   orderResult?: OrderActionResult;
-  route: PublicActionRouteResponse;
+  route: PublicActionRouteResponse | PublicCampaignRouteResponse;
 }
 
 const { orderResult, route } = Astro.props;
 const action = route.action;
-const isKrapfentaxi = isKrapfentaxiAction(route);
+const isKrapfentaxi =
+  (route.routeKind === "alias" || route.routeKind === "archive") &&
+  isKrapfentaxiAction(route);
+const orderAlias = "orderAlias" in route ? route.orderAlias : route.routeValue;
 
 if (!action) {
   throw new Error("Eine veröffentlichte Aktionsseite benötigt Aktionsdaten.");
@@ -29,7 +33,9 @@ if (!action) {
 
 const isArchive = route.availability === "archive";
 const orderForm =
-  route.submissionsAllowed && !isArchive ? action.orderForm : null;
+  route.submissionsAllowed && !isArchive && orderAlias
+    ? action.orderForm
+    : null;
 const dateFormatter = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
   month: "long",
@@ -61,7 +67,10 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   data-public-state={route.availability}
 >
   {
-    isKrapfentaxi ? (
+    Astro.slots.has("intro") ? (
+      <slot name="intro" />
+    ) : isKrapfentaxi &&
+      (route.routeKind === "alias" || route.routeKind === "archive") ? (
       <KrapfentaxiIntro route={route} />
     ) : (
       <section class="action-hero">
@@ -132,6 +141,8 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
       </section>
     )
   }
+
+  <slot name="after-intro" />
 
   {
     isArchive && (
@@ -207,11 +218,11 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   </section>
 
   {
-    orderForm && (
+    orderForm && orderAlias && (
       <PublicOrder
         action={action}
         orderForm={orderForm}
-        publicAlias={route.routeValue}
+        publicAlias={orderAlias}
         orderResult={orderResult}
       />
     )

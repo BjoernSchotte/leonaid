@@ -18,6 +18,10 @@ interface Props {
   isKrapfentaxi?: boolean;
   canOrder?: boolean;
   carrierName?: string;
+  campaignBrand?: {
+    name: string;
+    logo: { src: string; alt: string; width?: number; height?: number } | null;
+  };
 }
 
 const {
@@ -30,6 +34,7 @@ const {
   isKrapfentaxi = false,
   canOrder = false,
   carrierName,
+  campaignBrand,
 } = Astro.props;
 const shareImage = imageMetadata ?? {
   width: isKrapfentaxi ? 1568 : 1729,
@@ -58,7 +63,8 @@ const shareImage = imageMetadata ?? {
     <meta property="og:type" content="website" />
     <meta
       property="og:site_name"
-      content={isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid"}
+      content={campaignBrand?.name ??
+        (isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid")}
     />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -96,8 +102,12 @@ const shareImage = imageMetadata ?? {
             isKrapfentaxi ? (
               <>
                 <>
-                  <Image src={taxiLogo} width={64} alt="" />
-                  <span>Lions Krapfentaxi</span>
+                  {campaignBrand ? (
+                    campaignBrand.logo && <img {...campaignBrand.logo} />
+                  ) : (
+                    <Image src={taxiLogo} width={64} alt="" />
+                  )}
+                  <span>{campaignBrand?.name ?? "Lions Krapfentaxi"}</span>
                 </>
               </>
             ) : (

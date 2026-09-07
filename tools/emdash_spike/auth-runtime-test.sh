@@ -207,6 +207,10 @@ if [ "$mode" != auth ]; then
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
       node tools/emdash_spike/public-order-component-proof.mjs --campaign --mixed
     echo "public-campaign: synthetic screenshots retained in $visual_proof"
+    if [ "$mode" = public-media ]; then
+      compose run --rm --no-deps --volume "$visual_proof:/visual-proof" --volume "$proof:/proof:ro" admin-browser \
+        node tools/emdash_spike/krapfentaxi-renderer-browser-proof.mjs
+    fi
     if [ "$orders" = true ]; then
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
       compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator

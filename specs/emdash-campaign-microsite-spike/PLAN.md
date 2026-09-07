@@ -2919,6 +2919,24 @@ another running checkout or authorize production deployment.
       `apps/public/src/components/KrapfentaxiIntro.astro`, the public layout,
       and `apps/public/src/assets/krapfentaxi/` into the campaign's EmDash record
       and dedicated media storage. Preserve asset attribution and existing design.
+- [x] Add the CMS-driven Krapfentaxi renderer without duplicating the existing
+      Core-owned offering, order, beneficiary, goal and privacy sections.
+      `PublicAction` accepts the typed campaign route and its explicit order
+      alias; a named editorial slot uses only validated published CMS fields.
+      The shared layout accepts the published campaign logo without falling
+      back to a hard-coded logo when the CMS field is intentionally empty.
+      `campaign-public-media` passed in `leonaid-emdash-tmp-rcfefp4hao`:
+      runtime theme/text/media publication with no rebuild/restart, private
+      drafts before and after publication, exact Core-fact comparisons, one
+      order form, and unchanged legacy `/krapfentaxi` in Chromium/Firefox/WebKit,
+      desktop/mobile and JS/no-JS. Desktop/mobile screenshots were inspected.
+      The first renderer test used EmDash's response envelope for Core and
+      failed; the corrected test reads Core's direct typed response.
+      Existing public media, database/storage recovery and public-order ingress
+      denial gates also passed. Unique Docker resources, no host ports, complete
+      cleanup. This uses synthetic editorial text/media: actual demo import,
+      final visual acceptance with original assets, accepted orders through the
+      themed page, alias cutover and restore remain open.
 - [ ] Implement a Docker-based, idempotent migration with dry-run reporting and
       an explicit apply mode. Resolve the existing action UUID via Core; create
       no duplicate CharityAction. Re-running must neither duplicate media nor
