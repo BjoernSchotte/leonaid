@@ -1958,6 +1958,8 @@ fields are absent; generated TypeScript types compile.
       diagnostics, all frontend/API/typegen/format/privacy/policy gates and an
       unchanged tree); the first check had identified the missing explicit
       transport boundary after extending the internal route enum.
+      The final extended proof commit `0d6e3bf` also passed `./leonaid check`
+      with the same test/file counts and an unchanged committed tree.
 
 Dependencies: EMS-040
 
