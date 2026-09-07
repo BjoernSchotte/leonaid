@@ -2,7 +2,7 @@ services:
   api:
     image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-api
   campaign-site:
-    image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-campaign-site
+    image: ${EMDASH_RECOVERY_VERIFIED_CMS_IMAGE:-${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-campaign-site}
   public:
     image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-public
   worker:

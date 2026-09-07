@@ -49,6 +49,8 @@ proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
 if [ "$recovery" = true ]; then
+  EMDASH_RECOVERY_VERIFIED_CMS_IMAGE=
+  export EMDASH_RECOVERY_VERIFIED_CMS_IMAGE
   project="leonaid-poc112-$suffix"
   recovery_source=$project
   recovery_target="leonaid-restore-$suffix"

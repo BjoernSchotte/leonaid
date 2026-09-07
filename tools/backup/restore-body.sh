@@ -222,6 +222,12 @@ if [ -n "${LEONAID_RESTORE_EXPECTED_MANIFEST:-}" ]; then
     fail "Restic-Backup entspricht nicht dem bestätigten Manifest"
 fi
 
+if [ "$topology" = emdash ] && [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
+  /bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" \
+    "$LEONAID_RESTORE_CMS_IMAGE" >/dev/null
+  echo "restore: explicit CMS image identity verified before target volume creation; activation remains closed"
+fi
+
 for volume in twenty-server-data rustfs-data; do
   docker volume create \
     --label "com.docker.compose.project=$target_project" \

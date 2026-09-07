@@ -31,13 +31,53 @@ if [ "$orders" = true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=true
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recovery_target" \
+restore_target() {
+  LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recovery_target" \
+  LEONAID_RESTORE_CMS_IMAGE="$1" \
   LEONAID_RESTORE_CONFIRM="RESTORE:$recovery_target" LEONAID_RESTORE_TOPOLOGY=emdash \
   LEONAID_RESTORE_START_APP=false LEONAID_RESTORE_COMPOSE_OVERLAY_LIST="$overlay_list" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true LEONAID_BACKUP_REPOSITORY="$proof/repository" \
   LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
+}
+if refusal_output=$(restore_target "$NODE_IMAGE" 2>&1); then
+  echo "recovery-image: restore accepted wrong image" >&2
+  exit 1
+else
+  refusal=$?
+  [ "$refusal" -eq 1 ] || exit "$refusal"
+fi
+case "$refusal_output" in
+  *"cms-image-preflight: refused; CMS must remain stopped"*) ;;
+  *) echo "recovery-image: restore failed for an unexpected reason" >&2; exit 1 ;;
+esac
+unset refusal_output
+if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$recovery_target")" ] || \
+   [ -n "$(docker volume ls -q --filter "label=com.docker.compose.project=$recovery_target")" ] || \
+   [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$recovery_target")" ]; then
+  echo "recovery-image: rejected restore created target resources" >&2
+  exit 1
+fi
+echo "recovery-image: actual restore refused wrong image before creating any target resource"
+restore_target "${EMDASH_RECOVERY_IMAGE_PREFIX}-campaign-site"
 project=$recovery_target
+# A wrong image must fail while CMS still has no target container. This is a
+# real immutable Node image without the CMS stamp, not a mocked verifier.
+if /bin/sh "$root/tools/backup/verify-cms-image.sh" "$root" "$NODE_IMAGE" >/dev/null 2>&1; then
+  echo "recovery-image: wrong image accepted" >&2
+  exit 1
+else
+  refusal=$?
+  [ "$refusal" -eq 1 ] || exit "$refusal"
+fi
+[ -z "$(compose ps --all --quiet campaign-site)" ] || {
+  echo "recovery-image: CMS container existed before verification" >&2
+  exit 1
+}
+EMDASH_RECOVERY_VERIFIED_CMS_IMAGE=$(/bin/sh "$root/tools/backup/verify-cms-image.sh" \
+  "$root" "${EMDASH_RECOVERY_IMAGE_PREFIX}-campaign-site")
+export EMDASH_RECOVERY_VERIFIED_CMS_IMAGE
+echo "recovery-image: wrong actual image refused with CMS absent; matching image verified and immutable ID selected before activation"
 # Reuse exactly the images built before backup, with no seed or CMS schema
 # installation on the restore target. Only recovery-import explicitly resumes
 # its existing journal after verifying restored state. This is test-only activation;
@@ -56,6 +96,13 @@ if [ "$orders" = true ]; then
   compose up --no-build --pull never --detach --wait --wait-timeout 420 twenty-server twenty-worker
 fi
 compose up --no-deps --no-build --detach --wait api campaign-site public mailpit worker proxy
+cms_container=$(compose ps --quiet campaign-site)
+[ -n "$cms_container" ] && \
+  [ "$(docker inspect --format '{{.Image}}' "$cms_container")" = "$EMDASH_RECOVERY_VERIFIED_CMS_IMAGE" ] || {
+  echo "recovery-image: running CMS image differs from verified immutable ID" >&2
+  exit 1
+}
+echo "recovery-image: actual restored CMS container runs exactly the verified immutable image"
 if [ "$recovery_import" = true ]; then
   compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe \
     bun tools/emdash_spike/import-recovery-proof.mjs

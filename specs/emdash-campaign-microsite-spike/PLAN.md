@@ -3112,6 +3112,26 @@ Dependencies: EMS-050, EMS-070
         tests, 266 Python files typechecked, both release contracts, both Astro
         applications (25/47 files, zero diagnostics), frontend typechecks,
         formatting and repository policy gates; committed source was unchanged.
+  - [x] Integrate CMS image preflight into restore and bind rehearsal activation
+        to the verified immutable image ID. With `LEONAID_RESTORE_CMS_IMAGE`,
+        operational restore checks the candidate before any target volume is
+        created; data-only restore still leaves application activation closed.
+        The shared verifier resolves the local reference once, never pulls,
+        reads metadata by immutable ID with no network or restored-data mounts,
+        and refuses missing/mismatched identity. `recovery-import` exited zero
+        in `leonaid-poc112-tmp-uurcvuocr7` and fresh target
+        `leonaid-restore-tmp-uurcvuocr7`: actual restore with the real pinned
+        Node image was rejected specifically by image preflight and left zero
+        target containers/volumes/networks. The same backup with the matching
+        campaign image passed preflight before volume creation. Test activation
+        then reverified the image, selected its immutable ID in Compose, and
+        confirmed the actual running container used that ID. The restored
+        incomplete journal/original media bytes and subsequent native
+        edit/draft/publish journey passed in Chromium/Firefox/WebKit. Both
+        projects were removed, with no host ports or production activation.
+        This closes candidate-image preflight and rehearsal image selection,
+        not full release-manifest/database-schema/key compatibility or the
+        operational CMS migration/activation gate.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.

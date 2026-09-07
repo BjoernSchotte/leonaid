@@ -64,3 +64,25 @@ image/cache; no service, named network or host port is created. Operational
 deployment/restore must still select the manifest-bound image, verify the v2
 manifest against the same checkout, invoke this comparison before activation,
 and verify database migrations and the complete recovery/key contract.
+
+## Restore image preflight
+
+Set `LEONAID_RESTORE_CMS_IMAGE` when restoring an EmDash topology with an image
+candidate. `restore.sh` checks that candidate after backup validation but before
+creating any target volume. `verify-cms-image.sh` resolves the local reference
+once to an immutable image ID, extracts metadata using that ID in a read-only,
+network-disabled container, and compares it to the checkout. It does not pull
+images or mount restored data. Missing/mismatched identity fails closed.
+
+A data-only restore without an image candidate remains supported and still
+leaves all application activation closed. Supplying a valid image does not
+change that rule. The recovery application rehearsal separately requires the
+same preflight, replaces the CMS image reference with the verified immutable ID,
+and checks the actual running container's `.Image` against that ID. Thus a tag
+change after verification cannot silently select another CMS image for startup.
+
+The live rehearsal also attempts the actual restore with an incompatible real
+image, checks the specific preflight refusal and verifies that the target still
+has no containers, volumes or networks. It then restores the same backup using
+the matching candidate and completes the browser journey. This is not yet the
+full production release-manifest, database-migration or upgrade/rollback gate.
