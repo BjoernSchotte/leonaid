@@ -1932,6 +1932,24 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Add and live-prove the internal active-campaign Core resolver prerequisite.
+      `resolve_public_campaign` resolves the stable archive slug but applies fresh
+      active/publication-window checks, never the legacy archive disclosure rule.
+      Its route value and canonical path identify `/campaigns/<slug>/`; a separate
+      internal `order_alias` retains the existing Core order-token binding when
+      an order form is available. Alias re-resolution must return the same action
+      and still be published, otherwise the result is inactive. No new HTTP route
+      or transport schema is enabled by this step. `campaign-core-public` passed
+      against real PostgreSQL in `leonaid-emdash-tmp-oilpqvfn0n`: active alias-data/
+      offering/form parity, canonical path, order-alias binding, before/after-window
+      concealment, draft/archive concealment and missing-slug rejection. An actual
+      committed publication withdrawal is observed by the next service call;
+      restoring the fixture restores the exact result. Owned Docker resources and
+      temporary state were removed; no host ports. HTTP/cache contracts, no-alias
+      and alias-move race proofs, historical archive policy, public rendering and
+      actual order submission remain open. Existing alias/archive endpoints and
+      their canonical paths are unchanged at this prerequisite milestone.
+
 Dependencies: EMS-040
 
 - [ ] Implement `/campaigns/[slug]` in `apps/campaign-site`.

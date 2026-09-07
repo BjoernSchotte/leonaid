@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
@@ -72,6 +72,10 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
+if [ "$mode" = core-public ]; then
+  fixture /repo/tools/emdash_spike/core_campaign_proof.py
+  exit 0
+fi
 if [ "$mode" != auth ]; then
   if [ "$mode" = browser ]; then
     docker run --rm --network none --workdir /workspace \

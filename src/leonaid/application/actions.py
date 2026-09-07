@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
@@ -90,6 +90,7 @@ class UpdateActionDetailsDraft:
 class PublicActionRouteKind(StrEnum):
     ALIAS = "alias"
     ARCHIVE = "archive"
+    CAMPAIGN = "campaign"
 
 
 class PublicActionAvailability(StrEnum):
@@ -109,6 +110,7 @@ class PublicActionRoute:
     action: CharityAction | None
     offerings: tuple[ConfiguredOffering, ...] = ()
     order_form: ConfiguredOrderForm | None = None
+    order_alias: str | None = None
 
     def __post_init__(self) -> None:
         if self.availability is PublicActionAvailability.INACTIVE:
@@ -117,13 +119,15 @@ class PublicActionRoute:
                 or self.offerings
                 or self.order_form is not None
                 or self.submissions_allowed
+                or self.order_alias is not None
             ):
                 raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
             return
         if self.action is None:
             raise ValueError("Eine öffentliche Aktionsroute benötigt eine Aktion.")
         if self.submissions_allowed and (
-            self.route_kind is not PublicActionRouteKind.ALIAS
+            self.route_kind
+            not in {PublicActionRouteKind.ALIAS, PublicActionRouteKind.CAMPAIGN}
             or self.availability is not PublicActionAvailability.PUBLISHED
             or self.order_form is None
             or not self.offerings
@@ -131,6 +135,13 @@ class PublicActionRoute:
             raise ValueError("Der Schreibstatus der öffentlichen Route ist ungültig.")
         if self.order_form is not None and not self.submissions_allowed:
             raise ValueError("Ein öffentliches Formular muss beschreibbar sein.")
+        if (
+            self.route_kind is PublicActionRouteKind.CAMPAIGN
+            and self.submissions_allowed
+        ):
+            if self.order_alias is None:
+                raise ValueError("Eine Kampagnenbestellung benötigt den Core-Alias.")
+            PublicActionAlias(self.order_alias)
 
 
 class CharityActionRepository(Protocol):
@@ -449,6 +460,70 @@ class CharityActionService:
             action=action,
             offerings=offerings,
             order_form=order_form,
+        )
+
+    async def resolve_public_campaign(
+        self,
+        archive_slug: str,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> PublicActionRoute:
+        """Resolve an active microsite without inheriting archive disclosure.
+
+        Existing order tokens and submissions remain bound to order_alias,
+        never the stable campaign URL slug.
+        Archive presentation is a separate policy and is not enabled here.
+        """
+        slug = archive_slug.strip()
+        snapshot = await self._repository.get_by_archive_slug(slug)
+        if snapshot is None:
+            raise ResourceNotFound(
+                "public_action_not_found",
+                "Diese öffentliche Aktionsseite wurde nicht gefunden.",
+            )
+        action, configuration = snapshot
+        now = evaluated_at or datetime.now(timezone.utc)
+        path = f"/campaigns/{action.archive_slug}/"
+        inactive = PublicActionRoute(
+            route_kind=PublicActionRouteKind.CAMPAIGN,
+            route_value=action.archive_slug,
+            route_path=path,
+            canonical_path=path,
+            availability=PublicActionAvailability.INACTIVE,
+            submissions_allowed=False,
+            action=None,
+        )
+        if not action.is_published_at(now):
+            return inactive
+        management = await self._repository.get_management(action.id)
+        if management is None or not management.action.is_published_at(now):
+            return inactive
+        published = replace(
+            inactive,
+            availability=PublicActionAvailability.PUBLISHED,
+            action=management.action,
+            offerings=self._public_offerings(
+                configuration, evaluated_at=now, require_current_availability=True
+            ),
+        )
+        if management.public_alias is None:
+            return published
+        # Re-resolve the current alias with a fresh publication check. A moved
+        # alias must never substitute another year's action at this stable URL.
+        current = await self.resolve_public_alias(
+            management.public_alias.value, evaluated_at=now
+        )
+        if current.action is None or current.action.id != action.id:
+            return inactive
+        return replace(
+            current,
+            route_kind=PublicActionRouteKind.CAMPAIGN,
+            route_value=action.archive_slug,
+            route_path=path,
+            canonical_path=path,
+            order_alias=management.public_alias.value
+            if current.submissions_allowed
+            else None,
         )
 
     async def resolve_public_archive(
