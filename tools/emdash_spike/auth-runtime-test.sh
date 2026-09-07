@@ -6,7 +6,7 @@ orders=${3:-false}
 case "$orders:$mode" in false:*|true:public-http) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 # Each proof has an independent server-only key; never reuse a parallel stack's.
 LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
@@ -43,7 +43,10 @@ compose() {
   if [ "$orders" = true ]; then
     set -- --file "$root/infra/emdash-spike/orders.test.yml" "$@"
   fi
-  if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ]; then
+  if [ "$mode" = migration ]; then
+    set -- --file "$root/infra/emdash-spike/import-runtime.test.yml" "$@"
+  fi
+  if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ]; then
     set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
   fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
@@ -102,10 +105,18 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     assert.equal(services["orders-operator"].environment.TWENTY_BASE_URL,"http://twenty-server:3000");
   }
   assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
+  const importer=services["krapfentaxi-import-probe"];
+  if(importer) {
+    assert.ok(!importer.ports?.length);
+    assert.deepEqual(Object.keys(importer.networks).sort(),["cms-data","edge"]);
+    assert.equal(importer.environment.PGUSER,"emdash");
+    assert.equal(importer.environment.PGDATABASE,"emdash");
+    for(const key of Object.keys(importer.environment)) assert.ok(!key.startsWith("TWENTY_") && key!=="CORE_POSTGRES_PASSWORD");
+  }
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
-if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ]; then
+if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ]; then
   compose up --detach --wait rustfs
   compose run --rm --no-deps cms-storage-operator
 fi
@@ -165,6 +176,11 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = migration ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
+    exit 0
+  fi
   if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
     compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
       node tools/emdash_spike/order-ingress-proof.mjs

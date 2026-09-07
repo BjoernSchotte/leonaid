@@ -1,0 +1,17 @@
+services:
+  krapfentaxi-import-probe:
+    image: docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55
+    working_dir: /workspace
+    volumes: [../..:/workspace:ro]
+    networks: [edge, cms-data]
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: emdash
+      PGUSER: emdash
+      PGPASSWORD: ${CMS_POSTGRES_PASSWORD}
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: emdash-media
+      S3_ACCESS_KEY_ID: leonaid-emdash
+      S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY}
+      S3_REGION: us-east-1
+    command: [bun, tools/emdash_spike/krapfentaxi-import-proof.mjs]

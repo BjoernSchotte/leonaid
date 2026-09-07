@@ -2961,11 +2961,30 @@ another running checkout or authorize production deployment.
       250 Python source checks, 24 public and 47 CMS Astro files without
       diagnostics, generated-type/format/privacy/policy gates and unchanged
       committed source. Existing dependency deprecation warnings remain.
-- [ ] Implement a Docker-based, idempotent migration with dry-run reporting and
+- [x] Implement a Docker-based, idempotent migration with dry-run reporting and
       an explicit apply mode. Resolve the existing action UUID via Core; create
       no duplicate CharityAction. Re-running must neither duplicate media nor
       overwrite subsequent editorial changes. Record migration version and
       source fingerprints without storing Core-owned facts as editable CMS data.
+      `krapfentaxi-migration` passed in `leonaid-emdash-tmp-dovt8mdesk` with actual
+      Core target/identity resolution and original private RustFS assets. The
+      PostgreSQL journal atomically records reservations and final draft creation.
+      Verified read-only dry-run, existing-editorial-content refusal, exact schema
+      preflight, CLI session-file permissions and apply replay, same-ID resume
+      after reserved/ready checkpoints, concurrent importer exclusion, actual
+      final-write PostgreSQL failure/rollback, simulated lost success reply,
+      later-edit preservation, anonymous S3/page/media denial and actual Core
+      logout denial. Core business facts stayed unchanged; the comparison
+      deliberately excludes newly issued per-request order capabilities.
+      The first proof incorrectly compared those ephemeral capabilities and
+      failed; the corrected proof compares all remaining business fields without
+      logging token values. The operator uses the EmDash content repository
+      directly to avoid raw upstream HTTP-handler exception logging.
+      Unique Docker resources, dedicated CMS credentials only, no host ports,
+      complete cleanup. See [operator contract](KRAPFENTAXI_IMPORT.md).
+      This creates a draft, not a cutover. Process-kill/restart recovery, final
+      imported-image visual acceptance, browser publication and backup/restore
+      remain unproven and are required before migration acceptance.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.

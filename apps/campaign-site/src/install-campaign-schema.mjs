@@ -47,6 +47,17 @@ async function assertSchema(registry, expected) {
 
 // Operator-only installation: no automatic repairs or content import. Existing
 // schemas must match exactly; incompatible upgrades need an explicit migration.
+export async function requireCampaignSchema(database) {
+  const version = await database
+    .selectFrom("options")
+    .select("value")
+    .where("name", "=", "leonaid:campaign_schema_version")
+    .executeTakeFirst();
+  if (version?.value !== JSON.stringify(campaignSchemaVersion))
+    throw new Error("campaign_schema_version_mismatch");
+  await assertSchema(new SchemaRegistry(database), campaignCollection);
+}
+
 export async function installCampaignSchema(
   database,
   { upgradeFromVersion1 = false, upgradeFromVersion2 = false } = {},
