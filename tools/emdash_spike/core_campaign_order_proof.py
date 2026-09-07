@@ -1,14 +1,22 @@
 """Issued campaign-token binding and the unconfigured-CRM HTTP boundary."""
 
 import os
+from typing import Any
 from uuid import UUID, uuid4
+
+import asyncpg
+import httpx
 
 from leonaid.application.errors import PermissionDenied
 from leonaid.application.public_orders import PublicOrderTokenCodec
 from tools.public_orders.contract import order_body
 
 
-async def prove_order_token(client, pool, payload):
+async def prove_order_token(
+    client: httpx.AsyncClient,
+    pool: asyncpg.Pool[Any],
+    payload: dict[str, Any],
+) -> None:
     assert payload["submissionsAllowed"] is True
     action = payload["action"]
     form = action["orderForm"]
