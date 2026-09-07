@@ -3831,7 +3831,12 @@ another running checkout or authorize production deployment.
       missing explicit CMS image fail before Docker; default/full semantics
       still proceed to normal configuration validation. Early configuration
       failures now clean their temporary staging directory. This proves the
-      preflight boundary only, not CMS data restoration or order preservation.
+        preflight boundary only, not CMS data restoration or order preservation.
+      - Quality gate for preparation commit `d707f18`: full `./leonaid check`
+        exited 0 with 269 unit tests, public/CMS Astro checks on 25/49 files
+        without diagnostics, type generation, formatting and policy gates,
+        and an unchanged committed tree. This is source-quality evidence;
+        the end-to-end cutover/rollback checkbox remains open.
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 
