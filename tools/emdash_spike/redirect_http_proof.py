@@ -24,6 +24,12 @@ TARGET = "/campaigns/krapfentaxi-2026/"
 async def main() -> None:
     db = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     try:
+        if "--outage-fixture" in sys.argv:
+            await db.execute(
+                "INSERT INTO public_action_alias(alias,action_id,is_primary) VALUES ('outage-redirect',$1,false)",
+                ACTION,
+            )
+            return
         tls = ssl.create_default_context(cafile="/proof/root.crt")
         async with httpx.AsyncClient(base_url=ORIGIN, verify=tls, timeout=20) as client:
 
@@ -181,6 +187,70 @@ async def main() -> None:
                 assert (await client.get("/https-redirect")).headers[
                     "location"
                 ] == TARGET
+                # Advance the separate Golden draft through valid lifecycle
+                # states; never disable the database's transition guard.
+                other = UUID("20000000-0000-4000-8000-000000000003")
+                await db.execute(
+                    "UPDATE charity_action SET status='scheduled' WHERE id=$1", other
+                )
+                await db.execute(
+                    "UPDATE charity_action SET status='active',publication_starts_at=$2,publication_ends_at=$3 WHERE id=$1",
+                    other,
+                    now - timedelta(days=1),
+                    now + timedelta(days=1),
+                )
+                other_slug = await db.fetchval(
+                    "SELECT archive_slug FROM charity_action WHERE id=$1", other
+                )
+                archive_path = "/archive/krapfentaxi-2025"
+                archive_before = await client.get(archive_path)
+                assert archive_before.status_code == 200
+                await mutate(
+                    "PUT",
+                    f"{ROOT}/{alias_id}",
+                    {
+                        "commandId": str(uuid4()),
+                        "revision": 3,
+                        "targetActionId": str(other),
+                        "alias": "https-redirect",
+                        "enabled": True,
+                    },
+                )
+                for method in ("GET", "HEAD"):
+                    moved = await client.request(method, "/https-redirect")
+                    assert moved.status_code == 302
+                    assert moved.headers["location"] == f"/campaigns/{other_slug}/"
+                    assert moved.headers["cache-control"] == "no-store"
+                canonical = await client.get(
+                    "/api/v1/public/actions/campaign/krapfentaxi-2026"
+                )
+                assert canonical.status_code == 200
+                assert canonical.json()["action"]["id"] == str(ACTION)
+                assert canonical.json()["canonicalPath"] == TARGET
+                archive_after = await client.get(archive_path)
+                assert archive_after.status_code == 200
+                assert archive_after.content == archive_before.content
+                if "--published" in sys.argv:
+                    unchanged = await client.get(TARGET)
+                    assert (
+                        unchanged.status_code == 200
+                        and "location" not in unchanged.headers
+                    )
+                    assert "Published imported campaign webkit" in unchanged.text
+                await mutate(
+                    "PUT",
+                    f"{draft_root}/{alias_id}",
+                    {
+                        "commandId": str(uuid4()),
+                        "revision": 4,
+                        "targetActionId": str(ACTION),
+                        "alias": "https-redirect",
+                        "enabled": True,
+                    },
+                )
+                assert (await client.get("/https-redirect")).headers[
+                    "location"
+                ] == TARGET
             finally:
                 revision = await db.fetchval(
                     "SELECT revision FROM public_action_alias WHERE id=$1", alias_id
@@ -191,7 +261,7 @@ async def main() -> None:
                     {"commandId": str(uuid4()), "revision": revision},
                 )
         print(
-            "redirect-http: real Core commands and CA-verified Astro GET/HEAD 302, no mutation redirects, inactive/disabled/window withdrawal and restoration, preserved primary form passed"
+            "redirect-http: real Core commands and CA-verified Astro GET/HEAD 302, no mutation redirects, inactive/disabled/window withdrawal and restoration, preserved primary form, reassignment and unchanged historical archive/canonical identity passed"
         )
     finally:
         await db.close()

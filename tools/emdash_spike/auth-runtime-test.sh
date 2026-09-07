@@ -185,6 +185,16 @@ if [ "$mode" != auth ]; then
     compose up --no-deps --build --detach --wait public
     fixture /repo/tools/emdash_spike/redirect_http_proof.py
     fixture /repo/tools/emdash_spike/alias_http_proof.py
+    fixture /repo/tools/emdash_spike/redirect_http_proof.py --outage-fixture
+    redirect_outage_probe() {
+      compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+        node tools/emdash_spike/redirect-outage-proof.mjs "$@"
+    }
+    redirect_outage_probe
+    compose stop api
+    redirect_outage_probe --down
+    compose up --no-deps --detach --wait api
+    redirect_outage_probe
     exit 0
   fi
   if [ "$mode" = migration ]; then

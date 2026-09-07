@@ -3007,6 +3007,22 @@ Dependencies: EMS-030, EMS-050, EMS-070
         diagnostics, current generated contracts and all format/privacy/policy
         gates, with an unchanged committed worktree. Existing dependency
         deprecation warnings remain.
+  - [x] Additional-alias reassignment and outage checkpoint: `alias-http`
+        passed in isolated project `leonaid-emdash-tmp-d7xntvftal`. Actual Core
+        commands move an enabled alias to a second active Golden campaign and
+        back. Anonymous GET/HEAD immediately reflects each canonical target
+        with `302` and `no-store`; the original canonical Core response still
+        identifies its original action, and the complete historical 2025
+        archive HTML remains byte-identical. The second campaign advances
+        through valid draft/scheduled/active database transitions, without
+        disabling lifecycle constraints. This proves route identity, not CMS
+        publication of a second campaign or yearly primary-alias cutover.
+        A separate persisted alias is then warmed through actual Caddy HTTPS.
+        Stopping only this project's Core container makes both GET and HEAD
+        return `503`, `no-store`, no Location, no cookie and no disclosed target;
+        starting that Core again restores the canonical 302. Existing alias
+        API authorization, concurrency and replay tests plus 24 pure redirect
+        contract tests also passed. Exit 0 and cleanup of only owned resources.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.
