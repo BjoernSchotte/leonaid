@@ -1972,6 +1972,9 @@ fields are absent; generated TypeScript types compile.
       networks, volumes and transient proof files were removed. This proves
       individual object repair, not coordinated fresh backup restoration or
       concurrent withdrawal during object I/O; those gates remain open.
+      Post-commit `./leonaid check` passed at `0b6e95c`: 208 unit tests, 244
+      Python source checks, 44 CMS files without diagnostics, frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Deliver publication-gated public raster images at
       `/campaigns/<archive_slug>/media/<media_id>`, backed by the existing
