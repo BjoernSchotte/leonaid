@@ -83,25 +83,27 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 ## SURV-010 — Vertical autosave and authoritative validation proof
 
-- [ ] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
+[Task and scenario reconciliation with current live evidence](proofs/SURV-010.md#task-and-scenario-reconciliation).
+
+- [x] **010.1** Implement minimal definition loading, participation creation, revisioned snapshot saving, restoration and completion through the real API/database.
 
   Acceptance criteria: **010.A2, 010.A3, 010.A5**.
   Integration / supporting checks: **010.S2, 010.S3**.
   E2E: **010.S4**.
 
-- [ ] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics.
+- [x] **010.2** Compare the explicit Python rule model with an isolated SurveyJS-Core validation adapter; select and document the option that proves equivalent initial-profile semantics.
 
   Acceptance criteria: **010.A1**.
   Integration / supporting checks: **010.S1**.
   E2E — work-package regression gate: **010.S4, 010.S5**.
 
-- [ ] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes.
+- [x] **010.3** Implement required/type/bounds/choice/matrix validation, relevance evaluation and hidden-answer cleanup; distinguish incomplete answers from invalid values. Wire the selected shared-Core adapter into the actual save/completion path after host definition approval; bound calls and reject adapter failures without partial writes.
 
   Acceptance criteria: **010.A1, 010.A2, 010.A4**.
   Integration / supporting checks: **010.S1, 010.S2**.
   E2E: **010.S5**.
 
-- [ ] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof.
+- [x] **010.4** Wire answer events and debounced text updates to persistence; implement a short configurable timeout classification proof.
 
   Acceptance criteria: **010.A3, 010.A4, 010.A5**.
   Integration / supporting checks: **010.S3**.

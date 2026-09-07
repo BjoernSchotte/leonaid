@@ -27,11 +27,13 @@ decompose the plan; they do not replace any of its acceptance requirements.
 
 ## SURV-010 — Autosave and validation
 
-- [ ] **010.S1 · Integration · 010.T1 → 010.A1:** Run identical supported definitions/answers through client and authoritative backend validation; assert equal relevance/cleaned answers and reject forged values and unsupported definitions through the actual write endpoint.
-- [ ] **010.S2 · Integration · 010.T1 → 010.A2:** Save incomplete required answers successfully; reject invalid supplied values and incomplete completion with the documented error and unchanged persisted revision/status on rejection.
-- [ ] **010.S3 · Integration · 010.T1 → 010.A5:** Expire a short configured timeout, read the participation as partial, resume and complete it; the same identity and acknowledged answers survive.
-- [ ] **010.S4 · E2E · 010.T2 → 010.A3:** Type without blur, wait for acknowledgement, close the browser context and restore using valid resume access; exact text remains persisted without a duplicate participation.
-- [ ] **010.S5 · E2E · 010.T2 → 010.A4:** Answer conditional questions, change their controlling answers and navigate/reload; hidden answers are removed according to the contract from browser and database state.
+[Named assertions and live reconciliation](proofs/SURV-010.md#task-and-scenario-reconciliation).
+
+- [x] **010.S1 · Integration · 010.T1 → 010.A1:** Run identical supported definitions/answers through client and authoritative backend validation; assert equal relevance/cleaned answers and reject forged values and unsupported definitions through the actual write endpoint.
+- [x] **010.S2 · Integration · 010.T1 → 010.A2:** Save incomplete required answers successfully; reject invalid supplied values and incomplete completion with the documented error and unchanged persisted revision/status on rejection.
+- [x] **010.S3 · Integration · 010.T1 → 010.A5:** Expire a short configured timeout, read the participation as partial, resume and complete it; the same identity and acknowledged answers survive.
+- [x] **010.S4 · E2E · 010.T2 → 010.A3:** Type without blur, wait for acknowledgement, close the browser context and restore using valid resume access; exact text remains persisted without a duplicate participation.
+- [x] **010.S5 · E2E · 010.T2 → 010.A4:** Answer conditional questions, change their controlling answers and navigate/reload; hidden answers are removed according to the contract from browser and database state.
 
 ## SURV-020 — Independent package
 

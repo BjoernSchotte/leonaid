@@ -55,13 +55,15 @@ jobs:
         run: |
           python3 tools/surveys/ci_diagnostics_test.py
           sudo python3 tools/surveys/ci_diagnostics.py .
+          mkdir -p .artifacts/surveys-ci-results
+          sudo find .artifacts/surveys-gate/results -maxdepth 1 -type f -name '*.json' -exec cp '{}' .artifacts/surveys-ci-results/ \;
+          sudo cp .artifacts/surveys-gate/results/diagnostics/metadata.json .artifacts/surveys-ci-results/diagnostics.json
+          sudo chmod 644 .artifacts/surveys-ci-results/*.json
       - name: Publish structured results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: surveys-${{ matrix.group }}
-          path: |
-            .artifacts/surveys-gate/results/*.json
-            .artifacts/surveys-gate/results/diagnostics/*.json
+          path: .artifacts/surveys-ci-results/*.json
           if-no-files-found: error
           retention-days: 14

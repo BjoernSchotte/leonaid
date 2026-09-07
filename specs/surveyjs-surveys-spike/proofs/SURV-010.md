@@ -442,3 +442,32 @@ Python files and strict mypy for the new adapter. No commercial dependency was
 introduced and our own license remains UNDEFINED. Runtime capacity testing,
 complete product journeys, packed independent consumer, analytics and exports
 are still tracked by their respective open work packages.
+
+
+## Task and scenario reconciliation
+
+The companion task matrix and scenario checklist now reflect the already
+accepted PLAN criteria for **010.1–010.4 / 010.A1–010.A5**. This reconciliation
+was checked against the actual assertion sources and a fresh completed runner
+leaf in pass one of the still-running full aggregate, not inferred from a build
+or from the number of checked items. The full aggregate and CI remain unaccepted.
+
+| Tasks / scenarios | Named executable assertions | Observed result |
+|---|---|---|
+| 010.2, 010.3 / S1 | `validation_candidate.py` comparison; `validation_live.py cases`; host definition rejection checks in the completed editor leaf | 192 Core candidate cases, explicit known Python differences, 192 actual API/PostgreSQL validation cases; bounded initial profile only |
+| 010.1, 010.3 / S2 | `responses.py`; `validation_live.py cases`; forged answer types/matrix browser scenario | Valid incomplete saves accepted; malformed answers and invalid completion rejected without changing persisted answers/revision/status |
+| 010.1, 010.4 / S3 | `timeouts.py prepare/recover`; `responses.py` | Short timeout becomes partial; actual worker restart catches up; exact answers and same participation survive resumption/completion |
+| 010.1, 010.4 / S4 | Browser `acknowledged text survives closing mid-page and hidden follow-up is removed` | Focus retained during save; fresh context restores exact text; no restoration writes or duplicate participation |
+| 010.3, 010.4 / S5 | Same browser scenario; `hidden pages clear chained answers through edits, direct saves and restoration`; numeric-text condition scenario | Hidden values absent from API/DB snapshot and after navigation/reload; reopening requires fresh input |
+
+The runner leaf exited **0**, passed **eight Chromium scenarios in 28.7 seconds**,
+and passed real adapter stop/pause/recovery plus exact-retry checks. A separate
+Docker inventory verified no remaining owned containers, volumes or networks.
+[Project identity and tested source hashes](assets/SURV-010-reconciliation.json)
+record this leaf's evidence. The aggregate began at `b18b534`; subsequent commits
+changed documentation, workflow diagnostics and unrelated legacy harnesses, not
+these executing runner sources. Current source hashes identify the tested scope.
+
+The previously documented shared-Core selection and bounded capabilities remain
+unchanged. This accepts the corresponding companion **010.S1–010.S5** and task
+entries; it does not expand support to arbitrary SurveyJS definitions.

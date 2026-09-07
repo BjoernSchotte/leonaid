@@ -463,3 +463,19 @@ for every project. [Result durations, project IDs and tested source hashes](asse
 This accepts **100.3e / 100.S2d**, seven additional legacy regression suites.
 It does not accept the remaining legacy suites, full aggregate, actual CI lane
 or broader **100.A3**. No browser coverage is inferred from these CLI/API tests.
+
+
+Run `34157145093` at `9b50c67` confirmed that both actual packed-consumer
+iterations pass with the corrected Linux controller identity. The package job
+then failed only in artifact upload: the structured results were below the
+owner-only gate directory. The workflow now copies only top-level result JSON
+and the fixed bounded-diagnostic JSON into a separate upload directory and
+makes only those reports readable. Private logs, traces, session files and their
+directory permissions remain unchanged. A fully successful remote run, including
+artifact delivery, is still required before aggregate acceptance.
+
+A real pinned Linux container verified the report-copy boundary: UID 1001 read
+exactly the two copied JSON reports while the root-only raw log remained
+inaccessible. The first invocation had a mistyped image digest and did not start
+a container; the successful invocation read the pin directly from images.env.
+Workflow formatting and the full 23-image/89-Python-package pin check pass.
