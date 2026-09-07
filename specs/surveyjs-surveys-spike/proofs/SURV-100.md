@@ -203,3 +203,89 @@ terminal codes, elapsed times, project names, browser counts and the exact port
 observations. Shell syntax, Ruff for the changed Python files, Prettier for the
 changed browser test, local Markdown links and staged whitespace/private-value
 checks pass. No application runtime behavior changed in this increment.
+
+
+## Complete desktop and mobile survey journeys
+
+Accepted: **100.T2 / 100.A2 / 100.S4**; implementation delivery **100.2** is checked.
+The separate **100.2** task-acceptance box stays open for **100.A4**'s complete
+capability/task reconciliation. This proof does not close aggregate CI, the twice-run
+full suite, remaining existing regressions, disaster recovery or the final report.
+
+Tested revision: `ebcadc7` plus the three source files committed with this proof.
+Their exact SHA-256 values and the content-free results are recorded in
+[the journey artifact](assets/SURV-100-journeys.json).
+
+| Task | Deliverable / assertions | Result |
+|---|---|---|
+| 100.2 | Four complete sample journeys in `tests/e2e/surveys-journey.spec.mjs`; real storage/export inspection in `tools/surveys/journey_verify.py` | Delivered; A2 accepted, A4 remains open |
+| 100.T2 | Both templates at 1440 × 960 and 390 × 960, through actual member/public UI, API and worker | Passed |
+| 100.A2 / 100.S4 | Persisted partial answers, fresh-context resume, immutable version isolation, outsider denial, analysis, four export products and permanent erasure | Passed |
+
+Command from the worktree root:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" journeys
+```
+
+Final project: `leonaid-surveys-833458328-49837`. Exit **0**. Playwright **1.54.1**,
+pinned Chromium **139.0.7258.5**, five tests passed (four journeys and existing
+identity/public-host foundation), reported browser duration **1.2 minutes**.
+Pinned runtime/service images come from `infra/locks/images.env` and Compose.
+Actual FastAPI, PostgreSQL, SurveyJS validator, worker, Mailpit, RustFS and Typst
+were used. No survey persistence, authorization or export endpoint was mocked.
+
+Each case creates its template in the member UI, edits the first question,
+sets a two-second inactivity override and publishes version 1. Krapfentaxi uses
+a public link; Golf uses an invitation sent through the real worker and read
+from Mailpit. An ordinary member without survey access sees the denial UI and
+receives 404 for administrative reads, analysis and each export download.
+
+The respondent answers page 1 and part of page 2; the UI confirms saving and
+the API returns the exact comment and version. The whole respondent context is
+closed. While it is absent, the author edits and publishes version 2. A fresh
+context with the original protected browser session reads status `partial` and
+restores the exact answers, original version/title and unchanged revision.
+A second participant receives version 2 (a second actual invitation for Golf).
+The original participant finishes page 3 and completes against version 1.
+
+The author selects version 1 and creates its analysis in the UI. Its count is
+exactly one, excluding the version-2 participation. Visible question titles and
+all five per-question counts match the returned immutable snapshot; the author
+opens the table alternative. All four products are requested and downloaded
+through the UI, and every export job is bound to that same snapshot.
+
+The independent verifier parses the **16 actual browser downloads**. Raw CSV
+and XLSX agree for every XLSX column, contain exactly the completed original
+participation and retain its Unicode comment. Analysis XLSX metadata and all
+metrics match the snapshot, with native charts present. PDF extraction verifies
+the snapshot identity and every question's denominator counts. Both aggregate
+formats exclude the raw comment. This is content/structure verification, not a
+new manual PDF or chart layout review; earlier SURV-080 render evidence remains
+separate.
+
+Each author then ends, archives, trashes and permanently deletes the survey
+through its confirmation UI and waits for completed erasure. Old participation
+and export URLs return 404. Independent SQL inspection finds no remaining survey,
+draft, version, participation, operation, invitation, snapshot, export-job or grant
+content, and a completed deletion ledger. Paginated S3 version listing finds
+neither object versions nor delete markers under the survey prefix.
+
+Four preceding runs exited 1 while refining test interactions: `45140` (exact
+native select label and dropdown input target), `46088` (popup auto-scroll),
+`47515` (layout/hit-test diagnosis), `48540` (collapsed analysis table and mobile
+popup settling). The final Golf selection waits until the option is hit-testable
+and uses a normal pointer click at that visible point. Playwright's locator
+scrolling dismissed the fixed popup; no forced click, DOM answer mutation or
+product CSS workaround was used.
+
+All five projects were independently checked after termination: **zero owned
+containers, volumes and networks remained**. Every run allocated seven unused
+explicit subnets and disabled host-port publication; parallel projects were
+untouched. Raw traces, emails, credentials, answers and downloads remain transient
+or ignored locally; the committed artifact contains only synthetic test labels,
+counts, booleans, source hashes and run metadata.
+
+Supporting checks: Ruff on `journey_verify.py`, Prettier on the browser test,
+shell syntax validation and `git diff --check` passed. No application behavior
+was changed by this increment.

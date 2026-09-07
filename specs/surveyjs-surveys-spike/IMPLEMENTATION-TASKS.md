@@ -465,6 +465,11 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **100.S3**.
   E2E: **100.S4**.
 
+Browser delivery and **100.A2 / 100.T2 / 100.S4** are accepted after all four
+complete journeys and independent parsing/erasure verification. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
+Task-level **100.2** acceptance remains open solely for its broader **100.A4**
+capability/task reconciliation gate; successful journeys do not close that audit.
+
 - [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
 
   Acceptance criteria: **100.A3, 100.A5**.

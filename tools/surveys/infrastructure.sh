@@ -138,6 +138,12 @@ if [ "$foundation" = true ]; then
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = journeys ]; then
+  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
+  browser_specs="$browser_specs tests/e2e/surveys-journey.spec.mjs"
+fi
 if [ "$mode" = branding ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
@@ -400,6 +406,11 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
+if [ "$mode" = journeys ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/journey_verify.py
+  cp "$proof/journeys-proof.json" "$artifact/"
+fi
 if [ "$mode" = contracts ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
