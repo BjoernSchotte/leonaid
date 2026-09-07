@@ -13,6 +13,8 @@ compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_BACKUP_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY:-}
 env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
+topology=${LEONAID_BACKUP_TOPOLOGY:-legacy}
+case "$topology" in legacy|emdash) ;; *) echo "backup: ERROR: unknown topology" >&2; exit 1 ;; esac
 manifest_output=${LEONAID_BACKUP_MANIFEST_OUTPUT:-}
 manifest_output_tmp=
 stage=$(mktemp -d)
@@ -60,6 +62,7 @@ if [ -n "$manifest_output" ]; then
 fi
 
 compose() {
+  set -- --profile emdash "$@"
   if [ -n "$compose_overlay_secondary" ]; then
     docker compose \
       --project-name "$project" \
@@ -172,16 +175,38 @@ for required in core-postgres twenty-postgres rustfs; do
   echo "$running" | grep -Fx "$required" >/dev/null ||
     fail "Service ist nicht bereit: $required"
 done
-for service in twenty-server twenty-worker api worker public pwa web proxy; do
+cms_database=$(compose exec -T core-postgres psql \
+  --username "${CORE_POSTGRES_USER:-leonaid}" \
+  --dbname "${CORE_POSTGRES_DB:-leonaid}" -Atc \
+  "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname='emdash')")
+case "$topology:$cms_database" in
+  legacy:f|emdash:t) ;;
+  *) fail "Backup-Topologie passt nicht zum vorhandenen CMS-Datenbestand" ;;
+esac
+if [ "$topology" = emdash ]; then
+  bootstrap_project=$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "${project}_cms-bootstrap-state")
+  [ "$bootstrap_project" = "$project" ] || fail "CMS-Bootstrap-Volume fehlt oder gehört zu anderem Projekt"
+fi
+for service in twenty-server twenty-worker api worker public pwa web proxy campaign-site rustfs; do
   if echo "$running" | grep -Fx "$service" >/dev/null; then
     restart_services="$restart_services $service"
   fi
 done
 
-compose stop \
-  proxy api worker public pwa web twenty-worker twenty-server \
-  >/dev/null
 writers_stopped=true
+compose stop \
+  proxy api worker public pwa web twenty-worker twenty-server campaign-site \
+  >/dev/null
+
+if [ "$topology" = emdash ]; then
+  compose exec -T core-postgres pg_dump \
+    --username "${CORE_POSTGRES_USER:-leonaid}" --dbname emdash \
+    --format custom --no-owner --no-privileges >"$stage/emdash.dump"
+  docker run --rm --network none \
+    -v "${project}_cms-bootstrap-state:/source:ro" \
+    -v "$stage:/backup" "$ALPINE_IMAGE" \
+    tar -C /source -cf /backup/cms-bootstrap-state.tar .
+fi
 
 compose exec -T core-postgres pg_dump \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
@@ -198,6 +223,11 @@ compose exec -T twenty-postgres pg_dump \
   --no-privileges \
   >"$stage/twenty.dump"
 
+# Archive the object store only after it has stopped flushing its on-disk state.
+# Application writers are already stopped; cleanup restarts only services that
+# were running before this backup, including RustFS.
+compose stop rustfs >/dev/null
+
 docker run --rm \
   -v "${project}_twenty-server-data:/source:ro" \
   -v "$stage:/backup" \
@@ -209,22 +239,12 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   tar -C /source -cf /backup/rustfs-data.tar .
 
-docker run --rm \
-  -e "BACKUP_SOURCE_PROJECT=$project" \
-  -v "$stage:/backup" \
-  "$PYTHON_IMAGE" \
-  python -c 'import datetime,hashlib,json,os,pathlib
-p=pathlib.Path("/backup")
-files={}
-for name in ("core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"):
-    data=(p/name).read_bytes()
-    files[name]={"sha256":hashlib.sha256(data).hexdigest(),"size":len(data)}
-(p/"manifest.json").write_text(json.dumps({
-    "schemaVersion":1,
-    "createdAt":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    "sourceProject":os.environ["BACKUP_SOURCE_PROJECT"],
-    "files":files,
-},sort_keys=True,indent=2)+"\n")'
+docker run --rm --network none \
+  --env-file "$env_file" \
+  -e PYTHONPATH=/workspace \
+  -v "$root:/workspace:ro" -v "$stage:/backup" "$PYTHON_IMAGE" \
+  python /workspace/tools/backup/manifest.py /backup \
+  --source-project "$project" --topology "$topology" --create
 
 if ! restic_run snapshots >/dev/null 2>&1; then
   restic_run init

@@ -15,6 +15,8 @@ compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_RESTORE_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY:-}
 env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
+topology=${LEONAID_RESTORE_TOPOLOGY:-legacy}
+case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology" >&2; exit 1 ;; esac
 restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
 restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
 stage=$(mktemp -d)
@@ -76,6 +78,9 @@ docker run --rm \
   $safety_arguments
 
 compose() {
+  if [ "$topology" = emdash ]; then
+    set -- --file "$root/infra/backup/cms-operators.yml" "$@"
+  fi
   if [ -n "$compose_overlay_secondary" ]; then
     docker compose \
       --project-name "$target_project" \
@@ -122,6 +127,10 @@ fi
 if [ -n "$(docker volume ls -q \
   --filter "label=com.docker.compose.project=$target_project")" ]; then
   fail "Restore-Ziel besitzt bereits Volumes"
+fi
+
+if [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
+  fail "Restore-Ziel besitzt bereits Netzwerke"
 fi
 
 local_repository=false
@@ -187,12 +196,13 @@ backup_root=$(find "$stage" -type f -name manifest.json -print | head -n 1)
 backup_root=$(dirname "$backup_root")
 
 docker run --rm \
+  --env-file "$env_file" \
   -e PYTHONPATH=/workspace \
   -v "$root:/workspace:ro" \
   -v "$backup_root:/backup:ro" \
   "$PYTHON_IMAGE" \
   python /workspace/tools/backup/manifest.py /backup \
-    --source-project "$source_project"
+    --source-project "$source_project" --topology "$topology" --require-cms-key
 
 if [ -n "${LEONAID_RESTORE_EXPECTED_MANIFEST:-}" ]; then
   cmp -s "$backup_root/manifest.json" "$LEONAID_RESTORE_EXPECTED_MANIFEST" ||
@@ -205,6 +215,16 @@ for volume in twenty-server-data rustfs-data; do
     --label "com.docker.compose.volume=$volume" \
     "${target_project}_$volume" >/dev/null
 done
+if [ "$topology" = emdash ]; then
+  docker volume create \
+    --label "com.docker.compose.project=$target_project" \
+    --label "com.docker.compose.volume=cms-bootstrap-state" \
+    "${target_project}_cms-bootstrap-state" >/dev/null
+  docker run --rm --network none \
+    -v "${target_project}_cms-bootstrap-state:/target" \
+    -v "$backup_root:/backup:ro" "$ALPINE_IMAGE" \
+    tar -C /target -xf /backup/cms-bootstrap-state.tar
+fi
 docker run --rm \
   -v "${target_project}_twenty-server-data:/target" \
   -v "$backup_root:/backup:ro" \
@@ -224,7 +244,7 @@ compose exec -T core-postgres pg_restore \
   --dbname "${CORE_POSTGRES_DB:-leonaid}" \
   --clean \
   --if-exists \
-  --exit-on-error \
+  --exit-on-error --single-transaction \
   --no-owner \
   --no-privileges \
   <"$backup_root/core.dump"
@@ -233,10 +253,19 @@ compose exec -T twenty-postgres pg_restore \
   --dbname "${TWENTY_POSTGRES_DB:-default}" \
   --clean \
   --if-exists \
-  --exit-on-error \
+  --exit-on-error --single-transaction \
   --no-owner \
   --no-privileges \
   <"$backup_root/twenty.dump"
+
+if [ "$topology" = emdash ]; then
+  compose run --rm --no-deps cms-recovery-operator provision
+  compose exec -T core-postgres pg_restore \
+    --username "${CORE_POSTGRES_USER:-leonaid}" --dbname emdash --role emdash \
+    --exit-on-error --single-transaction --no-owner --no-privileges \
+    <"$backup_root/emdash.dump"
+  compose run --rm --no-deps cms-recovery-operator verify
+fi
 
 restore_state prepare --manifest "$backup_root/manifest.json"
 fi
@@ -247,6 +276,11 @@ fi
 apply_survey_erasure_gate
 
 restore_state verified
+
+if [ "$topology" = emdash ]; then
+  echo "restore: CMS SQL and closed bootstrap recovered; application remains stopped pending release verification"
+  exit 0
+fi
 
 if [ "${LEONAID_RESTORE_START_APP:-true}" = "true" ]; then
   restore_state starting

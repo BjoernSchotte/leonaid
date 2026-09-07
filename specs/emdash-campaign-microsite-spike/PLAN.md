@@ -2782,6 +2782,24 @@ Dependencies: EMS-050, EMS-070
       never be reconstructed as an armed grant from an empty CMS database.
 - [ ] Ensure RustFS backup includes the dedicated media bucket and verify media
       object restoration, not just metadata.
+  - [x] Local encrypted round-trip checkpoint (2026-09-07): the real
+        `tools/backup/backup.sh` and `restore.sh` passed using source project
+        `leonaid-poc112-tmp-emr1fohen0` and fresh target
+        `leonaid-restore-tmp-emr1fohen0`. The reproducible runner is
+        `./leonaid test-emdash-spike --case recovery-local`. Restic encrypted and
+        read-data-verified the v2 recovery point; restore checked the external
+        key fingerprint before creating target volumes. Actual CMS tables and
+        revisions, SQL fixture rows in the Core/Twenty databases, CRM storage
+        files, and downloaded bytes from both `emdash-media` and `core-private`
+        matched the pre-backup inventory. Bootstrap remained complete, not
+        armed; restored campaign guards and CMS-to-Core database denial passed.
+        RustFS is stopped before archiving its disk state. Both projects use
+        explicit non-overlapping internal subnets and no host ports, and were
+        removed after the test. This checkpoint uses a local encrypted test
+        repository, synthetic SQL fixtures rather than the complete Core/Twenty
+        application, and no CMS HTTP process. Off-host recovery, authenticated
+        browser/media rendering, active-writer coordination and release/image
+        compatibility remain required; no overall recovery gate is closed.
 - [ ] Preserve the EmDash encryption key outside its database and include only
       a presence/fingerprint check in committed evidence.
 - [ ] Add a separate `emdash.dump` using PostgreSQL `pg_dump` to backup manifests,

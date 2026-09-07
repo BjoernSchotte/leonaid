@@ -68,6 +68,7 @@ Commands:
   test-emdash-spike --case alias-http
   test-emdash-spike --case redirect-aliases
   test-emdash-spike --case recovery-sql
+  test-emdash-spike --case recovery-local
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
   export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
