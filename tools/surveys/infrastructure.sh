@@ -101,6 +101,8 @@ if [ "$mode" = analysis ]; then
   compose up --detach --wait --wait-timeout 60 worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py recover
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/raw_responses_live.py
 fi
 if [ "$mode" = aggregates ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -135,6 +137,7 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
 mkdir -p "$artifact"
 if [ "$mode" = analysis ]; then
   cp "$proof/survey-analysis-snapshot.json" "$artifact/"
+  cp "$proof/raw-response-proof.json" "$artifact/"
   cp "$proof"/surveys-analytics-*.png "$artifact/"
 fi
 if [ "$mode" = aggregates ]; then

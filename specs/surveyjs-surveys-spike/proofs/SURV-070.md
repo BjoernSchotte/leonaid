@@ -12,7 +12,7 @@ integration remains open.
 |---|---|---|
 | 070.1 | Strict DTOs, immutable PostgreSQL snapshots, authorized filters, worker-delay consistency and real member filter UI | Accepted: A1/A2/A3 and S1/S2/S3 |
 | 070.2 | Neutral engine, batch combination, golden snapshot API and chart/table UI | Accepted: A1/A3 and S1/S3 |
-| 070.3 | Custom charts and accessible tables delivered | Raw/free-text views and their authorization E2E remain open under A4 |
+| 070.3 | Custom charts/tables and separately authorized raw-response API delivered | Raw/free-text browser views and their authorization E2E remain open under A4 |
 | 070.T1 | Engine and actual API golden data, aggregate-only/foreign/action/test scope rejection, immutable snapshot and batching/limit checks | Accepted for A1/A2; broader module capabilities remain tracked by SURV-060 |
 | 070.T2 | Actual analysis filters, chart/table values, empty states and keyboard tables pass | Raw-route-denial E2E remains open under A4 |
 
@@ -328,3 +328,64 @@ the mobile capture retains it, obscuring the heading at the capture boundary
 but not the displayed chart/table values. This is a screenshot limitation, not
 a claim of a complete accessibility audit. The real browser keyboard/table and
 no-document-overflow assertions are separate from this visual review.
+
+## Separate raw-response API
+
+Baseline `8fe358d` plus the raw-response DTO, repository, route/client and
+integration-fixture increment. `./leonaid test-surveys-analysis` passed as
+`leonaid-surveys-833458328-27442`, exit **0**, with all preceding snapshot/worker
+checks and both existing browser scenarios (10.1s). The new raw API checks passed
+against real FastAPI/PostgreSQL. Containers, volumes and networks were removed
+and no host ports were published.
+
+All six raw entrypoints require `read_responses`, independently of
+`view_aggregates`. A raw-only member can create a selection without being granted
+aggregate access. A member with aggregate access alone cannot call any of them:
+
+- GET `/surveys/{surveyId}/response-selections/versions`: scoped published versions.
+- POST `/surveys/{surveyId}/response-selections`: explicit filter plus stable
+  operation ID; returns selection metadata and question IDs/titles/types.
+- GET `/surveys/{surveyId}/response-selections/{snapshotId}`: frozen metadata.
+- GET `…/{snapshotId}/responses?offset=…`: summaries, 50 rows per page, no answers.
+- GET `…/{snapshotId}/responses/{participationId}`: one selected raw response.
+- GET `…/{snapshotId}/free-text/{questionId}?offset=…`: selected string values
+  for an actual text/comment question, 50 rows per page.
+
+Paths above are relative to `/api/v1`. Successful responses are `no-store`.
+The repository rechecks current resource permissions before accessing a snapshot.
+Test selections additionally require `design`; deleted surveys remain closed.
+The shared immutable snapshot records the selection once, using the existing
+version/date/status/test filtering and engine limits. The raw metadata response
+does not include aggregate metrics. Its private projection is queried only in
+these separately authorized routes. Summary queries remove answers in SQL, and
+raw responses contain no session/resume credentials or invitation-recipient metadata.
+
+`tools/surveys/raw_responses_live.py` uses two actual surveys and fresh principals
+with only `read_responses` or only `view_aggregates`. Named assertions cover:
+
+- A 51-row default selection paginates as 50, 1 and 0 without duplicated IDs;
+  52 rows appear when in-progress data is explicitly included. Test data stays
+  excluded; the separately created test snapshot is denied to the raw-only user.
+- An individual response contains its actual synthetic text and rating; the
+  freetext list contains exactly the two expected strings. Non-text/unknown
+  question IDs, invalid offsets, foreign versions/snapshots and absent
+  participation IDs are rejected.
+- Aggregate-only requests fail on creation, version listing, selection metadata,
+  summary listing, individual access and free text. Unauthenticated requests
+  fail independently. Raw-only access does not grant aggregate endpoints.
+- Exact creation replay is stable, changed-filter replay conflicts, and removing
+  the raw grant blocks all reads and replay of the earlier successful operation.
+- A real public answer update leaves the original individual and free-text
+  results unchanged; a newly captured all-status selection contains the update.
+- Aggregate output contains none of the synthetic raw text; raw results contain
+  none of the test-only text, session/resume secrets or recipient identity keys.
+
+[Sanitized raw API proof](assets/SURV-070-raw-api.json). Temporary browser persona
+credentials stay exclusively in the harness directory, which teardown deletes.
+Mypy passed on four changed application files. Ruff initially identified an
+unused test import; removing it changed no executed behavior and the final Ruff
+check passes. OpenAPI/client generation and whitespace checks pass.
+
+This accepts the raw **API building block**, not 070.A4 or the full 070.3 task.
+The actual raw/free-text browser views, safe literal rendering and aggregate-only
+UI/direct-navigation denial journey still need implementation and live proof.

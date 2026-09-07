@@ -20,6 +20,12 @@ from leonaid.application.surveys.analysis_snapshot import (
     AnalysisVersions,
     CreateAnalysisSnapshot,
 )
+from leonaid.application.surveys.response_selection import (
+    ResponseSelection,
+    ResponseItems,
+    IndividualResponse,
+    FreeTextItems,
+)
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.domain.surveys.validation import json_size
@@ -284,6 +290,108 @@ async def analysis_get(
     response.headers["Cache-Control"] = "no-store"
     return await author(
         request, survey_id, "analysis-get", {"snapshotId": str(snapshot_id)}
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/response-selections/versions",
+    operation_id="listSurveyResponseVersions",
+    response_model=AnalysisVersions,
+)
+async def response_versions(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "response-versions", {})
+
+
+@router.post(
+    "/surveys/{survey_id}/response-selections",
+    operation_id="createSurveyResponseSelection",
+    response_model=ResponseSelection,
+)
+async def response_selection_create(
+    survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "response-create", body.model_dump())
+
+
+@router.get(
+    "/surveys/{survey_id}/response-selections/{snapshot_id}",
+    operation_id="getSurveyResponseSelection",
+    response_model=ResponseSelection,
+)
+async def response_selection_get(
+    survey_id: UUID, snapshot_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request, survey_id, "response-selection", {"snapshotId": str(snapshot_id)}
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/response-selections/{snapshot_id}/responses",
+    operation_id="listSurveyResponses",
+    response_model=ResponseItems,
+)
+async def response_list(
+    survey_id: UUID,
+    snapshot_id: UUID,
+    request: Request,
+    response: Response,
+    offset: int = Query(default=0, ge=0, le=5000),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request,
+        survey_id,
+        "response-list",
+        {"snapshotId": str(snapshot_id), "offset": offset},
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/response-selections/{snapshot_id}/responses/{participation_id}",
+    operation_id="getSurveyResponse",
+    response_model=IndividualResponse,
+)
+async def response_individual(
+    survey_id: UUID,
+    snapshot_id: UUID,
+    participation_id: UUID,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request,
+        survey_id,
+        "response-individual",
+        {"snapshotId": str(snapshot_id), "participationId": str(participation_id)},
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/response-selections/{snapshot_id}/free-text/{question_id}",
+    operation_id="listSurveyFreeText",
+    response_model=FreeTextItems,
+)
+async def response_free_text(
+    survey_id: UUID,
+    snapshot_id: UUID,
+    question_id: str,
+    request: Request,
+    response: Response,
+    offset: int = Query(default=0, ge=0, le=5000),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request,
+        survey_id,
+        "response-free-text",
+        {"snapshotId": str(snapshot_id), "questionId": question_id, "offset": offset},
     )
 
 

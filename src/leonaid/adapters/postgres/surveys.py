@@ -16,6 +16,10 @@ from leonaid.adapters.surveyjs_validation import validate_answers
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.postgres.survey_analysis import create_snapshot, read_snapshot
 from leonaid.application.surveys.analysis_snapshot import AnalysisFilter
+from leonaid.adapters.postgres.survey_responses import (
+    read_responses,
+    selection_metadata,
+)
 
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.domain.identity import IdentityPrincipal
@@ -354,6 +358,8 @@ class AsyncpgSurveyRepository:
             capability = Capability.DESIGN
             if operation.startswith("analysis-"):
                 capability = Capability.VIEW_AGGREGATES
+            if operation.startswith("response-"):
+                capability = Capability.READ_RESPONSES
             if operation.startswith("invitation"):
                 capability = Capability.MANAGE_INVITATIONS
             if operation == "summary":
@@ -383,11 +389,11 @@ class AsyncpgSurveyRepository:
                 raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
             if operation.startswith("invitation"):
                 return await self._invitation(conn, actor, survey, operation, body)
-            if operation.startswith("analysis-"):
+            if operation.startswith(("analysis-", "response-")):
                 if survey["status"] == "deleted":
                     raise Conflict("closed", "Die Umfrage wurde gelöscht.")
                 can_test = "design" in self._capabilities(actor, survey, grants)
-                if operation == "analysis-versions":
+                if operation in {"analysis-versions", "response-versions"}:
                     versions = await conn.fetch(
                         "SELECT id,number,published_at FROM survey_version WHERE survey_id=$1 ORDER BY number DESC",
                         survey_id,
@@ -406,14 +412,25 @@ class AsyncpgSurveyRepository:
                     return await read_snapshot(
                         conn, survey_id, UUID(body["snapshotId"]), can_test=can_test
                     )
+                if operation.startswith("response-") and operation != "response-create":
+                    return await read_responses(
+                        conn,
+                        survey_id,
+                        UUID(body["snapshotId"]),
+                        operation,
+                        body,
+                        can_test=can_test,
+                    )
                 filters = AnalysisFilter.model_validate(body["filter"])
                 if filters.isTest and not can_test:
                     raise ResourceNotFound("not_found", "Auswertung nicht gefunden.")
-                scope = f"author:{actor.account.id}:analysis-create"
+                scope = f"author:{actor.account.id}:{operation}"
                 replay = await self._replay(conn, survey_id, scope, body)
                 if replay is not None:
                     return replay
                 result = await create_snapshot(conn, survey, filters)
+                if operation == "response-create":
+                    result = selection_metadata(result)
                 return await self._record(conn, survey_id, scope, body, result)
             if operation == "access":
                 scope = f"author:{actor.account.id}:access"

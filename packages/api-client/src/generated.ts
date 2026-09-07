@@ -91,6 +91,8 @@ export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly 
 export type FeatureFlagEvaluationListResponse = { readonly flags: Array<FeatureFlagEvaluationResponse>; readonly surface: "web" | "pwa"; };
 export type FeatureFlagEvaluationResponse = { readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice"; readonly provider: string; readonly reason: string; readonly variant: string; };
 export type FeatureFlagSystemStatusResponse = { readonly checkedAt: string; readonly evaluatedBy: "openfeature"; readonly provider: string; readonly status: "operational"; };
+export type FreeTextItem = { readonly participationId: string; readonly status: "in_progress" | "partial" | "completed"; readonly text: string; };
+export type FreeTextItems = { readonly items: Array<FreeTextItem>; readonly offset: number; readonly questionId: string; readonly snapshotId: string; readonly total: number; };
 export type FreshLoginStatusResponse = { readonly freshUntil: string; readonly status: "fresh"; };
 export type GeneratedDocumentListResponse = { readonly actionId: string; readonly items: Array<GeneratedDocumentRecordResponse>; readonly reference: GeneratedDocumentReferenceResponse; };
 export type GeneratedDocumentRecordResponse = { readonly buyerDisplayName: string; readonly document: GeneratedDocumentResponse; readonly invoiceNumber: string | null; };
@@ -98,6 +100,7 @@ export type GeneratedDocumentReferenceResponse = { readonly id: string; readonly
 export type GeneratedDocumentResponse = { readonly actionId: string; readonly availableAt: string | null; readonly commitmentId: string | null; readonly createdAt: string; readonly documentType: "invoice_pdf"; readonly filename: string | null; readonly id: string; readonly invoiceId: string | null; readonly mediaType: string; readonly renderVersion: string | null; readonly sentAt: string | null; readonly sizeBytes: number | null; readonly status: "pending" | "available" | "deleted"; readonly twentyCompanyId: string | null; readonly twentyPersonId: string | null; readonly version: number; };
 export type HandOverAcquisitionAssignmentRequest = { readonly revision: number; readonly targetAcquirerUserId: string; };
 export type IdentityMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
+export type IndividualResponse = { readonly answers: Record<string, unknown>; readonly completedAt: string | null; readonly createdAt: string; readonly currentPage: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; };
 export type InvitationAcceptanceResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly status: "accepted"; };
 export type InvitationDispatchResponse = { readonly invitationId: string; readonly status: "queued"; };
 export type InvitationListResponse = { readonly items: Array<InvitationSummaryResponse>; };
@@ -183,6 +186,10 @@ export type RedeemInvitation = { readonly token: string; };
 export type RequestLoginRequest = { readonly email: string; };
 export type ResolveSponsorMatchRequest = { readonly commandId: string; readonly confirmExistingAssignments?: boolean; readonly expectedStatus: "no_match" | "single_match" | "ambiguous_match"; readonly selectedTwentyId?: string | null; readonly sponsor: SponsorDraftRequest; };
 export type ResolvedAnalysisFilter = { readonly createdBefore: string | null; readonly createdFrom: string | null; readonly isTest: boolean; readonly statuses: Array<"in_progress" | "partial" | "completed">; readonly versionId: string; };
+export type ResponseItem = { readonly completedAt: string | null; readonly createdAt: string; readonly currentPage: string | null; readonly participationId: string; readonly revision: number; readonly status: "in_progress" | "partial" | "completed"; };
+export type ResponseItems = { readonly items: Array<ResponseItem>; readonly offset: number; readonly snapshotId: string; readonly total: number; };
+export type ResponseQuestion = { readonly id: string; readonly kind: string; readonly title: string; };
+export type ResponseSelection = { readonly createdAt: string; readonly filter: ResolvedAnalysisFilter; readonly id: string; readonly questions: Array<ResponseQuestion>; readonly surveyId: string; readonly total: number; readonly versionNumber: number; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly issuer: LegalIssuerRequest; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
@@ -1934,6 +1941,97 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async createSurveyResponseSelection(
+    surveyId: string,
+    body: CreateAnalysisSnapshot,
+    options: RequestOptions = {},
+  ): Promise<ResponseSelection> {
+    return this.request<ResponseSelection>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listSurveyResponseVersions(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<AnalysisVersions> {
+    return this.request<AnalysisVersions>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/versions`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async getSurveyResponseSelection(
+    surveyId: string,
+    snapshotId: string,
+    options: RequestOptions = {},
+  ): Promise<ResponseSelection> {
+    return this.request<ResponseSelection>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/${encodeURIComponent(String(snapshotId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listSurveyFreeText(
+    surveyId: string,
+    snapshotId: string,
+    questionId: string,
+    queryParameters: { readonly offset?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<FreeTextItems> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/${encodeURIComponent(String(snapshotId))}/free-text/${encodeURIComponent(String(questionId))}` + (queryString ? `?${queryString}` : "");
+    return this.request<FreeTextItems>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listSurveyResponses(
+    surveyId: string,
+    snapshotId: string,
+    queryParameters: { readonly offset?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<ResponseItems> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/${encodeURIComponent(String(snapshotId))}/responses` + (queryString ? `?${queryString}` : "");
+    return this.request<ResponseItems>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async getSurveyResponse(
+    surveyId: string,
+    snapshotId: string,
+    participationId: string,
+    options: RequestOptions = {},
+  ): Promise<IndividualResponse> {
+    return this.request<IndividualResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/response-selections/${encodeURIComponent(String(snapshotId))}/responses/${encodeURIComponent(String(participationId))}`,
+      { method: "GET" },
       options,
     );
   }
