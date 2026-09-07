@@ -1,0 +1,15 @@
+{
+  "syntheticOnly": true,
+  "postBackupDeletion": true,
+  "oldActiveSurveyAndExactObjectRestored": true,
+  "signedCheckpointReappliedTwice": true,
+  "tamperedCheckpointRejected": true,
+  "knownDeletionOmissionRejected": true,
+  "answersAndExactFileErasedAgain": true,
+  "limitations": [
+    "This probe restores real PostgreSQL and RustFS backups; full Restic/operator wrapper integration is still open",
+    "Latest checkpoint must be independently retained; source-loss continuity is not proven"
+  ],
+  "cliCheckpointExportMode600": true,
+  "restoredSessionAndPublicAccessDeniedAfterRestart": true
+}

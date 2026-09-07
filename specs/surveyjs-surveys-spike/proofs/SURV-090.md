@@ -2,7 +2,8 @@
 
 Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 are accepted. The retention section adds proven behavior for
 090.1 and the inactivity-preservation part of 090.A3. The complete work package
-and task 090.1 remain open.
+and task 090.1 remain open. The recovery section proves checkpoint reapplication
+after an actual DB/object restore; full operator integration remains open.
 
 ## Durable erasure and process-crash recovery
 
@@ -103,7 +104,7 @@ These checks do not replace the live erasure assertions.
 | --- | --- | --- |
 | 090.A2 / 090.S2 | Passed | Actual version deletion, process termination, lease reclaim and complete relational/object cleanup above. |
 | 090.1 | Open | Durable erasure and configurable retention (including settings UI) delivered; manual deletion/status UI and full A1/A5 acceptance remain. |
-| 090.2 / 090.A3 | Open | Content-free ledger exists; separate preservation and reapplication across a real backup restore are not implemented/proven. |
+| 090.2 / 090.A3 | Open | Authenticated checkpoints and real DB/object restore reapplication are proven below; independent source-loss continuity and existing Restic/operator integration remain open. |
 | 090.3 / 090.A4 | Open | Full limits and log-marker acceptance remains. |
 | 090.A1 | Open | A late export is covered; full concurrent autosave/completion/export/deletion interleavings remain. |
 | 090.T1 | Open | A2 subset passed; remaining integration criteria are not waived. |
@@ -210,3 +211,78 @@ The migration's backfill of already closed rows has not yet received a dedicated
 upgrade-fixture proof; the runs above prove migration from empty volumes and
 post-migration lifecycle clocks. Real operational retention periods remain a
 separate deployment decision.
+
+
+## Offline erasure reapplication after an actual backup restore
+
+Implementation revision: `875221c`. The live run used its checkpoint/reapply
+behavior; the final shared 32 MiB export/import boundary guard was added after
+that run and independently covered by the unit boundary test. No backup, restore,
+erasure, authentication or access behavior changed after the live run.
+
+Command:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" recovery
+```
+
+Successful final project: `leonaid-surveys-833458328-96383`, exit **0**. An earlier
+run, `leonaid-surveys-833458328-95232`, also passed the initial restore/reapply
+probe; the final run additionally exercises the actual checkpoint-export CLI,
+mode 600 and old-session/public-route access after restart. Both projects used
+fresh isolated resources and no published host ports. Containers, networks and
+volumes were removed; the harness verified no remaining project containers or
+volumes. The foundation Chromium journey passed after application restart.
+
+The test restores a real custom-format PostgreSQL dump with `pg_restore
+--exit-on-error` and a real archive of the stopped RustFS volume. It replaces only
+the fresh test project's data. It does **not** invoke the existing Restic wrapper
+or simulate loss of the machine that holds the latest checkpoint.
+
+### Proven assertions
+
+- [x] **Backup predates deletion:** `recovery_live.py seed` creates a published
+  survey, a populated response, a frozen analysis selection and an actual CSV
+  export through the production outbox/storage adapters. With survey writers and
+  RustFS stopped, the harness captures the database and complete object volume.
+- [x] **Newer deletion record:** after the backup, the real API trashes and
+  permanently deletes the survey. The worker removes its row and exact file
+  version. The checkpoint export includes this newer deletion and no seeded
+  answer text. The CLI writes the authenticated file atomically with mode 600.
+- [x] **Actual resurrection while offline:** after restoring both artifacts,
+  `restored` verifies the survey is active, its deletion record is absent and the
+  original exact object version exists with the original SHA-256 and answer text.
+  API, public surface, proxy and worker remain stopped at this stage.
+- [x] **Tamper rejection before mutation:** a checkpoint with its record removed
+  but its old authentication value exits 1 with a generic diagnostic. A second
+  inspection confirms the restored survey/object state is still unchanged.
+- [x] **Reapplication and repeat:** the authenticated checkpoint passes the
+  installation/cutoff checks, commits erasure intent and removes the restored
+  survey, response, snapshot/export relations and exact file through the existing
+  eraser. The CLI runs twice successfully. A checkpoint that omits a deletion
+  already known by the database is rejected by the adapter.
+- [x] **Access after restart:** the application starts only after successful
+  reapplication. The old authenticated session gets 404 for survey and export
+  download; the public definition route also returns 404. The deleted data is
+  not recovered through the old session.
+
+Sanitized results: [SURV-090-recovery.json](assets/SURV-090-recovery.json).
+Actual database dumps, RustFS archives, checkpoint identities/authentication
+values and test-session credentials are not included in the committed artifact.
+
+`tests/unit/test_survey_recovery.py`: **12 passed** (0.07 seconds, exit 0), covering
+roundtrip field allowlisting, record removal/alteration, unexpected answer fields,
+wrong signature/key/installation, stale/naive/future cutoffs, duplicate identities
+and the exact shared document-size boundary. MyPy passed for the application
+contract and both adapters. Scoped Ruff checks and `git diff --check` passed on the final source.
+
+### Acceptance boundary
+
+This is evidence for 090.2 and 090.A3, not full acceptance of either. The current
+implementation is an offline primitive whose caller must keep application writers
+stopped. [RECOVERY.md](../RECOVERY.md) specifies the implemented contract and
+remaining requirements. The existing `tools/backup/restore.sh` does not yet invoke
+it automatically. Independently retaining the newest checkpoint across source
+loss, proving the operator-selected freshness cutoff and covering the existing
+Restic/fresh-target/rotation workflow remain open. Do not use this result to claim
+complete production disaster recovery or close SURV-090.
