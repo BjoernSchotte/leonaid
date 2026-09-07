@@ -746,7 +746,7 @@ Dependencies: SURV-070.
 
 Implementation tasks:
 
-- [ ] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text. Acceptance: **080.A1, 080.A2, 080.A4, 080.A6**.
+- [x] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text. Acceptance: **080.A1, 080.A2, 080.A4, 080.A6**. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
 - [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination. Acceptance: **080.A1, 080.A4, 080.A5**.
 - [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation. Acceptance: **080.A3, 080.A4, 080.A6**.
 
@@ -757,8 +757,8 @@ Test implementation and verification tasks:
 
 Acceptance criteria:
 
-- [ ] **080.A1 — Integration:** real worker jobs generate all four export products; parse CSV/XLSX and extract PDF text to verify golden snapshot values, filter metadata and absence of access tokens.
-- [ ] **080.A2 — Integration:** malicious formula-like text remains inert in CSV/XLSX; Unicode, empty cells and matrices survive parsing, and report generation failures are retryable without false success.
+- [x] **080.A1 — Integration:** real worker jobs generate all four export products; parse CSV/XLSX and extract PDF text to verify golden snapshot values, filter metadata and absence of access tokens. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
+- [x] **080.A2 — Integration:** malicious formula-like text remains inert in CSV/XLSX; Unicode, empty cells and matrices survive parsing, and report generation failures are retryable without false success. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
 - [ ] **080.A3 — Integration:** permission revocation and survey deletion block queued jobs and downloads, including previously created artifacts; object access is not public.
 - [x] **080.A4 — E2E:** request each export from the analysis UI, observe job completion and download through the authenticated route; exported numbers match the displayed snapshot. [Accepted evidence](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
 - [ ] **080.A5 — Render review:** inspect rendered PDF pages and XLSX charts for clipping, legends, fonts and pagination; retain synthetic visual evidence and record any manual checks separately from automated tests.

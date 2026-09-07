@@ -93,6 +93,33 @@ if [ "$mode" = invitations ]; then
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = export-recovery ]; then
+  recovery() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/export_recovery_live.py "$@"
+  }
+  compose stop worker
+  recovery seed crash
+  crash_status=0
+  recovery crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected export probe exit 73' >&2; exit 1; }
+  recovery inspect-crash
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover
+  compose stop worker
+  recovery seed renderer
+  recovery renderer-fail
+  recovery inspect-failure
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover
+  compose stop worker
+  recovery seed storage
+  compose stop rustfs
+  compose up --detach --no-deps --wait --wait-timeout 60 worker
+  recovery inspect-failure
+  compose up --detach --wait --wait-timeout 60 rustfs
+  recovery recover
+fi
 if [ "$mode" = exports ]; then
   browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
   compose stop worker
@@ -146,6 +173,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = export-recovery ]; then
+  cp "$proof/export-recovery-proof.json" "$artifact/"
+fi
 if [ "$mode" = exports ]; then
   docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
     --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \

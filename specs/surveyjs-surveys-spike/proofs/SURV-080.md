@@ -1,9 +1,10 @@
 # SURV-080 — Export implementation evidence
 
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
-**No complete SURV-080 implementation task is accepted yet.**
-Browser acceptance 080.A4 and 080.A6 is now proven below. Full recovery,
-permission-race and workbook render gates remain open; SURV-080 is not complete.
+**080.1 is accepted; 080.2 and 080.3 remain open.**
+Criteria 080.A1, A2, A4 and A6 are proven below. Permission-race and workbook
+render gates remain open; SURV-080 is not complete. Earlier sections record the
+evidence and limitations of their respective increments.
 
 ## Task ledger
 
@@ -383,3 +384,71 @@ summaries are retained: [values](assets/SURV-080-browser-values.json),
 Remaining work includes renderer/storage retry and crash recovery, complete
 job-time revocation/deletion races, rendered XLSX inspection, packed independent
 export consumer, export-only navigation, and the other open plan work packages.
+
+## Worker recovery and tabular task acceptance
+
+**080.A1 / 080.S1 and 080.A2 / 080.S2 are accepted.** Together with the existing
+080.A4 / 080.S4 and 080.A6 / 080.S6 evidence above, this accepts **080.1**.
+Runtime baseline `5f8eab4` is unchanged in this increment; the new integration
+probe and harness mode are recorded in the commit containing this section.
+
+| Task | Required criteria | Tests and result |
+|---|---|---|
+| 080.1 | A1, A2, A4, A6 | Accepted: `exports_live.py`, `export_browser_live.py`, `surveys-exports.spec.mjs`, both `surveys-export-values.spec.mjs` journeys, and `export_recovery_live.py` below. |
+| 080.T1 | A1, A2, A3 | A1/A2 accepted; A3 remains open for the full revocation/deletion race matrix. |
+| 080.T2 | A4, A5, A6 | A4/A6 accepted; A5 remains open for actual workbook render review. |
+
+The already successful `exports` mode (project `48277`, documented above)
+generated all four products with the real worker and private versioned RustFS,
+parsed their golden counts/metrics and snapshot/filter metadata, and checked
+absence of the synthetic access credentials. Actual browser downloads were
+also independently parsed. The new `export-recovery` mode closes the remaining
+renderer retry and adversarial tabular integration requirements:
+
+1. **Process exit after upload:** a test-only subclass delegates to the actual
+   S3 `put_immutable` method, which uploads and HEAD-verifies a version, then
+   calls `os._exit(73)`. This runs inside the production `OutboxWorker`, queue
+   and `AsyncpgSurveyExports` handler. The shell requires exactly exit 73.
+   PostgreSQL shows the export transaction rolled back (queued job, no stored
+   reference) and an unfinished first outbox claim; the real object is readable
+   privately but the download API returns 409. Only the fixture claim timestamp
+   is advanced to exercise the existing stale-lease recovery code. The regular
+   worker reclaims the same event/job and reuses the exact original object
+   version and hash; no second object version or job is created.
+2. **Unavailable renderer:** a separate test worker process runs with a PATH
+   that cannot resolve Typst. The actual subprocess invocation fails through
+   the production handler/outbox path. No file becomes available, downloads
+   return 409, and persisted error code/detail are both `survey_export_failed`.
+   Starting the regular worker recovers the same job; the resulting PDF is
+   parsed successfully and contains no raw formula-text answer.
+3. **Unavailable storage:** RustFS is actually stopped while the regular worker
+   attempts a CSV export. Failure/retry state and download denial are observed.
+   Restarting RustFS allows the same job to succeed with a single object version
+   and verified download hash.
+
+The recovered XLSX/CSV contain two synthetic responses, including a formula-like
+HYPERLINK string with Unicode, an empty string and a fully missing response.
+Independent openpyxl/CSV parsing verifies that XLSX cells have neither formula
+types nor hyperlinks, CSV applies the documented leading-apostrophe escaping,
+Unicode text and multiselect/matrix values survive, and empty strings remain
+distinguishable from missing values through their type columns. Both products
+are obtained through actual authenticated API downloads after real worker jobs.
+
+Command: `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid export-recovery`.
+Final project `leonaid-surveys-833458328-51058` exited 0: crash and renderer jobs
+completed on attempt 2, storage on attempt 3; each has exactly one object version.
+Foundation browser regression passed in 1.9s. All owned containers, networks and
+volumes were removed and teardown verified; no host ports were published.
+The preceding `50025` run passed the three recovery cases before adding the
+adversarial XLSX/CSV file assertions. Shell syntax and formatting checks passed.
+
+Sanitized evidence: [recovery results](assets/SURV-080-recovery.json). Credentials
+and object locations exist only in the temporary fixture directory and are
+removed by teardown. No production fault-injection switches were added.
+
+Remaining: full job-time permission/deletion races, especially cancellation
+after an uploaded-but-uncommitted object; retention must account for such
+objects even if no committed job reference exists. Also still open: XLSX visual
+review, independent packed export consumer, broader export navigation, terminal
+failure/retry browser states, and the rest of the overall plan. This acceptance
+does not imply SURV-080 or the complete spike is finished.

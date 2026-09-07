@@ -1,0 +1,29 @@
+{
+  "crash": {
+    "sameJobRecovered": true,
+    "attempts": 2,
+    "immutableObjectVersions": 1,
+    "downloadHashVerified": true,
+    "idempotentRequestReplay": true,
+    "actualFileParsed": true,
+    "formulaUnicodeEmptyMatrixChecked": true
+  },
+  "renderer": {
+    "sameJobRecovered": true,
+    "attempts": 2,
+    "immutableObjectVersions": 1,
+    "downloadHashVerified": true,
+    "idempotentRequestReplay": true,
+    "actualFileParsed": true,
+    "formulaUnicodeEmptyMatrixChecked": false
+  },
+  "storage": {
+    "sameJobRecovered": true,
+    "attempts": 3,
+    "immutableObjectVersions": 1,
+    "downloadHashVerified": true,
+    "idempotentRequestReplay": true,
+    "actualFileParsed": true,
+    "formulaUnicodeEmptyMatrixChecked": true
+  }
+}
