@@ -2926,6 +2926,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
         The new HTTP API, list contract, fresh-session handling, UI and complete
         request-level authorization/concurrency gates remain open; this test
         exercises the actual database mutation boundary directly.
+        Full `./leonaid check` at source commit `58c6ab2` exited 0 after adding
+        missing type annotations to the proof helpers: 256 unit tests, 257
+        Python source checks, 24 public and 47 CMS Astro files without
+        diagnostics, generated-type/format/privacy/policy gates and an unchanged
+        committed tree. Existing dependency deprecation warnings remain.
 - [ ] Render redirects through the Core resolver and `apps/public` catch-all
       according to section 2.5. No alias-to-alias or arbitrary URL targets exist,
       so cycles and external redirects are impossible by construction.
