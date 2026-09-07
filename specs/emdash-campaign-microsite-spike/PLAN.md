@@ -2800,6 +2800,11 @@ Dependencies: EMS-050, EMS-070
         application, and no CMS HTTP process. Off-host recovery, authenticated
         browser/media rendering, active-writer coordination and release/image
         compatibility remain required; no overall recovery gate is closed.
+        Full `./leonaid check` passed on source commit `6de4de1`: 256 unit
+        tests, mypy across 261 Python files, both Astro applications (25/47
+        files, zero diagnostics), all frontend typechecks, format and repository
+        policy gates; the working tree remained unchanged. This quality check
+        does not substitute for the remaining live recovery gates above.
 - [ ] Preserve the EmDash encryption key outside its database and include only
       a presence/fingerprint check in committed evidence.
 - [ ] Add a separate `emdash.dump` using PostgreSQL `pg_dump` to backup manifests,
