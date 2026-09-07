@@ -2011,6 +2011,10 @@ fields are absent; generated TypeScript types compile.
       prerequisite only: CMS embedding, accepted orders with Twenty, no-JavaScript
       input retention and final alias cutover remain open. Browser certificate
       validation is not covered by this fixture; TLS has separate gates.
+      Quality gate: `./leonaid check` passed at `c8d87d2` with 208 unit tests,
+      244 Python source files, public/CMS Astro diagnostics clean, frontend
+      type checks, generated API/schema types, formatting and privacy/policy
+      checks. The committed worktree remained unchanged.
 
 - [x] Add a five-second server-side statement timeout to the hash-guarded
       runtime PostgreSQL adapter. Existing explicit transaction-local limits
