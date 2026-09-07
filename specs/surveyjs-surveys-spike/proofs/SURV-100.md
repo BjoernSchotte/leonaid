@@ -108,8 +108,10 @@ actual manifest parser and complete downstream operator flow to pass. The exact
 filesystem/cache mechanism was not independently diagnosed.
 
 This is an operator integration test, not browser E2E. Its survey checkpoint has
-**zero erasure records**, and the source remains available. Nonempty survey
-deletion recovery, source-host loss, stale/latest checkpoint provenance,
-key/identity/interruption cases through the wrapper and preceding backup
-compatibility remain open under 090.2/090.A3. The affected identity, policy and
-public/browser regressions and the full spike acceptance also remain open.
+**zero erasure records**, and the source remains available. The subsequent
+[090.2g proof](SURV-090.md#pilot-restore-with-post-backup-survey-erasure) covers
+nonempty deletion recovery and five rejected inputs through the wrapper after
+source-project removal. Latest-checkpoint provenance across unexpected host
+loss, interrupted reapplication and preceding backup compatibility remain open
+under 090.2/090.A3. The affected identity, policy and public/browser regressions
+and the full spike acceptance also remain open.

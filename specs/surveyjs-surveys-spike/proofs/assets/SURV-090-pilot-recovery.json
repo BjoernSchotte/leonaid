@@ -1,0 +1,29 @@
+{
+  "syntheticOnly": true,
+  "postBackupDeletionReappliedByRestoreOperator": true,
+  "restoredRelationalContentAndExactExportVersionAbsent": true,
+  "limitations": [
+    "Checkpoint and cutoff were explicitly retained before source removal; automatic newest-checkpoint provenance across unexpected host loss remains open",
+    "Encrypted S3-compatible Restic storage is outside the source project but on the same Docker host",
+    "Interrupted reapplication and preceding-backup compatibility through the pilot wrapper remain open"
+  ],
+  "cliCheckpointExportMode600": true,
+  "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+  "run": "833458328-86865",
+  "actualPilotRestoreWrapper": true,
+  "sourceContainersAndVolumesRemovedBeforeAllRestores": true,
+  "doctorRanWithNetworkNoneAfterSourceRemoval": true,
+  "rejectedInputs": [
+    "missing",
+    "tampered",
+    "wrong-key",
+    "wrong-installation",
+    "stale"
+  ],
+  "eachRejectionVerifiedOriginalSqlAnswerAndExactExportObjectOffline": true,
+  "eachRejectionUsedFreshTargetVolumes": true,
+  "validCheckpointAllowsNoBuildApplicationStartup": true,
+  "fullHarnessExitCode": 0,
+  "allOwnedProjectContainersVolumesNetworksRemoved": true,
+  "allFiveOwnedBuildTagsRemoved": true
+}

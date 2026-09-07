@@ -224,11 +224,17 @@ applicable configuration/manifest check. Older image inventories need an explici
 compatible release checkout; do not remove the validator from a current manifest
 to force a restore through validation.
 
-- The complete pilot deploy/release/backup/restore regression now passes with
-  the validator and an authenticated **empty** survey checkpoint, using separate
-  source/target projects. [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
-  Exercise that wrapper with actual post-backup survey deletions; the generic
-  no-build restore path already proves that scenario separately above.
+- The complete pilot deploy/release/backup/restore regression passes with the
+  validator and an authenticated empty checkpoint
+  ([baseline evidence](proofs/SURV-100.md#isolated-pilot-operator-regression)).
+  The subsequent [nonempty pilot proof](proofs/SURV-090.md#pilot-restore-with-post-backup-survey-erasure)
+  backs up an actual answer and export, deletes them, removes source containers
+  and volumes, and restores through `pilot-restore`. Five fresh targets reject
+  missing, modified, wrong-key, wrong-installation and stale checkpoints while
+  the exact restored answer/object remain offline. The valid checkpoint erases
+  those records and the exact object version before no-build startup. Its
+  checkpoint and cutoff are explicitly retained; this does not establish
+  automatic newest-checkpoint provenance across unexpected host loss.
 - Prove unexpected source-host loss. Retention-originated interrupted publication
   and recovery by a zero-candidate sweep now have
   [live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).
@@ -240,8 +246,9 @@ to force a restore through validation.
 - Define and prove how the operator obtains the required cutoff and detects a
   missing latest checkpoint. Authentication proves provenance and integrity,
   not that the supplied file is the newest file ever exported.
-- Prove interrupted reapplication, key/identity errors through that wrapper and
-  migration compatibility with supported preceding backup revisions.
+- Prove interrupted reapplication through that wrapper and migration
+  compatibility with supported preceding backup revisions. Key/identity and
+  stale/tampered/missing-input rejections are covered by the nonempty pilot proof.
 
 Until these items pass, 090.2 and 090.A3 remain open. The automatic gate and its
 tests must not be presented as completed production disaster recovery.

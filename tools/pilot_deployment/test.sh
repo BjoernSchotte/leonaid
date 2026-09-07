@@ -4,6 +4,8 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
+mode=${2:-baseline}
+case "$mode" in baseline|surveys) ;; *) echo "Expected baseline or surveys mode" >&2; exit 64 ;; esac
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project="${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}-$suffix"
 runtime_project="$project"
@@ -111,6 +113,14 @@ restore_compose() {
     --file "$root/infra/pilot/compose.yml" \
     --file "$target_overlay" \
     "$@"
+}
+
+survey_probe() {
+  compose_runner=$1
+  shift
+  "$compose_runner" run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/recovery_live.py "$@"
 }
 
 cleanup() {
@@ -564,6 +574,14 @@ docker run --rm \
   --volume "${project}_twenty-server-data:/data" \
   "$ALPINE_IMAGE" \
   sh -eu -c 'printf "%s\n" "twenty-storage-operator-backup" > /data/pilot-operator-probe'
+if [ "$mode" = surveys ]; then
+  runtime_compose stop worker
+  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/infrastructure.py
+  survey_probe runtime_compose seed
+  runtime_compose up --detach --wait --wait-timeout 420 worker
+fi
 set +e
 wrong_backup_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
@@ -685,7 +703,19 @@ assert set(value["files"])=={
 }'
 
 . "$root/tools/backup/survey-recovery-fixture.sh"
-prepare_survey_recovery_fixture runtime_compose "$workspace"
+if [ "$mode" = surveys ]; then
+  runtime_compose stop worker
+  survey_probe runtime_compose delete
+  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/recovery.py export --output /proof/recovery-checkpoint.json
+  survey_probe runtime_compose pilot-inputs
+  LEONAID_SURVEY_ERASURE_CHECKPOINT="$workspace/recovery-checkpoint.json"
+  LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$(cat "$workspace/recovery-cutoff.txt")
+  export LEONAID_SURVEY_ERASURE_CHECKPOINT LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH
+else
+  prepare_survey_recovery_fixture runtime_compose "$workspace"
+fi
 make_overlay "$target_overlay"
 restore_owned=true
 cp "$env_file" "$target_env_file"
@@ -723,10 +753,12 @@ if ! printf '%s' "$wrong_restore_output" |
   echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
   exit 1
 fi
+restore_doctor_network="container:$proxy_id"
+run_pilot_restore() {
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="$restore_doctor_network" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
   LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
@@ -741,6 +773,70 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     --password-file "$restic_password_file" \
     --credentials-file "$backup_credentials_file" \
     --confirm "RESTORE:$restore_project"
+}
+if [ "$mode" = surveys ]; then
+  # Both DBs, objects, writers and source archive are gone. Only independently
+  # retained encrypted backups, explicit checkpoint and operator inputs remain.
+  runtime_compose down --volumes --remove-orphans
+  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
+  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
+  runtime_owned=false
+  restore_doctor_network=none
+  valid_checkpoint=$LEONAID_SURVEY_ERASURE_CHECKPOINT
+  valid_cutoff=$LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH
+  for invalid in missing tampered wrong-key wrong-installation stale; do
+    case "$invalid" in
+      missing) LEONAID_SURVEY_ERASURE_CHECKPOINT= ;;
+      stale)
+        LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+        LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$(cat "$workspace/pilot-stale-cutoff.txt")
+        ;;
+      *) LEONAID_SURVEY_ERASURE_CHECKPOINT="$workspace/pilot-$invalid.json" ;;
+    esac
+    failed=0
+    run_pilot_restore >"$workspace/$invalid-restore.log" 2>&1 || failed=$?
+    [ "$failed" -eq 1 ] || { echo "Expected rejected $invalid restore, got $failed" >&2; exit 1; }
+    for service in api public proxy worker; do
+      [ -z "$(restore_compose ps --status running --quiet "$service")" ]
+    done
+    # This proves rejection at the actual restored-data boundary, rather than
+    # accidentally accepting an earlier configuration/backup failure as coverage.
+    survey_probe restore_compose restored
+    restore_compose down --volumes --remove-orphans
+    [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$restore_project")" ]
+    LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$valid_cutoff
+    echo "pilot-survey-recovery: $invalid input rejected; old survey/object verified offline"
+  done
+  LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+fi
+run_pilot_restore
+if [ "$mode" = surveys ]; then
+  survey_probe restore_compose online-restic
+  mkdir -p "$root/.artifacts/pilot-surveys"
+  python3 - "$workspace/restic-recovery-proof.json" "$root/.artifacts/pilot-surveys/recovery-proof.json" "$suffix" <<'REPORT'
+import json
+from pathlib import Path
+import sys
+result = json.loads(Path(sys.argv[1]).read_text())
+result.update({
+    "run": sys.argv[3],
+    "actualPilotRestoreWrapper": True,
+    "sourceContainersAndVolumesRemovedBeforeAllRestores": True,
+    "doctorRanWithNetworkNoneAfterSourceRemoval": True,
+    "rejectedInputs": ["missing", "tampered", "wrong-key", "wrong-installation", "stale"],
+    "eachRejectionVerifiedOriginalSqlAnswerAndExactExportObjectOffline": True,
+    "eachRejectionUsedFreshTargetVolumes": True,
+    "validCheckpointAllowsNoBuildApplicationStartup": True,
+    "limitations": [
+        "Checkpoint and cutoff were explicitly retained before source removal; automatic newest-checkpoint provenance across unexpected host loss remains open",
+        "Encrypted S3-compatible Restic storage is outside the source project but on the same Docker host",
+        "Interrupted reapplication and preceding-backup compatibility through the pilot wrapper remain open",
+    ],
+})
+Path(sys.argv[2]).write_text(json.dumps(result, indent=2) + "\n")
+REPORT
+  echo "pilot-survey-recovery: valid checkpoint removed post-backup deleted content before startup"
+fi
 restore_compose exec -T core-postgres psql \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
   --dbname "${CORE_POSTGRES_DB:-leonaid}" \

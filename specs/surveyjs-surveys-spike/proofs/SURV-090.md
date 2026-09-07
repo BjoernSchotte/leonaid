@@ -1189,3 +1189,69 @@ pilot Doctor/release-manifest wrapper, supported backup-revision compatibility a
 the remaining recovery error/interruption cases in [RECOVERY.md](../RECOVERY.md)
 remain part of the original contract. **090.2, 090.2b, 090.A3 and 090.T1 remain open**;
 this acceptance does not narrow those parent requirements or complete SURV-100.
+## Pilot restore with post-backup survey erasure
+
+**090.2g / 090.S3e are accepted for nonempty pilot-wrapper restoration and input
+rejection.** Source: the commit introducing this section, based on `5b0ad6c`.
+
+The `surveys` mode of `tools/pilot_deployment/test.sh` exercises the complete pilot
+deploy/release/backup workflow and then calls the real `./leonaid pilot-restore`.
+It creates an authenticated synthetic member, an active survey, a completed
+answer and a real available CSV export before the encrypted Restic backup. After
+the release workflow, it permanently deletes that survey and explicitly retains
+a newer authenticated checkpoint outside the source project.
+
+Before any restore, the harness removes source containers and all source volumes,
+including both databases, object storage and the source checkpoint archive. The
+backup service, operator environment, checkpoint and cutoff remain outside that
+project. The pilot Doctor runs with Docker network `none`, so the unavailable
+source cannot accidentally satisfy its preflight.
+
+Each negative case uses fresh target volumes:
+
+| Input | Required restored-data assertions before target cleanup |
+| --- | --- |
+| Missing checkpoint | Old active survey, exact completed SQL answer, available export job and original object version exist; no deletion record; API/public/proxy/worker remain stopped. |
+| Modified records without re-signing | Same assertions; authenticated integrity must fail. |
+| Signed with another key | Same assertions; target must use its configured installation key. |
+| Another installation, signed with the correct key | Same assertions; integrity alone cannot authorize cross-installation recovery. |
+| Correct checkpoint older than the supplied cutoff | Same assertions; an authentic but insufficiently recent document cannot allow startup. |
+
+Only the valid checkpoint may pass the offline gate and start the application
+without rebuilding images. The subsequent probe checks that survey, draft,
+version, participation, analysis and export-job rows are gone; the exact original
+object version is absent; and the deletion record is completed. Both the old
+authenticated session and the public route must receive 404 for erased survey
+content; the authenticated export download must also return 404. The existing
+pilot checks additionally verify both database probe values and both storage
+probe files.
+
+Command from the checkout root:
+
+```sh
+rtk proxy sh tools/pilot_deployment/test.sh "$PWD" surveys
+```
+
+Run `833458328-86865` exited **0**. All five negative cases passed with direct
+SQL answer/export-job checks and exact object-version/content checks. The valid
+restore reapplied exactly one erasure before startup, reached healthy services,
+passed authenticated/public access denials and preserved the unrelated pilot
+database/storage probes. Post-run Docker queries verified no owned containers,
+volumes or networks remain and all five build tags are absent. The earlier full
+run `833458328-82098` also exited 0; it was repeated to add the direct restored
+SQL-answer assertion. Both runs are cleaned up.
+
+`sh -n tools/pilot_deployment/test.sh`, Ruff for
+`tools/surveys/recovery_live.py`, and `git diff --check` passed. Tests use the
+repository's pinned images; no dependency or own-license decision changed.
+See the [sanitized result](assets/SURV-090-pilot-recovery.json). The raw local log
+is ignored at `.artifacts/pilot-surveys-live.log`; credentials, backup bytes,
+session tokens, checkpoint contents and live deployment configuration are not
+committed.
+
+This is operator/API/database/storage integration, not browser E2E. The checkpoint
+and cutoff are explicitly retained before source removal. The S3-compatible
+encrypted backup is outside the source project but on the same Docker host.
+Automatic newest-checkpoint provenance across unexpected host loss, interrupted
+reapplication and supported preceding-backup compatibility remain open. Do not
+accept 090.2, 090.2b, 090.A3 or the whole spike from this evidence alone.

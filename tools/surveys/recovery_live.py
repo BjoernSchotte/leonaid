@@ -1,6 +1,7 @@
 """Inspect actual survey DB and object restoration around the offline erasure gate."""
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -313,6 +314,36 @@ async def main():
                 print(
                     "PASS: post-backup erasure complete; newer authenticated checkpoint retained independently"
                 )
+            elif sys.argv[1] == "pilot-inputs":
+                document = (PROOF / "recovery-checkpoint.json").read_bytes()
+                secret = os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+                checkpoint = verify(
+                    document,
+                    secret,
+                    installation_id=await conn.fetchval(
+                        "SELECT installation_id FROM survey_recovery_identity WHERE singleton"
+                    ),
+                    required_through=datetime.fromisoformat(
+                        (PROOF / "recovery-cutoff.txt").read_text()
+                    ),
+                )
+                assert len(checkpoint.records) == 1
+                wrong_identity = checkpoint.model_copy(
+                    update={"installation_id": uuid4()}
+                )
+                (PROOF / "pilot-wrong-installation.json").write_bytes(
+                    seal(wrong_identity, secret)
+                )
+                (PROOF / "pilot-wrong-key.json").write_bytes(
+                    seal(checkpoint, secrets.token_hex(32))
+                )
+                tampered = json.loads(document)
+                tampered["checkpoint"]["records"] = []
+                (PROOF / "pilot-tampered.json").write_text(json.dumps(tampered))
+                (PROOF / "pilot-stale-cutoff.txt").write_text(
+                    datetime.now(timezone.utc).isoformat()
+                )
+                print("PASS: nonempty signed pilot recovery negative inputs prepared")
             elif sys.argv[1] == "restored":
                 assert (
                     PROOF / "recovery-checkpoint.json"
@@ -321,6 +352,20 @@ async def main():
                     await conn.fetchval("SELECT status FROM survey WHERE id=$1", sid)
                     == "active"
                 )
+                answers = await conn.fetch(
+                    "SELECT answers::text AS answers, status FROM survey_participation WHERE survey_id=$1",
+                    sid,
+                )
+                assert len(answers) == 1
+                assert answers[0]["status"] == "completed"
+                assert json.loads(answers[0]["answers"]) == {
+                    "answer": "SENSITIVE_BACKUP_ANSWER"
+                }
+                assert await conn.fetchval(
+                    "SELECT status FROM survey_export_job WHERE id=$1 AND survey_id=$2",
+                    UUID(state["job"]),
+                    sid,
+                ) == "available"
                 assert (
                     await conn.fetchval(
                         "SELECT count(*) FROM survey_deletion WHERE survey_id=$1", sid
@@ -336,7 +381,7 @@ async def main():
                 exported["checkpoint"]["records"] = []
                 (PROOF / "recovery-tampered.json").write_text(json.dumps(exported))
                 print(
-                    "PASS: old DB and exact object version really restored while app writers remain offline"
+                    "PASS: old survey, exact SQL answer and export object restored while app writers remain offline"
                 )
             elif sys.argv[1] == "verify":
                 assert (

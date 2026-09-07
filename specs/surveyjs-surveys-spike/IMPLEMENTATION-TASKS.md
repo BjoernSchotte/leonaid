@@ -331,7 +331,15 @@ remain open until their remaining criteria pass.
 
   Acceptance criteria: **090.A3, operator preflight portion**.
   Integration: **090.S3d**, [live evidence](proofs/SURV-090.md#offline-pilot-preflight-and-validator-release-binding).
-  Full pilot-wrapper restoration and preceding-release compatibility remain open.
+  Nonempty restoration and input rejection are covered by 090.2g. Interruption,
+  independent cutoff provenance and preceding-release compatibility remain open.
+
+- [x] **090.2g** Prove nonempty survey recovery through `pilot-restore` after real encrypted backup, permanent deletion and source-project removal. Reject missing, tampered, wrong-key, wrong-installation and stale checkpoints on fresh targets, checking exact restored SQL answers and export objects offline. Valid recovery must erase all survey content before no-build startup and deny old authenticated/public access.
+
+  Acceptance criteria: **090.A3, nonempty pilot-wrapper and input-rejection portion**.
+  Integration: **090.S3e**, [live evidence](proofs/SURV-090.md#pilot-restore-with-post-backup-survey-erasure).
+  Operator/API/database/storage checks; this is not browser E2E or complete
+  unexpected-host-loss recovery. Checkpoint and cutoff are explicitly retained.
 
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
