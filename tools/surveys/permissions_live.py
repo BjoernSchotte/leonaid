@@ -472,6 +472,49 @@ async def main():
                 }
             )
         )
+        journeys = []
+        for kind, aid in [("standalone", None), ("action", actions[0])]:
+            for mobile in [False, True]:
+                sid = uuid4()
+                await call(
+                    "POST",
+                    f"/api/v1/surveys/{sid}",
+                    {
+                        "operationId": "create",
+                        "title": "Separate role journey",
+                        "definition": DEFINITION,
+                        "actionId": str(aid) if aid else None,
+                    },
+                )
+                for cap in ["design", "publish", "archive", "delete"]:
+                    await conn.execute(
+                        "INSERT INTO survey_grant(survey_id,user_id,capability) VALUES($1,$2,$3)",
+                        sid,
+                        actors[cap]["id"],
+                        cap,
+                    )
+                journeys.append(
+                    {
+                        "id": str(sid),
+                        "kind": kind,
+                        "mobile": mobile,
+                        "actionId": str(aid) if aid else None,
+                    }
+                )
+        Path("/proof/role-journeys-private.json").write_text(
+            json.dumps(
+                {
+                    "actors": {
+                        name: {
+                            "token": actors[name]["token"],
+                            "id": str(actors[name]["id"]),
+                        }
+                        for name in ["design", "publish", "archive", "delete"]
+                    },
+                    "journeys": journeys,
+                }
+            )
+        )
     await conn.close()
     Path("/proof/permissions-proof.json").write_text(
         json.dumps(

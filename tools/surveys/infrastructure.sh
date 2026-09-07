@@ -100,7 +100,7 @@ if [ "$mode" = permissions ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = permissions ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs"
 fi
 state_worker_pid=""
 if [ "$mode" = export-limits ]; then
@@ -353,6 +353,9 @@ mkdir -p "$artifact"
 if [ "$mode" = permissions ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/publisher_verify.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/role_lifecycle_verify.py
+  cp "$proof/role-lifecycle-proof.json" "$artifact/"
   cp "$proof/permissions-proof.json" "$artifact/"
   cp "$proof/publisher-proof.json" "$artifact/"
   cp "$proof/publisher-review-mobile.png" "$artifact/"

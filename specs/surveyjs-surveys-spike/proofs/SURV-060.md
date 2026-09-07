@@ -632,3 +632,63 @@ The full 060.A4/060.2 matrix remains open for other lifecycle states, attributab
 invitation management with single grants and successful role-specific mutations.
 Remaining 060.A1 scope and recovery/final-gate work are unchanged; these tests do
 not narrow or complete those parent requirements.
+
+
+## Separate-role lifecycle journeys
+
+**060.2d / 060.S4c are accepted.** Production baseline `2c1fd30` is unchanged.
+The new test `tests/e2e/surveys-role-lifecycle.spec.mjs` exercises successful writes
+by four different accounts, each with exactly one grant: design, publish, archive
+or delete. None owns the fixture or is an administrator. For action-linked cases,
+all four have ordinary acquirer membership, which supplies scope but not action
+management rights. Fixture creation/grants occur before the browser starts.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+Project `leonaid-surveys-833458328-45902` exited **0**. The API matrix again passed
+127 positive reads, 723 denied reads and 891 denied writes with unchanged SQL.
+The browser phase passed **34 Chromium tests in 55.5 s**, including the existing
+28-persona/viewport tests, foundation and publisher retry, plus four new journeys:
+standalone and action-linked surveys, each at **1440 × 1000** and **390 × 844**.
+
+Each journey performs these real browser actions:
+
+1. The design-only member changes the question title through the editor, flushes
+   it and verifies the persisted draft through its authenticated API. It sets a
+   90-second timeout through the settings form and has no publication button.
+2. A separate publish-only member reviews that question and publishes it. It has
+   neither editor nor trash control. An anonymous respondent then opens the public
+   UI, starts, saves an answer and completes the questionnaire.
+3. The publisher ends participation and has no archive control. An archive-only
+   member archives and unarchives the survey, with no trash control.
+4. A delete-only member has no archive control, moves the survey to trash and
+   restores it. Reload still shows ended status; the public definition remains
+   closed with HTTP 409.
+5. Both mobile cases trash again and request permanent erasure. The irreversible
+   action remains disabled until the explicit checkbox is selected. The browser
+   waits for the actual completed-erasure status from the worker.
+
+`tools/surveys/role_lifecycle_verify.py` independently verifies PostgreSQL after
+all browser tests. The two desktop surveys remain ended with the correct action
+association (or none), 90-second timeout, exactly one published version bearing
+the edited question title and one completed response with its preserved answer.
+For the two mobile surveys, survey/draft/version/participation/operation rows are
+absent, and the durable deletion record has a completion timestamp and the exact
+delete-only requester's account ID. The separate publisher-retry verifier also
+passes. Only the sanitized
+[SURV-060-role-lifecycle.json](assets/SURV-060-role-lifecycle.json)
+is retained; session and identifier-bearing fixtures are removed with the private
+temporary directory.
+
+Scoped Ruff/Prettier, shell syntax and diff whitespace checks passed. The first
+run passed without test/runtime corrections. It used fresh volumes, seven unused
+explicit subnets and no published host ports; full owned-resource teardown was
+verified. No manual visual or new accessibility review is claimed.
+
+These journeys establish successful single-role lifecycle mutations, including
+preservation and erasure of real responses. They do not close the original parent
+060.A1/A4 requirements: single-grant invitation management, remaining child-ID and
+dynamic membership/account boundaries and final consolidated permission acceptance
+still require evidence. Recovery and full spike gates remain open.

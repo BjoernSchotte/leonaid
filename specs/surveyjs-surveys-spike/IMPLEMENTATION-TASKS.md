@@ -219,6 +219,12 @@ a substitute for completing an individual task.
   E2E: **060.S4b**, [live evidence](proofs/SURV-060.md#active-survey-browser-permission-matrix).
   Full parent 060.2/A4 acceptance remains open.
 
+- [x] **060.2d** Exercise successful lifecycle handoffs between separate design, publish, archive and delete accounts; preserve completed answers through restore and prove requester-specific permanent erasure.
+
+  Acceptance criteria: **060.A1/A4, lifecycle role journeys**.
+  Integration/E2E: **060.S4c**, [live evidence](proofs/SURV-060.md#separate-role-lifecycle-journeys).
+  Full parent 060.2/A1/A4 acceptance remains open.
+
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.
