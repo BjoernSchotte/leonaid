@@ -1523,6 +1523,9 @@ Dependencies: EMS-030 successful
       selection and a picker selector missing its native `(selected)` suffix.
       This checkpoint proves the explicit keyboard workflow, not arbitrary
       pointer placement, full rich-editor UX or anonymous rendering.
+      Post-commit `./leonaid check` passed at `135031b`: 208 unit tests, 242
+      Python source checks, 37 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [ ] Resolve and prove pointer placement in empty rich-text paragraphs after
       reload, including immediate typing in all three browsers. A diagnostic
       run in `leonaid-emdash-tmp-88hmfhqknc` preserved content but placed the
