@@ -1575,6 +1575,9 @@ Dependencies: EMS-030 successful
       the explicit cleanup list. That list is corrected; the old file and empty
       directory were removed after inspection. This does not close full
       two-actor browser workflows, accessibility, public delivery or recovery.
+      Post-commit `./leonaid check` passed at `d05ebb4`: 208 unit tests, 242
+      Python source checks, 38 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [x] Prove empty and foreign-only filename searches in the native image picker
       in Chromium, Firefox and WebKit. A separate real Charity B upload supplies
       a unique foreign filename while the existing same-filename/hash isolation
