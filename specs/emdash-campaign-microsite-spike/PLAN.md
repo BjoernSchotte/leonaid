@@ -2931,6 +2931,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
       CMS publication. This checkpoint does not claim browser coverage of every
       revocation race, pending-command navigation recovery, or full accessibility
       acceptance; those broader gates remain subject to the completion audit.
+      Full `./leonaid check` at source commit `c5ac72f` exited 0: 256 unit
+      tests, 259 Python source checks, all frontend TypeScript checks, 25 public
+      and 47 CMS Astro files without diagnostics, current generated contracts
+      and all format/privacy/policy gates; the committed worktree remained
+      unchanged. Existing dependency deprecation warnings remain.
 - [ ] Store the target as an action ID, deriving its URL server-side. Accept
       normalized single-segment local aliases only for this spike. Reject
       absolute URLs, external hosts, query/fragment targets, encoded separators,
