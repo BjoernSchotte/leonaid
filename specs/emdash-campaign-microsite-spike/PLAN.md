@@ -2518,6 +2518,10 @@ keyboard and 200% zoom checks.
       a compromised authorized service/host. Rotation, production preflight and
       recovery evidence remain required under EMS-080, as do successful orders
       with Twenty; the current fixture deliberately has no CRM credentials.
+      Quality gate: `./leonaid check` passed at `8c87317`: 210 unit tests,
+      246 Python source files, 24 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 - [x] Live-prove both pilot Caddyfiles with the new `order-ingress-pilot` case
       (also included in `all` and CLI help). Each run uses only pinned Caddy and
