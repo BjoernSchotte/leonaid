@@ -82,7 +82,13 @@ class FileCheckpointArchive:
         if any(records.get(record.survey_id) != record for record in previous.records):
             raise ValueError("Archive publication omits or changes a prior erasure")
 
-    def publish(self, checkpoint: ErasureCheckpoint, secret: str) -> None:
+    def publish(
+        self,
+        checkpoint: ErasureCheckpoint,
+        secret: str,
+        *,
+        only_if_changed: bool = False,
+    ) -> None:
         document = seal(checkpoint, secret)
         # Verify even in-process models: model_copy can bypass Pydantic validators.
         checkpoint = verify(
@@ -106,11 +112,14 @@ class FileCheckpointArchive:
                 raise ValueError(
                     "Current checkpoint is missing from an existing archive"
                 )
+            current_checkpoint = None
+            current_document = None
             for name in ["current.json", "pending.json"]:
                 path = self.directory / name
                 if path.exists() or path.is_symlink():
+                    prior_document = bounded_read(path)
                     prior = verify(
-                        bounded_read(path),
+                        prior_document,
                         secret,
                         installation_id=checkpoint.installation_id,
                         required_through=datetime.min.replace(
@@ -118,6 +127,27 @@ class FileCheckpointArchive:
                         ),
                     )
                     self.extends(checkpoint, prior)
+                    if name == "current.json":
+                        current_checkpoint, current_document = prior, prior_document
+            if (
+                only_if_changed
+                and current_checkpoint is not None
+                and current_document is not None
+                and checkpoint.records == current_checkpoint.records
+                and not pending.exists()
+                and not pending.is_symlink()
+            ):
+                retained = self.directory / (
+                    hashlib.sha256(current_document).hexdigest() + ".json"
+                )
+                if bounded_read(retained) != current_document:
+                    raise ValueError(
+                        "Latest checkpoint has no matching retained version"
+                    )
+                # Acknowledgement requires the same erasure ledger, not a new
+                # timestamp every five seconds. Explicit CLI publication can
+                # still advance the independently requested recovery cutoff.
+                return
             atomic_write(self.directory / "pending.json", document)
             # Retain complete immutable content-addressed versions for inspection.
             retained = self.directory / (hashlib.sha256(document).hexdigest() + ".json")

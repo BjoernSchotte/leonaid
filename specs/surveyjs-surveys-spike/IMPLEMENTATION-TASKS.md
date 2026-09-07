@@ -315,6 +315,12 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3a**, [live evidence](proofs/SURV-090.md#independent-checkpoint-archive-and-interrupted-publication).
   Parent 090.2 and PLAN task 090.2b remain open for continuous independent retention, cutoff provenance and the remaining operator recovery contract.
 
+- [x] **090.2d** Archive committed manual deletion intent before successful API acknowledgement and before production worker erasure; preserve exact retry identity during outages and restore an old backup after source-project loss using only automatically retained material. [Live evidence](proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate).
+
+  Acceptance criteria: **090.A3, acknowledgement portion**.
+  Integration / supporting checks: **090.S3b**.
+  Parent recovery acceptance remains open for retention interruption, independent host-loss cutoff and the operator compatibility contract.
+
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
   Acceptance criteria: **090.A4**.

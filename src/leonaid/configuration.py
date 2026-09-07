@@ -67,6 +67,9 @@ class Settings(BaseSettings):
         alias="LEONAID_SESSION_ENCRYPTION_KEY",
     )
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
+    survey_erasure_archive_dir: Path | None = Field(
+        default=None, alias="LEONAID_SURVEY_ERASURE_ARCHIVE_DIR"
+    )
     allowed_origins_value: str = Field(
         default="",
         alias="LEONAID_ALLOWED_ORIGINS",

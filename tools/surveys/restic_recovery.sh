@@ -3,7 +3,7 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 mode=${2:-manual}
-case "$mode" in manual|archive) ;; *) echo 'Expected manual or archive mode' >&2; exit 1 ;; esac
+case "$mode" in manual|archive|durable) ;; *) echo 'Expected manual, archive or durable mode' >&2; exit 1 ;; esac
 . "$root/infra/locks/images.env"
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 source_project="leonaid-poc112-surveys-$suffix"
@@ -45,12 +45,16 @@ for project in "$source_project" "$target_project"; do
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
   [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
 done
-if [ "$mode" = archive ]; then
+if [ "$mode" != manual ]; then
   [ -z "$(docker volume ls -q --filter "name=^${archive_volume}$")" ]
   docker volume create --label "leonaid.survey-recovery-proof=$suffix" "$archive_volume" >/dev/null
   archive_owned=true
 fi
-python3 "$root/tools/surveys/network_override.py" "$proof/source.yml"
+if [ "$mode" = durable ]; then
+  python3 "$root/tools/surveys/network_override.py" "$proof/source.yml" "$archive_volume"
+else
+  python3 "$root/tools/surveys/network_override.py" "$proof/source.yml"
+fi
 source_owned=true
 source_compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -59,8 +63,10 @@ source_compose stop worker
 probe() {
   runner=$1
   shift
+  probe_service=api
+  if [ "$1" = durable-delete ]; then probe_service=worker; fi
   "$runner" run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/recovery_live.py "$@"
+    --workdir /repo --entrypoint python "$probe_service" tools/surveys/recovery_live.py "$@"
 }
 probe source_compose seed
 archive_publish() {
@@ -93,15 +99,19 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_BACKUP_MANIFEST_OUTPUT="$proof/backup-manifest.json" \
   sh "$root/tools/backup/backup.sh" "$root"
 source_compose up --detach --wait --wait-timeout 420 proxy mailpit
-probe source_compose delete
+if [ "$mode" = durable ]; then probe source_compose durable-delete; else probe source_compose delete; fi
 cutoff=$(cat "$proof/recovery-cutoff.txt")
-if [ "$mode" = archive ]; then
-  installation=$(python3 - "$proof/recovery-checkpoint.json" <<'PY'
+if [ "$mode" != manual ]; then
+  if [ "$mode" = durable ]; then
+    installation=$(cat "$proof/recovery-installation.txt")
+  else
+    installation=$(python3 - "$proof/recovery-checkpoint.json" <<'PY'
 import json, sys
 with open(sys.argv[1]) as source:
     print(json.load(source)['checkpoint']['installation_id'])
 PY
 )
+  fi
   api_image=$(python3 - "$proof/images.json" <<'PY'
 import json, sys
 with open(sys.argv[1]) as source:
@@ -115,6 +125,7 @@ PY
       --archive /archive --output /proof/fetched-checkpoint.json \
       --installation-id "$installation" --required-through "$cutoff"
   }
+  if [ "$mode" = archive ]; then
   status=0
   archive_fetch || status=$?
   [ "$status" -eq 1 ] && [ ! -e "$proof/fetched-checkpoint.json" ]
@@ -131,6 +142,9 @@ PY
   done
   # No local exported checkpoint may supply the subsequent restore by accident.
   rm "$proof/recovery-checkpoint.json"
+  else
+    [ ! -e "$proof/recovery-checkpoint.json" ]
+  fi
 else
   source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
@@ -142,11 +156,15 @@ fi
 source_compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$source_project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$source_project")" ]
-if [ "$mode" = archive ]; then
+if [ "$mode" != manual ]; then
   archive_fetch
   mv "$proof/fetched-checkpoint.json" "$proof/recovery-checkpoint.json"
 fi
-python3 "$root/tools/surveys/network_override.py" "$proof/target.yml"
+if [ "$mode" = durable ]; then
+  python3 "$root/tools/surveys/network_override.py" "$proof/target.yml" "$archive_volume"
+else
+  python3 "$root/tools/surveys/network_override.py" "$proof/target.yml"
+fi
 restore() {
   LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
     LEONAID_RESTORE_PROJECT="$target_project" \
@@ -217,10 +235,19 @@ if sys.argv[2] == 'archive':
         'interruptedPublicationBlocksFetchUntilRepublished': True,
         'offlineArchiveFetchAfterSourceContainersAndVolumesRemoved': True,
     })
+if sys.argv[2] == 'durable':
+    result.update(json.loads((path.parent / 'durable-ack-proof.json').read_text()))
+    result['offlineFetchedCheckpointMode600'] = result.pop('cliCheckpointExportMode600')
+    result['independentArchiveVolumeOutsideSourceProject'] = True
+    result['offlineArchiveFetchAfterSourceContainersAndVolumesRemoved'] = True
+    result['limitations'] = [
+        'Independent named volume models retained storage; physical remote-host durability is not covered',
+        'This proves the exact acknowledged ledger; trustworthy unexpected-host-loss cutoff and pilot release-wrapper compatibility remain open',
+    ]
 path.write_text(json.dumps(result, indent=2) + '\n')
 PY
 cp "$proof/restic-recovery-proof.json" "$root/.artifacts/surveys-restic/"
-if [ "$mode" = archive ]; then
+if [ "$mode" != manual ]; then
   docker volume rm "$archive_volume" >/dev/null
   [ -z "$(docker volume ls -q --filter "name=^${archive_volume}$")" ]
   archive_owned=false

@@ -1,0 +1,29 @@
+{
+  "syntheticOnly": true,
+  "postBackupDeletionReappliedByRestoreOperator": true,
+  "restoredRelationalContentAndExactExportVersionAbsent": true,
+  "limitations": [
+    "Independent named volume models retained storage; physical remote-host durability is not covered",
+    "This proves the exact acknowledged ledger; trustworthy unexpected-host-loss cutoff and pilot release-wrapper compatibility remain open"
+  ],
+  "offlineFetchedCheckpointMode600": true,
+  "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+  "existingResticBackupRotationAndReadDataCheck": true,
+  "sourceContainersAndVolumesRemovedBeforeRestore": true,
+  "missingCheckpointBlocksActualFreshTargetRestore": true,
+  "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+  "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+  "allBuiltServiceImageIdsMatchSource": true,
+  "foundationChromiumPassed": true,
+  "targetTeardownVerified": true,
+  "archiveOutageReturns503WithDurableRetryableIntent": true,
+  "productionWorkerPreservesContentDuringArchiveOutage": true,
+  "exactRetryAcknowledgesOnlyAfterIndependentPublication": true,
+  "changedOperationRejectedWithoutChangingIntent": true,
+  "workerRechecksArchiveAfterSuccessfulApiAcknowledgement": true,
+  "exactIntentAndSingleOutboxIdentityPreservedThroughRetries": true,
+  "unchangedLedgerDoesNotCreateNewArchiveVersion": true,
+  "noExplicitPostDeletionCheckpointExportOrPublication": true,
+  "independentArchiveVolumeOutsideSourceProject": true,
+  "offlineArchiveFetchAfterSourceContainersAndVolumesRemoved": true
+}

@@ -7,9 +7,14 @@ from typing import Any
 import asyncpg
 
 from leonaid.adapters.postgres.survey_deletion import request_deletion
+from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
 
 
-async def sweep_retention(pool: asyncpg.Pool[Any], limit: int = 100) -> int:
+async def sweep_retention(
+    pool: asyncpg.Pool[Any],
+    limit: int = 100,
+    checkpoint_publisher: ErasureCheckpointPublisher | None = None,
+) -> int:
     if not 1 <= limit <= 100:
         raise ValueError("Retention batch size must be between 1 and 100")
     changed = 0
@@ -68,4 +73,8 @@ async def sweep_retention(pool: asyncpg.Pool[Any], limit: int = 100) -> int:
                     f"retention:{policy['revision']}:{sid}",
                 )
                 changed += 1
+    if checkpoint_publisher is not None:
+        # Include intents from an earlier interrupted sweep even if this batch
+        # made no new changes. Do not report sweep success before publication.
+        await checkpoint_publisher.publish()
     return changed

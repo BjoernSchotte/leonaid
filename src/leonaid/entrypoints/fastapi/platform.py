@@ -46,6 +46,9 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.adapters.postgres.survey_checkpoint_publisher import (
+    AsyncpgErasureCheckpointPublisher,
+)
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.application.surveys import SurveyService
 from leonaid.entrypoints.fastapi.surveys import router as surveys_router
@@ -170,6 +173,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.settings_summary = settings.safe_summary()
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
+        checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
+            pool,
+            settings.survey_erasure_archive_dir,
+            settings.mail_payload_secret.get_secret_value(),
+        )
         application.state.survey_service = SurveyService(
             AsyncpgSurveyRepository(
                 pool,
@@ -177,6 +185,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                     settings.mail_payload_secret.get_secret_value()
                 ),
                 public_base_url=str(settings.public_base_url),
+                checkpoint_publisher=checkpoint_publisher,
             )
         )
         api_metrics = ApiMetrics()
@@ -349,6 +358,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.activity_management_service = None
             application.state.public_order_service = None
         try:
+            if settings.survey_erasure_archive_dir is not None:
+                await checkpoint_publisher.publish()
             yield
         finally:
             if crm_gateway is not None:

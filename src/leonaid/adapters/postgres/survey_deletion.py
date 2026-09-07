@@ -14,6 +14,7 @@ from leonaid.application.object_storage import (
     ObjectStorage,
 )
 from leonaid.application.surveys.export_rendering import export_filename
+from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
 from leonaid.domain.outbox import ClaimedOutboxEvent
 
 
@@ -62,9 +63,17 @@ class SurveyDeletionError(RuntimeError):
 
 
 class AsyncpgSurveyDeletion:
-    def __init__(self, pool: asyncpg.Pool[Any], storage: ObjectStorage) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        storage: ObjectStorage,
+        checkpoint_publisher: ErasureCheckpointPublisher | None = None,
+    ) -> None:
         self.pool = pool
         self.storage = storage
+        # Offline authenticated reapplication supplies no publisher; production
+        # worker construction always supplies one, including a fail-closed unset config.
+        self.checkpoint_publisher = checkpoint_publisher
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
         await self.erase(event.aggregate_id, event.id)
@@ -72,6 +81,8 @@ class AsyncpgSurveyDeletion:
     async def erase(self, survey_id: UUID, event_id: UUID) -> None:
         """Also used by the offline restore gate before application startup."""
         try:
+            if self.checkpoint_publisher is not None:
+                await self.checkpoint_publisher.publish()
             await self._erase(survey_id, event_id)
         except Exception:
             # Provider errors can contain object paths and other private data.

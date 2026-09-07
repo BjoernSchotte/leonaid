@@ -114,6 +114,45 @@ fetch followed by the real Restic restore. This models source-project loss on on
 Docker host; it does not prove loss of that host or cover erasures accepted after
 the last published cutoff. See the linked SURV-090 evidence for accepted scope.
 
+## Automatic acknowledgement and cleanup gate
+
+The API composition root and production outbox worker use an authenticated archive
+publisher configured through `LEONAID_SURVEY_ERASURE_ARCHIVE_DIR`. The directory must
+be absolute and already exist. Compose mounts `survey-erasure-archive` at
+`/recovery/survey-erasure` for both services. The default project-local volume supports
+development only: deployments must override it with separately retained storage and
+verify the actual mount before claiming independence from the source host.
+
+A permanent-deletion request first commits the content-free ledger and outbox identity.
+Before returning success, the API publishes the complete committed ledger. Archive
+failure returns HTTP 503 with the stable `survey_erasure_archive_unavailable` code;
+the committed intent remains and blocks restoration/recreation. Retrying the exact
+operation ID and revision resumes the acknowledgement without creating another event.
+Deletion-status reads also require a successful archive check. Authorization and
+operation-conflict checks precede publication.
+
+The production eraser independently checks publication before removing object or
+database content, including when the API previously acknowledged the request. The
+retention sweep publishes after committing its batch and before reporting success;
+subsequent sweeps also cover locally committed intents left by a previous failure.
+Configured API startup checks the ledger before readiness. Offline authenticated
+checkpoint reapplication deliberately uses the eraser without this publisher: the
+restore gate has already verified the external checkpoint and must work offline.
+
+Publication holds the erasure advisory transaction lock through snapshot creation
+and archive I/O, before the worker acquires survey cleanup locks. Concurrent database
+publishers therefore cannot write an older snapshot after a newer one. Filesystem
+publication runs outside the asynchronous event loop. Missing configuration fails
+closed for production deletion; optional low-level adapter injection is reserved for
+offline recovery and controlled fixtures.
+
+An unchanged ledger verifies the current authenticated checkpoint and its retained
+bytes without generating another historical file. A pending publication is completed
+on retry. This avoids growth on every five-second retention sweep or status request.
+It does **not** advance the checkpoint's recovery cutoff: an explicit `publish` remains
+available when the operator needs a newly established cutoff. Continuous host-loss
+cutoff provenance is still a separate acceptance requirement below.
+
 ## Restore operator gate
 
 `tools/backup/restore.sh` invokes `tools/backup/survey-erasure-gate.sh` after
@@ -170,10 +209,12 @@ of the newest checkpoint are not established by this test.
 
 - Exercise the separate pilot Doctor/release-manifest wrapper with survey
   recovery inputs; the generic no-build restore path is proven above.
-- Couple accepted deletion requests to independent durable retention, including
-  requests after the most recent publication and unexpected source-host loss. The
-  filesystem publisher and source-project-loss restore prove the archive primitive;
-  a manually invoked publisher does not yet establish continuous coverage.
+- Prove retention-originated interrupted publication and unexpected source-host
+  loss. Manual acknowledgement and production worker archive gates now have
+  [live evidence](proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate),
+  including real Restic recovery using only automatically retained material after
+  source-project removal. Independently placed storage and complete host-loss
+  coverage remain deployment/recovery acceptance requirements.
 - Define and prove how the operator obtains the required cutoff and detects a
   missing latest checkpoint. Authentication proves provenance and integrity,
   not that the supplied file is the newest file ever exported.

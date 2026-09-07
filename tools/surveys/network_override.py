@@ -46,7 +46,17 @@ names = [
     "mailing-data",
 ]
 with open(sys.argv[1], "w") as output:
-    output.write("services:\n  proxy:\n    ports: !reset []\nnetworks:\n")
+    output.write("services:\n  proxy:\n    ports: !reset []\n")
+    if len(sys.argv) == 3:
+        # Caller creates/owns the independently retained recovery-proof volume.
+        for service in ("api", "worker"):
+            output.write(
+                f"  {service}:\n    volumes:\n      - survey-erasure-archive:/recovery/survey-erasure\n"
+            )
+        output.write(
+            f"volumes:\n  survey-erasure-archive:\n    external: true\n    name: {sys.argv[2]}\n"
+        )
+    output.write("networks:\n")
     for name, subnet in zip(names, selected, strict=True):
         output.write(
             f"  {name}:\n    ipam:\n      config:\n        - subnet: {subnet}\n"

@@ -14,6 +14,7 @@ import asyncpg
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.adapters.postgres.survey_retention import sweep_retention
+from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
 from leonaid.entrypoints.worker.outbox import build_worker
 
 last_database_success = 0.0
@@ -123,10 +124,11 @@ async def survey_timeout_loop() -> None:
         try:
             pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
             repository = AsyncpgSurveyRepository(pool)
+            publisher = configured_publisher(pool)
             while True:
                 closed = await repository.close_due_surveys()
                 count = await repository.classify_overdue()
-                retained = await sweep_retention(pool)
+                retained = await sweep_retention(pool, checkpoint_publisher=publisher)
                 await asyncio.sleep(
                     0.25 if count == 1000 or closed == 100 or retained == 100 else 5
                 )

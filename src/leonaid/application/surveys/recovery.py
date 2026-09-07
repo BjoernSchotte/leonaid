@@ -6,12 +6,16 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 MAX_DOCUMENT_BYTES = 32 * 1024 * 1024
+
+
+class ErasureCheckpointPublisher(Protocol):
+    async def publish(self) -> None: ...
 
 
 class ErasureRecord(BaseModel):

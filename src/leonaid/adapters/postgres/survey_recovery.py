@@ -17,19 +17,24 @@ RECORD_COLUMNS = (
 
 async def export_checkpoint(pool: asyncpg.Pool[Any]) -> ErasureCheckpoint:
     async with pool.acquire() as conn, conn.transaction():
-        await conn.execute("SELECT pg_advisory_xact_lock(1937076838,1)")
-        identity = await conn.fetchval(
-            "SELECT installation_id FROM survey_recovery_identity WHERE singleton"
-        )
-        records = await conn.fetch(
-            f"SELECT {RECORD_COLUMNS} FROM survey_deletion ORDER BY survey_id"
-        )
-        cutoff = await conn.fetchval("SELECT clock_timestamp()")
-        return ErasureCheckpoint(
-            installation_id=identity,
-            exported_at=cutoff,
-            records=tuple(ErasureRecord.model_validate(dict(row)) for row in records),
-        )
+        return await export_checkpoint_in_transaction(conn)
+
+
+async def export_checkpoint_in_transaction(conn: Any) -> ErasureCheckpoint:
+    """Caller owns a transaction; keep the erasure lock through publication if needed."""
+    await conn.execute("SELECT pg_advisory_xact_lock(1937076838,1)")
+    identity = await conn.fetchval(
+        "SELECT installation_id FROM survey_recovery_identity WHERE singleton"
+    )
+    records = await conn.fetch(
+        f"SELECT {RECORD_COLUMNS} FROM survey_deletion ORDER BY survey_id"
+    )
+    cutoff = await conn.fetchval("SELECT clock_timestamp()")
+    return ErasureCheckpoint(
+        installation_id=identity,
+        exported_at=cutoff,
+        records=tuple(ErasureRecord.model_validate(dict(row)) for row in records),
+    )
 
 
 async def reapply_checkpoint(

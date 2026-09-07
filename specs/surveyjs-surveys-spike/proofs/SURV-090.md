@@ -9,6 +9,96 @@ Public request quotas, payload boundaries and export admission/log checks are
 accepted below: 090.3 / 090.A4 / 090.S4 are complete. Recovery checkpoint
 continuity still prevents completion of 090.T1 and the full work package.
 
+## Automatic archive acknowledgement and worker gate
+
+Status: **090.2d / 090.S3b accepted**. Source is the change committed with
+this section, based on `be47a6a`. Runtime images retain the repository's digest pins.
+
+The production API publishes the committed erasure ledger before acknowledging a
+manual deletion or returning its status. The worker composition root independently
+publishes before physical erasure. Both use the configured archive; failures leave
+the original local operation/event identity retryable. The retention loop is also
+wired to this publisher, but retention-originated interruption acceptance remains open.
+Unchanged ledgers verify retained bytes without writing a new timestamp/history file.
+
+Command from the checkout root:
+
+```sh
+rtk proxy sh tools/surveys/restic_recovery.sh "$PWD" durable
+```
+
+Successful source and target project suffix: `833458328-66132`; full harness exit
+**0**. The archive was a separately owned external named volume, outside both
+Compose projects. Seven unused subnets were selected per stack, no host ports were
+published, and source/target/archive teardown was verified. The target foundation
+Chromium test passed, one case in 1.4 seconds. This is foundation coverage; the
+separate 40-case permission/lifecycle E2E regression is recorded below.
+
+`tools/surveys/recovery_live.py durable-delete` runs inside the worker service
+environment and constructs the actual production outbox worker. It proves:
+
+1. A real encrypted Restic backup predates the deletion of a populated survey and
+   its available CSV export. Existing rotation and `check --read-data` pass.
+2. Removing the current archive head while retaining history makes the deletion
+   POST and status GET return 503. Exactly one committed ledger identity remains;
+   production worker attempt 1 records `survey_deletion_failed`, preserving the
+   survey row, unfinished intent and original exact object version.
+3. Restoring the head and replaying the exact request returns 200. Immediately
+   after that acknowledgement, authenticated current and retained archive bytes
+   contain every original ledger field. A different operation ID returns 409;
+   survey, requester, event, operation hash, revision and request time are unchanged.
+4. A second archive outage after successful acknowledgement blocks worker attempt
+   2 and again preserves content. After repair, attempt 3 completes erasure. An exact
+   completed-request replay preserves the original identity and single outbox event.
+   Unchanged checks leave the archived document byte-identical.
+5. No explicit post-deletion checkpoint export/publication supplies recovery. The
+   harness removes all source containers and project volumes, then fetches the
+   automatically retained document in a fresh `--network none` container.
+6. Restoring the real old backup without a checkpoint blocks application startup;
+   offline inspection proves the old active survey and exact export really exist.
+   A fresh restore with the fetched document erases them before startup, uses the
+   exact six source image IDs without a build, and denies old session/public access.
+
+Sanitized result: [SURV-090-automatic-archive.json](assets/SURV-090-automatic-archive.json).
+Only booleans and explicit limitations are retained; credentials, checkpoint bytes,
+survey identities, answer payloads and unrestricted logs remain private test material.
+
+The proof retains the cutoff observed at the known successful acknowledgement to
+test that exact ledger after source-project loss. It does not establish how an
+operator knows the final cutoff after unexpected whole-host loss. Independently
+placed storage, retention-originated interruption coverage, pilot wrapper behavior
+and preceding-backup compatibility still prevent full 090.2b / 090.A3 acceptance.
+
+### Supporting verification
+
+- `tests/unit/test_survey_recovery.py`, `test_survey_checkpoint_archive.py` and
+  `test_survey_checkpoint_publisher.py`: **31 passed**, 2.52 seconds, pinned UV Python
+  3.13 container. Covers process interruption, authentication/retained-file checks,
+  fail-closed configuration, unchanged-ledger history bounds and explicit cutoff
+  advancement. `tests/unit/test_configuration.py`: **10 passed**, 0.17 seconds.
+- Scoped Ruff checks pass. Strict MyPy passes for the five archive/recovery adapters
+  and separately for the repository, settings and three API/worker composition files.
+  Explicit runtime imports of both production composition roots pass.
+- Existing `tools/surveys/infrastructure.sh "$PWD" permissions`:
+  project `leonaid-surveys-833458328-65158`, exit **0**. **40 Chromium tests passed**
+  in 2.1 minutes. Static permission checks retained 127 positive reads, 723 denied
+  reads and 891 denied writes over 56 persona/resource pairs. Dynamic authority and
+  foreign-child checks passed; all three post-browser SQL verifiers passed, including
+  completed-erasure exact retries and status authorization. Owned teardown verified.
+
+The initial recovery attempt `63803` failed during API import because the new
+adapter evaluated an asyncpg generic annotation at runtime. Postponed annotations
+fixed it; the production import check above reproduces the corrected boundary.
+Attempt `64355` reached the expected deletion HTTP 503 but the probe then requested
+`/deletion-status` instead of the actual `/deletion` HTTP route. The probe was fixed.
+Attempt `65408` was intentionally stopped, with its owned cleanup, after review
+showed the production worker factory needed the worker service environment rather
+than the API service's environment. These attempts are not accepted recovery runs.
+
+The first two new filesystem tests initially used future timestamps and correctly
+failed the existing freshness check. Their fixtures now use observed current time;
+production timestamp validation was not relaxed.
+
 ## Durable erasure and process-crash recovery
 
 Source revision: `8432163` (the unchanged implementation and probe content that

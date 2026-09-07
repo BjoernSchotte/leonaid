@@ -16,13 +16,16 @@ from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
 from leonaid.adapters.postgres.survey_recovery import (
+    RECORD_COLUMNS,
     export_checkpoint,
     reapply_checkpoint,
 )
 from leonaid.adapters.storage.s3 import S3ObjectStorage
+from leonaid.adapters.storage.survey_checkpoint_archive import FileCheckpointArchive
 from leonaid.application.object_storage import ObjectLocation
 from leonaid.application.outbox import OutboxWorker
-from leonaid.application.surveys.recovery import seal
+from leonaid.application.surveys.recovery import seal, verify
+from leonaid.entrypoints.worker.outbox import build_worker
 from leonaid.domain.outbox import RetryPolicy
 
 PROOF = Path("/proof")
@@ -145,7 +148,7 @@ async def main():
             state = json.loads((PROOF / "recovery-state.json").read_text())
             sid = UUID(state["sid"])
             location = ObjectLocation(**state["location"])
-            if sys.argv[1] == "delete":
+            if sys.argv[1] in {"delete", "durable-delete"}:
                 summary = await call(sid, "GET", "")
                 trash = await call(
                     sid,
@@ -157,28 +160,156 @@ async def main():
                         "action": "trash",
                     },
                 )
+                body = {"operationId": "erase", "expectedRevision": trash["revision"]}
+                durable = sys.argv[1] == "durable-delete"
+                if durable:
+                    archive_directory = Path(
+                        os.environ["LEONAID_SURVEY_ERASURE_ARCHIVE_DIR"]
+                    )
+                    current = archive_directory / "current.json"
+                    saved = archive_directory / ".saved-current"
+                    current.rename(saved)
+                    await call(sid, "POST", "/delete-permanently", body, expected=503)
+                    intent = await conn.fetchrow(
+                        f"SELECT {RECORD_COLUMNS} FROM survey_deletion WHERE survey_id=$1",
+                        sid,
+                    )
+                    assert intent is not None
+                    await call(sid, "GET", "/deletion", expected=503)
+                    production_pool, queue, production_worker = await build_worker(
+                        database_url=os.environ["CORE_DATABASE_URL"],
+                        worker_id="automatic-archive-proof",
+                        max_attempts=5,
+                        base_backoff_seconds=0,
+                        claim_lease_seconds=300,
+                    )
+                    assert await production_worker.run_once()
+                    failed = await queue.state(intent["event_id"])
+                    assert failed.last_error_code == "survey_deletion_failed"
+                    assert (
+                        await conn.fetchval(
+                            "SELECT count(*) FROM survey WHERE id=$1", sid
+                        )
+                        == 1
+                    )
+                    assert (
+                        await conn.fetchval(
+                            "SELECT completed_at FROM survey_deletion WHERE survey_id=$1",
+                            sid,
+                        )
+                        is None
+                    )
+                    assert await storage().head(location) is not None
+                    saved.rename(current)
                 await call(
                     sid,
                     "POST",
                     "/delete-permanently",
-                    {"operationId": "erase", "expectedRevision": trash["revision"]},
+                    body,
                 )
-                assert await worker.run_once()
+                if durable:
+                    # Inspect only: no explicit publication/export can supply this
+                    # proof. The successful API acknowledgement must have done it.
+                    document = current.read_bytes()
+                    candidate = json.loads(document)["checkpoint"]
+                    checkpoint = verify(
+                        document,
+                        os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+                        installation_id=UUID(candidate["installation_id"]),
+                        required_through=intent["requested_at"],
+                    )
+                    assert len(checkpoint.records) == 1
+                    assert checkpoint.records[0].model_dump() == dict(intent)
+                    assert (
+                        FileCheckpointArchive(archive_directory).fetch(
+                            os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+                            installation_id=checkpoint.installation_id,
+                            required_through=checkpoint.exported_at,
+                        )
+                        == document
+                    )
+                    await call(
+                        sid,
+                        "POST",
+                        "/delete-permanently",
+                        {**body, "operationId": "different"},
+                        expected=409,
+                    )
+                    assert dict(
+                        await conn.fetchrow(
+                            f"SELECT {RECORD_COLUMNS} FROM survey_deletion WHERE survey_id=$1",
+                            sid,
+                        )
+                    ) == dict(intent)
+                    # Even a previously acknowledged request cannot bypass the
+                    # production worker's own gate during a later archive outage.
+                    current.rename(saved)
+                    assert await production_worker.run_once()
+                    assert (
+                        await conn.fetchval(
+                            "SELECT count(*) FROM survey WHERE id=$1", sid
+                        )
+                        == 1
+                    )
+                    assert await storage().head(location) is not None
+                    saved.rename(current)
+                    assert await production_worker.run_once()
+                    await call(sid, "POST", "/delete-permanently", body)
+                    assert current.read_bytes() == document
+                    assert dict(
+                        await conn.fetchrow(
+                            f"SELECT {RECORD_COLUMNS} FROM survey_deletion WHERE survey_id=$1",
+                            sid,
+                        )
+                    ) == dict(intent)
+                    assert (
+                        await conn.fetchval(
+                            "SELECT count(*) FROM outbox_event WHERE id=$1",
+                            intent["event_id"],
+                        )
+                        == 1
+                    )
+                    await production_pool.close()
+                    (PROOF / "recovery-installation.txt").write_text(
+                        str(checkpoint.installation_id)
+                    )
+                    (PROOF / "recovery-cutoff.txt").write_text(
+                        checkpoint.exported_at.isoformat()
+                    )
+                    (PROOF / "durable-ack-proof.json").write_text(
+                        json.dumps(
+                            {
+                                "archiveOutageReturns503WithDurableRetryableIntent": True,
+                                "productionWorkerPreservesContentDuringArchiveOutage": True,
+                                "exactRetryAcknowledgesOnlyAfterIndependentPublication": True,
+                                "changedOperationRejectedWithoutChangingIntent": True,
+                                "workerRechecksArchiveAfterSuccessfulApiAcknowledgement": True,
+                                "exactIntentAndSingleOutboxIdentityPreservedThroughRetries": True,
+                                "unchangedLedgerDoesNotCreateNewArchiveVersion": True,
+                                "noExplicitPostDeletionCheckpointExportOrPublication": True,
+                            },
+                            indent=2,
+                        )
+                        + "\n"
+                    )
+                else:
+                    assert await worker.run_once()
                 assert (
                     await conn.fetchval("SELECT count(*) FROM survey WHERE id=$1", sid)
                     == 0
                 )
                 assert await storage().head(location) is None
-                checkpoint = await export_checkpoint(pool)
-                assert len(checkpoint.records) == 1
-                document = seal(
-                    checkpoint, os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
-                )
+                if not durable:
+                    checkpoint = await export_checkpoint(pool)
+                    assert len(checkpoint.records) == 1
+                    document = seal(
+                        checkpoint, os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+                    )
+                    (PROOF / "recovery-checkpoint.json").write_bytes(document)
+                    (PROOF / "recovery-cutoff.txt").write_text(
+                        checkpoint.exported_at.isoformat()
+                    )
                 assert b"SENSITIVE_BACKUP_ANSWER" not in document
-                (PROOF / "recovery-checkpoint.json").write_bytes(document)
-                (PROOF / "recovery-cutoff.txt").write_text(
-                    checkpoint.exported_at.isoformat()
-                )
                 print(
                     "PASS: post-backup erasure complete; newer authenticated checkpoint retained independently"
                 )
@@ -282,12 +413,18 @@ async def main():
                         "survey_version",
                         "survey_draft",
                     ):
-                        assert await conn.fetchval(
-                            f"SELECT count(*) FROM {table} WHERE survey_id=$1", sid
-                        ) == 0
-                    assert await conn.fetchval(
-                        "SELECT count(*) FROM survey WHERE id=$1", sid
-                    ) == 0
+                        assert (
+                            await conn.fetchval(
+                                f"SELECT count(*) FROM {table} WHERE survey_id=$1", sid
+                            )
+                            == 0
+                        )
+                    assert (
+                        await conn.fetchval(
+                            "SELECT count(*) FROM survey WHERE id=$1", sid
+                        )
+                        == 0
+                    )
                     assert await conn.fetchval(
                         "SELECT completed_at IS NOT NULL FROM survey_deletion WHERE survey_id=$1",
                         sid,

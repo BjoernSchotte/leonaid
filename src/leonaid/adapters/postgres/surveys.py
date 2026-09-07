@@ -18,6 +18,7 @@ from leonaid.adapters.postgres.survey_analysis import create_snapshot, read_snap
 from leonaid.adapters.postgres.survey_deletion import deletion_payload, request_deletion
 from leonaid.application.surveys.analysis_snapshot import AnalysisFilter
 from leonaid.application.surveys.exports import SurveyExportSelection
+from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
 from leonaid.adapters.postgres.survey_responses import (
     read_responses,
     selection_metadata,
@@ -108,10 +109,12 @@ class AsyncpgSurveyRepository:
         *,
         invitation_mail: SecureMailPayload | None = None,
         public_base_url: str = "",
+        checkpoint_publisher: ErasureCheckpointPublisher | None = None,
     ):
         self.pool = pool
         self.invitation_mail = invitation_mail
         self.public_base_url = public_base_url.rstrip("/")
+        self.checkpoint_publisher = checkpoint_publisher
 
     @staticmethod
     def _capabilities(
@@ -327,6 +330,23 @@ class AsyncpgSurveyRepository:
         return result
 
     async def author(
+        self,
+        actor: IdentityPrincipal,
+        survey_id: UUID,
+        operation: str,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = await self._author(actor, survey_id, operation, body)
+        if (
+            operation in {"delete-permanently", "deletion-status"}
+            and self.checkpoint_publisher is not None
+        ):
+            # _author has committed and released survey locks. An archive outage
+            # yields 503; the durable DB identity makes the same operation retryable.
+            await self.checkpoint_publisher.publish()
+        return result
+
+    async def _author(
         self,
         actor: IdentityPrincipal,
         survey_id: UUID,
