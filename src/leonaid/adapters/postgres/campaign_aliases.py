@@ -12,6 +12,8 @@ import asyncpg
 from leonaid.application.campaign_aliases import (
     CampaignAliasCommand,
     CampaignAliasResult,
+    CampaignAliasItem,
+    CampaignAliasList,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 
@@ -21,6 +23,49 @@ COMMAND_TYPE = "campaign_alias.mutate.v1"
 class AsyncpgCampaignAliasRepository:
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
+
+    async def list_for_action(
+        self, actor_id: UUID, action_id: UUID
+    ) -> CampaignAliasList:
+        try:
+            async with self._pool.acquire() as db:
+                async with db.transaction():
+                    await db.execute("SET LOCAL lock_timeout='3s'")
+                    await db.execute("SET LOCAL statement_timeout='5s'")
+                    await db.execute("SELECT pg_advisory_xact_lock_shared(527052)")
+                    await self._authority(db, actor_id, action_id)
+                    slug = await db.fetchval(
+                        "SELECT archive_slug FROM charity_action WHERE id=$1 FOR SHARE",
+                        action_id,
+                    )
+                    rows = await db.fetch(
+                        "SELECT id,action_id,alias,is_primary,enabled,revision FROM public_action_alias WHERE action_id=$1 ORDER BY is_primary DESC,alias",
+                        action_id,
+                    )
+                    return CampaignAliasList(
+                        action_id,
+                        f"/campaigns/{slug}/",
+                        tuple(
+                            CampaignAliasItem(
+                                row["id"],
+                                row["action_id"],
+                                row["alias"],
+                                row["is_primary"],
+                                row["enabled"],
+                                row["revision"],
+                            )
+                            for row in rows
+                        ),
+                    )
+        except (
+            asyncpg.LockNotAvailableError,
+            asyncpg.QueryCanceledError,
+            asyncpg.DeadlockDetectedError,
+        ):
+            raise Conflict(
+                "campaign_alias_busy",
+                "Alias-Verwaltung ist beschäftigt. Bitte erneut laden.",
+            ) from None
 
     @staticmethod
     async def _authority(

@@ -49,6 +49,10 @@ from leonaid.application.documents import (
     GeneratedDocumentService,
 )
 from leonaid.application.email_changes import EmailChangeService
+from leonaid.application.campaign_aliases import (
+    CampaignAliasCommand,
+    CampaignAliasService,
+)
 from leonaid.application.dashboard import (
     DashboardService,
     DashboardSnapshot,
@@ -167,6 +171,11 @@ from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
+    CampaignAliasListResponse,
+    CampaignAliasMutationResponse,
+    CreateCampaignAliasRequest,
+    UpdateCampaignAliasRequest,
+    RemoveCampaignAliasRequest,
     AcceptInvitationRequest,
     ActivateLegalConfigurationRequest,
     ActionGoalRequest,
@@ -452,6 +461,10 @@ def dashboard_service(request: Request) -> DashboardService:
 
 def action_service(request: Request) -> CharityActionService:
     return cast(CharityActionService, request.app.state.action_service)
+
+
+def campaign_alias_service(request: Request) -> CampaignAliasService:
+    return cast(CampaignAliasService, request.app.state.campaign_alias_service)
 
 
 def commitment_service(request: Request) -> CommitmentService:
@@ -3015,6 +3028,118 @@ async def set_charity_action_details(
     )
     response.headers["Cache-Control"] = "no-store"
     return charity_action_response(action)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/redirect-aliases",
+    operation_id="listCampaignAliases",
+    response_model=CampaignAliasListResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def list_campaign_aliases(
+    action_id: UUID, request: Request, response: Response
+) -> CampaignAliasListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    result = await campaign_alias_service(request).list_for_action(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasListResponse.model_validate(result)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/redirect-aliases",
+    operation_id="createCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def create_campaign_alias(
+    action_id: UUID,
+    request: Request,
+    body: CreateCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            body.alias_id,
+            action_id,
+            action_id,
+            "create",
+            0,
+            body.alias,
+            body.enabled,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}",
+    operation_id="updateCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def update_campaign_alias(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: UpdateCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            alias_id,
+            action_id,
+            body.target_action_id,
+            "update",
+            body.revision,
+            body.alias,
+            body.enabled,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.delete(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}",
+    operation_id="removeCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def remove_campaign_alias(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: RemoveCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            alias_id,
+            action_id,
+            action_id,
+            "remove",
+            body.revision,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
 
 
 @router.put(

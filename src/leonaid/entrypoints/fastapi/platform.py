@@ -27,6 +27,7 @@ from leonaid.adapters.postgres.acquisition import (
 )
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
+from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
@@ -70,6 +71,7 @@ from leonaid.application.activity_feed import ActivityFeedService
 from leonaid.application.activities import AcquisitionActivityService
 from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
+from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.dashboard import DashboardService
@@ -142,6 +144,10 @@ def error_response(
         headers={"Cache-Control": "no-store"}
         if status_code in {401, 403}
         or request.url.path.startswith("/api/v1/public/actions/")
+        or (
+            request.url.path.startswith("/api/v1/actions/")
+            and request.url.path.split("/")[5:6] == ["redirect-aliases"]
+        )
         else None,
         content={
             "error": {
@@ -243,6 +249,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.action_service = CharityActionService(
             AsyncpgCharityActionRepository(pool)
+        )
+        application.state.campaign_alias_service = CampaignAliasService(
+            AsyncpgCampaignAliasRepository(pool)
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)

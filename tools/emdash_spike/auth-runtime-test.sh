@@ -6,7 +6,7 @@ orders=${3:-false}
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 # Each proof has an independent server-only key; never reuse a parallel stack's.
 LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
@@ -176,6 +176,10 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = alias-http ]; then
+    fixture /repo/tools/emdash_spike/alias_http_proof.py
+    exit 0
+  fi
   if [ "$mode" = migration ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe

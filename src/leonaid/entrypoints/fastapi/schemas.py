@@ -1365,6 +1365,54 @@ class SetActionPublicationRequest(TransportModel):
     )
 
 
+class CreateCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    alias_id: UUID
+    alias: str = Field(
+        min_length=1, max_length=160, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    enabled: bool = Field(default=True, strict=True)
+
+
+class UpdateCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+    target_action_id: UUID
+    alias: str = Field(
+        min_length=1, max_length=160, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    enabled: bool = Field(strict=True)
+
+
+class RemoveCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+
+
+class CampaignAliasMutationResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    enabled: bool
+    revision: int
+    removed: bool
+
+
+class CampaignAliasItemResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    is_primary: bool
+    enabled: bool
+    revision: int
+
+
+class CampaignAliasListResponse(TransportModel):
+    action_id: UUID
+    canonical_path: str
+    items: list[CampaignAliasItemResponse]
+
+
 class AdministratorOptionResponse(TransportModel):
     user_id: UUID
     display_name: str

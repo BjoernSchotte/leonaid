@@ -2840,7 +2840,7 @@ committed logs or CI artifacts.
 
 Dependencies: EMS-030, EMS-050, EMS-070
 
-- [ ] Extend existing Core alias persistence and application services to support
+- [x] Extend existing Core alias persistence and application services to support
       multiple aliases per action. Migrate existing assignments without changing
       their targets or publication windows. Retain backward compatibility for
       existing clients until they use the new contract.
@@ -2871,11 +2871,33 @@ Dependencies: EMS-030, EMS-050, EMS-070
         tests, 254 Python source checks, 24 public and 47 CMS Astro files without
         diagnostics, generated-type/format/privacy/policy gates and an unchanged
         committed tree. Existing dependency deprecation warnings remain.
-- [ ] Add list/create/update/disable/remove operations to the existing action
+- [x] Add list/create/update/disable/remove operations to the existing action
       management API and regenerate OpenAPI and the TypeScript client.
-- [ ] Authorize every operation through Core: System Admins manage all aliases;
+- [x] Authorize every operation through Core: System Admins manage all aliases;
       Charity Admins manage aliases of their own actions. Moving an alias to
       another action requires authority over both actions or System Admin status.
+      Evidence: `alias-http` passed in isolated project
+      `leonaid-emdash-tmp-5tbkcsmftq` over actual Caddy HTTPS verified against its
+      private CA. Core exposes GET/POST on
+      `/api/v1/actions/{action_id}/redirect-aliases` and PUT/DELETE on its
+      `/{alias_id}` child. PUT supports rename, enabled state and target action;
+      DELETE carries the command ID and expected revision in its JSON body.
+      List responses contain the Core-derived canonical path and stable alias
+      records, including the read-only legacy primary. Existing publication
+      controls remain responsible for primary-alias changes. OpenAPI and all
+      four generated TypeScript operations are committed.
+      The live case covers two own-action aliases, disabled state, System Admin
+      move/delete, a Charity Admin denied without target membership and permitted
+      after actual membership in both actions, wrong-source 404, strict invalid
+      bodies/paths, CSRF denial, revision/name conflicts, sequential/concurrent
+      replay, one-winner concurrent claims, five-second real freshness expiry,
+      membership withdrawal, actual Core logout and account suspension. Reads
+      require a valid session; every mutation requires fresh Core authentication
+      before the transactional checks. Alias, receipt and audit snapshots prove
+      denials are non-mutating. All success/error responses are `no-store`,
+      including validation errors fixed during this case. Exit 0 and cleanup of
+      only the project's own resources. These are real HTTP/API checks using
+      synthetic persisted sessions, not yet the campaign-admin browser UI.
 - [ ] Add an "Addresses and redirects" section to the existing campaign admin
       screen. Show the canonical URL, aliases, effective target and availability;
       provide create, edit, disable, and remove controls with conflict feedback.
@@ -2946,6 +2968,7 @@ Verification (new case implemented by this task):
 ./leonaid test-emdash-spike --case alias-namespaces
 ./leonaid test-emdash-spike --case alias-persistence
 ./leonaid test-emdash-spike --case alias-commands
+./leonaid test-emdash-spike --case alias-http
 ./leonaid test-public-actions
 ```
 

@@ -88,6 +88,10 @@ class CampaignAliasResult:
 
 
 class CampaignAliasRepository(Protocol):
+    async def list_for_action(
+        self, actor_id: UUID, action_id: UUID
+    ) -> CampaignAliasList: ...
+
     async def mutate(
         self, actor_id: UUID, command: CampaignAliasCommand, *, request_id: str
     ) -> CampaignAliasResult: ...
@@ -96,6 +100,12 @@ class CampaignAliasRepository(Protocol):
 class CampaignAliasService:
     def __init__(self, repository: CampaignAliasRepository) -> None:
         self._repository = repository
+
+    async def list_for_action(
+        self, actor: IdentityPrincipal, action_id: UUID
+    ) -> CampaignAliasList:
+        require_action_manager(actor, action_id)
+        return await self._repository.list_for_action(actor.account.id, action_id)
 
     async def mutate(
         self,
@@ -111,3 +121,20 @@ class CampaignAliasService:
         return await self._repository.mutate(
             actor.account.id, command, request_id=request_id
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignAliasItem:
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    is_primary: bool
+    enabled: bool
+    revision: int
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignAliasList:
+    action_id: UUID
+    canonical_path: str
+    items: tuple[CampaignAliasItem, ...]
