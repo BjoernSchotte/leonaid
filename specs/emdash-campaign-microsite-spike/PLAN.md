@@ -630,7 +630,7 @@ Dependencies: EMS-010
       authentication and replacing upstream email lookup remain open below.
 
 - [x] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
-  config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
+config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
       workspace package. Production HTTP identity is proven below; browser
       navigation and broader editor access remain separate open gates.
 - [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
@@ -1555,6 +1555,26 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `e000bc6`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
+- [x] Prove native image-picker pagination with more than one full production
+      page. The real TLS upload/confirm protocol seeds 101 own raster images and
+      a foreign image matching the same search prefix after earlier browser
+      fixtures finish. Chromium, Firefox and WebKit use real Core SMTP login,
+      search the native picker, load its actual 100+1 pages, compare exact ordered
+      IDs and scoped counts, and verify that the foreign item and exhausted
+      Load More control are absent. Changing search after loading page two sends
+      no stale cursor; selecting the narrowed last-page image saves through the
+      native editor and survives reload with a decoded private preview and
+      unchanged other editorial fields. No API response or UI-state replacement
+      is used. Full `campaign-media-http` passed in
+      `leonaid-emdash-tmp-oizz9uzgup`, including prior media/search/editor/repeater,
+      reference isolation, five SQL-wait/logout races, dependency-failure/retry,
+      revocation and bootstrap restart/database-failure checks. No host ports;
+      all owned resources and temporary proof files were removed. The initial
+      run `leonaid-emdash-tmp-8wpnxrilmp` passed runtime assertions but exited
+      unsuccessfully because its new synthetic metadata file was omitted from
+      the explicit cleanup list. That list is corrected; the old file and empty
+      directory were removed after inspection. This does not close full
+      two-actor browser workflows, accessibility, public delivery or recovery.
 - [x] Prove empty and foreign-only filename searches in the native image picker
       in Chromium, Firefox and WebKit. A separate real Charity B upload supplies
       a unique foreign filename while the existing same-filename/hash isolation

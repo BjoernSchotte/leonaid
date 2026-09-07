@@ -103,7 +103,26 @@ const confirm = async (actor, id, status = 200, metadata = {}) =>
 const mode = process.argv[2];
 if (mode) {
   const state = JSON.parse(await readFile(statePath, "utf8"));
-  if (mode === "--confirm-failure") {
+  if (mode === "--pagination-seed") {
+    const items = [];
+    for (let index = 0; index < 101; index++) {
+      const upload = await reserve(
+        "charity",
+        a,
+        `page-proof-${String(index).padStart(3, "0")}.png`,
+      );
+      await stage("charity", upload);
+      items.push((await confirm("charity", upload.mediaId)).json.data.item);
+    }
+    const upload = await reserve("charity_b", b, "page-proof-foreign.png");
+    await stage("charity_b", upload);
+    const foreign = (await confirm("charity_b", upload.mediaId)).json.data.item;
+    assert.equal(new Set(items.map((item) => item.id)).size, 101);
+    await writeFile(
+      "/proof/media-pagination.json",
+      JSON.stringify({ items, foreign }),
+    );
+  } else if (mode === "--confirm-failure") {
     const before = await get("charity", state.failure.mediaId);
     assert.equal(before.status, "pending");
     await confirm("charity", state.failure.mediaId, 503);

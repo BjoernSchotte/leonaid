@@ -30,7 +30,7 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
 fi
 cleanup() {
   compose down --volumes >/dev/null
-  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json"
+  rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -116,6 +116,9 @@ if [ "$mode" != auth ]; then
       echo "campaign-editor-pointer: focused browser proof only; full campaign-media-http gate remains required"
       exit 0
     fi
+    media_probe --pagination-seed
+    compose run --rm --no-deps --volume "$proof:/proof:ro" admin-browser \
+      node tools/emdash_spike/campaign-media-pagination-browser-proof.mjs
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs fail-confirm
     media_probe --confirm-failure
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/media-runtime-operator.mjs restore-confirm
