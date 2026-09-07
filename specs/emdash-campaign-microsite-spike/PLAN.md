@@ -2047,6 +2047,10 @@ fields are absent; generated TypeScript types compile.
       issue only: accepted-order confirmation summaries, successful ordering,
       idempotency and the full validation matrix remain open. Core order/CRM
       authority and the existing Astro-to-Core transport are unchanged.
+      Quality gate: `./leonaid check` passed at `56e404e`: 208 unit tests,
+      244 Python source files, 24 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 - [x] Preserve request-local order inputs on native form errors without cookies,
       CMS storage or another identity. The shared form uses a bounded 64 KiB
