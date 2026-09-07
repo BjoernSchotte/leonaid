@@ -35,14 +35,24 @@ def violations(
                 continue
             text = path.read_text(encoding="utf-8")
             transport_text = text
-            if path == independent_client:
-                # This packed consumer has its own backend and must not import LeonAid's client.
-                # Only its two fixed local routes are exempt; LeonAid API calls still fail.
-                transport_text = re.sub(
-                    r"\bfetch\s*\(\s*([\"'])/api/(?:participation|diagnostics)\1",
-                    "independentTransport(",
-                    text,
-                )
+            if independent_client is not None:
+                # The packed consumer has its own backend. Exempt only reviewed
+                # routes in these exact adapter files, never LeonAid's /api/v1.
+                demo = independent_client.parent
+                routes = {
+                    independent_client: r"([\"'])/api/(?:participation|diagnostics)\1",
+                    demo / "editor.tsx": r"([\"'])/api/editor\1",
+                    demo / "exports.tsx": (
+                        r"(?:([\"'])/api/(?:exports|export-source)\1|"
+                        r"`/api/exports/\$\{encodeURIComponent\(id\)\}(?:/download)?`)"
+                    ),
+                }
+                if path in routes:
+                    transport_text = re.sub(
+                        r"\bfetch\s*\(\s*" + routes[path],
+                        "independentTransport(",
+                        text,
+                    )
             if DIRECT_API_FETCH.search(transport_text):
                 problems.append(f"{path}: direkter API-fetch statt @leonaid/api-client")
             if GENERATED_IMPORT.search(text):

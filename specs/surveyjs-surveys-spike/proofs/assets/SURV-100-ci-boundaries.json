@@ -1,0 +1,98 @@
+{
+  "baselines": ["f9ed1f1", "3839c0b"],
+  "sbom": [
+    {
+      "file": "container-alertmanager.cdx.json",
+      "sha256": "76264cc392bf59504c5b233e1095606c67be0d35d90e9b937bc2013de110961a",
+      "components": 223
+    },
+    {
+      "file": "container-caddy.cdx.json",
+      "sha256": "716c2dd77b0a1a6cb32a0009d240edf916a277136b3886fd3be2957373327511",
+      "components": 402
+    },
+    {
+      "file": "container-listmonk.cdx.json",
+      "sha256": "48a4a90778fd2d48dfb6c94419f4a8010ffbf5159fe521adcd10e1e304c4002b",
+      "components": 763
+    },
+    {
+      "file": "container-mailpit.cdx.json",
+      "sha256": "f61b2c4c7c948d54efca7e23d56a9aa35d75772582679375af9c41286eac3b6b",
+      "components": 499
+    },
+    {
+      "file": "container-node.cdx.json",
+      "sha256": "a9b1a700e8c3c93b23a72486edabf848f38b059ed3ee71dd904f422358d17ae1",
+      "components": 497
+    },
+    {
+      "file": "container-otel.cdx.json",
+      "sha256": "659b7dbecfc4af73cb19a1fa3d0cf34b1464cb599a6ca21c663d3d1f94709a6f",
+      "components": 982
+    },
+    {
+      "file": "container-playwright.cdx.json",
+      "sha256": "1822d9db641457ea3a4c15de3eb8ad2c1d17e648f76324f5bda14586761dd701",
+      "components": 20465
+    },
+    {
+      "file": "container-postgres.cdx.json",
+      "sha256": "7e8d027189689fe120845151a39c5ce19bf6e242dcd64c88272303c6c959fc60",
+      "components": 615
+    },
+    {
+      "file": "container-prometheus.cdx.json",
+      "sha256": "744da0444627b2ea44fa1c22101be7fe24bb6e9e5f17b66979b0051867768f25",
+      "components": 436
+    },
+    {
+      "file": "container-python.cdx.json",
+      "sha256": "0034b958d3d2a57d4bbc8429cd633686c003bfafa7fc98baca6c4073cc01fce1",
+      "components": 2745
+    },
+    {
+      "file": "container-redis.cdx.json",
+      "sha256": "35e50d3703deaafc8e8f9b2297f80387751bd3b9acdad382f0ac677f470567c7",
+      "components": 452
+    },
+    {
+      "file": "container-rustfs.cdx.json",
+      "sha256": "40d79860168a31f4e5d0a5a58abecc8792de3dba3e6177d77aec3c9becee5cc9",
+      "components": 258
+    },
+    {
+      "file": "container-seaweedfs.cdx.json",
+      "sha256": "142166bc31813f54416f2a7e4229d0e8e845dab1e7191a184acf4eb5a9cc2581",
+      "components": 377
+    },
+    {
+      "file": "container-twenty.cdx.json",
+      "sha256": "de309d836f6c2965d41e204ae57ab82a2b37c4056af0109d0aa658f7d3f88cb4",
+      "components": 2719
+    },
+    {
+      "file": "container-typst.cdx.json",
+      "sha256": "f5cc5ee4cc08369524ed91bf4a0dc7255a88481b73db75c8573596a344e03061",
+      "components": 98
+    },
+    {
+      "file": "frontend.cdx.json",
+      "sha256": "f7ae4e1414a65c2087097ceb532171d2e635092deac882805010b61b02f1a327",
+      "components": 891
+    },
+    {
+      "file": "python.cdx.json",
+      "sha256": "c6568f4bdcac7501f684dc50b8038767c489ee2e5926040b1b2a199f072d099e",
+      "components": 182
+    }
+  ],
+  "sourceSha256": {
+    "tools/sbom/generate.sh": "7b2f76e96a34de8876d3e4804480e87871d9588eb2b109efe0339abab27616f4",
+    "tools/sbom/verify.py": "046d132667608b0487d83f1ba1d03aa25239bd14e4cd80831d3a635f81195085",
+    "tools/openapi/check_frontend.py": "64f778c32a20537ff0c97354850e026e0361b5358fb3bb5f84cbae42797ce73a",
+    "tests/unit/test_frontend_api_boundary.py": "5cbb813e14e3e75af3c72839bbb25c9916c07a50efd3e9ccd04e8771a089f868",
+    "tests/unit/test_survey_checkpoint_archive.py": "d27616600e534fc8a4abb9d7f5fb5c7550bbf9cdf230e756ba2471b0ccc0065c",
+    "tests/unit/test_survey_checkpoint_publisher.py": "4716310bc2156057a1fa8dbf27c5745f00f33aed52af4cf154a9289f99128707"
+  }
+}

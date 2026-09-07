@@ -24,7 +24,9 @@ async def test_missing_or_relative_archive_configuration_never_acknowledges(dire
 
 
 @pytest.mark.asyncio
-async def test_worker_factory_does_not_silently_disable_gate_when_unconfigured(monkeypatch):
+async def test_worker_factory_does_not_silently_disable_gate_when_unconfigured(
+    monkeypatch,
+):
     monkeypatch.delenv("LEONAID_SURVEY_ERASURE_ARCHIVE_DIR", raising=False)
     publisher = configured_publisher(None)
     with pytest.raises(DependencyUnavailable):

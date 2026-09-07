@@ -187,9 +187,7 @@ def test_unchanged_ledger_does_not_grow_archive_or_claim_a_new_cutoff(tmp_path):
     _, latest = checkpoints()
     archive = FileCheckpointArchive(tmp_path)
     archive.publish(latest, SECRET)
-    later = latest.model_copy(
-        update={"exported_at": datetime.now(timezone.utc)}
-    )
+    later = latest.model_copy(update={"exported_at": datetime.now(timezone.utc)})
     for _ in range(10):
         archive.publish(later, SECRET, only_if_changed=True)
     assert len(list(tmp_path.glob("*.json"))) == 2
@@ -205,9 +203,7 @@ def test_unchanged_ledger_still_repairs_pending_and_checks_retained_bytes(tmp_pa
     archive = FileCheckpointArchive(tmp_path)
     archive.publish(latest, SECRET)
     (tmp_path / "pending.json").write_bytes(seal(latest, SECRET))
-    later = latest.model_copy(
-        update={"exported_at": datetime.now(timezone.utc)}
-    )
+    later = latest.model_copy(update={"exported_at": datetime.now(timezone.utc)})
     archive.publish(later, SECRET, only_if_changed=True)
     assert fetch(archive, later) == seal(later, SECRET)
     import hashlib

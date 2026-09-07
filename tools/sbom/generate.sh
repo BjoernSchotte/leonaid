@@ -68,6 +68,8 @@ typst_image="$TYPST_IMAGE"
 playwright_image="$PLAYWRIGHT_IMAGE"
 listmonk_image="$LISTMONK_IMAGE"
 otel_image="$OTEL_IMAGE"
+prometheus_image="$PROMETHEUS_IMAGE"
+alertmanager_image="$ALERTMANAGER_IMAGE"
 
 for system_id in python node twenty postgres redis rustfs seaweedfs mailpit caddy typst playwright listmonk otel prometheus alertmanager; do
   eval "image=\${${system_id}_image}"
@@ -86,4 +88,4 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python /verify.py /sbom
 
-echo "sbom: OK: Python, frontend and 13 runtime container SBOMs in $output"
+echo "sbom: OK: Python, frontend and 15 runtime container SBOMs in $output"

@@ -289,3 +289,48 @@ counts, booleans, source hashes and run metadata.
 Supporting checks: Ruff on `journey_verify.py`, Prettier on the browser test,
 shell syntax validation and `git diff --check` passed. No application behavior
 was changed by this increment.
+
+
+## CI transport boundary and complete runtime SBOM inventory
+
+Verified on 2026-09-07 across baselines `f9ed1f1` and `3839c0b`, plus the exact source hashes in
+[the sanitized record](assets/SURV-100-ci-boundaries.json). This is a scoped
+regression repair, not acceptance of the entire SURV-100 gate or remote CI.
+
+The generated-client boundary already allowed the independent demo respondent's
+own backend routes but incorrectly rejected its editor and export adapters.
+The checker now allows only seven reviewed route forms in three exact demo files.
+It still rejects LeonAid `/api/v1` calls, unreviewed files/routes, unencoded export
+IDs and direct generated-client imports. The current full frontend scan passed;
+all **16 boundary tests** passed in the pinned Python container. No package or
+production frontend code changed for this correction.
+
+`rtk proxy sh tools/surveys/package.sh "$PWD"` exited **0**. The packed artifact
+was installed outside workspace resolution with frozen dependency versions;
+package/bundle/license inspection passed. Four Chromium cases passed (**8.3s**
+before restart and **2.3s** after restart): multipage persistence, actual CSV
+export after lost acknowledgement, translated editor with retained undo/history,
+and restoration of respondent/editor state through the real SQLite backend.
+Project `surveys-package-833458328-68312` used an unused internal subnet and no
+host ports. Cleanup and a separate container/volume/network absence check passed.
+
+The SBOM shell loop already enumerated Prometheus and Alertmanager but failed
+because their pinned image variables were not assigned. Both assignments are
+now explicit, and verification requires both artifacts rather than accepting
+the older incomplete set. Command:
+`rtk proxy sh tools/sbom/generate.sh "$PWD" "$PWD/.artifacts/sbom-surveys-ci"`.
+Exit **0**: Python, frontend and **15 runtime images**, totaling **17 nonempty
+CycloneDX documents**. Each image is scanned from its pinned registry reference.
+Two negative checks omitted each new artifact separately from the actual results;
+both returned exit **1** and identified the missing document. Artifact hashes
+and component counts are recorded without copying raw inventories into the proof.
+
+The two checkpoint unit files flagged by CI were formatted without behavior
+changes. The combined boundary/archive/publisher suite passed **35 tests** in
+the pinned UV image with `PYTHONPATH=/workspace/src:/workspace`. An earlier manual
+invocation omitted that variable: four subprocess-based archive checks failed
+with `ModuleNotFoundError`; the corrected invocation exercised those same cases
+successfully. No failed run is counted as passing evidence.
+
+Full existing integration regression, aggregate repetition, remote workflow
+results and the remaining recovery/capability audit stay open.
