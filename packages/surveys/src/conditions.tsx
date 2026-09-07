@@ -1,3 +1,4 @@
+import { formatEditorMessage, type EditorTranslator } from "./editor-i18n";
 import type { JsonValue } from "./contracts";
 import type { EditorQuestion } from "./editor-model";
 
@@ -75,7 +76,9 @@ export function ConditionBuilder({
   expression,
   questions,
   onChange,
+  translate: t = formatEditorMessage,
 }: {
+  translate?: EditorTranslator;
   expression: string;
   questions: EditorQuestion[];
   onChange: (value: string | undefined) => void;
@@ -85,11 +88,12 @@ export function ConditionBuilder({
     return (
       <div>
         <p>
-          Diese vorhandene Bedingung bleibt unverändert erhalten. Der geführte
-          Editor unterstützt eine Ebene mit allen oder beliebigen Regeln.
+          {t(
+            "Diese vorhandene Bedingung bleibt unverändert erhalten. Der geführte Editor unterstützt eine Ebene mit allen oder beliebigen Regeln.",
+          )}
         </p>
         <button type="button" onClick={() => onChange(undefined)}>
-          Bedingung entfernen
+          {t("Bedingung entfernen")}
         </button>
       </div>
     );
@@ -107,19 +111,21 @@ export function ConditionBuilder({
   }
   return (
     <fieldset>
-      <legend>Sichtbarkeit</legend>
-      <p>Ohne Regel immer anzeigen.</p>
+      <legend>{t("Sichtbarkeit")}</legend>
+      <p>{t("Ohne Regel immer anzeigen.")}</p>
       {parsed.rows.length > 1 && (
         <label>
-          Regeln verknüpfen
+          {t("Regeln verknüpfen")}
           <select
             value={parsed.mode}
             onChange={(event) =>
               save(parsed.rows, event.target.value as "and" | "or")
             }
           >
-            <option value="and">Alle Regeln müssen zutreffen</option>
-            <option value="or">Mindestens eine Regel muss zutreffen</option>
+            <option value="and">{t("Alle Regeln müssen zutreffen")}</option>
+            <option value="or">
+              {t("Mindestens eine Regel muss zutreffen")}
+            </option>
           </select>
         </label>
       )}
@@ -146,7 +152,7 @@ export function ConditionBuilder({
         return (
           <div key={index}>
             <label>
-              Vorherige Frage {index + 1}
+              {t("Vorherige Frage {number}", { number: index + 1 })}
               <select
                 value={row.reference}
                 onChange={(event) =>
@@ -159,7 +165,7 @@ export function ConditionBuilder({
               >
                 {!source && (
                   <option value={row.reference}>
-                    Frage steht nicht mehr davor
+                    {t("Frage steht nicht mehr davor")}
                   </option>
                 )}
                 {questions.map((q) => (
@@ -170,7 +176,7 @@ export function ConditionBuilder({
               </select>
             </label>
             <label>
-              Vergleich {index + 1}
+              {t("Vergleich {number}", { number: index + 1 })}
               <select
                 value={row.operator}
                 onChange={(event) =>
@@ -186,7 +192,7 @@ export function ConditionBuilder({
               >
                 {operators.map((op) => (
                   <option key={op} value={op}>
-                    {labels[op]}
+                    {t(labels[op])}
                   </option>
                 ))}
               </select>
@@ -194,7 +200,7 @@ export function ConditionBuilder({
             {!["empty", "notempty"].includes(row.operator) &&
               (choices.length ? (
                 <label>
-                  Antwortwert {index + 1}
+                  {t("Antwortwert {number}", { number: index + 1 })}
                   <select
                     value={String(
                       choices.findIndex(
@@ -208,7 +214,7 @@ export function ConditionBuilder({
                     }
                   >
                     <option value="-1" disabled>
-                      Antwort wählen
+                      {t("Antwort wählen")}
                     </option>
                     {choices.map((value, i) => (
                       <option key={i} value={i}>
@@ -225,7 +231,7 @@ export function ConditionBuilder({
                 </label>
               ) : (
                 <label>
-                  Vergleichswert {index + 1}
+                  {t("Vergleichswert {number}", { number: index + 1 })}
                   <input
                     type={numeric ? "number" : "text"}
                     value={String(row.value)}
@@ -243,7 +249,7 @@ export function ConditionBuilder({
               type="button"
               onClick={() => save(parsed.rows.filter((_, i) => i !== index))}
             >
-              Regel {index + 1} entfernen
+              {t("Regel {number} entfernen", { number: index + 1 })}
             </button>
           </div>
         );
@@ -258,7 +264,7 @@ export function ConditionBuilder({
           ])
         }
       >
-        Regel hinzufügen
+        {t("Regel hinzufügen")}
       </button>
     </fieldset>
   );

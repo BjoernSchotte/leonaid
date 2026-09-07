@@ -1,14 +1,15 @@
 # SURV-020 — Independent packed consumer
 
-Based on `d2616fb` plus this commit's package, demo and test changes. This proves
-the respondent consumer boundary; editor-wide translation, analytics entrypoints
-and the complete work package remain open.
+Status: **accepted** for SURV-020. The host-translated editor proof below closes
+020.1; analytics entrypoints are also exercised by the current packed inspector.
+Earlier sections retain the evidence and limitations at their execution time.
+The complete spike remains open.
 
 ## Delivery and acceptance
 
 | Task | Required criteria | Evidence | Status |
 |---|---|---|---|
-| 020.1 | A1, A2, A3 | Separate existing entrypoints; new runner locale/messages | Partial: editor-wide translation and analytics entrypoint remain open |
+| 020.1 | A1, A2, A3 | Packed editor/runner/analytics/contracts/styles; host translation and SQLite persistence below | Delivered and accepted |
 | 020.2 | A1, A3 | Actual tarball installed in clean `/consumer`; real SQLite adapter; two browser phases | Delivered and accepted |
 | 020.3 | A3, A4 | Host token overrides, English runner, browser mounting/restoration; T-07 disposition below | Delivered and accepted |
 | 020.4 | A2 | Packed file allowlist, MIT inventory, retained software/OFL notices, bundle source-map inspection | Delivered and accepted for current shipped entrypoints |
@@ -172,3 +173,94 @@ Scenario reconciliation:
 This closes 020.3, 020.T2 and 020.A4 with verified cleanup. The package gate's
 four acceptance criteria now pass. The editor-wide translation and analytics entrypoint work in
 020.1 remains open; the overall work package and spike are not complete.
+
+
+## Host-translated editor and entrypoint acceptance
+
+This increment adds optional `SurveyEditor.translate` and `locale` props, exported
+`EditorTranslator`/`formatEditorMessage`, translated condition-builder controls and
+translated defaults in `EditorHistory`. All toolbar, property, condition, recovery,
+status/error and accessible labels cross the host callback. Numbered labels use
+named placeholders so hosts can reorder wording. Existing questionnaire titles,
+choices, IDs and expressions are not translated or rewritten. The history reads
+the current callback through a ref: changing its identity does not discard edits,
+undo history or the draft coordinator. Preview locale is applied on opening.
+
+The default formatter retains existing German messages. Additional languages are
+host catalogues; the package does not claim to ship complete translations for all
+languages. The demo translates selected messages to English and prefixes remaining
+source messages with `Host ·`, deliberately showing the callback boundary. Its
+SurveyJS preview uses English. Existing emitted notices retain their rendered
+wording; locale changes do not rewrite author content. React renders translations
+as text, not HTML. Adapter diagnostics remain the host's responsibility and pass
+through the callback at display time.
+
+### Packed browser and persistence proof
+
+```sh
+rtk proxy sh tools/surveys/package.sh "$PWD"
+```
+
+Final project `surveys-package-833458328-18930`, exit **0**. Only the real packed
+artifact enters the clean `/consumer` build; the new `/editor` route imports its
+public editor/contracts/styles entrypoints. The consumer has no LeonAid source
+or API client. Its independent SQLite fixture adapter implements revisioned draft
+load/save, identical-operation replay and a minimal validation response. Publishing
+is explicitly disabled. This private synthetic fixture is not a production
+authentication or arbitrary-schema validation service.
+
+Both first-phase Chromium tests passed in 6.5 s; after restarting the actual
+SQLite backend, both second-phase tests passed in 2.1 s. The two new named tests:
+
+- `editor host translates controls without changing author content or resetting history`:
+  checks translated accessible names and numbered condition labels; changes a title,
+  forces a new host callback identity and verifies undo remains enabled and the edit
+  persists; creates translated page/question defaults; shows a translated JSON
+  syntax error without corrupting the accepted draft; reads the actual SQLite-backed
+  API snapshot to verify original author wording and the original condition remain;
+  opens the actual SurveyJS preview and checks its English Next control.
+- `editor restores translated host draft after backend restart`:
+  at 390 × 844, reloads the saved title, new page and question from the restarted
+  backend and checks the persisted definition. The existing respondent restart,
+  zero-restoration-write, host-theme, translated runner and export journeys also pass.
+
+The first attempt (`...18557`) failed when `getByLabel` did not match the translated
+select despite its correct accessible combobox name in the captured page snapshot.
+The final test uses `getByRole("combobox", { name: "Previous question 1", exact: true })`.
+No product behavior was relaxed. Raw traces remain private ignored artifacts.
+No new visual design or broad cross-language clipping review is claimed.
+
+The current packed inspector additionally renders `SurveyAnalytics` with host
+messages and locale, verifies numerical output and absence of synthetic raw text,
+and checks analytics styles. It retains the exact permissive dependency inventory,
+OFL notices and respondent/editor bundle separation checks. Current inventory:
+[SURV-020-editor-package.json](assets/SURV-020-editor-package.json).
+No software dependencies or license decisions changed; own license stays UNDEFINED.
+
+### LeonAid regression and core gate
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" editor
+rtk proxy ./leonaid test-surveys-core
+```
+
+The real LeonAid editor run `leonaid-surveys-833458328-18801` exited **0**. All seven
+Chromium tests passed (1.1 min), including keyboard/focus/recovery/preview checks,
+Krapfentaxi and Golf authoring/publication, stable identities, unknown JSON import,
+unsafe-publication rejection and lost-save/undo/two-tab conflicts. Default German
+controls remain compatible. Real API/PostgreSQL foundation checks passed.
+
+The core gate now includes both editor test files: 168 SurveyJS/Python comparisons,
+23 Python tests, and 15 Bun tests with 141 assertions passed. The new unit cases
+cover placeholder reordering/own-key handling, literal non-recursive substitution,
+new localized defaults, stable IDs/history and preserved authored content. Web
+TypeScript, scoped Prettier checks, shell syntax and `git diff --check` passed.
+
+Both Docker harnesses used fresh private volumes and currently unused explicit
+subnets, published no host ports and removed owned resources before successful
+exit. Runtime and test source remained unchanged during the final accepted runs;
+README/proof documentation and core-test wiring were completed afterwards.
+
+This closes 020.1 with the existing A1–A4 evidence and accepts SURV-020. It does
+not claim SSR hydration support, a production standalone editor backend, a full
+language catalogue or completion of the remaining SURV-000/060/090/100 work.

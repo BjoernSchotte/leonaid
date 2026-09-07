@@ -2018,7 +2018,7 @@ case "$command" in
     run_bun bun tools/surveys/parity.mjs .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
     run_python uv run --frozen --no-sync pytest tests/unit/test_surveys.py tests/unit/test_survey_validation.py -q
-    run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts
+    run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts tools/surveys/editor.test.ts tools/surveys/editor-i18n.test.ts
     ;;
   test-surveys-validation-candidate)
     run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare

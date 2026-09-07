@@ -41,3 +41,13 @@ the actual backend process restarts. An anonymous download is rejected. Separate
 bundle inspection proves exports do not enter the respondent bundle and do not
 import the SurveyJS renderer/editor. Host copy, filename and green theme remain
 independent of LeonAid. Both desktop and mobile export views are exercised.
+
+
+The `/editor` route consumes the packed editor entrypoint with its own translation
+callback and English SurveyJS preview. Selected messages use English; untranslated
+catalogue entries intentionally receive a `Host ·` prefix to expose the callback
+boundary. Author content remains unchanged. Draft writes use the isolated SQLite
+fixture adapter with revision checks and operation replay, and survive the same
+real backend restart as respondent data. The fixture endpoint has no production
+authorization policy and publication is disabled; run this synthetic host only
+through the private, port-free test harness.

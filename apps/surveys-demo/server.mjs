@@ -8,6 +8,34 @@ db.exec(
 db.exec(
   "CREATE TABLE IF NOT EXISTS export_job(id TEXT PRIMARY KEY,pid TEXT NOT NULL,operation_id TEXT NOT NULL,input TEXT NOT NULL,value TEXT NOT NULL,content TEXT NOT NULL,UNIQUE(pid,operation_id));",
 );
+// Synthetic isolated editor fixture, not a production authoring/authentication service.
+db.exec(
+  "CREATE TABLE IF NOT EXISTS editor_draft(singleton INTEGER PRIMARY KEY CHECK(singleton=1),value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS editor_operation(id TEXT PRIMARY KEY,input TEXT NOT NULL,result TEXT NOT NULL)",
+);
+db.query("INSERT OR IGNORE INTO editor_draft VALUES(1,?)").run(
+  JSON.stringify({
+    surveyId: "editor-demo",
+    revision: 1,
+    definition: {
+      title: "Author supplied title",
+      pages: [
+        {
+          name: "page",
+          title: "Author supplied page",
+          elements: [
+            { name: "source", type: "text", title: "Author supplied question" },
+            {
+              name: "follow",
+              type: "comment",
+              title: "Author supplied followup",
+              visibleIf: "{source} notempty",
+            },
+          ],
+        },
+      ],
+    },
+  }),
+);
 const definition = {
   title: "Your community event",
   pages: [
@@ -124,18 +152,72 @@ Bun.serve({
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (path === "/health") return new Response("ok");
-    if (path === "/" || path === "/exports")
+    if (path === "/" || path === "/exports" || path === "/editor")
       return new Response(
-        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Independent surveys consumer</title><link rel="stylesheet" href="/${path === "/exports" ? "exports" : "client"}.css"><div id="app"></div><script type="module" src="/${path === "/exports" ? "exports" : "client"}.js"></script></html>`,
+        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Independent surveys consumer</title><link rel="stylesheet" href="/${path === "/editor" ? "editor" : path === "/exports" ? "exports" : "client"}.css"><div id="app"></div><script type="module" src="/${path === "/editor" ? "editor" : path === "/exports" ? "exports" : "client"}.js"></script></html>`,
         { headers: { "Content-Type": "text/html" } },
       );
     if (
-      ["/client.js", "/client.css", "/exports.js", "/exports.css"].includes(
-        path,
-      )
+      [
+        "/client.js",
+        "/client.css",
+        "/exports.js",
+        "/exports.css",
+        "/editor.js",
+        "/editor.css",
+      ].includes(path)
     )
       return new Response(Bun.file(`/consumer/dist${path}`));
     try {
+      if (path === "/api/editor") {
+        if (request.method === "GET")
+          return result(
+            JSON.parse(
+              db.query("SELECT value FROM editor_draft WHERE singleton=1").get()
+                .value,
+            ),
+          );
+        const input = await request.json();
+        return db.transaction(() => {
+          const draft = JSON.parse(
+            db.query("SELECT value FROM editor_draft WHERE singleton=1").get()
+              .value,
+          );
+          if (request.method === "PUT") {
+            const prior = db
+              .query("SELECT * FROM editor_operation WHERE id=?")
+              .get(input.operationId);
+            if (prior) {
+              if (prior.input !== JSON.stringify(input))
+                fail("idempotency_conflict", "Editor request changed");
+              return result(JSON.parse(prior.result));
+            }
+          }
+          if (input.expectedRevision !== draft.revision)
+            fail("revision_conflict", "Editor revision changed");
+          if (request.method === "POST") return result(draft);
+          if (
+            request.method !== "PUT" ||
+            typeof input.operationId !== "string" ||
+            !Array.isArray(input.definition?.pages)
+          )
+            fail("invalid_response", "Invalid editor fixture request");
+          const next = {
+            ...draft,
+            revision: draft.revision + 1,
+            definition: input.definition,
+          };
+          db.query("UPDATE editor_draft SET value=? WHERE singleton=1").run(
+            JSON.stringify(next),
+          );
+          db.query("INSERT INTO editor_operation VALUES(?,?,?)").run(
+            input.operationId,
+            JSON.stringify(input),
+            JSON.stringify(next),
+          );
+          return result(next);
+        })();
+      }
       let row = current(request);
       if (path === "/api/export-source" && request.method === "GET") {
         if (!row) fail("not_found", "Start feedback first");

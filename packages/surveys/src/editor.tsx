@@ -1,3 +1,4 @@
+import { formatEditorMessage, type EditorTranslator } from "./editor-i18n";
 import {
   useEffect,
   useMemo,
@@ -47,7 +48,11 @@ function focusEditorTarget(target: HTMLElement | null | undefined) {
     { once: true },
   );
 }
+export { formatEditorMessage, type EditorTranslator } from "./editor-i18n";
+
 export interface SurveyEditorProps {
+  translate?: EditorTranslator;
+  locale?: string;
   draft: Draft;
   adapter: AuthoringAdapter;
   onPublished?: (version: PublishedVersion) => void;
@@ -57,10 +62,14 @@ export interface SurveyEditorProps {
 export function SurveyEditor({
   draft,
   adapter,
+  translate: t = formatEditorMessage,
+  locale = "de",
   onPublished,
   canPublish = true,
   onSaveStateChange,
 }: SurveyEditorProps) {
+  const translator = useRef(t);
+  translator.current = t;
   const [, render] = useState(0);
   const root = useRef<HTMLElement>(null);
   const pendingFocus = useRef<string | null>(null);
@@ -79,7 +88,10 @@ export function SurveyEditor({
   const [preview, setPreview] = useState<Model | null>(null);
   const publication = useRef<Mutation | null>(null);
   const { history, saves } = useMemo(() => {
-    const history = new EditorHistory(loadedDraft.definition);
+    const history = new EditorHistory(
+      loadedDraft.definition,
+      (message, values) => translator.current(message, values),
+    );
     return {
       history,
       saves: new DraftCoordinator(loadedDraft, history, adapter, () =>
@@ -211,7 +223,7 @@ export function SurveyEditor({
       setLoadedDraft(result.value);
       selectPage(null);
       selectQuestion(null);
-      setNotice("Der aktuelle Serverstand wurde geladen.");
+      setNotice(t("Der aktuelle Serverstand wurde geladen."));
     } catch {
       setError(
         "Der Serverstand konnte nicht geladen werden. Ihre lokalen Änderungen bleiben erhalten.",
@@ -235,7 +247,7 @@ export function SurveyEditor({
         return;
       }
       const model = createSurveyModel(result.value.definition);
-      model.locale = "de";
+      model.locale = locale;
       model.focusFirstQuestionAutomatic = false;
       model.onGetTitleTagName.add((_, options) => {
         options.tagName =
@@ -274,7 +286,11 @@ export function SurveyEditor({
       }
       saves.revision = publication.current.expectedRevision + 1;
       publication.current = null;
-      setNotice(`Version ${result.value.number} ist veröffentlicht.`);
+      setNotice(
+        t("Version {number} ist veröffentlicht.", {
+          number: result.value.number,
+        }),
+      );
       onPublished?.(result.value);
     } catch {
       setError(
@@ -305,10 +321,10 @@ export function SurveyEditor({
       <fieldset>
         <legend>
           {field === "rows"
-            ? "Zeilen"
+            ? t("Zeilen")
             : field === "columns"
-              ? "Spalten"
-              : "Antwortmöglichkeiten"}
+              ? t("Spalten")
+              : t("Antwortmöglichkeiten")}
         </legend>
         {values.map((value, index) => {
           const option =
@@ -318,7 +334,7 @@ export function SurveyEditor({
           return (
             <div key={String(option.value)}>
               <label>
-                Eintrag {index + 1}
+                {t("Eintrag {number}", { number: index + 1 })}
                 <input
                   value={String(option.text ?? option.value)}
                   onChange={(event) => {
@@ -334,7 +350,7 @@ export function SurveyEditor({
                   update({ [field]: values.filter((_, i) => i !== index) })
                 }
               >
-                Eintrag {index + 1} entfernen
+                {t("Eintrag {number} entfernen", { number: index + 1 })}
               </button>
               <button
                 type="button"
@@ -345,7 +361,7 @@ export function SurveyEditor({
                   update({ [field]: next });
                 }}
               >
-                Eintrag {index + 1} nach oben
+                {t("Eintrag {number} nach oben", { number: index + 1 })}
               </button>
               <button
                 type="button"
@@ -356,7 +372,7 @@ export function SurveyEditor({
                   update({ [field]: next });
                 }}
               >
-                Eintrag {index + 1} nach unten
+                {t("Eintrag {number} nach unten", { number: index + 1 })}
               </button>
             </div>
           );
@@ -387,13 +403,13 @@ export function SurveyEditor({
                           ),
                         ) + 1
                       : `option_${crypto.randomUUID().replaceAll("-", "")}`,
-                  text: "Neue Antwort",
+                  text: t("Neue Antwort"),
                 },
               ],
             })
           }
         >
-          Eintrag hinzufügen
+          {t("Eintrag hinzufügen")}
         </button>
       </fieldset>
     );
@@ -403,14 +419,14 @@ export function SurveyEditor({
       <section
         ref={root}
         className="survey-editor survey-preview"
-        aria-label="Fragebogen-Vorschau"
+        aria-label={t("Fragebogen-Vorschau")}
       >
         <header className="se-toolbar">
           <h2 tabIndex={-1} data-preview-heading>
-            Vorschau · Antworten werden nicht gespeichert
+            {t("Vorschau · Antworten werden nicht gespeichert")}
           </h2>
           <button type="button" onClick={() => setPreview(null)}>
-            Zurück zum Editor
+            {t("Zurück zum Editor")}
           </button>
         </header>
         <div className="survey-runner">
@@ -422,28 +438,28 @@ export function SurveyEditor({
     <section
       ref={root}
       className="survey-editor"
-      aria-label="Fragebogen bearbeiten"
+      aria-label={t("Fragebogen bearbeiten")}
     >
       <header className="se-toolbar">
         <div role="status" data-draft-state={saves.state}>
-          {saves.message}
+          {t(saves.message)}
         </div>
         <button
           type="button"
           disabled={!history.canUndo || busy || !!publication.current}
           onClick={() => edit(() => history.undo())}
         >
-          Rückgängig
+          {t("Rückgängig")}
         </button>
         <button
           type="button"
           disabled={!history.canRedo || busy || !!publication.current}
           onClick={() => edit(() => history.redo())}
         >
-          Wiederholen
+          {t("Wiederholen")}
         </button>
         <button type="button" onClick={() => void saves.flush()}>
-          Jetzt speichern
+          {t("Jetzt speichern")}
         </button>
         <button
           type="button"
@@ -451,54 +467,54 @@ export function SurveyEditor({
           data-preview-trigger
           onClick={() => void inspect()}
         >
-          Vorschau
+          {t("Vorschau")}
         </button>
         {canPublish && (
           <button type="button" disabled={busy} onClick={() => void publish()}>
             {publication.current
-              ? "Veröffentlichung erneut prüfen"
-              : "Veröffentlichen"}
+              ? t("Veröffentlichung erneut prüfen")
+              : t("Veröffentlichen")}
           </button>
         )}
       </header>
       {notice && <p role="status">{notice}</p>}
       {error && (
         <p role="alert" tabIndex={-1} data-editor-error>
-          {error}
+          {t(error)}
         </p>
       )}
       {saves.state === "conflict" && (
         <div role="alert">
           <p>
-            Ein anderes Fenster hat den Entwurf geändert. Exportieren Sie Ihre
-            lokalen Änderungen, bevor Sie den Serverstand laden.
+            {t(
+              "Ein anderes Fenster hat den Entwurf geändert. Exportieren Sie Ihre lokalen Änderungen, bevor Sie den Serverstand laden.",
+            )}
           </p>
           <button type="button" onClick={exportJson}>
-            Lokale Änderungen als JSON exportieren
+            {t("Lokale Änderungen als JSON exportieren")}
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => void reloadDraft()}
           >
-            Serverstand laden und lokale Änderungen verwerfen
+            {t("Serverstand laden und lokale Änderungen verwerfen")}
           </button>
         </div>
       )}
       <fieldset className="se-editing" disabled={busy || !!publication.current}>
         <details>
-          <summary>JSON importieren / exportieren</summary>
+          <summary>{t("JSON importieren / exportieren")}</summary>
           <p>
-            Für fortgeschrittene Nutzer: Ein Import ersetzt den lokalen
-            Fragebogen und wird als Entwurf gespeichert. Rückgängig stellt den
-            vorherigen Stand wieder her. Der Export enthält den aktuellen
-            lokalen Stand, auch noch nicht gespeicherte Änderungen.
+            {t(
+              "Für fortgeschrittene Nutzer: Ein Import ersetzt den lokalen Fragebogen und wird als Entwurf gespeichert. Rückgängig stellt den vorherigen Stand wieder her. Der Export enthält den aktuellen lokalen Stand, auch noch nicht gespeicherte Änderungen.",
+            )}
           </p>
           <button type="button" onClick={exportJson}>
-            Fragebogen als JSON exportieren
+            {t("Fragebogen als JSON exportieren")}
           </button>
           <label>
-            JSON-Datei öffnen
+            {t("JSON-Datei öffnen")}
             <input
               type="file"
               accept=".json,application/json"
@@ -521,7 +537,7 @@ export function SurveyEditor({
             />
           </label>
           <label>
-            Fragebogen-JSON
+            {t("Fragebogen-JSON")}
             <textarea
               rows={10}
               aria-invalid={!!jsonError}
@@ -533,20 +549,20 @@ export function SurveyEditor({
           </label>
           {jsonError && (
             <p role="alert" id={jsonErrorId} tabIndex={-1} data-json-error>
-              {jsonError}
+              {t(jsonError)}
             </p>
           )}
           <button type="button" onClick={importJson}>
-            JSON übernehmen
+            {t("JSON übernehmen")}
           </button>
         </details>
         {issues.length > 0 && (
-          <section aria-label="Kompatibilitätshinweise">
-            <h2>Nicht unterstützte Eigenschaften</h2>
+          <section aria-label={t("Kompatibilitätshinweise")}>
+            <h2>{t("Nicht unterstützte Eigenschaften")}</h2>
             <p>
-              Diese Bereiche bleiben unverändert erhalten und werden nicht
-              ausgeführt. Betroffene Fragen sind schreibgeschützt. Vorschau und
-              Veröffentlichung werden zusätzlich vom Server geprüft.
+              {t(
+                "Diese Bereiche bleiben unverändert erhalten und werden nicht ausgeführt. Betroffene Fragen sind schreibgeschützt. Vorschau und Veröffentlichung werden zusätzlich vom Server geprüft.",
+              )}
             </p>
             <ul>
               {issues.map((path) => (
@@ -558,7 +574,7 @@ export function SurveyEditor({
           </section>
         )}
         <label className="se-title">
-          Titel des Fragebogens
+          {t("Titel des Fragebogens")}
           <input
             value={String(doc.title ?? "")}
             onChange={(event) =>
@@ -571,7 +587,7 @@ export function SurveyEditor({
           />
         </label>
         <label>
-          Beschreibung
+          {t("Beschreibung")}
           <textarea
             value={String(doc.description ?? "")}
             onChange={(event) =>
@@ -584,7 +600,7 @@ export function SurveyEditor({
           />
         </label>
         <label>
-          Fortschritt anzeigen
+          {t("Fortschritt anzeigen")}
           <select
             value={String(doc.showProgressBar ?? "off")}
             onChange={(event) =>
@@ -595,14 +611,14 @@ export function SurveyEditor({
               )
             }
           >
-            <option value="off">Aus</option>
-            <option value="top">Oben</option>
-            <option value="bottom">Unten</option>
-            <option value="both">Oben und unten</option>
+            <option value="off">{t("Aus")}</option>
+            <option value="top">{t("Oben")}</option>
+            <option value="bottom">{t("Unten")}</option>
+            <option value="both">{t("Oben und unten")}</option>
           </select>
         </label>
         <label>
-          Text nach dem Abschluss
+          {t("Text nach dem Abschluss")}
           <textarea
             value={String(doc.completedHtml ?? "")}
             onChange={(event) =>
@@ -615,8 +631,8 @@ export function SurveyEditor({
           />
         </label>
         <div className="se-workspace">
-          <nav aria-label="Fragebogenseiten">
-            <h2>Seiten</h2>
+          <nav aria-label={t("Fragebogenseiten")}>
+            <h2>{t("Seiten")}</h2>
             <ol>
               {doc.pages.map((p, index) => (
                 <li
@@ -646,13 +662,15 @@ export function SurveyEditor({
                       selectQuestion(null);
                     }}
                   >
-                    {index + 1}. {String(p.title ?? "Seite")}
+                    {index + 1}. {String(p.title ?? t("Seite"))}
                   </button>
                   <div className="se-move">
                     <button
                       type="button"
                       disabled={index === 0}
-                      aria-label={`Seite ${index + 1} nach oben`}
+                      aria-label={t("Seite {number} nach oben", {
+                        number: index + 1,
+                      })}
                       onClick={() => movePage(p.name, index - 1)}
                     >
                       ↑
@@ -660,7 +678,9 @@ export function SurveyEditor({
                     <button
                       type="button"
                       disabled={index === doc.pages.length - 1}
-                      aria-label={`Seite ${index + 1} nach unten`}
+                      aria-label={t("Seite {number} nach unten", {
+                        number: index + 1,
+                      })}
                       onClick={() => movePage(p.name, index + 1)}
                     >
                       ↓
@@ -678,14 +698,14 @@ export function SurveyEditor({
                 })
               }
             >
-              Seite hinzufügen
+              {t("Seite hinzufügen")}
             </button>
           </nav>
           <div className="se-canvas">
             {page ? (
               <>
                 <label>
-                  Seitentitel
+                  {t("Seitentitel")}
                   <input
                     value={String(page.title ?? "")}
                     onChange={(event) =>
@@ -699,6 +719,7 @@ export function SurveyEditor({
                   />
                 </label>
                 <ConditionBuilder
+                  translate={t}
                   expression={String(page.visibleIf ?? "")}
                   questions={precedingPages}
                   onChange={(value) =>
@@ -720,16 +741,16 @@ export function SurveyEditor({
                       edit(() => selectPage(history.duplicatePage(page.name)))
                     }
                   >
-                    Seite duplizieren
+                    {t("Seite duplizieren")}
                   </button>
                   <button
                     type="button"
                     onClick={() => edit(() => history.removePage(page.name))}
                   >
-                    Seite entfernen
+                    {t("Seite entfernen")}
                   </button>
                 </div>
-                <ol aria-label="Fragen auf dieser Seite">
+                <ol aria-label={t("Fragen auf dieser Seite")}>
                   {page.elements.map((q, index) => (
                     <li
                       key={q.name}
@@ -759,16 +780,22 @@ export function SurveyEditor({
                         onClick={() => selectQuestion(q.name)}
                       >
                         <small>
-                          {kinds.find(([type]) => type === q.type)?.[1] ??
-                            "Nicht unterstützte Frage"}
+                          {t(
+                            kinds.find(([type]) => type === q.type)?.[1] ??
+                              "Nicht unterstützte Frage",
+                          )}
                         </small>
-                        <strong>{String(q.title ?? "Frage ohne Titel")}</strong>
+                        <strong>
+                          {String(q.title ?? t("Frage ohne Titel"))}
+                        </strong>
                       </button>
                       <div className="se-move">
                         <button
                           type="button"
                           disabled={index === 0}
-                          aria-label={`Frage ${index + 1} nach oben`}
+                          aria-label={t("Frage {number} nach oben", {
+                            number: index + 1,
+                          })}
                           onClick={() =>
                             moveQuestion(q.name, page.name, index - 1)
                           }
@@ -778,7 +805,9 @@ export function SurveyEditor({
                         <button
                           type="button"
                           disabled={index === page.elements.length - 1}
-                          aria-label={`Frage ${index + 1} nach unten`}
+                          aria-label={t("Frage {number} nach unten", {
+                            number: index + 1,
+                          })}
                           onClick={() =>
                             moveQuestion(q.name, page.name, index + 1)
                           }
@@ -791,7 +820,7 @@ export function SurveyEditor({
                 </ol>
                 <div className="se-add">
                   <label>
-                    Fragetyp
+                    {t("Fragetyp")}
                     <select
                       value={kind}
                       onChange={(event) =>
@@ -800,7 +829,7 @@ export function SurveyEditor({
                     >
                       {kinds.map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {t(label)}
                         </option>
                       ))}
                     </select>
@@ -813,27 +842,27 @@ export function SurveyEditor({
                       )
                     }
                   >
-                    Frage hinzufügen
+                    {t("Frage hinzufügen")}
                   </button>
                 </div>
               </>
             ) : (
-              <p>Fügen Sie eine erste Seite hinzu.</p>
+              <p>{t("Fügen Sie eine erste Seite hinzu.")}</p>
             )}
           </div>
-          <aside aria-label="Frageeigenschaften">
-            <h2>Eigenschaften</h2>
+          <aside aria-label={t("Frageeigenschaften")}>
+            <h2>{t("Eigenschaften")}</h2>
             {question && questionIssues(question).length === 0 ? (
               <>
                 <label>
-                  Fragetitel
+                  {t("Fragetitel")}
                   <input
                     value={String(question.title ?? "")}
                     onChange={(event) => update({ title: event.target.value })}
                   />
                 </label>
                 <label>
-                  Hinweis
+                  {t("Hinweis")}
                   <textarea
                     value={String(question.description ?? "")}
                     onChange={(event) =>
@@ -849,11 +878,11 @@ export function SurveyEditor({
                       update({ isRequired: event.target.checked })
                     }
                   />
-                  Antwort erforderlich
+                  {t("Antwort erforderlich")}
                 </label>
                 {question.type === "text" && (
                   <label>
-                    Eingabe
+                    {t("Eingabe")}
                     <select
                       value={String(question.inputType ?? "text")}
                       onChange={(event) =>
@@ -866,9 +895,9 @@ export function SurveyEditor({
                         })
                       }
                     >
-                      <option value="text">Text</option>
-                      <option value="number">Zahl</option>
-                      <option value="date">Datum</option>
+                      <option value="text">{t("Text")}</option>
+                      <option value="number">{t("Zahl")}</option>
+                      <option value="date">{t("Datum")}</option>
                     </select>
                   </label>
                 )}
@@ -879,8 +908,8 @@ export function SurveyEditor({
                     {["minLength", "maxLength"].map((property) => (
                       <label key={property}>
                         {property === "minLength"
-                          ? "Mindestlänge"
-                          : "Höchstlänge"}
+                          ? t("Mindestlänge")
+                          : t("Höchstlänge")}
                         <input
                           type="number"
                           min="0"
@@ -913,7 +942,7 @@ export function SurveyEditor({
                           update({ isAllRowRequired: event.target.checked })
                         }
                       />
-                      Alle Zeilen erforderlich
+                      {t("Alle Zeilen erforderlich")}
                     </label>
                   </>
                 )}
@@ -922,7 +951,7 @@ export function SurveyEditor({
                   question.type === "rating" ||
                   question.type === "checkbox") && (
                   <fieldset>
-                    <legend>Grenzen</legend>
+                    <legend>{t("Grenzen")}</legend>
                     {(question.type === "rating"
                       ? [
                           ["rateMin", "Skalenanfang"],
@@ -940,7 +969,7 @@ export function SurveyEditor({
                           ]
                     ).map(([property, label]) => (
                       <label key={property}>
-                        {label}
+                        {t(label)}
                         <input
                           type={
                             question.inputType === "date" ? "date" : "number"
@@ -963,12 +992,13 @@ export function SurveyEditor({
                   </fieldset>
                 )}
                 <ConditionBuilder
+                  translate={t}
                   expression={String(question.visibleIf ?? "")}
                   questions={precedingQuestions}
                   onChange={(visibleIf) => update({ visibleIf })}
                 />
                 <label>
-                  Auf Seite verschieben
+                  {t("Auf Seite verschieben")}
                   <select
                     value={page.name}
                     onChange={(event) =>
@@ -984,7 +1014,7 @@ export function SurveyEditor({
                   >
                     {doc.pages.map((p, index) => (
                       <option key={p.name} value={p.name}>
-                        {index + 1}. {String(p.title ?? "Seite")}
+                        {index + 1}. {String(p.title ?? t("Seite"))}
                       </option>
                     ))}
                   </select>
@@ -997,7 +1027,7 @@ export function SurveyEditor({
                     )
                   }
                 >
-                  Frage duplizieren
+                  {t("Frage duplizieren")}
                 </button>
                 <button
                   type="button"
@@ -1005,14 +1035,18 @@ export function SurveyEditor({
                     edit(() => history.removeQuestion(question.name))
                   }
                 >
-                  Frage entfernen
+                  {t("Frage entfernen")}
                 </button>
               </>
             ) : (
               <p>
                 {question
-                  ? "Diese Frage enthält nicht unterstützte Eigenschaften und bleibt unverändert erhalten. Korrigieren Sie die angezeigten Felder über den JSON-Import."
-                  : "Wählen Sie eine Frage, um Titel und Antworten zu bearbeiten."}
+                  ? t(
+                      "Diese Frage enthält nicht unterstützte Eigenschaften und bleibt unverändert erhalten. Korrigieren Sie die angezeigten Felder über den JSON-Import.",
+                    )
+                  : t(
+                      "Wählen Sie eine Frage, um Titel und Antworten zu bearbeiten.",
+                    )}
               </p>
             )}
           </aside>

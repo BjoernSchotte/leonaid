@@ -51,10 +51,10 @@ browser() {
 ready
 docker cp "$project:/consumer/package-proof.json" "$proof/package-proof.json"
 docker cp "$project:/consumer/bun.lock" "$proof/consumer.lock"
-browser 'saves a multipage' first
+browser 'saves a multipage|editor host translates' first
 docker restart "$project" >/dev/null
 ready
-browser 'restores after backend restart' second
+browser 'restores after backend restart|editor restores' second
 docker rm -f "$project" >/dev/null
 container=false
 docker volume rm "$project" >/dev/null

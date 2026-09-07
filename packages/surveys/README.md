@@ -76,7 +76,7 @@ Restoration applies initial answers before attaching save listeners.
 
 The current baseline uses browser rendering in Astro; it does not claim SSR
 support or hydration parity across additional hosts yet. The runner defaults to German and now accepts host locale/messages; see the
-packed-consumer section below. Editor-wide translation remains open.
+packed-consumer section below. The editor also accepts host translation and preview locale; see below.
 The host can set `--survey-accent` and `--survey-font`; the stylesheet maps these
 to SurveyJS 3's actual `--sjs2-*` tokens on its theme root. It imports the fontless
 upstream stylesheet and uses host-provided fonts.
@@ -116,8 +116,8 @@ Draft autosave debounces at 700ms. The coordinator serializes requests, retries
 uncertain writes with identical IDs/payloads and queues newer edits behind them.
 Conflicts stop automatic saves. Unacknowledged data remains in memory; reload
 is not a recovery mechanism for unsent edits. The host uses the actual generated
-LeonAid API client. The current editor UI is German; configurable translations
-remain an explicit package follow-up.
+LeonAid API client. The editor defaults to German and accepts host translations and preview locale
+through the optional props documented below.
 
 The editor now exposes required flags, text/selection limits, number/date bounds,
 rating scales, matrix rows/columns and presentation properties. Guided visibility
@@ -184,7 +184,7 @@ for cryptographic operation IDs.
 The independent demo installs an actual tarball outside workspace resolution and
 saves to SQLite through its own adapter. It is a consumer proof, not a hosted
 service or production backend. The independent export page uses a separate
-bundle and the host's own SQLite-backed CSV adapter. Editor-wide translation,
+bundle and the host's own SQLite-backed CSV adapter. Additional host language catalogues,
 compiled distribution and full cross-host theme/hydration acceptance remain
 tracked in the spike plan.
 
@@ -258,3 +258,41 @@ after triggering the download; the component does not persist response blobs.
 Import this entrypoint only in an authorized result/export view to keep it out
 of the respondent bundle. The independent demo demonstrates this separation
 with an actual packed installation and its own persisted CSV export adapter.
+
+
+### Editor host translation
+
+`SurveyEditor` accepts optional `translate: EditorTranslator` and `locale`
+(default `de`). The gettext-style callback receives the German source message
+and optional named text/number placeholders. It covers toolbar/property/condition
+controls, accessible names, local validation/conflict/save messages and newly
+created page/question/choice defaults. Author-supplied titles, choices, IDs and
+condition expressions are preserved. Adapter messages pass through the callback
+at display time; hosts should supply localized adapter diagnostics or a fallback.
+
+```tsx
+import { SurveyEditor, formatEditorMessage, type EditorTranslator } from "@leonaid/surveys/editor";
+const catalogue: Record<string, string> = {
+  "Frage hinzufügen": "Add question",
+  "Regel {number} entfernen": "Remove rule {number}",
+};
+const translate: EditorTranslator = (message, values) =>
+  formatEditorMessage(catalogue[message] ?? message, values);
+<SurveyEditor draft={draft} adapter={adapter} translate={translate} locale="en" />;
+```
+
+Return plain strings; React renders them as text. `formatEditorMessage` substitutes
+only supplied own keys once, preserving unknown placeholders. A new translation
+callback identity does not replace unsaved editor history or its save coordinator.
+Existing authored content is not retranslated when the host changes language;
+new defaults use the latest callback. Notices already emitted retain their
+rendered wording. `locale` is applied when opening the SurveyJS preview; English
+and German are available in the current bundle. Hosts using another SurveyJS
+locale must register its corresponding SurveyJS translation and set their page
+language. The editor does not provide a catalogue for every language.
+
+The packed independent `/editor` demo proves translated controls, reordered
+numbered labels, generated defaults, JSON errors, English preview and actual
+SQLite draft persistence across backend restart. Its deliberately small synthetic
+adapter supports load/save/validation and disables publication. It is not a
+production authentication or arbitrary-questionnaire validation service.

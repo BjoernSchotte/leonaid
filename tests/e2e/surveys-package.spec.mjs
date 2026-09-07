@@ -201,3 +201,93 @@ test("packed consumer restores after backend restart without an extra save", asy
   });
   await context.close();
 });
+
+test("editor host translates controls without changing author content or resetting history", async ({
+  page,
+}) => {
+  await page.goto("http://localhost:8080/editor");
+  const editor = page.getByRole("region", {
+    name: "Edit questionnaire",
+    exact: true,
+  });
+  await expect(editor).toBeVisible();
+  await expect(
+    page.getByLabel("Questionnaire title", { exact: true }),
+  ).toHaveValue("Author supplied title");
+  await page
+    .getByLabel("Questionnaire title", { exact: true })
+    .fill("Saved independent editor title");
+  await page.getByRole("button", { name: "Refresh host 0" }).click();
+  await expect(
+    page.getByRole("button", { name: "Undo", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByLabel("Questionnaire title", { exact: true }),
+  ).toHaveValue("Saved independent editor title");
+  await expect(editor.locator('[data-draft-state="saved"]')).toHaveText(
+    "Draft saved",
+  );
+  await page.getByRole("button", { name: /Author supplied followup/ }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Previous question 1", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove rule 1", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Move up question 2", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Add page", exact: true }).click();
+  await expect(page.getByLabel("Page title", { exact: true })).toHaveValue(
+    "New page",
+  );
+  await page.getByRole("button", { name: "Add question", exact: true }).click();
+  await expect(page.getByLabel("Question title", { exact: true })).toHaveValue(
+    "New question",
+  );
+  await expect(editor.locator('[data-draft-state="saved"]')).toHaveText(
+    "Draft saved",
+  );
+  await page.getByText("Import or export JSON", { exact: true }).click();
+  await page.getByLabel("Questionnaire JSON", { exact: true }).fill("{");
+  await page.getByRole("button", { name: "Import JSON", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Invalid JSON: check punctuation",
+  );
+  const saved = await page.evaluate(
+    async () => (await (await fetch("/api/editor")).json()).value,
+  );
+  expect(saved.definition.pages[0].elements[0].title).toBe(
+    "Author supplied question",
+  );
+  expect(saved.definition.pages[0].elements[1].visibleIf).toBe(
+    "{source} notempty",
+  );
+  expect(saved.definition.pages[1].elements[0].title).toBe("New question");
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Preview · answers are not saved" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Next", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Back to editor", exact: true })
+    .click();
+});
+
+test("editor restores translated host draft after backend restart", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://localhost:8080/editor");
+  await expect(
+    page.getByLabel("Questionnaire title", { exact: true }),
+  ).toHaveValue("Saved independent editor title");
+  await expect(page.getByRole("button", { name: /New page/ })).toBeVisible();
+  const saved = await page.evaluate(
+    async () => (await (await fetch("/api/editor")).json()).value,
+  );
+  expect(saved.definition.pages).toHaveLength(2);
+  expect(saved.definition.pages[1].elements[0].title).toBe("New question");
+});

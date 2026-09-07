@@ -1,3 +1,4 @@
+import { formatEditorMessage, type EditorTranslator } from "./editor-i18n";
 import type { JsonValue, SurveyDefinition } from "./contracts";
 
 export type QuestionKind =
@@ -109,22 +110,25 @@ function remapReferences(
   return result;
 }
 
-export function newQuestion(type: QuestionKind): EditorQuestion {
+export function newQuestion(
+  type: QuestionKind,
+  t: EditorTranslator = formatEditorMessage,
+): EditorQuestion {
   const question: EditorQuestion = {
     type,
     name: id("question"),
-    title: "Neue Frage",
+    title: t("Neue Frage"),
   };
   if (["radiogroup", "dropdown", "checkbox"].includes(type))
     question.choices = [
-      { value: id("choice"), text: "Antwort 1" },
-      { value: id("choice"), text: "Antwort 2" },
+      { value: id("choice"), text: t("Antwort 1") },
+      { value: id("choice"), text: t("Antwort 2") },
     ];
   if (type === "matrix") {
-    question.rows = [{ value: id("row"), text: "Aspekt 1" }];
+    question.rows = [{ value: id("row"), text: t("Aspekt 1") }];
     question.columns = [
-      { value: 1, text: "Schlecht" },
-      { value: 2, text: "Gut" },
+      { value: 1, text: t("Schlecht") },
+      { value: 2, text: t("Gut") },
     ];
   }
   return question;
@@ -135,7 +139,10 @@ export class EditorHistory {
   private past: EditorDefinition[] = [];
   private future: EditorDefinition[] = [];
   generation = 0;
-  constructor(definition: SurveyDefinition) {
+  constructor(
+    definition: SurveyDefinition,
+    private readonly translate: EditorTranslator = formatEditorMessage,
+  ) {
     this.present = readEditorDefinition(definition);
   }
   get document(): EditorDefinition {
@@ -180,12 +187,16 @@ export class EditorHistory {
   addPage(): string {
     const name = id("page");
     this.change((doc) => {
-      doc.pages.push({ name, title: "Neue Seite", elements: [] });
+      doc.pages.push({
+        name,
+        title: this.translate("Neue Seite"),
+        elements: [],
+      });
     });
     return name;
   }
   addQuestion(pageId: string, kind: QuestionKind): string {
-    const question = newQuestion(kind);
+    const question = newQuestion(kind, this.translate);
     this.change((doc) => {
       this.page(doc, pageId).elements.push(question);
     });

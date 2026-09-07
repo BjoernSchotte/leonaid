@@ -592,14 +592,16 @@ Acceptance criteria:
 
 ### SURV-020 — Neutral package and independent demo
 
-Current independent respondent proof: [SURV-020](proofs/SURV-020.md). Full editor
-translation, analytics exports and host-wide theme/SSR acceptance remain open.
+Accepted package evidence: [SURV-020](proofs/SURV-020.md#host-translated-editor-and-entrypoint-acceptance).
+Packed editor/runner/analytics entrypoints, host translations, scoped styles and
+real independent persistence pass. Browser mounting is the tested rendering path;
+SSR support and additional host/language coverage are not claimed.
 
 Dependencies: SURV-010.
 
 Implementation tasks:
 
-- [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration. Acceptance: **020.A1, 020.A2, 020.A3**.
+- [x] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration. Acceptance: **020.A1, 020.A2, 020.A3**. [Packed host-translated editor and entrypoint evidence](proofs/SURV-020.md#host-translated-editor-and-entrypoint-acceptance).
 - [x] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof. Acceptance: **020.A1, 020.A3**. [Evidence](proofs/SURV-020.md).
 - [x] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary. Acceptance: **020.A3, 020.A4**.
 - [x] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling. Acceptance: **020.A2**. [Evidence](proofs/SURV-020.md).
