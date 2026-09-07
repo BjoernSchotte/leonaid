@@ -3049,6 +3049,10 @@ another running checkout or authorize production deployment.
         proves normal order completion on the imported canonical page, not
         cutover/alias recovery, additional price/availability transitions, or
         burst/deadline behaviour on this theme.
+        Full `./leonaid check` at source commit `6a0cb59` exited 0: 210 unit
+        tests, 250 Python source checks, 24 public and 47 CMS Astro files without
+        diagnostics, generated-type/format/privacy/policy gates and an unchanged
+        committed tree. Existing dependency deprecation warnings remain.
 - [ ] Rehearse rollback of renderer selection, aliases, and CMS data together.
       Rollback must preserve orders accepted since cutover: never restore an old
       whole-Core database over newly created transactions to undo a CMS change.
