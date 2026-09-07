@@ -2933,6 +2933,10 @@ Dependencies: EMS-050, EMS-070
         cross-campaign negative paths, orders/Twenty convergence, importer
         journal resume and operational release/off-host/rollback gates remain
         open. Twenty is still an empty database in this application fixture.
+        Full `./leonaid check` passed on source commit `5099764`: 256 unit
+        tests, 263 Python files typechecked, both Astro applications (25/47 files,
+        zero diagnostics), frontend typechecks, format and repository policy
+        gates. The working tree was unchanged.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.
