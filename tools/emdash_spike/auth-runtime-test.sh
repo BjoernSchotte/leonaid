@@ -220,7 +220,19 @@ if [ "$mode" != auth ]; then
       compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
         node tools/emdash_spike/campaign-orders-browser-proof.mjs
       fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+      # Fresh Core rate window, but retain the actual CRM/order records. Burst
+      # visitors use distinct synthetic names and command IDs from the paced run.
+      compose restart api
+      compose up --no-deps --detach --wait api
+      compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
+        node tools/emdash_spike/campaign-orders-browser-proof.mjs --burst
+      # Observation must not consume the tail of the workload's real Twenty
+      # quota. Do not change either product limit or mask errors in the burst.
+      echo "campaign-orders: burst complete; separating read-only verification from its CRM rate window"
+      sleep 60
+      fixture /repo/tools/emdash_spike/campaign_orders_verify.py
       LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
+      LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_deadline_proof.py
     fi
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"

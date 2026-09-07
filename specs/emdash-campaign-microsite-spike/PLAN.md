@@ -2530,18 +2530,45 @@ keyboard and 200% zoom checks.
       diagnostics, API/schema/type generation, formatting and privacy/CI gates.
       The working tree remained unchanged; existing upstream Pydantic/Vite
       deprecation warnings remain.
-- [ ] Resolve and live-prove bounded burst/uncertain-outcome behaviour. Two
-      unpaced 24-order browser runs (`leonaid-emdash-tmp-iefyq9xuvg` and
-      `leonaid-emdash-tmp-bwmrkpeu7j`) accepted the first 17 orders but the next
-      WebKit native existing-company order returned Astro HTTP 200 with an
-      uncertain-submission message instead of a confirmation. The latter's
-      synthetic screenshot was inspected; all owned resources were cleaned.
-      Core's 100 CRM requests/minute limiter versus Astro's 12-second mutation
-      timeout is a hypothesis, not yet a measured cause. Functional acceptance
-      now spaces visitors eight seconds apart, without changing either limit;
-      a paced pass must not be reported as resolving this burst failure. Prove
-      bounded rejection/retry, preserved command identity, no duplicate orders
-      or CRM records, and acceptable resource use under combined Core/CMS load.
+- [x] Bound Core order processing, including pool/SQL-lock and CRM admission
+      waits, below Astro's 12-second transport timeout. An eight-second
+      cancellation scope now returns a safe `public_order_processing_timeout`
+      503 instead of allowing the service to wait indefinitely. Public-action
+      errors are no-store. The message preserves uncertainty about completed CRM
+      writes and instructs retry with the same command rather than a fresh page.
+      This is a processing budget after body validation, not a body-ingress or
+      whole-response deadline; cancellation cleanup and shared-server budgets
+      still need the broader checks below.
+      `./leonaid test-emdash-spike --case campaign-orders` passed in isolated
+      project `leonaid-emdash-tmp-wbg4whzdpl`: 24 paced and 24 unpaced browser
+      orders across Chromium/Firefox/WebKit, JS desktop and no-JS mobile. The
+      burst's Firefox JS mixed order returned the actual Core timeout after
+      8.06 seconds. Inputs and command ID survived; after the CRM window recovered,
+      the same command succeeded with all four units and 115 EUR. All 48 orders
+      and 24 exact native POST replays passed SQL/consent/audit checks and real
+      Twenty person/company uniqueness checks. The timeout screenshot in
+      `tmp.XXts2QQEZZ` was visually inspected.
+      A separate actual PostgreSQL advisory lock proved that Core was waiting on
+      that lock, returned no-store 503 before eleven seconds, stopped waiting,
+      and left seven Core tables and real Twenty unchanged. Unlocking allowed
+      exactly the same command to succeed; another replay changed no persisted
+      state. Valid-payload public ingress, prior error/redisplay, publication and
+      Core-outage regressions also passed. All owned containers, networks and
+      volumes were removed; no host ports were published.
+      Preparatory runs exposed two test defects: enhanced Astro failures use
+      HTTP 503 (native HTML redisplay uses 200), and redundant per-record CRM
+      verification requests exhausted Twenty's real quota with HTTP 429. The
+      verifier now uses its complete in-memory collection reads and waits one
+      CRM window after the burst before observation. No product limit was raised
+      or disabled. Earlier unbounded failures were observed in projects
+      `leonaid-emdash-tmp-iefyq9xuvg` and `leonaid-emdash-tmp-bwmrkpeu7j`; the exact
+      historical wait source was not instrumented and is not claimed proven.
+- [ ] Complete burst/uncertain-outcome acceptance beyond the measured cases:
+      native-browser timeout recovery, cancellation during partial CRM writes,
+      body/whole-response deadlines, and acceptable resource use under combined
+      Core/CMS load and multiple runtime workers. Keep command identity and
+      prove no duplicate orders or CRM records. The processing budget and one
+      sequential browser burst above are not a production capacity/SLO proof.
 - [x] Live-prove accepted campaign orders against real isolated Twenty using
       `./leonaid test-emdash-spike --case campaign-orders`. The pinned stack
       provisions its own Twenty database, Redis, worker and schema. A short-lived

@@ -11,8 +11,7 @@ from uuid import UUID
 import asyncpg
 import httpx
 
-from tools.public_orders.contract import assert_commitment
-from tools.public_orders.verify_ui import twenty_record
+from tools.public_orders.contract import assert_commitment, twenty_collection
 
 
 async def main() -> None:
@@ -28,7 +27,19 @@ async def main() -> None:
                 "Authorization": f"Bearer {os.environ['TWENTY_INTEGRATION_API_KEY']}"
             },
         ) as twenty:
-            for item in orders:
+            people = await twenty_collection(twenty, "people")
+            companies = await twenty_collection(twenty, "companies")
+            print(
+                f"campaign-orders: verification collection sizes people={len(people)} companies={len(companies)}",
+                flush=True,
+            )
+            assert len(people) < 100 and len(companies) < 100
+            people_by_id = {record["id"]: record for record in people}
+            companies_by_id = {record["id"]: record for record in companies}
+            assert len(people_by_id) == len(people)
+            assert len(companies_by_id) == len(companies)
+            for index, item in enumerate(orders):
+                print(f"campaign-orders: verifying order {index + 1}/24", flush=True)
                 rows = await connection.fetch(
                     "SELECT id FROM commitment WHERE public_reference=$1",
                     item["publicReference"],
@@ -93,16 +104,26 @@ async def main() -> None:
                 assert audit["privacyAcknowledged"] is True
                 assert audit["bindingOrderConfirmed"] is True
                 person_id = row["twenty_person_id"] or UUID(audit["contactTwentyId"])
-                person = await twenty_record(twenty, "people", person_id)
+                person = people_by_id[str(person_id)]
                 assert person["name"]["firstName"] == "Synthetic"
                 assert person["name"]["lastName"] == item["label"]
+                assert (
+                    sum(
+                        record["name"]["firstName"] == "Synthetic"
+                        and record["name"]["lastName"] == item["label"]
+                        for record in people
+                    )
+                    == 1
+                ), "Retry duplicated a synthetic CRM person"
                 if item["scenario"] == "person":
                     assert person.get("companyId") in {None, ""}
                 else:
-                    company = await twenty_record(
-                        twenty, "companies", row["twenty_company_id"]
-                    )
+                    company = companies_by_id[str(row["twenty_company_id"])]
                     assert company["name"] == item["company"]
+                    assert (
+                        sum(record["name"] == item["company"] for record in companies)
+                        == 1
+                    ), "Retry duplicated a synthetic CRM company"
                     assert person["companyId"] == str(row["twenty_company_id"])
                 assert (
                     await connection.fetchval(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from dataclasses import replace
@@ -341,6 +342,10 @@ from leonaid.entrypoints.fastapi.schemas import (
 )
 
 router = APIRouter()
+# Leave time for cancellation/transaction cleanup before Astro's 12-second
+# transport timeout. This includes pool/lock and CRM admission waits, not just
+# individual upstream HTTP requests. It is not a body-ingress timeout.
+PUBLIC_ORDER_PROCESSING_TIMEOUT_SECONDS = 8.0
 
 
 def platform_service(request: Request) -> PlatformApplicationService:
@@ -1858,19 +1863,31 @@ async def create_public_order(
     response: Response,
 ) -> PublicOrderResultResponse:
     secret = cast(str, request.app.state.public_order_fingerprint_secret)
-    result = await public_order_service(request).submit(
-        public_alias,
-        access_token=body.access_token,
-        command_id=body.command_id,
-        draft=public_order_draft(body),
-        fingerprint_hash=public_order_fingerprint(
-            secret,
-            forwarded_for=request.headers.get("x-forwarded-for"),
-            client_host=request.client.host if request.client is not None else None,
-            user_agent=request.headers.get("user-agent"),
-        ),
-        request_id=request_id(request),
-    )
+    try:
+        async with asyncio.timeout(PUBLIC_ORDER_PROCESSING_TIMEOUT_SECONDS):
+            result = await public_order_service(request).submit(
+                public_alias,
+                access_token=body.access_token,
+                command_id=body.command_id,
+                draft=public_order_draft(body),
+                fingerprint_hash=public_order_fingerprint(
+                    secret,
+                    forwarded_for=request.headers.get("x-forwarded-for"),
+                    client_host=request.client.host
+                    if request.client is not None
+                    else None,
+                    user_agent=request.headers.get("user-agent"),
+                ),
+                request_id=request_id(request),
+            )
+    except TimeoutError:
+        # CRM writes may already have completed. Do not claim that nothing was
+        # saved: keep the same command identity for deterministic recovery.
+        raise DependencyUnavailable(
+            "public_order_processing_timeout",
+            "Die Verarbeitung dauert gerade zu lange. Bitte versuche dieselbe "
+            "Bestellung erneut, ohne die Seite neu zu laden.",
+        ) from None
     response.headers["Cache-Control"] = "no-store"
     if result.replayed:
         response.status_code = status.HTTP_200_OK

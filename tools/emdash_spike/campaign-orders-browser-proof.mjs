@@ -4,6 +4,8 @@ import { chromium, firefox, webkit } from "playwright";
 
 const path = "/campaigns/krapfentaxi-2026/";
 const orders = [];
+const burst = process.argv.includes("--burst");
+let timedOutOrders = 0;
 // Functional acceptance, not a burst/load test: each order performs several
 // CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
 // synthetic visitors eight seconds apart; deadline/load behaviour is a separate
@@ -23,10 +25,11 @@ for (const [engineName, engine] of Object.entries({
         "person",
         "mixed",
       ]) {
-        const label = `${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
-        );
+        const label = `${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        if (!burst)
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
+          );
         nextOrderAt = Date.now() + 8000;
         console.log(`campaign-orders: starting ${label}`);
         const context = await browser.newContext({
@@ -120,16 +123,74 @@ for (const [engineName, engine] of Object.entries({
         const submissionStartedAt = Date.now();
         await form.locator('[type="submit"]').click();
         const response = await submitted;
+        const responseElapsed = Date.now() - submissionStartedAt;
         console.log(
-          `campaign-orders: ${label}; Astro response after ${Date.now() - submissionStartedAt}ms`,
+          `campaign-orders: ${label}; Astro response after ${responseElapsed}ms`,
         );
         assert.equal(response.request().redirectedFrom(), null);
-        assert.equal(
-          response.status(),
-          200,
-          `Astro order response for ${label}`,
-        );
+        if (response.status() === 503)
+          assert.ok(
+            burst && javaScriptEnabled,
+            `Unexpected Astro failure for ${label}`,
+          );
+        else
+          assert.equal(
+            response.status(),
+            200,
+            `Astro order response for ${label}`,
+          );
         const success = page.locator("[data-order-success]:visible");
+        if (burst) {
+          const error = page.locator(
+            '[data-form-message][data-state="error"]:visible',
+          );
+          await success.or(error).first().waitFor({ timeout: 15000 });
+          if (await error.isVisible()) {
+            // The Core processing deadline, not Astro's transport timeout or
+            // an arbitrary validation failure, must be visible to the visitor.
+            assert.match(
+              await error.textContent(),
+              /Die Verarbeitung dauert gerade zu lange/,
+            );
+            assert.ok(responseElapsed >= 7500 && responseElapsed < 11000);
+            assert.equal(response.status(), javaScriptEnabled ? 503 : 200);
+            await error.screenshot({
+              path: `/visual-proof/timeout-${label}.png`,
+            });
+            assert.equal(
+              await form.locator('[name="commandId"]').inputValue(),
+              commandId,
+            );
+            for (const [name, value] of Object.entries(fields))
+              assert.equal(
+                await form.locator(`[name="${name}"]`).inputValue(),
+                value,
+              );
+            timedOutOrders += 1;
+            console.log(
+              `campaign-orders: ${label}; bounded Core deadline observed, retrying the unchanged command after CRM window recovery`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 45000));
+            await form
+              .locator('[name="privacyAcknowledged"]')
+              .evaluate((element) =>
+                element.scrollIntoView({
+                  behavior: "instant",
+                  block: "center",
+                }),
+              );
+            await form.locator('[name="privacyAcknowledged"]').check();
+            await form.locator('[name="bindingOrderConfirmed"]').check();
+            const retried = page.waitForResponse(
+              (reply) =>
+                reply.request().method() === "POST" &&
+                new URL(reply.url()).pathname ===
+                  (javaScriptEnabled ? "/_actions/createPublicOrder/" : path),
+            );
+            await form.locator('[type="submit"]').click();
+            assert.equal((await retried).status(), 200);
+          }
+        }
         try {
           await success.waitFor({ timeout: 20000 });
         } catch (error) {
@@ -233,4 +294,9 @@ for (const [engineName, engine] of Object.entries({
     await browser.close();
   }
 }
+if (burst)
+  assert.ok(
+    timedOutOrders > 0,
+    "Burst must exercise actual deadline recovery, not just successful requests",
+  );
 await writeFile("/proof/orders-ui.json", JSON.stringify(orders));

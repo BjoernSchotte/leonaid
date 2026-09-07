@@ -141,7 +141,7 @@ def error_response(
         status_code=status_code,
         headers={"Cache-Control": "no-store"}
         if status_code in {401, 403}
-        or request.url.path.startswith("/api/v1/public/actions/campaign/")
+        or request.url.path.startswith("/api/v1/public/actions/")
         else None,
         content={
             "error": {
