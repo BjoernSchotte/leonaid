@@ -3722,6 +3722,11 @@ another running checkout or authorize production deployment.
         containers, volumes and networks. This is the Core/routing prerequisite,
         not activation after an approved backup, published-CMS browser delivery,
         a renderer-and-CMS-data rollback with newer orders, or production rollout.
+        Full `./leonaid check` passed on committed source `a61ead1`: 269 unit
+        tests, 271 Python files typechecked, public/campaign Astro checks for
+        25/49 files with zero diagnostics, both release contracts, generated
+        API/schema contracts, formatting and policy gates. The committed
+        worktree remained unchanged; upstream dependency warnings remain.
 - [ ] Verify the actual form transport: existing Astro Actions are tied to their
       serving application. Either reuse their implementation in the new app or
       use the existing Core order API with equivalent validation and progressive
