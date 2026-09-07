@@ -94,6 +94,47 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
+if [ "$mode" = recovery ]; then
+  recovery_probe() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/recovery_live.py "$1"
+  }
+  compose stop worker
+  recovery_probe seed
+  compose stop proxy public api worker rustfs
+  compose exec -T core-postgres pg_dump --username leonaid --dbname leonaid \
+    --format custom --no-owner --no-privileges > "$proof/recovery-core.dump"
+  docker run --rm --volume "${project}_rustfs-data:/source:ro" --volume "$proof:/proof" \
+    "$ALPINE_IMAGE" tar -C /source -cf /proof/recovery-rustfs.tar .
+  compose up --detach --wait --wait-timeout 90 rustfs api public proxy
+  recovery_probe delete
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
+    --output /proof/recovery-checkpoint.json
+  compose stop proxy public api worker rustfs
+  compose exec -T core-postgres pg_restore --username leonaid --dbname leonaid \
+    --clean --if-exists --exit-on-error --no-owner --no-privileges < "$proof/recovery-core.dump"
+  # This volume belongs exclusively to the fresh, collision-checked test project.
+  docker run --rm --volume "${project}_rustfs-data:/target" --volume "$proof:/proof:ro" \
+    "$ALPINE_IMAGE" sh -c 'find /target -mindepth 1 -delete && tar -C /target -xf /proof/recovery-rustfs.tar'
+  compose up --detach --no-deps --wait --wait-timeout 90 rustfs
+  recovery_probe restored
+  cutoff=$(cat "$proof/recovery-cutoff.txt")
+  reapply() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/recovery.py reapply \
+      --checkpoint "$1" --required-through "$cutoff"
+  }
+  bad_status=0
+  reapply /proof/recovery-tampered.json || bad_status=$?
+  [ "$bad_status" -eq 1 ] || { echo 'Expected recovery authentication rejection' >&2; exit 1; }
+  recovery_probe restored
+  reapply /proof/recovery-checkpoint.json
+  reapply /proof/recovery-checkpoint.json
+  recovery_probe verify
+  compose up --detach --wait --wait-timeout 90 api public proxy worker
+  recovery_probe online
+fi
 if [ "$mode" = retention ]; then
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -218,6 +259,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   node_modules/.bin/playwright test $browser_specs \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = recovery ]; then
+  cp "$proof/recovery-proof.json" "$artifact/"
+fi
 if [ "$mode" = retention ]; then
   cp "$proof/retention-proof.json" "$artifact/"
   cp "$proof/retention-browser-proof.json" "$artifact/"

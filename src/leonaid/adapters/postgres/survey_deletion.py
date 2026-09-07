@@ -30,6 +30,9 @@ async def request_deletion(
     conn: Any, survey: Any, actor_id: UUID, operation_id: str
 ) -> dict[str, Any]:
     """Caller holds the survey locks and has authorized erasure of a trashed row."""
+    # Checkpoint export takes the same short lock, so its cutoff cannot pass
+    # a deletion intent that has not yet committed into the exported ledger.
+    await conn.execute("SELECT pg_advisory_xact_lock(1937076838,1)")
     event_id = uuid4()
     sid = survey["id"]
     await conn.execute(
@@ -64,15 +67,18 @@ class AsyncpgSurveyDeletion:
         self.storage = storage
 
     async def handle(self, event: ClaimedOutboxEvent) -> None:
+        await self.erase(event.aggregate_id, event.id)
+
+    async def erase(self, survey_id: UUID, event_id: UUID) -> None:
+        """Also used by the offline restore gate before application startup."""
         try:
-            await self._erase(event)
+            await self._erase(survey_id, event_id)
         except Exception:
             # Provider errors can contain object paths and other private data.
             raise SurveyDeletionError() from None
 
-    async def _erase(self, event: ClaimedOutboxEvent) -> None:
+    async def _erase(self, sid: UUID, event_id: UUID) -> None:
         async with self.pool.acquire() as conn, conn.transaction():
-            sid = event.aggregate_id
             await conn.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", str(sid)
             )
@@ -80,7 +86,7 @@ class AsyncpgSurveyDeletion:
             deletion = await conn.fetchrow(
                 "SELECT * FROM survey_deletion WHERE survey_id=$1 AND event_id=$2 FOR UPDATE",
                 sid,
-                event.id,
+                event_id,
             )
             if deletion is None or deletion["completed_at"]:
                 return
