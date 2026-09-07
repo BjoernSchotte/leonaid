@@ -109,8 +109,8 @@ if (pilot) {
   });
   assert.equal(
     internal.status,
-    422,
-    "internal Core schema validation remains reachable",
+    404,
+    "an internal network connection alone does not authorize order submission",
   );
 }
 console.log(

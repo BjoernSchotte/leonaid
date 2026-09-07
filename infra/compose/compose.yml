@@ -26,11 +26,18 @@ services:
       S3_REGION: us-east-1
       EMDASH_SITE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
       EMDASH_ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
+      LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
     networks: [edge, cms-data, storage-data]
     volumes:
       - cms-bootstrap-state:/app/bootstrap-state
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 4s
       retries: 12
@@ -100,6 +107,7 @@ services:
       LEONAID_SERVICE_VERSION: 0.0.0
       LEONAID_API_VERSION: v1
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
+      LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
       LEONAID_SESSION_ENCRYPTION_KEY: ${LEONAID_SESSION_ENCRYPTION_KEY}
       LEONAID_PUBLIC_BASE_URL: https://localhost:${LEONAID_HTTPS_PORT:-8443}
       LEONAID_ALLOWED_ORIGINS: http://localhost:${LEONAID_HTTP_PORT:-8080},http://127.0.0.1:${LEONAID_HTTP_PORT:-8080},http://proxy:8080,https://localhost:${LEONAID_HTTPS_PORT:-8443},https://127.0.0.1:${LEONAID_HTTPS_PORT:-8443},https://proxy:8443
@@ -272,6 +280,7 @@ services:
     restart: unless-stopped
     environment:
       CORE_API_URL: http://api:8000
+      LEONAID_ORDER_SUBMISSION_KEY: ${LEONAID_ORDER_SUBMISSION_KEY:-}
       HOST: 0.0.0.0
       PORT: "3000"
     networks:

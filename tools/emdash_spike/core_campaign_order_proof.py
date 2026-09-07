@@ -51,7 +51,11 @@ async def prove_order_token(
     )
     body["privacyNoticeVersion"] = form["privacyNoticeVersion"]
     before = await pool.fetchval("SELECT count(*) FROM commitment")
-    unavailable = await client.post(f"/api/v1/public/actions/{alias}/orders", json=body)
+    unavailable = await client.post(
+        f"/api/v1/public/actions/{alias}/orders",
+        json=body,
+        headers={"X-LeonAid-Order-Key": os.environ["LEONAID_ORDER_SUBMISSION_KEY"]},
+    )
     assert unavailable.status_code == 503
     assert unavailable.json()["error"]["code"] == "public_order_crm_unavailable"
     # This fixture intentionally has no CRM credentials. Core does not create

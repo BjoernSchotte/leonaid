@@ -66,6 +66,9 @@ class Settings(BaseSettings):
         min_length=32,
         alias="LEONAID_SESSION_ENCRYPTION_KEY",
     )
+    order_submission_key: SecretStr | None = Field(
+        default=None, alias="LEONAID_ORDER_SUBMISSION_KEY"
+    )
     public_base_url: HttpUrl = Field(alias="LEONAID_PUBLIC_BASE_URL")
     survey_erasure_archive_dir: Path | None = Field(
         default=None, alias="LEONAID_SURVEY_ERASURE_ARCHIVE_DIR"
@@ -147,6 +150,18 @@ class Settings(BaseSettings):
     def empty_twenty_key_is_unconfigured(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("order_submission_key", mode="before")
+    @classmethod
+    def validate_order_submission_key(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if not isinstance(raw, str) or re.fullmatch(r"[0-9a-f]{64}", raw) is None:
+            raise ValueError(
+                "Bestellschlüssel muss 32 zufällige Bytes als Hex enthalten."
+            )
         return value
 
     @field_validator("core_database_url")

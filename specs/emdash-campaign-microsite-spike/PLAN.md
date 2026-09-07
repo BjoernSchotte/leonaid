@@ -93,7 +93,7 @@ contract name, not permission to expose this endpoint on the internet.
       encoded/normalized path variants. Apply the same policy to local and pilot
       routing and the pilot test configuration; preserve unrelated Core API
       routes. Never grant access based on caller-supplied forwarded headers.
-- [ ] Keep Core free of published host ports and use the internal service URL
+- [x] Keep Core free of published host ports and use the internal service URL
       for the Astro order adapter. Document the permitted internal callers:
       the campaign Astro service and the existing public Astro service while
       its shared action/legacy form remains in use. A deny rule at ingress is
@@ -2483,6 +2483,41 @@ Back returns to the correct LeonAid action; Chromium, Firefox, and WebKit pass
 keyboard and 200% zoom checks.
 
 ### EMS-070 — Add same-domain TLS routing and secure first-run setup
+
+- [x] Authenticate internal order callers independently of network location.
+      Add a dedicated 32-byte hex `LEONAID_ORDER_SUBMISSION_KEY`, distributed
+      only to Core, `public` and `campaign-site` runtime services. The shared
+      server-only Astro adapter supplies it explicitly and refuses to send it
+      to any URL other than the fixed internal `http://api:8000` destination.
+      Caller-provided frontend headers are not copied into that credential.
+      Core checks exactly one well-formed header with constant-time comparison
+      before body validation/CORS/order processing; absent configuration,
+      missing/wrong/malformed/duplicate keys fail closed with no-store 404.
+      Normal Core validation, tokens, prices and CRM authority remain unchanged.
+      `campaign-public-http` passed in `leonaid-emdash-tmp-tpnqj3cp1c`: real
+      internal HTTP rejection across seven methods, valid caller reaching 422
+      schema validation, Core restarted without its key (even the valid caller
+      denied), then restored. PostgreSQL commitment counts stayed unchanged
+      during each boundary probe. The first missing-key proof failed because
+      the temporary environment switch also emptied the probe's key; retain
+      the independent operator key explicitly and assert its length before
+      testing. The complete rerun passed. Runtime Compose validation checks
+      exact allowed key recipients without printing values. Twelve actual
+      Chromium/Firefox/WebKit form journeys with/without JS and original/mixed
+      offerings still reach the expected CRM-unavailable error through both
+      Astro transports. Public ingress denial with running/stopped Core,
+      publication and draft-isolation regressions passed. All owned Docker
+      resources were removed; no host ports were published. Twelve focused
+      caller-policy/configuration unit tests passed.
+      Local and production env templates document the new independent key;
+      the existing secret generator added it to this worktree's private,
+      non-symlinked env file while preserving existing values. No other stack
+      was restarted. Existing order-contract tools now authenticate their
+      explicit internal test submissions. This is shared-secret authentication
+      over the existing trusted Docker transport, not mTLS or protection from
+      a compromised authorized service/host. Rotation, production preflight and
+      recovery evidence remain required under EMS-080, as do successful orders
+      with Twenty; the current fixture deliberately has no CRM credentials.
 
 - [x] Live-prove both pilot Caddyfiles with the new `order-ingress-pilot` case
       (also included in `all` and CLI help). Each run uses only pinned Caddy and

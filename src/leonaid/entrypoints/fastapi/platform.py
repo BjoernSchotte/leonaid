@@ -112,6 +112,7 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
+from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
     csrf_violation,
     rate_limit_violation,
@@ -175,6 +176,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         settings = configured_settings or load_settings()
         application.state.settings_summary = settings.safe_summary()
+        application.state.order_submission_key = (
+            settings.order_submission_key.get_secret_value()
+            if settings.order_submission_key is not None
+            else None
+        )
         application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
         checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
@@ -387,6 +393,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             supplied if REQUEST_ID.fullmatch(supplied) else str(uuid4())
         )
+        if order_proxy_denied(request, key=request.app.state.order_submission_key):
+            denied = error_response(
+                request,
+                status_code=404,
+                code="order_proxy_denied",
+                message="Dieser Bestellzugang ist nicht verfügbar.",
+            )
+            denied.headers["Cache-Control"] = "no-store"
+            return denied
         allowed_origins = tuple(request.app.state.allowed_origins)
         origin = request.headers.get("origin")
         if (

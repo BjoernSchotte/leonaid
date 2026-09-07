@@ -4,6 +4,11 @@ root=$1
 mode=${2:-auth}
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+# Each proof has an independent server-only key; never reuse a parallel stack's.
+LEONAID_ORDER_SUBMISSION_KEY=$(docker run --rm --network none "$NODE_IMAGE" \
+  node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')
+export LEONAID_ORDER_SUBMISSION_KEY
+order_submission_key=$LEONAID_ORDER_SUBMISSION_KEY
 if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
@@ -60,6 +65,13 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   assert.deepEqual(Object.keys(services["core-auth-probe"].networks),["edge"]);
   assert.deepEqual(Object.keys(services["bootstrap-probe"].networks),["edge"]);
   assert.equal(services["bootstrap-operator"].network_mode,"none");
+  const orderKey=services.api.environment.LEONAID_ORDER_SUBMISSION_KEY;
+  assert.ok(/^[0-9a-f]{64}$/.test(orderKey));
+  for(const [name,service] of Object.entries(services)) {
+    const configured=service.environment?.LEONAID_ORDER_SUBMISSION_KEY;
+    if(["api","public","campaign-site"].includes(name)) assert.ok(configured===orderKey,"order key wiring mismatch");
+    else assert.ok(configured===undefined,"unexpected order key recipient");
+  }
   assert.deepEqual(Object.keys(services["admin-browser"].networks),["edge"]);
   assert.ok(!services["campaign-race-probe"].ports?.length);
   assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
@@ -74,6 +86,7 @@ compose up --no-deps --build --detach --wait api campaign-site
 fixture() {
   compose run --rm --no-deps --volume "$root:/repo:ro" \
     --volume "$proof:/proof" --user "$(id -u):$(id -g)" \
+    --env LEONAID_ORDER_SUBMISSION_KEY="$order_submission_key" \
     --env PYTHONPATH=/repo:/workspace/src --entrypoint python api "$@"
 }
 probe() {
@@ -82,6 +95,14 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
+if [ "$mode" = order-component ] || [ "$mode" = public-http ]; then
+  fixture /repo/tools/emdash_spike/core_order_proxy_proof.py
+  LEONAID_ORDER_SUBMISSION_KEY= compose up --no-deps --detach --wait api
+  export LEONAID_ORDER_SUBMISSION_KEY="$order_submission_key"
+  fixture /repo/tools/emdash_spike/core_order_proxy_proof.py --denied-key
+  compose up --no-deps --detach --wait api
+  fixture /repo/tools/emdash_spike/core_order_proxy_proof.py
+fi
 if [ "$mode" = order-component ]; then
   fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
   compose up --no-deps --build --detach --wait public proxy

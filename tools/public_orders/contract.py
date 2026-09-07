@@ -206,6 +206,7 @@ async def submit(
         json=body,
         headers={
             "X-Request-ID": f"poc072:{label}",
+            "X-LeonAid-Order-Key": require_env("LEONAID_ORDER_SUBMISSION_KEY"),
             "X-Forwarded-For": forwarded_for,
             "User-Agent": user_agent or f"LeonAid Contract/{label}",
         },
