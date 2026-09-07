@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID
 
-from leonaid.application.policies import require_action_manager
+from leonaid.application.policies import require_action_manager, require_system_admin
+from leonaid.application.campaign_renderer import (
+    CampaignRendererCommand,
+    CampaignRendererResult,
+)
 from leonaid.domain.actions import PublicActionAlias
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import IdentityPrincipal
@@ -88,6 +92,10 @@ class CampaignAliasResult:
 
 
 class CampaignAliasRepository(Protocol):
+    async def select_renderer(
+        self, actor_id: UUID, command: CampaignRendererCommand, *, request_id: str
+    ) -> CampaignRendererResult: ...
+
     async def list_for_action(
         self, actor_id: UUID, action_id: UUID
     ) -> CampaignAliasList: ...
@@ -100,6 +108,18 @@ class CampaignAliasRepository(Protocol):
 class CampaignAliasService:
     def __init__(self, repository: CampaignAliasRepository) -> None:
         self._repository = repository
+
+    async def select_renderer(
+        self,
+        actor: IdentityPrincipal,
+        command: CampaignRendererCommand,
+        *,
+        request_id: str,
+    ) -> CampaignRendererResult:
+        require_system_admin(actor)
+        return await self._repository.select_renderer(
+            actor.account.id, command, request_id=request_id
+        )
 
     async def list_for_action(
         self, actor: IdentityPrincipal, action_id: UUID

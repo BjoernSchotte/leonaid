@@ -1390,6 +1390,20 @@ class RemoveCampaignAliasRequest(TransportModel):
     revision: int = Field(ge=1, strict=True)
 
 
+class SelectCampaignRendererRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+    renderer: Literal["legacy", "campaign"]
+
+
+class CampaignRendererResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    revision: int
+    renderer: Literal["legacy", "campaign"]
+
+
 class CampaignAliasMutationResponse(TransportModel):
     alias_id: UUID
     action_id: UUID

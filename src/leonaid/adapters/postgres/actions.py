@@ -223,7 +223,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
     async def get_by_alias_route(
         self,
         public_alias: PublicActionAlias,
-    ) -> tuple[CharityAction, ActionConfiguration | None, bool] | None:
+    ) -> tuple[CharityAction, ActionConfiguration | None, bool, bool] | None:
         async with self._pool.acquire() as connection:
             async with connection.transaction(
                 isolation="repeatable_read",
@@ -231,7 +231,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
             ):
                 alias_row = await connection.fetchrow(
                     """
-                    SELECT action_id, is_primary
+                    SELECT action_id, is_primary, campaign_redirect
                     FROM public_action_alias
                     WHERE alias = $1 AND enabled
                     """,
@@ -244,7 +244,12 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 if action is None:
                     return None
                 configuration = await self._get_configuration(connection, action_id)
-                return action, configuration, bool(alias_row["is_primary"])
+                return (
+                    action,
+                    configuration,
+                    bool(alias_row["is_primary"]),
+                    bool(alias_row["campaign_redirect"]),
+                )
 
     async def get_by_archive_slug(
         self,

@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  twenty-startup) ;;
+  twenty-startup|alias-renderer) ;;
   migration-operator) ;;
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
@@ -73,6 +73,9 @@ if [ "$test_case" = alias-http ] || [ "$test_case" = all ]; then
 fi
 if [ "$test_case" = alias-commands ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/alias-namespaces-test.sh" "$root" commands
+fi
+if [ "$test_case" = alias-renderer ] || [ "$test_case" = all ]; then
+  /bin/sh "$root/tools/emdash_spike/alias-namespaces-test.sh" "$root" renderer
 fi
 if [ "$test_case" = alias-persistence ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/alias-namespaces-test.sh" "$root" persistence

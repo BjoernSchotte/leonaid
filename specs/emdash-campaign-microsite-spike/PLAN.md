@@ -3686,6 +3686,42 @@ another running checkout or authorize production deployment.
 - [ ] Take a recovery point, then activate the Core-managed `/krapfentaxi` alias
       and historical archive compatibility from section 2.5. Keep `apps/public`
       for login, legacy handling, and unrelated routes.
+  - [x] Implement the reversible primary-renderer Core command. Migration
+        `0029_primary_campaign_renderer` defaults existing primary aliases to
+        legacy rendering and preserves their IDs, names, targets and timestamps.
+        Additional aliases retain their existing redirect semantics. A fresh
+        System Admin may `PUT /api/v1/actions/{action_id}/redirect-aliases/{alias_id}/renderer`
+        with `commandId`, current `revision` and `renderer` (`legacy` or
+        `campaign`). Selection changes only the renderer flag and revision,
+        with an atomic audit event and durable command receipt. Normal alias
+        editing still cannot change a primary alias. Canonical campaign order
+        resolution ignores presentation-only redirection while rechecking the
+        current primary target and publication state; order identity stays in Core.
+        `alias-renderer` passed on real PostgreSQL in
+        `leonaid-emdash-tmp-1kdcd7xk3p`: migration/defaults and safe downgrade,
+        unchanged canonical order configuration, internal order context and
+        historical archive, unauthorized/secondary selection denial, replay
+        after rollback without reactivation, one-winner revision races, actual
+        audit failure rollback/retry, role revocation while waiting for the
+        publication lock, and suspended-account denial.
+        `alias-http` passed in `leonaid-emdash-tmp-nnyietpnkh`: actual CA-verified
+        HTTPS selection/rollback; fresh System-Admin, role, CSRF, strict-body,
+        stale-session and logout checks; immediate 302/no-store GET/HEAD with
+        slash/query variants; mutation rejection without redirects; unchanged
+        canonical Core order payload and historical archive; restored legacy
+        form and old-command replay without reactivation. Existing complete
+        alias authorization/concurrency and Core outage/recovery checks passed.
+        Initial HTTP proof failures exposed missing Origin handling and an
+        overly broad snapshot spanning logout's legitimate audit write; both
+        were corrected without weakening the renderer command or protections.
+        A separate startup attempt exhausted Docker's default address pools.
+        Non-recovery auth/browser/order proofs now select a free explicit /24
+        and apply five distinct /28 pools with final-overlay replacement and
+        merged-config assertions; no global Docker changes or foreign cleanup.
+        Both successful projects exposed no host ports and removed their own
+        containers, volumes and networks. This is the Core/routing prerequisite,
+        not activation after an approved backup, published-CMS browser delivery,
+        a renderer-and-CMS-data rollback with newer orders, or production rollout.
 - [ ] Verify the actual form transport: existing Astro Actions are tied to their
       serving application. Either reuse their implementation in the new app or
       use the existing Core order API with equivalent validation and progressive
@@ -3768,6 +3804,7 @@ Verification (new case implemented by this task):
 ```sh
 ./leonaid test-emdash-spike --case krapfentaxi-migration
 ./leonaid test-emdash-spike --case krapfentaxi-orders
+./leonaid test-emdash-spike --case alias-renderer
 ./leonaid test-emdash-spike --case edit-publish-delivery
 ./leonaid test-emdash-spike --case recovery
 ./leonaid test-public-actions

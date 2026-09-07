@@ -67,6 +67,7 @@ Commands:
   test-emdash-spike --case alias-namespaces
   test-emdash-spike --case alias-persistence
   test-emdash-spike --case alias-commands
+  test-emdash-spike --case alias-renderer
   test-emdash-spike --case alias-http
   test-emdash-spike --case redirect-aliases
   test-emdash-spike --case recovery-sql

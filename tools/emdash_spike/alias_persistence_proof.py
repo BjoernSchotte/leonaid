@@ -239,6 +239,9 @@ def main() -> None:
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (
             CURRENT,
         )
+    # Migration compatibility above intentionally exercises the historical
+    # revision; current repositories require the current schema afterwards.
+    command("-m", "alembic", "upgrade", "head")
     asyncio.run(repositories())
     print(
         "alias-persistence: migrated legacy aliases/windows unchanged; multiple redirects, one primary, fail-closed downgrade, legacy publication and order lookup, concurrent unique claim and complete release audit passed"

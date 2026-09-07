@@ -43,6 +43,7 @@ export type CampaignAliasItemResponse = { readonly actionId: string; readonly al
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
 export type CampaignAliasTargetResponse = { readonly actionId: string; readonly canonicalPath: string; readonly name: string; };
+export type CampaignRendererResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
 export type CancelInvoiceRequest = { readonly reason: string; };
 export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
@@ -202,6 +203,7 @@ export type ResponseQuestion = { readonly choices: Array<ResponseChoice>; readon
 export type ResponseSelection = { readonly createdAt: string; readonly filter: ResolvedAnalysisFilter; readonly id: string; readonly questions: Array<ResponseQuestion>; readonly surveyId: string; readonly total: number; readonly versionNumber: number; };
 export type RevokePrivacyConsentRequest = { readonly reason: string; };
 export type SaveLegalConfigurationDraftRequest = { readonly bankAccountHolder: string; readonly bic?: string | null; readonly consentTextVersion: string; readonly eInvoiceDecision: "pending" | "not_required" | "required"; readonly eInvoiceEvidenceId?: string | null; readonly expectedRevision: number; readonly iban: string; readonly issuer: LegalIssuerRequest; readonly numberPrefix: string; readonly numberWidth: number; readonly paymentTermsDays: number; readonly privacyContactEmail: string; readonly privacyEvidenceId: string; readonly publicOrderLegalBasis: string; readonly publicOrderNoticeText: string; readonly retention: LegalRetentionRequest; readonly taxEvidenceId: string; readonly taxNote: string; readonly taxRateBasisPoints: number; readonly taxTreatment: "standard_vat" | "small_business" | "tax_exempt"; };
+export type SelectCampaignRendererRequest = { readonly commandId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
 export type SessionAuthenticationResponse = { readonly displayName: string; readonly expiresAt: string; readonly freshLoginAt: string; readonly status: "authenticated"; readonly userId: string; };
 export type SessionRevocationResponse = { readonly revokedCount: number; readonly status: "revoked"; };
 export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly revision: number; };
@@ -1008,6 +1010,23 @@ export class LeonAidApiClient {
   ): Promise<CampaignAliasMutationResponse> {
     return this.request<CampaignAliasMutationResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/redirect-aliases/${encodeURIComponent(String(aliasId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async selectCampaignRenderer(
+    actionId: string,
+    aliasId: string,
+    body: SelectCampaignRendererRequest,
+    options: RequestOptions = {},
+  ): Promise<CampaignRendererResponse> {
+    return this.request<CampaignRendererResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/redirect-aliases/${encodeURIComponent(String(aliasId))}/renderer`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

@@ -53,6 +53,7 @@ from leonaid.application.campaign_aliases import (
     CampaignAliasCommand,
     CampaignAliasService,
 )
+from leonaid.application.campaign_renderer import CampaignRendererCommand
 from leonaid.application.dashboard import (
     DashboardService,
     DashboardSnapshot,
@@ -176,6 +177,8 @@ from leonaid.entrypoints.fastapi.schemas import (
     CreateCampaignAliasRequest,
     UpdateCampaignAliasRequest,
     RemoveCampaignAliasRequest,
+    SelectCampaignRendererRequest,
+    CampaignRendererResponse,
     AcceptInvitationRequest,
     ActivateLegalConfigurationRequest,
     ActionGoalRequest,
@@ -3141,6 +3144,32 @@ async def remove_campaign_alias(
     )
     response.headers["Cache-Control"] = "no-store"
     return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}/renderer",
+    operation_id="selectCampaignRenderer",
+    response_model=CampaignRendererResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def select_campaign_renderer(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: SelectCampaignRendererRequest,
+    response: Response,
+) -> CampaignRendererResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).select_renderer(
+        actor,
+        CampaignRendererCommand(
+            body.command_id, alias_id, action_id, body.revision, body.renderer
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignRendererResponse.model_validate(result)
 
 
 @router.put(

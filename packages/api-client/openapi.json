@@ -1851,6 +1851,46 @@
         "title": "CampaignAliasTargetResponse",
         "type": "object"
       },
+      "CampaignRendererResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "alias": {
+            "title": "Alias",
+            "type": "string"
+          },
+          "aliasId": {
+            "format": "uuid",
+            "title": "Aliasid",
+            "type": "string"
+          },
+          "renderer": {
+            "enum": [
+              "legacy",
+              "campaign"
+            ],
+            "title": "Renderer",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aliasId",
+          "actionId",
+          "alias",
+          "revision",
+          "renderer"
+        ],
+        "title": "CampaignRendererResponse",
+        "type": "object"
+      },
       "CancelInvoiceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -9643,6 +9683,36 @@
         "title": "SaveLegalConfigurationDraftRequest",
         "type": "object"
       },
+      "SelectCampaignRendererRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "title": "Commandid",
+            "type": "string"
+          },
+          "renderer": {
+            "enum": [
+              "legacy",
+              "campaign"
+            ],
+            "title": "Renderer",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "revision",
+          "renderer"
+        ],
+        "title": "SelectCampaignRendererRequest",
+        "type": "object"
+      },
       "SessionAuthenticationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -16632,6 +16702,129 @@
           }
         },
         "summary": "Update Campaign Alias",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}/renderer": {
+      "put": {
+        "operationId": "selectCampaignRenderer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alias Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectCampaignRendererRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignRendererResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Keine gültige serverseitige Sitzung."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Die angemeldete Persona besitzt nicht die nötigen Rechte."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Endpunkt oder Fachobjekt wurde nicht gefunden."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Änderung kollidiert mit dem aktuellen Zustand."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Transport- oder Fachvalidierung ist fehlgeschlagen."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unerwarteter interner Fehler."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Eine erforderliche externe Anbindung ist nicht konfiguriert."
+          }
+        },
+        "summary": "Select Campaign Renderer",
         "tags": [
           "actions"
         ]

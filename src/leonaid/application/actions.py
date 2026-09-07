@@ -198,7 +198,7 @@ class CharityActionRepository(Protocol):
     async def get_by_alias_route(
         self,
         public_alias: PublicActionAlias,
-    ) -> tuple[CharityAction, ActionConfiguration | None, bool] | None: ...
+    ) -> tuple[CharityAction, ActionConfiguration | None, bool, bool] | None: ...
 
     async def get_by_archive_slug(
         self,
@@ -437,6 +437,17 @@ class CharityActionService:
         *,
         evaluated_at: datetime | None = None,
     ) -> PublicActionRoute:
+        return await self._resolve_alias(
+            public_alias, evaluated_at=evaluated_at, render_primary_redirect=True
+        )
+
+    async def _resolve_alias(
+        self,
+        public_alias: str,
+        *,
+        evaluated_at: datetime | None,
+        render_primary_redirect: bool,
+    ) -> PublicActionRoute:
         alias = PublicActionAlias(public_alias.strip())
         snapshot = await self._repository.get_by_alias_route(alias)
         now = evaluated_at or datetime.now(timezone.utc)
@@ -451,8 +462,8 @@ class CharityActionService:
                 submissions_allowed=False,
                 action=None,
             )
-        action, configuration, is_primary = snapshot
-        if not is_primary:
+        action, configuration, is_primary, campaign_redirect = snapshot
+        if not is_primary or (campaign_redirect and render_primary_redirect):
             target = f"/campaigns/{action.archive_slug}/"
             return PublicActionRoute(
                 route_kind=PublicActionRouteKind.ALIAS,
@@ -537,8 +548,10 @@ class CharityActionService:
             return published
         # Re-resolve the current alias with a fresh publication check. A moved
         # alias must never substitute another year's action at this stable URL.
-        current = await self.resolve_public_alias(
-            management.public_alias.value, evaluated_at=now
+        current = await self._resolve_alias(
+            management.public_alias.value,
+            evaluated_at=now,
+            render_primary_redirect=False,
         )
         if current.action is None or current.action.id != action.id:
             return inactive

@@ -16,6 +16,17 @@ if [ "$recovery:$orders" = true:true ]; then
 fi
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|migration-operator|alias-http|alias-browser) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+if [ "$recovery" = false ]; then
+  docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+    node /workspace/tools/emdash_spike/order-subnet.mjs --self-test
+  # Avoid exhausted Docker default pools without modifying any existing net.
+  # A concurrent claimant is rejected atomically by Docker, never removed.
+  isolated_subnet=$(docker network inspect $(docker network ls -q) | \
+    docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+      node /workspace/tools/emdash_spike/order-subnet.mjs)
+  EMDASH_TEST_NET_PREFIX=${isolated_subnet%.0/24}
+  export EMDASH_TEST_NET_PREFIX
+fi
 if [ "$mode" = migration-operator ]; then
   # Parse-only placeholder, replaced by verified built CMS ID before use.
   LEONAID_CMS_MIGRATION_IMAGE=$NODE_IMAGE
@@ -83,6 +94,9 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$recovery" = false ]; then
+    set -- --file "$root/infra/emdash-spike/isolated-networks.test.yml" "$@"
+  fi
   if [ "$mode" = migration-operator ]; then
     set -- --file "$root/infra/emdash-spike/migration-operator.yml" "$@"
   fi
@@ -153,7 +167,12 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   node --input-type=module -e '
   import assert from "node:assert/strict";
   let input=""; for await(const chunk of process.stdin) input+=chunk;
-  const {services}=JSON.parse(input);
+  const {services,networks}=JSON.parse(input);
+  const subnetPrefix=networks["core-data"].ipam.config[0].subnet.replace(/\.0\/28$/,"");
+  for(const [name,offset] of [["core-data",0],["cms-data",16],["crm-data",32],["storage-data",48],["edge",64]]) {
+    assert.equal(networks[name].ipam.config.length,1);
+    assert.equal(networks[name].ipam.config[0].subnet,`${subnetPrefix}.${offset}/28`);
+  }
   for(const name of ["api","core-postgres","campaign-site","core-auth-probe","proxy","public","admin-browser","bootstrap-probe","bootstrap-operator","worker","mailpit"]) assert.ok(!services[name].ports?.length);
   assert.deepEqual(Object.keys(services.mailpit.networks),["edge"]);
   assert.deepEqual(Object.keys(services.worker.networks).sort(),["core-data","edge"]);
@@ -279,6 +298,7 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose up --no-deps --build --detach --wait public
     fixture /repo/tools/emdash_spike/redirect_http_proof.py
+    fixture /repo/tools/emdash_spike/alias_renderer_http_proof.py
     fixture /repo/tools/emdash_spike/alias_http_proof.py
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --outage-fixture
     redirect_outage_probe() {
