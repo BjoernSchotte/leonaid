@@ -2909,6 +2909,10 @@ another running checkout or authorize production deployment.
       The first media run caught outdated repeater expectations for the new
       empty text fields; the corrected proof enters and verifies actual values.
       Each run used unique Docker resources, no host ports and complete cleanup.
+      Post-commit `./leonaid check` at `8b6351d` passed 210 unit tests,
+      250 Python source checks, 24 public and 46 CMS Astro files without
+      diagnostics, generated-type/format/privacy/policy gates, and unchanged
+      committed source. Existing dependency deprecation warnings remain.
       This prepares the schema only: operator migration CLI, demo import,
       renderer integration, cutover and complete recovery remain open below.
 - [ ] Import the current demo's Krapfentaxi editorial texts and assets from
