@@ -429,6 +429,27 @@ Concrete hosting addresses, production credentials and operating runbooks remain
 in `leonaid-internal`. This plan and its PR authorize neither production
 activation nor changes to another running stack.
 
+### 4.4 Infrastructure rollout and release approval
+
+Apply the integration in this order; a successful earlier checkpoint does not
+authorize skipping a later gate:
+
+1. Verify the CMS-disabled baseline, then provision the dedicated database role,
+   private bucket and runtime secrets without changing Core data ownership.
+2. Start the optional service without public editor traffic. Complete the
+   operator-only bootstrap, install authorization guards and verify that setup
+   remains closed after restart and recovery.
+3. Prove same-origin TLS, Core authentication, campaign isolation and resource
+   limits in an isolated stack before admitting campaign editors.
+4. Prove anonymous Astro rendering, publication-gated media and the existing
+   Core order journey before importing and switching the Krapfentaxi demo.
+   Do not activate redirect aliases while ordering still hands off to an alias
+   that would redirect back to the microsite.
+5. Require the versioned release inventory, fresh SQL-and-object restore,
+   order-preserving rollback and CMS-enabled/disabled regression gates before
+   recommending pilot activation. Record remaining failures in `RESULT.md`;
+   keep unfinished gates unchecked. Production activation needs separate approval.
+
 ## 5. Canonical commands and proof gates
 
 All product and verification work remains Docker-only. Do not require host
