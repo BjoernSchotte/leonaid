@@ -2858,6 +2858,20 @@ Dependencies: EMS-030, EMS-050, EMS-070
       dot segments, and reserved roots including `api`, `admin`, `app`,
       `_emdash`, `_astro`, `campaigns`, `archive`, and authentication routes.
       Include all additional asset/image/action namespaces selected in EMS-010.
+  - [x] Reserve current service namespaces in the shared `PublicActionAlias`
+        domain contract and PostgreSQL. Migration
+        `0027_campaign_alias_namespaces` adds the missing `campaigns`,
+        `email-change` and `health` roots, explicitly inventories the underscore
+        asset/action/CMS roots already excluded by the slug grammar, and keeps
+        the prior reserved-root constraint intact. Under a bounded table lock,
+        collisions fail with a static operator-resolution error; no alias is
+        renamed, deleted or retargeted. The `alias-namespaces` case passed in
+        isolated project `leonaid-emdash-tmp-eahyubuxz5`: actual preceding-schema
+        Golden data, three real collision/transaction rollbacks, domain and SQL
+        unsafe-path denial, unchanged complete alias/action rows, downgrade,
+        upgrade and repeated upgrade. Exit 0; only the project's own resources
+        were removed. This is the namespace foundation, not completion of the
+        multiple-alias persistence/API/UI or redirect resolver gates.
 - [ ] Enforce global uniqueness in the database, optimistic revision checks,
       idempotent mutation handling, and audit events recording actor, action,
       previous target, and new target. Concurrent claims must yield one winner
@@ -2874,6 +2888,7 @@ Verification (new case implemented by this task):
 ```sh
 ./leonaid generate-api-client
 ./leonaid test-emdash-spike --case redirect-aliases
+./leonaid test-emdash-spike --case alias-namespaces
 ./leonaid test-public-actions
 ```
 
@@ -3031,7 +3046,7 @@ another running checkout or authorize production deployment.
       independently of editorial publishing. Complete an anonymous test order
       through the new page and verify the existing backend effects.
   - [x] Actual imported-page order acceptance: `./leonaid test-emdash-spike
-    --case krapfentaxi-orders` passed in isolated project
+--case krapfentaxi-orders` passed in isolated project
         `leonaid-emdash-tmp-zsjjfx0d9q`. This runs the real original-asset import
         and all three Charity editor/publication journeys, then adds fresh
         Twenty services and a verified restricted integration key. Without
