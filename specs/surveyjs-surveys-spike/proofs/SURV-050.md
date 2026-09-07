@@ -232,3 +232,39 @@ unchanged-write, no-deletion, resumption and completion tests, this satisfies al
 A2 assertions and completes 050.T1. All four implementation tasks now pass their
 required criteria and S1–S5 gates. This does not accept the still-open analysis
 UI, charts, exports or full spike; their own tasks remain open.
+
+## Published completion text
+
+**050.1a / 050.S6 accepted.** Baseline `0104b33` plus this change.
+The runner previously discarded the authored completion text when replacing the
+SurveyJS form with its confirmed completion view. It now displays the immutable
+participation version's `completedHtml` as React plain text, with preserved line
+breaks and wrapping. Missing/empty/whitespace-only content falls back to host
+`thankYouBody`; the heading remains host-translated. There is no HTML injection.
+
+`rtk proxy sh tools/surveys/infrastructure.sh "$PWD" branding` exited **0**,
+project `leonaid-surveys-833458328-18198`: **six Chromium tests passed (16.5s)**.
+Two new cases at 1440x900 and 390x900 create/publish through the real authoring
+API, start and save an actual participation, then publish different completion
+text. Completion and reload still show the original text and original version
+ID, with the exact stored answer and completed status; reload issues no writes.
+A fresh participation then completes with the new version's text. Unicode,
+line-break styling and no horizontal overflow are asserted. Existing three-page
+navigation cases at 320/390/1440px also now explicitly assert the fallback text;
+the sixth test verifies the existing real-identity/member/public foundation.
+
+[Mobile completion evidence](assets/SURV-050-completion-text-mobile.png) was
+visually inspected. The earlier editor authoring/validated-preview proof in
+[SURV-040](SURV-040.md#complete-sample-authoring-and-validated-preview) already
+covers entering this field through the nontechnical editor; this increment closes
+the public runner gap. It does not claim the full SURV-100 combined author-to-
+deletion journey.
+
+The preceding `17320` run passed both new cases but exposed a timing assumption
+in the existing rating helper: SurveyJS replaced radio inputs with a dropdown
+after the test selected its interaction branch. The helper now retries only the
+same rating-value selection across this DOM replacement, with normal keyboard/
+pointer actions and bounded timing; it never retries a whole journey or forces a
+click. The final full run passed. Both stacks use unique resources, no host ports
+and owned cleanup. Package TypeScript, Prettier, shell syntax and diff checks
+passed. No dependency or license changed.

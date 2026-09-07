@@ -326,3 +326,11 @@ controls. Connecting lines are omitted in the wrapped layout; desktop layout
 remains the SurveyJS default. This applies to narrow embedded hosts as well as
 mobile viewports. SurveyJS may independently render rating questions as dropdowns
 when there is insufficient width for their radio choices.
+
+### Published completion copy
+
+After a confirmed completion, the runner displays the participation version's
+`completedHtml` value as React plain text, preserving line breaks and wrapping
+long content. It never injects HTML. An absent, empty or whitespace-only value
+falls back to the host's `thankYouBody`; the host still supplies the completion
+heading. A later publication does not change an existing participation's text.

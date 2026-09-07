@@ -197,6 +197,8 @@ and the complete passing editor regression in that same proof.
   Integration / supporting checks — work-package regression gate: **050.S1, 050.S2**.
   E2E: **050.S3, 050.S5**.
 
+- [x] **050.1a** Display the published version's configured completion text as plain text, falling back to host copy when empty. Acceptance: desktop/mobile completion and reload show the participation's original text after a newer publication; a new participant receives the new text; answers/status remain correct. Integration/E2E: **050.S6**. [Live evidence](proofs/SURV-050.md#published-completion-text).
+
 - [x] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement.
 
   Acceptance criteria: **050.A1, 050.A4**. [Accepted evidence](proofs/SURV-050.md#process-restart-and-untransmitted-tab-loss).

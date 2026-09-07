@@ -73,3 +73,8 @@
     min-height: 2.75rem;
   }
 }
+
+.survey-thanks .survey-completion-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

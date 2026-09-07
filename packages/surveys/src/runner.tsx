@@ -305,7 +305,12 @@ export function SurveyRunner({
       <section className="survey-thanks">
         <HostLogo logo={logo} />
         <h1>{copy.thankYouTitle}</h1>
-        <p>{copy.thankYouBody}</p>
+        <p className="survey-completion-message">
+          {typeof participation.version.definition.completedHtml === "string" &&
+          participation.version.definition.completedHtml.trim()
+            ? participation.version.definition.completedHtml
+            : copy.thankYouBody}
+        </p>
       </section>
     );
   return (

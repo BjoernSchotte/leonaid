@@ -685,6 +685,8 @@ Dependencies: SURV-020, SURV-030, SURV-040.
 Implementation tasks:
 
 - [x] **050.1** Implement the full multipage runner, page-transition flush, debounced text saves, save status and in-memory retry queue. Acceptance: **050.A3, 050.A5**.
+- [x] **050.1a** Display the published version's configured completion text as plain text, falling back to host copy when empty. Acceptance: desktop/mobile completion and reload show the participation's original text after a newer publication; a new participant receives the new text; answers/status remain correct. Integration/E2E: **050.S6**. [Live evidence](proofs/SURV-050.md#published-completion-text).
+
 - [x] **050.2** Implement revision checks, idempotency, response ordering, multi-tab conflicts and atomic completion, including retry after a lost completion acknowledgement. Acceptance: **050.A1, 050.A4**.
 - [x] **050.3** Implement backend timeout default/override settings, effective per-participation configuration, classification worker and consistent read-time classification. Acceptance: **050.A2, 050.A5**. [Accepted evidence](proofs/SURV-050.md#analysis-consumer-acceptance).
 - [x] **050.4** Implement protected resume access and restoration; suppress save events caused solely by restoring existing data. Acceptance: **050.A3, 050.A4, 050.A5**.

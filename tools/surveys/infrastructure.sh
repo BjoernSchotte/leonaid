@@ -132,7 +132,7 @@ browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = branding ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
-  browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs tests/e2e/surveys-completion-message.spec.mjs"
 fi
 if [ "$mode" = permissions ]; then
   browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"

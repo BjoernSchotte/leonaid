@@ -5,17 +5,21 @@ if (!baseURL || !surveyId) throw new Error("Published survey fixture required");
 async function rate(page, name, value) {
   const question = page.locator(`[data-name=${name}]`);
   await expect(question).toBeVisible();
-  const dropdown = question.getByRole("combobox");
-  if (await dropdown.count()) {
-    await dropdown.click();
-    await page
-      .getByRole("option", { name: String(value), exact: true })
-      .click();
-  } else {
-    await question
-      .locator(`input[type=radio][value="${value}"]`)
-      .press("Space");
-  }
+  // SurveyJS can replace the radio view with its mobile dropdown after resize
+  // observation. Retry only the same value selection, never the whole journey.
+  await expect(async () => {
+    const dropdown = question.getByRole("combobox");
+    if (await dropdown.isVisible()) {
+      await dropdown.click({ timeout: 1000 });
+      await page
+        .getByRole("option", { name: String(value), exact: true })
+        .click({ timeout: 1000 });
+    } else {
+      await question
+        .locator(`input[type=radio][value="${value}"]`)
+        .press("Space", { timeout: 1000 });
+    }
+  }).toPass({ timeout: 15000, intervals: [100, 250] });
 }
 for (const width of [1440, 390, 320]) {
   test(`host logo loads with saved participation at width ${width}`, async ({
@@ -123,6 +127,9 @@ for (const width of [1440, 390, 320]) {
       const completed = await page.evaluate(
         async (path) => (await fetch(path)).json(),
         endpoint,
+      );
+      await expect(page.locator(".survey-completion-message")).toHaveText(
+        "Ihre Antworten sind eingegangen.",
       );
       expect(completed.response.status).toBe("completed");
       expect(completed.response.answers).toEqual({
