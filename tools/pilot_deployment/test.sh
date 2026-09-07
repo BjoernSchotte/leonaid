@@ -4,13 +4,32 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-project=${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}
-runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-$project}
-build_project=${LEONAID_PILOT_BUILD_PROJECT:-leonaid-pilot040-release}
-http_port=${LEONAID_PILOT_TEST_HTTP_PORT:-19080}
-https_port=${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}
-restore_http_port=${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-19081}
-restore_https_port=${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-19444}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project="${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}-$suffix"
+runtime_project="$project"
+build_project="leonaid-pilot-release-$suffix"
+# Bind all requested ports together before releasing them. Docker still fails
+# safely if another process wins a port before startup; existing stacks stay put.
+set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
+  "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" \
+  "${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-0}" \
+  "${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-0}" <<'PORTS'
+import socket, sys
+sockets = []
+for value in sys.argv[1:]:
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", int(value)))
+    sockets.append(sock)
+print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
+PORTS
+)
+[ "$#" -eq 4 ] || { echo 'Pilot test port allocation failed' >&2; exit 1; }
+http_port=$1
+https_port=$2
+restore_http_port=$3
+restore_https_port=$4
+export LEONAID_PILOT_TEST_HTTP_PORT="$http_port"
+export LEONAID_PILOT_TEST_HTTPS_PORT="$https_port"
 workspace=$(mktemp -d)
 manifest_proof_directory=$(mktemp -d)
 config="$workspace/compose.json"
@@ -26,11 +45,11 @@ wrong_restic_password_file="$workspace/wrong-restic-password"
 backup_credentials_file="$workspace/backup-s3.env"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
-operator_backup_project=leonaid-pilot-operator-backup
+operator_backup_project="leonaid-pilot-backup-$suffix"
 operator_backup_container="$operator_backup_project-rustfs"
 operator_backup_volume="$operator_backup_project-rustfs-data"
 operator_backup_bucket=leonaid-pilot-operator
-restore_project=leonaid-restore-pilot-operator
+restore_project="leonaid-restore-pilot-$suffix"
 core_image_tag="$build_project-api:latest"
 web_image_tag="$build_project-web:latest"
 pwa_image_tag="$build_project-pwa:latest"
@@ -42,6 +61,25 @@ web_image="$web_image_tag"
 pwa_image="$pwa_image_tag"
 public_image="$public_image_tag"
 release_commit=$(git -C "$root" rev-parse HEAD)
+mkdir -p "$root/.artifacts"
+overlay_directory=$(mktemp -d "$root/.artifacts/pilot-isolation.XXXXXX")
+source_overlay="$overlay_directory/source.yml"
+target_overlay="$overlay_directory/target.yml"
+runtime_owned=false
+restore_owned=false
+backup_owned=false
+build_owned=false
+make_overlay() {
+  destination=$1
+  python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
+  python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$destination" <<'OVERLAY'
+from pathlib import Path
+import sys
+base, network, target = map(Path, sys.argv[1:])
+target.write_text(base.read_text() + "\nnetworks:\n" + network.read_text().split("\nnetworks:\n", 1)[1])
+OVERLAY
+}
+
 
 runtime_compose() {
   LEONAID_PILOT_TEST_HTTP_PORT="$http_port" \
@@ -55,7 +93,7 @@ runtime_compose() {
     --env-file "$env_file" \
     --file "$root/infra/compose/compose.yml" \
     --file "$root/infra/pilot/compose.yml" \
-    --file "$root/infra/pilot/compose.test.yml" \
+    --file "$source_overlay" \
     "$@"
 }
 
@@ -71,7 +109,7 @@ restore_compose() {
     --env-file "$target_env_file" \
     --file "$root/infra/compose/compose.yml" \
     --file "$root/infra/pilot/compose.yml" \
-    --file "$root/infra/pilot/compose.test.yml" \
+    --file "$target_overlay" \
     "$@"
 }
 
@@ -99,21 +137,37 @@ print(
 )' >&2 || true
     fi
   fi
-  runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
-  docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
-  docker image rm \
+  if [ "$runtime_owned" = true ]; then runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true; fi
+  if [ "$restore_owned" = true ]; then restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || true; fi
+  if [ "$backup_owned" = true ]; then
+    docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
+    docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
+  fi
+  if [ "$build_owned" = true ]; then docker image rm \
     "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" \
-    >/dev/null 2>&1 || true
+    >/dev/null 2>&1 || true; fi
+  rm -rf "$overlay_directory"
   rm -rf "$manifest_proof_directory"
   rm -rf "$workspace"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
-docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
+for owned_project in "$project" "$restore_project" "$build_project" "$operator_backup_project"; do
+  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$owned_project")" ]
+  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$owned_project")" ]
+  [ -z "$(docker network ls -q --filter "label=com.docker.compose.project=$owned_project")" ]
+done
+[ -z "$(docker ps -aq --filter "name=^/${operator_backup_container}$")" ]
+[ -z "$(docker volume ls -q --filter "name=^${operator_backup_volume}$")" ]
+for image in "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag"; do
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    echo 'Pilot test image name already exists; leaving it untouched' >&2
+    exit 1
+  fi
+done
+make_overlay "$source_overlay"
+backup_owned=true
 docker volume create \
   --label "com.docker.compose.project=$operator_backup_project" \
   "$operator_backup_volume" >/dev/null
@@ -259,6 +313,7 @@ docker run --rm \
   python tools/pilot_deployment/test.py /proof/compose.json
 
 echo "pilot-deployment-test: baut fünf Release-Images vor dem Deployment"
+build_owned=true
 docker compose \
   --project-name "$build_project" \
   --env-file "$root/.env.local" \
@@ -266,7 +321,7 @@ docker compose \
   build api web pwa public survey-validator
 
 echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
-runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+runtime_owned=true
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
@@ -395,22 +450,32 @@ pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
 public_image=$(docker image inspect --format '{{.Id}}' "$public_image_tag")
 LEONAID_TEST_SURVEY_VALIDATOR_IMAGE=$(docker image inspect --format '{{.Id}}' "$survey_validator_image_tag")
 export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE
+config="$workspace/runtime-compose.json"
 runtime_compose config --format json >"$config"
-docker run --rm \
+python3 - "$config" <<'CONFIG'
+import hashlib, json, pathlib, sys
+data = pathlib.Path(sys.argv[1]).read_bytes()
+value = json.loads(data)
+assert len([service for service in value["services"].values() if not service.get("profiles")]) == 13
+print(f"pilot-deployment-test: runtime config valid, bytes={len(data)}, sha256={hashlib.sha256(data).hexdigest()}")
+CONFIG
+# Send the complete host snapshot through stdin: the same shared directory was
+# mounted earlier by the Doctor and can expose stale file contents on macOS.
+docker run --rm --interactive \
   --user "$(id -u):$(id -g)" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
-  python tools/pilot_release/manifest.py create \
+  sh -eu -c 'cat > /tmp/runtime-compose.json; exec python tools/pilot_release/manifest.py create "$@"' sh \
     --root /workspace \
     --release-id pilot-deploy-test \
     --version 0.1.0-test \
     --git-commit "$release_commit" \
     --deployment-mode test \
-    --compose-config /proof/compose.json \
-    --output /proof/release-manifest.json
+    --compose-config /tmp/runtime-compose.json \
+    --output /proof/release-manifest.json <"$config"
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace:ro" \
@@ -447,7 +512,7 @@ value["images"]["api"]="sha256:"+"b"*64
 p.write_text(json.dumps(value,sort_keys=True,indent=2)+"\n",encoding="utf-8")'
 set +e
 drift_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -469,7 +534,7 @@ if ! printf '%s' "$drift_output" |
   echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
   exit 1
 fi
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -501,7 +566,7 @@ docker run --rm \
   sh -eu -c 'printf "%s\n" "twenty-storage-operator-backup" > /data/pilot-operator-probe'
 set +e
 wrong_backup_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -530,7 +595,7 @@ fi
 echo "pilot-deployment-test: beweist den vollständigen Operator-Release"
 set +e
 missing_staging_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -577,7 +642,7 @@ fi
   --result passed \
   --evidence-id PILOT-043-STAGING-OPERATOR \
   --occurred-at 2026-07-30T12:02:00Z
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -621,13 +686,15 @@ assert set(value["files"])=={
 
 . "$root/tools/backup/survey-recovery-fixture.sh"
 prepare_survey_recovery_fixture runtime_compose "$workspace"
+make_overlay "$target_overlay"
+restore_owned=true
 cp "$env_file" "$target_env_file"
 printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" >>"$target_env_file"
 chmod 600 "$target_env_file"
 set +e
 wrong_restore_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
-    LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
+    LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
@@ -656,8 +723,8 @@ if ! printf '%s' "$wrong_restore_output" |
   echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
   exit 1
 fi
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
-  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
+  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
   LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \

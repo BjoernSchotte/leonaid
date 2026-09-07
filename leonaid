@@ -542,7 +542,7 @@ pilot_doctor() {
   test_decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
   if [ -n "$test_network$test_ca_file$test_decisions_file" ]; then
     case "$project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-doctor: BLOCKED: Testdiagnose ist nur in isolierten Testprojekten zulässig" >&2
         rm -f "$config_file"
@@ -663,7 +663,7 @@ pilot_test_overlay() {
   overlay=${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}
   [ -n "$overlay" ] || return 1
   case "$project" in
-    leonaid-production-test|leonaid-staging-test) ;;
+    leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
     *)
       echo "pilot: BLOCKED: Test-Overlay ist nur für isolierte Testprojekte zulässig" >&2
       return 1
@@ -757,7 +757,7 @@ pilot_decision_gate() {
   decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
   if [ -n "$decisions_file" ]; then
     case "$project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-doctor: BLOCKED: Testentscheidungen sind nur in isolierten Testprojekten zulässig" >&2
         return 1
@@ -1509,7 +1509,7 @@ pilot_restore() {
   if [ -n "${LEONAID_PILOT_TEST_RESTORE_OVERLAY:-}" ]; then
     restore_overlay_secondary=${LEONAID_PILOT_TEST_RESTORE_OVERLAY}
     case "$source_project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-restore: BLOCKED: Test-Restore-Overlay ist nur für isolierte Testprojekte zulässig" >&2
         exit 1

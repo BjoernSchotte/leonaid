@@ -224,8 +224,11 @@ applicable configuration/manifest check. Older image inventories need an explici
 compatible release checkout; do not remove the validator from a current manifest
 to force a restore through validation.
 
-- Exercise the separate pilot Doctor/release-manifest wrapper with survey
-  recovery inputs; the generic no-build restore path is proven above.
+- The complete pilot deploy/release/backup/restore regression now passes with
+  the validator and an authenticated **empty** survey checkpoint, using separate
+  source/target projects. [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
+  Exercise that wrapper with actual post-backup survey deletions; the generic
+  no-build restore path already proves that scenario separately above.
 - Prove unexpected source-host loss. Retention-originated interrupted publication
   and recovery by a zero-candidate sweep now have
   [live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).

@@ -1,0 +1,18 @@
+{
+  "run": "833458328-77303",
+  "fullPilotHarnessExitCode": 0,
+  "runtimeComposeHostJsonValidation": true,
+  "runtimeComposeDeliveredToManifestViaStdin": true,
+  "manifestBoundDeployAndRelease": true,
+  "actualEncryptedResticBackupAndReadDataCheck": true,
+  "actualPilotRestoreNoBuildStartup": true,
+  "surveyCheckpointReappliedBeforeStartup": true,
+  "checkpointErasureCount": 0,
+  "coreTwentyAndBothStorageProbeContentsRestored": true,
+  "allOwnedProjectContainersVolumesNetworksAbsentAfterRun": true,
+  "allFiveOwnedBuildTagsRemoved": true,
+  "limitations": [
+    "This existing pilot fixture has zero survey erasures; nonempty deletion recovery and key/identity/interruption cases through the wrapper remain open",
+    "The source remains available during restoration; this is not an unexpected host-loss proof"
+  ]
+}

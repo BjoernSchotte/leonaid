@@ -392,6 +392,15 @@ remain open until their remaining criteria pass.
   E2E: all four `surveys-package.spec.mjs` cases, including backend restart.
   [Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
 
+- [x] **100.3b** Run the affected pilot deploy/release/backup/restore regression with unique owned resources, free loopback ports and separate source/target subnets; verify cleanup.
+
+  Acceptance criteria: partial contribution to **100.A3**; **100.3** remains open.
+  Integration / supporting checks: full `tools/pilot_deployment/test.sh`, including
+  actual immutable-image deployment, encrypted backup and no-build restore.
+  E2E scope: operator CLI and real HTTP/TLS services, not browser journeys.
+  The fixture has zero erasures and does not accept survey disaster recovery.
+  [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
+
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
   Acceptance criteria: **100.A4, 100.A5**.

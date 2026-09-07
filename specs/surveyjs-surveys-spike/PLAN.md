@@ -824,6 +824,7 @@ Implementation tasks:
 - [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys. Acceptance: **100.A2, 100.A4**.
 - [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites. Acceptance: **100.A3, 100.A5**.
 - [x] **100.3a** Resolve the React peer-range versus runtime pin-policy conflict; reject unreviewed exceptions and host drift, verify the frozen workspace lock and rerun the independent packed consumer with persistence across backend restart. Partial acceptance of **100.A5** only; **100.3** and the overall acceptance remain open. [Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
+- [x] **100.3b** Make the affected pilot regression safe alongside other worktrees and run its complete manifest-bound deploy/release/backup/restore workflow, including the validator and survey checkpoint startup gate. Verify owned-resource teardown. Partial contribution to **100.A3**; the fixture has no survey deletions and does not accept **090.A3** or the remaining regression suites. [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided. Acceptance: **100.A4, 100.A5**.
 
 Test implementation and verification tasks:
