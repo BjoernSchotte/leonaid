@@ -1252,6 +1252,73 @@ committed.
 This is operator/API/database/storage integration, not browser E2E. The checkpoint
 and cutoff are explicitly retained before source removal. The S3-compatible
 encrypted backup is outside the source project but on the same Docker host.
-Automatic newest-checkpoint provenance across unexpected host loss, interrupted
-reapplication and supported preceding-backup compatibility remain open. Do not
+Automatic newest-checkpoint provenance across unexpected host loss and supported
+preceding-backup compatibility remain open. Interrupted reapplication is proven
+in the subsequent 090.2h section. Do not
 accept 090.2, 090.2b, 090.A3 or the whole spike from this evidence alone.
+
+
+## Interrupted pilot reapplication and authenticated resume
+
+**090.2h / 090.S3f accepted.** This increment adds an explicit
+`pilot-restore --resume` path for a target whose complete database/storage import
+finished but whose erasure gate was interrupted. The original fresh-target refusal
+remains in place. [Operator contract](../RECOVERY.md#resuming-a-quarantined-pilot-restore).
+
+The restore entry point holds a target-specific process lock in the operator
+temporary directory around its entire internal body (same host/account/directory). A mode-600 HMAC-authenticated receipt records source/target,
+configuration and repository hashes, confirmed/actual manifest identity, the four
+restored volume identities, required recovery cutoff and phase. Resume checks the
+receipt and requires only data-service containers; application startup is preceded
+by a durable `starting` phase that cannot resume. A completed receipt cannot be
+reused. Verification reruns the full authenticated erasure gate before startup.
+
+Commands:
+
+```sh
+rtk proxy python3 tools/backup/restore_state_test.py
+rtk proxy sh tools/pilot_deployment/test.sh "$PWD" surveys
+```
+
+The focused suite passes **14 tests**, including normal phase progression; changed
+source, target, repository, manifest, configuration or authentication key; changed
+volume creation identity; missing/symlinked/over-readable/tampered receipts;
+backwards/missing/naive cutoff; all-container resource inventory including stopped
+application services; missing containers/foreign volume ownership; and exclusion
+of a real second process trying to lock the same target. Docker metadata in the
+resource unit checks is synthetic; the pilot journey below exercises actual volumes.
+
+The full pilot run uses suffix `833458328-22805`, unique image/project names,
+explicit unused subnets and dynamically allocated loopback-only ports. It uses
+real encrypted Restic storage outside the source project and destroys source
+containers/volumes before recovery. The missing-checkpoint case additionally:
+
+1. Rejects a repeated normal restore against the existing target.
+2. Adds a SQL sentinel that was not in the backup, then pauses target RustFS.
+3. Starts the actual pilot resume and waits for committed `survey_deletion` rows.
+4. Kills the actual one-off reapplication container, requires nonzero exit and
+   verifies that API/public/proxy/worker have not started.
+5. Unpauses storage and resumes with application startup disabled; verifies the
+   sentinel's exact value, proving no destructive database reimport occurred.
+6. Resumes again with startup enabled and checks erased SQL/object contents and
+   old authenticated/public access through the actual restored API.
+
+The existing five invalid-checkpoint fresh-target cases and final valid restore
+remain in the same full pilot regression, followed by original Core/Twenty database
+and RustFS/Twenty-storage sentinel checks. No checkpoint, credentials, raw response
+fixture or private receipt is part of retained evidence.
+
+This accepts only interrupted reapplication after completed imports and before
+application startup. Earlier import interruption and interrupted startup require a
+fresh target/investigation. Independent newest-checkpoint/cutoff provenance across
+unexpected host loss and supported preceding-backup compatibility remain open;
+**090.2, 090.2b, 090.A3 and 090.T1 remain unchecked**.
+
+Run `833458328-22805` exited **0**, including the deliberately interrupted resume,
+both successful continuation phases, all five checkpoint rejection cases, final
+fresh restore and all four existing database/storage sentinel probes. The focused
+14-test suite, Ruff, shell syntax and local documentation link checks also pass.
+This is operator/API/database/storage integration; no browser E2E result is claimed
+for this increment. See the [sanitized result](assets/SURV-090-pilot-resume.json).
+Post-run Docker queries confirmed removal of all run-owned containers, volumes,
+networks and five build tags; parallel projects were left untouched.

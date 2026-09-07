@@ -175,14 +175,62 @@ The gate also runs with `LEONAID_RESTORE_START_APP=false`. Missing input,
 authentication/identity/freshness errors or failed cleanup return nonzero while
 the restored database and storage remain available for offline investigation.
 Do not manually start application services after such failure. A new complete
-restore still requires a fresh target; the standalone reapply command can retry
-cleanup on the quarantined target with its exact environment and all writers off.
+restore still requires a fresh target. The quarantined target can instead resume
+through the authenticated operator path described below.
 
 A legacy database with no survey tables skips this module-specific gate only
 when neither input is supplied. A database with survey tables but no stable
 identity does not bypass it; preceding survey-schema backups remain unsupported.
 Empty survey tables still require a checkpoint: later deletions may have left
 records that prevent recreation even when no response needs immediate erasure.
+
+## Resuming a quarantined pilot restore
+
+After both databases and storage have been imported, the restore records a private,
+authenticated receipt beside the target environment file as
+`<target-env-file>.restore-state.json`. Keep that receipt with the exact target
+configuration and confirmed backup manifest. It contains hashes and resource/phase
+metadata, never answers or credentials. The authentication key derives from the
+existing session-encryption secret with a restore-specific context. Atomic replacement
+and file/directory fsync protect receipt writes.
+
+For a failed or interrupted erasure gate, rerun the original `./leonaid pilot-restore`
+command with the same arguments and add `--resume`. Supply a valid checkpoint and
+the same or a later independently established required-through cutoff. Resume checks
+the receipt before touching restored data and reruns the complete erasure gate;
+it does not download the backup again or reimport database/storage contents.
+`LEONAID_RESTORE_START_APP=false` completes verification while leaving application
+services stopped; a subsequent verified resume may start them.
+
+Resume requires all of the following:
+
+- The receipt authenticates against the unchanged target configuration, source and
+  target project names, repository and confirmed manifest. A normal fresh restore
+  also verifies that the actual Restic manifest matches the manifest supplied to
+  the pilot command before creating target volumes.
+- All four restored data volumes retain their recorded name, creation time, driver
+  and project ownership. Only Core PostgreSQL, Twenty PostgreSQL and RustFS
+  containers may exist for the target, including stopped containers.
+- The recorded phase is `restored` or `verified`. Before starting any application,
+  the command durably changes it to `starting`; successful startup records `complete`.
+  Neither of these latter phases can resume through this path.
+- The required-through cutoff cannot precede or remove the receipt's recorded
+  cutoff. Checkpoint signature, installation identity, freshness and complete
+  erasure coverage are still checked by the erasure gate.
+
+An advisory lock in the operator temporary directory serializes the entire restore
+command per target name, including invocations from different worktrees using that
+same directory. Keep the operator account and temporary-directory configuration
+consistent. This is not a distributed lock for different hosts/accounts or temporary
+directories controlling one Docker daemon. Use `restore.sh` or the
+pilot CLI entry point; `restore-body.sh` is its internal locked implementation.
+
+An interruption before completed data imports and receipt creation requires a fresh
+target. An interruption after application startup begins, a changed configuration,
+a missing/modified receipt or replaced volumes requires investigation and a fresh
+restore; do not edit the receipt or remove application containers to bypass this
+boundary. A receipt proves this workflow's identity and phase, not the integrity of
+arbitrary administrator changes to database contents or the newest recovery cutoff.
 
 ## Proven complete generic restore invocation
 
@@ -246,8 +294,9 @@ to force a restore through validation.
 - Define and prove how the operator obtains the required cutoff and detects a
   missing latest checkpoint. Authentication proves provenance and integrity,
   not that the supplied file is the newest file ever exported.
-- Prove interrupted reapplication through that wrapper and migration
-  compatibility with supported preceding backup revisions. Key/identity and
+- Interrupted reapplication through the wrapper has
+  [live evidence](proofs/SURV-090.md#interrupted-pilot-reapplication-and-authenticated-resume).
+  Prove migration compatibility with supported preceding backup revisions. Key/identity and
   stale/tampered/missing-input rejections are covered by the nonempty pilot proof.
 
 Until these items pass, 090.2 and 090.A3 remain open. The automatic gate and its

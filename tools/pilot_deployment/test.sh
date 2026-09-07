@@ -772,7 +772,7 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     --target-env-file "$target_env_file" \
     --password-file "$restic_password_file" \
     --credentials-file "$backup_credentials_file" \
-    --confirm "RESTORE:$restore_project"
+    --confirm "RESTORE:$restore_project" "$@"
 }
 if [ "$mode" = surveys ]; then
   # Both DBs, objects, writers and source archive are gone. Only independently
@@ -802,6 +802,51 @@ if [ "$mode" = surveys ]; then
     # This proves rejection at the actual restored-data boundary, rather than
     # accidentally accepting an earlier configuration/backup failure as coverage.
     survey_probe restore_compose restored
+    if [ "$invalid" = missing ]; then
+      # A new normal restore must still refuse existing volumes.
+      failed_fresh=0
+      run_pilot_restore >"$workspace/repeated-fresh.log" 2>&1 || failed_fresh=$?
+      [ "$failed_fresh" -eq 1 ]
+      LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+      # Marker distinguishes continuation from a destructive repeat pg_restore.
+      restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+        --set ON_ERROR_STOP=1 --command "CREATE TABLE restore_resume_probe(value text); INSERT INTO restore_resume_probe VALUES('preserve-on-resume')" >/dev/null
+      restore_compose pause rustfs
+      run_pilot_restore --resume >"$workspace/interrupted-resume.log" 2>&1 &
+      resumed_pid=$!
+      attempts=0
+      while :; do
+        count=$(restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+          --tuples-only --no-align --command "SELECT count(*) FROM survey_deletion")
+        [ "$count" -gt 0 ] && break
+        kill -0 "$resumed_pid" 2>/dev/null || { echo 'Resume stopped before committed revocations' >&2; exit 1; }
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 90 ] || { echo 'Resume did not reach committed revocations' >&2; exit 1; }
+        sleep 1
+      done
+      interrupted_container=$(docker ps -q \
+        --filter "label=com.docker.compose.project=$restore_project" \
+        --filter label=com.docker.compose.service=api \
+        --filter label=com.docker.compose.oneoff=True)
+      [ -n "$interrupted_container" ]
+      docker kill "$interrupted_container" >/dev/null
+      interrupted_status=0
+      wait "$resumed_pid" || interrupted_status=$?
+      [ "$interrupted_status" -ne 0 ]
+      restore_compose unpause rustfs
+      for service in api public proxy worker; do
+        [ -z "$(restore_compose ps --status running --quiet "$service")" ]
+      done
+      # Continue only the existing quarantine; no source DB/storage reimport.
+      LEONAID_RESTORE_START_APP=false run_pilot_restore --resume
+      preserved=$(restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+        --tuples-only --no-align --command "SELECT value FROM restore_resume_probe")
+      [ "$preserved" = preserve-on-resume ]
+      # Verify phase completion still permits the intentional application start.
+      LEONAID_RESTORE_START_APP=true run_pilot_restore --resume
+      survey_probe restore_compose online-restic
+      echo 'pilot-survey-recovery: interrupted reapplication resumed without reimport; original marker preserved'
+    fi
     restore_compose down --volumes --remove-orphans
     [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$restore_project")" ]
     LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$valid_cutoff
@@ -827,10 +872,11 @@ result.update({
     "eachRejectionVerifiedOriginalSqlAnswerAndExactExportObjectOffline": True,
     "eachRejectionUsedFreshTargetVolumes": True,
     "validCheckpointAllowsNoBuildApplicationStartup": True,
+    "interruptedReapplicationResumedWithoutReimport": True,
     "limitations": [
         "Checkpoint and cutoff were explicitly retained before source removal; automatic newest-checkpoint provenance across unexpected host loss remains open",
         "Encrypted S3-compatible Restic storage is outside the source project but on the same Docker host",
-        "Interrupted reapplication and preceding-backup compatibility through the pilot wrapper remain open",
+        "Preceding-backup compatibility through the pilot wrapper remains open",
     ],
 })
 Path(sys.argv[2]).write_text(json.dumps(result, indent=2) + "\n")

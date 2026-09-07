@@ -361,8 +361,8 @@ remain open until their remaining criteria pass.
 
   Acceptance criteria: **090.A3, operator preflight portion**.
   Integration: **090.S3d**, [live evidence](proofs/SURV-090.md#offline-pilot-preflight-and-validator-release-binding).
-  Nonempty restoration and input rejection are covered by 090.2g. Interruption,
-  independent cutoff provenance and preceding-release compatibility remain open.
+  Nonempty restoration/input rejection are covered by 090.2g and interrupted
+  reapplication by 090.2h. Independent cutoff provenance and preceding-release compatibility remain open.
 
 - [x] **090.2g** Prove nonempty survey recovery through `pilot-restore` after real encrypted backup, permanent deletion and source-project removal. Reject missing, tampered, wrong-key, wrong-installation and stale checkpoints on fresh targets, checking exact restored SQL answers and export objects offline. Valid recovery must erase all survey content before no-build startup and deny old authenticated/public access.
 
@@ -370,6 +370,11 @@ remain open until their remaining criteria pass.
   Integration: **090.S3e**, [live evidence](proofs/SURV-090.md#pilot-restore-with-post-backup-survey-erasure).
   Operator/API/database/storage checks; this is not browser E2E or complete
   unexpected-host-loss recovery. Checkpoint and cutoff are explicitly retained.
+
+- [x] **090.2h** Add authenticated resume for a quarantined pilot restore after the imports finish and before application startup begins.
+
+  Acceptance: a forced interruption after committed erasures leaves application services stopped; `--resume` verifies configuration, backup, volume and phase identity, reruns erasure without reimport, preserves an independent SQL sentinel and denies old access after startup. Changed or unsafe receipts, replaced volumes, backwards cutoff and concurrent restore attempts sharing the operator lock directory fail closed.
+  Integration: **090.S3f**; [Live evidence](proofs/SURV-090.md#interrupted-pilot-reapplication-and-authenticated-resume). Focused receipt/lock tests supplement the real encrypted-backup pilot journey. Parent 090.2 / 090.A3 still require host-loss cutoff provenance and preceding-backup compatibility.
 
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 

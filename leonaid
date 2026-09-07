@@ -99,8 +99,8 @@ Commands:
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
                     Back up the productive pilot and publish a fresh manifest
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
-                --password-file FILE --confirm RESTORE:TARGET
-                    Restore into an explicitly confirmed fresh pilot project
+                --password-file FILE --confirm RESTORE:TARGET [--resume]
+                    Restore fresh, or resume a verified quarantined pilot target
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -1395,8 +1395,13 @@ pilot_restore() {
   password_file=
   credentials_file=
   confirm=
+  resume=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --resume)
+        resume=true
+        shift
+        ;;
       --env-file)
         [ "$#" -ge 2 ] || {
           echo "pilot-restore: ERROR: --env-file benötigt einen Pfad" >&2
@@ -1516,7 +1521,9 @@ pilot_restore() {
         ;;
     esac
   fi
-  LEONAID_ENV_FILE="$target_env_file" \
+  LEONAID_RESTORE_RESUME="$resume" \
+    LEONAID_RESTORE_EXPECTED_MANIFEST="$backup_manifest" \
+    LEONAID_ENV_FILE="$target_env_file" \
     LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
     LEONAID_RESTORE_PROJECT="$target_project" \
     LEONAID_RESTORE_CONFIRM="$confirm" \
