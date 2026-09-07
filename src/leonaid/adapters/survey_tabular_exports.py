@@ -339,6 +339,12 @@ def analysis_sheets(workbook: Any, source: SurveyExportSource) -> None:
                 + full_title[:70]
                 + ("…" if len(full_title) > 70 else "")
             )
+            if denominator == 0:
+                chart.title = excel_text(
+                    f"{q.questionId}"
+                    + (f" / {row_id}" if row_id else "")
+                    + ": No valid answers"
+                )
             chart.y_axis.title = "Share (%)"
             chart.y_axis.scaling.min = 0
             chart.y_axis.scaling.max = 100
@@ -414,6 +420,13 @@ def workbook_bytes(workbook: Any, timestamp: str) -> bytes:
             sheet.sheet_format.defaultRowHeight = 15
             continue
         sheet.print_area = sheet.dimensions
+        if sheet.title == "Responses":
+            # Wide raw records remain readable when printed; every horizontal
+            # continuation repeats the participation identity and column headers.
+            sheet.sheet_properties.pageSetUpPr.fitToPage = False
+            sheet.page_setup.fitToWidth = 0
+            sheet.page_setup.scale = 100
+            sheet.print_title_cols = "A:A"
         for column in range(1, sheet.max_column + 1):
             header = str(sheet.cell(1, column).value or "")
             width = (

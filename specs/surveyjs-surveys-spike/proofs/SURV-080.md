@@ -712,3 +712,39 @@ of 080.A5: full page-by-page review, empty analysis and response-workbook visual
 coverage remain open. Very long cells are still bounded by Excel row-height
 limits; no claim of unlimited text fitting on printed pages is made. The initial
 A3 table/A4 chart paper choices should be evaluated in that remaining review.
+
+## Empty analysis and raw-response workbook review
+
+The increment based on `b1d648f` extends the production-renderer fixture command
+with an empty analysis and five synthetic raw responses from the golden fixture.
+Normal and long-label analysis file hashes remain unchanged. The raw workbook
+initially fit all answer/type columns onto one A3 page, producing unreadably small
+print. Its Responses sheet now prints at 100 percent with the participation-ID
+column repeated on every horizontal continuation; the workbook remains a normal
+wide, filterable table. The fixture prints on three readable continuation pages,
+plus its metadata and question catalogue. Manual inspection covered all three
+response pages, including matrix JSON, free text, missing values and repeated IDs.
+
+Empty charts now explicitly say `No valid answers` when their denominator is
+zero. They keep the question/row identity and do not draw invented percentage
+bars. This distinguishes absent observations from an observed zero-percent
+category. The empty chart view was manually inspected after the change.
+
+Validation: `tools/surveys/xlsx_render.py` ran through the pinned UV environment;
+LibreOffice 7.1.1.2 converted the actual files using the existing isolated profile.
+Both commands exited 0. PDF extraction verifies that all five participation IDs
+are present on each of the three raw continuation pages, and all five empty
+chart pages explicitly state no valid answers. The existing 18 tabular tests
+passed in 0.54s after the final changes. `git diff --check` passed. This change
+only affects print settings and empty-chart captions; the prior full worker/UI
+regression remains the integration baseline, without claiming a rerun here.
+
+Evidence: [four workbook hashes](assets/SURV-080-xlsx-expanded-workbooks.json),
+[consumer assertions](assets/SURV-080-xlsx-empty-responses.json),
+[empty chart](assets/SURV-080-xlsx-empty.png), and
+[raw continuation](assets/SURV-080-xlsx-response-continuation.png).
+The literal SENSITIVE markers in the raw image are synthetic fixture strings,
+not participant data.
+
+080.A5 remains open pending the consolidated page-by-page review of all report
+sheets; these targeted views do not substitute for that remaining acceptance.
