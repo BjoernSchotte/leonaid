@@ -12,7 +12,6 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 from pypdf import PdfReader
 from pypdf.generic import ByteStringObject, ContentStream, TextStringObject
@@ -22,6 +21,7 @@ from leonaid.application.surveys.export_rendering import (
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
+    export_filename,
 )
 
 TYPST_VERSION = "0.13.1"
@@ -261,7 +261,7 @@ class TypstSurveyRenderer:
         except (OSError, ValueError, subprocess.SubprocessError):
             raise SurveyExportRenderError("typst_report_failed") from None
         return SurveyExportArtifact(
-            f"survey-{UUID(source.snapshot.id)}-analysis.pdf",
+            export_filename("analysis_pdf", source.snapshot.id),
             "application/pdf",
             RENDER_VERSION,
             content,

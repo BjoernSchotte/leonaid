@@ -9,7 +9,6 @@ import unicodedata
 import zipfile
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 from xml.etree import ElementTree
 
 from openpyxl import Workbook
@@ -24,6 +23,7 @@ from leonaid.application.surveys.export_rendering import (
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,
+    export_filename,
 )
 
 RENDER_VERSION = "survey-tabular-v1"
@@ -418,7 +418,6 @@ def render_tabular(
     product: ExportProduct, source: SurveyExportSource
 ) -> SurveyExportArtifact:
     s = AnalysisSnapshot.model_validate(source.snapshot.model_dump())
-    snapshot_id = str(UUID(s.id))
     info = metadata(source)
     if product == "responses_csv":
         columns, rows = response_rows(source)
@@ -442,7 +441,7 @@ def render_tabular(
                 ]
             )
         return SurveyExportArtifact(
-            f"survey-{snapshot_id}-responses.csv",
+            export_filename(product, s.id),
             "text/csv; charset=utf-8",
             RENDER_VERSION,
             output.getvalue().encode("utf-8-sig"),
@@ -470,5 +469,5 @@ def render_tabular(
         analysis_sheets(workbook, source)
     content = workbook_bytes(workbook, stamp.isoformat())
     return SurveyExportArtifact(
-        f"survey-{snapshot_id}-{product}.xlsx", XLSX_MEDIA, RENDER_VERSION, content
+        export_filename(product, s.id), XLSX_MEDIA, RENDER_VERSION, content
     )

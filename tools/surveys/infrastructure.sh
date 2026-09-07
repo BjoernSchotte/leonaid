@@ -107,6 +107,15 @@ if [ "$mode" = export-recovery ]; then
   compose up --detach --wait --wait-timeout 60 worker
   recovery recover
   compose stop worker
+  recovery seed cancel
+  crash_status=0
+  recovery crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected export probe exit 73' >&2; exit 1; }
+  recovery inspect-crash
+  recovery cancel
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover-cancel
+  compose stop worker
   recovery seed renderer
   recovery renderer-fail
   recovery inspect-failure

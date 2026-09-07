@@ -24,6 +24,7 @@ from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
 from leonaid.application.surveys.export_rendering import (
     SurveyExportArtifact,
     SurveyExportSource,
+    export_filename,
 )
 from leonaid.application.surveys.exports import CreateSurveyExport, SurveyExportJob
 from leonaid.application.surveys.response_selection import IndividualResponse
@@ -146,6 +147,38 @@ class AsyncpgSurveyExports:
     def __init__(self, pool: asyncpg.Pool[Any], storage: ObjectStorage) -> None:
         self.pool = pool
         self.storage = storage
+
+    def _object_location(self, row: Any) -> ObjectLocation:
+        return ObjectLocation(
+            self.storage.bucket,
+            f"surveys/{row['survey_id']}/exports/{row['id']}/{export_filename(row['product'], str(row['snapshot_id']))}",
+        )
+
+    async def _cancel(self, conn: Any, row: Any) -> None:
+        # A previous process may have uploaded before its DB transaction died.
+        # Inspect only storage metadata, without loading/rendering revoked data.
+        # If storage is unavailable, retry rather than completing cancellation
+        # with an untracked private object that retention cannot remove.
+        stored = await self.storage.head(self._object_location(row))
+        if stored is None:
+            await conn.execute(
+                "UPDATE survey_export_job SET status='cancelled' WHERE id=$1", row["id"]
+            )
+            return
+        await conn.execute(
+            """UPDATE survey_export_job SET status='cancelled',completed_at=clock_timestamp(),
+               bucket=$2,object_key=$3,object_version=$4,sha256=$5,size_bytes=$6,
+               filename=$7,media_type=$8,render_version=$9 WHERE id=$1""",
+            row["id"],
+            stored.location.bucket,
+            stored.location.key,
+            stored.location.version_id,
+            stored.sha256,
+            stored.size_bytes,
+            export_filename(row["product"], str(row["snapshot_id"])),
+            stored.media_type,
+            stored.metadata.get("render-version"),
+        )
 
     async def _survey(self, conn: Any, survey_id: UUID) -> Any:
         # Same lock order as survey authoring. Retention must remove stored objects
@@ -289,10 +322,7 @@ class AsyncpgSurveyExports:
                     conn, row["survey_id"], row["snapshot_id"], can_test=can_test
                 )
             except ResourceNotFound:
-                await conn.execute(
-                    "UPDATE survey_export_job SET status='cancelled' WHERE id=$1",
-                    row["id"],
-                )
+                await self._cancel(conn, row)
                 return
             responses = None
             if row["product"].startswith("responses_"):
@@ -314,10 +344,7 @@ class AsyncpgSurveyExports:
             await self.storage.ensure_private_versioned_bucket()
             stored = await self.storage.put_immutable(
                 ObjectWrite(
-                    ObjectLocation(
-                        self.storage.bucket,
-                        f"surveys/{row['survey_id']}/exports/{row['id']}/{artifact.filename}",
-                    ),
+                    self._object_location(row),
                     artifact.content,
                     artifact.media_type,
                     artifact.sha256,

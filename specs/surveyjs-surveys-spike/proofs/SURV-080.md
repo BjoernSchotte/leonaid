@@ -452,3 +452,50 @@ objects even if no committed job reference exists. Also still open: XLSX visual
 review, independent packed export consumer, broader export navigation, terminal
 failure/retry browser states, and the rest of the overall plan. This acceptance
 does not imply SURV-080 or the complete spike is finished.
+
+## Fix: retain uploaded objects when cancelling after a process crash
+
+Baseline `1c468e7` had a reproduced cleanup defect. In isolated project `69731`,
+the test process uploaded an immutable XLSX object and exited 73 before the job
+transaction committed. The real lifecycle API then trashed the survey. On
+reclaim, the worker cancelled the job with a null bucket/reference, leaving the
+already uploaded private object untracked. Downloads were correctly denied;
+the failing assertion was specifically `Cancelled export lost its uploaded
+object reference`. This is distinct from claiming that data was downloadable.
+
+`AsyncpgSurveyExports._cancel` now HEADs the deterministic job object location
+before completing cancellation. If an object exists, its bucket/key/version,
+hash, size and rendering metadata are retained on the cancelled job for later
+deletion. It loads no revoked answers and generates no new file. If no object
+exists, cancellation leaves no fabricated reference. Storage errors keep the
+operation retryable instead of completing with an untracked object. A shared
+`export_filename` function keeps both renderers and the recovery lookup aligned
+while preserving the existing names and object keys.
+
+The test reproduces the same failure sequence after the fix and checks the
+original object version/hash on the cancelled row plus continued HTTP 404 for
+downloads. Evidence: [cancel-after-crash and recovery](assets/SURV-080-cancel-after-crash.json).
+
+Verification on the source in this commit:
+
+- `export-recovery` mode, project `leonaid-surveys-833458328-70559`, exited 0.
+  The formerly failing cancel-after-upload-crash sequence passed, together with
+  normal crash recovery, actual missing-Typst recovery, actual RustFS outage,
+  adversarial tabular parsing and one browser foundation regression (1.0s).
+- `exports` mode, project `leonaid-surveys-833458328-71437`, exited 0. All four
+  actual worker products passed golden-data parsing; cancellation before any
+  upload still has no object reference. Four browser cases passed (9.7s for
+  the two foundation/empty cases, 11.5s populated exports, 3.2s revocation).
+- Both commands used `rtk proxy sh tools/surveys/infrastructure.sh
+  /Users/bjoern/.codex/worktrees/497a/leonaid <mode>` with isolated resources,
+  no host ports, and successful verified teardown. The failed pre-fix run also
+  terminated and its cleanup completed before source changes or reruns.
+- Pinned UV container: `uv run --frozen --no-sync pytest -q
+  tests/unit/test_survey_tabular_exports.py`: 18 passed in 0.54s.
+- Mypy passed for the four changed application/adapter files. Formatting and
+  `git diff --check` passed. No database migration or dependency change.
+
+This closes the reproduced missing-reference defect, not the overall deletion
+feature: SURV-090 must still remove retained objects and database records,
+including retry/backup recovery. Full SURV-080 acceptance also remains open for
+the remaining permission/race and workbook-render gates.

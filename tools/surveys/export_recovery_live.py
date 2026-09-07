@@ -108,7 +108,7 @@ async def main():
             scenario = sys.argv[2]
             product = (
                 "responses_xlsx"
-                if scenario == "crash"
+                if scenario in {"crash", "cancel"}
                 else "analysis_pdf"
                 if scenario == "renderer"
                 else "responses_csv"
@@ -209,6 +209,53 @@ async def main():
                 )
                 print(
                     "PASS: process died after real upload; transaction rolled back, download denied, stale claim made eligible"
+                )
+            elif mode == "cancel":
+                summary = (await call("GET", state["path"])).json()
+                await call(
+                    "POST",
+                    state["path"] + "/transition",
+                    {
+                        "operationId": "trash-after-upload-crash",
+                        "expectedRevision": summary["revision"],
+                        "action": "trash",
+                    },
+                )
+                await call("GET", job_path + "/download", expected=404)
+                print(
+                    "PASS: survey trashed after uploaded-but-uncommitted export; download denied"
+                )
+            elif mode == "recover-cancel":
+                for _ in range(160):
+                    row = await conn.fetchrow(
+                        "SELECT * FROM survey_export_job WHERE id=$1", jid
+                    )
+                    if row["status"] == "cancelled":
+                        break
+                    await asyncio.sleep(0.25)
+                assert row["status"] == "cancelled"
+                uploaded = json.loads(
+                    (PROOF / "export-upload-before-crash.json").read_text()
+                )
+                assert row["bucket"] == uploaded["bucket"], (
+                    "Cancelled export lost its uploaded object reference"
+                )
+                assert (
+                    row["object_key"] == uploaded["key"]
+                    and row["object_version"] == uploaded["version"]
+                )
+                assert row["sha256"] == uploaded["sha256"]
+                await call("GET", job_path + "/download", expected=404)
+                result_path = PROOF / "export-recovery-proof.json"
+                result = json.loads(result_path.read_text())
+                result["cancelAfterUploadCrash"] = {
+                    "cancelled": True,
+                    "originalObjectReferenceRetained": True,
+                    "downloadDenied": True,
+                }
+                result_path.write_text(json.dumps(result, indent=2))
+                print(
+                    "PASS: cancellation after process crash retains the original object reference for deletion; download remains denied"
                 )
             elif mode == "inspect-failure":
                 for _ in range(160):
