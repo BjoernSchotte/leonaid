@@ -266,3 +266,28 @@ separate sanitized diagnostics/nonzero-exit acceptance required by 000.A3.
 
 This closes the fixture/infrastructure task, not the final SURV-100 whole-product
 journeys or all C-01–C-15 contract outcomes. Own license remains **UNDEFINED**.
+
+## HTTP error envelope verification
+
+**000.T1a / 000.S1a strengthened; broader contract acceptance remains open.**
+Baseline `319d3c5` plus the expanded verifier; no application runtime changed.
+`rtk proxy sh tools/surveys/infrastructure.sh "$PWD" contracts` exited **0** in
+fresh project `leonaid-surveys-833458328-16478`. All 21 writes passed their two
+negative HTTP requests with the existing complete survey/outbox state comparison.
+
+Each of the **42 responses** now validates against the actual `ApiErrorResponse`
+model and has exactly `{error: {code, message, requestId}}`. The supplied safe
+request ID matches both the JSON and response header. Unknown fields return
+`request_invalid`; absent member sessions return `authentication_required`;
+missing public resources return `not_found`. Neither the unknown field name nor
+the synthetic input canary appears in the response. The previous documentation's
+snake_case request ID was incorrect and is corrected in WRITE-CONTRACTS.md.
+The [sanitized machine result](assets/SURV-000-error-contracts.json) records codes
+and verification flags without input values, credentials or temporary IDs.
+
+One real Chromium member/public foundation test passed in **1.5s** after the HTTP
+checks. The harness verified its real PostgreSQL fixture and isolated cleanup;
+no host ports were published. Ruff and diff whitespace checks passed. This does
+not prove every domain error, replay or concurrency outcome. PROFILE-CONTRACT.md
+now consolidates the source-reviewed profile limits and host/server boundary,
+while **000.5 / 000.A1** remain open for complete acceptance.

@@ -23,7 +23,7 @@ validation are separate: saving a draft can preserve unsupported JSON, whereas
 publication requires executable profile coverage. The draft-validation POST is
 included in the inventory although it has no persistent write.
 
-HTTP errors use `ApiErrorResponse`: `{error: {code, message, request_id}}`.
+HTTP errors use `ApiErrorResponse`: `{error: {code, message, requestId}}`.
 The central transport handler converts invalid request models to 422
 `request_invalid`, without echoing field input. Domain validation also returns
 422 with its domain code. The neutral package's `SurveyError` is an adapter
@@ -119,3 +119,9 @@ and isolated teardown follow the HTTP checks.
 This inventory is not a replacement for the success, replay, concurrency, role,
 recovery and UI proofs in SURV-010 through SURV-090. In particular, the negative
 transport run alone cannot accept **000.A1**, **000.T1** or C-01–C-15 coverage.
+
+The [expanded negative run](proofs/SURV-000.md#http-error-envelope-verification)
+also validates every response against ApiErrorResponse, its exact JSON keys,
+expected error code, correlated request ID/header and non-echoed invalid input.
+The source-reviewed profile/limits and host rendering contract are consolidated
+in [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md).

@@ -11,6 +11,7 @@ import asyncpg
 import httpx
 
 from leonaid.entrypoints.fastapi.surveys import router
+from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
 
 
 async def main():
@@ -92,6 +93,20 @@ async def main():
             result[table] = hashlib.sha256(payload).hexdigest()
         return result
 
+    def error_contract(response, code, request_id):
+        payload = response.json()
+        ApiErrorResponse.model_validate(payload)
+        assert set(payload) == {"error"}
+        assert set(payload["error"]) == {"code", "message", "requestId"}
+        assert payload["error"]["code"] == code
+        assert payload["error"]["requestId"] == request_id
+        assert response.headers["x-request-id"] == request_id
+        assert (
+            isinstance(payload["error"]["message"], str) and payload["error"]["message"]
+        )
+        assert "contract-input-canary" not in response.text
+        assert "unexpectedContractField" not in response.text
+
     evidence = []
     try:
         async with httpx.AsyncClient(base_url="http://api:8000") as client:
@@ -137,28 +152,37 @@ async def main():
                     survey_id=sid, participation_id=pid, invitation_id=iid
                 )
                 method = next(iter(route.methods))
+                invalid_request_id = "surveys-contract-invalid-" + route.operation_id
                 invalid = await client.request(
                     method,
                     path,
-                    headers=auth,
-                    json={**body, "unexpectedContractField": True},
+                    headers={**auth, "X-Request-ID": invalid_request_id},
+                    json={**body, "unexpectedContractField": "contract-input-canary"},
                 )
                 assert invalid.status_code == 422, (
                     route.operation_id,
                     "extra",
                     invalid.status_code,
                 )
+                error_contract(invalid, "request_invalid", invalid_request_id)
                 assert await state() == before, (
                     route.operation_id,
                     "invalid payload mutated survey state",
                 )
-                denied = await client.request(method, path, json=body)
+                denied_request_id = "surveys-contract-denied-" + route.operation_id
+                denied = await client.request(
+                    method, path, json=body, headers={"X-Request-ID": denied_request_id}
+                )
                 expected = 404 if "/public/" in path else 401
                 assert denied.status_code == expected, (
                     route.operation_id,
                     "denial",
                     denied.status_code,
                 )
+                denial_code = (
+                    "not_found" if expected == 404 else "authentication_required"
+                )
+                error_contract(denied, denial_code, denied_request_id)
                 assert await state() == before, (
                     route.operation_id,
                     "denial mutated survey state",
@@ -171,6 +195,10 @@ async def main():
                         "requestModel": model.__name__,
                         "responseModel": route.response_model.__name__,
                         "unknownFieldStatus": 422,
+                        "unknownFieldCode": "request_invalid",
+                        "denialCode": denial_code,
+                        "errorEnvelopeAndRequestIdVerified": True,
+                        "invalidInputNotEchoed": True,
                         "unauthenticatedOrMissingResourceStatus": expected,
                         "surveyAndOutboxStateUnchanged": True,
                     }

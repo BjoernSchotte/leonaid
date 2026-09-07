@@ -71,6 +71,8 @@ browser assertion failure returns exit 1 with sanitized diagnostics and complete
 owned-stack teardown. See [the two-run proof](proofs/SURV-000.md#foundation-browser-failure-diagnostics).
 Task **000.4** is accepted after the full persona/fixture review and current permissions run. [Fixture evidence](proofs/SURV-000.md#persona-and-fixture-foundation).
 
+The source-reviewed profile, limits, validation and host-rendering boundary are in [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md). Full **000.A1** acceptance remains open.
+
 - [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
 
   Acceptance criteria: **000.A1**.
