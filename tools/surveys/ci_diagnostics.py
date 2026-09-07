@@ -30,6 +30,12 @@ MARKERS = {
     "connection-refused": "Connection refused",
     "network-unreachable": "Network is unreachable",
     "dependency-lock-mismatch": "lockfile had changes",
+    "database-starting": "the database system is starting up",
+    "database-connection-closed": "ConnectionDoesNotExistError",
+    "database-name-missing": "InvalidCatalogNameError",
+    "database-authentication": "InvalidPasswordError",
+    "postgres-client-error": "psql: error:",
+    "postgres-socket-reference": ".s.PGSQL.5432",
 }
 LOCATION = re.compile(
     r"((?:tests|tools|apps|packages|src)/[A-Za-z0-9_./-]+)(?::|\", line )(\d+)"

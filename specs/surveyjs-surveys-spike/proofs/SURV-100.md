@@ -479,3 +479,14 @@ exactly the two copied JSON reports while the root-only raw log remained
 inaccessible. The first invocation had a mistyped image digest and did not start
 a container; the successful invocation read the pin directly from images.env.
 Workflow formatting and the full 23-image/89-Python-package pin check pass.
+
+
+Run `34157527487` at `d3a86f7` exposed another upload boundary: its runner
+could not create the upload subdirectory under root-owned `.artifacts`. The
+workflow now stages those same two allowed report classes under the runner's
+own temporary directory. The Linux copy/read proof above remains applicable;
+source logs stay behind the owner-only gate directory. Foundation's migration
+leaf also failed after five passing leaves, independently of upload. Its raw
+child log was not exposed, so the cause is still unconfirmed. Fixed PostgreSQL
+error markers were added to the bounded classifier for the next real run. All
+four diagnostic privacy tests and workflow formatting checks pass.

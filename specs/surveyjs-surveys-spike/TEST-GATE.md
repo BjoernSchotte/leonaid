@@ -81,8 +81,11 @@ remains unaccepted and requires checking its exact owned resources.
 
 [`surveys.yml`](../../.github/workflows/surveys.yml) reads the same manifest groups
 into a matrix. Each group uses a separate ephemeral runner and runs twice after
-bootstrap. Only `results/*.json` and `results/diagnostics/*.json` are uploaded; private logs and general `.artifacts`
-contents are excluded. All matrix jobs must pass for the same revision. Local
+bootstrap. The controller and diagnostic collector share the container proof
+owner on Linux. Only `results/*.json` and the fixed
+`results/diagnostics/metadata.json` are copied into `$RUNNER_TEMP/surveys-ci-results/`
+for upload; private logs and general `.artifacts` contents remain excluded and
+owner-only. All matrix jobs must pass for the same revision. Local
 proof does not substitute for observing the actual GitHub Actions run.
 
 This survey aggregate does not invoke the repository's 42-command

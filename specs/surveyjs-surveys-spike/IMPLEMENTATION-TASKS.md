@@ -111,24 +111,26 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 ## SURV-020 — Neutral package and independent demo
 
+[Per-task acceptance and assertion mapping](proofs/SURV-020.md#delivery-and-acceptance); [current-source reconciliation](proofs/SURV-020.md#companion-task-reconciliation).
+
 - [x] **020.1a** Configure a bounded host logo independently of questionnaire JSON; retain respondent state across host changes and display the asset in both hosts and on completion. [Live evidence](proofs/SURV-020.md#bounded-host-logo-integration).
 
   Acceptance: allowed local assets load; invalid/external paths create no image request; desktop/mobile layout remains bounded; persisted answers and revision survive reload/restart.
   Integration / E2E: **020.S6**, packed independent consumer and real LeonAid services.
 
-- [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration.
+- [x] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration.
 
   Acceptance criteria: **020.A1, 020.A2, 020.A3**.
   Integration / supporting checks: **020.S1, 020.S2**.
   E2E: **020.S3**.
 
-- [ ] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof.
+- [x] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof.
 
   Acceptance criteria: **020.A1, 020.A3**.
   Integration / supporting checks: **020.S1**.
   E2E: **020.S3**.
 
-- [ ] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary.
+- [x] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary.
 
   Acceptance criteria: **020.A3, 020.A4**.
   Integration / supporting checks — work-package regression gate: **020.S1, 020.S2**.
@@ -136,7 +138,7 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
 
 - [x] **020.3a** Keep all progress steps visible in narrow host containers with usable controls. Acceptance: real three-page surveys at 320/390/1440 pixels expose every step without clipping, preserve answers through forward/back navigation, and complete through the real API. Integration/E2E: **020.S7**; isolated branding harness. [Live evidence](proofs/SURV-020.md#responsive-progress-navigation).
 
-- [ ] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling.
+- [x] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling.
 
   Acceptance criteria: **020.A2**.
   Integration / supporting checks: **020.S2**.

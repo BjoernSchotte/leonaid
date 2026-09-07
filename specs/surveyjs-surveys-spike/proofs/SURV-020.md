@@ -350,3 +350,28 @@ fully visible and was visually inspected. The browser test retains desktop and
 accepts the responsive navigation defect and its three-page regression, not the
 remaining full SURV-100 aggregate/CI or author-to-deletion acceptance. No dependency
 or license choice changed.
+
+
+## Companion task reconciliation
+
+The four companion **020.1–020.4** entries now match the accepted PLAN criteria
+and **020.S1–020.S4**. This is an evidence reconciliation, not a new dependency
+selection or an expansion of the supported rendering mode. The current
+`packages/surveys/package.json` exports separate contracts, runner/editor,
+analytics and styles entries, with React supplied as a peer. The current packed
+inspector checks real paths inside the independent consumer, exact dependency
+versions/licenses, retained notices, exclusion of editor/analysis from the runner
+bundle and independent analytics rendering without raw text. The actual Docker
+build copies only the tarball into the clean consumer.
+
+The four current browser tests exercise translated host controls, persisted
+authoring, multipage response saving and exact restoration after the actual
+SQLite backend restart. CI run `34157145093`, job `101851242094`, at `9b50c67`
+passed its complete package execution step (`--group package --repeat 2`); that
+job failed subsequently at artifact upload and is not a passing CI gate. The
+previous accepted local package proofs remain the task-level evidence, augmented
+by this actual Linux execution. The freshly completed runner leaf recorded in
+[SURV-010](SURV-010.md#task-and-scenario-reconciliation) again passed the Astro
+no-store shell, private-answer exclusion and zero-write restoration assertions.
+The earlier recorded rendering probe and T-07 still select browser mounting;
+SSR hydration is not claimed. Own license remains **UNDEFINED**.
