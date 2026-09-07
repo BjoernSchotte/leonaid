@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
+import { observeMediaUpload } from "./media-upload-observer.mjs";
 
 // Runs after the real importer, not a replacement CMS seed. All editorial
 // mutations go through native controls using an actual Charity Admin login.
@@ -101,18 +102,26 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       .getByRole("button", { name: "Select image", exact: true })
       .click();
     const dialog = page.getByRole("dialog");
+    const stopUploadObservation = observeMediaUpload(page);
     const confirmed = page.waitForResponse(
       (r) =>
         /\/_emdash\/api\/media\/[0-9A-Z]+\/confirm$/.test(
           new URL(r.url()).pathname,
         ) && r.request().method() === "POST",
     );
-    await dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
-      name: `imported-demo-${name}.png`,
-      mimeType: "image/png",
-      buffer: replacementImage,
-    });
-    assert.equal((await confirmed).status(), 200);
+    try {
+      const [confirmation] = await Promise.all([
+        confirmed,
+        dialog.getByLabel("Upload file", { exact: true }).setInputFiles({
+          name: `imported-demo-${name}.png`,
+          mimeType: "image/png",
+          buffer: replacementImage,
+        }),
+      ]);
+      assert.equal(confirmation.status(), 200);
+    } finally {
+      stopUploadObservation();
+    }
     const inserted = page.waitForResponse(
       (r) =>
         new URL(r.url()).pathname === api && r.request().method() === "PUT",

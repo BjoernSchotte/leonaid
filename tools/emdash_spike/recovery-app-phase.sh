@@ -23,6 +23,20 @@ LEONAID_COMPOSE_PROJECT="$project" LEONAID_BACKUP_TOPOLOGY=emdash \
   LEONAID_BACKUP_COMPOSE_OVERLAY_LIST="$overlay_list" LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   LEONAID_BACKUP_REPOSITORY="$proof/repository" LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
   /bin/sh "$root/tools/backup/backup.sh" "$root"
+restore_target() {
+  LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recovery_target" \
+  LEONAID_RESTORE_CMS_IMAGE="$1" \
+  LEONAID_RESTORE_CONFIRM="RESTORE:$recovery_target" LEONAID_RESTORE_TOPOLOGY=emdash \
+  LEONAID_RESTORE_SCOPE="${2:-full}" \
+  LEONAID_RESTORE_START_APP=false LEONAID_RESTORE_COMPOSE_OVERLAY_LIST="$overlay_list" \
+  LEONAID_BACKUP_ALLOW_LOCAL_TEST=true LEONAID_BACKUP_REPOSITORY="$proof/repository" \
+  LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
+    /bin/sh "$root/tools/backup/restore.sh" "$root"
+}
+if [ "$cutover_rollback" = true ]; then
+  . "$root/tools/emdash_spike/cutover-rollback-phase.sh"
+  return
+fi
 # Release source runtime resources without deleting the recovery source data.
 if [ "$orders" = true ]; then compose stop twenty-worker twenty-server twenty-redis; fi
 compose stop proxy public campaign-site api worker mailpit rustfs twenty-postgres core-postgres
@@ -32,15 +46,6 @@ if [ "$orders" = true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=true
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-restore_target() {
-  LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recovery_target" \
-  LEONAID_RESTORE_CMS_IMAGE="$1" \
-  LEONAID_RESTORE_CONFIRM="RESTORE:$recovery_target" LEONAID_RESTORE_TOPOLOGY=emdash \
-  LEONAID_RESTORE_START_APP=false LEONAID_RESTORE_COMPOSE_OVERLAY_LIST="$overlay_list" \
-  LEONAID_BACKUP_ALLOW_LOCAL_TEST=true LEONAID_BACKUP_REPOSITORY="$proof/repository" \
-  LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
-  /bin/sh "$root/tools/backup/restore.sh" "$root"
-}
 if refusal_output=$(restore_target "$NODE_IMAGE" 2>&1); then
   echo "recovery-image: restore accepted wrong image" >&2
   exit 1

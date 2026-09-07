@@ -13,7 +13,7 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  twenty-startup|alias-renderer) ;;
+  twenty-startup|alias-renderer|cutover-rollback) ;;
   migration-operator) ;;
   release-legacy-boundary) ;;
   release-manifest-compatibility) ;;
@@ -50,14 +50,18 @@ if [ "$test_case" = release-legacy-boundary ]; then
       --volume "$root:/workspace:ro" --workdir /workspace "$PYTHON_IMAGE" \
       python tools/pilot_release/contract_test.py --cms-compose-stdin
 fi
-if [ "$test_case" = recovery-app ] || [ "$test_case" = recovery-orders ] || [ "$test_case" = recovery-import ]; then
+if [ "$test_case" = recovery-app ] || [ "$test_case" = recovery-orders ] || [ "$test_case" = recovery-import ] || [ "$test_case" = cutover-rollback ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$PYTHON_IMAGE" python tools/backup/compose_overlays_test.py
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$PYTHON_IMAGE" python tools/backup/restore_scope_test.py
   recovery_orders=false
   recovery_import=false
+  cutover_rollback=false
   if [ "$test_case" = recovery-orders ]; then recovery_orders=true; fi
   if [ "$test_case" = recovery-import ]; then recovery_import=true; fi
-  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration "$recovery_orders" true "$recovery_import"
+  if [ "$test_case" = cutover-rollback ]; then recovery_orders=true; cutover_rollback=true; fi
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" migration "$recovery_orders" true "$recovery_import" "$cutover_rollback"
 fi
 if [ "$test_case" = recovery-local ] || [ "$test_case" = all ]; then
   /bin/sh "$root/tools/emdash_spike/recovery-test.sh" "$root"

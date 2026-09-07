@@ -16,10 +16,14 @@ from tools.public_orders.contract import assert_commitment, twenty_collection
 
 
 async def main() -> None:
-    assert sys.argv[1:] in ([], ["--before-recovery"])
-    receipt_file = (
-        "/proof/pre-recovery-orders.json" if sys.argv[1:] else "/proof/orders-ui.json"
-    )
+    files = {
+        "": "/proof/orders-ui.json",
+        "--before-recovery": "/proof/pre-recovery-orders.json",
+        "--after-cutover": "/proof/after-cutover-orders.json",
+        "--after-rollback": "/proof/after-rollback-orders.json",
+    }
+    assert len(sys.argv) <= 2 and (sys.argv[1] if len(sys.argv) == 2 else "") in files
+    receipt_file = files[sys.argv[1] if len(sys.argv) == 2 else ""]
     orders = json.loads(Path(receipt_file).read_text())
     assert len(orders) == 24
     assert len({item["publicReference"] for item in orders}) == 24

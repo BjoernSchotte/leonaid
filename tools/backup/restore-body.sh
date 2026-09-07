@@ -17,6 +17,7 @@ compose_overlay_secondary=${LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY:-}
 recovery_overlay_list=${LEONAID_RESTORE_COMPOSE_OVERLAY_LIST:-}
 env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
 topology=${LEONAID_RESTORE_TOPOLOGY:-legacy}
+restore_scope=${LEONAID_RESTORE_SCOPE:-full}
 case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology" >&2; exit 1 ;; esac
 restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
 restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
@@ -26,6 +27,12 @@ fail() {
   echo "restore: ERROR: $*" >&2
   exit 1
 }
+case "$restore_scope" in full|cms) ;; *) fail "unknown restore scope" ;; esac
+if [ "$restore_scope" = cms ]; then
+  [ "$topology" = emdash ] || fail "CMS-only restore requires EmDash topology"
+  [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ] || fail "CMS-only restore requires an explicit verified CMS image"
+  [ "${LEONAID_RESTORE_RESUME:-false}" = false ] || fail "CMS-only restore cannot resume"
+fi
 . "$root/tools/backup/compose-overlays.sh"
 validate_recovery_overlays
 
@@ -228,7 +235,9 @@ if [ "$topology" = emdash ] && [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
   echo "restore: explicit CMS image identity verified before target volume creation; activation remains closed"
 fi
 
-for volume in twenty-server-data rustfs-data; do
+restore_volumes="rustfs-data"
+if [ "$restore_scope" = full ]; then restore_volumes="twenty-server-data rustfs-data"; fi
+for volume in $restore_volumes; do
   docker volume create \
     --label "com.docker.compose.project=$target_project" \
     --label "com.docker.compose.volume=$volume" \
@@ -244,11 +253,13 @@ if [ "$topology" = emdash ]; then
     -v "$backup_root:/backup:ro" "$ALPINE_IMAGE" \
     tar -C /target -xf /backup/cms-bootstrap-state.tar
 fi
+if [ "$restore_scope" = full ]; then
 docker run --rm \
   -v "${target_project}_twenty-server-data:/target" \
   -v "$backup_root:/backup:ro" \
   "$ALPINE_IMAGE" \
   tar -C /target -xf /backup/twenty-storage.tar
+fi
 docker run --rm \
   -v "${target_project}_rustfs-data:/target" \
   -v "$backup_root:/backup:ro" \
@@ -256,6 +267,7 @@ docker run --rm \
   tar -C /target -xf /backup/rustfs-data.tar
 
 
+if [ "$restore_scope" = full ]; then
 compose up --detach --wait --wait-timeout 420 \
   core-postgres twenty-postgres rustfs
 compose exec -T core-postgres pg_restore \
@@ -276,6 +288,10 @@ compose exec -T twenty-postgres pg_restore \
   --no-owner \
   --no-privileges \
   <"$backup_root/twenty.dump"
+else
+  compose up --detach --wait --wait-timeout 420 core-postgres rustfs
+  echo "restore: CMS-only scope; Core and Twenty dumps/storage are not restored"
+fi
 
 if [ "$topology" = emdash ]; then
   compose run --rm --no-deps cms-recovery-operator provision
@@ -289,15 +305,18 @@ if [ "$topology" = emdash ]; then
   fi
 fi
 
-restore_state prepare --manifest "$backup_root/manifest.json"
+if [ "$restore_scope" = full ]; then
+  restore_state prepare --manifest "$backup_root/manifest.json"
+fi
 fi
 
 # This also gates START_APP=false: callers must not receive a successful restore
 # and then accidentally start resurrected survey data themselves.
-. "$root/tools/backup/survey-erasure-gate.sh"
-apply_survey_erasure_gate
-
-restore_state verified
+if [ "$restore_scope" = full ]; then
+  . "$root/tools/backup/survey-erasure-gate.sh"
+  apply_survey_erasure_gate
+  restore_state verified
+fi
 
 if [ "$topology" = emdash ]; then
   echo "restore: CMS SQL and closed bootstrap recovered; application remains stopped pending release verification"

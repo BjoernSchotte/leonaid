@@ -12,6 +12,7 @@ recovery_orders_prepare() {
   fi
   compose up --no-deps --detach --wait api
   recovery_visual_proof=$(mktemp -d)
+  echo "recovery-orders: synthetic browser evidence directory $recovery_visual_proof"
   mkdir "$proof/recovery-orders-browser"
   compose run --rm --no-deps --volume "$proof/recovery-orders-browser:/proof" --volume "$recovery_visual_proof:/visual-proof" admin-browser \
     node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported --before-recovery

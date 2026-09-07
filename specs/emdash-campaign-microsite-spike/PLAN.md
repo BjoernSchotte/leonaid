@@ -3800,7 +3800,38 @@ another running checkout or authorize production deployment.
         committed tree. Existing dependency deprecation warnings remain.
 - [ ] Rehearse rollback of renderer selection, aliases, and CMS data together.
       Rollback must preserve orders accepted since cutover: never restore an old
-      whole-Core database over newly created transactions to undo a CMS change.
+      whole-Core database over newly created transactions to undo a CMS change. - In progress: `cutover-rollback` adds a CMS-only restore into a fresh
+      target, keeping the live source Core/Twenty and its newer orders. The
+      target receives CMS SQL/bootstrap and a separate copy of the RustFS
+      archive (not a bucket-only export); it never restores Core/Twenty SQL
+      or Twenty runtime storage. Activation remains isolated test logic,
+      not production approval or an operational cutover controller. - First live attempt on 2026-09-08 in
+      `leonaid-poc112-tmp-un3earqjlz` exited 1 before backup/cutover.
+      Import/edit/publish passed in all three browsers and isolated Twenty
+      became healthy. The pre-backup Firefox native mixed order displayed
+      the explicit Twenty timeout error, with inputs retained; the browser
+      subsequently timed out waiting for success. The synthetic screenshot
+      was inspected. This does not prove rollback or identify the underlying
+      CRM timeout cause. Only owned test containers/networks/volumes were
+      cleaned up. Added fixed-category failure diagnostics without printing
+      submitted data or response bodies; do not relax acceptance to count
+      a failed order as successful. - Two further attempts remain failed, not acceptance evidence:
+      `leonaid-poc112-tmp-wdbmwkfpdh` stopped at WebKit's media confirmation
+      wait before Twenty startup. Fixed-category media request/status/timing
+      diagnostics were added, without URLs, identifiers, bodies or credentials.
+      In `leonaid-poc112-tmp-x4yhixcmbd`, all three browsers' actual reserve,
+      upload and confirm calls returned 200 and publication passed without
+      raising timeouts. Real Twenty schema/permissions/setup then passed, but
+      the very first native Chromium order displayed the Core processing
+      deadline error (Astro response after 19093 ms). The test failed and its
+      owned resources were removed; backup/cutover remained unreached. These
+      observations do not establish resource contention as the root cause. - Focused preflight evidence: `tools/backup/restore_scope_test.py` runs
+      the real shell entrypoint in a netless container without a Docker socket
+      or operator credentials. Invalid scope, CMS with legacy topology and
+      missing explicit CMS image fail before Docker; default/full semantics
+      still proceed to normal configuration validation. Early configuration
+      failures now clean their temporary staging directory. This proves the
+      preflight boundary only, not CMS data restoration or order preservation.
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 
@@ -3811,6 +3842,7 @@ Verification (new case implemented by this task):
 ./leonaid test-emdash-spike --case krapfentaxi-orders
 ./leonaid test-emdash-spike --case alias-renderer
 ./leonaid test-emdash-spike --case edit-publish-delivery
+./leonaid test-emdash-spike --case cutover-rollback
 ./leonaid test-emdash-spike --case recovery
 ./leonaid test-public-actions
 ./leonaid test-public-orders

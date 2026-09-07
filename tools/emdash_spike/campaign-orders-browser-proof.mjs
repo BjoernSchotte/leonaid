@@ -2,15 +2,24 @@ import assert from "node:assert/strict";
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 
-const path = "/campaigns/krapfentaxi-2026/";
+const legacyEntry = process.argv.includes("--legacy-entry");
+const primaryAlias = process.argv.includes("--primary-alias");
+const postCutover = process.argv.includes("--after-cutover");
+assert.ok(!(legacyEntry && primaryAlias));
+const path = legacyEntry ? "/krapfentaxi" : "/campaigns/krapfentaxi-2026/";
 const orders = [];
 const burst = process.argv.includes("--burst");
 const imported = process.argv.includes("--imported");
 const beforeRecovery = process.argv.includes("--before-recovery");
 const afterRecovery = process.argv.includes("--after-recovery");
-assert.ok(!(beforeRecovery && afterRecovery));
-assert.ok(!(burst && (beforeRecovery || afterRecovery)));
-if (beforeRecovery || afterRecovery) {
+const afterRollback = process.argv.includes("--after-rollback");
+assert.ok(
+  [beforeRecovery, afterRecovery, afterRollback].filter(Boolean).length <= 1,
+);
+assert.ok(!(burst && (beforeRecovery || afterRecovery || afterRollback)));
+assert.ok(!postCutover || (imported && afterRecovery && primaryAlias));
+assert.ok(!legacyEntry || afterRollback);
+if (beforeRecovery || afterRecovery || afterRollback) {
   assert.ok(
     (await readdir("/proof")).every((name) => name === "orders-ui.json"),
     "Recovery browser must receive only its receipt directory, not operator secrets",
@@ -20,7 +29,9 @@ const recoveryPrefix = beforeRecovery
   ? "before-recovery-"
   : afterRecovery
     ? "after-recovery-"
-    : "";
+    : afterRollback
+      ? "after-rollback-"
+      : "";
 let timedOutOrders = 0;
 // Functional acceptance, not a burst/load test: each order performs several
 // CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
@@ -59,10 +70,17 @@ for (const [engineName, engine] of Object.entries({
           extraHTTPHeaders: { "X-LeonAid-Order-Key": "0".repeat(64) },
         });
         const page = await context.newPage();
-        assert.equal(
-          (await page.goto(`https://proxy:8443${path}`)).status(),
-          200,
+        const entered = await page.goto(
+          `https://proxy:8443${primaryAlias ? "/krapfentaxi" : path}`,
         );
+        assert.equal(entered.status(), 200);
+        if (primaryAlias) {
+          assert.equal(page.url(), `https://proxy:8443${path}`);
+          const redirected = entered.request().redirectedFrom();
+          assert.ok(redirected);
+          assert.equal(redirected.url(), "https://proxy:8443/krapfentaxi");
+          assert.equal(redirected.redirectedFrom(), null);
+        }
         if (imported) {
           assert.equal(
             await page.locator("body").getAttribute("class"),
@@ -71,7 +89,9 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(
             await page
               .getByRole("heading", {
-                name: "Published imported campaign webkit",
+                name: postCutover
+                  ? "Published after recovery point"
+                  : "Published imported campaign webkit",
                 exact: true,
               })
               .count(),
@@ -79,7 +99,9 @@ for (const [engineName, engine] of Object.entries({
           );
           assert.ok(
             !(await page.locator("body").textContent()).includes(
-              "Private follow-up webkit",
+              postCutover
+                ? "Private after recovery point"
+                : "Private follow-up webkit",
             ),
           );
           assert.equal(await page.locator("[data-order-form]").count(), 1);
@@ -231,6 +253,28 @@ for (const [engineName, engine] of Object.entries({
         try {
           await success.waitFor({ timeout: 20000 });
         } catch (error) {
+          // Classify only fixed public errors. Never print arbitrary page text,
+          // submitted fields, response bodies, tokens or CRM diagnostics.
+          const failureText = await page
+            .locator('[data-form-message][data-state="error"]:visible')
+            .allTextContents();
+          const publicFailure = failureText.join(" ");
+          const classification = publicFailure.includes(
+            "Twenty hat nicht innerhalb des konfigurierten Timeouts geantwortet.",
+          )
+            ? "crm-timeout"
+            : publicFailure.includes("Twenty hat das Anfrage-Limit erreicht.")
+              ? "crm-rate-limit"
+              : publicFailure.includes(
+                    "Die Verarbeitung dauert gerade zu lange",
+                  )
+                ? "core-processing-deadline"
+                : failureText.length
+                  ? "other-public-error"
+                  : "missing-success-without-public-error";
+          console.log(
+            `campaign-orders: ${label}; failure=${classification}; status=${response.status()}; responseMs=${responseElapsed}`,
+          );
           await page.screenshot({
             path: `/visual-proof/order-failure-${label}.png`,
             fullPage: true,

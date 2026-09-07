@@ -5,6 +5,8 @@ mode=${2:-auth}
 orders=${3:-false}
 recovery=${4:-false}
 recovery_import=${5:-false}
+cutover_rollback=${6:-false}
+case "$cutover_rollback:$recovery:$orders:$recovery_import:$mode" in false:*|true:true:true:false:migration) ;; *) exit 2 ;; esac
 case "$recovery_import:$recovery:$mode:$orders" in false:*|true:true:migration:false) ;; *) exit 2 ;; esac
 case "$recovery:$mode:$orders" in false:*|true:migration:false|true:migration:true) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
@@ -94,6 +96,9 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$cutover_rollback" = true ] && [ "$project" = "$recovery_target" ] && [ "${cutover_target_active:-false}" = true ]; then
+    set -- --file "$root/infra/emdash-spike/cms-rollback-target.test.yml" "$@"
+  fi
   if [ "$recovery" = false ]; then
     set -- --file "$root/infra/emdash-spike/isolated-networks.test.yml" "$@"
   fi
@@ -156,7 +161,7 @@ cleanup() {
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
   rm -f "$proof/recovery-aliases.json"
-  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser"; rm -f "$proof/restic-password"; fi
+  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
 }
 trap cleanup EXIT
