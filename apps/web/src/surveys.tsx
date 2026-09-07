@@ -26,6 +26,8 @@ import "@leonaid/surveys/editor-styles";
 import "./surveys.css";
 import { SurveyAnalysis } from "./survey-analysis";
 import { SurveyResponses } from "./survey-responses";
+import taxiTemplate from "./survey-templates/krapfentaxi.json";
+import golfTemplate from "./survey-templates/golf.json";
 
 const labels = {
   draft: "Entwurf",
@@ -84,6 +86,10 @@ export function SurveysPage({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [list, setList] = useState<SurveyListResponse | null>(null);
   const [title, setTitle] = useState("");
+  const [template, setTemplate] = useState("blank");
+  const creationRequest = useRef<
+    Parameters<LeonAidApiClient["createSurvey"]>[1] | null
+  >(null);
   const [actionId, setActionId] = useState("");
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
@@ -270,27 +276,46 @@ export function SurveysPage({
   }
   async function create() {
     await run(async () => {
-      await client.createSurvey(creation.id, {
+      // Keep exactly the same payload after an uncertain acknowledgement.
+      creationRequest.current ??= {
         operationId: creation.operationId,
         title,
         actionId: actionId || null,
-        definition: {
-          title,
-          pages: [
-            {
-              name: "page_first",
-              title: "Ihre Rückmeldung",
-              elements: [
-                {
-                  type: "text",
-                  name: "question_first",
-                  title: "Was möchten Sie uns mitteilen?",
-                },
-              ],
-            },
-          ],
-        },
-      });
+        definition:
+          template === "blank"
+            ? {
+                title,
+                pages: [
+                  {
+                    name: "page_first",
+                    title: "Ihre Rückmeldung",
+                    elements: [
+                      {
+                        type: "text",
+                        name: "question_first",
+                        title: "Was möchten Sie uns mitteilen?",
+                      },
+                    ],
+                  },
+                ],
+              }
+            : {
+                ...structuredClone(
+                  template === "krapfentaxi" ? taxiTemplate : golfTemplate,
+                ),
+                title,
+              },
+      };
+      try {
+        await client.createSurvey(creation.id, creationRequest.current);
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          [401, 403, 404, 422, 429].includes(error.status)
+        )
+          creationRequest.current = null;
+        throw error;
+      }
       history.replaceState(null, "", `/admin/surveys/${creation.id}`);
       setId(creation.id);
     }, "");
@@ -630,13 +655,38 @@ export function SurveysPage({
               required
               maxLength={240}
               value={title}
+              disabled={busy || creationRequest.current !== null}
               onChange={(e) => setTitle(e.target.value)}
             />
           </label>
           <label>
+            Fragebogenvorlage
+            <select
+              aria-label="Fragebogenvorlage"
+              value={template}
+              disabled={busy || creationRequest.current !== null}
+              onChange={(e) => setTemplate(e.target.value)}
+              aria-describedby="survey-template-description"
+            >
+              <option value="blank">Leerer Fragebogen</option>
+              <option value="krapfentaxi">
+                Krapfentaxi – Lieferung und Zufriedenheit
+              </option>
+              <option value="golf">
+                Golfturnier – Veranstaltung und Verbesserungen
+              </option>
+            </select>
+          </label>
+          <p id="survey-template-description">
+            {template === "blank"
+              ? "Beginnen Sie mit einer Textfrage und ergänzen Sie weitere Fragen."
+              : "Drei Seiten mit vorbereiteten Fragen. Sie können alle Fragen vor der Veröffentlichung anpassen. Die Vorlage enthält keine Antworten oder Empfänger."}
+          </p>
+          <label>
             Zuordnung
             <select
               value={actionId}
+              disabled={busy || creationRequest.current !== null}
               onChange={(e) => setActionId(e.target.value)}
             >
               <option value="">Eigenständig – ich bin verantwortlich</option>

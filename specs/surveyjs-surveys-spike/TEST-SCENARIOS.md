@@ -53,11 +53,13 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 
 ## SURV-040 — Editor
 
-- [ ] **040.S1 · Integration · 040.T1 → 040.A1:** Persist and reload edited definitions including safe unknown regions; stable IDs and unknown data survive, while a stale draft write reports conflict without overwriting the newer draft.
-- [ ] **040.S2 · Integration · 040.T1 → 040.A2:** Import unsupported and unsafe definitions and attempt publication through the API; publication is blocked with field/question-specific diagnostics.
-- [ ] **040.S3 · E2E · 040.T2 → 040.A3:** Author and publish both complete sample questionnaires without JSON input; configure initial types, bounds and guided conditions, reorder pages/questions, preview and reload the saved definition.
-- [ ] **040.S4 · E2E · 040.T2 → 040.A4:** Perform core authoring and error recovery by keyboard, including reordering; focus and accessible labels remain usable, with automated checks and separately recorded manual observations.
-- [ ] **040.S5 · E2E · 040.T2 → 040.A5:** Exercise undo/redo and interrupt draft saving; pending changes are never labelled saved, and reconnect/reload shows the correctly acknowledged definition.
+- [x] **040.S1 · Integration · 040.T1 → 040.A1:** Persist and reload edited definitions including safe unknown regions; stable IDs and unknown data survive, while a stale draft write reports conflict without overwriting the newer draft.
+- [x] **040.S2 · Integration · 040.T1 → 040.A2:** Import unsupported and unsafe definitions and attempt publication through the API; publication is blocked with field/question-specific diagnostics.
+- [x] **040.S3 · E2E · 040.T2 → 040.A3:** Author and publish both complete sample questionnaires without JSON input; configure initial types, bounds and guided conditions, reorder pages/questions, preview and reload the saved definition.
+- [x] **040.S4 · E2E · 040.T2 → 040.A4:** Perform core authoring and error recovery by keyboard, including reordering; focus and accessible labels remain usable, with automated checks and separately recorded manual observations.
+- [x] **040.S5 · E2E · 040.T2 → 040.A5:** Exercise undo/redo and interrupt draft saving; pending changes are never labelled saved, and reconnect/reload shows the correctly acknowledged definition.
+
+- [x] **040.S6 · E2E · 040.5 → C-11:** Start both templates, retry a lost creation acknowledgement, compare persisted initial definitions, edit/reload/publish, verify zero responses, then create a pristine second copy. Krapfentaxi runs at 1440 × 900 and golf at 390 × 900. [Evidence and editor regression reconciliation](proofs/SURV-040.md#template-creation-and-editor-regression).
 
 ## SURV-050 — Runner and recovery
 

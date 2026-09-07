@@ -2,7 +2,9 @@
 
 Date: 2026-09-06
 
-Status: target scope; partial runner/server evidence exists in [SURV-010](proofs/SURV-010.md), but no capability is accepted across all four layers yet.
+Status: required scope with implementation evidence indexed below. The final
+cross-layer/whole-journey gate remains open; individual historical proofs apply
+only to their stated fixtures and acceptance boundaries.
 
 Own license decision: **UNDEFINED**
 
@@ -93,6 +95,36 @@ report workflow and are not included in the spike.
 | SurveyJS 3 compatibility | Scoped tokens, host theme, hydration without duplicate autosave; newer unsupported choice content diagnosed. |
 | Definition vs response validation | Structurally valid definition with unsupported semantics rejected; invalid answers rejected independently. |
 
-Actual fixture files and tests are implementation work. All data is synthetic;
-proof documents record observed results rather than treating planned coverage
-as completed evidence.
+All data is synthetic. Proof documents record observed results rather than
+treating planned coverage as completed evidence.
+
+## 5. Capability-to-fixture evidence index
+
+Paths below are relative to the repository root. This index is a navigation aid
+for the SURV-000/100 audit, not an assertion that every named test was rerun in
+the current increment. Follow each proof for commands, versions, observations
+and remaining limitations. The general write boundary is indexed separately in
+[WRITE-CONTRACTS.md](WRITE-CONTRACTS.md).
+
+| Capability | Actual fixtures / executable assertions | Observed evidence and boundary |
+| --- | --- | --- |
+| C-01 | `tests/fixtures/surveys/krapfentaxi.json`, `golf.json`; `surveys-editor.spec.mjs` structural moves; `surveys-runner.spec.mjs` mid-page/tab-loss journeys; analysis `lastPageCounts` | [Editor structural persistence](proofs/SURV-040.md#live-browser-result), [timeout/resume](proofs/SURV-050.md), [snapshot page counts](proofs/SURV-070.md#immutable-analysis-snapshots); last page is observed progress, not a proven abandonment reason |
+| C-02 | Taxi text/comment questions; validation length/Unicode fixtures; `surveys-runner.spec.mjs` minimum length; `raw_responses_live.py`; export snapshot text markers | [Authoritative validation](proofs/SURV-010.md#shared-core-backend-integration), [authorized raw response views](proofs/SURV-070.md#authorized-raw-response-browser-views), [Unicode and report review](proofs/SURV-080.md#consolidated-render-acceptance) |
+| C-03 | Taxi `freshness`, golf `return`; `surveys-authoring.spec.mjs`; `analysis-golden.json` and `tools/surveys/analysis.test.ts` exact scalar choice identities | [Sample authoring](proofs/SURV-040.md#complete-sample-authoring-and-validated-preview), [golden aggregate values](proofs/SURV-070.md#golden-and-package-evidence) |
+| C-04 | Golf `improvements`; authoring selection limit; validation coercion/boundaries; golden multiple-selection percentages | [Shared-Core integration](proofs/SURV-010.md#shared-core-backend-integration), [explicit denominators](proofs/SURV-070.md#aggregate-semantics) |
+| C-05 | Taxi delivery rating and 0–10 NPS; `analysis-golden.json`; `analysis.test.ts` fractional scale and hand-calculated NPS | [Authoring/preview](proofs/SURV-040.md#complete-sample-authoring-and-validated-preview), [NPS/distributions](proofs/SURV-070.md#golden-and-package-evidence), [report products](proofs/SURV-080.md#dedicated-typst-reports-and-all-four-products--2026-09-07) |
+| C-06 | Golf handicap/date; validation-boundaries/coercion fixtures; golden numeric/date values | [Strict persisted types](proofs/SURV-010.md#strict-answer-types-and-matrix-completion), [numeric/date semantics](proofs/SURV-070.md#aggregate-semantics); date values are not averaged |
+| C-07 | Golf fixed matrix; `surveys-runner.spec.mjs` forged matrix and required-row correction; golden per-row counts; export snapshot matrix columns | [Real matrix correction](proofs/SURV-010.md#strict-answer-types-and-matrix-completion), [row aggregates](proofs/SURV-070.md#golden-and-package-evidence), [tabular artifacts](proofs/SURV-080.md#artifact-level-verification) |
+| C-08 | `conditional-pages.json`, `condition-candidate-cases.json`, `condition-coercion.json`; guided editor conditions; runner hidden-page-chain tests | [Shared browser/server Core](proofs/SURV-010.md#shared-core-backend-integration), [hidden-page restoration](proofs/SURV-010.md#hidden-page-chains-and-canonical-restoration); arbitrary JS remains unsupported |
+| C-09 | `validation-cases.json`, `validation-boundaries.json`, `validation-coercion.json`; `validation_live.py cases/unavailable/recover` | [192 real API cases and fail-closed adapter recovery](proofs/SURV-010.md#shared-core-backend-integration); autosave permits missing required answers, not invalid values |
+| C-10 | `surveys-authoring.spec.mjs` unsafe presentation rejection and correction; editor title/hint/completion controls; scoped `styles.css` tokens | [Validated preview](proofs/SURV-040.md#complete-sample-authoring-and-validated-preview), [theme/restoration](proofs/SURV-020.md#browser-rendering-and-restoration-disposition), [report rendering](proofs/SURV-080.md#consolidated-render-acceptance). A configurable host-logo path still needs explicit verification in the final audit |
+| C-11 | `tools/surveys/lifecycle.py` duplicates immutable publication without participations, versions or grants; `surveys-templates.spec.mjs` starts both host templates independently | [Duplication/lifecycle](proofs/SURV-030.md); [Template creation and independent copies](proofs/SURV-040.md#template-creation-and-editor-regression) now accept **040.5**; duplication alone did not cover starting from a template |
+| C-12 | `surveys-import-recovery.spec.mjs` unknown/unsafe JSON; `tools/surveys/editor.test.ts` atomic import, stable IDs and nested read-only properties | [Import and recovery](proofs/SURV-040.md#json-preservation-publication-diagnostics-and-draft-recovery); unverified renderer options cannot bypass publication validation |
+| C-13 | `surveys-import-recovery.spec.mjs` lost draft acknowledgement/undo/two tabs; `editor.test.ts` exact queued retry; actual draft revisions | [Draft recovery](proofs/SURV-040.md#json-preservation-publication-diagnostics-and-draft-recovery); history is local editing state, not respondent answer history |
+| C-14 | `surveys-accessibility.spec.mjs` real Tab/Enter traversal, focus/error recovery and axe; `surveys-package.spec.mjs` host translations; Unicode export fixtures | [Reviewed keyboard/contrast evidence](proofs/SURV-040.md#final-verification-and-acceptance), [neutral translated editor](proofs/SURV-020.md#host-translated-editor-and-entrypoint-acceptance), [report render acceptance](proofs/SURV-080.md#consolidated-render-acceptance); no general WCAG certification or screen-reader proof is claimed |
+| C-15 | `tools/surveys/rendering-probe.ts`; packed consumer restart/write counters; actual Astro HTML/cache/header and zero-restoration-write assertions | [Chosen browser-mount disposition](proofs/SURV-020.md#browser-rendering-and-restoration-disposition); SSR answer fidelity is not selected or claimed |
+
+Browser filenames in this table live under `tests/e2e/`; JSON fixture filenames
+live under `tests/fixtures/surveys/` unless otherwise stated. Open SURV-000 contract
+coverage, SURV-090 recovery and SURV-100 aggregate/complete-journey requirements
+remain acceptance blockers even when a capability has several useful proofs.

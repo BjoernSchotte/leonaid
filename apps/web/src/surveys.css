@@ -115,6 +115,19 @@
 .surveys-create button {
   justify-self: start;
 }
+.surveys-create {
+  grid-template-columns: minmax(0, 1fr);
+}
+.surveys-create label,
+.surveys-create input,
+.surveys-create select {
+  min-width: 0;
+}
+.surveys-create input,
+.surveys-create select {
+  width: 100%;
+  box-sizing: border-box;
+}
 .surveys-management {
   margin-bottom: 2rem;
 }

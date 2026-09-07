@@ -149,29 +149,34 @@ Task **000.4** remains open pending the full persona/fixture coverage review.
 
 ## SURV-040 — Visual questionnaire editor
 
-- [ ] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging.
+- [x] **040.1** Implement page/question creation, reordering, movement, duplication and removal with stable IDs and keyboard alternatives to dragging.
 
   Acceptance criteria: **040.A1, 040.A3, 040.A4**.
   Integration / supporting checks: **040.S1**.
   E2E: **040.S3, 040.S4**.
 
-- [ ] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview.
+- [x] **040.2** Implement property panels for initial question types, presentation, required flags, bounds and guided conditions; add live preview.
 
   Acceptance criteria: **040.A2, 040.A3, 040.A4**.
   Integration / supporting checks: **040.S2**.
   E2E: **040.S3, 040.S4**.
 
-- [ ] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics.
+- [x] **040.3** Implement undo/redo, revision-aware draft autosave, save/conflict indicators and safe JSON import/export with diagnostics.
 
   Acceptance criteria: **040.A1, 040.A2, 040.A5**.
   Integration / supporting checks: **040.S1, 040.S2**.
   E2E: **040.S5**.
 
-- [ ] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data.
+- [x] **040.4** Preserve safe unknown regions read-only; enforce capability-profile publication validation without silently discarding unsupported data.
 
   Acceptance criteria: **040.A1, 040.A2**.
   Integration / supporting checks: **040.S1, 040.S2**.
   E2E — work-package regression gate: **040.S3, 040.S4, 040.S5**.
+
+- [x] **040.5** Add blank/Krapfentaxi/golf template selection with independent editable drafts and exact creation retry. Acceptance: **C-11**, real template creation/edit/reload/publication and zero-response checks. [Live evidence](proofs/SURV-040.md#template-creation-and-editor-regression).
+
+Tasks 040.1–040.4 are reconciled with the existing accepted main-plan criteria
+and the complete passing editor regression in that same proof.
 
 ## SURV-050 — Public runner, ordered saves and recovery
 

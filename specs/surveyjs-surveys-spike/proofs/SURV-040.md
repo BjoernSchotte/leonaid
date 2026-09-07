@@ -1,6 +1,6 @@
 # SURV-040 — Initial visual editor evidence
 
-Date: 2026-09-06. Status: implementation items 040.1–040.4 and scoped acceptance
+Date: 2026-09-06. Status: implementation items 040.1–040.5 and scoped acceptance
 040.A1–A5 / 040.T1–T2 proven. This does not complete the dependent package,
 theme/mobile, validation or whole-spike work packages.
 
@@ -303,3 +303,80 @@ Acceptance traceability:
 040.A4 and 040.T2 are now checked. Broader profile validation, independent packed
 consumption, theme/mobile work, analytics, exports and the other remaining plan
 items retain their open status.
+
+## Template creation and editor regression
+
+**040.5 / 040.S6 accepted.** Capability review found that C-11's template start
+was absent from the creation UI even though existing-survey duplication already
+worked. Based on `5caf41e`, this increment adds a blank/Krapfentaxi/golf selector
+to the member creation form. Both curated templates are bundled definition-only
+JSON under `apps/web/src/survey-templates/`, independent of production testkit
+imports. The host applies the entered title and clones the selected definition.
+The existing neutral editor and API handle the resulting ordinary draft; no
+LeonAid-specific catalog or dependency is added to the neutral package.
+
+An uncertain creation acknowledgement retains the same survey ID, operation ID
+and payload. Title, template and action controls are disabled until that request
+is resolved, preventing a changed-payload retry. Definitive 401/403/404/422/429
+responses release the input lock so the user can correct the request. This is
+in-memory recovery in the current page, not durable offline creation recovery.
+
+The template selector has an explicit accessible name and associated explanatory
+text. Bounded grid columns and input/select minimum widths prevent the longest
+option from widening the mobile form.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" editor
+```
+
+Final project `leonaid-surveys-833458328-1914` exited **0**: real migrations and
+API/PostgreSQL foundation passed, then **nine Chromium scenarios passed in 1.2
+minutes**. The run used Playwright 1.54.1 and SurveyJS core/React 3.0.3 in the
+pinned images. It published no host ports, selected unused explicit subnets and
+removed its own containers, volumes and networks.
+
+`tests/e2e/surveys-templates.spec.mjs` exercises Krapfentaxi at **1440 × 900** and
+golf at **390 × 900**. Each scenario creates two surveys through member controls:
+
+- Select the template and compare the entire persisted initial definition with
+  the independently retained fixture, except for the user-entered title.
+- For the first creation, forward the real POST to the server and discard only
+  its acknowledgement. Retry through the enabled creation button; the template
+  remains locked and the confirmed draft starts at revision 1.
+- Explicitly select the first question, change its title, wait for acknowledged
+  autosave, reload and verify the persisted wording through the editor.
+- Publish through the UI and read the real public version. Its number is 1 and
+  it contains the modified question. Create an actual all-status analysis
+  snapshot and verify **zero participations**.
+- Create a second distinct survey from the same template and verify its initial
+  definition is pristine, without the first survey's wording changes.
+
+The seven existing scenarios also passed: complete keyboard/error/preview
+authoring, both manually built sample questionnaires, structural drag/reorder
+editing, unknown/unsafe JSON handling, lost draft acknowledgement/two-tab recovery,
+and member/public infrastructure. This reconciles stale unchecked **040.1–040.4**
+and **040.S1–040.S5** in the companion task/scenario documents with the already
+accepted main-plan criteria and the earlier detailed proof sections. Historical
+manual contrast/axe observations remain separately scoped; this run does not
+claim a new general accessibility certification.
+
+Earlier projects `99432` and `628` (same worktree prefix) each exited 1 with seven
+existing scenarios passing. The first exposed the selector's accessible-name
+ambiguity and mobile overflow, corrected in the UI/CSS. The second reached the
+created draft but its new test attempted to edit before selecting a question;
+the final test now follows the actual question-selection interaction before
+editing and after reload. No assertion or scenario was skipped.
+
+Manual inspection of the retained [desktop form](assets/SURV-040-template-krapfentaxi.png)
+and [mobile form](assets/SURV-040-template-golf.png) confirms readable labels,
+wrapped explanatory text and controls within the viewport. The mobile native
+select clips the long option suffix; “Golfturnier” remains visible and the full
+template explanation follows below. Both browser scenarios explicitly assert
+that document width does not exceed the viewport.
+
+Host TypeScript checking, shell syntax and diff whitespace checks passed. No
+dependency, backend schema, own-license marker or publication permission changed.
+Only synthetic screenshots are retained; raw browser traces remain ignored.
+The [capability evidence index](../CAPABILITIES.md#5-capability-to-fixture-evidence-index)
+now links C-01–C-15 to concrete fixtures/proofs and identifies remaining limits.
+SURV-000 and the final recovery/whole-journey acceptance remain open.
