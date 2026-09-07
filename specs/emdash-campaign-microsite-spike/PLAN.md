@@ -3473,6 +3473,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
       `twenty-startup` proof passed in `leonaid-emdash-tmp-ldpgumknpa`; the
       combined post-alias order/recovery rerun remains required. Its diagnostic
       helper emits only allowlisted error classes/codes, never raw startup logs.
+      Repository verification on committed source `18eab01` subsequently passed
+      `./leonaid check`: 256 unit tests, 267 Python files without type errors,
+      Astro checks for 25 public and 49 campaign-site files without diagnostics,
+      release contracts, formatting and policy gates; the worktree remained
+      unchanged. This check does not replace the pending combined LIVE rerun.
 
 Verification (new case implemented by this task):
 
