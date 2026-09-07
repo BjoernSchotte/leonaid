@@ -71,6 +71,7 @@ export type CreateCommitmentRequest = { readonly buyer: CommitmentBuyerRequest; 
 export type CreateEmailChangeRequest = { readonly newEmail: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: string; readonly website?: string | null; };
+export type CreateSurveyExport = { readonly operationId: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly snapshotId: string; };
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DashboardCommitmentResponse = { readonly activeTotal: number; readonly activeTotalMinor: number; readonly cancelled: number; readonly confirmed: number; readonly currency: string; readonly draft: number; readonly invoiced: number; readonly reviewReady: number; readonly total: number; readonly totalBoxes: number; readonly totalPieces: number; };
@@ -211,6 +212,7 @@ export type SurveyAccess = { readonly accessMode: "anonymous" | "invitation"; re
 export type SurveyActionOption = { readonly id: string; readonly name: string; };
 export type SurveyDiagnostic = { readonly code: string; readonly message: string; readonly path: string; readonly severity: "error" | "warning" | "information"; };
 export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
+export type SurveyExportJob = { readonly completedAt: string | null; readonly createdAt: string; readonly errorCode: string | null; readonly filename: string | null; readonly id: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly sizeBytes: number | null; readonly snapshotId: string; readonly status: "queued" | "processing" | "retrying" | "failed" | "available" | "cancelled"; readonly surveyId: string; };
 export type SurveyInvitationCreate = { readonly expectedRevision: number; readonly expiresInDays?: number; readonly operationId: string; readonly recipientEmail: string; readonly recipientName?: string; };
 export type SurveyInvitationResponse = { readonly createdAt: string; readonly expiresAt: string; readonly id: string; readonly recipientEmail: string; readonly recipientName: string; readonly status: "queued" | "retrying" | "failed" | "cancelled" | "sent" | "redeemed" | "expired" | "revoked"; };
 export type SurveyInvitationsResponse = { readonly items: Array<SurveyInvitationResponse>; readonly total: number; };
@@ -1875,6 +1877,46 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async createSurveyExport(
+    surveyId: string,
+    body: CreateSurveyExport,
+    options: RequestOptions = {},
+  ): Promise<SurveyExportJob> {
+    return this.request<SurveyExportJob>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/exports`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getSurveyExport(
+    surveyId: string,
+    jobId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyExportJob> {
+    return this.request<SurveyExportJob>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/exports/${encodeURIComponent(String(jobId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async downloadSurveyExport(
+    surveyId: string,
+    jobId: string,
+    options: RequestOptions = {},
+  ): Promise<Blob> {
+    return this.requestBlob(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/exports/${encodeURIComponent(String(jobId))}/download`,
+      { method: "GET" },
       options,
     );
   }

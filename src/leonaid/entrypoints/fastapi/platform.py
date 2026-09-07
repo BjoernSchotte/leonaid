@@ -46,6 +46,7 @@ from leonaid.adapters.postgres.legal_configuration import (
 )
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.application.surveys import SurveyService
 from leonaid.entrypoints.fastapi.surveys import router as surveys_router
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
@@ -274,6 +275,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             repository=document_repository,
             storage=object_storage,
         )
+        application.state.survey_exports = AsyncpgSurveyExports(pool, object_storage)
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )

@@ -21,9 +21,10 @@ TABLES = {
     "survey_settings_operation",
     "survey_invitation",
     "survey_analysis_snapshot",
+    "survey_export_job",
 }
 BASELINE = "0026_invoice_payment_snapshot"
-HEAD = "0030_survey_analysis"
+HEAD = "0031_survey_exports"
 
 
 async def fingerprints(conn, tables):
@@ -170,6 +171,60 @@ async def constraints(conn):
             first,
             version,
             "{}",
+        )
+        job_id, event_id = uuid4(), uuid4()
+        await conn.execute(
+            "INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload) VALUES($1,'survey_export',$2,'survey.export.render.v1',$3,'{}')",
+            event_id,
+            job_id,
+            str(job_id),
+        )
+        await conn.execute(
+            "INSERT INTO survey_export_job(id,survey_id,snapshot_id,requested_by,operation_id,request_hash,title,product,event_id) VALUES($1,$2,$3,$4,'synthetic',$5,'Synthetic export','analysis_xlsx',$6)",
+            job_id,
+            first,
+            snapshot_id,
+            owner,
+            "0" * 64,
+            event_id,
+        )
+        await rejected(
+            "immutable export input",
+            "UPDATE survey_export_job SET snapshot_id=$2 WHERE id=$1",
+            job_id,
+            uuid4(),
+        )
+        await rejected(
+            "available export requires complete object metadata",
+            "UPDATE survey_export_job SET status='available' WHERE id=$1",
+            job_id,
+        )
+        await rejected(
+            "export reference prevents uncontrolled snapshot deletion",
+            "DELETE FROM survey_analysis_snapshot WHERE id=$1",
+            snapshot_id,
+        )
+        await rejected(
+            "export reference prevents uncontrolled survey deletion",
+            "DELETE FROM survey WHERE id=$1",
+            first,
+        )
+        foreign_job, foreign_event = uuid4(), uuid4()
+        await conn.execute(
+            "INSERT INTO outbox_event(id,aggregate_type,aggregate_id,event_type,idempotency_key,payload) VALUES($1,'survey_export',$2,'survey.export.render.v1',$3,'{}')",
+            foreign_event,
+            foreign_job,
+            str(foreign_job),
+        )
+        await rejected(
+            "export snapshot belongs to survey",
+            "INSERT INTO survey_export_job(id,survey_id,snapshot_id,requested_by,operation_id,request_hash,title,product,event_id) VALUES($1,$2,$3,$4,'synthetic',$5,'Synthetic export','analysis_xlsx',$6)",
+            foreign_job,
+            second,
+            snapshot_id,
+            owner,
+            "0" * 64,
+            foreign_event,
         )
         await rejected(
             "bounded survey timeout",

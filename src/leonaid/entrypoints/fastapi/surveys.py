@@ -15,6 +15,11 @@ from pydantic import (
 )
 
 from leonaid.application.surveys import SurveyService
+from leonaid.application.surveys.exports import (
+    CreateSurveyExport,
+    SurveyExportJob,
+    SurveyExports,
+)
 from leonaid.application.surveys.analysis_snapshot import (
     AnalysisSnapshot,
     AnalysisVersions,
@@ -253,6 +258,76 @@ async def author(
 
 def cookie_name(participation_id: UUID | str) -> str:
     return f"__Host-survey_{participation_id}"
+
+
+@router.post(
+    "/surveys/{survey_id}/exports",
+    operation_id="createSurveyExport",
+    response_model=SurveyExportJob,
+)
+async def export_create(
+    request: Request, response: Response, survey_id: UUID, body: CreateSurveyExport
+) -> SurveyExportJob:
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return await cast(SurveyExports, request.app.state.survey_exports).create(
+        principal.account.id, survey_id, body
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/exports/{job_id}",
+    operation_id="getSurveyExport",
+    response_model=SurveyExportJob,
+)
+async def export_get(
+    request: Request, response: Response, survey_id: UUID, job_id: UUID
+) -> SurveyExportJob:
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return await cast(SurveyExports, request.app.state.survey_exports).get(
+        principal.account.id, survey_id, job_id
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/exports/{job_id}/download",
+    operation_id="downloadSurveyExport",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Private survey artifact; current export permission is required.",
+            "content": {
+                media: {"schema": {"type": "string", "format": "binary"}}
+                for media in (
+                    "text/csv",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/pdf",
+                )
+            },
+        }
+    },
+)
+async def export_download(request: Request, survey_id: UUID, job_id: UUID) -> Response:
+    principal = await request.app.state.identity_service.authenticate(
+        request.cookies.get(SESSION_COOKIE_NAME)
+    )
+    artifact = await cast(SurveyExports, request.app.state.survey_exports).download(
+        principal.account.id, survey_id, job_id
+    )
+    return Response(
+        content=artifact.content,
+        media_type=artifact.media_type,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'attachment; filename="{artifact.filename}"',
+        },
+    )
 
 
 @router.get(
