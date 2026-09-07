@@ -1996,6 +1996,22 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Extract the existing public order form into shared `PublicOrder.astro`
+      with an explicit Core order-alias prop and shared price/unit formatters.
+      Existing alias pages use the same form, Astro action and progressive
+      enhancement; no new CMS order endpoint or alternative order storage is
+      introduced. `./leonaid test-emdash-spike --case public-order-component`
+      passed in isolated project `leonaid-emdash-tmp-hxqkg5saco`: production
+      public Astro and Core, Chromium/Firefox/WebKit, desktop with JavaScript
+      and mobile without JavaScript. Each actual submission reached the fixed
+      Core CRM-unavailable error, kept the form visible, showed no false success
+      and caused no horizontal overflow or session cookie. JavaScript error
+      handling retained the entered email. All owned containers, networks and
+      volumes were removed; no host ports were published. This is a shared-form
+      prerequisite only: CMS embedding, accepted orders with Twenty, no-JavaScript
+      input retention and final alias cutover remain open. Browser certificate
+      validation is not covered by this fixture; TLS has separate gates.
+
 - [x] Add a five-second server-side statement timeout to the hash-guarded
       runtime PostgreSQL adapter. Existing explicit transaction-local limits
       remain effective; operator migrations remain separate. `postgres-pool`

@@ -2,7 +2,7 @@
 set -eu
 root=$1
 mode=${2:-auth}
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
@@ -76,6 +76,15 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
+if [ "$mode" = order-component ]; then
+  fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+  compose up --no-deps --build --detach --wait public proxy
+  visual_proof=$(mktemp -d)
+  compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+    node tools/emdash_spike/public-order-component-proof.mjs
+  echo "public-order-component: synthetic screenshots retained in $visual_proof"
+  exit 0
+fi
 if [ "$mode" = core-public ]; then
   fixture /repo/tools/emdash_spike/core_campaign_proof.py
   exit 0

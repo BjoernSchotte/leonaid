@@ -56,6 +56,7 @@ Commands:
   test-emdash-spike --case campaign-public-http
   test-emdash-spike --case campaign-public-media
   test-emdash-spike --case postgres-pool
+  test-emdash-spike --case public-order-component
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
   export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
