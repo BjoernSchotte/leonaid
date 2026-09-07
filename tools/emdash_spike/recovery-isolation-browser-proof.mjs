@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "@playwright/test";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
+import {
+  prepareRecoveryMedia,
+  proveRecoverySurfaces,
+} from "./recovery-surfaces-browser-proof.mjs";
 
 const origin = "https://proxy:8443";
 const root = "/_emdash/api/content/campaign_pages";
@@ -39,6 +43,11 @@ async function login(browser, actor) {
   await page.goto(origin + editor);
   await page.getByRole("heading", { name: "Bei LeonAid anmelden" }).waitFor();
   await browserLogin(context, page, editor, false, actor.email);
+  if ((await call(context, "/_emdash/api/auth/me")).data.isFirstLogin) {
+    await page
+      .getByRole("button", { name: "Get Started", exact: true })
+      .click();
+  }
   return { context, page };
 }
 for (const [name, engine] of Object.entries(
@@ -61,11 +70,13 @@ for (const [name, engine] of Object.entries(
       assert.equal(listing.items[0].data.action_id, actors[1].action);
       const path = `${root}/${listing.items[0].id}`;
       const initial = (await call(context, path)).data;
+      const heroImage = await prepareRecoveryMedia(context, actors[1].action);
       await call(context, path, 200, "PUT", {
         _rev: initial._rev,
         data: {
           ...initial.item.data,
           story_title: "Private second campaign before backup",
+          hero_image: heroImage,
         },
       });
       const item = (await call(context, path)).data.item;
@@ -96,6 +107,11 @@ for (const [name, engine] of Object.entries(
       snapshots[1].detail.item.data.title,
       "Recovery foreign campaign draft",
     );
+    assert.equal(
+      snapshots[1].detail.item.data.story_title,
+      "Private second campaign before backup",
+    );
+    await proveRecoverySurfaces(browser, sessions, actors, snapshots, name);
     for (const [index, { context }] of sessions.entries()) {
       const foreign = snapshots[1 - index];
       const missing = await call(

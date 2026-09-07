@@ -2870,9 +2870,14 @@ Dependencies: EMS-050, EMS-070
         Integration into a coordinated encrypted recovery point, actual restored
         CMS decryption and end-to-end fresh-topology recovery remain unproven;
         the parent gate remains open.
-- [ ] Restore into a fresh Compose project and prove users still authenticate
+- [x] Restore into a fresh Compose project and prove users still authenticate
       through Core, campaign authorization remains correct, drafts/revisions
       exist, and media renders.
+      Acceptance audit (2026-09-07): the final local application recovery run
+      below proves each of these named conditions with real services and three
+      browsers. Earlier checkpoint notes retain their historical pending scope.
+      This does not close the separate off-host, coordinated-writer, release,
+      upgrade, rollback or full Twenty/order recovery requirements.
   - [x] Imported-demo application recovery checkpoint (2026-09-07):
         `./leonaid test-emdash-spike --case recovery-app` passed from
         `leonaid-poc112-tmp-lq8xpq1uai` into fresh
@@ -2966,6 +2971,35 @@ Dependencies: EMS-050, EMS-070
         tests, 263 Python files typechecked, both Astro applications (25/47 files,
         zero diagnostics), frontend typechecks, format and repository policy
         gates. The working tree was unchanged.
+  - [x] Restored editor/media acceptance (2026-09-07): the full
+        `./leonaid test-emdash-spike --case recovery-app` passed from
+        `leonaid-poc112-tmp-wl0fhy38pv` into fresh
+        `leonaid-restore-tmp-wl0fhy38pv`, with no target seed, import, schema
+        install or rebuild. Both real Core SMTP identities retain their own
+        campaign access. Current membership expiry/regrant, bidirectional
+        content/revision isolation and unchanged denied-write snapshots pass
+        again in Chromium, Firefox and WebKit. The second campaign now has an
+        actual private uploaded image bound into its saved draft before backup;
+        its draft text is explicitly checked after restore. Native own editor
+        fields and private image previews render; the generic foreign editor
+        shell loads but its data request returns `404`, shows no editable title
+        field and contains no foreign title. Own campaign handoff returns the
+        exact editor `303`; foreign handoff, foreign/unscoped creation URLs and
+        duplicated campaign parameters are denied. Foreign media metadata,
+        raw/encoded file URLs, upload and confirmation requests return `404`;
+        unauthorized reservation/listing and foreign image binding return
+        `403`. Anonymous private-file requests return `401`. Scoped media search
+        includes a matching-owner positive control. Owner-read metadata, listed
+        records and downloaded private bytes stay unchanged after these denied
+        requests; byte hashes match the restored records. Both owners also
+        upload, confirm and download a new image after restore in each browser.
+        Public imported campaign media rendering remains green. Together these
+        checks close the named fresh-project authentication, authorization,
+        drafts/revisions and media-rendering requirement above. The complete
+        runner exits zero and removes its isolated source/target projects,
+        volumes and networks; no host ports or production activation are used.
+        Overall EMS-080 remains open, including off-host recovery, operational
+        release checks, full Twenty/order recovery and upgrade/rollback proof.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.
