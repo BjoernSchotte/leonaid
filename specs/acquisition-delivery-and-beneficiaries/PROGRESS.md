@@ -1,5 +1,11 @@
 # Implementation evidence
 
+## Campaign resolver contract inspected — 2026-09-07
+
+Read the parallel EmDash source at `6f231b7`, including `ActionService.resolve_public_campaign` and the legacy response serializer guard. The internal resolver now exists, but the campaign source still has no public renderer or serving-app order adapter. Compared the resolver with this branch's public alias handler, which issues tokens using `route.route_value` and projects delivery definitions through `DeliveryService.for_published_order_form`.
+
+Recorded the resulting integration requirement: campaign route values identify the stable slug, whereas order tokens and submissions must use the separately resolved order alias. Added acceptance cases for different identifiers, alias reassignment and publication withdrawal. This is source-inspection evidence and preparation for the actual transport, not a runtime proof. No parallel source was imported or changed; integrated acceptance remains pending.
+
 ## Integration dependency and remaining acceptance clarified — 2026-09-06
 
 Revalidated the actual EmDash worktree at `67d64b1`: scoped editorial workflows have progressed, but no public campaign renderer exists and every EMS-050 renderer task remains unchecked. Updated ACCEPTANCE.md to remove stale claims that the existing same-action order journey or completion recovery had not been recorded. The remaining integrated scope is now an explicit sequence covering actual serving-app transport, canonical/alias JS/no-JS orders, live policy/retirement recovery, editorial independence, protection/rollback and combined visual acceptance.
