@@ -1975,6 +1975,9 @@ fields are absent; generated TypeScript types compile.
       ports were exposed. This proves these specific lock failures and Core
       read availability, not full concurrent order acceptance, total request
       deadlines, peak-load budgets or the complete failure matrix.
+      Post-commit `./leonaid check` passed at `5f780a2`: 208 unit tests, 244
+      Python source checks, 45 CMS files without diagnostics, frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Bound actual PostgreSQL pool acquisition in the CMS runtime to two
       seconds while retaining the existing five-connection maximum. The pinned
