@@ -247,7 +247,7 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **080.S1, 080.S2**.
   E2E: **080.S4, 080.S6**.
 
-- [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination.
+- [x] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination. [Accepted evidence](proofs/SURV-080.md#consolidated-render-acceptance).
 
   Acceptance criteria: **080.A1, 080.A4, 080.A5**.
   Integration / supporting checks: **080.S1, 080.S5**.

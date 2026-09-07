@@ -1,9 +1,9 @@
 # SURV-080 — Export implementation evidence
 
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
-**080.1 is accepted; 080.2 and 080.3 remain open.**
-Criteria 080.A1, A2, A3, A4 and A6 are proven below; 080.T1 is accepted. The
-workbook render gate and remaining task review stay open; SURV-080 is not complete. Earlier sections record the
+**080.1 and 080.2 are accepted; 080.3 remains open.**
+Criteria 080.A1–A6 are proven below; 080.T1 and 080.T2 are accepted. The
+remaining 080.3 task review stays open; SURV-080 is not complete. Earlier sections record the
 evidence and limitations of their respective increments.
 
 ## Task ledger
@@ -11,10 +11,10 @@ evidence and limitations of their respective increments.
 | Task | Delivered building block | Remaining acceptance |
 |---|---|---|
 | 080.1 | CSV, response XLSX and analysis XLSX through real worker/private storage and parsed API/browser downloads | Accepted; see tabular task acceptance below |
-| 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review and browser downloads | Rendered XLSX review |
+| 080.2 | Native workbook charts, server-side vector PDF charts and dedicated Typst report; PDF visual review and browser downloads | Accepted in consolidated render review below |
 | 080.3 | Durable jobs, current permission checks, private storage, recovery and protected downloads | Final task review including terminal failure/retry browser states |
 | 080.T1 | Artifact parsing, four export pipelines, real recovery and permission/deletion integration | Accepted against A1, A2 and A3 below |
-| 080.T2 | Normal, long-label, empty and actual-worker PDF review; all four browser downloads | XLSX rendering review |
+| 080.T2 | Normal, long-label, empty and actual-worker PDF review; all four browser downloads | Accepted in consolidated render review below |
 
 ## Rendering contract
 
@@ -748,3 +748,50 @@ not participant data.
 
 080.A5 remains open pending the consolidated page-by-page review of all report
 sheets; these targeted views do not substitute for that remaining acceptance.
+
+## Consolidated render acceptance
+
+On `f502581`, the assistant inspected every page in the four XLSX consumer
+outputs: normal analysis (12 pages), long-label analysis (16), empty analysis
+(12), and raw responses (6), totaling 46 pages. Contact views covered every page;
+detailed views in the preceding increments covered charts, long text and all raw
+continuations. The original workbook hashes were rechecked against the recorded
+production outputs before retaining the final consumer PDFs.
+
+[Page ledger and exact hashes](assets/SURV-080-xlsx-final-review.json) distinguish
+manual review from automated extraction assertions. The complete reviewed output
+is retained for [normal](assets/SURV-080-reviewed-xlsx-normal.pdf),
+[long labels](assets/SURV-080-reviewed-xlsx-long-labels.pdf),
+[empty analysis](assets/SURV-080-reviewed-xlsx-empty.pdf), and
+[raw responses](assets/SURV-080-reviewed-xlsx-responses.pdf).
+
+Observed results:
+
+- All five charts in each analysis file occupy complete separate pages with
+  visible axes, labels and boundaries. Single-series legends are intentionally
+  absent; the percentage caption identifies the series.
+- Metadata, question catalogue, metrics, distributions, matrix rows and last-page
+  tables stay within their print areas. Table continuations repeat their headers.
+  Long source labels wrap in their cells and are preserved; chart abbreviations
+  are explicit and mapped through question/row IDs and numbered chart labels.
+- Empty results keep question context and explicitly label absent valid answers.
+  There are no invented bars or misleading zero-valued means/NPS.
+- Raw continuation pages retain all five participation IDs and their respective
+  answer/type columns. These three response pages were also inspected separately
+  at the larger render size in the preceding increment.
+- No cut-off chart boundaries, missing source columns or replacement glyphs were
+  observed in the inspected corpus. The known A3 data-table/A4 chart layout,
+  consumer version and Excel row-height/font limitations remain documented.
+
+080.A5 and 080.S5 are accepted by this XLSX review together with the existing
+20-page Typst normal/long/empty/worker review and glyph rejection proof above.
+080.2 is accepted against A1/A4/A5: the existing real worker/browser checks prove
+values and delivery; the dedicated template and native workbook charts now have
+recorded consumer-render evidence. 080.T2 is accepted against A4/A5/A6, including
+the previously proven four downloads and denied raw-export journey.
+
+This is a bounded spike acceptance for the synthetic corpus and named consumer,
+not universal font support, PDF accessibility certification or a promise that
+arbitrary text fits on a printed page. The final review required no further
+source edits or rerun of unchanged integration code. 080.3 still needs its final
+job-state/UI review; SURV-090 and the remaining overall plan are not completed.

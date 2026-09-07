@@ -747,13 +747,13 @@ Dependencies: SURV-070.
 Implementation tasks:
 
 - [x] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text. Acceptance: **080.A1, 080.A2, 080.A4, 080.A6**. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
-- [ ] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination. Acceptance: **080.A1, 080.A4, 080.A5**.
+- [x] **080.2** Implement server chart rendering and a dedicated Typst analysis template; support Unicode, long text and pagination. Acceptance: **080.A1, 080.A4, 080.A5**. [Accepted evidence](proofs/SURV-080.md#consolidated-render-acceptance).
 - [ ] **080.3** Implement durable export jobs, private object storage, retry/error states, authorized downloads and revocation/deletion invalidation. Acceptance: **080.A3, 080.A4, 080.A6**.
 
 Test implementation and verification tasks:
 
 - [x] **080.T1** Generate all four export products through real worker/storage adapters; parse values and metadata, test formula injection and renderer retries, and revoke permissions/delete surveys before jobs and downloads. Acceptance: **080.A1, 080.A2, 080.A3**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-080.md#permission-boundary-acceptance).
-- [ ] **080.T2** Request and download each export through the UI, compare snapshot values, test denied raw exports, and render PDF pages/XLSX charts for recorded clipping, font, legend and pagination review. Acceptance: **080.A4, 080.A5, 080.A6**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **080.T2** Request and download each export through the UI, compare snapshot values, test denied raw exports, and render PDF pages/XLSX charts for recorded clipping, font, legend and pagination review. Acceptance: **080.A4, 080.A5, 080.A6**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-080.md#consolidated-render-acceptance).
 
 Acceptance criteria:
 
@@ -761,7 +761,7 @@ Acceptance criteria:
 - [x] **080.A2 — Integration:** malicious formula-like text remains inert in CSV/XLSX; Unicode, empty cells and matrices survive parsing, and report generation failures are retryable without false success. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
 - [x] **080.A3 — Integration:** permission revocation and survey deletion block queued jobs and downloads, including previously created artifacts; object access is not public. [Accepted evidence](proofs/SURV-080.md#permission-boundary-acceptance).
 - [x] **080.A4 — E2E:** request each export from the analysis UI, observe job completion and download through the authenticated route; exported numbers match the displayed snapshot. [Accepted evidence](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
-- [ ] **080.A5 — Render review:** inspect rendered PDF pages and XLSX charts for clipping, legends, fonts and pagination; retain synthetic visual evidence and record any manual checks separately from automated tests.
+- [x] **080.A5 — Render review:** inspect rendered PDF pages and XLSX charts for clipping, legends, fonts and pagination; retain synthetic visual evidence and record any manual checks separately from automated tests. [Accepted evidence](proofs/SURV-080.md#consolidated-render-acceptance).
 - [x] **080.A6 — E2E:** a user without raw-export permission cannot request or download raw files even when aggregate-report export is allowed. [Accepted evidence](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
 
 ### SURV-090 — Deletion, recovery and operational limits
