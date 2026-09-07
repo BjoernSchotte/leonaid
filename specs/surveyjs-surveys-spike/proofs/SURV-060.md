@@ -4,7 +4,7 @@ Baseline `c75b8c7` plus this commit's module, API/client and browser changes.
 The initial increment delivered member navigation, lifecycle and timeout UI.
 The personal invitation increment below adds live evidence for 060.A3;
 preview isolation and timeout snapshot behavior are now accepted below. Complete
-capability coverage and credential scans remain open.
+capability coverage remains open; invitation credentials and expired resume access are accepted in the final section.
 
 ## Task ledger
 
@@ -12,7 +12,7 @@ capability coverage and credential scans remain open.
 |---|---|---|---|
 | 060.1 | A4, A5 | `apps/web/src/surveys.tsx`, generated client, scoped list/summary and action creation; `surveys-module.spec.mjs` | Delivered; A5 accepted below; complete persona coverage remains open |
 | 060.2 | A1, A4 | Existing policies now govern lists/counts, summary capabilities, action linking and hidden publish controls; `module.py seed` | Aggregate/export/invitation/deletion capability matrix is not complete |
-| 060.3 | A2, A3 | Anonymous runner plus personal invitation API, member UI, worker/Mailpit delivery and PostgreSQL verification | A3 accepted below; A2 credential scans and full retry/failure coverage remain open |
+| 060.3 | A2, A3 | Anonymous runner plus personal invitation API, member UI, worker/Mailpit delivery and PostgreSQL verification | A2/A3 accepted; final credential and expired-resume evidence below |
 | 060.4 | A5 | Actual preview completion, backend timeout change, public participation and separate persisted analysis snapshots below | Accepted |
 | 060.T1 | A1, A2 | Real member list/count/search/pagination and action-scope negative scenarios | Full capability and invitation coverage remain open |
 | 060.T2 | A3, A4, A5 | Admin lifecycle/settings, mobile designer and personal invitation browser scenarios | A5 accepted below; full persona coverage remains open |
@@ -359,3 +359,68 @@ shell syntax and `git diff --check` passed. No new visual/a11y review is claimed
 060.A5, its 060.S5 scenario and implementation task 060.4 are accepted. The parent
 060.T2 remains open for full persona/resource E2E coverage (A4); the whole module
 also retains its A1/A2 permission and credential-log acceptance work.
+
+
+## Invitation credential and expired-resume acceptance
+
+**060.3 / 060.A2 / 060.S2 are accepted.** Production baseline: `7b86291`,
+unchanged. This increment extends actual-service test coverage without changing
+runtime dependencies, migrations or the UNDEFINED license decision. The full
+persona matrix (060.A1/A4) still prevents completion of 060.T1/T2 and SURV-060.
+Earlier open-status statements describe their historical increments.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" invitations
+```
+
+Project `leonaid-surveys-833458328-37251` exited **0**. The existing API creation,
+exact replay and changed-payload conflict checks passed. The worker processed
+six synthetic invitations with actual Mailpit stopped: two retryable deliveries,
+one seeded final-attempt failure and revoked/expired/closed cancellation cases.
+After Mailpit restarted, exactly the two eligible fixture recipients received
+messages; the dead-letter case remained undelivered until revoked. Protected
+payload removal checks passed for skipped/revoked and delivered messages.
+
+The added `expired-resume` case redeems the real invitation twice, verifies the
+same participation, and saves an answer through HTTP before moving only its
+synthetic expiry timestamp into the past. GET restore, PUT save, POST complete
+and POST redemption then return 404. The same four operations are rejected after
+actual revocation in the existing valid case. SQL verifies one participation and
+its separate invitation association. This tests expiry selection deterministically;
+it does not claim a month-long wall-clock wait. Existing SMTP acknowledgement
+ambiguity does not become an exactly-once physical delivery guarantee.
+
+Both Chromium scenarios passed in **4.9 s**: the foundation test and
+`surveys-invitations.spec.mjs` at the existing desktop member/mobile respondent
+viewports. The member creates and publishes an invitation-only survey, retries
+lost/synthetic error acknowledgements with the same operation, receives one
+Mailpit message, and revokes access after the recipient completes. PostgreSQL
+independently verifies exactly one completed, attributable response. Direct URL
+capture still proves the fragment credential does not enter request URLs.
+
+`tools/surveys/invitation_privacy_live.py` then creates real immutable analysis
+snapshots for the API-created and browser-created participations, explicitly
+including all three statuses and asserting one response per snapshot. The actual
+worker generates eight private objects: CSV, raw XLSX, analysis XLSX and Typst PDF
+for each participation. Authenticated downloads are parsed using csv, every
+uncompressed XLSX ZIP member (including metadata), and pypdf text extraction.
+Raw bytes and parsed content contain none of the admin session, browser invitation
+credential or six backend fixture credentials. Each expected answer remains in
+its raw products and is absent from the aggregate products; these are populated
+exports, not an empty-selection proof.
+
+The harness captures actual API, worker and validator logs after both browser and
+export execution. It requires actual HTTP diagnostic records and scans for all
+the credential values plus the two answer markers. No marker is present. SMTP
+message bodies intentionally contain their invitation links and are not treated
+as application diagnostics. All credential-bearing state and unrestricted logs
+stay in the temporary proof directory and are deleted with it; they are never
+copied into committed artifacts. The retained
+[SURV-060-invitation-privacy.json](assets/SURV-060-invitation-privacy.json)
+contains only product names, counts and boolean results.
+
+Scoped Ruff checks/format, shell syntax and diff whitespace checks passed. The
+run used fresh volumes, seven currently unused explicit subnets and no published
+host ports. The harness verified complete owned-resource teardown. No runtime or
+test file was edited during execution, and no new manual visual/a11y inspection
+or exhaustive SMTP crash-instruction coverage is claimed.

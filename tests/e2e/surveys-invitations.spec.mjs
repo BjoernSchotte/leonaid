@@ -187,7 +187,7 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
     );
     writeFileSync(
       `${proof}/survey-invitation-browser.json`,
-      JSON.stringify({ survey: id, email }),
+      JSON.stringify({ survey: id, email, token: secret }),
     );
   } finally {
     await recipient.close();

@@ -40,7 +40,14 @@ async def main():
 
         if sys.argv[1] == "prepare":
             state = []
-            for kind in ["normal", "revoked", "expired", "closed", "failed"]:
+            for kind in [
+                "normal",
+                "revoked",
+                "expired",
+                "closed",
+                "failed",
+                "expired-resume",
+            ]:
                 sid = str(uuid4())
                 admin = f"/api/v1/surveys/{sid}"
                 await call(
@@ -194,16 +201,17 @@ async def main():
                 failed = await conn.fetchval(
                     "SELECT count(*) FROM outbox_event WHERE event_type='survey.invitation.send.v1' AND last_error_code IS NOT NULL"
                 )
-                if failed == 2:
+                if failed == 3:
                     break
                 await asyncio.sleep(0.1)
-            assert failed == 2, "Real SMTP outage did not reach the worker"
+            assert failed == 3, "Real SMTP outage did not reach the worker"
             for entry in state:
                 listing = await call(
                     "GET", f"/api/v1/surveys/{entry['survey']}/invitations", cookie=auth
                 )
                 expected = {
                     "normal": "retrying",
+                    "expired-resume": "retrying",
                     "failed": "failed",
                     "closed": "cancelled",
                     "expired": "expired",
@@ -230,12 +238,14 @@ async def main():
                 for m in messages
                 if any(t["Address"].startswith("survey-") for t in m["To"])
             ]
-            assert (
-                len(matches) == 1
-                and matches[0]["To"][0]["Address"] == "survey-normal@example.com"
-            )
+            assert len(matches) == 2 and {m["To"][0]["Address"] for m in matches} == {
+                "survey-normal@example.com",
+                "survey-expired-resume@example.com",
+            }
             delivered = (
-                await mailpit.get(f"/api/v1/message/{matches[0]['ID']}")
+                await mailpit.get(
+                    f"/api/v1/message/{next(m for m in matches if m['To'][0]['Address'] == 'survey-normal@example.com')['ID']}"
+                )
             ).json()["Text"]
             normal = state[0]
             assert normal["token"] in delivered
@@ -257,7 +267,7 @@ async def main():
                         },
                         auth,
                     )
-                if entry["kind"] != "normal":
+                if entry["kind"] not in {"normal", "expired-resume"}:
                     assert await conn.fetchval(
                         "SELECT mail_payload IS NULL FROM survey_invitation WHERE id=$1",
                         UUID(entry["id"]),
@@ -289,12 +299,23 @@ async def main():
                     },
                     cookie,
                 )
-                await call(
-                    "POST",
-                    f"/api/v1/surveys/{entry['survey']}/invitations/{entry['id']}/revoke",
-                    {"operationId": "revoke", "expectedRevision": entry["revision"]},
-                    auth,
-                )
+                if entry["kind"] == "expired-resume":
+                    # Advance only this synthetic invitation's deadline after real
+                    # redemption/save, exercising every protected resume operation.
+                    await conn.execute(
+                        "UPDATE survey_invitation SET expires_at=now()-interval '1 second' WHERE id=$1",
+                        UUID(entry["id"]),
+                    )
+                else:
+                    await call(
+                        "POST",
+                        f"/api/v1/surveys/{entry['survey']}/invitations/{entry['id']}/revoke",
+                        {
+                            "operationId": "revoke",
+                            "expectedRevision": entry["revision"],
+                        },
+                        auth,
+                    )
                 for operation in ["GET", "PUT"]:
                     await call(
                         operation,
@@ -309,6 +330,16 @@ async def main():
                         cookie,
                         404,
                     )
+                await call(
+                    "POST",
+                    public + "/complete",
+                    {
+                        "operationId": "late-complete",
+                        "expectedRevision": saved["revision"],
+                    },
+                    cookie,
+                    404,
+                )
                 await call("POST", path, {"token": entry["token"]}, expected=404)
                 assert (
                     await conn.fetchval(
@@ -324,7 +355,7 @@ async def main():
             print(
                 "PASS: real guarded SMTP sends only valid invitation; exact redemption reuses participation; recipient association separate and revoked resume/save/redeem blocked"
             )
-            state_file.unlink()
+            # Retain private tokens for the final export/log scan; harness cleanup removes them.
         else:
             state = json.loads(
                 Path("/proof/survey-invitation-browser.json").read_text()

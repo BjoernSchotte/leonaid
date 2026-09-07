@@ -1,0 +1,14 @@
+{
+  "syntheticOnly": true,
+  "attributableParticipations": 2,
+  "actualWorkerDownloadsParsed": 8,
+  "productsPerParticipation": [
+    "responses_csv",
+    "responses_xlsx",
+    "analysis_xlsx",
+    "analysis_pdf"
+  ],
+  "credentialsAbsentFromAllProducts": true,
+  "answersPresentOnlyInRawProducts": true,
+  "apiWorkerValidatorLogsScanned": true
+}

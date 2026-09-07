@@ -706,7 +706,7 @@ Implementation tasks:
 
 - [x] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls. Acceptance: **060.A4, 060.A5**. [Delivery and scoped browser evidence](proofs/SURV-060.md); full persona coverage and timeout/test-data acceptance remain open.
 - [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions. Acceptance: **060.A1, 060.A4**.
-- [ ] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
+- [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
 - [x] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis. Acceptance: **060.A5**. [Live preview, timeout and stored analysis proof](proofs/SURV-060.md#preview-isolation-and-timeout-snapshot-acceptance).
 
 Test implementation and verification tasks:
@@ -717,7 +717,7 @@ Test implementation and verification tasks:
 Acceptance criteria:
 
 - [ ] **060.A1 — Integration:** persona/resource matrix rejects foreign survey IDs, unauthorized transitions and unauthorized list/count/data access; anonymous responses have no CRM/order association.
-- [ ] **060.A2 — Integration:** invitation retries do not create duplicate logical invitations; revoked/expired access is rejected, and credentials are absent from response exports and captured application logs.
+- [x] **060.A2 — Integration:** invitation retries do not create duplicate logical invitations; revoked/expired access is rejected, and credentials are absent from response exports and captured application logs. [Live export/log and expired-resume evidence](proofs/SURV-060.md#invitation-credential-and-expired-resume-acceptance).
 - [x] **060.A3 — E2E:** authorized member sends a test invitation, retrieves it from Mailpit and completes the real linked survey; a revoked invitation no longer grants access. [Live invitation evidence](proofs/SURV-060.md#personal-invitations).
 - [ ] **060.A4 — E2E:** action-scoped and standalone personas see only permitted operations; direct navigation and direct API calls cannot bypass hidden controls.
 - [x] **060.A5 — E2E:** change the timeout through the backend UI and verify its effect on a new participation; existing participations retain their effective setting and test responses remain excluded from production analysis. [Browser and PostgreSQL evidence](proofs/SURV-060.md#preview-isolation-and-timeout-snapshot-acceptance).

@@ -425,6 +425,23 @@ fi
 if [ "$mode" = invitations ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/invitations.py verify
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitation_privacy_live.py
+  compose logs --no-color api worker survey-validator > "$proof/invitation-logs.txt"
+  python3 - "$proof" <<'PYSCAN'
+import json
+import sys
+from pathlib import Path
+proof = Path(sys.argv[1])
+logs = (proof / "invitation-logs.txt").read_text()
+assert "http.request.completed" in logs
+assert all(marker not in logs for marker in json.loads((proof / "invitation-private-markers.json").read_text())), "Sensitive invitation marker in application logs"
+result = json.loads((proof / "invitation-privacy-proof.json").read_text())
+result["apiWorkerValidatorLogsScanned"] = True
+(proof / "invitation-privacy-proof.json").write_text(json.dumps(result, indent=2) + "\n")
+print("PASS: invitation application logs omit credentials and answer markers")
+PYSCAN
+  cp "$proof/invitation-privacy-proof.json" "$artifact/"
 fi
 if [ "$mode" = lifecycle ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
