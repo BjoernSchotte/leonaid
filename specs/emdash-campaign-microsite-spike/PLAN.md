@@ -123,6 +123,10 @@ contract name, not permission to expose this endpoint on the internet.
       host ports and removed all its owned containers, networks and volumes.
       This closes the isolated order-transport gate, not production activation,
       key rotation/recovery, load limits or the remaining full-spike gates.
+      Full `./leonaid check` passed on `c548400`: 249 Python source files,
+      210 unit tests, 24 public and 46 campaign Astro files with zero diagnostics,
+      and all API/schema, formatting, dependency and privacy/CI gates. The
+      working tree remained unchanged; existing upstream warnings remain.
 
 ### 2.2 Preserve the LeonAid frontend shell; do not embed EmDash in an iframe
 
