@@ -1572,6 +1572,9 @@ Dependencies: EMS-030 successful
       fixture does not remove that existing positive isolation case. That failed
       stack was also removed. Pagination (native page size 100), full two-actor
       browser workflows, accessibility, public delivery and recovery remain open.
+      Post-commit `./leonaid check` passed at `4799abc`: 208 unit tests, 242
+      Python source checks, 38 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [x] Prove native FAQ and partner add, keyboard reorder and removal with
       autosave/reload persistence in Chromium, Firefox and WebKit. The narrow
       exact-source client patch retains native repeater state and mutations,
