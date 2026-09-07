@@ -45,12 +45,16 @@ jobs:
       - name: Execute the complete group twice with fresh owned service state
         env:
           SURVEY_GATE_GROUP: ${{ matrix.group }}
-        run: ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
+        # Proofs contain credentials and remain mode 0600. Linux bind mounts
+        # preserve container-root ownership; the controller must share that UID.
+        run: |
+          sudo git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sudo ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
       - name: Collect bounded diagnostic metadata
         if: always()
         run: |
           python3 tools/surveys/ci_diagnostics_test.py
-          python3 tools/surveys/ci_diagnostics.py .
+          sudo python3 tools/surveys/ci_diagnostics.py .
       - name: Publish structured results only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

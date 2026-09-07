@@ -1,0 +1,66 @@
+{
+  "syntheticOnly": true,
+  "suites": [
+    {
+      "suite": "core/test.sh",
+      "exitCode": 0,
+      "seconds": 173.077,
+      "project": "leonaid-poc020-test-833458328-85582",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "schema/test.sh",
+      "exitCode": 0,
+      "seconds": 70.726,
+      "project": "leonaid-poc021-test-833458328-86528",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "outbox/test.sh",
+      "exitCode": 0,
+      "seconds": 114.313,
+      "project": "leonaid-poc022-test-833458328-86958",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "openapi/test.sh",
+      "exitCode": 0,
+      "seconds": 178.045,
+      "project": "leonaid-poc023-test-833458328-87786",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "twenty/test.sh",
+      "exitCode": 0,
+      "seconds": 207.85,
+      "project": "leonaid-poc030-test-833458328-88647",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "twenty/gateway_test.sh",
+      "exitCode": 0,
+      "seconds": 271.69,
+      "project": "leonaid-poc031-test-833458328-89844",
+      "independentCleanupVerified": true
+    },
+    {
+      "suite": "twenty/import_test.sh",
+      "exitCode": 0,
+      "seconds": 193.392,
+      "project": "leonaid-poc033-test-833458328-91176",
+      "independentCleanupVerified": true
+    }
+  ],
+  "sourceHashes": {
+    "tools/testing/reserve_compose_networks.py": "50ad24edd36753f627d1c8db836cc381875af5e8863404603c07c14cfc58a527",
+    "tools/testing/network_reservation_live.py": "c232a7fdea97a51a84c13839181cb54ac7188aa6f409bb219ff5a65ba671bb60",
+    "tools/testing/regression_isolation_test.py": "b50451e9786e7233fcf2ae8a70a9959987f6e966425abf792f3b4f10778e400d",
+    "tools/core/test.sh": "eb284ef8e220425a5d4504bdbd7d20aea229cd8cc86ae5826508f37fd350d3ab",
+    "tools/schema/test.sh": "e9e3378497f612404ba3e49e64237c4bf0292ea3c1e81ee78fcef16b32bc3b60",
+    "tools/outbox/test.sh": "49443e358a18cbb501d5d68efcc3499ceb601d95d35744a04fddbcaa66433edb",
+    "tools/openapi/test.sh": "2a6355ae16f17de4a89519b165a3241b6d3f8ad9b11b596e6099d061b5c7ebfe",
+    "tools/twenty/test.sh": "f263d542ac1992a95e75b693f908a8f91fdb81f9e0546be28dd031a2c33bcac3",
+    "tools/twenty/gateway_test.sh": "bd88714e92cd1d6c88397ae6fb3faa9ad2b0d4ac05da79b65052ede55872b5ad",
+    "tools/twenty/import_test.sh": "cd7ed854c49d6e2eec497de5c1f096c78d08781e556579f92b7cba920a8a0841"
+  }
+}

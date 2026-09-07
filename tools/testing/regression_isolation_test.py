@@ -28,7 +28,20 @@ if mode == kind:
 class RegressionIsolationTests(unittest.TestCase):
     def test_collision_and_inventory_failure_do_not_clean_other_resources(self):
         root = Path(__file__).resolve().parents[2]
-        for suite in ("compose", "identity", "policy", "public_actions", "public_orders"):
+        for suite in (
+            "compose/test.sh",
+            "core/test.sh",
+            "schema/test.sh",
+            "outbox/test.sh",
+            "openapi/test.sh",
+            "twenty/test.sh",
+            "twenty/gateway_test.sh",
+            "twenty/import_test.sh",
+            "identity/test.sh",
+            "policy/test.sh",
+            "public_actions/test.sh",
+            "public_orders/test.sh",
+        ):
             for case in ("containers", "volumes", "networks", "inventory-error"):
                 with (
                     self.subTest(suite=suite, case=case),
@@ -40,7 +53,7 @@ class RegressionIsolationTests(unittest.TestCase):
                     docker.chmod(0o700)
                     calls = temporary / "calls.jsonl"
                     result = subprocess.run(
-                        ["sh", str(root / "tools" / suite / "test.sh"), str(root)],
+                        ["sh", str(root / "tools" / suite), str(root)],
                         env={
                             **os.environ,
                             "PATH": str(temporary) + os.pathsep + os.environ["PATH"],

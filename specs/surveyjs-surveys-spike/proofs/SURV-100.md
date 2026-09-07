@@ -405,3 +405,61 @@ location output without raw messages or private values. The workflow publishes
 that separate metadata on subsequent runs. This improves failure investigation;
 it does not convert either failed run or the local in-progress aggregate to an
 accepted gate. The new metadata must be inspected from the next actual run.
+
+
+### Linux CI proof ownership correction (verification pending)
+
+Run `34156132726` at `478b60f` completed with all eight groups failing;
+every group exposed the bounded `permission-denied` marker. The infrastructure
+harness creates `session.env` as container root with mode 0600, then the host
+Docker client reads it for `--env-file`. On a Linux runner the unprivileged
+controller cannot read that bind-mounted file. Root-created result directories
+also cross this ownership boundary during host cleanup. Docker Desktop file
+sharing did not expose this Linux ownership mismatch in the local successful runs.
+
+A real pinned Linux Python container reproduced a UID-1001 read failure for a
+root-owned 0600 synthetic proof, while its owning controller read the same file
+without changing permissions. The first probe lacked SETUID/SETGID and failed
+before the read; the corrected probe enabled only those two capabilities and
+passed. The CI aggregate and bounded collector now run with the proof owner's
+UID on the disposable runner. Only the exact checkout is added to root Git's
+safe-directory list, so commit identity and public-file enumeration still work.
+Application service identities and proof permissions are unchanged. This is a
+source-grounded correction for a reproduced ownership boundary, not a claim that
+it explains every remote failure. A new actual CI run must confirm the result;
+**100.1 / 100.A1 remain open**.
+
+
+## Reserved networks and seven backend regressions
+
+The seven existing suites now use checkout/PID-specific projects, explicit
+subnets, no published ports, inventory checks before mutation and cleanup that
+fails if owned resources remain. The original assertions are preserved.
+Merely selecting currently free subnets proved insufficient: the first isolated
+Twenty run failed when its deferred telemetry network collided with a concurrent
+run. Its owned resources were removed and independently verified absent.
+
+The new reservation helper creates every configured owned network before service
+startup, preserving Compose labels and internal-network flags. Docker itself
+arbitrates each allocation; occupied subnets are retried with other candidates.
+It validates the entire configuration before creating anything and rejects
+foreign names. Schema's intentional database reset re-reserves its owned networks.
+A real Docker proof occupied the proposed subnet first, verified two collision
+recoveries, unchanged blocker identity/subnet, internal flags, distinct allocated
+subnets and exact owned cleanup. A foreign-name configuration was rejected
+without creation. All 48 collision/unreadable-inventory guard cases across the
+twelve adapted harnesses pass. Those process-boundary fixtures do not substitute
+for the real Docker/service evidence.
+
+All seven full suites then exited **0**, sequentially, with seven networks
+reserved before service startup: core, schema, outbox, OpenAPI, Twenty metadata,
+CRM gateway and CRM import. The gateway stopped Twenty for real, verified safe
+errors, restarted it and checked persisted data. Metadata provisioning was
+idempotent and detected deliberate drift; the golden XLSX import exercised dry
+run, controlled create/update, repeat execution and idempotency. A separate Docker
+inventory after completion verified zero owned containers, volumes and networks
+for every project. [Result durations, project IDs and tested source hashes](assets/SURV-100-backend-regressions.json) record the evidence.
+
+This accepts **100.3e / 100.S2d**, seven additional legacy regression suites.
+It does not accept the remaining legacy suites, full aggregate, actual CI lane
+or broader **100.A3**. No browser coverage is inferred from these CLI/API tests.

@@ -5,11 +5,14 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=leonaid-poc030-test
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=leonaid-poc030-test-$suffix
+owned=false
 port=18083
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
 proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
 
@@ -25,6 +28,7 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --file "$isolation_file" \
     "$@"
 }
 
@@ -35,15 +39,40 @@ diagnose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "twenty-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
+
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 
 run_tool() {
   compose run --rm --no-deps \
@@ -57,7 +86,6 @@ run_tool() {
     api tools/twenty/provision.py "$@"
 }
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose build api
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 

@@ -3,7 +3,11 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(CDPATH= cd -- "$root" && pwd)
-project=leonaid-poc022-test
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=leonaid-poc022-test-$suffix
+owned=false
+proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 mail_event_id=f3000000-0000-4000-8000-000000000001
@@ -13,6 +17,7 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --file "$isolation_file" \
     --profile dev-mail \
     "$@"
 }
@@ -31,11 +36,37 @@ outbox_cli() {
 }
 
 cleanup() {
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  status=$?
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  rm -rf "$proof"
+  exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-cleanup
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 compose build api worker
 compose up --detach --wait --wait-timeout 120 core-postgres mailpit
 compose run --rm --no-deps api alembic upgrade head

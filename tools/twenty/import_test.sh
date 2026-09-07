@@ -4,7 +4,9 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 
-project=${LEONAID_CRM_IMPORT_TEST_PROJECT:-leonaid-poc033-test}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_CRM_IMPORT_TEST_PROJECT:-leonaid-poc033-test}-$suffix
+owned=false
 port=18085
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
@@ -12,6 +14,7 @@ fixture="$root/tests/fixtures/golden/v1"
 workbook_host="$fixture/outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx"
 workbook_container="/repo/tests/fixtures/golden/v1/outputs/019f9a37-b6da-7521-b590-ec1e8215a6bf/leonaid-crm-import.xlsx"
 proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
 
@@ -31,6 +34,7 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --file "$isolation_file" \
     "$@"
 }
 
@@ -41,15 +45,40 @@ diagnose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "crm-import-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
+
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 
 run_python() {
   compose run --rm --no-deps \
@@ -78,7 +107,6 @@ provision() {
     --snapshot-output /proof/schema.json
 }
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose build api
 echo "crm-import-test: wartet auf die TCP-Bereitschaft von Postgres und Redis"
 compose up --detach --wait --wait-timeout 180 twenty-postgres twenty-redis
