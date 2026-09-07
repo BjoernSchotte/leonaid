@@ -3095,7 +3095,7 @@ Dependencies: EMS-050, EMS-070
         formatting and repository policy gates; committed source was unchanged.
   - [x] Embed the CMS source identity in the actual campaign image and provide
         a read-only pre-activation comparison. `./leonaid test-emdash-spike
-    --case release-image-identity` built the real campaign Dockerfile and
+--case release-image-identity` built the real campaign Dockerfile and
         exited zero. A separate pinned Python build stage recomputed the exact
         CMS identity; only its JSON result enters the final Node image. The
         inventory now also binds the generator/verifier source (nineteen source
@@ -3201,6 +3201,10 @@ Dependencies: EMS-050, EMS-070
         The parent gate remains open for automatic matching recovery-point
         approval, external-writer coordination, successor binary upgrades,
         release activation and restore-based rollback preserving later orders.
+        Full `./leonaid check` passed on source commit `32cd3a4`: 256 unit
+        tests, 266 Python files typechecked, both release contracts, both Astro
+        applications (25/49 files, zero diagnostics), frontend typechecks,
+        formatting and repository policy gates; committed source was unchanged.
 
 Verification:
 
