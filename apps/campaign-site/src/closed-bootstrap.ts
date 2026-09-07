@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { cmsMaintenanceClosed } from "./cms-maintenance.mjs";
 import { withEmDashRuntime } from "emdash/middleware";
 import {
   PublicCampaignError,
@@ -41,6 +42,12 @@ export const onRequest = defineMiddleware(
     const headers = { "Cache-Control": "no-store" };
     if (url.pathname === "/health/live") {
       return new Response("ok", { headers });
+    }
+    if (await cmsMaintenanceClosed()) {
+      return new Response("CMS temporarily unavailable", {
+        status: 503,
+        headers: { ...headers, "Retry-After": "60" },
+      });
     }
     if (url.pathname === "/health/ready") {
       const ready = await databaseReady();

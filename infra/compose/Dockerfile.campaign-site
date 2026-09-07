@@ -41,6 +41,8 @@ WORKDIR /app
 COPY --from=release-identity /identity/cms-release-identity.json ./cms-release-identity.json
 COPY --from=runtime-dependencies /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/campaign-site/dist ./dist
+COPY --from=build /workspace/apps/campaign-site/src/cms-maintenance.mjs /workspace/apps/campaign-site/src/cms-migration-operator.mjs /workspace/apps/campaign-site/src/campaign-schema.mjs /workspace/apps/campaign-site/src/install-campaign-schema.mjs ./operator/
+COPY --from=build /workspace/apps/campaign-site/src/auth/campaign-bindings.mjs /workspace/apps/campaign-site/src/auth/campaign-media.mjs ./operator/auth/
 ENV HOST=0.0.0.0
 ENV PORT=3000
 ENV NODE_ENV=production

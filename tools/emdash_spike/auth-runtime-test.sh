@@ -14,8 +14,13 @@ if [ "$recovery:$orders" = true:true ]; then
   EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
   export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
 fi
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http|alias-browser) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|migration-operator|alias-http|alias-browser) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
+if [ "$mode" = migration-operator ]; then
+  # Parse-only placeholder, replaced by verified built CMS ID before use.
+  LEONAID_CMS_MIGRATION_IMAGE=$NODE_IMAGE
+  export LEONAID_CMS_MIGRATION_IMAGE
+fi
 if [ "$mode" = alias-http ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun test tools/emdash_spike/campaign-redirect-unit.test.ts
@@ -78,6 +83,9 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$mode" = migration-operator ]; then
+    set -- --file "$root/infra/emdash-spike/migration-operator.yml" "$@"
+  fi
   if [ "$recovery:$orders" = true:true ]; then
     set -- --file "$root/infra/emdash-spike/recovery-orders.test.yml" "$@"
   fi
@@ -170,6 +178,18 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     assert.equal(services["orders-operator"].environment.TWENTY_BASE_URL,"http://twenty-server:3000");
   }
   assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
+  const migrationOperator=services["cms-migration-operator"];
+  if(migrationOperator) {
+    assert.deepEqual(Object.keys(migrationOperator.environment).sort(),["PGDATABASE","PGHOST","PGPASSWORD","PGUSER"]);
+    assert.equal(migrationOperator.environment.PGUSER,"emdash");
+    assert.equal(migrationOperator.environment.PGDATABASE,"emdash");
+    assert.deepEqual(Object.keys(migrationOperator.networks),["cms-data"]);
+    assert.equal(migrationOperator.read_only,true);
+    assert.ok(!migrationOperator.ports?.length);
+    assert.equal(migrationOperator.volumes.length,1);
+    assert.equal(migrationOperator.volumes[0].type,"volume");
+    assert.equal(migrationOperator.volumes[0].target,"/app/bootstrap-state");
+  }
   const importer=services["krapfentaxi-import-probe"];
   if(importer) {
     assert.ok(!importer.ports?.length);
@@ -198,6 +218,10 @@ probe() {
 }
 fixture /repo/tools/seed/golden.py seed-core /repo/tests/fixtures/golden/v1
 fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare /proof/sessions.json
+if [ "$mode" = migration-operator ]; then
+  . "$root/tools/emdash_spike/migration-operator-phase.sh"
+  exit 0
+fi
 if [ "$mode" = order-component ] || [ "$mode" = public-http ]; then
   fixture /repo/tools/emdash_spike/core_order_proxy_proof.py
   LEONAID_ORDER_SUBMISSION_KEY= compose up --no-deps --detach --wait api

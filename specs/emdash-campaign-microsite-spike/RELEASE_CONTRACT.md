@@ -104,3 +104,55 @@ The SQL recovery test proves six additional drift refusals, unchanged drifted
 values after verification, and full source-row/sequence equality after each
 fresh re-restore. This verifies the selected schema contracts and migration
 ledger, not an arbitrary upstream physical-DDL audit or a successor upgrade.
+
+## Closed-traffic editorial migration controller
+
+`tools/pilot_release/migrate-cms.sh` takes the checkout root, explicit Compose
+project, CMS image reference, one operation (`verify`, `upgrade-v1` or
+`upgrade-v2`), and the deployment's ordered absolute Compose file paths. It adds
+`infra/emdash-spike/migration-operator.yml` last. It uses `LEONAID_ENV_FILE` or
+the checkout's `.env.local`; it never prints rendered configuration or secrets.
+
+Before invoking an upgrade, the operator must obtain and verify the matching
+CMS SQL/media/key/image recovery point and coordinate all external writers.
+This controller does not yet automate that release/backup approval boundary.
+Do not treat it as a complete deployment or rollback command.
+
+The controller verifies the image's embedded identity against the checkout,
+resolves it once to an immutable local image ID and requires the existing CMS
+container to use that same image. This deliberately refuses an unreviewed older
+runtime without the durable traffic gate. Selecting a successor EmDash binary
+and proving rollback are separate, still-open gates.
+
+An atomic, project-named Docker lock prevents concurrent controllers. A killed
+controller's leftover lock requires explicit operator inspection; there is no
+automatic lock stealing. The image-owned `close` operation creates an empty
+0700 `cms-maintenance` directory in the shared bootstrap-state volume. All CMS
+middleware requests except liveness then return non-cacheable 503 responses.
+The controller stops only the CMS container to terminate requests that entered
+before closure, then runs the selected one-shot migration. Core is not stopped.
+
+The migration image runs non-root, read-only, without capabilities, and receives
+only the CMS database credential and bootstrap volume on `cms-data`. It has no
+Core/Twenty/order credential, storage credential, repository or Docker socket.
+A pinned PostgreSQL session holds a separate nonblocking advisory lock across
+preflight, the installer's transaction and final verification. Exact upstream
+migration names and existing binding/media guards must match before editorial
+DDL; no upstream package migration, implicit installation or repair is allowed.
+
+Both success and failure leave CMS stopped and the durable gate closed. Even
+an independent restart of the reviewed image cannot reopen traffic. There is
+intentionally no automatic gate removal: activation remains subject to the
+full release/recovery acceptance boundary. Backup manifests allow only this
+optional empty 0700 directory alongside completed bootstrap state; links,
+children, duplicate entries and different permissions are rejected. Restore
+preserves the marker rather than interpreting a backup as permission to open.
+
+`./leonaid test-emdash-spike --case migration-operator` runs the controller with
+the actual built image, PostgreSQL and real Core in a fresh portless Docker
+project. It proves mid-DDL rollback, competing-lock refusal, explicit v2-to-v3
+upgrade, repeated verification/upgrade, content/draft/revision preservation,
+and restart-resistant HTTP closure. Real Core identity/role checks and its SQL
+probe remain available, including while the CMS migration lock is held.
+Twenty/RustFS are intentionally absent in this focused proof; aggregate Core
+dependency readiness and complete ordering are not claimed by this case.

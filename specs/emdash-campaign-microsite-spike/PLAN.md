@@ -3095,7 +3095,7 @@ Dependencies: EMS-050, EMS-070
         formatting and repository policy gates; committed source was unchanged.
   - [x] Embed the CMS source identity in the actual campaign image and provide
         a read-only pre-activation comparison. `./leonaid test-emdash-spike
-        --case release-image-identity` built the real campaign Dockerfile and
+    --case release-image-identity` built the real campaign Dockerfile and
         exited zero. A separate pinned Python build stage recomputed the exact
         CMS identity; only its JSON result enters the final Node image. The
         inventory now also binds the generator/verifier source (nineteen source
@@ -3171,6 +3171,36 @@ Dependencies: EMS-050, EMS-070
       Migration failure leaves existing Core services available and CMS traffic
       disabled. Tie restore-based rollback to the matching prior CMS image,
       encryption key, SQL and media recovery point; preserve later Core orders.
+  - [x] Ship and live-prove the closed-traffic editorial migration controller
+        under the verified current CMS image. `migrate-cms.sh` selects an
+        explicit project/Compose stack, checks the image identity and existing
+        container, acquires an atomic project controller lock, installs a
+        durable close-only CMS maintenance marker and stops only CMS before
+        the image-owned one-shot operator executes. The operator receives only
+        CMS SQL credentials, the bootstrap volume and `cms-data`; no repository,
+        Docker socket, Core/order/Twenty credentials or storage credentials.
+        A pinned PostgreSQL session exclusively locks preflight, explicit
+        editorial migration and final verification. Unknown/pending upstream
+        migrations and unrelated binding/media drift are refused, not repaired.
+        `./leonaid test-emdash-spike --case migration-operator` passed in fresh
+        isolated project `leonaid-emdash-tmp-kr6pkldmvu` with the actual built
+        image, PostgreSQL and Core. An injected failure on the second new field
+        rolled back all added columns and preserved published/draft/revision
+        data. A real competing database lock denied the operator; releasing it
+        allowed the explicit v2-to-v3 upgrade, repeat upgrade and verification.
+        Deliberate CMS restarts after failure and success retained non-cacheable
+        503 closure for content, editor, setup, order and readiness routes.
+        Real Core identity/role checks and its SQL probe remained available,
+        including while the CMS lock was held; the Core container was unchanged.
+        Twenty/RustFS were not started, so aggregate dependency readiness and
+        ordering are not claimed by this focused proof. All owned test resources
+        were removed; no host ports or production activation were used.
+        The real-file backup manifest test also passed: the optional empty 0700
+        maintenance directory survives the actual tar extraction path, while
+        links, files, children, duplicate entries and wrong permissions fail.
+        The parent gate remains open for automatic matching recovery-point
+        approval, external-writer coordination, successor binary upgrades,
+        release activation and restore-based rollback preserving later orders.
 
 Verification:
 

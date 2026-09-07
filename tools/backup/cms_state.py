@@ -36,10 +36,22 @@ def verify_bootstrap_archive(path: Path) -> None:
                 raise CmsStateError("cms_bootstrap_archive_invalid")
             archive = stack.enter_context(tarfile.open(fileobj=source, mode="r:"))
             for member in archive:
-                if len(seen) >= 2 or member.name in seen:
+                canonical = member.name.removeprefix("./").removesuffix("/")
+                if len(seen) >= 3 or canonical in seen:
                     raise CmsStateError("cms_bootstrap_archive_invalid")
-                seen.add(member.name)
+                seen.add(canonical)
                 if member.name in {".", "./"} and member.isdir():
+                    continue
+                if member.name in {
+                    "cms-maintenance",
+                    "./cms-maintenance",
+                    "cms-maintenance/",
+                    "./cms-maintenance/",
+                }:
+                    if not member.isdir() or member.mode != 0o700 or member.size:
+                        raise CmsStateError("cms_bootstrap_archive_invalid")
+                    # Retain this optional EMPTY close-only marker on restore.
+                    # No additional file, child, link or open-state is accepted.
                     continue
                 if (
                     member.name not in {"state.json", "./state.json"}

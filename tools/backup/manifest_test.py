@@ -361,6 +361,61 @@ def main() -> None:
             )
             assert not (directory / "manifest.json").exists()
 
+    for fault in (None, "link", "file", "permissions", "child", "duplicate"):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            write_backup(directory, project, version=2)
+            archive_path = directory / "cms-bootstrap-state.tar"
+            with tarfile.open(archive_path, "a") as archive:
+                member = tarfile.TarInfo("./cms-maintenance")
+                member.type = tarfile.DIRTYPE
+                member.mode = 0o700
+                if fault == "link":
+                    member.type = tarfile.SYMTYPE
+                    member.linkname = "/outside"
+                elif fault == "file":
+                    member.type = tarfile.REGTYPE
+                elif fault == "permissions":
+                    member.mode = 0o777
+                archive.addfile(member)
+                if fault in {"child", "duplicate"}:
+                    member.name = (
+                        "./cms-maintenance/extra"
+                        if fault == "child"
+                        else "cms-maintenance/"
+                    )
+                    archive.addfile(member)
+            (directory / "manifest.json").unlink()
+            if fault is None:
+                create(
+                    directory,
+                    source_project=project,
+                    topology="emdash",
+                    encryption_key=SYNTHETIC_KEY,
+                )
+                verify(directory, source_project=project, topology="emdash")
+                restored = directory / "restored"
+                restored.mkdir()
+                # The restore operator uses tar, whose directory mode handling
+                # differs from Python's data extraction filter.
+                subprocess.run(
+                    ["tar", "-C", str(restored), "-xf", str(archive_path)],
+                    check=True,
+                )
+                assert (restored / "cms-maintenance").is_dir()
+                assert not list((restored / "cms-maintenance").iterdir())
+                assert (restored / "cms-maintenance").stat().st_mode & 0o777 == 0o700
+            else:
+                rejected(
+                    f"unsafe maintenance marker {fault}",
+                    lambda: create(
+                        directory,
+                        source_project=project,
+                        topology="emdash",
+                        encryption_key=SYNTHETIC_KEY,
+                    ),
+                )
+
     print(
         "backup-manifest-test: OK: explicit legacy/CMS topology, exact v1/v2 inventories, missing/corrupt parts, unsupported versions and symlink denial proved with real files"
     )
