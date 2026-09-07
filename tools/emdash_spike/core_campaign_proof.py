@@ -11,6 +11,7 @@ import httpx
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.application.actions import CharityActionService, PublicActionAvailability
 from leonaid.application.errors import ResourceNotFound
+from tools.emdash_spike.core_campaign_order_proof import prove_order_token
 
 
 async def main() -> None:
@@ -75,6 +76,7 @@ async def main() -> None:
                 assert payload["availability"] == "published"
                 assert payload["action"]["id"] == str(action.id)
                 assert "set-cookie" not in current.headers
+                await prove_order_token(client, pool, payload)
                 if payload["submissionsAllowed"]:
                     assert payload["orderAlias"] == management.public_alias.value
                     assert payload["action"]["orderForm"]["accessToken"]

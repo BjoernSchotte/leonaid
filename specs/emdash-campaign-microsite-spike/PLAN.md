@@ -1932,6 +1932,21 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Verify the HTTP-issued campaign token with the real Core codec and make
+      the positive form fixture mandatory. The signature binds the expected
+      action ID and current order alias, not the stable campaign slug; the
+      codec rejects the wrong alias and a corrupted token. In the deliberately
+      CRM-unconfigured fixture, the actual order endpoint returns 503 with
+      `public_order_crm_unavailable` and leaves commitments unchanged.
+      `campaign-core-public` passed in `leonaid-emdash-tmp-wonse17q7r`, including
+      existing PostgreSQL/HTTP publication and legacy-route checks; owned Docker
+      resources were removed and no host ports exposed. Initial attempts to
+      reach the honeypot returned 503 because Core does not construct its order
+      service without CRM configuration. This is codec-binding and dependency
+      rejection evidence, NOT HTTP token redemption or successful ordering.
+      Prove those separately with an actual isolated Twenty-enabled stack;
+      do not substitute fake CRM credentials or weaken the service boundary.
+
 - [x] Expose the active-campaign Core HTTP prerequisite at
       `/api/v1/public/actions/campaign/{archive_slug}` with a dedicated
       `PublicCampaignRouteResponse` and generated `resolvePublicCampaign` client.
