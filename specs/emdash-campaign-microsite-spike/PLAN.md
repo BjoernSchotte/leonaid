@@ -1477,6 +1477,24 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `66d2c9c`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
+- [x] Prove native Charity creation with images for three separate Core actions
+      in Chromium, Firefox and WebKit. Actual SMTP login follows the campaign
+      handoff to the prefilled new-page editor. The empty picker is scoped to
+      that action; native upload and hero/social selection work before a CMS
+      record exists. Uploading alone leaves the content list unchanged. Explicit
+      Save creates exactly one actor-attributed draft with both image references
+      and no live revision. A reload decodes both private previews; the handoff
+      then resolves to the new editor, and logout denies the uploaded file.
+      These synthetic Core actions remain drafts: this is creation/private-preview
+      evidence, not anonymous rendering or permission to publish an inactive Core
+      action. Rich-field editing, complete isolation, public delivery and all
+      remaining full-plan gates remain open.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-9svli0ygpf` with this
+      additional browser proof and all existing native image/search/recovery,
+      real TLS/media/reference, five database-wait/logout, storage failure/retry,
+      membership withdrawal, Core outage and bootstrap restart/database-failure
+      regressions. No host ports were published; all owned test resources were
+      removed after successful completion.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
