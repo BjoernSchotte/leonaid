@@ -3161,6 +3161,10 @@ Dependencies: EMS-050, EMS-070
         This closes the named application contract/migration-ledger preflight,
         not arbitrary upstream physical-DDL auditing, successor migration,
         complete release promotion or rollback with later Core orders.
+        Full `./leonaid check` passed on source commit `68cb878`: 256 unit
+        tests, 266 Python files typechecked, both release contracts, both Astro
+        applications (25/47 files, zero diagnostics), frontend typechecks,
+        formatting and repository policy gates; committed source was unchanged.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
