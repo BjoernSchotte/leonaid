@@ -2505,6 +2505,10 @@ keyboard and 200% zoom checks.
       This supersedes the prior pilot-validation-only limitation. It does not
       prove public ACME issuance, production activation, successful orders,
       committed-row invariance or exclusive internal caller authorization.
+      Quality gate: `./leonaid check` passed at `0d195cc`: 208 unit tests,
+      244 Python source files, 24 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 - [x] Add the public Core-order ingress deny prerequisite. Local, pilot and
       pilot-test Caddy API handlers use an explicit `route` block that returns
