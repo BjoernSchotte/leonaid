@@ -863,7 +863,7 @@ export function SurveysPage({
           {summary.status !== "deleted" && allowed("view_aggregates") && (
             <details className="surveys-settings">
               <summary>Antworten auswerten</summary>
-              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} />
+              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} canExportRaw={allowed("export_raw")} canExportReports={allowed("export_reports")} />
             </details>
           )}
           {summary.status !== "deleted" && allowed("read_responses") && (

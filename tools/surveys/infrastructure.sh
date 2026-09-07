@@ -94,6 +94,7 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = exports ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py prepare
@@ -146,6 +147,8 @@ mkdir -p "$artifact"
 if [ "$mode" = exports ]; then
   cp "$proof/survey-exports-proof.json" "$artifact/"
   cp "$proof/survey-worker-report.pdf" "$artifact/"
+  cp "$proof/survey-export-browser.json" "$artifact/"
+  cp "$proof/surveys-exports-mobile.png" "$artifact/"
 fi
 if [ "$mode" = analysis ]; then
   cp "$proof/survey-analysis-snapshot.json" "$artifact/"

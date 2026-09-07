@@ -1,0 +1,28 @@
+{
+  "downloads": [
+    {
+      "product": "analysis_xlsx",
+      "filename": "survey-3228d3ce-afba-487b-b22a-54fd2de4c7ec-analysis_xlsx.xlsx",
+      "bytes": 16362
+    },
+    {
+      "product": "analysis_pdf",
+      "filename": "survey-3228d3ce-afba-487b-b22a-54fd2de4c7ec-analysis.pdf",
+      "bytes": 33582
+    },
+    {
+      "product": "responses_csv",
+      "filename": "survey-3228d3ce-afba-487b-b22a-54fd2de4c7ec-responses.csv",
+      "bytes": 1457
+    },
+    {
+      "product": "responses_xlsx",
+      "filename": "survey-3228d3ce-afba-487b-b22a-54fd2de4c7ec-responses_xlsx.xlsx",
+      "bytes": 8491
+    }
+  ],
+  "sameOperationAfterLostAcknowledgement": true,
+  "sameSnapshotForAllProducts": true,
+  "fixture": "empty snapshot",
+  "mobileWidth": 390
+}

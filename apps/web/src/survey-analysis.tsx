@@ -11,6 +11,7 @@ import type {
   ResponseStatus,
 } from "@leonaid/surveys/contracts";
 import "@leonaid/surveys/analytics-styles";
+import { LeonAidSurveyExports } from "./survey-exports";
 
 const messages: AnalyticsMessages = {
   statusOverview:
@@ -57,10 +58,14 @@ export function SurveyAnalysis({
   client,
   surveyId,
   canTest,
+  canExportRaw,
+  canExportReports,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   canTest: boolean;
+  canExportRaw: boolean;
+  canExportReports: boolean;
 }) {
   const [versions, setVersions] = useState<{ id: string; number: number }[]>(
     [],
@@ -295,6 +300,13 @@ export function SurveyAnalysis({
             snapshot={snapshot}
             messages={messages}
             locale="de-DE"
+          />
+          <LeonAidSurveyExports
+            client={client}
+            surveyId={surveyId}
+            snapshotId={snapshot.id}
+            canExportRaw={canExportRaw}
+            canExportReports={canExportReports}
           />
         </>
       )}

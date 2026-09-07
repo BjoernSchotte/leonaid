@@ -271,3 +271,50 @@ contain missing percentages; Typst emits empty annotation arrays), and an edit
 temporarily misplaced the glyph function inside payload construction. The real
 render check caught that error; the final rerun and Mypy passed. Final Ruff,
 format checks and Mypy pass; no whole SURV-080 acceptance gate is closed here.
+# Export UI increment — empty snapshot and lost acknowledgement
+
+Implementation based on `08d4bfc`; the commit containing this section records
+the exact source revision. Own license remains UNDEFINED.
+
+- Added the neutral `@leonaid/surveys/exports` entrypoint and scoped export
+  styles. Host adapters supply authorization, credentials, translated messages
+  and filenames; the package imports no LeonAid services or UI components.
+- Connected all four formats to the displayed immutable analysis snapshot.
+  Each product shows queued/running/retrying/available/failed/revoked state.
+  A lost creation acknowledgement preserves the operation ID and request;
+  status polls stop on errors and can be resumed explicitly. Permission/access
+  rejection clears the affected job. Authenticated blob downloads use temporary
+  object URLs, with no response blob stored in React state or browser storage.
+- The member host supplies separate raw/report permissions. Full permission
+  persona coverage and export-only navigation remain open; UI hiding alone is
+  not acceptance evidence for authorization.
+
+Verification:
+
+- Pinned Bun container: `bunx --no-install tsc --noEmit -p apps/web/tsconfig.json`
+  exited 0. `git diff --check` passed.
+- `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports`
+  exited 0 in project `leonaid-surveys-833458328-45881`. No published host
+  ports; private project networks and volumes were removed and teardown checked.
+- Existing real API/outbox/worker/RustFS/Typst proof passed for all four products,
+  including snapshot values, cancellation, deletion and private storage checks.
+- Chromium: 2 tests passed in 10.3 seconds. The new named test in
+  `tests/e2e/surveys-exports.spec.mjs` creates/publishes a synthetic definition,
+  requests an empty analysis through the UI, creates/downloads every product,
+  checks file signatures and CSV snapshot metadata, and confirms all requests
+  use the displayed snapshot. Network fault injection commits the first real
+  export request before dropping its response; the UI retries the exact body.
+- At 390px viewport width, no horizontal page overflow was observed. The
+  rendered export panel was manually inspected: all four labels, statuses and
+  download buttons are readable with no clipping or overlap.
+- First attempt (`44808`) failed because the test read an analysis snapshot
+  fixture instead of a definition (HTTP 422). Corrected to `analysis-golden.json`
+  before the successful fresh-stack run. No product behavior was weakened.
+
+Evidence: [browser assertions](assets/SURV-080-browser-empty.json),
+[mobile panel](assets/SURV-080-browser-mobile.png).
+
+This is incremental evidence, not acceptance of 080.A4 or SURV-080. Remaining:
+populated-snapshot browser value comparisons, report-only/raw-denied and revoked
+download journeys, failed/retrying worker and storage recovery UI, independent
+packed export consumer, XLSX rendered-chart review, and remaining criteria below.

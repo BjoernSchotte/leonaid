@@ -168,7 +168,12 @@ export interface QuestionAggregate {
   unanswered: number;
   hidden: number;
   invalid: number;
-  counts: { value: JsonValue; label: string; count: number; percentage: number | null }[];
+  counts: {
+    value: JsonValue;
+    label: string;
+    count: number;
+    percentage: number | null;
+  }[];
   sum: number | null;
   mean: number | null;
   minimum: number | null;
@@ -206,7 +211,14 @@ export interface ExportJob {
   id: string;
   snapshotId: string;
   product: ExportProduct;
-  status: "queued" | "running" | "completed" | "failed" | "revoked";
+  status:
+    | "queued"
+    | "running"
+    | "retrying"
+    | "completed"
+    | "failed"
+    | "revoked";
+  filename?: string | null;
   error: SurveyError | null;
 }
 export interface AnalysisAdapter {
