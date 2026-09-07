@@ -500,3 +500,80 @@ UI controls, cross-survey child-ID substitution, invitation-revoke and deletion
 status special scopes, changing/expired memberships or disabled accounts, and the
 complete anonymous identity association audit. These remain part of the original
 parent work package and prevent a claim of full role/capability acceptance.
+
+
+## Publisher-only review and publication
+
+**060.2b / 060.S4a are accepted.** Baseline `6c3fca7` plus this commit's runtime,
+generated contract and test changes. While preparing the browser role matrix,
+source inspection showed that publication was available only inside a mounted
+editor. A member with `publish` but no `design` could end a survey but could not
+publish its draft through the UI. This increment fixes that concrete gap; the
+remaining full persona/resource/state matrix stays open under 060.2/A1/A4.
+
+GET `/publication` now authorizes the publish capability, validates the current
+candidate and returns its definition plus draft revision. The original draft
+routes retain design authorization. A new member review section is available for
+publish-only members in draft/active states. Its neutral `SurveyPublicationPreview`
+uses the existing MIT SurveyJS renderer and no persistence adapter. The host
+supplies the definition and orchestrates publication with a stable operation ID.
+The preview offers optional `de`/`en` locale without a LeonAid backend dependency.
+No package/dependency/license selection changed; own license remains UNDEFINED.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+rtk proxy sh tools/surveys/package.sh "$PWD"
+```
+
+Final full-stack project `leonaid-surveys-833458328-43237` exited **0**. The
+extended 56-pair API matrix includes the publication route and passed **127
+positive reads, 723 denied reads and 891 denied writes**, with the unchanged SQL
+fingerprint assertion before the browser fixture is created. The sanitized
+[SURV-060-publication-api.json](assets/SURV-060-publication-api.json)
+records these counts separately from the previous matrix baseline.
+
+Two Chromium tests passed in **3.5 s**, including
+`surveys-publisher.spec.mjs` at **390 × 844**:
+
+1. A publish-only member directly opens its granted survey. The review is visible;
+   the editor and design-time timeout controls are absent.
+2. Loading and completing the preview sends no public participation writes. A
+   direct draft-save request is rejected with 404.
+3. A separate design-only session saves revision two and is denied the publication
+   read route. Publishing the already reviewed revision one fails visibly, and
+   the survey remains draft.
+4. The publisher reloads the candidate and sees revision two's question title.
+   The test lets the publish request commit, then drops its acknowledgement.
+   Loading another candidate is disabled while that result is uncertain.
+5. Retrying sends exactly the same operation ID and expected revision two. The
+   server replays the result; the UI confirms publication and active status, and
+   reload retains the end-participation control without an editor.
+6. `publisher_verify.py` independently checks PostgreSQL: one version contains
+   exactly the reviewed question title, draft revision is three, survey is active
+   and no preview participation exists. The sanitized result is
+   [SURV-060-publisher.json](assets/SURV-060-publisher.json).
+
+The captured review region was manually inspected at the mobile viewport: the
+explanation, question/input and publication button are legible without clipping.
+This is a scoped visual observation, not the full theme/a11y matrix.
+
+![Publication-only mobile review](assets/SURV-060-publisher-mobile.png)
+
+The independent packed-consumer regression completed as
+`surveys-package-833458328-43496`, exit **0**. Dependency/font-notice and respondent
+bundle checks passed. Both initial consumer/editor tests passed (2 tests, 7.0 s),
+and both response/editor restoration tests passed after a real SQLite host restart
+(2 tests, 2.2 s). This validates existing independent consumers after the added
+export; it does not claim that the separate demo now exposes the new review UI.
+Both harnesses used separate owned resources, unused explicit subnets and no host
+ports, and verified teardown.
+
+Final web TypeScript, Mypy on both changed backend files, scoped Ruff/format,
+Prettier, shell syntax and diff whitespace checks passed. OpenAPI/client generation
+completed with the existing unrelated Pydantic alias warnings. The first runtime
+run (`...42584`) had already passed the matrix, two browsers (3.0 s) and SQL checks,
+but TypeScript rejected using the neutral `Draft` type for a generated API DTO.
+The state now uses `SurveyDraftResponse`; the final repeated run above includes
+that correction and the optional preview locale. All executing runs were terminal
+before source/test edits; unrestricted artifacts and private session fixtures were
+not committed.

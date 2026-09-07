@@ -2028,6 +2028,17 @@ export class LeonAidApiClient {
     );
   }
 
+  async getSurveyPublicationDraft(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<SurveyDraftResponse> {
+    return this.request<SurveyDraftResponse>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/publication`,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async publishSurvey(
     surveyId: string,
     body: Mutation,

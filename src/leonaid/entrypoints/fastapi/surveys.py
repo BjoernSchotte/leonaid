@@ -657,6 +657,18 @@ async def draft(
     return await author(request, survey_id, "draft", {})
 
 
+@router.get(
+    "/surveys/{survey_id}/publication",
+    operation_id="getSurveyPublicationDraft",
+    response_model=SurveyDraftResponse,
+)
+async def publication_draft(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "publication", {})
+
+
 @router.post(
     "/surveys/{survey_id}/draft/validate",
     operation_id="validateSurveyDraft",

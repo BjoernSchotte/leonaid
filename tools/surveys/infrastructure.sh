@@ -99,6 +99,9 @@ if [ "$mode" = permissions ]; then
   compose up --detach --wait --wait-timeout 60 worker
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = permissions ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs"
+fi
 state_worker_pid=""
 if [ "$mode" = export-limits ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -348,7 +351,11 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
 if [ "$mode" = permissions ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/publisher_verify.py
   cp "$proof/permissions-proof.json" "$artifact/"
+  cp "$proof/publisher-proof.json" "$artifact/"
+  cp "$proof/publisher-review-mobile.png" "$artifact/"
 fi
 if [ "$mode" = export-limits ]; then
   cp "$proof/export-limits-proof.json" "$artifact/"

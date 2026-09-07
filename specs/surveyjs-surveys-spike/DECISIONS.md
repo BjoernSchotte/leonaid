@@ -261,3 +261,20 @@ The worker checks up to 100 candidates per sweep, rechecks eligibility under the
 survey locks, skips busy rows, and catches up after restart. The existing sweep
 cadence is five seconds (shortened while draining full batches). Backup lifecycle
 and restoration of deletion records remain separate work under SURV-090.
+
+
+### Publication review without design permission
+
+The publish capability includes read-only access to the current validated draft
+through GET `/api/v1/surveys/{id}/publication`. The existing draft read/save and
+validation routes remain design-only. The new route returns the actual draft
+revision and definition after the existing capability-profile validation and
+uses `Cache-Control: no-store`; closed/deleted resources retain existing policy.
+
+A publication-only member can load that candidate, simulate its questions locally
+and publish exactly its revision. Changes since review cause the existing revision
+conflict. An uncertain acknowledgement retains the same operation ID and revision
+until replay confirms success; a conflict requires loading/reviewing again.
+The review adds no response-persistence adapter. LeonAid owns transport and
+publication orchestration; `SurveyPublicationPreview` is a neutral local renderer
+exported from the editor entry, with optional German/English locale.

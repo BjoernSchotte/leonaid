@@ -275,6 +275,7 @@ async def main():
                     assert set(summary["capabilities"]) == caps
                 reads = [
                     ("/draft", {"design"}),
+                    ("/publication", {"publish"}),
                     ("/analysis/versions", {"view_aggregates"}),
                     ("/analysis/" + snap, {"view_aggregates"}),
                     ("/response-selections/versions", {"read_responses"}),
@@ -421,6 +422,32 @@ async def main():
                         counts["deniedReads"] += 1
         assert await fingerprint() == before, (
             "Matrix requests changed persisted author state"
+        )
+        sid = uuid4()
+        await call(
+            "POST",
+            f"/api/v1/surveys/{sid}",
+            {
+                "operationId": "create",
+                "title": "Publisher-only review",
+                "definition": DEFINITION,
+            },
+        )
+        for cap in ["design", "publish"]:
+            await conn.execute(
+                "INSERT INTO survey_grant(survey_id,user_id,capability) VALUES($1,$2,$3)",
+                sid,
+                actors[cap]["id"],
+                cap,
+            )
+        Path("/proof/publisher-private.json").write_text(
+            json.dumps(
+                {
+                    "survey": str(sid),
+                    "publisher": actors["publish"]["token"],
+                    "designer": actors["design"]["token"],
+                }
+            )
         )
     await conn.close()
     Path("/proof/permissions-proof.json").write_text(

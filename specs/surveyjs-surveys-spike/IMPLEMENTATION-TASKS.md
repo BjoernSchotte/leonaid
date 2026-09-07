@@ -207,6 +207,12 @@ a substitute for completing an individual task.
   Integration: **060.S1a**, [live evidence](proofs/SURV-060.md#persona-resource-api-matrix).
   Parent 060.2 remains open for remaining route/state and browser coverage.
 
+- [x] **060.2b** Give publication-only members a validated publication review and submit action without granting draft editing. Bind publication to the reviewed revision and retain the exact operation after lost acknowledgement.
+
+  Acceptance criteria: **060.A1/A4, publisher-only portion**.
+  Integration/E2E: **060.S4a**, [live evidence](proofs/SURV-060.md#publisher-only-review-and-publication).
+  Parent 060.2 and full 060.A4 remain open.
+
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.

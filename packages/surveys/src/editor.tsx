@@ -1055,3 +1055,23 @@ export function SurveyEditor({
     </section>
   );
 }
+
+/** Local simulation for a host's publication review; never persists responses. */
+export function SurveyPublicationPreview({
+  definition,
+  locale = "de",
+}: {
+  definition: Record<string, unknown>;
+  locale?: "de" | "en";
+}) {
+  const model = useMemo(
+    () => createSurveyModel(definition, locale),
+    [definition, locale],
+  );
+  useEffect(() => () => model.dispose(), [model]);
+  return (
+    <div className="survey-editor survey-preview">
+      <Survey model={model} />
+    </div>
+  );
+}

@@ -9,9 +9,13 @@ import {
   type SurveyInvitationsResponse,
   type SurveyInvitationCreate,
   type SurveyDeletionResponse,
+  type SurveyDraftResponse,
 } from "@leonaid/api-client";
 import { Button } from "@leonaid/ui";
-import { SurveyEditor } from "@leonaid/surveys/editor";
+import {
+  SurveyEditor,
+  SurveyPublicationPreview,
+} from "@leonaid/surveys/editor";
 import type {
   AuthoringAdapter,
   Draft,
@@ -1167,6 +1171,16 @@ export function SurveysPage({
                 Dieser Antwortstand ist für Sie nicht zugänglich.
               </p>
             )}
+          {["draft", "active"].includes(summary.status) &&
+            allowed("publish") &&
+            !allowed("design") && (
+              <PublicationReview
+                key={summary.id}
+                client={client}
+                surveyId={summary.id}
+                onPublished={() => refresh(summary.id)}
+              />
+            )}
           {draft && (
             <SurveyEditor
               draft={draft}
@@ -1180,6 +1194,89 @@ export function SurveysPage({
               }}
             />
           )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PublicationReview({
+  client,
+  surveyId,
+  onPublished,
+}: {
+  client: LeonAidApiClient;
+  surveyId: string;
+  onPublished: () => Promise<void>;
+}) {
+  const [candidate, setCandidate] = useState<SurveyDraftResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const operation = useRef<{
+    operationId: string;
+    expectedRevision: number;
+  } | null>(null);
+  async function load() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      setCandidate(await client.getSurveyPublicationDraft(surveyId));
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function publish() {
+    if (!candidate) return;
+    operation.current ??= {
+      operationId: crypto.randomUUID(),
+      expectedRevision: candidate.revision,
+    };
+    setBusy(true);
+    setError("");
+    try {
+      await client.publishSurvey(surveyId, operation.current);
+      operation.current = null;
+      setCandidate(null);
+      setNotice("Der geprüfte Fragebogen wurde veröffentlicht.");
+      await onPublished();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        operation.current = null;
+        setCandidate(null);
+      }
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section aria-label="Veröffentlichung prüfen">
+      <h2>Fragebogen zur Veröffentlichung prüfen</h2>
+      <p>
+        Die Vorschau speichert keine Antworten. Veröffentlicht wird genau der
+        geladene Entwurfsstand.
+      </p>
+      {error && <p role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      <Button
+        variant="secondary"
+        disabled={busy || operation.current !== null}
+        onClick={() => void load()}
+      >
+        Aktuellen Entwurf prüfen
+      </Button>
+      {candidate && (
+        <>
+          <SurveyPublicationPreview definition={candidate.definition} />
+          <Button disabled={busy} onClick={() => void publish()}>
+            {operation.current
+              ? "Veröffentlichung erneut prüfen"
+              : "Veröffentlichen"}
+          </Button>
         </>
       )}
     </section>

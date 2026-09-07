@@ -436,7 +436,7 @@ class AsyncpgSurveyRepository:
                     raise ResourceNotFound("not_found", "Umfrage nicht gefunden.")
                 return {**survey_payload(survey), "capabilities": capabilities}
             if (
-                operation in {"publish", "schedule", "access"}
+                operation in {"publish", "publication", "schedule", "access"}
                 or operation == "transition"
                 and body["action"] == "end"
             ):
@@ -596,7 +596,7 @@ class AsyncpgSurveyRepository:
             if survey["ends_at"] and survey["ends_at"] <= datetime.now(timezone.utc):
                 if survey["status"] == "active" or operation == "publish":
                     raise Conflict("closed", "Das geplante Ende ist bereits erreicht.")
-            if operation in {"draft", "validate"}:
+            if operation in {"draft", "validate", "publication"}:
                 draft = await conn.fetchrow(
                     "SELECT * FROM survey_draft WHERE survey_id=$1", survey_id
                 )
@@ -606,6 +606,8 @@ class AsyncpgSurveyRepository:
                             "revision_conflict",
                             "Der Entwurf wurde zwischenzeitlich geändert.",
                         )
+                    validate_definition(json.loads(draft["definition"]))
+                if operation == "publication":
                     validate_definition(json.loads(draft["definition"]))
                 return {
                     "surveyId": str(survey_id),
