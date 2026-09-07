@@ -1,12 +1,13 @@
 #!/bin/sh
 # Sourced after the imported browser journeys or an explicitly interrupted import.
-if [ "$orders" = true ]; then
-  . "$root/tools/emdash_spike/recovery-orders-phase.sh"
-  recovery_orders_prepare
-fi
 if [ "$recovery_import" = false ]; then
   compose run --rm --no-deps admin-browser node \
     tools/emdash_spike/recovery-isolation-browser-proof.mjs --prepare
+  fixture /repo/tools/emdash_spike/recovery_aliases.py prepare
+fi
+if [ "$orders" = true ]; then
+  . "$root/tools/emdash_spike/recovery-orders-phase.sh"
+  recovery_orders_prepare
 fi
 if [ "$orders" = false ]; then
   compose up --detach --wait twenty-postgres
@@ -103,6 +104,9 @@ cms_container=$(compose ps --quiet campaign-site)
   exit 1
 }
 echo "recovery-image: actual restored CMS container runs exactly the verified immutable image"
+# The fresh isolated target has its own Caddy CA; HTTPS API probes must trust
+# that actual target certificate, never disable certificate verification.
+compose cp proxy:/data/caddy/pki/authorities/local/root.crt "$proof/root.crt"
 if [ "$recovery_import" = true ]; then
   compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe \
     bun tools/emdash_spike/import-recovery-proof.mjs
@@ -111,6 +115,7 @@ if [ "$recovery_import" = true ]; then
   echo "import-recovery: resumed restored journal and actual three-browser draft/edit/publish journeys passed; no production activation"
   return
 fi
+fixture /repo/tools/emdash_spike/recovery_aliases.py verify
 mkdir "$proof/recovery-control"
 recovery_authority_name="${project}-recovery-authority"
 compose run --rm --no-deps --name "$recovery_authority_name" \
@@ -125,4 +130,12 @@ recovery_authority_pid=
 compose run --rm --no-deps admin-browser node \
   tools/emdash_spike/recovery-isolation-browser-proof.mjs
 if [ "$orders" = true ]; then recovery_orders_verify; fi
+fixture /repo/tools/emdash_spike/recovery_aliases.py cleanup
+# Fresh restored volumes, no seed/reinstall: repeat the complete alias HTTP
+# authority, collision, reserved-path, concurrency, replay and revocation suite.
+fixture /repo/tools/emdash_spike/alias_http_proof.py
+if [ "$orders" = true ]; then
+  fixture /repo/tools/emdash_spike/campaign_orders_verify.py --before-recovery
+  fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+fi
 echo "recovery-app: restored Core login, campaign draft/public content and media rendered; no production activation"

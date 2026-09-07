@@ -46,6 +46,7 @@ Commands:
   test-emdash-spike --case schema-runtime
   test-emdash-spike --case schema-migration
   test-emdash-spike --case migration-operator
+  test-emdash-spike --case twenty-startup
   test-emdash-spike --case campaign-auth-race
   test-emdash-spike --case campaign-editorial-isolation
   test-emdash-spike --case campaign-media-binding

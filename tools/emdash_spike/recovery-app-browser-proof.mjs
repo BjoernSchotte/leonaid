@@ -44,7 +44,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   try {
     const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
     const visitor = await anonymous.newPage();
-    assert.equal((await visitor.goto(origin + path)).status(), 200);
+    const navigation = await visitor.goto(origin + "/recovery-enabled");
+    assert.equal(navigation.status(), 200);
+    assert.equal(visitor.url(), origin + path);
+    const redirected = navigation.request().redirectedFrom();
+    assert.ok(redirected && redirected.url() === origin + "/recovery-enabled");
+    assert.equal(redirected.redirectedFrom(), null);
     await expect(
       visitor.getByRole("heading", {
         name: "Published imported campaign webkit",

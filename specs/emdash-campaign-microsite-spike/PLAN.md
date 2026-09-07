@@ -3442,9 +3442,37 @@ Dependencies: EMS-030, EMS-050, EMS-070
         diagnostics, current generated contracts and all format/privacy/policy
         gates; the committed worktree remained unchanged. Existing dependency
         deprecation warnings remain.
-- [ ] Include alias state in backup, restore, and synthetic fixtures. Test
+- [x] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.
+      `./leonaid test-emdash-spike --case recovery-app` passed from source
+      `leonaid-poc112-tmp-ez7nj2cxmm` into fresh target
+      `leonaid-restore-tmp-ez7nj2cxmm`. Before the encrypted v2 Restic backup,
+      seven real Core HTTPS commands create enabled, disabled, reassigned and
+      deleted synthetic aliases. The restored alias rows, canonical targets,
+      Core publication state, alias command receipts and audit events match
+      the captured source exactly before new writes. Replaying all seven old
+      commands returns the original results without changing any captured row
+      or resurrecting a deleted alias. CA-verified GET/HEAD redirects and
+      mutation-method denial survive restoration; disabled/deleted aliases
+      remain inactive. A reassigned alias follows the second Core-published
+      campaign, but its unpublished CMS draft remains private behind 404.
+      Chromium, Firefox and WebKit enter the restored microsite through the
+      retained alias in exactly one redirect, then pass the complete restored
+      login/editor/media/current-membership and two-campaign isolation journey.
+      After removing only the synthetic retained aliases through Core commands,
+      the full existing `alias_http_proof.py` suite passes against the restored
+      volumes: roles, withdrawal, freshness, CSRF, reserved/unsafe names,
+      collisions, revisions, concurrent claims, replay, reassignment, primary
+      protection, logout, suspension and exact SQL/audit effects. Both owned
+      stacks were removed; no host ports, target seed or production activation.
+      The primary `/krapfentaxi` cutover and renderer/CMS rollback preserving
+      later orders remain EMS-085 requirements, not completed by this gate.
+      A combined order-recovery attempt failed during fresh Twenty startup
+      before backup, not during alias verification. The separate exact-topology
+      `twenty-startup` proof passed in `leonaid-emdash-tmp-ldpgumknpa`; the
+      combined post-alias order/recovery rerun remains required. Its diagnostic
+      helper emits only allowlisted error classes/codes, never raw startup logs.
 
 Verification (new case implemented by this task):
 
