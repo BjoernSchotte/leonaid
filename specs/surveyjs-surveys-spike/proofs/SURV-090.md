@@ -886,3 +886,106 @@ were used; no additional visual/print inspection is claimed for this regression.
 These complete the requested documented limit/log criteria; they do not constitute
 load testing, independent backup-checkpoint continuity, invitation-log acceptance
 under SURV-060, or the full cross-module SURV-100 gate.
+
+## Independent checkpoint archive and interrupted publication
+
+**090.2c / 090.S3a are accepted as the archive primitive portion of 090.A3.**
+Baseline `1cd1e89` plus this increment adds
+`src/leonaid/adapters/storage/survey_checkpoint_archive.py`, the `publish`/`fetch`
+operator commands and the optional `archive` mode of the actual Restic proof.
+No dependency, migration, checkpoint schema or license decision changes.
+
+The archive stores authenticated full checkpoints in an independently provisioned
+POSIX directory. A process lock serializes reads/publications. The publisher first
+durably records a pending candidate, then a content-addressed retained document,
+then current state, and finally clears the pending marker with directory fsync.
+It verifies the installation/key and preserves all current/pending erasure records
+without moving the cutoff backwards. Fetch rejects any pending publication, verifies
+the caller's installation and required cutoff and checks the matching retained bytes.
+It needs no database, object-storage service or network connection. Failed fetch does
+not overwrite an existing output file; callers must require exit zero.
+
+The first complete archive/Restic run, suffix `833458328-57015`, passed. A separate
+targeted corruption test then demonstrated that deleting current state could permit
+reinitialization from an older checkpoint while retained history still existed.
+The added guard now rejects that missing-current state. The final full run below
+includes that guard. The only subsequent adapter edit added the lock generator's
+return type annotation for strict Mypy; all targeted tests were rerun afterwards.
+
+### Process and filesystem checks
+
+```sh
+rtk proxy docker run --rm --network none -e PYTHONPATH=/workspace/src \
+  -v "$PWD:/workspace" -w /workspace \
+  ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e \
+  uv run --frozen --no-sync pytest -q \
+  tests/unit/test_survey_checkpoint_archive.py tests/unit/test_survey_recovery.py
+```
+
+**26 tests passed.** Besides the existing authenticated-envelope tests, the new suite
+uses real files and subprocess termination before pending publication, after pending
+fsync and after current-state fsync. It verifies stale-cutoff rejection, pending-state
+rejection even with an older supplied cutoff, safe retry, preserved known erasures,
+missing/tampered current files, missing retained bytes, wrong key/installation,
+symlink rejection, mode 600 and refusal to create a missing archive directory.
+The actual fetch CLI succeeds without `CORE_DATABASE_URL`; failed fetch preserves the
+existing output and emits a generic error without the seeded authentication key.
+The missing-current rollback regression now passes. Scoped Ruff and strict Mypy pass;
+shell syntax and diff whitespace checks pass.
+
+### Actual PostgreSQL, archive, Restic and fresh-target proof
+
+```sh
+rtk proxy sh tools/surveys/restic_recovery.sh "$PWD" archive
+```
+
+Final suffix **`833458328-58449`** exited **0**. The source and target use distinct
+project names, fresh volumes, explicitly selected unused subnets and no host ports.
+The archive is a third, separately owned named volume outside both project volume
+sets. No runtime or harness file changed while either full run was executing.
+
+1. Create a real response and export object and publish the pre-deletion checkpoint
+   from actual PostgreSQL into the archive. The existing backup command writes an
+   encrypted Restic snapshot, applies rotation and passes `check --read-data`.
+2. Delete the survey after backup through the real API and worker. Record a cutoff
+   from the consistent post-deletion database snapshot in the independent test-control
+   directory. The old archive fails fetch for that cutoff and creates no output.
+3. `tools/surveys/archive_interrupt_live.py` terminates the real PostgreSQL publisher
+   with exit 73 after pending fsync, then in another publication after current fsync.
+   Each interruption blocks offline fetch. A normal publication after each failure
+   safely retains the deletion and clears pending state. Fault injection exists only
+   in this test helper, not as a production CLI flag.
+4. Remove the local exported checkpoint and every source container and project volume.
+   A new container with `--network none` retrieves the authenticated checkpoint solely
+   from the retained archive, using the separately retained key, installation and cutoff.
+5. Run the real fresh-target restore without a checkpoint: startup is blocked. SQL and
+   exact object inspection prove that the old survey/export was restored but remains
+   offline, so an earlier manifest failure cannot masquerade as recovery protection.
+6. Remove the target volumes and restore again with the fetched checkpoint. Offline
+   reapplication removes relational content and the original exact object version
+   before application startup. Old authenticated and public access are denied.
+   The no-build target retains all six source image identities.
+7. The foundation Chromium journey passes (**1 test, 995 ms**). Remove and verify the
+   target's containers/volumes and the separate archive volume. Private keys, identifiers,
+   checkpoint bodies and backup data leave with the private temporary directory.
+
+The retained [SURV-090-checkpoint-archive.json](assets/SURV-090-checkpoint-archive.json)
+contains synthetic-only boolean results, crash-point names and explicit limitations.
+There is no new visual/accessibility or physical-power-loss claim.
+
+### Remaining recovery acceptance
+
+This proves durable publication/retrieval and source-project-loss recovery for the
+known cutoff. It does **not** make every newly accepted erasure independently durable:
+the publisher is explicitly invoked, and requests after the last published cutoff
+are not covered. The cutoff in this controlled test is independently retained before
+source removal; obtaining a trustworthy latest cutoff after unexpected host loss
+still needs the continuous retention/acknowledgement design and proof. A named volume
+on the same Docker host also does not prove survival of that host's storage failure.
+The operator must provision and verify genuinely independent durable storage.
+
+The archive has no periodic scheduler or historical-file pruning policy. The separate
+pilot Doctor/release-manifest wrapper, supported backup-revision compatibility and
+the remaining recovery error/interruption cases in [RECOVERY.md](../RECOVERY.md)
+remain part of the original contract. **090.2, 090.2b, 090.A3 and 090.T1 remain open**;
+this acceptance does not narrow those parent requirements or complete SURV-100.

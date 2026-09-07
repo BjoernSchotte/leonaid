@@ -309,6 +309,12 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3**.
   E2E — work-package regression gate: **090.S5**.
 
+- [x] **090.2c** Publish authenticated checkpoints into a separately retained filesystem archive. Serialize publication/fetch, preserve prior erasures and reject interrupted, stale, corrupted or missing-current states; retrieve without a database and prove real Restic recovery after source-project removal.
+
+  Acceptance criteria: **090.A3, archive primitive portion**.
+  Integration / supporting checks: **090.S3a**, [live evidence](proofs/SURV-090.md#independent-checkpoint-archive-and-interrupted-publication).
+  Parent 090.2 and PLAN task 090.2b remain open for continuous independent retention, cutoff provenance and the remaining operator recovery contract.
+
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
   Acceptance criteria: **090.A4**.

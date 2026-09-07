@@ -2,10 +2,14 @@
 set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+mode=${2:-manual}
+case "$mode" in manual|archive) ;; *) echo 'Expected manual or archive mode' >&2; exit 1 ;; esac
 . "$root/infra/locks/images.env"
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 source_project="leonaid-poc112-surveys-$suffix"
 target_project="leonaid-restore-surveys-$suffix"
+archive_volume="leonaid-survey-archive-$suffix"
+archive_owned=false
 mkdir -p "$root/.artifacts"
 # Restore overlays must be inside the checkout. This private temporary directory
 # is ignored by git and removed by the trap, including all credentials/backups.
@@ -30,6 +34,9 @@ cleanup() {
   if [ "$target_owned" = true ]; then
     target_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
+  if [ "$archive_owned" = true ]; then
+    docker volume rm "$archive_volume" >/dev/null 2>&1 || true
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -38,6 +45,11 @@ for project in "$source_project" "$target_project"; do
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
   [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
 done
+if [ "$mode" = archive ]; then
+  [ -z "$(docker volume ls -q --filter "name=^${archive_volume}$")" ]
+  docker volume create --label "leonaid.survey-recovery-proof=$suffix" "$archive_volume" >/dev/null
+  archive_owned=true
+fi
 python3 "$root/tools/surveys/network_override.py" "$proof/source.yml"
 source_owned=true
 source_compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
@@ -51,6 +63,12 @@ probe() {
     --workdir /repo --entrypoint python api tools/surveys/recovery_live.py "$@"
 }
 probe source_compose seed
+archive_publish() {
+  source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --volume "$archive_volume:/archive" --workdir /repo --entrypoint python api \
+    tools/surveys/recovery.py publish --archive /archive
+}
+if [ "$mode" = archive ]; then archive_publish; fi
 # Pin all built services to the actual source image IDs. No target-side build,
 # mutable registry lookup or silent fallback may change them during restoration.
 python3 - "$source_project" "$proof" <<'PY'
@@ -76,17 +94,59 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   sh "$root/tools/backup/backup.sh" "$root"
 source_compose up --detach --wait --wait-timeout 420 proxy mailpit
 probe source_compose delete
-source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-  --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
-  --output /proof/recovery-checkpoint.json
+cutoff=$(cat "$proof/recovery-cutoff.txt")
+if [ "$mode" = archive ]; then
+  installation=$(python3 - "$proof/recovery-checkpoint.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as source:
+    print(json.load(source)['checkpoint']['installation_id'])
+PY
+)
+  api_image=$(python3 - "$proof/images.json" <<'PY'
+import json, sys
+with open(sys.argv[1]) as source:
+    print(json.load(source)['services']['api']['image'])
+PY
+)
+  archive_fetch() {
+    docker run --rm --network none --env-file "$root/.env.local" \
+      --volume "$root:/repo:ro" --volume "$proof:/proof" --volume "$archive_volume:/archive" \
+      --workdir /repo --entrypoint python "$api_image" tools/surveys/recovery.py fetch \
+      --archive /archive --output /proof/fetched-checkpoint.json \
+      --installation-id "$installation" --required-through "$cutoff"
+  }
+  status=0
+  archive_fetch || status=$?
+  [ "$status" -eq 1 ] && [ ! -e "$proof/fetched-checkpoint.json" ]
+  for boundary in after-pending after-current; do
+    status=0
+    source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --volume "$archive_volume:/archive" --workdir /repo --entrypoint python api \
+      tools/surveys/archive_interrupt_live.py "$boundary" || status=$?
+    [ "$status" -eq 73 ]
+    status=0
+    archive_fetch || status=$?
+    [ "$status" -eq 1 ] && [ ! -e "$proof/fetched-checkpoint.json" ]
+    archive_publish
+  done
+  # No local exported checkpoint may supply the subsequent restore by accident.
+  rm "$proof/recovery-checkpoint.json"
+else
+  source_compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
+    --output /proof/recovery-checkpoint.json
+fi
 # Source DB, object volume and containers are gone before either target restore.
-# The manually exported checkpoint survives separately; automatic latest-file
-# continuity across loss of this host is deliberately not claimed by this test.
+# Recovery material survives as a separate file or archive volume. Continuous
+# coverage across loss of this host is deliberately not claimed by this test.
 source_compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$source_project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$source_project")" ]
+if [ "$mode" = archive ]; then
+  archive_fetch
+  mv "$proof/fetched-checkpoint.json" "$proof/recovery-checkpoint.json"
+fi
 python3 "$root/tools/surveys/network_override.py" "$proof/target.yml"
-cutoff=$(cat "$proof/recovery-cutoff.txt")
 restore() {
   LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
     LEONAID_RESTORE_PROJECT="$target_project" \
@@ -135,7 +195,7 @@ target_compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$target_project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$target_project")" ]
 mkdir -p "$root/.artifacts/surveys-restic"
-python3 - "$proof/restic-recovery-proof.json" <<'PY'
+python3 - "$proof/restic-recovery-proof.json" "$mode" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 result = json.loads(path.read_text())
@@ -149,7 +209,20 @@ result.update({
     'foundationChromiumPassed': True,
     'targetTeardownVerified': True,
 })
+if sys.argv[2] == 'archive':
+    result.update({
+        'independentArchiveVolumeOutsideSourceProject': True,
+        'staleArchiveRejectedBeforeOutput': True,
+        'publisherAbruptExitBoundariesProven': ['after-pending', 'after-current'],
+        'interruptedPublicationBlocksFetchUntilRepublished': True,
+        'offlineArchiveFetchAfterSourceContainersAndVolumesRemoved': True,
+    })
 path.write_text(json.dumps(result, indent=2) + '\n')
 PY
 cp "$proof/restic-recovery-proof.json" "$root/.artifacts/surveys-restic/"
+if [ "$mode" = archive ]; then
+  docker volume rm "$archive_volume" >/dev/null
+  [ -z "$(docker volume ls -q --filter "name=^${archive_volume}$")" ]
+  archive_owned=false
+fi
 echo "PASS: real encrypted Restic backup/rotation/check, source removal, fresh-target rejection and no-build recovery: $suffix"

@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 import sys
-import tempfile
+from uuid import UUID
 
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.survey_recovery import (
@@ -14,31 +14,33 @@ from leonaid.adapters.postgres.survey_recovery import (
     reapply_checkpoint,
 )
 from leonaid.adapters.storage.s3 import S3ObjectStorage
+from leonaid.adapters.storage.survey_checkpoint_archive import (
+    FileCheckpointArchive,
+    atomic_write,
+)
 from leonaid.application.surveys.recovery import MAX_DOCUMENT_BYTES, seal, verify
 
 
 async def execute(args):
+    secret = os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+    if args.command == "fetch":
+        document = FileCheckpointArchive(args.archive).fetch(
+            secret,
+            installation_id=args.installation_id,
+            required_through=args.required_through,
+        )
+        atomic_write(args.output, document)
+        print("survey-recovery: fetched authenticated archive checkpoint")
+        return
     pool = await create_pool(os.environ["CORE_DATABASE_URL"])
     try:
-        secret = os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
-        if args.command == "export":
+        if args.command in {"export", "publish"}:
             checkpoint = await export_checkpoint(pool)
             document = seal(checkpoint, secret)
-            # Never leave a partly written checkpoint at the operator's path.
-            fd, temporary = tempfile.mkstemp(prefix=".erasure-", dir=args.output.parent)
-            try:
-                with os.fdopen(fd, "wb") as output:
-                    output.write(document)
-                    output.flush()
-                    os.fsync(output.fileno())
-                os.replace(temporary, args.output)
-                directory = os.open(args.output.parent, os.O_RDONLY)
-                try:
-                    os.fsync(directory)
-                finally:
-                    os.close(directory)
-            finally:
-                Path(temporary).unlink(missing_ok=True)
+            if args.command == "publish":
+                FileCheckpointArchive(args.archive).publish(checkpoint, secret)
+            else:
+                atomic_write(args.output, document)
             print(
                 f"survey-recovery: exported {len(checkpoint.records)} content-free records"
             )
@@ -75,6 +77,13 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     export = commands.add_parser("export")
     export.add_argument("--output", type=Path, required=True)
+    publish = commands.add_parser("publish")
+    publish.add_argument("--archive", type=Path, required=True)
+    fetch = commands.add_parser("fetch")
+    fetch.add_argument("--archive", type=Path, required=True)
+    fetch.add_argument("--output", type=Path, required=True)
+    fetch.add_argument("--installation-id", type=UUID, required=True)
+    fetch.add_argument("--required-through", type=datetime.fromisoformat, required=True)
     restore = commands.add_parser("reapply")
     restore.add_argument("--checkpoint", type=Path, required=True)
     restore.add_argument(

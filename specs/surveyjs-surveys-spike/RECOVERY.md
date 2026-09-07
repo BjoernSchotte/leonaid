@@ -10,7 +10,7 @@ own erasure table is insufficient for deletions that happened after that backup.
 
 ## Implemented primitive
 
-`tools/surveys/recovery.py` provides two offline operator primitives using the
+`tools/surveys/recovery.py` provides export/reapply operator primitives using the
 configured Core database, object storage and session-encryption secret:
 
 ```sh
@@ -59,6 +59,60 @@ The stable identity starts with migration 0034. Compatibility with backups from
 before that identity existed is not yet implemented; do not silently assign a
 new identity or bypass an identity mismatch. Key rotation must preserve a
 matching verified checkpoint and the external key needed to authenticate it.
+
+## Independently retained filesystem archive
+
+The `publish` and `fetch` commands add a POSIX filesystem archive. Provision an
+existing private directory on storage retained independently of the source database
+and object volumes. The filesystem must honor `flock`, atomic rename and file and
+directory `fsync`. The command does not create a missing archive directory; directory
+existence alone is not proof that an intended external mount is present. Mount
+verification and keeping that storage outside the source host's failure domain remain
+operator deployment responsibilities.
+
+```sh
+python tools/surveys/recovery.py publish --archive /recovery/survey-erasure
+python tools/surveys/recovery.py fetch \
+  --archive /recovery/survey-erasure \
+  --installation-id "$SURVEY_RECOVERY_INSTALLATION_ID" \
+  --required-through "$LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH" \
+  --output /recovery/verified-erasure.json
+```
+
+The installation UUID is recorded independently when the installation is provisioned;
+the required-through value remains the independently established recovery cutoff.
+`fetch` needs the archive and authentication secret, but no database connection or
+network. Use its output as `LEONAID_SURVEY_ERASURE_CHECKPOINT` for the existing restore
+gate, and continue only after exit zero. Failure preserves an existing output file;
+that old file must not be mistaken for a successful new fetch.
+
+Publication serializes readers/writers and verifies both current and pending states.
+It rejects changed or omitted known erasures, a backwards cutoff, conflicting data
+at an equal cutoff and another installation or key. It durably writes, in order:
+
+1. `pending.json`, the complete authenticated candidate.
+2. A retained document named by its SHA-256 digest.
+3. `current.json`, the complete authenticated current checkpoint.
+4. Removal of `pending.json`, followed by directory fsync.
+
+All written files use mode 600. A pending document blocks fetch even when the new
+current file already exists. After an interrupted publisher, a successful retry must
+retain every erasure in both previous and pending states. A missing current file in
+an archive with retained history cannot silently initialize a new, older history.
+Corruption/authentication failures block publication and retrieval; never clear an
+incomplete or damaged archive merely to make a restore proceed.
+
+Each document retains the existing 32 MiB bound. Historical documents are retained;
+this primitive supplies no pruning or periodic scheduler. Archive-wide rollback by
+a storage administrator is outside its integrity model: the independent required
+cutoff is still necessary, and authentication does not establish absolute freshness.
+
+The `archive` mode of `tools/surveys/restic_recovery.sh` exercises actual PostgreSQL
+publication into a separate named volume, abrupt publisher exits, stale-cutoff
+rejection, removal of all source-project containers/volumes and network-disabled
+fetch followed by the real Restic restore. This models source-project loss on one
+Docker host; it does not prove loss of that host or cover erasures accepted after
+the last published cutoff. See the linked SURV-090 evidence for accepted scope.
 
 ## Restore operator gate
 
@@ -116,9 +170,10 @@ of the newest checkpoint are not established by this test.
 
 - Exercise the separate pilot Doctor/release-manifest wrapper with survey
   recovery inputs; the generic no-build restore path is proven above.
-- Retain current checkpoints independently of the source database and its old
-  recovery point, with a demonstrated source-loss recovery procedure. A local
-  export alone does not provide that continuity.
+- Couple accepted deletion requests to independent durable retention, including
+  requests after the most recent publication and unexpected source-host loss. The
+  filesystem publisher and source-project-loss restore prove the archive primitive;
+  a manually invoked publisher does not yet establish continuous coverage.
 - Define and prove how the operator obtains the required cutoff and detects a
   missing latest checkpoint. Authentication proves provenance and integrity,
   not that the supplied file is the newest file ever exported.
