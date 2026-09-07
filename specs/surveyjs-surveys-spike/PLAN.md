@@ -766,7 +766,7 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
-Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim is proven; retention, backup restore and complete module E2E acceptance remain open.
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim and configurable retention with its settings UI are proven; backup restore, manual erasure controls and complete module E2E acceptance remain open.
 
 Dependencies: SURV-050, SURV-060, SURV-080.
 

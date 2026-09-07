@@ -1,0 +1,7 @@
+{
+  "adminConfiguresAndReloads": true,
+  "daysStoredAsSeconds": true,
+  "emptyDisables": true,
+  "memberDenied": true,
+  "mobileOverflow": false
+}

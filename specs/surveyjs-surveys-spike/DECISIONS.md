@@ -163,3 +163,31 @@ The user supplied the official [2025–2026 overview](https://surveyjs.io/stay-u
 [PLAN.md section 2](PLAN.md#2-surveyjs-3-baseline-and-research-findings) records
 its implementation implications. Separate upstream product features and
 announced roadmap work do not silently expand our custom package scope.
+
+## Retention scheduling semantics
+
+The implementation uses two independent installation-wide settings, configurable
+by system administrators: `endedRetentionSeconds` and `trashRetentionSeconds`.
+Both default to `null` (automatic action disabled). Positive periods are bounded
+at 315,360,000 seconds; the member backend accepts days and converts them to
+seconds. Short second-based values are reserved for explicit synthetic proofs;
+no real operational period has been selected.
+
+The first stage moves ended/archived surveys to trash, measured from a dedicated
+lifecycle clock. Archiving/unarchiving preserves that clock; restoring a trashed
+published survey starts a new period in the ended state. Existing closed rows
+receive the migration time as their initial clock, rather than assuming that an
+unrelated last edit was their closure. The second stage measures from entry into
+trash and commits the existing irreversible erasure job. Draft and active surveys
+are never selected by retention, regardless of respondent inactivity.
+
+Policy changes apply to already existing surveys. An omitted policy field in an
+older timeout-settings request preserves its current value; explicit `null`
+disables that stage. Changes use the existing revision and operation replay
+contract. Disabling a stage prevents new requests but cannot cancel an erasure
+intent already committed. The UI states this consequence before saving.
+
+The worker checks up to 100 candidates per sweep, rechecks eligibility under the
+survey locks, skips busy rows, and catches up after restart. The existing sweep
+cadence is five seconds (shortened while draining full batches). Backup lifecycle
+and restoration of deletion records remain separate work under SURV-090.

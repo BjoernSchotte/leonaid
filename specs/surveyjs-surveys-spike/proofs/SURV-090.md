@@ -1,7 +1,8 @@
 # SURV-090 — Deletion, recovery and operational limits
 
-Status: **in progress**. Own license remains **UNDEFINED**. This proof accepts
-090.A2 / 090.S2 only. It does not accept the complete work package or task 090.1.
+Status: **in progress**. Own license remains **UNDEFINED**. 090.A2 / 090.S2 are accepted. The retention section adds proven behavior for
+090.1 and the inactivity-preservation part of 090.A3. The complete work package
+and task 090.1 remain open.
 
 ## Durable erasure and process-crash recovery
 
@@ -101,7 +102,7 @@ These checks do not replace the live erasure assertions.
 | Item | Result | Evidence / remaining work |
 | --- | --- | --- |
 | 090.A2 / 090.S2 | Passed | Actual version deletion, process termination, lease reclaim and complete relational/object cleanup above. |
-| 090.1 | Open | Durable erasure backend delivered; configurable retention and backend UI still required. |
+| 090.1 | Open | Durable erasure and configurable retention (including settings UI) delivered; manual deletion/status UI and full A1/A5 acceptance remain. |
 | 090.2 / 090.A3 | Open | Content-free ledger exists; separate preservation and reapplication across a real backup restore are not implemented/proven. |
 | 090.3 / 090.A4 | Open | Full limits and log-marker acceptance remains. |
 | 090.A1 | Open | A late export is covered; full concurrent autosave/completion/export/deletion interleavings remain. |
@@ -115,3 +116,97 @@ ledger; the backup/recovery work must preserve and reapply it. Retry exhaustion
 uses the existing durable outbox's dead-letter handling; user-facing status and
 retry controls still need the module integration. No complete retention or
 backup-restoration claim is made here.
+
+
+## Configurable retention and member-backend acceptance
+
+Source revision: `c27e2d9` (unchanged source/probe content committed after the
+successful executions). Decisions are recorded in
+[DECISIONS.md](../DECISIONS.md#retention-scheduling-semantics). Own license stays
+**UNDEFINED**; no dependency was added.
+
+Commands from the checkout root:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" retention
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" deletion
+```
+
+- Retention run: `leonaid-surveys-833458328-91543`, exit **0**; two Chromium
+  journeys passed in 3.7 seconds, including the mobile settings journey.
+- Shared-deletion regression: `leonaid-surveys-833458328-92130`, exit **0**;
+  actual object DELETE, exit 73, reclaimed attempt 2 and all original cleanup
+  assertions passed; foundation Chromium journey passed in 2.0 seconds.
+- Both runs used distinct allocated subnets, no published host ports and fresh
+  volumes. The harness removed its resources and verified no remaining project
+  containers/volumes. No other worktree's resources were changed.
+
+### Proven assertions
+
+- [x] **Policy integration:** `retention_live.py prepare` verifies both settings
+  default to null, unauthorised members receive 403, zero/negative/over-limit
+  periods receive 422 without mutation, stale revisions receive 409 and exact
+  operation replay is idempotent. Updating only the inactivity timeout preserves
+  omitted retention fields; explicit null disables each stage independently.
+- [x] **Lifecycle integration:** the real sweep moves old ended and archived
+  surveys into trash with an explicit one-second policy, while disabled trash
+  retention creates no deletion record. A busy advisory lock is skipped within
+  the five-second assertion bound; the next sweep handles that survey. Restore
+  starts a new retention clock; archive/unarchive preserve it. These assertions
+  use actual PostgreSQL state and synthetic timestamp advancement.
+- [x] **Inactivity separation:** an active survey's 90-day-old in-progress answer
+  becomes partial but its seeded answer remains identical. With automatic
+  retention disabled all five fixture surveys remain. After retention runs,
+  the active survey and draft still exist; respondent inactivity never selected
+  them for deletion.
+- [x] **Worker integration:** after `prepare` enables one-second trash retention,
+  the harness starts the real production worker process. `recover` waits at most
+  60 seconds and verifies two due surveys were erased, their deletion records
+  completed and exactly one completed erasure event exists per survey. No direct
+  sweep invocation or hand-written queue claim substitutes for this phase.
+- [x] **Backend E2E:** `surveys-retention.spec.mjs` opens mobile navigation as the
+  admin, sets 30/7 days in the real module, saves, and checks API persistence as
+  2,592,000/604,800 seconds. Reload retains both values. Clearing and saving both
+  fields persists nulls. A non-admin opens the supported survey-module route,
+  cannot see the settings, and gets 403 from their API. API responses are no-store.
+- [x] **Visual observation:** the retained 390-pixel mobile form was manually
+  inspected: labels, explanatory text and save control are readable and the
+  automated horizontal-overflow assertion passes. This is a review of the new
+  settings form, not a complete application visual/accessibility certification.
+
+Artifacts: [integration results](assets/SURV-090-retention.json),
+[browser results](assets/SURV-090-retention-browser.json),
+[mobile form](assets/SURV-090-retention-mobile.png).
+Private test sessions and raw traces were not copied into these artifacts.
+
+Ruff checks passed for the affected Python files; MyPy passed for the retention,
+delete and authoring adapters plus HTTP/worker entrypoints; web TypeScript checking
+and OpenAPI/client generation passed. The full live runtime also verifies the
+worker import after the correction described below.
+
+### Failed attempts and corrections
+
+- `...-89816` failed at worker startup because `asyncpg.Pool[Any]` was evaluated
+  at import time. A separate container import reproduced the exception. Adding
+  postponed annotation evaluation fixed the production module.
+- `...-90161` passed API/production-worker checks, then the browser probe failed
+  because it had not opened mobile navigation. The probe was corrected.
+- `...-90841` additionally passed the admin's complete mobile settings journey,
+  then used the wrong starting page for an ordinary member. The general admin
+  landing page redirects that persona to the PWA by design; the survey module
+  remains accessible at `/admin/surveys`. Using that supported entry fixed the
+  probe without adding rights or changing production access policy.
+- Each failed process was confirmed terminal before edits and a fresh isolated
+  run was started. The final successful run above covers all corrected assertions.
+
+### Remaining scope
+
+This accepts the configurable-retention portion of 090.1 and proves that
+inactivity alone deletes nothing. **090.A3 remains open** because it also requires
+real backup restoration and deletion-record reapplication. Full autosave,
+completion and erasure interleavings, log/limit acceptance, manual erasure/status
+controls and the open-respondent deletion E2E journey are still required.
+The migration's backfill of already closed rows has not yet received a dedicated
+upgrade-fixture proof; the runs above prove migration from empty volumes and
+post-migration lifecycle clocks. Real operational retention periods remain a
+separate deployment decision.
