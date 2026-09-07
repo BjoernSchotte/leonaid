@@ -60,10 +60,42 @@ before that identity existed is not yet implemented; do not silently assign a
 new identity or bypass an identity mismatch. Key rotation must preserve a
 matching verified checkpoint and the external key needed to authenticate it.
 
+## Restore operator gate
+
+`tools/backup/restore.sh` invokes `tools/backup/survey-erasure-gate.sh` after
+both database restores and before application startup. Each `pg_restore` aborts
+on errors. For a database containing the survey schema, supply both external
+environment inputs (also inherited by `./leonaid pilot-restore`):
+
+```sh
+export LEONAID_SURVEY_ERASURE_CHECKPOINT=/recovery/erasure-checkpoint.json
+export LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=2026-09-07T12:00:00+00:00
+```
+
+These are illustrative values. The cutoff must be independently established as
+described above. The checkpoint is mounted read-only into a one-off API image;
+the command does not start dependencies or application writers. Development
+restores build that image; `LEONAID_RESTORE_NO_BUILD=true` uses the configured
+image and only pulls it if missing. An incompatible image fails closed.
+
+The gate also runs with `LEONAID_RESTORE_START_APP=false`. Missing input,
+authentication/identity/freshness errors or failed cleanup return nonzero while
+the restored database and storage remain available for offline investigation.
+Do not manually start application services after such failure. A new complete
+restore still requires a fresh target; the standalone reapply command can retry
+cleanup on the quarantined target with its exact environment and all writers off.
+
+A legacy database with no survey tables skips this module-specific gate only
+when neither input is supplied. A database with survey tables but no stable
+identity does not bypass it; preceding survey-schema backups remain unsupported.
+Empty survey tables still require a checkpoint: later deletions may have left
+records that prevent recreation even when no response needs immediate erasure.
+
 ## Remaining integration before acceptance
 
-- Wire the primitive into the existing Restic-backed restore operator before its
-  application-start step, with fail-closed missing/stale checkpoint handling.
+- Prove the complete Restic-backed operator invocation, including its
+  application-start step and no-build release-image path, beyond the shared-gate
+  integration test.
 - Retain current checkpoints independently of the source database and its old
   recovery point, with a demonstrated source-loss recovery procedure. A local
   export alone does not provide that continuity.
@@ -76,6 +108,5 @@ matching verified checkpoint and the external key needed to authenticate it.
 - Prove interrupted reapplication, key/identity errors through that wrapper and
   migration compatibility with supported preceding backup revisions.
 
-Until these items pass, 090.2 and 090.A3 remain open. The generic restore command
-has not yet gained an automatic survey-erasure gate; the primitive and its tests
-must not be presented as completed production disaster recovery.
+Until these items pass, 090.2 and 090.A3 remain open. The automatic gate and its
+tests must not be presented as completed production disaster recovery.

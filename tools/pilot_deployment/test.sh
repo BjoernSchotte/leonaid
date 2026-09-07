@@ -614,6 +614,8 @@ assert set(value["files"])=={
   "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
 }'
 
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture runtime_compose "$workspace"
 cp "$env_file" "$target_env_file"
 printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" >>"$target_env_file"
 chmod 600 "$target_env_file"

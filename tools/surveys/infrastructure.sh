@@ -120,17 +120,27 @@ if [ "$mode" = recovery ]; then
   compose up --detach --no-deps --wait --wait-timeout 90 rustfs
   recovery_probe restored
   cutoff=$(cat "$proof/recovery-cutoff.txt")
+  . "$root/tools/backup/survey-erasure-gate.sh"
   reapply() {
-    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-      --workdir /repo --entrypoint python api tools/surveys/recovery.py reapply \
-      --checkpoint "$1" --required-through "$cutoff"
+    LEONAID_SURVEY_ERASURE_CHECKPOINT="$1" \
+      LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH="$2" apply_survey_erasure_gate
   }
-  bad_status=0
-  reapply /proof/recovery-tampered.json || bad_status=$?
-  [ "$bad_status" -eq 1 ] || { echo 'Expected recovery authentication rejection' >&2; exit 1; }
-  recovery_probe restored
-  reapply /proof/recovery-checkpoint.json
-  reapply /proof/recovery-checkpoint.json
+  rejected_gate() {
+    bad_status=0
+    reapply "$1" "$2" || bad_status=$?
+    [ "$bad_status" -eq 1 ] || { echo 'Expected recovery gate rejection' >&2; exit 1; }
+    for service in api public proxy worker; do
+      [ -z "$(compose ps --status running --quiet "$service")" ] || exit 1
+    done
+    recovery_probe restored
+  }
+  rejected_gate '' "$cutoff"
+  rejected_gate "$proof/recovery-checkpoint.json" ''
+  rejected_gate "$proof/recovery-tampered.json" "$cutoff"
+  # A cutoff after the export rejects an authentic but insufficiently current file.
+  rejected_gate "$proof/recovery-checkpoint.json" '2099-01-01T00:00:00+00:00'
+  reapply "$proof/recovery-checkpoint.json" "$cutoff"
+  reapply "$proof/recovery-checkpoint.json" "$cutoff"
   recovery_probe verify
   compose up --detach --wait --wait-timeout 90 api public proxy worker
   recovery_probe online

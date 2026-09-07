@@ -250,8 +250,12 @@ async def main():
                             "tamperedCheckpointRejected": True,
                             "knownDeletionOmissionRejected": True,
                             "answersAndExactFileErasedAgain": True,
+                            "restoreOperatorSharedGate": True,
+                            "missingCheckpointAndCutoffRejected": True,
+                            "insufficientFreshnessRejected": True,
+                            "writersStoppedAndRestoredDataUnchangedAfterRejections": True,
                             "limitations": [
-                                "This probe restores real PostgreSQL and RustFS backups; full Restic/operator wrapper integration is still open",
+                                "This probe exercises the shared restore gate against real PostgreSQL and RustFS backups; the complete Restic/fresh-target invocation remains open",
                                 "Latest checkpoint must be independently retained; source-loss continuity is not proven",
                             ],
                         },

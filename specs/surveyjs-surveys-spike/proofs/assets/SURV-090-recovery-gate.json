@@ -1,0 +1,19 @@
+{
+  "syntheticOnly": true,
+  "postBackupDeletion": true,
+  "oldActiveSurveyAndExactObjectRestored": true,
+  "signedCheckpointReappliedTwice": true,
+  "tamperedCheckpointRejected": true,
+  "knownDeletionOmissionRejected": true,
+  "answersAndExactFileErasedAgain": true,
+  "restoreOperatorSharedGate": true,
+  "missingCheckpointAndCutoffRejected": true,
+  "insufficientFreshnessRejected": true,
+  "writersStoppedAndRestoredDataUnchangedAfterRejections": true,
+  "limitations": [
+    "This probe exercises the shared restore gate against real PostgreSQL and RustFS backups; the complete Restic/fresh-target invocation remains open",
+    "Latest checkpoint must be independently retained; source-loss continuity is not proven"
+  ],
+  "cliCheckpointExportMode600": true,
+  "restoredSessionAndPublicAccessDeniedAfterRestart": true
+}

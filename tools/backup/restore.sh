@@ -203,6 +203,7 @@ compose exec -T core-postgres pg_restore \
   --dbname "${CORE_POSTGRES_DB:-leonaid}" \
   --clean \
   --if-exists \
+  --exit-on-error \
   --no-owner \
   --no-privileges \
   <"$backup_root/core.dump"
@@ -211,9 +212,15 @@ compose exec -T twenty-postgres pg_restore \
   --dbname "${TWENTY_POSTGRES_DB:-default}" \
   --clean \
   --if-exists \
+  --exit-on-error \
   --no-owner \
   --no-privileges \
   <"$backup_root/twenty.dump"
+
+# This also gates START_APP=false: callers must not receive a successful restore
+# and then accidentally start resurrected survey data themselves.
+. "$root/tools/backup/survey-erasure-gate.sh"
+apply_survey_erasure_gate
 
 if [ "${LEONAID_RESTORE_START_APP:-true}" = "true" ]; then
   if [ "$restore_no_build" = "true" ]; then

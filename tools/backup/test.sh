@@ -210,6 +210,8 @@ if docker run --rm \
   exit 1
 fi
 
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture source_compose "$proof"
 source_compose --profile dev-mail down --volumes --remove-orphans
 restore_started=$(date +%s)
 LEONAID_HTTP_PORT="$target_http_port" \

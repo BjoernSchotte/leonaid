@@ -557,6 +557,9 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   /bin/sh "$root/tools/backup/backup.sh" "$root"
 
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture source_old "$proof"
+
 LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
   LEONAID_HTTPS_PORT="$source_https_port" \

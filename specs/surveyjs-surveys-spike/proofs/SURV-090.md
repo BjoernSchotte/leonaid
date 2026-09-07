@@ -286,3 +286,45 @@ it automatically. Independently retaining the newest checkpoint across source
 loss, proving the operator-selected freshness cutoff and covering the existing
 Restic/fresh-target/rotation workflow remain open. Do not use this result to claim
 complete production disaster recovery or close SURV-090.
+
+## Shared restore-operator gate
+
+This section supersedes the preceding statement that the generic restore does
+not invoke reapplication. `tools/backup/restore.sh` now calls
+`tools/backup/survey-erasure-gate.sh` after both `pg_restore` operations and
+before its application-start branch. Both restores now use `--exit-on-error`.
+The gate is unconditional with respect to `LEONAID_RESTORE_START_APP`; a caller
+requesting database-only restoration cannot receive success without passing it.
+
+Command: `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" recovery`.
+Project `leonaid-surveys-833458328-99651`, exit **0**; Chromium foundation case
+passed in **1.6 seconds**. The implementation and probe content committed with
+this section were unchanged during that run. The harness used fresh subnets,
+no host ports and verified removal of its containers and volumes after teardown.
+
+- [x] The shared production shell gate rejects a missing checkpoint, missing
+  cutoff, tampered authenticated envelope and an authentic checkpoint whose
+  timestamp does not cover the requested cutoff. Each command exits exactly 1.
+- [x] After each rejection, assertions verify API, public, proxy and worker are
+  stopped. The restored active survey and original exact export version/hash
+  still exist; rejection did not mutate them or expose them through those services.
+- [x] The gate builds the development API image and mounts the checkpoint
+  read-only into its no-dependency one-off command. Valid reapplication succeeds
+  twice and removes the resurrected relational content and exact object version.
+- [x] After restarting application services, the old session cannot read the
+  survey/export, the public definition returns 404, and the foundation browser
+  journey passes. This is not the still-open manual deletion UI journey.
+
+Sanitized result: [SURV-090-recovery-gate.json](assets/SURV-090-recovery-gate.json).
+Scoped Ruff, shell syntax checks for the modified scripts and `git diff --check`
+passed. Existing backup/upgrade/pilot test fixtures now export an independent
+temporary checkpoint before their restore and explicitly supply its cutoff.
+Those three complete suites were **not run in this increment**; their helper
+wiring received syntax/source review only. Their synthetic workflows perform no
+survey mutations after that capture; this does not solve production continuity.
+
+The shared gate is exercised against actual restored PostgreSQL/RustFS data;
+the complete Restic restore invocation, fresh target, legacy-schema branch and
+no-build release-image path remain unproven here. Latest-checkpoint/source-loss
+continuity and migration compatibility remain open as specified in
+[RECOVERY.md](../RECOVERY.md). **090.2 and 090.A3 remain unchecked.**

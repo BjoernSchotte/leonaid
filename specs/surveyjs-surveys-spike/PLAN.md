@@ -766,7 +766,7 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
-Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim and configurable retention with its settings UI are proven; checkpoint reapplication after real DB/object restore is proven in isolation. Existing backup-operator integration, independent checkpoint continuity, manual erasure controls and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim and configurable retention with its settings UI are proven. The restore operator now invokes the shared checkpoint gate before startup; missing/tampered/stale-input rejection and reapplication are proven against real restored DB/object data. The complete Restic/fresh-target invocation, independent checkpoint continuity, manual erasure controls and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
 
 Dependencies: SURV-050, SURV-060, SURV-080.
 
