@@ -11,7 +11,11 @@ PRIVATE_PREFIXES = (
     ".local/pilot/",
     ".local/test-logins.md",
 )
-ALLOWED_PUBLIC_UPLOADS = (".artifacts/sbom/*.cdx.json",)
+ALLOWED_PUBLIC_UPLOADS = (
+    ".artifacts/sbom/*.cdx.json",
+    # Only bounded survey reports copied out of the private root-owned gate directory.
+    "${{ runner.temp }}/surveys-ci-results/*.json",
+)
 ALLOWED_PUBLIC_UPLOAD_PREFIXES = (".artifacts/ci/",)
 UPLOAD_ACTION = "actions/upload-artifact@"
 

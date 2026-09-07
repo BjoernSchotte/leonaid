@@ -546,3 +546,22 @@ is inferred from screenshot existence or passing browser assertions.
 This accepts **100.3f / 100.S2e**. Eighteen of the 42 legacy regression scripts
 have now been isolated and executed; the remaining 24, the full Survey aggregate,
 current whole-journey CI failure and recovery requirements remain open.
+
+
+## Exact public CI report upload boundary
+
+The Security job for revision `02a4bff` correctly rejected the new workflow upload
+location because the repository's allowlist had not been updated with the report
+staging change. The upload remains limited to
+`${{ runner.temp }}/surveys-ci-results/*.json`; no broader temporary-directory
+prefix is allowed. Raw gate logs stay outside this public staging directory.
+
+`tools/pilot/boundary.py` now allows that exact expression.
+`PYTHONPATH=. python3 tools/pilot/test.py` passes against the real Git index/history,
+private file permission probes and workflow inventory. Six additional negative
+cases reject recursive JSON globs, all-file globs, log globs, the whole runner
+temporary directory and raw survey gate directories/logs. Existing private pilot
+and unknown-upload-action rejection cases remain unchanged. All four bounded
+survey diagnostic tests pass, as do scoped Ruff formatting and lint checks.
+This corrects the observed CI failure; a complete new Security/CI run is still
+required and is not inferred from these targeted checks.

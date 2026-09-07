@@ -168,8 +168,19 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
         encoding="utf-8",
     )
     check_workflows(root)
+    ci.write_text(
+        workflow_with_upload("${{ runner.temp }}/surveys-ci-results/*.json"),
+        encoding="utf-8",
+    )
+    check_workflows(root)
 
     for forbidden in (
+        "${{ runner.temp }}/surveys-ci-results/*",
+        "${{ runner.temp }}/surveys-ci-results/**/*.json",
+        "${{ runner.temp }}/surveys-ci-results/*.log",
+        "${{ runner.temp }}/*",
+        ".artifacts/surveys-gate",
+        ".artifacts/surveys-gate/logs/*.log",
         ".local/pilot/backups/production.dump",
         ".local/pilot/evidence/session.zip",
         ".local/test-logins.md",

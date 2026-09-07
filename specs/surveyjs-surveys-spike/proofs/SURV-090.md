@@ -1322,3 +1322,34 @@ This is operator/API/database/storage integration; no browser E2E result is clai
 for this increment. See the [sanitized result](assets/SURV-090-pilot-resume.json).
 Post-run Docker queries confirmed removal of all run-owned containers, volumes,
 networks and five build tags; parallel projects were left untouched.
+
+
+## Deletion task and scenario reconciliation
+
+The companion checklist now accepts **090.1 / 090.1a / 090.S1 / 090.S5**
+against the existing live proofs and a current-source assertion review. This is
+an evidence reconciliation, not a claim that the complete recovery group passed
+again in this increment.
+
+| Requirement | Actual assertions and accepted proof |
+| --- | --- |
+| 090.A1 / 090.S1: late save, completion and export cannot recreate content | `deletion_races_live.py` observes both lock orders for each operation, checks all nine survey tables, exact S3 versions, late HTTP rejection and export redelivery; six cases in the deterministic-interleavings proof above. |
+| 090.A2 / 090.S2: interrupted erasure resumes safely | `deletion_live.py` performs an actual object DELETE before process exit 73, verifies rollback and remaining objects, reclaims attempt 2 and checks all targeted rows and object versions are gone; durable-erasure proof above. |
+| 090.1: configurable retention | `retention_live.py` checks disabled defaults, authorization, invalid/stale inputs, independent stages, preserved inactive answers and real worker cleanup. `surveys-retention.spec.mjs` verifies mobile settings, persistence/reload and member denial; retention proof above. |
+| 090.A5 / 090.S5: open respondent and restoration | `surveys-deletion.spec.mjs` saves before trash, requires a visible closed error afterward, rejects downloads and invitations with a successful pre-trash invitation baseline, and verifies restore stays ended. `deletion_ui_live.py` checks the rejected answer never persisted. |
+| 090.1a: confirmation, durable status and retry | The same browser file requires explicit confirmation; drops only the acknowledgement of a real committed erasure; checks pending state across reload; retries a persisted failed event through the administrator API; observes production-worker completion and reload. The API probe verifies unrelated-member denials. |
+
+The retained UI artifact reports all 14 named assertions true. The race artifact
+contains six passed cases; the retention artifacts retain their scoped service
+and browser results. Their earlier limitations remain historical scope notes,
+not evidence of newly completed disaster recovery.
+
+The later interrupted aggregate report also records `deletion` and
+`deletion-races` at exit 0 (approximately 243 and 361 seconds). Its `deletion-ui`
+entry exited 130 when the aggregate was deliberately stopped for separate CI
+corrections, so that attempt contributes no UI acceptance. UI acceptance rests
+on the explicitly successful project `leonaid-surveys-833458328-10022` above.
+The unchanged reviewed probes and existing sanitized artifacts are indexed in
+[the reconciliation record](assets/SURV-090-reconciliation.json).
+
+**090.2, 090.2b, 090.A3 and the full recovery/aggregate gates remain open.**

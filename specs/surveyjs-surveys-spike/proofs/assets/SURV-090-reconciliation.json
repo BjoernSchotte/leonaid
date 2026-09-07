@@ -1,0 +1,25 @@
+{
+  "type": "source-and-existing-evidence-reconciliation",
+  "accepted": [
+    "090.1",
+    "090.1a",
+    "090.S1",
+    "090.S5"
+  ],
+  "newFullRunClaimed": false,
+  "sourceHashes": {
+    "tools/surveys/deletion_live.py": "cb06eba9934fb00e121a8ecdc0ff67e00de39e97090cc3091b569ea63e1aad38",
+    "tools/surveys/deletion_races_live.py": "87d72475498fc193ef10ae9c6bf1554fe757677cc875ef3ad17a43c6d50770d3",
+    "tools/surveys/deletion_ui_live.py": "402786b7fbbf6a16b9c8da712d7290c5cfc275453bfa89dbf6bb054d7d104ba9",
+    "tools/surveys/retention_live.py": "b30bda4bdebfc4978c2556bc263d6c7e34291c950074ea02782cf7511830bb03",
+    "tests/e2e/surveys-deletion.spec.mjs": "4f3cc5f0fdf71463915bde2e1176ded7da1e174e8eabce56706f779bebc7ad52",
+    "tests/e2e/surveys-retention.spec.mjs": "a5dc394a5db72457a23cb093bac8ec29d79a4d7090345334068db78d6f53d043"
+  },
+  "supportingInterruptedAggregate": {
+    "deletion": 0,
+    "deletion-races": 0,
+    "deletion-ui": 130,
+    "aggregateAccepted": false
+  },
+  "recoveryAcceptance": false
+}

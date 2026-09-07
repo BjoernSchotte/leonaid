@@ -343,18 +343,20 @@ remain open until their remaining criteria pass.
 
 ## SURV-090 — Deletion, recovery and operational limits
 
-- [ ] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects.
+[Deletion task and scenario reconciliation](proofs/SURV-090.md#deletion-task-and-scenario-reconciliation); recovery acceptance remains separate.
+
+- [x] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects.
 
   Acceptance criteria: **090.A1, 090.A2, 090.A5**.
   Integration / supporting checks: **090.S1, 090.S2**.
   E2E: **090.S5**.
 
-- [ ] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey.
+- [x] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey.
 
   Acceptance criteria: **090.A5**, plus pending, failure, retry and completed states and authorized status access.
   Integration / supporting checks: **090.S2**, persistent deletion-job state and object cleanup.
   E2E: **090.S5**, including confirmation, reload and retry controls.
-  Existing [implementation evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance) must be reconciled with these task-level assertions before this acceptance box is checked.
+  [Task-level source and evidence reconciliation](proofs/SURV-090.md#deletion-task-and-scenario-reconciliation) covers these assertions.
 
 - [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
 
@@ -512,6 +514,7 @@ capability/task reconciliation gate; successful journeys do not close that audit
 - [x] **100.3d** Isolate and execute the complete existing Compose regression using a unique project, unused explicit subnets and two free loopback ports. Acceptance: **100.A3, Compose regression portion**; validate the real default service inventory including `survey-validator`, readiness, host routing, PostgreSQL/RustFS persistence across restart, Twenty schema stability, optional profiles and complete owned cleanup. Integration: **100.S2c**; E2E scope is operator CLI and real HTTP/TLS, not browser interaction. [Live evidence](proofs/SURV-100.md#isolated-compose-regression). Full **100.3 / 100.A3** remains open.
 - [x] **100.3e** Isolate and execute the seven core, schema, outbox, OpenAPI, Twenty metadata, CRM gateway and CRM import regressions. Acceptance: **100.A3, seven named suites only**; reserve all owned networks before starting any service, resolve real subnet allocation collisions, preserve the original service/data assertions and verify complete owned cleanup. Integration/operator E2E: **100.S2d**; browser journeys remain separate. [Live evidence](proofs/SURV-100.md#reserved-networks-and-seven-backend-regressions). Full **100.3 / 100.A3** remains open.
 - [x] **100.3f** Isolate and execute the existing invitation, session, matching, assignment, activity and action regressions. Acceptance: **100.A3, six named suites only**; preserve real API/SQL/SMTP/CRM assertions and complete browser journeys, reserve owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2e**; the remaining legacy suites and full **100.3 / 100.A3** stay open. [Live evidence](proofs/SURV-100.md#six-isolated-browser-regressions).
+- [ ] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone.
 
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
