@@ -43,3 +43,24 @@ that a registry contains those fixture references or that a CMS release ran.
 Still required: a complete built/published release inventory and provenance,
 runtime schema/image checks, exclusive CMS migration, readiness/promotion,
 upgrade and restore-based rollback with later Core order preservation.
+
+## Embedded image identity
+
+The campaign Dockerfile now generates `/app/cms-release-identity.json` in a
+separate pinned Python build stage. Only the resulting non-secret metadata is
+copied to the final Node image; Python and the source tree are not copied from
+that stage. The source inventory also binds the identity generator/verifier.
+
+`./leonaid test-emdash-spike --case release-image-identity` builds the actual
+campaign image and reads its embedded metadata as the image's non-root user in
+a read-only container with no network, no capabilities and no new privileges.
+The checkout-side `cms_image_identity.py verify --root ...` reads metadata from
+stdin and compares it to recomputed checkout identity. Changed schema/source
+values and unknown fields are rejected with a fixed, sanitized message.
+
+This proves the embedded CMS identity, not the entire release's provenance or
+runtime database state. The build output remains in Docker's content-addressed
+image/cache; no service, named network or host port is created. Operational
+deployment/restore must still select the manifest-bound image, verify the v2
+manifest against the same checkout, invoke this comparison before activation,
+and verify database migrations and the complete recovery/key contract.

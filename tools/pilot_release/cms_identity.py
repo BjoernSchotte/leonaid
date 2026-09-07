@@ -27,6 +27,8 @@ CMS_SOURCES = tuple(
             "apps/campaign-site/src/auth/identity-map.mjs",
             "tools/emdash_spike/krapfentaxi-import.mjs",
             "tools/backup/cms-recovery.mjs",
+            "tools/pilot_release/cms_identity.py",
+            "tools/pilot_release/cms_image_identity.py",
             "infra/compose/Dockerfile.campaign-site",
         )
     )

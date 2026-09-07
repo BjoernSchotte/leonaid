@@ -3093,6 +3093,21 @@ Dependencies: EMS-050, EMS-070
         tests, 265 Python files typechecked, both release contracts, both Astro
         applications (25/47 files, zero diagnostics), frontend typechecks,
         formatting and repository policy gates; committed source was unchanged.
+  - [x] Embed the CMS source identity in the actual campaign image and provide
+        a read-only pre-activation comparison. `./leonaid test-emdash-spike
+        --case release-image-identity` built the real campaign Dockerfile and
+        exited zero. A separate pinned Python build stage recomputed the exact
+        CMS identity; only its JSON result enters the final Node image. The
+        inventory now also binds the generator/verifier source (nineteen source
+        files total). The actual runtime image's non-root user read its embedded
+        identity under a read-only filesystem, network none, dropped capabilities
+        and no-new-privileges. The operator comparison matched the checkout and
+        rejected altered schema, changed source hash and unknown metadata with
+        the expected refusal exit code. No service, named network or host port
+        was created; Docker retained its content-addressed build image/cache.
+        This is image-metadata evidence only, not full release provenance,
+        registry publication, database schema verification or automatic
+        deployment/restore integration. Those parent requirements remain open.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
