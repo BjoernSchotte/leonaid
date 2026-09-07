@@ -2,10 +2,11 @@
 
 Implementation in progress; the public package name and own OSS license remain
 UNDEFINED. The private package manifest uses UNLICENSED until that decision.
-The package now exposes initial contracts, a React respondent runner and scoped
-styles, an initial independent visual editor, aggregate charts/tables and an
-adapter-driven export panel. The remaining
-authoring capabilities are still pending; this is not the accepted full spike.
+The package exposes contracts, a React respondent runner and scoped styles,
+an independent visual editor, aggregate charts/tables and an adapter-driven
+export panel for the initial supported capability profile. Full spike acceptance
+remains open; see the repository's survey specification and per-task proofs for
+the implemented scope and outstanding verification.
 
 ## Host adapter protocol v1
 
@@ -23,8 +24,8 @@ original response; a different payload yields idempotency_conflict. Authorizatio
 is rechecked before returning a stored result. Failed validation commits nothing.
 
 Revisioned writes require expectedRevision. After the idempotency check, a stale
-revision yields revision_conflict and currentRevision; the client must resolve
-rather than silently overwrite. A successful state change increments revision.
+revision yields revision_conflict; adapters may additionally supply currentRevision.
+The client must resolve rather than silently overwrite. A successful state change increments revision.
 Full answer snapshots replace the accepted snapshot; omitted keys remove answers.
 The server validates against the participation's immutable published definition,
 clears hidden answers and treats required-field omissions as permissible for
@@ -54,9 +55,10 @@ permissions and survey deletion; a completed job does not grant lasting access.
 
 ## Verification status
 
-These are contracts to implement and prove through SURV-000/010 and subsequent
-work packages. Type checking alone is not persistence, authorization or E2E
-proof. No plan checkbox is completed by introducing these declarations.
+The protocol has implementation and real-service proofs in SURV-000/010 and
+subsequent work packages. Their per-task evidence defines the accepted scope;
+the overall contract reconciliation and full spike gate remain open. Type
+checking alone is not persistence, authorization or E2E proof.
 
 ## Respondent runner
 
@@ -80,6 +82,10 @@ packed-consumer section below. The editor also accepts host translation and prev
 The host can set `--survey-accent` and `--survey-font`; the stylesheet maps these
 to SurveyJS 3's actual `--sjs2-*` tokens on its theme root. It imports the fontless
 upstream stylesheet and uses host-provided fonts.
+
+Keep document scrolling immediate on pages hosting the runner. The LeonAid host
+uses `html:has(.survey-shell) { scroll-behavior: auto; }`: delayed focus-triggered
+scroll events otherwise dismiss SurveyJS dropdown popups during pointer selection.
 
 Tests live in `tools/surveys/saves.test.ts` and
 `tests/e2e/surveys-runner.spec.mjs`. `./leonaid test-surveys-runner` builds a fresh
@@ -191,14 +197,16 @@ bundle and the host's own SQLite-backed CSV adapter. Additional host language ca
 compiled distribution and full cross-host theme/hydration acceptance remain
 tracked in the spike plan.
 
-## Server aggregate engine (in progress)
+## Server aggregate engine
 
 The separate `analysis` entrypoint exports `aggregateApprovedSurvey(definition,
 responses)`. Use it in a trusted server process after approving a stored
 initial-v1 definition. It uses the same SurveyJS model and partial-answer rules
 as the respondent/validator. It does not provide authorization, response
-selection, immutable snapshot storage, charts or exports. Those host integrations
-remain pending. Do not send raw responses to an aggregate-only browser user.
+selection, immutable snapshot storage, charts or exports. Those are separate
+host/entrypoint responsibilities, implemented by the LeonAid integration and
+the analytics/export components below. Do not send raw responses to an
+aggregate-only browser user.
 
 Every question reports relevant, answered, unanswered, hidden and invalid counts.
 `answered + unanswered + invalid = relevant`; `relevant + hidden` equals the

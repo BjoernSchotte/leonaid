@@ -1,7 +1,8 @@
 # SURV-100 — Acceptance evidence in progress
 
 Overall status: **open**. This file records scoped checks; it does not accept the
-aggregate lane, complete sample journeys, recovery gates or remaining regressions.
+aggregate lane, recovery gates or remaining regressions. The latest complete
+journey regression is accepted in the [dropdown pointer proof](SURV-100-DROPDOWN.md).
 
 ## React peer policy and packed consumer
 

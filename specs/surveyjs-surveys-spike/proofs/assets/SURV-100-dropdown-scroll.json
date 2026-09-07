@@ -1,0 +1,72 @@
+{
+  "run": {
+    "mode": "journeys",
+    "exitCode": 0,
+    "seconds": 368.119,
+    "ownedResourcesAbsent": true,
+    "project": "leonaid-surveys-833458328-52983"
+  },
+  "originalJourneySpecSha256": "fbf466f5e0c31def8fc985c7620a28c09e7841c83247c6f9fd16655761031fe3",
+  "verification": {
+    "syntheticOnly": true,
+    "journeys": [
+      {
+        "template": "krapfentaxi",
+        "viewport": [
+          1440,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "krapfentaxi",
+        "viewport": [
+          390,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "golf",
+        "viewport": [
+          1440,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "golf",
+        "viewport": [
+          390,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      }
+    ]
+  },
+  "logSha256": "4d7208b3ba771d7c5d9d21d8d4b2b0d6a42c430915b3f94899e24ecfc4cc32e8"
+}

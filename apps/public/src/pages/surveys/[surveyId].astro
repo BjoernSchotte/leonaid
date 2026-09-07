@@ -27,6 +27,10 @@ Astro.response.headers.set("Referrer-Policy", "no-referrer");
   import "../../lib/survey-page";
 </script>
 <style is:global>
+  /* A focus-triggered smooth document scroll dismisses SurveyJS dropdowns. */
+  html:has(.survey-shell) {
+    scroll-behavior: auto;
+  }
   .survey-shell {
     --survey-font: "Instrument Sans Variable", sans-serif;
     --survey-accent: #00338d;

@@ -488,6 +488,8 @@ complete journeys and independent parsing/erasure verification. [Live evidence](
 Task-level **100.2** acceptance remains open solely for its broader **100.A4**
 capability/task reconciliation gate; successful journeys do not close that audit.
 
+- [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The broader 100.2 capability audit remains open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
+
 - [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
 
   Acceptance criteria: **100.A3, 100.A5**.
@@ -530,7 +532,7 @@ capability/task reconciliation gate; successful journeys do not close that audit
 
 ## Final reconciliation
 
-- [x] Every implementation task in PLAN.md has exactly one entry above (69 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
+- [x] Every implementation task in PLAN.md has exactly one entry above (72 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
 - [ ] Every completed task links to its task-level proof; no inferred passing status.
 - [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
 - [ ] Remaining open tasks are listed in the spike report and prevent full completion.
