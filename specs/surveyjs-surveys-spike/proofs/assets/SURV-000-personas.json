@@ -1,0 +1,206 @@
+{
+  "api": {
+    "syntheticOnly": true,
+    "personas": [
+      "admin",
+      "design",
+      "publish",
+      "archive",
+      "view_aggregates",
+      "read_responses",
+      "export_raw",
+      "export_reports",
+      "manage_invitations",
+      "delete",
+      "owner",
+      "manager",
+      "member",
+      "outsider"
+    ],
+    "resourceKinds": [
+      "standalone",
+      "member-action",
+      "foreign-action",
+      "foreign-standalone"
+    ],
+    "positiveReads": 127,
+    "deniedReads": 723,
+    "deniedWrites": 891,
+    "personaResourcePairs": 56,
+    "listsCountsSearchPaginationScoped": true,
+    "deniedOperationsPreserveSqlFingerprint": true
+  },
+  "browser": {
+    "syntheticOnly": true,
+    "cases": [
+      {
+        "persona": "admin",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "admin",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "archive",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "archive",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "delete",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "delete",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "design",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "design",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "export_raw",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "export_raw",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "export_reports",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "export_reports",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "manage_invitations",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "manage_invitations",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "manager",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "manager",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "member",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "member",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "outsider",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "outsider",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "owner",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "owner",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "publish",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "publish",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "read_responses",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "read_responses",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "view_aggregates",
+        "viewport": "desktop",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      },
+      {
+        "persona": "view_aggregates",
+        "viewport": "mobile",
+        "resourcePairs": 4,
+        "scopedControlsAndDirectAccess": true
+      }
+    ]
+  }
+}

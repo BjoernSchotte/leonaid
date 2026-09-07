@@ -225,3 +225,44 @@ state. The checker scope does not claim a full license audit of all existing
 LeonAid or base-image dependencies. Future additions and final SURV-100 artifact
 review remain required. Own license remains **UNDEFINED**; no manifest/license
 choice changed. Ruff, shell syntax and diff whitespace checks passed.
+
+## Persona and fixture foundation
+
+**000.4 / 000.S2 accepted.** Runtime baseline `fce4fe4`; this change adds
+review documentation and evidence only. The broader **000.A1 / 000.T1** contract
+and capability traceability gate remains open.
+
+The following command exited **0** in fresh project
+`leonaid-surveys-833458328-6734`:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+The actual API/PostgreSQL foundation migrated empty volumes and verified stored
+values. The permissions fixture then created 14 personas across four resource
+contexts. Its independently specified expectations verified **56 persona/resource
+pairs**, **127 allowed reads**, **723 denied reads**, and **891 denied writes**.
+Denied operations preserved SQL fingerprints; list totals, search and pagination
+remained scoped. The [sanitized result](assets/SURV-000-personas.json) records
+these counts and all 28 desktop/mobile persona cases (112 browser resource pairs),
+without tokens, response contents or temporary resource IDs.
+
+The full Chromium permissions suite completed successfully, including foundation,
+publisher-only review, invitation controls, invitation-only users, role lifecycle
+and deletion scenarios. The command verified removal of its owned containers,
+volumes and networks; it published no host ports. No unrelated worktree stack was
+removed. Existing artifact files for other harness modes are not claimed as
+results of this run.
+
+[ROLES-AND-DATA.md](../ROLES-AND-DATA.md) records the source-reviewed capability
+mapping, durable entities, constraints and migration sequence. The deterministic
+three-page Krapfentaxi/golf JSON definitions and real-API publication seed are
+complemented by the [template/editor regression](SURV-040.md#template-creation-and-editor-regression).
+Fresh UUIDs and temporary credentials isolate runs while fixture relationships
+and behavioral expectations remain deterministic. The existing
+[deliberate-failure proof](#foundation-browser-failure-diagnostics) supplies the
+separate sanitized diagnostics/nonzero-exit acceptance required by 000.A3.
+
+This closes the fixture/infrastructure task, not the final SURV-100 whole-product
+journeys or all C-01–C-15 contract outcomes. Own license remains **UNDEFINED**.
