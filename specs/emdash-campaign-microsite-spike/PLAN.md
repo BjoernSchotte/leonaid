@@ -1495,6 +1495,9 @@ Dependencies: EMS-030 successful
       membership withdrawal, Core outage and bootstrap restart/database-failure
       regressions. No host ports were published; all owned test resources were
       removed after successful completion.
+      Post-commit `./leonaid check` passed at `214fd73`: 208 unit tests, 242
+      Python source checks, 37 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
