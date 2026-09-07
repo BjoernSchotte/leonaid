@@ -2525,6 +2525,11 @@ keyboard and 200% zoom checks.
       method/path denials, publication states and Core outage checks passed.
       All owned containers, volumes and networks were removed; no host ports
       were published. This is paced functional evidence, not burst acceptance.
+      Full `./leonaid check` passed at `18c9b82`: 210 unit tests, 249 Python
+      source-file type checks, 24 public and 46 campaign Astro files with zero
+      diagnostics, API/schema/type generation, formatting and privacy/CI gates.
+      The working tree remained unchanged; existing upstream Pydantic/Vite
+      deprecation warnings remain.
 - [ ] Resolve and live-prove bounded burst/uncertain-outcome behaviour. Two
       unpaced 24-order browser runs (`leonaid-emdash-tmp-iefyq9xuvg` and
       `leonaid-emdash-tmp-bwmrkpeu7j`) accepted the first 17 orders but the next
