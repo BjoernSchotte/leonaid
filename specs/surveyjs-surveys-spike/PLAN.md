@@ -554,6 +554,7 @@ Implementation tasks:
 Test implementation and verification tasks:
 
 - [ ] **000.T1** Add DTO/error-contract checks, persona/capability fixture coverage, clean-stack migration and database roundtrip tests, plus prohibited/unknown-dependency negative fixtures. Acceptance: **000.A1, 000.A2, 000.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **000.T1a** Inventory every registered survey write with its request/response DTO; prove unknown-field rejection and unauthenticated/missing-resource rejection against the real API with unchanged survey/outbox row contents, including a persisted answer fixture. [Contract inventory](WRITE-CONTRACTS.md) and [live evidence](proofs/SURV-000.md#complete-write-transport-inventory). This accepts the transport subset only; **000.T1 / 000.A1** remain open for full error, role, concurrency and C-01–C-15 traceability.
 - [x] **000.T2** Add a Playwright smoke journey through both hosts: authenticate a synthetic member, open a public route, and verify failure diagnostics and cleanup. Acceptance: **000.A3**. [Live evidence](proofs/SURV-000.md#foundation-browser-failure-diagnostics): a real Chromium success and deliberate failure both complete the member/public/survey-shell steps; expected exits, credential-free diagnostics and isolated teardown are verified.
 
 Acceptance criteria:

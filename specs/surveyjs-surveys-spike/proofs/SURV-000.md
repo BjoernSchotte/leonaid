@@ -113,3 +113,57 @@ JSON reports are retained in `.artifacts/surveys-infrastructure/foundation/`.
 No session files or test traces are committed. The acceptance result proves the
 foundation journey and its intentional failure path, not all module journeys,
 all personas, the remaining write contracts or the aggregate SURV-100 gate.
+
+## Complete write transport inventory
+
+**000.T1a / 000.S1a accepted.** Source is the commit introducing this section,
+based on `b79bc3e`. The broader **000.1 / 000.A1 / 000.T1 / 000.S1** remain open.
+
+The [contract document](../WRITE-CONTRACTS.md) records all current survey write
+operation IDs, model sources, authorization, error boundaries, revision/replay
+scope and successful persistence effects. Review covered the actual HTTP router,
+PostgreSQL survey/export repositories, domain capability policy, neutral package
+contracts and the host export-state adapter. It explicitly identifies the generic
+Python dictionary port and remaining verification work rather than implying that
+all layers already have typed or fully tested contracts.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" contracts
+```
+
+Final run `leonaid-surveys-833458328-97785` exited **0**. The real stack migrated
+and passed the existing PostgreSQL/API identity foundation. With its worker
+stopped, `tools/surveys/write_contracts_live.py` created/published a survey through
+HTTP, started a participation, saved a nonempty answer and checked its exact SQL
+value. It then verified an explicit inventory against all **21** registered
+POST/PUT/PATCH/DELETE survey routes and validated each nominal fixture using the
+route's actual request model.
+
+All **42** negative HTTP calls passed: 21 authenticated extra-field requests
+returned 422; 17 syntax-valid member requests without authentication returned 401;
+four syntax-valid public requests for a nonexistent survey returned 404. After
+each call, full row-content digests for **14** survey/outbox tables matched the
+pre-call baseline. This detects updates as well as inserts/deletes and preserves
+the nonempty answer fixture. Identity/session activity and security-rate attempt
+rows are outside this invariant. No email is sent by these rejected requests.
+
+The subsequent pinned Chromium foundation test passed (1 test, 1.7 seconds),
+opening the authenticated member host and public homepage through the real proxy
+without mocked routes. This contracts mode uses the original synthetic admin
+foundation session; ordinary-member and survey-shell evidence belongs to the
+separate foundation diagnostic run above. The harness removed its own containers,
+volumes and networks. Explicit unused subnets and no host port publication kept
+the run isolated from parallel worktrees.
+
+An earlier run (`leonaid-surveys-833458328-97101`, exit 1) correctly rejected the
+test's nominal `example.invalid` email fixture before completing the inventory.
+The fixture now uses the reserved example.com domain; the full corrected run is
+the acceptance evidence. Ruff and shell syntax checks passed. The
+[sanitized result](assets/SURV-000-write-contracts.json) contains operation/model
+metadata, observed statuses and table names; it contains no session tokens,
+response contents, row digests or temporary resource IDs.
+
+This proves the complete negative transport inventory, not every invalid-field
+boundary, valid-resource permission combination, error code/envelope, replay or
+concurrency outcome. Those remain part of the parent contract gate alongside
+the explicit C-01–C-15 fixture mapping and the existing work-package live proofs.

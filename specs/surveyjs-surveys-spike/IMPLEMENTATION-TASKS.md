@@ -33,6 +33,12 @@ a substitute for completing an individual task.
 
 ## SURV-000 — Contracts, dependency selection and test infrastructure
 
+The [write-contract inventory](WRITE-CONTRACTS.md) records all 21 transport
+operations, authorization, revision/replay scope and persistence behavior.
+**000.T1a / 000.S1a** prove their strict negative transport boundary against real
+stored data; [evidence](proofs/SURV-000.md#complete-write-transport-inventory).
+This does not close the full contracts/persona/capability acceptance below.
+
 - [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
 
   Acceptance criteria: **000.A1**.
