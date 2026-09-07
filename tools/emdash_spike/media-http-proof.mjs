@@ -419,9 +419,27 @@ if (mode) {
     ["/_emdash/image", "GET"],
   ])
     await call("charity", path, 503, method, method === "GET" ? undefined : {});
+  // Retain the same-filename isolation fixture above; separately provide a
+  // real, uniquely named foreign image for native negative-search evidence.
+  const foreignSearchUpload = await reserve(
+    "charity_b",
+    b,
+    "foreign-search-only.png",
+  );
+  await stage("charity_b", foreignSearchUpload);
+  const foreignSearch = (
+    await confirm("charity_b", foreignSearchUpload.mediaId)
+  ).json.data.item;
+  assert.equal(foreignSearch.status, "ready");
   await writeFile(
     statePath,
-    JSON.stringify({ ready, foreign: foreignReady, failure, tamper }),
+    JSON.stringify({
+      ready,
+      foreign: foreignReady,
+      foreignSearch,
+      failure,
+      tamper,
+    }),
   );
   console.log(
     "campaign-media-http: actual TLS/Core/Node/EmDash/RustFS native reserve/PUT/confirm/private-file protocol passed for two Charity actors; scoped IDs/hash/listing, server-derived dimensions, malformed/slow/oversize denial, CSRF, anonymous/foreign privacy and closed alternate routes proved. Browser field UX and public delivery remain pending.",

@@ -630,7 +630,7 @@ Dependencies: EMS-010
       authentication and replacing upstream email lookup remain open below.
 
 - [x] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
-    config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
+  config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
       workspace package. Production HTTP identity is proven below; browser
       navigation and broader editor access remain separate open gates.
 - [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
@@ -1555,6 +1555,23 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `e000bc6`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
+- [x] Prove empty and foreign-only filename searches in the native image picker
+      in Chromium, Firefox and WebKit. A separate real Charity B upload supplies
+      a unique foreign filename while the existing same-filename/hash isolation
+      fixture remains intact. Charity A's native search receives zero items and
+      zero count for both the foreign name and a nonexistent name; the dialog
+      displays its empty heading, no media list/thumbnails/load-more control and
+      a disabled Insert button. Clearing the search restores the own image.
+      Complete content snapshots remain unchanged throughout. No responses or
+      React state are substituted. Full `campaign-media-http` passed in
+      `leonaid-emdash-tmp-y3zh5dgk5n`, including prior media/editor/repeater,
+      reference-isolation, five SQL-wait/logout, dependency-failure/retry,
+      revocation and bootstrap restart/database-failure checks. No host ports;
+      owned resources removed. The initial run `leonaid-emdash-tmp-i7xzuflkg7`
+      failed because its search name also existed in Charity A; the corrected
+      fixture does not remove that existing positive isolation case. That failed
+      stack was also removed. Pagination (native page size 100), full two-actor
+      browser workflows, accessibility, public delivery and recovery remain open.
 - [x] Prove native FAQ and partner add, keyboard reorder and removal with
       autosave/reload persistence in Chromium, Firefox and WebKit. The narrow
       exact-source client patch retains native repeater state and mutations,

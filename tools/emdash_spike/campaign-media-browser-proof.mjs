@@ -97,6 +97,55 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           .evaluate((img) => img.complete && img.naturalWidth > 0),
       )
       .toBe(true);
+    // The foreign file really exists (uploaded by Charity B in the HTTP proof).
+    // Searching its exact name must look identical to a nonexistent filename,
+    // without leaking a count, thumbnail or selectable item through the picker.
+    const beforeSearch = (await json(apiPath)).item;
+    assert.notEqual(state.foreignSearch.filename, state.ready.filename);
+    for (const query of [
+      state.foreignSearch.filename,
+      `absent-${name}-image.png`,
+    ]) {
+      const searched = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/_emdash/api/media" &&
+          url.searchParams.get("campaign") === action &&
+          url.searchParams.get("q") === query &&
+          response.request().method() === "GET"
+        );
+      });
+      await dialog.getByRole("searchbox", { name: "Search media" }).fill(query);
+      const result = await searched;
+      assert.equal(result.status(), 200);
+      const data = (await result.json()).data;
+      assert.deepEqual(data.items, []);
+      assert.equal(data.totalCount, 0);
+      await expect(
+        dialog.getByRole("heading", { name: "No media found", exact: true }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole("listbox", { name: "Available media" }),
+      ).toHaveCount(0);
+      await expect(
+        dialog.locator('img[src*="/_emdash/api/media/file/"]'),
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole("button", { name: "Insert", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        dialog.getByRole("button", { name: "Load More", exact: true }),
+      ).toHaveCount(0);
+      assert.deepEqual((await json(apiPath)).item, beforeSearch);
+    }
+    await dialog.getByRole("searchbox", { name: "Search media" }).fill("");
+    await expect(
+      dialog.getByRole("button", { name: state.ready.filename, exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: "No media found", exact: true }),
+    ).toHaveCount(0);
+    assert.deepEqual((await json(apiPath)).item, beforeSearch);
     // Reuse actual private fixture bytes, then upload through the native file
     // input. No API writes, request interception or injected React state.
     const bytes = await context.request.get(
