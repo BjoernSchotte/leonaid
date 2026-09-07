@@ -2020,6 +2020,10 @@ fields are absent; generated TypeScript types compile.
       published. This proves error redisplay, not accepted-order idempotency,
       uncertain-outcome retry, mixed-offering summaries or the complete no-JS
       success/validation matrix; those remain required with the Twenty journey.
+      Quality gate: `./leonaid check` passed at `5ece946`: 208 unit tests,
+      244 Python source files, 24 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 - [x] Embed the shared order form in `/campaigns/<archive_slug>/` using fresh
       Core offerings, form configuration, token and authoritative `orderAlias`.
