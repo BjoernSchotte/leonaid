@@ -1,5 +1,25 @@
 # SURV-020 — Independent packed consumer
 
+## Responsive restoration regression (2026-09-08)
+
+The logo restoration assertion previously selected the rating's radio/dropdown
+view once, before hydration and ResizeObserver had settled. It now re-reads the
+visible view within a bounded assertion while still requiring the same saved
+value, `5`. It does not replay writes or force interactions.
+
+`sh tools/surveys/infrastructure.sh "$PWD" branding` passed in isolated project
+`leonaid-surveys-833458328-37841`: six Chromium tests passed in 13.9 seconds,
+including logo restoration, three-page navigation at 320/390/1440 pixels and
+version-bound completion text. The real PostgreSQL/API foundation also passed.
+The harness published no host ports; an independent post-run inventory confirmed
+that its containers, volumes and networks were absent.
+
+The immediately following full `runner` mode also passed: eight Chromium tests
+in 31.1 seconds, 192 API/PostgreSQL condition cases, adapter failure/recovery,
+timeouts, competing writes and durable operation replay after actual API/worker
+restart. This is a local regression result, not acceptance of the still-failing
+Golf end-to-end journey or the final aggregate/CI gate.
+
 Status: **accepted** for SURV-020. The host-translated editor proof below closes
 020.1; analytics entrypoints are also exercised by the current packed inspector.
 Earlier sections retain the evidence and limitations at their execution time.

@@ -57,12 +57,17 @@ for (const width of [1440, 390, 320]) {
       await page.reload();
       await expect(logo).toBeVisible();
       const rating = page.locator("[data-name=delivery_rating]");
-      if (await rating.getByRole("combobox").count())
-        await expect(rating.getByRole("combobox")).toContainText("5");
-      else
-        await expect(
-          rating.locator('input[type=radio][value="5"]'),
-        ).toBeChecked();
+      // Hydration and ResizeObserver can switch the restored rating's view.
+      // Re-read the active view while checking the same persisted value.
+      await expect(async () => {
+        const dropdown = rating.getByRole("combobox");
+        if (await dropdown.isVisible())
+          await expect(dropdown).toContainText("5", { timeout: 1000 });
+        else
+          await expect(
+            rating.locator('input[type=radio][value="5"]'),
+          ).toBeChecked({ timeout: 1000 });
+      }).toPass({ timeout: 15000, intervals: [100, 250] });
       const restored = await page.evaluate(
         async (path) => (await fetch(path)).json(),
         endpoint,
