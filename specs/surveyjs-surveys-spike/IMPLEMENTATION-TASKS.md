@@ -201,6 +201,12 @@ a substitute for completing an individual task.
   Integration / supporting checks: **060.S1**.
   E2E: **060.S4**.
 
+- [x] **060.2a** Exercise all nine individual grants and owner/manager/member/outsider/admin personas across standalone, joined-action and foreign resources. Verify scoped lists/counts/search/pagination, populated reads, own/foreign export jobs and denied writes without SQL changes.
+
+  Acceptance criteria: **060.A1, static API matrix portion**.
+  Integration: **060.S1a**, [live evidence](proofs/SURV-060.md#persona-resource-api-matrix).
+  Parent 060.2 remains open for remaining route/state and browser coverage.
+
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit.
 
   Acceptance criteria: **060.A2, 060.A3**.

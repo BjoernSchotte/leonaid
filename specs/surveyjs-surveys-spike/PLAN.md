@@ -706,6 +706,7 @@ Implementation tasks:
 
 - [x] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls. Acceptance: **060.A4, 060.A5**. [Delivery and scoped browser evidence](proofs/SURV-060.md); full persona coverage and timeout/test-data acceptance remain open.
 - [ ] **060.2** Enforce distinct design/publish/read/aggregate/export/invite/delete capabilities across API routes, lists, counts and UI actions. Acceptance: **060.A1, 060.A4**.
+- [x] **060.2a** Prove independent account/resource expectations for all nine single grants, owner, action administrator, ordinary member, outsider and system administrator against lists/counts, populated read routes and unauthorized writes. Acceptance: **060.A1, static API matrix portion**. [Live evidence](proofs/SURV-060.md#persona-resource-api-matrix). Parent 060.2 remains open for the remaining route/state and browser matrix.
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
 - [x] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis. Acceptance: **060.A5**. [Live preview, timeout and stored analysis proof](proofs/SURV-060.md#preview-isolation-and-timeout-snapshot-acceptance).
 

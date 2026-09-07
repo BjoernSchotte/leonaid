@@ -71,6 +71,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 ## SURV-060 — Module and permissions
 
 - [ ] **060.S1 · Integration · 060.T1 → 060.A1:** Exercise the persona/resource matrix against lists, counts and direct read/write routes; foreign IDs and unauthorized operations reveal no protected data and change no state. Anonymous answers have no CRM/order association.
+- [x] **060.S1a · Integration · 060.2a → 060.A1 (static API matrix):** Compare 14 independently specified personas against four resource scopes; assert authorized/forbidden populated reads and own/foreign export jobs, scoped list/count/search/pagination, and no SQL changes after denied writes. [Live evidence](proofs/SURV-060.md#persona-resource-api-matrix). Parent 060.S1 remains open.
 - [x] **060.S2 · Integration · 060.T1 → 060.A2:** Retry invitation processing and expire/revoke access; one logical invitation remains, invalid access is rejected and seeded credentials appear in neither captured logs nor exports. [Live evidence](proofs/SURV-060.md#invitation-credential-and-expired-resume-acceptance).
 - [x] **060.S3 · E2E · 060.T2 → 060.A3:** Send an invitation from the member UI through the real worker, retrieve it from Mailpit and complete its linked questionnaire; a revoked invitation subsequently fails. [Evidence](proofs/SURV-060.md#personal-invitations).
 - [ ] **060.S4 · E2E · 060.T2 → 060.A4:** Navigate action-linked and standalone surveys with different personas; visible actions match permissions and direct navigation/API calls cannot bypass them.

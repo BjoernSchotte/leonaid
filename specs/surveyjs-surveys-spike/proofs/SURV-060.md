@@ -424,3 +424,79 @@ run used fresh volumes, seven currently unused explicit subnets and no published
 host ports. The harness verified complete owned-resource teardown. No runtime or
 test file was edited during execution, and no new manual visual/a11y inspection
 or exhaustive SMTP crash-instruction coverage is claimed.
+
+
+## Persona-resource API matrix
+
+**060.2a / 060.S1a are accepted.** Production baseline `92ec679` is unchanged.
+This supplies the static API matrix portion of 060.A1; it does not close 060.2,
+060.A1/A4, 060.T1/T2 or the full module. Own license remains UNDEFINED.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" permissions
+```
+
+Final project `leonaid-surveys-833458328-41183` exited **0**. The test
+`tools/surveys/permissions_live.py` defines its expected capability sets explicitly,
+without calling the production permission function. It seeds real accounts,
+sessions, action memberships and survey grants. Four surveys are created and
+published through HTTP; each receives a real anonymous start/save/completion and
+an immutable analysis snapshot. SQL confirms none of the four participations has
+an invitation association. This is not a claim of an exhaustive CRM/order table
+association audit.
+
+| Persona | Standalone owned/shared survey | Action with membership | Foreign action without membership | Unrelated standalone |
+|---|---|---|---|---|
+| Each of nine single-grant users | Exactly its single capability | Exactly its single capability | None, despite a grant | None |
+| Owner | All nine | All nine | None, despite ownership | None |
+| Charity administrator of the joined action | None | All nine | None | None |
+| Ordinary action member without grant | None | None | None | None |
+| Outsider | None | None | None | None |
+| System administrator | All nine | All nine | All nine | All nine |
+
+Across **56 persona/resource pairs**, the run accepted **118 positive reads**,
+**676 denied reads** and **891 denied writes**, plus the separately asserted
+summary/list queries. Lists, total counts, literal search, active-status filter
+and offset pagination reveal exactly the authorized fixture resources. Available
+action-creation choices match management rights. Summary capability sets match
+the table exactly.
+
+Read routes cover drafts, analysis versions/snapshots, response-selection
+versions/metadata/lists/individual answers/free text, export-selection versions,
+invitations and export jobs. Snapshots have real completed responses. Each
+eligible requester creates its own raw/report job and can read it. Existing
+admin-created jobs are rejected for all other accounts even with matching export
+rights; their download routes also reject those accounts. This preserves the
+existing requester-specific export contract in SURV-080.
+
+Negative writes use structurally valid DTOs for draft save/validation, timeout,
+duplication, publishing, schedule, access mode, all five lifecycle actions,
+permanent deletion, analysis/response/export selections, invitation creation and
+raw/report job creation. Every unauthorized request returns 404. Before and after
+the matrix, ordered row-JSON fingerprints are identical for survey, draft,
+version, participation, operation receipt, analysis snapshot, invitation, export
+job, deletion and outbox tables. The worker is deliberately stopped during this
+comparison, then restarted and checked healthy before the browser phase.
+
+The foundation Chromium scenario passed **1 test in 2.0 s**. It proves the actual
+member/public hosts remain reachable; it is not the pending persona UI matrix.
+The final run used fresh volumes, seven currently unused explicit subnets and no
+published host ports, and verified complete owned-resource teardown. Ruff
+check/format, shell syntax and diff whitespace checks passed. The retained
+[SURV-060-permissions-api.json](assets/SURV-060-permissions-api.json)
+contains only persona/resource names, counts and booleans. No account IDs,
+sessions, answer content or raw diagnostics are committed.
+
+Three earlier runs exited 1 and cleaned up before test edits: `...39126` used a
+wrong deletion table name in the fingerprint; `...39872` used an invitation email
+under `.invalid`, rejected during DTO validation before authorization;
+`...40491` incorrectly expected a single-grant exporter to read an admin's job.
+The corrected fixture uses the actual deletion table, a valid synthetic email,
+and separately exercises own-job access and foreign-job denial. No production
+permission, validation or persistence rule was relaxed to make the tests pass.
+
+Remaining 060.A1/A4 coverage includes successful single-capability mutations and
+UI controls, cross-survey child-ID substitution, invitation-revoke and deletion
+status special scopes, changing/expired memberships or disabled accounts, and the
+complete anonymous identity association audit. These remain part of the original
+parent work package and prevent a claim of full role/capability acceptance.

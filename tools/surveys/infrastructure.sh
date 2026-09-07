@@ -92,6 +92,12 @@ if [ "$mode" = invitations ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
 fi
+if [ "$mode" = permissions ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/permissions_live.py
+  compose up --detach --wait --wait-timeout 60 worker
+fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 state_worker_pid=""
 if [ "$mode" = export-limits ]; then
@@ -341,6 +347,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
 mkdir -p "$artifact"
+if [ "$mode" = permissions ]; then
+  cp "$proof/permissions-proof.json" "$artifact/"
+fi
 if [ "$mode" = export-limits ]; then
   cp "$proof/export-limits-proof.json" "$artifact/"
 fi
