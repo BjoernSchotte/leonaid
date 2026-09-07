@@ -6,10 +6,21 @@ from uuid import UUID
 from pydantic import Field, field_validator
 
 from leonaid.application.surveys.analysis import AggregateModel
+from leonaid.application.surveys.analysis_snapshot import ResolvedAnalysisFilter
 from leonaid.application.surveys.export_rendering import (
     ExportProduct,
     SurveyExportArtifact,
 )
+
+
+class SurveyExportSelection(AggregateModel):
+    """Frozen export input metadata, without answers or aggregate values."""
+
+    id: str
+    surveyId: str
+    createdAt: str
+    versionNumber: int
+    filter: ResolvedAnalysisFilter
 
 
 class CreateSurveyExport(AggregateModel):

@@ -18,6 +18,7 @@ from leonaid.application.surveys import SurveyService
 from leonaid.application.surveys.exports import (
     CreateSurveyExport,
     SurveyExportJob,
+    SurveyExportSelection,
     SurveyExports,
 )
 from leonaid.application.surveys.analysis_snapshot import (
@@ -327,6 +328,32 @@ async def export_download(request: Request, survey_id: UUID, job_id: UUID) -> Re
             "X-Content-Type-Options": "nosniff",
             "Content-Disposition": f'attachment; filename="{artifact.filename}"',
         },
+    )
+
+
+@router.get(
+    "/surveys/{survey_id}/export-selections/versions",
+    operation_id="listSurveyExportVersions",
+    response_model=AnalysisVersions,
+)
+async def export_selection_versions(
+    survey_id: UUID, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(request, survey_id, "export-selection-versions", {})
+
+
+@router.post(
+    "/surveys/{survey_id}/export-selections",
+    operation_id="createSurveyExportSelection",
+    response_model=SurveyExportSelection,
+)
+async def export_selection_create(
+    survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return await author(
+        request, survey_id, "export-selection-create", body.model_dump()
     )
 
 

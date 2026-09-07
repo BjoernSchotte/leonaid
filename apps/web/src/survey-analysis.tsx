@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
+import {
+  ApiError,
+  type LeonAidApiClient,
+  type SurveyExportSelection,
+} from "@leonaid/api-client";
 import { Button } from "@leonaid/ui";
 import {
   SurveyAnalytics,
@@ -60,12 +64,14 @@ export function SurveyAnalysis({
   canTest,
   canExportRaw,
   canExportReports,
+  exportOnly = false,
 }: {
   client: LeonAidApiClient;
   surveyId: string;
   canTest: boolean;
   canExportRaw: boolean;
   canExportReports: boolean;
+  exportOnly?: boolean;
 }) {
   const [versions, setVersions] = useState<{ id: string; number: number }[]>(
     [],
@@ -78,7 +84,9 @@ export function SurveyAnalysis({
   const [isTest, setIsTest] = useState(false);
   const [from, setFrom] = useState("");
   const [before, setBefore] = useState("");
-  const [snapshot, setSnapshot] = useState<AnalysisSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<
+    AnalysisSnapshot | SurveyExportSelection | null
+  >(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -89,8 +97,12 @@ export function SurveyAnalysis({
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    void client
-      .listSurveyAnalysisVersions(surveyId, { signal: controller.signal })
+    const request = exportOnly
+      ? client.listSurveyExportVersions(surveyId, { signal: controller.signal })
+      : client.listSurveyAnalysisVersions(surveyId, {
+          signal: controller.signal,
+        });
+    void request
       .then((value) => {
         if (controller.signal.aborted) return;
         setVersions(value.items);
@@ -106,7 +118,7 @@ export function SurveyAnalysis({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [client, surveyId]);
+  }, [client, surveyId, exportOnly]);
 
   async function analyze(repeat = false) {
     if (inFlight.current) return;
@@ -133,11 +145,10 @@ export function SurveyAnalysis({
     setBusy(true);
     setError("");
     try {
-      const value = await client.createSurveyAnalysis(
-        surveyId,
-        pending.current,
-      );
-      setSnapshot(value as AnalysisSnapshot);
+      const value = exportOnly
+        ? await client.createSurveyExportSelection(surveyId, pending.current)
+        : await client.createSurveyAnalysis(surveyId, pending.current);
+      setSnapshot(value as AnalysisSnapshot | SurveyExportSelection);
       pending.current = null;
       setRetry(false);
     } catch (cause) {
@@ -159,8 +170,11 @@ export function SurveyAnalysis({
   }
 
   return (
-    <section aria-label="Auswertung erstellen" className="surveys-analysis">
-      <h2>Auswertung</h2>
+    <section
+      aria-label={exportOnly ? "Export vorbereiten" : "Auswertung erstellen"}
+      className="surveys-analysis"
+    >
+      <h2>{exportOnly ? "Antwortstand für Export auswählen" : "Auswertung"}</h2>
       <p>
         Teilantworten und abgeschlossene Teilnahmen werden gemeinsam
         ausgewertet. Jede Auswertung hält den ausgewählten Stand fest.
@@ -248,7 +262,11 @@ export function SurveyAnalysis({
               Zeitzone: {zone}. Der Beginn zählt mit, der Endzeitpunkt nicht.
             </p>
             <Button type="submit" disabled={!selected.length}>
-              {busy ? "Wird ausgewertet …" : "Auswertung erstellen"}
+              {busy
+                ? "Bitte warten …"
+                : exportOnly
+                  ? "Export vorbereiten"
+                  : "Auswertung erstellen"}
             </Button>
             {!selected.length && (
               <p role="status">Wählen Sie mindestens einen Teilnahmestatus.</p>
@@ -296,11 +314,13 @@ export function SurveyAnalysis({
               ({zone}).
             </p>
           </div>
-          <SurveyAnalytics
-            snapshot={snapshot}
-            messages={messages}
-            locale="de-DE"
-          />
+          {!exportOnly && "questions" in snapshot && (
+            <SurveyAnalytics
+              snapshot={snapshot}
+              messages={messages}
+              locale="de-DE"
+            />
+          )}
           <LeonAidSurveyExports
             client={client}
             surveyId={surveyId}

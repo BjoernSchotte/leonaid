@@ -866,6 +866,12 @@ export function SurveysPage({
               <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} canExportRaw={allowed("export_raw")} canExportReports={allowed("export_reports")} />
             </details>
           )}
+          {summary.status !== "deleted" && !allowed("view_aggregates") && (allowed("export_raw") || allowed("export_reports")) && (
+            <details className="surveys-settings">
+              <summary>Antworten exportieren</summary>
+              <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} canExportRaw={allowed("export_raw")} canExportReports={allowed("export_reports")} exportOnly />
+            </details>
+          )}
           {summary.status !== "deleted" && allowed("read_responses") && (
             <details className="surveys-settings" open={Boolean(new URLSearchParams(location.search).get("responseSelection"))}>
               <summary>Einzelantworten lesen</summary>

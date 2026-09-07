@@ -535,3 +535,52 @@ bundle separation; it does not stand in for LeonAid worker, permission or
 four-format acceptance. Those have separate evidence above. The component keeps
 its displayed job in memory; host-driven restoration of job lists is not claimed.
 Remaining SURV-080 permission/race and workbook-render gates stay open.
+
+## Export-only member navigation and frozen selection
+
+Baseline `87d7d51` required `view_aggregates` to reach the export UI, despite
+`export_raw` and `export_reports` being independent capabilities. The member UI
+now offers **Antworten exportieren** when an exporter lacks aggregate access.
+Members with aggregate access retain the existing displayed-snapshot workflow.
+
+The new `listSurveyExportVersions` and `createSurveyExportSelection` operations
+require either export capability. Selection creation uses the existing locked,
+immutable snapshot transaction and actor-scoped idempotency. Its response is a
+strict metadata projection: ID, survey ID, version, resolved filters and timestamp.
+It exposes neither aggregate values nor individual answers. Existing analysis
+and response-reading endpoints retain their separate checks; test selections
+still require design permission. Job creation and downloads retain their existing
+product-specific and current-permission checks. OpenAPI and the client were
+regenerated from the actual transport contracts.
+
+Verification on this increment:
+
+- `rtk proxy sh tools/surveys/infrastructure.sh
+  /Users/bjoern/.codex/worktrees/497a/leonaid exports`: exit 0, isolated project
+  `leonaid-surveys-833458328-76423`, no host ports, verified teardown.
+- Real worker/storage regression: all four export files parsed against frozen
+  input, with existing cancellation, idempotency and denial checks passing.
+- Five Chromium cases passed: foundation/empty exports (two cases, 7.9s),
+  populated exports and the new export-only journey (two cases, 20.4s),
+  then existing permission-revocation/trash coverage (one case, 3.3s).
+- New browser case in `tests/e2e/surveys-export-values.spec.mjs` uses distinct
+  members granted only `export_raw` or only `export_reports`. Each creates its
+  selection through the UI and downloads its two products from the real worker.
+  It checks metadata-only/no-store responses, identical replay, conflicting
+  replay rejection, denied test selections, forbidden aggregate/raw-reading
+  routes and rejection of the other product permission. Both run at 390px.
+- Pinned UV container: Mypy passed for the three changed backend source files.
+  Pinned Bun container: `bun run --cwd apps/web typecheck` exited 0.
+  Formatting and `git diff --check` passed.
+
+Sanitized [assertion summary](assets/SURV-080-export-only.json) and
+[mobile report-export view](assets/SURV-080-export-only-mobile.png) are retained.
+The browser asserts no horizontal overflow. Manual full-page inspection confirms
+readable export controls; the fixed host navigation appears at the captured
+scroll position, so the image is not a separate proof of all sticky-layout states.
+Session credentials and downloaded raw files remain temporary test artifacts.
+
+This resolves the export-only navigation gap. It does not close the overall
+SURV-080 permission/race gate or the workbook-render review. In particular,
+selection-time grant revocation races still need dedicated coverage, alongside
+the remaining job and deletion scenarios.

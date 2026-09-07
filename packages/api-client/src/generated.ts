@@ -213,6 +213,7 @@ export type SurveyActionOption = { readonly id: string; readonly name: string; }
 export type SurveyDiagnostic = { readonly code: string; readonly message: string; readonly path: string; readonly severity: "error" | "warning" | "information"; };
 export type SurveyDraftResponse = { readonly definition: Record<string, unknown>; readonly revision: number; readonly surveyId: string; };
 export type SurveyExportJob = { readonly completedAt: string | null; readonly createdAt: string; readonly errorCode: string | null; readonly filename: string | null; readonly id: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly sizeBytes: number | null; readonly snapshotId: string; readonly status: "queued" | "processing" | "retrying" | "failed" | "available" | "cancelled"; readonly surveyId: string; };
+export type SurveyExportSelection = { readonly createdAt: string; readonly filter: ResolvedAnalysisFilter; readonly id: string; readonly surveyId: string; readonly versionNumber: number; };
 export type SurveyInvitationCreate = { readonly expectedRevision: number; readonly expiresInDays?: number; readonly operationId: string; readonly recipientEmail: string; readonly recipientName?: string; };
 export type SurveyInvitationResponse = { readonly createdAt: string; readonly expiresAt: string; readonly id: string; readonly recipientEmail: string; readonly recipientName: string; readonly status: "queued" | "retrying" | "failed" | "cancelled" | "sent" | "redeemed" | "expired" | "revoked"; };
 export type SurveyInvitationsResponse = { readonly items: Array<SurveyInvitationResponse>; readonly total: number; };
@@ -1877,6 +1878,33 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async createSurveyExportSelection(
+    surveyId: string,
+    body: CreateAnalysisSnapshot,
+    options: RequestOptions = {},
+  ): Promise<SurveyExportSelection> {
+    return this.request<SurveyExportSelection>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/export-selections`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listSurveyExportVersions(
+    surveyId: string,
+    options: RequestOptions = {},
+  ): Promise<AnalysisVersions> {
+    return this.request<AnalysisVersions>(
+      `/api/v1/surveys/${encodeURIComponent(String(surveyId))}/export-selections/versions`,
+      { method: "GET" },
       options,
     );
   }

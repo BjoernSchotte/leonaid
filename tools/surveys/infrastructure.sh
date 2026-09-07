@@ -190,7 +190,7 @@ if [ "$mode" = exports ]; then
     --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
     --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot' \
+    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot|export-only members' \
     --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke
@@ -200,6 +200,8 @@ if [ "$mode" = exports ]; then
     --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
     node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'revoked report' \
     --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  cp "$proof/export-only-proof.json" "$artifact/"
+  cp "$proof/export-only-mobile.png" "$artifact/"
   cp "$proof/export-browser-values-proof.json" "$artifact/"
   cp "$proof/export-browser-permissions-proof.json" "$artifact/"
   cp "$proof/survey-exports-proof.json" "$artifact/"

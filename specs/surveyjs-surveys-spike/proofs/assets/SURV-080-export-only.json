@@ -1,0 +1,11 @@
+{
+  "rawOnlyAndReportOnlyNavigation": true,
+  "fourWorkerDownloads": true,
+  "metadataOnlySelection": true,
+  "exactReplay": true,
+  "changedReplayRejected": true,
+  "testDataDenied": true,
+  "aggregateAndRawReadDenied": true,
+  "otherProductDenied": true,
+  "mobileNoOverflow": true
+}

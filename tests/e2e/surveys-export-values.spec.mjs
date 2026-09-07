@@ -159,6 +159,155 @@ test("populated snapshot exports match visible metrics and report-only access de
   await member.context.close();
 });
 
+test("export-only members select frozen input and download without reading aggregates or responses", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  for (const [capability, token] of Object.entries(seed.exportOnly)) {
+    const context = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 390, height: 844 },
+    });
+    await context.addCookies([
+      {
+        name: "__Host-leonaid_session",
+        value: token,
+        url: baseURL,
+        secure: true,
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/admin/surveys/${seed.surveyId}`);
+    await expect(
+      page.getByText("Antworten auswerten", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Einzelantworten lesen", { exact: true }),
+    ).toHaveCount(0);
+    await page.getByText("Antworten exportieren", { exact: true }).click();
+    const selected = page.waitForResponse(
+      (r) =>
+        r.url() === `${api}/export-selections` &&
+        r.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: "Export vorbereiten", exact: true })
+      .click();
+    const selectionResponse = await selected;
+    expect(selectionResponse.status()).toBe(200);
+    expect(selectionResponse.headers()["cache-control"]).toBe("no-store");
+    const selection = await selectionResponse.json();
+    expect(Object.keys(selection).sort()).toEqual([
+      "createdAt",
+      "filter",
+      "id",
+      "surveyId",
+      "versionNumber",
+    ]);
+    expect(JSON.stringify(selection)).not.toContain("SENSITIVE_FIRST_TEXT");
+    await expect(page.locator(".survey-analytics")).toHaveCount(0);
+    const original = selectionResponse.request().postDataJSON();
+    const replay = await context.request.post(`${api}/export-selections`, {
+      data: original,
+    });
+    expect(await replay.json()).toEqual(selection);
+    expect(
+      (
+        await context.request.post(`${api}/export-selections`, {
+          data: {
+            ...original,
+            filter: { ...original.filter, statuses: ["completed"] },
+          },
+        })
+      ).status(),
+    ).toBe(409);
+    expect(
+      (
+        await context.request.post(`${api}/export-selections`, {
+          data: {
+            ...original,
+            operationId: `${capability}-test`,
+            filter: { ...original.filter, isTest: true },
+          },
+        })
+      ).status(),
+    ).toBe(404);
+    for (const suffix of [
+      "analysis/versions",
+      `analysis/${selection.id}`,
+      "response-selections/versions",
+      `response-selections/${selection.id}/responses`,
+    ]) {
+      expect((await context.request.get(`${api}/${suffix}`)).status()).toBe(
+        404,
+      );
+    }
+    const products =
+      capability === "export_raw"
+        ? ["responses_csv", "responses_xlsx"]
+        : ["analysis_xlsx", "analysis_pdf"];
+    const deniedProduct =
+      capability === "export_raw" ? "analysis_pdf" : "responses_csv";
+    expect(
+      (
+        await context.request.post(`${api}/exports`, {
+          data: {
+            operationId: "denied-other-product",
+            snapshotId: selection.id,
+            product: deniedProduct,
+          },
+        })
+      ).status(),
+    ).toBe(404);
+    await expect(
+      page
+        .getByRole("region", { name: "Auswertung exportieren", exact: true })
+        .getByRole("listitem"),
+    ).toHaveCount(2);
+    for (const product of products) {
+      const { row, job } = await exportRow(page, product);
+      expect(job.snapshotId).toBe(selection.id);
+      const event = page.waitForEvent("download");
+      await row
+        .getByRole("button", { name: "Herunterladen", exact: true })
+        .click();
+      const download = await event;
+      expect(await download.failure()).toBeNull();
+      expect(readFileSync(await download.path()).length).toBeGreaterThan(100);
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${proof}/export-only-mobile.png`,
+      fullPage: true,
+    });
+    await context.close();
+  }
+  writeFileSync(
+    `${proof}/export-only-proof.json`,
+    JSON.stringify(
+      {
+        rawOnlyAndReportOnlyNavigation: true,
+        fourWorkerDownloads: true,
+        metadataOnlySelection: true,
+        exactReplay: true,
+        changedReplayRejected: true,
+        testDataDenied: true,
+        aggregateAndRawReadDenied: true,
+        otherProductDenied: true,
+        mobileNoOverflow: true,
+      },
+      null,
+      2,
+    ),
+  );
+});
+
 test("revoked report access blocks existing downloads and trash clears a stale download action", async ({
   browser,
 }) => {

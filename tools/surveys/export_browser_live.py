@@ -85,12 +85,37 @@ async def main():
                 uid,
                 capability,
             )
+        export_only = {}
+        for capability in ("export_raw", "export_reports"):
+            export_uid, token = uuid4(), secrets.token_urlsafe(48)
+            await conn.execute(
+                "INSERT INTO user_account(id,email,display_name,status,email_verified_at) VALUES($1,$2,'Synthetic export-only member','active',$3)",
+                export_uid,
+                f"{export_uid}@example.invalid",
+                now,
+            )
+            await conn.execute(
+                "INSERT INTO user_session(id,user_id,token_digest,expires_at,last_seen_at,fresh_login_at,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5,$5,$5)",
+                uuid4(),
+                export_uid,
+                session_token_digest(token),
+                now + SESSION_LIFETIME,
+                now,
+            )
+            await conn.execute(
+                "INSERT INTO survey_grant(survey_id,user_id,capability) VALUES($1,$2,$3)",
+                sid,
+                export_uid,
+                capability,
+            )
+            export_only[capability] = token
         state_path.write_text(
             json.dumps(
                 {
                     "surveyId": str(sid),
                     "memberId": str(uid),
                     "memberToken": member_token,
+                    "exportOnly": export_only,
                 }
             )
         )
