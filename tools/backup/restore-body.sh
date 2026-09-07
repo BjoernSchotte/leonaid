@@ -14,6 +14,7 @@ credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
 compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_RESTORE_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY:-}
+recovery_overlay_list=${LEONAID_RESTORE_COMPOSE_OVERLAY_LIST:-}
 env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
 topology=${LEONAID_RESTORE_TOPOLOGY:-legacy}
 case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology" >&2; exit 1 ;; esac
@@ -25,6 +26,8 @@ fail() {
   echo "restore: ERROR: $*" >&2
   exit 1
 }
+. "$root/tools/backup/compose-overlays.sh"
+validate_recovery_overlays
 
 [ -f "$env_file" ] || fail "Environment-Datei fehlt"
 [ -n "$source_project" ] || fail "LEONAID_BACKUP_SOURCE_PROJECT fehlt"
@@ -80,6 +83,16 @@ docker run --rm \
 compose() {
   if [ "$topology" = emdash ]; then
     set -- --file "$root/infra/backup/cms-operators.yml" "$@"
+  fi
+  if [ -n "$recovery_overlay_list" ]; then
+    validate_recovery_overlays
+    overlay_arguments=""
+    while IFS= read -r relative || [ -n "$relative" ]; do
+      overlay_arguments="$overlay_arguments --file $relative"
+    done < "$recovery_overlay_list"
+    (cd "$root" && docker compose --project-name "$target_project" --env-file "$env_file" \
+      --file "$compose_file" $overlay_arguments "$@")
+    return
   fi
   if [ -n "$compose_overlay_secondary" ]; then
     docker compose \

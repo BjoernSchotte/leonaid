@@ -12,6 +12,7 @@ credentials_file=${LEONAID_BACKUP_CREDENTIALS_FILE:-}
 compose_file="$root/infra/compose/compose.yml"
 compose_overlay=${LEONAID_BACKUP_COMPOSE_OVERLAY:-}
 compose_overlay_secondary=${LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY:-}
+recovery_overlay_list=${LEONAID_BACKUP_COMPOSE_OVERLAY_LIST:-}
 env_file=${LEONAID_ENV_FILE:-"$root/.env.local"}
 topology=${LEONAID_BACKUP_TOPOLOGY:-legacy}
 case "$topology" in legacy|emdash) ;; *) echo "backup: ERROR: unknown topology" >&2; exit 1 ;; esac
@@ -25,6 +26,8 @@ fail() {
   echo "backup: ERROR: $*" >&2
   exit 1
 }
+. "$root/tools/backup/compose-overlays.sh"
+validate_recovery_overlays
 
 [ -f "$env_file" ] || fail "Environment-Datei fehlt"
 [ -n "$repository" ] || fail "LEONAID_BACKUP_REPOSITORY fehlt"
@@ -62,6 +65,20 @@ if [ -n "$manifest_output" ]; then
 fi
 
 compose() {
+  if [ -n "$recovery_overlay_list" ]; then
+    # Preserve list order by placing accumulated file arguments after the base.
+    # Each invocation revalidates before Docker can act.
+    validate_recovery_overlays
+    overlay_arguments=""
+    while IFS= read -r relative || [ -n "$relative" ]; do
+      overlay_arguments="$overlay_arguments --file $relative"
+    done < "$recovery_overlay_list"
+    # Paths contain no whitespace/metacharacters after validation. Resolve
+    # relative paths from root so roots containing spaces remain supported.
+    (cd "$root" && docker compose --project-name "$project" --env-file "$env_file" \
+      --file "$compose_file" $overlay_arguments --profile emdash "$@")
+    return
+  fi
   set -- --profile emdash "$@"
   if [ -n "$compose_overlay_secondary" ]; then
     docker compose \

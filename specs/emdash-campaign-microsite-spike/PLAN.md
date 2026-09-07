@@ -2873,6 +2873,35 @@ Dependencies: EMS-050, EMS-070
 - [ ] Restore into a fresh Compose project and prove users still authenticate
       through Core, campaign authorization remains correct, drafts/revisions
       exist, and media renders.
+  - [x] Imported-demo application recovery checkpoint (2026-09-07):
+        `./leonaid test-emdash-spike --case recovery-app` passed from
+        `leonaid-poc112-tmp-lq8xpq1uai` into fresh
+        `leonaid-restore-tmp-lq8xpq1uai`. Before backup, the actual Krapfentaxi
+        importer and Chromium/Firefox/WebKit editorial journeys create published
+        content, uploaded media and a private follow-up draft. The real backup
+        and restore scripts preserve them through encrypted Restic recovery.
+        Target startup reuses the source-built application images with
+        `--no-build`, without reseeding, rerunning the importer or installing
+        the CMS schema. All three browsers then complete a new Core SMTP login,
+        see only the authorized campaign in the CMS list, read the retained
+        private draft, save another draft through native controls, and confirm
+        that public content remains unchanged. Hero image, campaign logo and
+        bakery logo are explicitly present and decode; the public order form
+        renders and anonymous browsing creates no cookies. Core logout again
+        removes CMS access. The explicit internal subnets have no overlap and
+        no host ports; both projects and their volumes were removed afterwards.
+        The new repository-owned overlay-list input is shared by backup/restore;
+        real-file shell tests reject conflicting input, traversal, metacharacters,
+        missing files, excessive lists and symlinks. Those tests also run in
+        `./leonaid check`. An earlier tightened image-count check incorrectly
+        expected one total hero image; the corrected proof names the separate
+        hero image and logo elements, and the full run above passes.
+        This checkpoint has real Core identities/actions and CMS/media, but an
+        empty Twenty database. Post-restore orders/Twenty convergence, current
+        membership changes and cross-campaign negative paths after restore,
+        import-journal resume verification, off-host recovery and the operational
+        release/upgrade/rollback gates remain open. Test-only target activation
+        does not enable the operational restore startup path or production.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.

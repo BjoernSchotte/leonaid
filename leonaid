@@ -69,6 +69,7 @@ Commands:
   test-emdash-spike --case redirect-aliases
   test-emdash-spike --case recovery-sql
   test-emdash-spike --case recovery-local
+  test-emdash-spike --case recovery-app
   export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
   export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
                     Prove implemented CMS checkpoints; full spike remains gated
@@ -422,6 +423,9 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/backup/compose_overlays_test.py
   docker run --rm \
     -v "$root:/workspace:ro" \
     -v "$check_git_common:$check_git_common:ro" \

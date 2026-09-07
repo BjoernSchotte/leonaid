@@ -3,6 +3,8 @@ set -eu
 root=$1
 mode=${2:-auth}
 orders=${3:-false}
+recovery=${4:-false}
+case "$recovery:$mode:$orders" in false:*|true:migration:false) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
@@ -40,10 +42,37 @@ fi
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
+if [ "$recovery" = true ]; then
+  project="leonaid-poc112-$suffix"
+  recovery_source=$project
+  recovery_target="leonaid-restore-$suffix"
+  EMDASH_RECOVERY_IMAGE_PREFIX=$project
+  export EMDASH_RECOVERY_IMAGE_PREFIX
+  choose_recovery_prefix() {
+    subnet=$(docker network inspect $(docker network ls -q) | \
+      docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+        node /workspace/tools/emdash_spike/order-subnet.mjs)
+    printf '%s' "${subnet%.0/24}"
+  }
+  recovery_source_prefix=$(choose_recovery_prefix)
+  recovery_target_prefix=$recovery_source_prefix
+  LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
+  export LEONAID_RECOVERY_PREFIX
+  if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$recovery_target")" ] || \
+     [ -n "$(docker volume ls -q --filter "label=com.docker.compose.project=$recovery_target")" ] || \
+     [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$recovery_target")" ]; then
+    rmdir "$proof"
+    echo "recovery: target project collision; refusing" >&2
+    exit 1
+  fi
+fi
 EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$recovery" = true ]; then
+    set -- --file "$root/infra/emdash-spike/recovery-app.test.yml" "$@"
+  fi
   if [ "$mode" = alias-browser ]; then
     set -- --file "$root/infra/emdash-spike/alias-browser.test.yml" "$@"
   fi
@@ -73,9 +102,17 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
   exit 1
 fi
 cleanup() {
+  if [ "$recovery" = true ]; then
+    project=$recovery_target
+    LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
+    compose down --volumes >/dev/null
+    project=$recovery_source
+    LEONAID_RECOVERY_PREFIX=$recovery_source_prefix
+  fi
   compose down --volumes >/dev/null
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json"
+  if [ "$recovery" = true ]; then rm -rf "$proof/repository"; rm -f "$proof/restic-password"; fi
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -216,6 +253,9 @@ if [ "$mode" != auth ]; then
     compose run --rm --no-deps admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
+    if [ "$recovery" = true ]; then
+      . "$root/tools/emdash_spike/recovery-app-phase.sh"
+    fi
     if [ "$orders" = true ]; then
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
