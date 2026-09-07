@@ -5,9 +5,9 @@ The deliverables and criterion definitions remain authoritative in [PLAN.md](PLA
 the expected results for named test scenarios are in [TEST-SCENARIOS.md](TEST-SCENARIOS.md).
 Own license: **UNDEFINED**. Commercial components remain excluded.
 
-A checkbox here means **task acceptance**, not merely code delivery. All entries
-start open pending a task-by-task evidence review; this does not reset checked
-delivery or criteria in PLAN.md. Check a task only when every listed criterion
+A checkbox here means **task acceptance**, not merely code delivery. Open entries
+await a task-by-task evidence review; checked entries retain their linked proof.
+This does not reset checked delivery or criteria in PLAN.md. Check a task only when every listed criterion
 and relevant assertion passes, and link the task-specific proof using
 [TASK-ACCEPTANCE.md](TASK-ACCEPTANCE.md).
 
@@ -407,6 +407,9 @@ remain open until their remaining criteria pass.
   Operator/API/database/storage checks; this is not browser E2E or complete
   unexpected-host-loss recovery. Checkpoint and cutoff are explicitly retained.
 
+  E2E — work-package regression gate: **090.S5**. The direct recovery proof above
+  exercises the operator CLI and real services; it does not replace browser coverage.
+
 - [x] **090.2h** Add authenticated resume for a quarantined pilot restore after the imports finish and before application startup begins.
 
   Acceptance: a forced interruption after committed erasures leaves application services stopped; `--resume` verifies configuration, backup, volume and phase identity, reruns erasure without reimport, preserves an independent SQL sentinel and denies old access after startup. Changed or unsafe receipts, replaced volumes, backwards cutoff and concurrent restore attempts sharing the operator lock directory fail closed.
@@ -449,9 +452,9 @@ remain open until their remaining criteria pass.
   with 090.3a/b. Integration: **090.S4c**.
   [Consolidated evidence](proofs/SURV-090.md#export-admission-and-log-acceptance).
 
-## SURV-100 — Full acceptance and spike outcome
-
   E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
+
+## SURV-100 — Full acceptance and spike outcome
 
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
 
