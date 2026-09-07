@@ -35,8 +35,14 @@
 
 	handle /api/* {
 		import leonaid_headers
-		reverse_proxy api:8000 {
-			header_up X-Forwarded-For {remote_host}
+		# This Core mutation is internal-only; Astro remains the public transport.
+		route {
+			@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+			header @internal_orders Cache-Control no-store
+			respond @internal_orders "Not Found" 404
+			reverse_proxy api:8000 {
+				header_up X-Forwarded-For {remote_host}
+			}
 		}
 	}
 

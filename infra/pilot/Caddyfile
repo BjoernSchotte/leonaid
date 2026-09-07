@@ -23,6 +23,11 @@
 }
 
 :80 {
+	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+	handle @internal_orders {
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
 	handle /_health {
 		respond "ready" 200
 	}
@@ -46,7 +51,13 @@
 
 	handle /api/* {
 		import leonaid_headers
-		reverse_proxy api:8000
+		# Explicit order prevents the generic API proxy from exposing orders.
+		route {
+			@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+			header @internal_orders Cache-Control no-store
+			respond @internal_orders "Not Found" 404
+			reverse_proxy api:8000
+		}
 	}
 
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*

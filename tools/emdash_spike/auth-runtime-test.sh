@@ -118,6 +118,8 @@ if [ "$mode" != auth ]; then
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
   if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+    compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+      node tools/emdash_spike/order-ingress-proof.mjs
     compose up --no-deps --build --detach --wait public
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
@@ -170,6 +172,8 @@ if [ "$mode" != auth ]; then
       public_media_probe --ready
     fi
     compose stop api
+    compose run --rm --no-deps --volume "$proof:/proof:ro" bootstrap-probe \
+      node tools/emdash_spike/order-ingress-proof.mjs --core-stopped
     public_probe --unavailable
     if [ "$mode" = public-media ]; then public_media_probe --unavailable; fi
     exit 0

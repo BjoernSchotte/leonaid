@@ -2484,6 +2484,33 @@ keyboard and 200% zoom checks.
 
 ### EMS-070 — Add same-domain TLS routing and secure first-run setup
 
+- [x] Add the public Core-order ingress deny prerequisite. Local, pilot and
+      pilot-test Caddy API handlers use an explicit `route` block that returns
+      a no-store 404 for the order path before generic Core forwarding. Pilot
+      HTTP also denies that path directly rather than redirecting the request.
+      The rule has no method restriction or caller-header exception; encoded
+      path matching uses Caddy's decoded/normalized path matcher. See the
+      [Caddy ordering contract](https://caddyserver.com/docs/caddyfile/directives)
+      and [path matcher contract](https://caddyserver.com/docs/caddyfile/matchers).
+      `campaign-public-http` passed in isolated project
+      `leonaid-emdash-tmp-crvaszuytq`: 182 actual raw-path HTTP/CA-verified HTTPS
+      requests across seven methods and 13 path variants returned the fixed
+      404, no-store, no Location and no cookie despite forged forwarding and
+      CMS headers. Variants include encoded letters/slashes, repeated slashes,
+      literal/encoded parent segments and query strings. Repeating all 182
+      requests after stopping Core produced identical denials, proving the
+      proxy boundary does not depend on Core. Internal direct submission still
+      reaches Core schema validation (422); the unrelated public platform GET
+      remains 200. Twelve real campaign form journeys across three browsers,
+      JS/no-JS and original/mixed offerings still reach the actual Core
+      CRM-unavailable response through Astro. Publication and outage regressions
+      passed; all owned resources were removed and no host ports published.
+      Both pilot files passed offline validation with pinned Caddy 2.11.4.
+      This is local live ingress evidence plus pilot configuration validation,
+      NOT a pilot live proof, production deployment, successful Twenty-backed
+      order, database mutation audit or exclusive internal caller authorization.
+      Those broader requirements in section 2.1 remain open.
+
 Dependencies: EMS-010, EMS-020
 
 - [ ] Route `/_emdash/*` and `/campaigns/*` to `campaign-site` in local and pilot
