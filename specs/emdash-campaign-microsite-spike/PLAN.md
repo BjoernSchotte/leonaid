@@ -2903,9 +2903,34 @@ Dependencies: EMS-030, EMS-050, EMS-070
       checks, 24 public and 47 CMS Astro files without diagnostics, regenerated
       OpenAPI/client and generated-type/format/privacy/policy gates, with an
       unchanged committed tree. Existing dependency deprecation warnings remain.
-- [ ] Add an "Addresses and redirects" section to the existing campaign admin
+- [x] Add an "Addresses and redirects" section to the existing campaign admin
       screen. Show the canonical URL, aliases, effective target and availability;
       provide create, edit, disable, and remove controls with conflict feedback.
+      The existing Public page panel now contains the shared-style alias
+      section, keeping the primary address read-only here. Target choices come
+      from the Core list response: System Admins see eligible campaigns;
+      Charity Admins see only current own-action authority. Names and canonical
+      paths are server-derived; completed/archived targets and future/expired
+      memberships are excluded. Mutation authority is still rechecked, never
+      granted by this list. The extended `alias-http` case passed in isolated
+      `leonaid-emdash-tmp-f8mwssagvv`, including actual membership grant/expiry/
+      future-start filtering and the existing authorization, redirect and outage
+      regression checks.
+      `redirect-aliases` passed in `leonaid-emdash-tmp-fkaz7jql7i`: Chromium,
+      Firefox and WebKit use actual SMTP Charity and System Admin logins, create
+      two aliases, disable/enable, reject a primary-name collision while keeping
+      inputs, select an authorized target, move, and remove through real UI
+      controls. The public alias returns the Core-derived 302. WebKit runs at
+      390px and exposed an intrinsic grid-width overflow that was fixed and
+      verified in the repeated complete case. Desktop/mobile screenshots were
+      inspected locally; no horizontal page overflow remains. Both successful
+      cases exited 0 and removed only their own Docker resources.
+      Forms retain the edit's base revision rather than silently adopting a
+      refreshed revision; retries of unchanged in-memory commands retain their
+      command ID. The UI distinguishes Core publication permission from actual
+      CMS publication. This checkpoint does not claim browser coverage of every
+      revocation race, pending-command navigation recovery, or full accessibility
+      acceptance; those broader gates remain subject to the completion audit.
 - [ ] Store the target as an action ID, deriving its URL server-side. Accept
       normalized single-segment local aliases only for this spike. Reject
       absolute URLs, external hosts, query/fragment targets, encoded separators,

@@ -101,6 +101,24 @@ async def main() -> None:
             await deny("GET", f"/api/v1/actions/{B}/redirect-aliases", None, status=403)
             listing = await call("GET", ROOT)
             assert listing["canonicalPath"] == "/campaigns/krapfentaxi-2026/"
+            own_targets = {item["actionId"] for item in listing["targets"]}
+            assert str(A) in own_targets and str(B) not in own_targets
+            system_targets = (await call("GET", ROOT, actor=SYSTEM))["targets"]
+            assert {str(A), str(B)} <= {item["actionId"] for item in system_targets}
+            assert "20000000-0000-4000-8000-000000000002" not in {
+                item["actionId"] for item in system_targets
+            }
+            for target in system_targets:
+                target_row = await db.fetchrow(
+                    "SELECT name,archive_slug FROM charity_action WHERE id=$1",
+                    UUID(target["actionId"]),
+                )
+                assert target_row is not None
+                assert target["name"] == target_row["name"]
+                assert (
+                    target["canonicalPath"]
+                    == f"/campaigns/{target_row['archive_slug']}/"
+                )
             assert len(listing["items"]) == 1 and listing["items"][0]["isPrimary"]
             original = listing["items"][0]
             body = {
@@ -204,6 +222,30 @@ async def main() -> None:
                 "revision": 3,
                 "targetActionId": str(A),
             }
+            assert str(B) in {
+                item["actionId"] for item in (await call("GET", ROOT))["targets"]
+            }
+            await db.execute(
+                "UPDATE action_membership SET active_until=clock_timestamp() WHERE user_id=$1 AND action_id=$2",
+                CHARITY,
+                B,
+            )
+            assert str(B) not in {
+                item["actionId"] for item in (await call("GET", ROOT))["targets"]
+            }
+            await db.execute(
+                "UPDATE action_membership SET active_from=clock_timestamp()+interval '1 day',active_until=NULL WHERE user_id=$1 AND action_id=$2",
+                CHARITY,
+                B,
+            )
+            assert str(B) not in {
+                item["actionId"] for item in (await call("GET", ROOT))["targets"]
+            }
+            await db.execute(
+                "UPDATE action_membership SET active_from=clock_timestamp() WHERE user_id=$1 AND action_id=$2",
+                CHARITY,
+                B,
+            )
             returned = await call("PUT", moved_path, owned_move)
             assert returned["actionId"] == str(A) and returned["revision"] == 4
             assert await call("PUT", moved_path, owned_move) == returned

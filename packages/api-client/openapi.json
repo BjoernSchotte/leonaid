@@ -1767,12 +1767,20 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignAliasTargetResponse"
+            },
+            "title": "Targets",
+            "type": "array"
           }
         },
         "required": [
           "actionId",
           "canonicalPath",
-          "items"
+          "items",
+          "targets"
         ],
         "title": "CampaignAliasListResponse",
         "type": "object"
@@ -1816,6 +1824,31 @@
           "removed"
         ],
         "title": "CampaignAliasMutationResponse",
+        "type": "object"
+      },
+      "CampaignAliasTargetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "canonicalPath": {
+            "title": "Canonicalpath",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "name",
+          "canonicalPath"
+        ],
+        "title": "CampaignAliasTargetResponse",
         "type": "object"
       },
       "CancelInvoiceRequest": {

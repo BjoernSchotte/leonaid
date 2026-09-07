@@ -3,6 +3,18 @@
   gap: 1.4rem;
 }
 
+.action-page--manage {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.action-page--manage > *,
+.campaign-alias-editor .action-field,
+.campaign-alias-editor select {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .action-page__header {
   display: flex;
   align-items: flex-start;
@@ -365,6 +377,19 @@
 
 .action-form-grid--spaced {
   margin-top: 1rem;
+}
+
+.campaign-alias-address {
+  overflow-wrap: anywhere;
+}
+
+.campaign-alias-row {
+  border-top: 1px solid var(--border);
+  padding-block: 1rem;
+}
+
+.campaign-alias-editor {
+  margin-block: 1rem;
 }
 
 .action-field {

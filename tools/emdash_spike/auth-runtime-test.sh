@@ -6,7 +6,7 @@ orders=${3:-false}
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
-case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http) ;; *) exit 2 ;; esac
+case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http|alias-browser) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$mode" = alias-http ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
@@ -44,6 +44,9 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$mode" = alias-browser ]; then
+    set -- --file "$root/infra/emdash-spike/alias-browser.test.yml" "$@"
+  fi
   if [ "$orders" = true ]; then
     set -- --file "$root/infra/emdash-spike/orders.test.yml" "$@"
   fi
@@ -180,6 +183,15 @@ if [ "$mode" != auth ]; then
   # Synthetic Golden Dataset system-admin UUID, not an operational account.
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
+  if [ "$mode" = alias-browser ]; then
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    compose up --no-deps --build --detach --wait web public mailpit worker
+    visual_proof=$(mktemp -d)
+    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+      node tools/emdash_spike/alias-browser-proof.mjs
+    echo "alias-browser: synthetic screenshots retained in $visual_proof"
+    exit 0
+  fi
   if [ "$mode" = alias-http ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose up --no-deps --build --detach --wait public

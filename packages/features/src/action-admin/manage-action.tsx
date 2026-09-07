@@ -19,6 +19,7 @@ import {
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
+import { CampaignAliasesSection } from "./campaign-aliases";
 import {
   AdministratorsSection,
   BeneficiariesSection,
@@ -308,6 +309,11 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           role="tabpanel"
         >
           <PublicationSection {...shared} />
+          <CampaignAliasesSection
+            actionId={actionId}
+            client={client}
+            disabled={archived || action.status === "completed"}
+          />
         </div>
         <div
           aria-labelledby="tab-status"

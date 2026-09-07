@@ -1,0 +1,8 @@
+services:
+  api:
+    environment:
+      # UI journeys use the normal editing window. Five-second expiry remains
+      # covered independently by alias-http with login.test.yml unchanged.
+      LEONAID_FRESH_LOGIN_SECONDS: "900"
+  web:
+    ports: !reset []

@@ -14,6 +14,7 @@ from leonaid.application.campaign_aliases import (
     CampaignAliasResult,
     CampaignAliasItem,
     CampaignAliasList,
+    CampaignAliasTarget,
 )
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 
@@ -42,6 +43,29 @@ class AsyncpgCampaignAliasRepository:
                         "SELECT id,action_id,alias,is_primary,enabled,revision FROM public_action_alias WHERE action_id=$1 ORDER BY is_primary DESC,alias",
                         action_id,
                     )
+                    # Suggestions are scoped by current Core authority, not
+                    # browser-supplied memberships. Mutation checks both scopes
+                    # again and does not trust an earlier list response.
+                    targets = await db.fetch(
+                        """
+                        SELECT a.id, a.name, a.archive_slug
+                        FROM charity_action a
+                        WHERE a.status NOT IN ('completed', 'archived')
+                          AND (
+                            EXISTS (SELECT 1 FROM user_global_role g
+                                    WHERE g.user_id=$1 AND g.role='system_admin')
+                            OR EXISTS (
+                                SELECT 1 FROM action_membership m
+                                WHERE m.user_id=$1 AND m.action_id=a.id
+                                  AND m.role='charity_admin'
+                                  AND m.active_from<=clock_timestamp()
+                                  AND (m.active_until IS NULL OR m.active_until>clock_timestamp())
+                            )
+                          )
+                        ORDER BY a.name, a.id
+                        """,
+                        actor_id,
+                    )
                     return CampaignAliasList(
                         action_id,
                         f"/campaigns/{slug}/",
@@ -55,6 +79,14 @@ class AsyncpgCampaignAliasRepository:
                                 row["revision"],
                             )
                             for row in rows
+                        ),
+                        tuple(
+                            CampaignAliasTarget(
+                                row["id"],
+                                row["name"],
+                                f"/campaigns/{row['archive_slug']}/",
+                            )
+                            for row in targets
                         ),
                     )
         except (

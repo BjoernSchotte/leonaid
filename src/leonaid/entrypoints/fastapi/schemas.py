@@ -1408,10 +1408,17 @@ class CampaignAliasItemResponse(TransportModel):
     revision: int
 
 
+class CampaignAliasTargetResponse(TransportModel):
+    action_id: UUID
+    name: str
+    canonical_path: str
+
+
 class CampaignAliasListResponse(TransportModel):
     action_id: UUID
     canonical_path: str
     items: list[CampaignAliasItemResponse]
+    targets: list[CampaignAliasTargetResponse]
 
 
 class AdministratorOptionResponse(TransportModel):

@@ -134,7 +134,15 @@ class CampaignAliasItem:
 
 
 @dataclass(frozen=True, slots=True)
+class CampaignAliasTarget:
+    action_id: UUID
+    name: str
+    canonical_path: str
+
+
+@dataclass(frozen=True, slots=True)
 class CampaignAliasList:
     action_id: UUID
     canonical_path: str
     items: tuple[CampaignAliasItem, ...]
+    targets: tuple[CampaignAliasTarget, ...] = ()
