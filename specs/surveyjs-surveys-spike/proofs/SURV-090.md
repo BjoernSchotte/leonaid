@@ -5,6 +5,8 @@ Status: **in progress**. Own license remains **UNDEFINED**. 090.1, 090.A1, 090.A
 remains open. The recovery section proves checkpoint reapplication
 after an actual DB/object restore. The generic Restic operator is now proven
 below; checkpoint continuity remains open.
+Public request quotas (090.3a) and payload/participation-log checks (090.3b) are
+accepted below; export operating-limit/log coverage remains open under 090.A4.
 
 ## Durable erasure and process-crash recovery
 
@@ -677,3 +679,91 @@ replaces the earlier canonical-only artifact. No new screenshots or manual
 visual/a11y acceptance are claimed. Existing httpx per-request-cookie
 deprecation warnings were non-failing. The full SURV-090 and SURV-100 gates remain
 open for the criteria identified above and in PLAN.md.
+
+## Payload boundaries and participation-log acceptance
+
+**090.3b / 090.S4b are accepted** for the payload and participation-log portion
+of 090.A4. The parent criterion remains open for export operating-limit and
+export-log coverage. Runtime: `f3168cc` plus the body middleware and OpenAPI
+change in the commit containing this record. No dependencies or own-license
+decision changed.
+
+`SurveyBodyLimitMiddleware` counts survey request bytes before JSON parsing,
+inside the existing origin/rate/diagnostics middleware. It accepts at most
+1,048,576 bytes and rejects excess with HTTP 413 / `limit_exceeded`, without
+passing the request to survey handlers. Fixed and chunked bodies use the same
+counter. Existing definition/answer DTO limits remain 262,144 serialized bytes;
+their HTTP 422 envelope is unchanged. See the precise serialization and scope
+in [DECISIONS.md](../DECISIONS.md#survey-payload-boundaries).
+
+`tools/surveys/payload_limits_live.py::main` proves through actual HTTP and SQL:
+
+- A definition of exactly 262,144 serialized bytes, inside a JSON body padded
+  to exactly 1,048,576 wire bytes, is created and published successfully.
+- One excess wire byte is rejected for both fixed-length and chunked HTTP;
+  one excess definition byte is rejected independently below the wire limit.
+  Each rejected creation has neither a survey row nor operation receipt.
+- A rejected oversized draft keeps revision 1. A valid published survey starts
+  an actual anonymous participation with a fresh resume secret.
+- A 27-question answer map of exactly 262,144 serialized bytes is accepted;
+  SQL matches the exact submitted answers at revision 2. An extra answer byte
+  and an oversized raw save body are rejected with unchanged SQL answers and
+  revision. All individual text values stay within the existing 10,000-character
+  rule, so this exercises the aggregate payload boundary.
+- A separate invalid-answer request contains the same private synthetic marker
+  as the successful answer. Error envelopes omit that marker and credentials.
+
+The harness captures actual API, worker and SurveyJS-validator service logs
+after those requests. It requires real `http.request.completed` events and scans
+the captured text for the fresh answer marker, participation resume secret and
+member session token. All are absent. Raw logs and marker values stay in the
+private temporary fixture directory and are removed by teardown; only sanitized
+booleans and numeric boundaries are retained in
+[SURV-090-payload-limits.json](assets/SURV-090-payload-limits.json).
+This is participation-operation logging coverage, not export rendering or
+invitation-delivery log acceptance, and does not claim resistance to deliberately
+placing a secret in an arbitrary URL or supplied diagnostic request ID.
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" payload-limits
+```
+
+Project `leonaid-surveys-833458328-28863` exited **0**: all HTTP/SQL boundaries
+and the log scan passed, followed by the existing Chromium foundation test
+(1 test, 1.8 s). Fresh volumes, unused explicit subnets, no host ports and complete
+owned-resource teardown were verified. Service pins are in
+`infra/locks/images.env` and the checked-in Dockerfiles; browser/image and Python
+pins are unchanged from the immediately preceding quota proof.
+
+Supporting tests `tests/unit/test_survey_body_limit.py` cover misleading
+Content-Length and a disconnect before dispatch. Together with
+`tests/unit/test_http_security.py`, **6 tests passed in 0.39 s**, using:
+
+```sh
+rtk proxy docker run --rm --network none -e PYTHONPATH=/workspace/src \
+  -v "$PWD:/workspace" -w /workspace \
+  ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e \
+  uv run --frozen --no-sync pytest tests/unit/test_survey_body_limit.py tests/unit/test_http_security.py -q
+```
+
+Scoped Ruff check/format, shell syntax and diff whitespace checks passed.
+`tools/openapi/generate.py` exited zero under the same pinned Python runtime;
+the generated diff adds only the survey routes' 413 response documentation.
+Existing unrelated Pydantic alias warnings remain non-failing.
+
+The affected participant regression also passed on the final runtime:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" runner
+```
+
+Project `leonaid-surveys-833458328-29646` exited **0** with 192 actual API/SQL
+validation cases, public quota boundaries, timeout/worker recovery, stopped and
+paused validator recovery, and **8 Chromium tests in 34.1 s** from
+`surveys-infrastructure.spec.mjs` and `surveys-runner.spec.mjs`. These include
+normal reads, autosave/reload, closing mid-page, hidden-answer cleanup, offline
+retry, required/matrix correction and competing tabs. SQL checks and a subsequent
+real API/worker restart verified exact replay results, preserved revisions and
+one completed participation after lost acknowledgement. The harness verified
+cleanup of its fresh no-host-port project. No runtime/test files were changed
+during either executing proof, and no new manual visual acceptance is claimed.

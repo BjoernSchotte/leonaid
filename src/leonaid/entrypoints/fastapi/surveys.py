@@ -41,7 +41,7 @@ router = APIRouter(
     tags=["surveys"],
     responses={
         code: {"model": ApiErrorResponse}
-        for code in (401, 403, 404, 409, 422, 429, 503)
+        for code in (401, 403, 404, 409, 413, 422, 429, 503)
     },
 )
 

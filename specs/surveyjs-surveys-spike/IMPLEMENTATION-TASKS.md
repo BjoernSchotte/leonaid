@@ -287,6 +287,14 @@ remain open until their remaining criteria pass.
   Integration: **090.S4a**, [live evidence](proofs/SURV-090.md#public-request-quota-acceptance).
   Parent 090.3 remains open for the rest of 090.A4.
 
+- [x] **090.3b** Enforce the raw request-body byte limit before JSON parsing;
+  prove exact and excessive definition/answer payloads, chunked excess,
+  unchanged persisted state and captured-log marker exclusion.
+
+  Acceptance criteria: **090.A4, payload and participation-log portion**.
+  Integration: **090.S4b**, [live evidence](proofs/SURV-090.md#payload-boundaries-and-participation-log-acceptance).
+  Parent 090.3 remains open for export operating-limit and export-log coverage.
+
 ## SURV-100 — Full acceptance and spike outcome
 
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.

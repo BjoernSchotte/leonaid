@@ -85,6 +85,27 @@ traffic before production. This is bounded per-address abuse protection, not a
 distributed-denial-of-service defense or a load benchmark. Payload byte limits,
 export limits and sensitive-log acceptance remain separate parts of 090.A4.
 
+### Survey payload boundaries
+
+Survey API requests have a 1,048,576-byte (1 MiB) body limit before JSON parsing,
+including chunked requests. The API counts received bytes independently of the
+Content-Length header. This applies to member survey routes, public survey
+routes and survey settings; unrelated API routes retain their existing behavior.
+The guard runs inside existing origin/rate/diagnostic middleware. Excess returns
+HTTP 413, `limit_exceeded`, a content-free error envelope and `Cache-Control:
+no-store`, without invoking the survey handler. A disconnected incomplete body
+is not dispatched. This size guard does not impose a separate upload-duration
+or concurrent-connection policy.
+
+Definitions and answer maps each additionally have a 262,144-byte bound using
+the existing `json_size` serialization (`json.dumps` with its default escaping
+and separators, then UTF-8 encoding). Thus this is a serialized-JSON bound, not
+a character count or the original on-wire size. DTO rejection returns HTTP 422
+with the existing `request_invalid` envelope; schema, question-count and
+per-question constraints still apply. Oversized drafts and answers must not
+advance revisions or leave operation receipts. The raw body guard's 413 response
+is included in generated survey OpenAPI responses.
+
 ### T-07 respondent rendering disposition
 
 The spike uses browser mounting in both the Astro public host and the packed

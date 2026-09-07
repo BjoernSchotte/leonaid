@@ -49,6 +49,7 @@ from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.application.surveys import SurveyService
 from leonaid.entrypoints.fastapi.surveys import router as surveys_router
+from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
@@ -360,6 +361,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         version="0.0.0",
         lifespan=lifespan,
     )
+    application.add_middleware(SurveyBodyLimitMiddleware)
 
     @application.middleware("http")
     async def correlate_request(
