@@ -3000,6 +3000,10 @@ Dependencies: EMS-050, EMS-070
         volumes and networks; no host ports or production activation are used.
         Overall EMS-080 remains open, including off-host recovery, operational
         release checks, full Twenty/order recovery and upgrade/rollback proof.
+        Full `./leonaid check` passed on source commit `de69500`: 256 unit
+        tests, 263 Python files typechecked, both Astro applications (25/47 files,
+        zero diagnostics), frontend typechecks, format and repository policy
+        gates. The working tree was unchanged.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.
