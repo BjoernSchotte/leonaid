@@ -262,7 +262,7 @@ async def main() -> None:
             )
             rows = await db.fetch(
                 "SELECT payload FROM audit_event WHERE entity_id=$1 AND event_type='campaign_alias.changed' ORDER BY occurred_at",
-                UUID(body["aliasId"]),
+                UUID(str(body["aliasId"])),
             )
             assert len(rows) == 5
             assert json.loads(rows[2]["payload"])["newTarget"] == str(B)
@@ -314,7 +314,7 @@ async def main() -> None:
             assert (
                 await db.fetchval(
                     "SELECT count(*) FROM audit_event WHERE entity_id=$1 AND event_type='campaign_alias.changed'",
-                    UUID(identical["aliasId"]),
+                    UUID(str(identical["aliasId"])),
                 )
                 == 1
             )
