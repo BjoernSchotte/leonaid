@@ -151,6 +151,17 @@ test("Reiner Akquisiteur wird aus dem Backoffice in seine PWA geleitet", async (
       path: `${artifactDirectory}/acquirer-admin-redirect.png`,
       fullPage: true,
     });
+    // The survey module is available without granting unrelated backoffice roles.
+    await page.goto(`${baseUrl}/admin/surveys`);
+    await expect(
+      page.getByRole("heading", { name: "Umfragen", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-nav-key="surveys"]').first(),
+    ).toBeVisible();
+    for (const key of ["overview-web", "members", "system", "invoices"]) {
+      await expect(page.locator(`[data-nav-key="${key}"]`)).toHaveCount(0);
+    }
   } finally {
     await context.close();
   }

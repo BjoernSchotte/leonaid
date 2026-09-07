@@ -1,0 +1,59 @@
+{
+  "syntheticOnly": true,
+  "commands": [
+    {
+      "command": "./leonaid test-identity",
+      "exitCode": 0,
+      "elapsedSeconds": 181.7,
+      "project": "leonaid-poc040-test-833458328-39066",
+      "ownedContainerVolumeNetworkCleanupVerified": true,
+      "browserPassGroups": [
+        10
+      ]
+    },
+    {
+      "command": "./leonaid test-policy",
+      "exitCode": 0,
+      "elapsedSeconds": 132.8,
+      "project": "leonaid-poc043-test-833458328-39606",
+      "ownedContainerVolumeNetworkCleanupVerified": true,
+      "browserPassGroups": []
+    },
+    {
+      "command": "./leonaid test-public-actions",
+      "exitCode": 0,
+      "elapsedSeconds": 107.2,
+      "project": "leonaid-poc070-test-833458328-40358",
+      "ownedContainerVolumeNetworkCleanupVerified": true,
+      "browserPassGroups": [
+        4,
+        1
+      ]
+    },
+    {
+      "command": "./leonaid test-public-orders",
+      "exitCode": 0,
+      "elapsedSeconds": 151.2,
+      "project": "leonaid-poc072-test-833458328-40663",
+      "ownedContainerVolumeNetworkCleanupVerified": true,
+      "browserPassGroups": [
+        1
+      ]
+    }
+  ],
+  "identityDomainTestsPassed": 28,
+  "isolationGuardSubcasesPassed": 16,
+  "runtimeHostPortObservations": [
+    {
+      "project": "leonaid-poc040-test-833458328-39066",
+      "runningContainers": 13,
+      "publishedHostPorts": 0
+    },
+    {
+      "project": "leonaid-poc070-test-833458328-40358",
+      "runningContainers": 10,
+      "publishedHostPorts": 0
+    }
+  ],
+  "scope": "Four complete named regressions; broader 42-suite test-integration and final survey acceptance remain open"
+}

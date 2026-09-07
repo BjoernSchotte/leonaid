@@ -446,6 +446,11 @@ remain open until their remaining criteria pass.
   The fixture has zero erasures and does not accept survey disaster recovery.
   [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
 
+- [x] **100.3c** Isolate and execute `./leonaid test-identity`, `test-policy`, `test-public-actions` and `test-public-orders` without shared project cleanup or host-port bindings. [Live evidence](proofs/SURV-100.md#isolated-identity-policy-and-public-regressions).
+
+  Acceptance criteria: **100.A3, four named regressions**. Every original assertion must pass; failed teardown must return failure and leave unrelated resources untouched.
+  Integration / E2E: **100.S2b**, including real service contracts and existing desktop/mobile/multi-browser checks where defined by the individual suite. Full `test-integration` and **100.3** remain open.
+
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
   Acceptance criteria: **100.A4, 100.A5**.

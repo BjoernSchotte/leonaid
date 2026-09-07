@@ -5,13 +5,16 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_IDENTITY_TEST_PROJECT:-leonaid-poc040-test}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_IDENTITY_TEST_PROJECT:-leonaid-poc040-test}-$suffix
+owned=false
 port=18086
 https_port=18446
 env_file="$root/.env.local"
 compose_file="$root/infra/compose/compose.yml"
 fixture="/repo/tests/fixtures/golden/v1"
 proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 artifact_directory="$root/.local/pilot/evidence/identity"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
@@ -29,6 +32,7 @@ compose() {
     --project-name "$project" \
     --env-file "$env_file" \
     --file "$compose_file" \
+    --file "$isolation_file" \
     --profile dev-mail \
     "$@"
 }
@@ -41,13 +45,27 @@ diagnose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "identity-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -66,7 +84,15 @@ run_python() {
     api "$@"
 }
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+# Refuse existing resources; never clear a project selected by another worktree.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
 compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
 
 run_python tools/seed/golden.py seed-core "$fixture"

@@ -115,3 +115,91 @@ source-project removal. Latest-checkpoint provenance across unexpected host
 loss, interrupted reapplication and preceding backup compatibility remain open
 under 090.2/090.A3. The affected identity, policy and public/browser regressions
 and the full spike acceptance also remain open.
+
+
+## Isolated identity policy and public regressions
+
+**100.3c / 100.S2b accepted.** Source: this increment based
+on `b3f8dcc`. The four named regression entry points previously defaulted to
+shared project names, published fixed host ports and unconditional initial
+`compose down --volumes`. Their test scripts now:
+
+- Append the worktree checksum and process ID to the default or operator-supplied
+  project prefix. An override is a prefix, not an instruction to reuse/clear an
+  existing project.
+- Check container, volume and network inventories before taking ownership.
+  Existing resources or a failed inventory command abort before mutation.
+- Select currently unused explicit subnets using the existing test allocator and
+  merge its no-host-port overlay into every Compose invocation. API/DB and browser
+  checks use internal service DNS and the project's own edge network.
+- Diagnose and remove only a project owned by the current run. Teardown failure or
+  remaining owned containers, volumes or networks makes the command fail.
+
+The identity contract contained an obsolete expectation that the acquirer had
+no web navigation. The survey module intentionally grants authenticated members
+its own entry without granting other backoffice roles, already covered by the
+identity domain contract. The live assertion now requires exactly `{surveys}`.
+The existing browser redirection test still proves that `/admin/` and
+`/admin/members` redirect the acquirer to the PWA; it additionally opens
+`/admin/surveys` and verifies the survey heading/navigation while overview,
+members, system and invoice navigation remain absent. No runtime permission or
+navigation implementation changed in this increment.
+
+`tools/testing/regression_isolation_test.py` executes the actual four shell
+scripts with a synthetic Docker executable. For each suite, existing containers,
+volumes, networks and failed inventory reads are tested: **16 subcases in one
+unittest test pass**. Only the expected read-only inventory commands may run;
+no Compose/down/remove call is permitted. This is a negative guard test, not a
+substitute for the actual Docker/browser regressions below. The existing
+`tests/unit/test_identity_domain.py` also passes **28 tests**.
+
+Commands (repository root):
+
+```sh
+rtk proxy ./leonaid test-identity
+rtk proxy ./leonaid test-policy
+rtk proxy ./leonaid test-public-actions
+rtk proxy ./leonaid test-public-orders
+rtk proxy python3 tools/testing/regression_isolation_test.py
+```
+
+The four live commands run sequentially, each from its own empty volumes. Their
+complete original contract/browser coverage is retained, with the reviewed survey
+navigation expectation above. Raw logs remain in the ignored
+`.artifacts/survey-regressions/attempt-2/` directory. Identity screenshots remain
+in the existing private evidence directory; no credentials, token files, database
+contents or unrestricted logs are part of committed evidence.
+
+The initial identity run `leonaid-poc040-test-833458328-37504` exited 1 on the stale
+navigation assertion before browser execution; it was cleaned before the corrected
+run. No executing test or runtime file was edited. Build layers may be cached;
+this is a fresh-volume proof, not a claim of an uncached dependency download.
+
+This is a contribution to **100.A3**. The broader `./leonaid test-integration`
+currently invokes 42 suites and remains a separate requirement; the full survey
+aggregate, complete desktop/mobile sample journeys and recovery continuity remain
+open. Do not accept **100.3**, **100.A3** or the whole spike from these four commands
+alone. Own license remains **UNDEFINED**; no dependency/license decision changed.
+
+
+| Complete command | Final project suffix | Observed result |
+| --- | --- | --- |
+| `./leonaid test-identity` | `833458328-39066` | Exit 0, 181.7 s; live role/status/revision/idempotency/concurrency/session-revocation contracts and 10 Chromium browser tests (21.1 s). |
+| `./leonaid test-policy` | `833458328-39606` | Exit 0, 132.8 s; actual PostgreSQL/Twenty lists, search, counts, export, activity, document authorization and immediate revocation. |
+| `./leonaid test-public-actions` | `833458328-40358` | Exit 0, 107.2 s; Core/Astro contract, four browser runs (7.2 s) and one accessibility/performance audit test (2.2 s). |
+| `./leonaid test-public-orders` | `833458328-40663` | Exit 0, 151.2 s; legal basis, organization/person identity, server prices, idempotency, inactive/archive rejection, spam/rate controls and activity events; one Chromium test (13.5 s) exercises three visible order paths and persisted results. |
+
+Each command's cleanup verifies its own containers, volumes and networks are gone.
+A separate post-run Docker query also confirmed cleanup of all four successful
+projects and the initial failed identity project. Live Docker inspection observed
+zero host-port bindings on 13 running identity containers and 10 running public-action
+containers; all four scripts use the same explicit no-host-port override. Public
+browser coverage is the existing configured Chromium desktop/mobile, Firefox mobile
+and WebKit mobile matrix. Browser audit results are automated observations, not
+manual visual review or a general accessibility certification.
+
+[Sanitized results](assets/SURV-100-existing-regressions.json) record commands,
+terminal codes, elapsed times, project names, browser counts and the exact port
+observations. Shell syntax, Ruff for the changed Python files, Prettier for the
+changed browser test, local Markdown links and staged whitespace/private-value
+checks pass. No application runtime behavior changed in this increment.
