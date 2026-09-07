@@ -2898,6 +2898,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
       including validation errors fixed during this case. Exit 0 and cleanup of
       only the project's own resources. These are real HTTP/API checks using
       synthetic persisted sessions, not yet the campaign-admin browser UI.
+      Full `./leonaid check` at source commit `037e4a6` exited 0 after explicit
+      UUID conversions in synthetic proof data: 256 unit tests, 258 Python source
+      checks, 24 public and 47 CMS Astro files without diagnostics, regenerated
+      OpenAPI/client and generated-type/format/privacy/policy gates, with an
+      unchanged committed tree. Existing dependency deprecation warnings remain.
 - [ ] Add an "Addresses and redirects" section to the existing campaign admin
       screen. Show the canonical URL, aliases, effective target and availability;
       provide create, edit, disable, and remove controls with conflict feedback.
