@@ -3831,12 +3831,34 @@ another running checkout or authorize production deployment.
       missing explicit CMS image fail before Docker; default/full semantics
       still proceed to normal configuration validation. Early configuration
       failures now clean their temporary staging directory. This proves the
-        preflight boundary only, not CMS data restoration or order preservation.
-      - Quality gate for preparation commit `d707f18`: full `./leonaid check`
-        exited 0 with 269 unit tests, public/CMS Astro checks on 25/49 files
-        without diagnostics, type generation, formatting and policy gates,
-        and an unchanged committed tree. This is source-quality evidence;
-        the end-to-end cutover/rollback checkbox remains open.
+      preflight boundary only, not CMS data restoration or order preservation. - Quality gate for preparation commit `d707f18`: full `./leonaid check`
+      exited 0 with 269 unit tests, public/CMS Astro checks on 25/49 files
+      without diagnostics, type generation, formatting and policy gates,
+      and an unchanged committed tree. This is source-quality evidence;
+      the end-to-end cutover/rollback checkbox remains open. - Follow-up `leonaid-poc112-tmp-nr3qrjwu3p` passed all native editor
+      journeys and actual Twenty provisioning. The first native order and
+      its replay passed. The second order's receipt passed, but its native
+      replay timed out awaiting the whole page `load` event after navigation
+      and `domcontentloaded` were observed. The run exited 1 before backup;
+      only its owned resources were removed. Replay now waits for the new
+      document's `domcontentloaded`, then explicitly requires visible success,
+      no visible order form, the same receipt reference/quantity and HTTP 200.
+      Separate image/rendering gates remain required; this change is not a
+      timeout increase or acceptance of failed orders. Also corrected cleanup
+      to locate the authority probe in its actual source/target project. - [x] Re-prove the full pre-backup order/replay matrix with the corrected
+      native navigation assertion: `leonaid-poc112-tmp-vyigv3hcdf` accepted
+      all 24 Chromium/Firefox/WebKit orders, native and JavaScript. Actual
+      Core SQL and Twenty verified all references, mixed-unit lines, totals,
+      consent/audit and completed receipts; twelve native replays produced
+      no duplicates. Backup then quiesced writers and created encrypted
+      snapshot `1ff67f4f`, with exact seven-file v2 inventory and a successful
+      full Restic data-integrity check. This is pre-cutover evidence only. - The same run exited 1 at `cutover_state.py`'s mandatory test-environment
+      guard, before any renderer selection. Its fixture inherited `local`
+      rather than `test`. The four cutover-state invocations now explicitly
+      set `LEONAID_ENV=test`, matching the existing internal-ingress proof;
+      the guard remains intact. All owned resources were cleaned. Cutover,
+      newer-order preservation and CMS-only restore still require the full
+      subsequent live run; do not mark the parent rollback item complete.
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 

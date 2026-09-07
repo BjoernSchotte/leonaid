@@ -144,7 +144,7 @@ cleanup() {
     if [ -n "${recovery_authority_pid:-}" ]; then
       authority_container=$(docker ps -aq \
         --filter "name=^/${recovery_authority_name}$" \
-        --filter "label=com.docker.compose.project=$recovery_target" \
+        --filter "label=com.docker.compose.project=${recovery_authority_project:-$recovery_target}" \
         --filter "label=com.docker.compose.service=api" \
         --filter "label=com.docker.compose.oneoff=True")
       if [ -n "$authority_container" ]; then docker stop "$authority_container" >/dev/null || true; fi

@@ -309,10 +309,11 @@ for (const [engineName, engine] of Object.entries({
           // Reload is GET in Firefox. Re-submit the exact original fields via
           // the browser's native form transport, preserving duplicate names.
           // This is test-driver retry simulation, not page-side JavaScript.
-          // Arm before submission: waiting for load after response headers can
-          // otherwise observe the old document's already-complete load state.
+          // Arm before submission to bind to the new document. Order replay
+          // asserts the response and its receipt DOM below, not the load event
+          // of unrelated images/fonts; media rendering has separate live gates.
           const replayNavigation = page.waitForNavigation({
-            waitUntil: "load",
+            waitUntil: "domcontentloaded",
           });
           await page.evaluate(({ action, entries }) => {
             const retry = document.createElement("form");
@@ -332,6 +333,11 @@ for (const [engineName, engine] of Object.entries({
           assert.equal(replay.request().method(), "POST");
           assert.equal(replay.status(), 200);
           assert.equal(new URL(replay.url()).pathname, path);
+          await success.waitFor({ timeout: 20000 });
+          assert.equal(
+            await page.locator("[data-order-form]:visible").count(),
+            0,
+          );
           assert.equal(
             (await page.locator("[data-order-reference]").textContent()).trim(),
             reference,

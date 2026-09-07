@@ -123,6 +123,7 @@ fi
 fixture /repo/tools/emdash_spike/recovery_aliases.py verify
 mkdir "$proof/recovery-control"
 recovery_authority_name="${project}-recovery-authority"
+recovery_authority_project=$project
 compose run --rm --no-deps --name "$recovery_authority_name" \
   --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --user "$(id -u):$(id -g)" --env PYTHONPATH=/repo:/workspace/src \

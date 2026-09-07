@@ -10,7 +10,7 @@ source_runtime_identity() {
   done
 }
 source_runtime_before=$(source_runtime_identity)
-fixture /repo/tools/emdash_spike/cutover_state.py activate
+LEONAID_ENV=test fixture /repo/tools/emdash_spike/cutover_state.py activate
 mkdir "$proof/cutover-browser"
 compose run --rm --no-deps --volume "$proof/cutover-browser:/proof" \
   --volume "$recovery_visual_proof:/visual-proof" admin-browser \
@@ -23,10 +23,10 @@ cp "$proof/recovery-orders-browser/orders-ui.json" "$proof/orders-ui.json"
 cp "$proof/orders-ui.json" "$proof/after-cutover-orders.json"
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --after-cutover
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --before-recovery
-fixture /repo/tools/emdash_spike/cutover_state.py freeze
+LEONAID_ENV=test fixture /repo/tools/emdash_spike/cutover_state.py freeze
 # Roll back only the primary presentation choice through Core's audited CAS
 # command. New orders and operational writers continue in the source stack.
-fixture /repo/tools/emdash_spike/cutover_state.py rollback
+LEONAID_ENV=test fixture /repo/tools/emdash_spike/cutover_state.py rollback
 compose stop campaign-site
 recovery_target_prefix=$(choose_recovery_prefix)
 LEONAID_RECOVERY_PREFIX=$recovery_target_prefix
@@ -93,6 +93,7 @@ compose run --rm --no-deps --volume "$proof/cutover-browser:/proof:ro" \
 # retaining actual browser sessions, then test both campaigns' private surfaces.
 mkdir "$proof/recovery-control"
 recovery_authority_name="${project}-recovery-authority"
+recovery_authority_project=$project
 compose run --rm --no-deps --name "$recovery_authority_name" \
   --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --user "$(id -u):$(id -g)" --env PYTHONPATH=/repo:/workspace/src \
@@ -103,7 +104,7 @@ compose run --rm --no-deps --volume "$proof/recovery-control:/recovery-control" 
 wait "$recovery_authority_pid"
 recovery_authority_pid=
 compose run --rm --no-deps admin-browser node tools/emdash_spike/recovery-isolation-browser-proof.mjs
-fixture /repo/tools/emdash_spike/cutover_state.py verify
+LEONAID_ENV=test fixture /repo/tools/emdash_spike/cutover_state.py verify
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --before-recovery
 fixture /repo/tools/emdash_spike/campaign_orders_verify.py --after-cutover
 compose run --rm --no-deps --volume "$proof/recovery-orders-browser:/proof" \
