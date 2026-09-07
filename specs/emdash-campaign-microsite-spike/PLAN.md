@@ -2867,6 +2867,10 @@ Dependencies: EMS-030, EMS-050, EMS-070
         replays and 84 direct public Core ingress denials. Both cases exited 0
         and removed only their own project resources. New API, authority,
         idempotency, UI and public redirect gates below remain open.
+        Full `./leonaid check` at source commit `902e692` exited 0: 247 unit
+        tests, 254 Python source checks, 24 public and 47 CMS Astro files without
+        diagnostics, generated-type/format/privacy/policy gates and an unchanged
+        committed tree. Existing dependency deprecation warnings remain.
 - [ ] Add list/create/update/disable/remove operations to the existing action
       management API and regenerate OpenAPI and the TypeScript client.
 - [ ] Authorize every operation through Core: System Admins manage all aliases;
