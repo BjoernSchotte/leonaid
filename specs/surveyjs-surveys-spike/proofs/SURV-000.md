@@ -167,3 +167,61 @@ This proves the complete negative transport inventory, not every invalid-field
 boundary, valid-resource permission combination, error code/envelope, replay or
 concurrency outcome. Those remain part of the parent contract gate alongside
 the explicit C-01–C-15 fixture mapping and the existing work-package live proofs.
+
+## Complete runtime dependency disposition
+
+**000.3 / 000.S3 accepted.** Baseline `de0f007` plus this commit's dependency
+checker and command wiring. **000.T1 / 000.A1** remain open for their separate
+contract/persona requirements. The initial A4 npm admission result above remains
+valid and is now complemented by the XLSX closure and distribution checks.
+
+`./leonaid test-surveys-dependencies` exited **0**. Its npm gate verifies the five
+exact MIT runtime packages (SurveyJS core/React 3.0.3, React/React DOM 19.2.8,
+scheduler 0.27.0), the actual Open Sans OFL-1.1 notice and four negative cases.
+The new `tools/surveys/python_dependencies.py` examines installed distribution
+metadata and actual license-file bytes for existing openpyxl 3.1.5 and its sole
+declared dependency et-xmlfile 2.0.0. Both have MIT metadata, while et-xmlfile also
+retains a separate Python-code notice. The full three files were read and their
+SHA-256 fingerprints admitted explicitly; a future text change requires review.
+
+Eight independent negative fixtures fail admission: unknown package, unknown
+version, commercial metadata, unknown license metadata, added unknown transitive dependency, missing MIT
+notice, altered notice, and missing et-xmlfile Python notice. The
+[machine result](assets/SURV-000-python-dependencies.json) records exact versions,
+requirements, file hashes and the negative count, without local filesystem paths.
+The same checker passed with `--network none` inside both actual images
+`leonaid-surveys-833458328-1914-api` and `leonaid-surveys-833458328-1914-worker`
+from the last editor run. It therefore checks preserved distribution notices in
+the deployed image layout as well as the development environment. These were
+short-lived audit containers with no application service startup. A separate
+import of openpyxl in the actual worker confirmed both optional XML flags,
+`LXML` and `DEFUSEDXML`, are false. The gate inventories declared dependencies;
+optional parser additions need explicit review rather than inheriting approval
+from openpyxl metadata.
+
+`./leonaid test-surveys-package` also exited **0**, project
+`surveys-package-833458328-4796`. The independently installed tarball resolves all
+six packages (including our UNLICENSED/private package) inside `/consumer`, with
+no workspace resolution and no unexpected dependency. The React compatibility
+peers remain `^19.2.8`, while the host pins actual React/React DOM to `19.2.8`.
+The [packed result](assets/SURV-000-packed-dependencies.json) records installed
+versions/licenses, preserved notices and the separate respondent/export bundle
+boundaries. Build steps reused content-addressed Docker cache for unchanged
+package inputs; the actual browser phases ran afresh.
+
+Four Chromium tests passed: two before the real independent SQLite backend
+restart (**6.1s**) and two after it (**1.4s**). They exercise multipage saving,
+translated host editor controls, restored answers without an extra save and
+restored editor drafts. The harness removed its named container, volume, network
+and temporary image, with no host port publication.
+
+The final selection requires no third-party drag/drop or browser-chart runtime:
+both are independently implemented in the neutral package. XLSX/chart generation
+uses the already pinned openpyxl pipeline and CSV uses Python's standard library;
+PDF uses the existing pinned Typst integration. No Survey Creator, Dashboard or
+SurveyJS PDF Generator is selected. [DEPENDENCIES.md](../DEPENDENCIES.md) now
+records this actual disposition instead of its obsolete no-lockfile planning
+state. The checker scope does not claim a full license audit of all existing
+LeonAid or base-image dependencies. Future additions and final SURV-100 artifact
+review remain required. Own license remains **UNDEFINED**; no manifest/license
+choice changed. Ruff, shell syntax and diff whitespace checks passed.

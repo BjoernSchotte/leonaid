@@ -1,0 +1,26 @@
+{
+  "inventory": [
+    {
+      "name": "openpyxl",
+      "version": "3.1.5",
+      "license": "MIT",
+      "requires": [
+        "et-xmlfile"
+      ],
+      "notices": {
+        "LICENCE.rst": "0c84bb42f5d367e5ebf9fc2dde35b16141df5ee0fdc189250858bc6c5560f69e"
+      }
+    },
+    {
+      "name": "et-xmlfile",
+      "version": "2.0.0",
+      "license": "MIT",
+      "requires": [],
+      "notices": {
+        "LICENCE.python": "4ccdaaebc0f44b83720ec0399bb7ab329adce067dd62f73c5535a2dc05628ab2",
+        "LICENCE.rst": "0c84bb42f5d367e5ebf9fc2dde35b16141df5ee0fdc189250858bc6c5560f69e"
+      }
+    }
+  ],
+  "negativeCases": 8
+}

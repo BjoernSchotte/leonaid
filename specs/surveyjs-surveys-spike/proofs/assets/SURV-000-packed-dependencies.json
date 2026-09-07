@@ -1,0 +1,51 @@
+{
+  "inventory": [
+    {
+      "name": "@leonaid/surveys",
+      "version": "0.0.0",
+      "license": "UNLICENSED"
+    },
+    {
+      "name": "survey-core",
+      "version": "3.0.3",
+      "license": "MIT"
+    },
+    {
+      "name": "survey-react-ui",
+      "version": "3.0.3",
+      "license": "MIT"
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "license": "MIT"
+    },
+    {
+      "name": "react-dom",
+      "version": "19.2.8",
+      "license": "MIT"
+    },
+    {
+      "name": "scheduler",
+      "version": "0.27.0",
+      "license": "MIT"
+    }
+  ],
+  "reactCompatibilityPeers": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "exactHostReact": "19.2.8",
+  "sourceCount": 17,
+  "clientBytes": 3050961,
+  "tarballBytes": 36960,
+  "workspaceResolution": false,
+  "editorInRespondentBundle": false,
+  "analysisInRespondentBundle": false,
+  "packedAnalysisVerified": true,
+  "packedAnalyticsVerified": true,
+  "analyticsInRespondentBundle": false,
+  "exportsInRespondentBundle": false,
+  "packedExportsVerified": true,
+  "exportClientBytes": 532692
+}

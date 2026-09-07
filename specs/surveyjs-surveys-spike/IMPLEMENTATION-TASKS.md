@@ -51,7 +51,7 @@ This does not close the full contracts/persona/capability acceptance below.
   Integration / supporting checks: **000.S1, 000.S2**.
   E2E — work-package regression gate: **000.S4**.
 
-- [ ] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices.
+- [x] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices. [Current evidence](proofs/SURV-000.md#complete-runtime-dependency-disposition).
 
   Acceptance criteria: **000.A4**.
   Integration / supporting checks: **000.S3**.

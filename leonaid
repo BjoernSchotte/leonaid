@@ -2028,7 +2028,10 @@ case "$command" in
   test-surveys-runner) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" runner ;;
   test-surveys-responses) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" responses ;;
   test-surveys-infrastructure) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" ;;
-  test-surveys-dependencies) run_bun bun tools/surveys/dependencies.mjs ;;
+  test-surveys-dependencies)
+    run_bun bun tools/surveys/dependencies.mjs
+    run_python uv run --frozen --no-sync python tools/surveys/python_dependencies.py
+    ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
   test-user-admin) /bin/sh "$root/tools/user_admin/test.sh" "$root" ;;
   test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;

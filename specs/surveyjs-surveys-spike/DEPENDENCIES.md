@@ -16,8 +16,8 @@ evidence of a permissive license.
 
 | Component | Evidence and classification | Spike disposition |
 |---|---|---|
-| Form Library / `survey-core` | `survey-library` tag `v3.0.3`, root MIT license | Allowed candidate; pin and verify the actual npm artifact in SURV-000. |
-| React renderer / `survey-react-ui` | Same MIT-licensed repository and tag | Allowed candidate, aligned with core version. |
+| Form Library / `survey-core` | `survey-library` tag `v3.0.3`, root MIT license | Pinned and verified at 3.0.3; see current acceptance below. |
+| React renderer / `survey-react-ui` | Same MIT-licensed repository and tag | Pinned and verified at 3.0.3, aligned with core. |
 | Form Library theme/token and adapter SCSS | Located under `packages/survey-core/src/themes/adapters/` in the MIT repository | May be used under that license; separately inspect imported assets. This does not approve entire demo repositories. |
 | Bundled Open Sans fonts | Separate SIL Open Font License 1.1 in `packages/survey-core/src/fonts/LICENSE.txt` | Allowed font asset under OFL-1.1; retain its copyright and license notices. No commercial license required. |
 | Survey Creator, including core and framework wrappers | Repository LICENSE is a commercial developer EULA | Excluded: no `survey-creator-core`, `survey-creator-react`, other Creator wrappers or derived editor code. |
@@ -53,28 +53,43 @@ checked separately; fixed revisions below preserve the research references.
 - [PDF Generator license](https://github.com/surveyjs/survey-pdf/blob/06b9a1cce6a13c668794ec0a774309cf3a9ef74d/LICENSE)
 - [Official product licensing distinction](https://surveyjs.io/licensing)
 
-## Implementation gates still open
+## Implemented dependency disposition
 
-This review establishes the component boundary. It is not a completed audit of
-a lockfile or final distribution: neither exists for the new package yet.
+The actual runtime selection is now pinned and verified. This replaces the
+initial planning statement that no lockfile or distribution existed.
 
-1. Pin compatible core/React versions; inspect registry tarballs, license files,
-   dependencies and resolved transitive versions. Repeat for any later upgrade.
-2. Select permissive drag-and-drop, chart and XLSX dependencies; record their
-   exact versions and license evidence before introducing them. Do not assume
-   that a chart engine's permissive license also covers SurveyJS Dashboard.
-3. Maintain a machine-checkable allowlist and fail on unknown, commercial or
-   incompatible software licenses. Cover runtime, demo and added build/test
-   dependencies, plus imported source snippets and assets.
-4. Inspect package contents and browser bundles for prohibited SurveyJS products,
-   font assets and their notices, external requests and accidental dependencies from examples.
-   Preserve applicable third-party notices in distributed artifacts.
-5. Keep our own license marker UNDEFINED in planning documents. Do not substitute
-   it for an SPDX identifier or overwrite existing private/UNLICENSED metadata.
+| Purpose | Implemented selection | Verification |
+| --- | --- | --- |
+| Respondent rendering | survey-core / survey-react-ui 3.0.3, MIT | Exact npm manifests and installed packed-consumer closure |
+| React host runtime | React / React DOM 19.2.8 and scheduler 0.27.0, MIT | Exact consuming-host pins; neutral peer range ^19.2.8; narrow repository pin-policy exception |
+| Drag-and-drop editor | Independently implemented HTML drag-and-drop with keyboard movement controls | No added editor/DnD runtime dependency; real editor browser journeys |
+| Browser charts | Independently implemented CSS bars plus HTML tables | No chart runtime dependency; packed analytics entrypoint and chart/table agreement |
+| XLSX data and charts | Existing openpyxl 3.1.5 with et-xmlfile 2.0.0 | Exact installed metadata, transitive requirements and reviewed notice fingerprints in the Python environment and actual API/worker images |
+| PDF reports | Existing pinned Typst 0.13.1 with the dedicated survey template | Existing Typst pipeline; no SurveyJS PDF Generator; SURV-080 rendered report evidence |
+| SurveyJS font assets | Open Sans, OFL-1.1 | Upstream installed package retains font license; respondent stylesheet is fontless and uses host fonts |
 
-Track these gates in SURV-000, SURV-020 and final SURV-100 evidence in
-[PLAN.md](PLAN.md). No commercial fallback is permitted if our custom editor
-requires more effort; record the remaining work instead.
+Both Python distributions declare MIT in their metadata. et-xmlfile additionally
+redistributes `LICENCE.python` for its Python-derived code, including the PSF v2
+and retained historical Python license notices. The gate admits the exact reviewed
+file contents and does not label every bundled file MIT. The application images
+retain those upstream distribution files; no source modification or relicensing
+of these dependencies is introduced.
+
+`./leonaid test-surveys-dependencies` runs the npm gate and the new XLSX runtime
+gate. Unknown packages, versions, dependencies, commercial metadata, missing or
+changed notice files, and omission of the separate Python notice are rejected.
+`./leonaid test-surveys-package` independently installs the tarball outside the
+workspace, checks its actual closure/notices/bundle boundaries, and exercises it
+in Chromium across a backend restart. [Current acceptance evidence](proofs/SURV-000.md#complete-runtime-dependency-disposition).
+
+This scope covers the survey package and the selected XLSX runtime closure, not
+all pre-existing LeonAid dependencies or every base-image system library. The
+existing host-only axe QA tooling remains separate and is not distributed with
+the neutral package. Future dependency/version/asset additions must be reviewed
+before extending either allowlist; a matching metadata license alone is not an
+approval of new bundled notices. Final SURV-100 artifact review remains required.
+Own project/editor license stays **UNDEFINED**, with existing manifest markers
+preserved. No commercial fallback is permitted.
 
 ### Initial chart implementation
 
