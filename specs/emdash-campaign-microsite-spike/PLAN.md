@@ -1961,6 +1961,9 @@ fields are absent; generated TypeScript types compile.
       Krapfentaxi rendering, authenticated preview, full browser cache/failure
       matrix, whole-request/pool deadlines and historical archives remain open.
       Public pages are still gated by completed bootstrap and secure ingress.
+      Post-commit `./leonaid check` passed at `c47240d`: 208 unit tests, 244
+      Python source checks, 42 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Add the server-only published-content reader prerequisite, separate from
       the draft-hydrating editor runtime. `readPublishedCampaign` accepts only
