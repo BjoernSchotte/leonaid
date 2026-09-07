@@ -3,7 +3,7 @@ set -eu
 root=$1
 mode=${2:-auth}
 orders=${3:-false}
-case "$orders:$mode" in false:*|true:public-http) ;; *) exit 2 ;; esac
+case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration) ;; *) exit 2 ;; esac
@@ -182,6 +182,24 @@ if [ "$mode" != auth ]; then
     compose up --no-deps --build --detach --wait public mailpit worker
     compose run --rm --no-deps admin-browser \
       node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
+    if [ "$orders" = true ]; then
+      fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
+      compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+      compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator
+      TWENTY_INTEGRATION_API_KEY=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' "$proof/integration.env")
+      export TWENTY_INTEGRATION_API_KEY
+      if [ "${#TWENTY_INTEGRATION_API_KEY}" -lt 32 ]; then
+        echo "krapfentaxi-orders: restricted key missing" >&2
+        exit 1
+      fi
+      compose up --no-deps --detach --wait api
+      visual_proof=$(mktemp -d)
+      compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
+        node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
+      fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+      LEONAID_ENV=test fixture /repo/tools/emdash_spike/valid_order_ingress_proof.py
+      echo "krapfentaxi-orders: synthetic screenshots retained in $visual_proof"
+    fi
     exit 0
   fi
   if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then

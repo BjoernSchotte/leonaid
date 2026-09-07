@@ -82,10 +82,17 @@ Publish exposes changes on the next ordinary anonymous canonical-page request
 without restarting or rebuilding the CMS. A subsequent draft remains private.
 Mobile/no-JavaScript and desktop/JavaScript rendering are checked in each engine.
 
+The separate `./leonaid test-emdash-spike --case krapfentaxi-orders` case extends
+that journey with its own real Twenty services and restricted integration key.
+It verifies 24 accepted orders and twelve native POST replays on the imported
+canonical page against Core SQL and Twenty, plus public Core ingress denial.
+Before each order it asserts that the published editor marker is visible and the
+subsequent private draft is absent. This is paced functional acceptance, not a
+new load/capacity claim.
+
 Process-kill/restart recovery, backup/restore, final visual acceptance with the
-original assets, themed-page accepted orders and alias cutover remain open in
-`PLAN.md`. The canonical-page browser proof does not prove short-alias delivery
-or successful order processing merely by finding the order form.
+original assets, additional price/availability transitions and alias cutover
+remain open in `PLAN.md`. Neither canonical-page case proves short-alias delivery.
 
 Original image provenance and rights notices are retained in the manifest. This
 does not grant or claim production publication rights.

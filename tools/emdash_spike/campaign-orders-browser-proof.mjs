@@ -5,6 +5,7 @@ import { chromium, firefox, webkit } from "playwright";
 const path = "/campaigns/krapfentaxi-2026/";
 const orders = [];
 const burst = process.argv.includes("--burst");
+const imported = process.argv.includes("--imported");
 let timedOutOrders = 0;
 // Functional acceptance, not a burst/load test: each order performs several
 // CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
@@ -47,6 +48,27 @@ for (const [engineName, engine] of Object.entries({
           (await page.goto(`https://proxy:8443${path}`)).status(),
           200,
         );
+        if (imported) {
+          assert.equal(
+            await page.locator("body").getAttribute("class"),
+            "taxi-site",
+          );
+          assert.equal(
+            await page
+              .getByRole("heading", {
+                name: "Published imported campaign webkit",
+                exact: true,
+              })
+              .count(),
+            1,
+          );
+          assert.ok(
+            !(await page.locator("body").textContent()).includes(
+              "Private follow-up webkit",
+            ),
+          );
+          assert.equal(await page.locator("[data-order-form]").count(), 1);
+        }
         const form = page.locator("[data-order-form]");
         const quantity =
           scenario === "new-company"

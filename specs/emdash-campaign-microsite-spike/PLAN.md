@@ -3030,6 +3030,25 @@ another running checkout or authorize production deployment.
 - [ ] Prove Core changes (such as offering price and order availability) appear
       independently of editorial publishing. Complete an anonymous test order
       through the new page and verify the existing backend effects.
+  - [x] Actual imported-page order acceptance: `./leonaid test-emdash-spike
+    --case krapfentaxi-orders` passed in isolated project
+        `leonaid-emdash-tmp-zsjjfx0d9q`. This runs the real original-asset import
+        and all three Charity editor/publication journeys, then adds fresh
+        Twenty services and a verified restricted integration key. Without
+        republishing CMS content, Core gains the mixed-unit offerings used by
+        the existing order contract. Every visitor first verifies the taxi
+        renderer and the last actually published editor marker, with its later
+        draft absent. Chromium, Firefox and WebKit accepted all 24 orders
+        (native/mobile and JS/desktop; new company, existing company, person,
+        mixed units). Core SQL and real Twenty proved exact records, totals,
+        line snapshots, consent and audit; twelve native POST replays created
+        no duplicate orders. All 84 valid-payload public Core ingress probes
+        were denied even with a valid service key, with seven Core tables and
+        Twenty unchanged; internal unauthorized/authorized controls passed.
+        Exit 0 and complete cleanup of only this project's resources. This
+        proves normal order completion on the imported canonical page, not
+        cutover/alias recovery, additional price/availability transitions, or
+        burst/deadline behaviour on this theme.
 - [ ] Rehearse rollback of renderer selection, aliases, and CMS data together.
       Rollback must preserve orders accepted since cutover: never restore an old
       whole-Core database over newly created transactions to undo a CMS change.
@@ -3040,6 +3059,7 @@ Verification (new case implemented by this task):
 
 ```sh
 ./leonaid test-emdash-spike --case krapfentaxi-migration
+./leonaid test-emdash-spike --case krapfentaxi-orders
 ./leonaid test-emdash-spike --case edit-publish-delivery
 ./leonaid test-emdash-spike --case recovery
 ./leonaid test-public-actions
