@@ -468,3 +468,21 @@ and diff whitespace checks passed. Generated OpenAPI/client matches the label
 metadata. No new dependency or license decision was introduced. The work package
 is accepted; raw/report exports, retention, full capability-matrix coverage and
 preview creation remain open under SURV-080/090/060.
+
+## Analysis gate reconciliation
+
+The execution-gate checkbox in PLAN now matches the already accepted A1–A4
+criteria and task ledger. The immutable-snapshot proof verifies the actual API,
+PostgreSQL and worker against independently specified five-response golden
+counts, percentages, relevance denominators, NPS 100/3 and version separation.
+The member-browser proof compares chart/table values with that exact snapshot;
+the authorized raw-response proof completes the keyboard and access-denial
+criterion. The export proofs retain their separate artifact-parsing assertions.
+
+As a current arithmetic regression, pinned Bun **1.2.19** ran
+`bun test tools/surveys/analysis.test.ts` in an isolated networkless container:
+**4 tests, 69 assertions, exit 0**. It checks hand-calculated distributions,
+missing/invalid/hidden answers, empty results, exact scalar identities,
+fractional rating scales and unknown-answer rejection. This narrow rerun
+supports the existing full service/browser evidence; it does not replace it
+or establish a new complete aggregate pass.

@@ -40,6 +40,7 @@ stored data; [evidence](proofs/SURV-000.md#complete-write-transport-inventory).
 This does not close the full contracts/persona/capability acceptance below.
 
 - [x] **000.T1b** Prove concurrent identical requests and later replay for all 21 survey write operations, with observed overlapping persistence-lock waits, exact database/outbox deltas, actual stored-value and response-model validation and unchanged complete row contents on replay/conflict. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**; full cross-operation/competing-revision and capability coverage remains required. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
+- [ ] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs.
 
 - [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
 
@@ -227,7 +228,9 @@ and the complete passing editor regression in that same proof.
 
 ## SURV-060 — LeonAid module, permissions and invitations
 
-- [ ] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls.
+[Module task reconciliation](proofs/SURV-060.md#module-task-reconciliation) maps task 060.1 to its existing live assertions.
+
+- [x] **060.1** Add Umfragen navigation, lifecycle screens, action linking, explicit standalone ownership and backend timeout controls.
 
   Acceptance criteria: **060.A4, 060.A5**.
   Integration / supporting checks — work-package regression gate: **060.S1, 060.S2**.

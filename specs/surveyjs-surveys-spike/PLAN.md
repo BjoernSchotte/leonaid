@@ -520,14 +520,14 @@ their named scenarios and acceptance mapping must be discoverable from the proof
 | SURV-000 | DTO/error fixtures, persona seeds, clean migration and dependency rejection | `surveys-infrastructure.spec.mjs`: both hosts, member session, diagnostics and cleanup |
 | SURV-010 | Shared validation fixtures, real partial/final writes and timeout resumption | `surveys-runner.spec.mjs`: text without blur, fresh-context restore and hidden-answer cleanup |
 | SURV-020 | Packed consumer installation, real adapter, bundle/import/license boundaries | Proposed `surveys-package.spec.mjs`: independent host, theme/translation and hydration |
-| SURV-030 | Baseline/empty migrations, all lifecycle edges, publication and closing races | Proposed `surveys-lifecycle.spec.mjs`: create through restore, with public access checks |
+| SURV-030 | Baseline/empty migrations, all lifecycle edges, publication and closing races | `surveys-module.spec.mjs`, `surveys-role-lifecycle.spec.mjs`: create through restore, with public access checks |
 | SURV-040 | Draft roundtrip, stable IDs, unsupported definitions and stale revisions | `surveys-editor.spec.mjs`, `surveys-authoring.spec.mjs`, `surveys-import-recovery.spec.mjs`, `surveys-accessibility.spec.mjs`: structural editing, both examples, recovery and keyboard authoring |
 | SURV-050 | Duplicate/reordered writes, terminal completion, timeout snapshots and worker restart | `surveys-runner.spec.mjs`: offline/reconnect, two tabs, lost acknowledgement, abandon/resume |
-| SURV-060 | Persona/resource denial matrix, invitation retries/revocation and identity separation | Proposed `surveys-module.spec.mjs`: navigation, Mailpit invitation, timeout settings and test-data isolation |
-| SURV-070 | Hand-calculated aggregate fixtures, version/status filters and raw-data denial | Proposed `surveys-analytics.spec.mjs`: filters, chart/table agreement, empty states and restricted views |
-| SURV-080 | Real worker/storage exports, parsed values, formula safety, retry and download revocation | Proposed `surveys-exports.spec.mjs`: all four downloads, job states and permission denial; separate PDF/XLSX render review |
-| SURV-090 | Deletion races, interrupted cleanup, real backup restore and limits/log inspection | Proposed `surveys-deletion.spec.mjs`: open respondent during trash, rejected saves and closed restoration |
-| SURV-100 | Aggregate gate, repeat clean-stack run, packed consumer and affected regressions | Proposed `surveys-journeys.spec.mjs`: both complete sample journeys on desktop and mobile |
+| SURV-060 | Persona/resource denial matrix, invitation retries/revocation and identity separation | `surveys-module.spec.mjs`, `surveys-invitations.spec.mjs`, `surveys-preview.spec.mjs`: navigation, Mailpit invitation, timeout settings and test-data isolation |
+| SURV-070 | Hand-calculated aggregate fixtures, version/status filters and raw-data denial | `surveys-analytics.spec.mjs`: filters, chart/table agreement, empty states and restricted views |
+| SURV-080 | Real worker/storage exports, parsed values, formula safety, retry and download revocation | `surveys-exports.spec.mjs`, `surveys-export-values.spec.mjs`, `surveys-export-states.spec.mjs`: all four downloads, job states and permission denial; separate PDF/XLSX render review |
+| SURV-090 | Deletion races, interrupted cleanup, real backup restore and limits/log inspection | `surveys-deletion.spec.mjs`: open respondent during trash, rejected saves and closed restoration |
+| SURV-100 | Aggregate gate, repeat clean-stack run, packed consumer and affected regressions | `surveys-journey.spec.mjs`: both complete sample journeys on desktop and mobile |
 
 Test filenames may change during implementation; update this mapping and the
 proof together. The acceptance IDs and required outcomes remain authoritative.
@@ -541,8 +541,9 @@ proof together. The acceptance IDs and required outcomes remain authoritative.
   consumer before claiming that the package is reusable outside LeonAid.
 - [x] **Module gate:** complete the deferred 030.A4 lifecycle journey after
   SURV-060 supplies the member UI; backend-only evidence cannot close this item.
-- [ ] **Analysis gate:** accept SURV-070 against hand-calculated fixtures before
+- [x] **Analysis gate:** accept SURV-070 against hand-calculated fixtures before
   using its snapshots as the reference values for SURV-080 export acceptance.
+  [Reconciled golden/API/browser evidence](proofs/SURV-070.md#analysis-gate-reconciliation).
 - [ ] **Final gate:** complete SURV-100 only after all required predecessor
   criteria and the exit criteria below pass. Record any missing prerequisite as
   open; do not replace it with a narrower successful test.
@@ -568,6 +569,7 @@ Test implementation and verification tasks:
 - [ ] **000.T1** Add DTO/error-contract checks, persona/capability fixture coverage, clean-stack migration and database roundtrip tests, plus prohibited/unknown-dependency negative fixtures. Acceptance: **000.A1, 000.A2, 000.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 - [x] **000.T1a** Inventory every registered survey write with its request/response DTO; prove unknown-field rejection and unauthenticated/missing-resource rejection against the real API with unchanged survey/outbox row contents, including a persisted answer fixture. [Contract inventory](WRITE-CONTRACTS.md) and [live evidence](proofs/SURV-000.md#complete-write-transport-inventory). This accepts the transport subset only; **000.T1 / 000.A1** remain open for full error, role, concurrency and C-01–C-15 traceability.
 - [x] **000.T1b** Hold the actual persistence lock until both identical requests are observed blocked, then verify both responses and a later exact retry for every registered survey write. Verify the actual response DTO, exactly-once row/outbox deltas and unchanged full row contents on replay; reject changed data under the same key according to each operation's identity contract. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**. This does not replace competing-revision, cross-operation race or C-01–C-15 coverage. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
+- [ ] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs.
 - [x] **000.T2** Add a Playwright smoke journey through both hosts: authenticate a synthetic member, open a public route, and verify failure diagnostics and cleanup. Acceptance: **000.A3**. [Live evidence](proofs/SURV-000.md#foundation-browser-failure-diagnostics): a real Chromium success and deliberate failure both complete the member/public/survey-shell steps; expected exits, credential-free diagnostics and isolated teardown are verified.
 
 Acceptance criteria:
@@ -798,7 +800,7 @@ Acceptance criteria:
 
 ### SURV-090 — Deletion, recovery and operational limits
 
-Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim, configurable retention, manual erasure controls and the open-respondent deletion journey are proven. The restore operator invokes the checkpoint gate before startup; missing/tampered/stale-input rejection is proven. The encrypted Restic backup and fresh-target restore pass with source volumes removed, no-build startup and image-identity checks. Six deterministic deletion interleavings now pass for saves, completion and export handlers. Public request quotas and payload/participation-log checks are proven. Export admission and export-log checks are also proven. Independent latest-checkpoint continuity and complete module E2E acceptance remain open. See [recovery contract](RECOVERY.md).
+Current evidence: [SURV-090](proofs/SURV-090.md). Durable erasure/reclaim, configurable retention, manual erasure controls and the open-respondent deletion journey are proven. The restore operator invokes the checkpoint gate before startup; missing/tampered/stale-input rejection is proven. The encrypted Restic backup and fresh-target restore pass with source volumes removed, no-build startup and image-identity checks. Six deterministic deletion interleavings now pass for saves, completion and export handlers. Public request quotas and payload/participation-log checks are proven. Export admission and export-log checks are also proven. Independent latest-checkpoint continuity and the complete aggregate recovery gate remain open; the scoped module deletion journeys are accepted. See [recovery contract](RECOVERY.md).
 
 Dependencies: SURV-050, SURV-060, SURV-080.
 

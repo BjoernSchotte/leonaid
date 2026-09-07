@@ -126,5 +126,8 @@ and remaining limitations. The general write boundary is indexed separately in
 
 Browser filenames in this table live under `tests/e2e/`; JSON fixture filenames
 live under `tests/fixtures/surveys/` unless otherwise stated. Open SURV-000 contract
-coverage, SURV-090 recovery and SURV-100 aggregate/complete-journey requirements
+coverage, SURV-090 recovery and SURV-100 aggregate/final capability reconciliation
 remain acceptance blockers even when a capability has several useful proofs.
+The complete desktop/mobile sample journeys have their own scoped
+[accepted evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys);
+a later failing or incomplete regression is not silently treated as a pass.

@@ -901,3 +901,27 @@ Source hashes (SHA-256):
 | `tools/ci/no_test_doubles.py` | `17477d84cfc85a311190feaaf018e9276a04358b8ffcd62670a3cf8f111ba48d` |
 | `tools/ci/no_test_doubles_test.py` | `679fe577e5929531ca5ff44b80ffd12ba7343b604de3d58aec0810f59e77d289` |
 | `tools/ci/reviewed_network_faults.json` | `80a5024c602e0d07778a92fbfe9f1151419fdfb54f754c3f586f1848a6fc6676` |
+
+## Module task reconciliation
+
+The companion **060.1** acceptance now agrees with the task ledger above.
+Current-source review maps every deliverable to the existing successful probes:
+
+- `surveys-module.spec.mjs` navigates the actual Umfragen sidebar, creates an
+  action-linked survey, changes/restores global settings, persists a survey
+  override and traverses publication, end, archive, trash and restore.
+  `module.py verify` checks ended state, action association and timeout in SQL.
+- The separate-role lifecycle journeys exercise standalone/action-linked surveys
+  on desktop/mobile and verify the retained action association, timeout, version
+  and answer, or actual erasure. The persona matrix proves scoped ownership and
+  direct-route rejection independently of visible controls.
+- `surveys-preview.spec.mjs` proves old/new timeout snapshots (60/1 seconds),
+  zero public writes from author preview and separate real/test analysis.
+  `preview_live.py verify` checks the real worker's durable partial state and
+  exact stored response/snapshot counts.
+
+The successful commands/projects and sanitized results are retained in the
+module, separate-role, persona and preview sections above. This reconciliation
+introduces no new runtime behavior and does not claim a fresh full module run.
+It accepts the previously omitted companion task; full spike acceptance remains
+subject to the open contract, regression, aggregate and recovery gates.
