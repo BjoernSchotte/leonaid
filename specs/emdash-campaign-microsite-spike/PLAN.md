@@ -1553,6 +1553,9 @@ Dependencies: EMS-030 successful
       in `leonaid-emdash-tmp-jpc191kvsj`; earlier failing projects were cleaned.
       Full rich-field reorder/remove/link UX, modifier/drag/mobile accessibility,
       public delivery and recovery remain open.
+      Post-commit `./leonaid check` passed at `e000bc6`: 208 unit tests, 242
+      Python source checks, 37 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
