@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 root=$1
+mode=${2:-namespaces}
+case "$mode" in namespaces|persistence) ;; *) exit 2 ;; esac
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
@@ -23,4 +25,4 @@ trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 compose build proof
 compose up --detach --wait core-postgres
-compose run --rm --no-deps proof
+compose run --rm --no-deps --entrypoint python proof "tools/emdash_spike/alias_${mode}_proof.py"

@@ -2844,6 +2844,29 @@ Dependencies: EMS-030, EMS-050, EMS-070
       multiple aliases per action. Migrate existing assignments without changing
       their targets or publication windows. Retain backward compatibility for
       existing clients until they use the new contract.
+  - [x] Multi-alias storage and legacy repository compatibility: migration
+        `0028_multiple_campaign_aliases` preserves existing aliases as enabled
+        primary aliases with unchanged targets/switch timestamps. Every row has
+        a stable UUID and positive revision; alias names remain globally unique,
+        while a partial unique index permits at most one primary alias per
+        action and a separate action index supports additional redirects.
+        Redirects have their own enabled flag. Primary aliases are disabled by
+        release through existing publication controls, not by that flag.
+        Legacy reads/order joins select only the enabled primary; primary
+        replacement preserves redirects and cannot consume a redirect name.
+        Completion releases all names and audits primary plus sorted redirects.
+        The `alias-persistence` case passed in isolated project
+        `leonaid-emdash-tmp-ewsjlmlnjd`: preceding-schema data preservation,
+        downgrade/re-upgrade, refusal of lossy downgrade with extra rows,
+        actual repository publication/order lookup, same-name concurrency with
+        one winner, and lifecycle release audit. No new alias HTTP mutation or
+        redirect resolution is enabled by this storage-only checkpoint.
+        `krapfentaxi-orders` additionally passed against the new schema in
+        `leonaid-emdash-tmp-qztj1gmtfp`: all three real Charity editor journeys,
+        24 browser orders checked in Core/Twenty, twelve duplicate-free native
+        replays and 84 direct public Core ingress denials. Both cases exited 0
+        and removed only their own project resources. New API, authority,
+        idempotency, UI and public redirect gates below remain open.
 - [ ] Add list/create/update/disable/remove operations to the existing action
       management API and regenerate OpenAPI and the TypeScript client.
 - [ ] Authorize every operation through Core: System Admins manage all aliases;
@@ -2893,6 +2916,7 @@ Verification (new case implemented by this task):
 ./leonaid generate-api-client
 ./leonaid test-emdash-spike --case redirect-aliases
 ./leonaid test-emdash-spike --case alias-namespaces
+./leonaid test-emdash-spike --case alias-persistence
 ./leonaid test-public-actions
 ```
 

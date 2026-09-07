@@ -224,7 +224,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     """
                     SELECT action_id
                     FROM public_action_alias
-                    WHERE alias = $1
+                    WHERE alias = $1 AND is_primary AND enabled
                     """,
                     public_alias.value,
                 )
@@ -341,7 +341,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     """
                     SELECT alias
                     FROM public_action_alias
-                    WHERE action_id = $1
+                    WHERE action_id = $1 AND is_primary
                     FOR UPDATE
                     """,
                     action.id,
@@ -355,14 +355,24 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                 if current_alias != desired_alias:
                     previous_target_id: UUID | None = None
                     if desired_alias is not None:
-                        previous_target_id = await connection.fetchval(
+                        desired_row = await connection.fetchrow(
                             """
-                            SELECT action_id
+                            SELECT action_id, is_primary
                             FROM public_action_alias
                             WHERE alias = $1
                             FOR UPDATE
                             """,
                             desired_alias,
+                        )
+                        if desired_row is not None and not desired_row["is_primary"]:
+                            raise Conflict(
+                                "action_public_alias_unavailable",
+                                "Dieser öffentliche Alias ist nicht verfügbar.",
+                            )
+                        previous_target_id = (
+                            desired_row["action_id"]
+                            if desired_row is not None
+                            else None
                         )
                         if (
                             previous_target_id is not None
@@ -374,7 +384,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                                 "Dieser öffentliche Alias ist nicht verfügbar.",
                             )
                     await connection.execute(
-                        "DELETE FROM public_action_alias WHERE action_id = $1",
+                        "DELETE FROM public_action_alias WHERE action_id = $1 AND is_primary",
                         action.id,
                     )
                     if (
@@ -664,17 +674,31 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     occurred_at=occurred_at,
                 )
                 released_alias: str | None = None
+                released_redirects: list[str] = []
                 if action.status in {
                     CharityActionStatus.COMPLETED,
                     CharityActionStatus.ARCHIVED,
                 }:
-                    released_alias = await connection.fetchval(
+                    released_rows = await connection.fetch(
                         """
                         DELETE FROM public_action_alias
                         WHERE action_id = $1
-                        RETURNING alias
+                        RETURNING alias, is_primary
                         """,
                         action.id,
+                    )
+                    released_alias = next(
+                        (
+                            str(row["alias"])
+                            for row in released_rows
+                            if row["is_primary"]
+                        ),
+                        None,
+                    )
+                    released_redirects = sorted(
+                        str(row["alias"])
+                        for row in released_rows
+                        if not row["is_primary"]
                     )
                 await self._audit(
                     connection,
@@ -686,6 +710,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                         "previousStatus": previous_status.value,
                         "newStatus": changed.status.value,
                         "releasedPublicAlias": released_alias,
+                        "releasedRedirectAliases": released_redirects,
                         "revision": changed.revision,
                     },
                     occurred_at=occurred_at,
@@ -881,7 +906,7 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
         if action is None:
             return None
         alias = await connection.fetchval(
-            "SELECT alias FROM public_action_alias WHERE action_id = $1",
+            "SELECT alias FROM public_action_alias WHERE action_id = $1 AND is_primary AND enabled",
             action_id,
         )
         administrator_rows = await connection.fetch(
