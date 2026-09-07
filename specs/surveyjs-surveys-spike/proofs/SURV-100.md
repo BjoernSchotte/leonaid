@@ -490,3 +490,59 @@ leaf also failed after five passing leaves, independently of upload. Its raw
 child log was not exposed, so the cause is still unconfirmed. Fixed PostgreSQL
 error markers were added to the bounded classifier for the next real run. All
 four diagnostic privacy tests and workflow formatting checks pass.
+
+
+### Confirmed structured CI results after upload correction
+
+Run `34157914748` at PR head `c8035cc` (GitHub merge checkout
+`f4116a335d86e1f004adfb2323a8135bba2892b6`) published readable structured
+reports. Package passed both packed-consumer iterations (50.772 s and 23.080 s).
+Foundation passed all seven leaves in both iterations, including both migration
+runs and deliberate failure-diagnostic acceptance. Their bounded reports were
+downloaded and inspected; private logs remained excluded.
+
+The E2E group failed its first journey iteration at the Golf dropdown option
+hit-test (`surveys-journey.spec.mjs:316`). No cause is yet confirmed, and the
+second iteration did not run. Other groups and the local aggregate are still
+running. Neither this partial CI result nor previous local journeys accepts
+the full current remote gate.
+
+An independent real PostgreSQL initialization probe also demonstrated that the
+existing migration readiness check can accept the temporary Unix-socket server
+while TCP is still unavailable. Waiting for 127.0.0.1 TCP readiness allowed real
+SQL create/write after final startup. The probe used a temporary init hook, no
+network/host ports and removed its owned container. A TCP-readiness patch is
+prepared but not yet applied, to preserve the executing aggregate's sources.
+This observed race is not asserted as the unobserved cause of the earlier CI
+migration failure.
+
+
+## Six isolated browser regressions
+
+The complete existing invitation, session, matching, assignment, activity and
+action scripts now reserve all owned networks before startup, use checkout/PID
+projects, reset host-port publications and refuse occupied/unreadable inventories
+before mutation. Their original API, SQL, SMTP, Twenty and Playwright assertions
+are unchanged. Each command exited **0** and its required screenshot checks
+passed. A separate Docker inventory verified no owned containers, volumes or
+networks for all six projects after completion.
+
+| Suite | Browser result | Covered existing behavior |
+|---|---|---|
+| invitations | 6 passed, 36.9 s | Action-scoped invitation rights, admin action choices, lifecycle/resend/address correction, mobile code entry, confirmed email change; real SMTP/outbox contract |
+| sessions | 2 passed, 10.7 s | Login, fresh-login and session lifetime/revocation contracts, real browser login/finance routing |
+| matching | 1 passed, 22.9 s | Real Core/Twenty matching and mobile ambiguity/warning/no-match/create outcomes |
+| assignments | 1 passed, 24.8 s | Real concurrency/history/shared-assignment contract and mobile matching warning/success |
+| activities | 1 passed, 10.1 s | Recorded activity, follow-up/history and browser persistence |
+| actions | 1 passed, 11.5 s | Neutral action contract and full browser creation |
+
+[Run durations, project identities and source hashes](assets/SURV-100-browser-regressions.json)
+record the tested harnesses. The previously verified reservation helper is unchanged.
+The expanded guard suite covers 72 occupied-resource/unreadable-inventory cases
+across the eighteen adapted legacy harnesses; those process-boundary fixtures
+complement the real service/browser tests above. No new visual/accessibility audit
+is inferred from screenshot existence or passing browser assertions.
+
+This accepts **100.3f / 100.S2e**. Eighteen of the 42 legacy regression scripts
+have now been isolated and executed; the remaining 24, the full Survey aggregate,
+current whole-journey CI failure and recovery requirements remain open.
