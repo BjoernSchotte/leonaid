@@ -2513,6 +2513,11 @@ keyboard and 200% zoom checks.
       private-order confirmation was visually inspected. This is not production
       activation, a load test, a mixed-unit success-summary proof, or the complete
       migration/recovery and security matrix. Those broader gates remain open.
+      Full `./leonaid check` passed on commit `4c5ca9d`: 210 unit tests,
+      248 Python files with no typing issues, 24 public and 46 campaign Astro
+      files with zero diagnostics, plus API generation, schema/type generation,
+      formatting, dependency and privacy/CI gates. The working tree remained
+      unchanged. Existing upstream Pydantic/Vite deprecation warnings remain.
 - [x] Authenticate internal order callers independently of network location.
       Add a dedicated 32-byte hex `LEONAID_ORDER_SUBMISSION_KEY`, distributed
       only to Core, `public` and `campaign-site` runtime services. The shared
