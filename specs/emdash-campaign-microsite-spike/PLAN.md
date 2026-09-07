@@ -2935,6 +2935,10 @@ another running checkout or authorize production deployment.
       This gate now runs in `./leonaid check`. It performs no database/storage
       writes; durable import tracking, target resolution, idempotent apply and
       repeat-run preservation of editor changes remain required below.
+      Post-commit `./leonaid check` at `7894fd2` passed the offline source gate,
+      210 unit tests, 250 Python source checks, 24 public and 47 CMS Astro files
+      without diagnostics, generated-type/format/privacy/policy gates and an
+      unchanged committed tree. Existing dependency deprecation warnings remain.
 - [x] Add the CMS-driven Krapfentaxi renderer without duplicating the existing
       Core-owned offering, order, beneficiary, goal and privacy sections.
       `PublicAction` accepts the typed campaign route and its explicit order
