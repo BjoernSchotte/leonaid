@@ -2937,6 +2937,10 @@ another running checkout or authorize production deployment.
       cleanup. This uses synthetic editorial text/media: actual demo import,
       final visual acceptance with original assets, accepted orders through the
       themed page, alias cutover and restore remain open.
+      Post-commit `./leonaid check` at `9cea665` passed 210 unit tests,
+      250 Python source checks, 24 public and 47 CMS Astro files without
+      diagnostics, generated-type/format/privacy/policy gates and unchanged
+      committed source. Existing dependency deprecation warnings remain.
 - [ ] Implement a Docker-based, idempotent migration with dry-run reporting and
       an explicit apply mode. Resolve the existing action UUID via Core; create
       no duplicate CharityAction. Re-running must neither duplicate media nor
