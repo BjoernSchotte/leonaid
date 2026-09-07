@@ -2937,6 +2937,31 @@ Dependencies: EMS-050, EMS-070
         tests, 263 Python files typechecked, both Astro applications (25/47 files,
         zero diagnostics), frontend typechecks, format and repository policy
         gates. The working tree was unchanged.
+  - [x] Bidirectional restored-content isolation checkpoint (2026-09-07):
+        `./leonaid test-emdash-spike --case recovery-app` passed from
+        `leonaid-poc112-tmp-thwpn9slj9` into fresh
+        `leonaid-restore-tmp-thwpn9slj9`. Before backup, the second real Charity
+        Admin logs in through Core SMTP, creates their own campaign through
+        the CMS HTTP API and saves an actual revision. An initial trial proved
+        that creation alone has no draft revision; the preparation now performs
+        the required real edit instead of assuming one exists. After restore,
+        both owners log in anew in Chromium, Firefox and WebKit, see exactly
+        their own campaign, and can read and update their own content. In both
+        directions, foreign item/history/compare reads and every returned
+        foreign revision read/restore are hidden with the same `404` envelope
+        as a missing item. Foreign update, publish, unpublish and draft-discard
+        requests return `404`; cross-campaign creation returns `403`. Search
+        has a positive matching-owner control, but reveals no foreign match;
+        forged action filters remain constrained to the current owner.
+        Owner-read content and queried revision histories remain byte-equivalent
+        before/after the denied requests; valid own writes then succeed. Logout
+        removes access. The complete run also repeats membership expiry/regrant,
+        public media rendering and encrypted recovery, exits zero and removes
+        its isolated projects/volumes/networks without host ports. No target
+        reseeding or CMS content creation is performed. This closes the scoped
+        restored-content API isolation proof, not exhaustive restored editor/
+        media isolation, orders/Twenty convergence, journal resume or operational
+        release/off-host/rollback gates; the parent recovery gate remains open.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.

@@ -1,5 +1,7 @@
 #!/bin/sh
 # Sourced only after the real importer and three browser publishing journeys.
+compose run --rm --no-deps admin-browser node \
+  tools/emdash_spike/recovery-isolation-browser-proof.mjs --prepare
 compose up --detach --wait twenty-postgres
 docker volume create --label "com.docker.compose.project=$project" \
   --label com.docker.compose.volume=twenty-server-data \
@@ -37,4 +39,6 @@ compose run --rm --no-deps --volume "$proof/recovery-control:/recovery-control" 
   admin-browser node tools/emdash_spike/recovery-app-browser-proof.mjs
 wait "$recovery_authority_pid"
 recovery_authority_pid=
+compose run --rm --no-deps admin-browser node \
+  tools/emdash_spike/recovery-isolation-browser-proof.mjs
 echo "recovery-app: restored Core login, campaign draft/public content and media rendered; no production activation"
