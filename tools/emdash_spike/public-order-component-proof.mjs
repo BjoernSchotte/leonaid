@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "playwright";
 
+const campaign = process.argv.includes("--campaign");
+const pagePath = campaign ? "/campaigns/krapfentaxi-2026/" : "/krapfentaxi";
+
 // Real public Astro + Core. This fixture intentionally has no CRM credentials:
 // prove form rendering/validation and failure UX, never claim accepted orders.
 for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
@@ -13,7 +16,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         viewport: { width: javaScriptEnabled ? 1280 : 390, height: 900 },
       });
       const page = await context.newPage();
-      const response = await page.goto("https://proxy:8443/krapfentaxi");
+      const response = await page.goto(`https://proxy:8443${pagePath}`);
       assert.equal(response.status(), 200);
       assert.match(response.headers()["cache-control"], /no-store/);
       const form = page.locator("[data-order-form]");
@@ -45,7 +48,15 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         await form.evaluate((element) => element.checkValidity()),
         true,
       );
+      const submitted = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname ===
+            (javaScriptEnabled ? "/_actions/createPublicOrder/" : pagePath),
+      );
       await form.locator('[type="submit"]').click();
+      const submission = await submitted;
+      assert.equal(submission.request().redirectedFrom(), null);
       await page.locator('[data-form-message][data-state="error"]').waitFor();
       assert.equal(
         (await page.locator("[data-form-message]").textContent()).trim(),
@@ -63,23 +74,24 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         true,
       );
       assert.equal((await context.cookies()).length, 0);
+      assert.equal(new URL(page.url()).pathname, pagePath);
       if (javaScriptEnabled) {
         assert.equal(
           await form.locator('[name="email"]').inputValue(),
           "form-proof@leonaid.invalid",
         );
         await page.screenshot({
-          path: `/visual-proof/order-${name}-desktop.png`,
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}-desktop.png`,
           fullPage: true,
         });
       } else
         await page.screenshot({
-          path: `/visual-proof/order-${name}-mobile-nojs.png`,
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}-mobile-nojs.png`,
           fullPage: true,
         });
       await context.close();
       console.log(
-        `public-order-component: ${name} JS=${javaScriptEnabled}; shared form, real unavailable-CRM response, no false success and responsive error state passed`,
+        `public-order-component: campaign=${campaign} ${name} JS=${javaScriptEnabled}; shared form, actual POST without redirect, real unavailable-CRM response, no false success and responsive error state passed`,
       );
     }
   } finally {

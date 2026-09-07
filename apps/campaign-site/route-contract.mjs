@@ -13,6 +13,9 @@ const internalOnly = new Set([
   // Astro injects this endpoint even when no deferred server island is used.
   // CMS templates must not use server:defer until it has a dedicated namespace.
   "/_server-islands/[name]",
+  // Native campaign form actions need the shared action registration, but
+  // global browser RPC stays with apps/public. The CMS guard denies direct RPC.
+  "/_actions/[...path]",
   // No public OAuth provider or MCP discovery is part of this integration.
   "/.well-known/oauth-protected-resource",
   "/.well-known/oauth-authorization-server/_emdash",

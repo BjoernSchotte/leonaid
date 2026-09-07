@@ -1996,6 +1996,34 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Embed the shared order form in `/campaigns/<archive_slug>/` using fresh
+      Core offerings, form configuration, token and authoritative `orderAlias`.
+      The CTA now targets `#bestellen`; it no longer hands off to the legacy
+      alias page. Register only the existing `createPublicOrder` action in the
+      campaign Astro service for native form POSTs. Browser RPC `/_actions/*`
+      remains owned by `apps/public`; direct CMS RPC remains denied and its
+      injected route is explicitly classified internal-only in the build
+      inventory. No EmDash content API, order schema or order storage is added.
+      Native POST admission requires the canonical trailing-slash page, exactly
+      one supported action query, trusted HTTPS origin, completed bootstrap and
+      currently published Core/CMS content. Core still validates the order.
+      `campaign-public-http` passed in `leonaid-emdash-tmp-c2ft1jsnvo`;
+      the strengthened `campaign-public-media` passed in
+      `leonaid-emdash-tmp-ps5fkwk0hh`. Chromium, Firefox and WebKit submitted the
+      actual embedded form with and without JavaScript, stayed on the canonical
+      page without POST redirects and displayed the exact Core CRM-unavailable
+      error without false success. JavaScript input retention passed. CA-verified
+      HTTP probes proved missing/unpublished/future/expired and Core-outage
+      native POST denial, wrong-origin/action/noncanonical denial, no cookies
+      and no-store. Published HTML comparisons exclude only the two explicitly
+      per-request token/command-ID values; all editorial content and private
+      draft checks remain compared. Private media delivery, corruption/repair,
+      real SQL-lock failures, Core-read availability and recovery regressions
+      passed. Both unique stacks removed all owned resources without host ports.
+      This supersedes the temporary order handoff, not the remaining accepted
+      order gate: Twenty-backed success/idempotency, no-JavaScript input
+      retention, final demo import/theme and redirect cutover remain open.
+
 - [x] Extract the existing public order form into shared `PublicOrder.astro`
       with an explicit Core order-alias prop and shared price/unit formatters.
       Existing alias pages use the same form, Astro action and progressive

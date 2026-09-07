@@ -1,4 +1,10 @@
 import { defineMiddleware } from "astro:middleware";
+import { withEmDashRuntime } from "emdash/middleware";
+import {
+  PublicCampaignError,
+  readPublicCoreCampaign,
+} from "./public/core-campaign";
+import { readPublishedCampaign } from "./public/published-campaign.mjs";
 import { databaseReady, setupIsComplete } from "./database-ready";
 import { authenticate } from "./auth/leonaid-auth";
 import {
@@ -58,7 +64,12 @@ export const onRequest = defineMiddleware(
           status: 403,
           headers,
         });
-      if (!["GET", "HEAD"].includes(request.method))
+      const nativeOrderPost =
+        request.method === "POST" &&
+        /^\/campaigns\/[a-z0-9]+(?:-[a-z0-9]+)*\/$/.test(url.pathname) &&
+        url.searchParams.size === 1 &&
+        url.searchParams.get("_action") === "createPublicOrder";
+      if (!["GET", "HEAD"].includes(request.method) && !nativeOrderPost)
         return new Response("Method not allowed", {
           status: 405,
           headers: { ...headers, Allow: "GET, HEAD" },
@@ -68,10 +79,35 @@ export const onRequest = defineMiddleware(
           return new Response("Invalid CMS origin", { status: 403, headers });
         await requireCompletedBootstrap(bootstrapDirectory);
         if (!(await setupIsComplete())) throw new Error();
+        if (nativeOrderPost) {
+          // Astro executes actions below the user middleware chain. Admit only
+          // a currently published canonical page before invoking the shared
+          // order action; Core still validates its alias, token and order data.
+          const route = await readPublicCoreCampaign(
+            url.pathname.split("/")[2],
+          );
+          if (
+            !route.submissionsAllowed ||
+            !route.orderAlias ||
+            !route.action?.orderForm ||
+            !(await withEmDashRuntime((runtime) =>
+              readPublishedCampaign(runtime.db, route.action!.id),
+            ))
+          )
+            return new Response("Bestellung derzeit nicht verfügbar", {
+              status: 404,
+              headers,
+            });
+        }
         const response = await next();
         response.headers.set("Cache-Control", "no-store");
         return response;
-      } catch {
+      } catch (error) {
+        if (error instanceof PublicCampaignError && error.status === 404)
+          return new Response("Aktionsseite nicht verfügbar", {
+            status: 404,
+            headers,
+          });
         console.warn("public_campaign_pipeline_unavailable");
         return new Response("Aktionsseite vorübergehend nicht erreichbar", {
           status: 503,

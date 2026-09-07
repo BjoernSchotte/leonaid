@@ -1,5 +1,7 @@
 ---
+import { actions } from "astro:actions";
 import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
+import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
 import { withEmDashRuntime } from "emdash/middleware";
 import PublicState from "../../../../public/src/components/PublicState.astro";
 import {
@@ -15,6 +17,7 @@ let state: "published" | "inactive" | "missing" | "unavailable" = "missing";
 let route = null;
 let content: CampaignPageFields | null = null;
 let body = "";
+const orderResult = Astro.getActionResult(actions.createPublicOrder);
 try {
   route = await readPublicCoreCampaign(Astro.params.slug ?? "");
   if (route.availability === "inactive") state = "inactive";
@@ -53,6 +56,10 @@ if (
 )
   return Astro.redirect(route.canonicalPath, 308);
 const action = state === "published" ? route?.action : null;
+const orderForm =
+  action && route?.submissionsAllowed && route.orderAlias
+    ? action.orderForm
+    : null;
 const title =
   content && action ? `${content.title} · LeonAid` : "Aktionsseite · LeonAid";
 const origin = new URL(process.env.EMDASH_SITE_URL!);
@@ -92,6 +99,8 @@ const units = {
       }
     : undefined}
   robots={state === "published" ? "index,follow" : "noindex,follow"}
+  canOrder={Boolean(orderForm)}
+  carrierName={action?.carrierName}
 >
   {
     content && action ? (
@@ -105,8 +114,8 @@ const units = {
           {content.hero_summary && (
             <p class="summary">{content.hero_summary}</p>
           )}
-          {route?.submissionsAllowed && route.orderAlias && (
-            <a class="primary-link" href={`/${route.orderAlias}#bestellen`}>
+          {orderForm && (
+            <a class="primary-link" href="#bestellen">
               Zur Bestellung
             </a>
           )}
@@ -213,6 +222,16 @@ const units = {
         actionLabel={
           state === "unavailable" ? "Erneut versuchen" : "Zur Startseite"
         }
+      />
+    )
+  }
+  {
+    action && orderForm && route?.orderAlias && (
+      <PublicOrder
+        action={action}
+        orderForm={orderForm}
+        publicAlias={route.orderAlias}
+        orderResult={orderResult}
       />
     )
   }

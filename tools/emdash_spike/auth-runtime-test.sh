@@ -109,6 +109,7 @@ if [ "$mode" != auth ]; then
   compose run --rm --no-deps bootstrap-operator 10000000-0000-4000-8000-000000000001
   tls_probe --armed
   if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
+    compose up --no-deps --build --detach --wait public
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
     compose run --rm --no-deps cms-db-operator node tools/emdash_spike/campaign-runtime-seed.mjs
     public_probe() {
@@ -141,6 +142,8 @@ if [ "$mode" != auth ]; then
     visual_proof=$(mktemp -d)
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" --volume "$proof:/proof:ro" admin-browser \
       node tools/emdash_spike/public-campaign-browser-proof.mjs
+    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+      node tools/emdash_spike/public-order-component-proof.mjs --campaign
     echo "public-campaign: synthetic screenshots retained in $visual_proof"
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"

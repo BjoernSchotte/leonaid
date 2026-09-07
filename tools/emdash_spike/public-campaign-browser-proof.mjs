@@ -30,7 +30,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         await page
           .getByRole("link", { name: "Zur Bestellung", exact: true })
           .getAttribute("href"),
-        "/krapfentaxi#bestellen",
+        "#bestellen",
       );
       assert.equal(await page.locator("h1").count(), 1);
       if (media) {
@@ -131,6 +131,6 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     await browser.close();
   }
   console.log(
-    `public-campaign-browser: ${name} anonymous desktop/mobile, JS/no-JS, escaped content, native FAQ, order handoff, repeat visit and no cookie passed`,
+    `public-campaign-browser: ${name} anonymous desktop/mobile, JS/no-JS, escaped content, native FAQ, embedded order link, repeat visit and no cookie passed`,
   );
 }

@@ -5,6 +5,26 @@ import { request } from "node:https";
 const tokens = JSON.parse(await readFile("/proof/sessions.json", "utf8"));
 const ca = await readFile("/proof/root.crt");
 const path = "/campaigns/krapfentaxi-2026/";
+function withoutFormVolatiles(html) {
+  // Compare the complete published response, excluding only the two explicitly
+  // per-request form credentials. Never omit editorial regions or draft checks.
+  const fields = [
+    ...html.matchAll(/name="(accessToken|commandId)" value="([^"]*)"/g),
+  ];
+  assert.deepEqual(fields.map((match) => match[1]).sort(), [
+    "accessToken",
+    "commandId",
+  ]);
+  for (const [, name, value] of fields) {
+    if (name === "commandId") assert.match(value, /^[0-9a-f-]{36}$/);
+    else assert.ok(value.length >= 32);
+  }
+  assert.ok(!html.includes("PRIVATE_DRAFT_PROOF"));
+  return html.replace(
+    /name="(accessToken|commandId)" value="[^"]*"/g,
+    'name="$1" value="per-request"',
+  );
+}
 async function call(
   pathname,
   status,
@@ -75,8 +95,12 @@ if (
   );
   assert.ok(!response.body.includes("PUBLIC_STORY_PROOF"));
   assert.ok(!response.body.includes("PRIVATE_DRAFT_PROOF"));
-  assert.ok(!response.body.includes('href="/krapfentaxi#bestellen"'));
+  assert.ok(!response.body.includes("data-order-form"));
   assert.match(response.body, /noindex,follow/);
+  await call(`${path}?_action=createPublicOrder`, unavailable ? 503 : 404, {
+    method: "POST",
+    extra: { Origin: "https://proxy:8443" },
+  });
 } else {
   const root = "/_emdash/api/content/campaign_pages";
   const listing = JSON.parse((await call(root, 200, { admin: true })).body);
@@ -133,13 +157,14 @@ if (
   assert.match(live.body, /PUBLIC_STORY_PROOF/);
   assert.match(live.body, /&lt;script&gt;UNTRUSTED_TEXT_PROOF&lt;\/script&gt;/);
   assert.ok(!live.body.includes("<script>UNTRUSTED_TEXT_PROOF"));
-  assert.match(live.body, /href="\/krapfentaxi#bestellen"/);
+  assert.match(live.body, /href="#bestellen"/);
+  assert.match(live.body, /name="publicAlias" value="krapfentaxi"/);
   assert.match(
     live.body,
     /rel="canonical" href="https:\/\/proxy:8443\/campaigns\/krapfentaxi-2026\/"/,
   );
   assert.match(live.body, /lang="de"/);
-  assert.ok(!live.body.includes("accessToken"));
+  assert.equal((live.body.match(/data-order-form/g) ?? []).length, 1);
   assert.equal((await call(path, 200, { method: "HEAD" })).body, "");
   await call(`${path}?_preview=synthetic`, 403);
   await call(path, 403, { extra: { Cookie: "emdash-edit-mode=true" } });
@@ -149,24 +174,63 @@ if (
     method: "PUT",
     body: { _rev: draft.data._rev, data: { title: "PRIVATE_DRAFT_PROOF" } },
   });
-  assert.equal((await call(path, 200)).body, live.body);
   assert.equal(
-    (await call(`${path}?preview=true&draft=true`, 200)).body,
-    live.body,
+    withoutFormVolatiles((await call(path, 200)).body),
+    withoutFormVolatiles(live.body),
   );
-  assert.equal((await call(path, 200, { admin: true })).body, live.body);
+  assert.equal(
+    withoutFormVolatiles(
+      (await call(`${path}?preview=true&draft=true`, 200)).body,
+    ),
+    withoutFormVolatiles(live.body),
+  );
+  assert.equal(
+    withoutFormVolatiles((await call(path, 200, { admin: true })).body),
+    withoutFormVolatiles(live.body),
+  );
   await call(`${editor}/unpublish`, 200, { admin: true, method: "POST" });
   const absent = await call(path, 404);
   assert.ok(!absent.body.includes("PUBLIC_STORY_PROOF"));
+  await call(`${path}?_action=createPublicOrder`, 404, {
+    method: "POST",
+    extra: { Origin: "https://proxy:8443" },
+  });
   await call(`${editor}/discard-draft`, 200, { admin: true, method: "POST" });
   await call(`${editor}/publish`, 200, { admin: true, method: "POST" });
   assert.match((await call(path, 200)).body, /PUBLIC_STORY_PROOF/);
   await call("/campaigns/missing-synthetic-campaign/", 404);
+  await call(
+    "/campaigns/missing-synthetic-campaign/?_action=createPublicOrder",
+    404,
+    {
+      method: "POST",
+      extra: { Origin: "https://proxy:8443" },
+    },
+  );
   await call("/campaigns/krapfentaxi-2025/", 404);
   await call(path, 405, { method: "POST" });
+  await call(`${path}?_action=resolvePublicAction`, 405, { method: "POST" });
+  await call(
+    `${path}?_action=createPublicOrder&_action=createPublicOrder`,
+    405,
+    { method: "POST" },
+  );
+  await call(`${path.slice(0, -1)}?_action=createPublicOrder`, 405, {
+    method: "POST",
+  });
+  await call(`${path}?_action=createPublicOrder`, 403, {
+    method: "POST",
+    extra: { Origin: "https://example.org" },
+  });
+  const directRpc = await fetch(
+    "http://campaign-site:3000/_actions/createPublicOrder",
+    { method: "POST", redirect: "manual" },
+  );
+  assert.equal(directRpc.status, 503);
+  assert.equal(directRpc.headers.get("set-cookie"), null);
   const canonical = await call(path.slice(0, -1), 308);
   assert.equal(canonical.headers.location, path);
 }
 console.log(
-  "public-campaign-http: actual TLS/anonymous no-store HTML and selected publication state passed; full media, embedded orders, migration and browser cache matrix remain pending",
+  "public-campaign-http: actual TLS/no-store HTML, per-request form, private-draft isolation and narrow native-POST admission passed; accepted orders, migration and full cache matrix remain pending",
 );
