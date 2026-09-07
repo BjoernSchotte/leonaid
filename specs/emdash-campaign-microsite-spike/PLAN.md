@@ -1946,6 +1946,11 @@ fields are absent; generated TypeScript types compile.
       rejection evidence, NOT HTTP token redemption or successful ordering.
       Prove those separately with an actual isolated Twenty-enabled stack;
       do not substitute fake CRM credentials or weaken the service boundary.
+      Post-commit `./leonaid check` passed at `c29a1a2`: 208 unit tests, 244
+      Python source checks, 38 CMS files without diagnostics, frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
+      The first check identified missing helper annotations, corrected before
+      the successful complete rerun.
 
 - [x] Expose the active-campaign Core HTTP prerequisite at
       `/api/v1/public/actions/campaign/{archive_slug}` with a dedicated
