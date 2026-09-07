@@ -1576,6 +1576,9 @@ Dependencies: EMS-030 successful
       not establish an offline/reproducible build guarantee.
       Pointer/touch sorting, full accessibility and remaining rich-text/link UX,
       public delivery, migration, aliases and recovery/release remain open.
+      Post-commit `./leonaid check` passed at `9ff56df`: 208 unit tests, 242
+      Python source checks, 38 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
