@@ -361,7 +361,14 @@ def main() -> None:
             )
             assert not (directory / "manifest.json").exists()
 
-    for fault in (None, "link", "file", "permissions", "child", "duplicate"):
+    for maintenance_fault in (
+        None,
+        "link",
+        "file",
+        "permissions",
+        "child",
+        "duplicate",
+    ):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             write_backup(directory, project, version=2)
@@ -370,23 +377,23 @@ def main() -> None:
                 member = tarfile.TarInfo("./cms-maintenance")
                 member.type = tarfile.DIRTYPE
                 member.mode = 0o700
-                if fault == "link":
+                if maintenance_fault == "link":
                     member.type = tarfile.SYMTYPE
                     member.linkname = "/outside"
-                elif fault == "file":
+                elif maintenance_fault == "file":
                     member.type = tarfile.REGTYPE
-                elif fault == "permissions":
+                elif maintenance_fault == "permissions":
                     member.mode = 0o777
                 archive.addfile(member)
-                if fault in {"child", "duplicate"}:
+                if maintenance_fault in {"child", "duplicate"}:
                     member.name = (
                         "./cms-maintenance/extra"
-                        if fault == "child"
+                        if maintenance_fault == "child"
                         else "cms-maintenance/"
                     )
                     archive.addfile(member)
             (directory / "manifest.json").unlink()
-            if fault is None:
+            if maintenance_fault is None:
                 create(
                     directory,
                     source_project=project,
@@ -407,7 +414,7 @@ def main() -> None:
                 assert (restored / "cms-maintenance").stat().st_mode & 0o777 == 0o700
             else:
                 rejected(
-                    f"unsafe maintenance marker {fault}",
+                    f"unsafe maintenance marker {maintenance_fault}",
                     lambda: create(
                         directory,
                         source_project=project,
