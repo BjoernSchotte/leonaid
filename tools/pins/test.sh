@@ -7,6 +7,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 python "$checker" "$root"
+PYTHONPATH="$root" python "$root/tools/pins/peer_policy_test.py"
 
 make_fixture() {
   name=$1

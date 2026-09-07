@@ -811,11 +811,10 @@ Acceptance criteria:
 
 ### SURV-100 — Full acceptance and spike outcome
 
-Current additional regression finding: the repository-wide pin checker rejects
-the existing `react` and `react-dom` peer ranges `^19.2.8` in `packages/surveys`.
-Resolve the public-package peer contract against LeonAid's runtime pin policy and
-prove the affected package/lock checks before claiming the aggregate gate. Docker
-image-reference checks pass; this does not make the full pin check green.
+The React peer/runtime pin conflict is resolved by a scoped compatibility policy
+and exact host runtime checks. The full pin gate and independent packed consumer
+pass; this accepts only **100.3a**, not the aggregate gate or remaining regressions.
+[Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
 
 Dependencies: SURV-000–090, including deferred lifecycle E2E acceptance.
 
@@ -824,6 +823,7 @@ Implementation tasks:
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling. Acceptance: **100.A1, 100.A2, 100.A3, 100.A5**.
 - [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys. Acceptance: **100.A2, 100.A4**.
 - [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites. Acceptance: **100.A3, 100.A5**.
+- [x] **100.3a** Resolve the React peer-range versus runtime pin-policy conflict; reject unreviewed exceptions and host drift, verify the frozen workspace lock and rerun the independent packed consumer with persistence across backend restart. Partial acceptance of **100.A5** only; **100.3** and the overall acceptance remain open. [Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided. Acceptance: **100.A4, 100.A5**.
 
 Test implementation and verification tasks:

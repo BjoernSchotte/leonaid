@@ -384,6 +384,14 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **100.S2, 100.S3**.
   E2E — work-package regression gate: **100.S4**.
 
+- [x] **100.3a** Resolve React compatibility peers versus runtime pins and prove the packed consumer against its real backend.
+
+  Acceptance criteria: partial contribution to **100.A5**; **100.3** remains open.
+  Integration / supporting checks: pin gate, six peer-policy tests, frozen workspace
+  lock and installed packed-consumer version assertions.
+  E2E: all four `surveys-package.spec.mjs` cases, including backend restart.
+  [Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
+
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
   Acceptance criteria: **100.A4, 100.A5**.

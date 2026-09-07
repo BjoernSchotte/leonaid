@@ -54,6 +54,11 @@ DEPENDENCY_SECTIONS = (
     "optionalDependencies",
     "peerDependencies",
 )
+# Compatibility declarations for the independently packed survey UI only.
+# Runtime installations remain exact and must be upgraded with consumer evidence.
+SURVEY_PACKAGE = Path("packages/surveys/package.json")
+SURVEY_REACT_VERSION = "19.2.8"
+SURVEY_REACT_PEERS = {"react", "react-dom"}
 ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
     Path("infra/pilot/compose.yml"): {
         "LEONAID_CORE_IMAGE",
@@ -252,12 +257,28 @@ def check_frontend(root: Path, problems: Problems) -> None:
 
     for path in iter_package_json(root):
         package = read_json(path, problems)
+        relative = path.relative_to(root)
+        dependencies = package.get("dependencies", {})
+        if isinstance(dependencies, dict) and "@leonaid/surveys" in dependencies:
+            for name in sorted(SURVEY_REACT_PEERS):
+                problems.require(
+                    dependencies.get(name) == SURVEY_REACT_VERSION,
+                    f"{path}: survey host must pin {name} to {SURVEY_REACT_VERSION}",
+                )
         for section in DEPENDENCY_SECTIONS:
             dependencies = package.get(section, {})
             if not isinstance(dependencies, dict):
                 problems.add(f"{path}: {section} must be an object")
                 continue
             for name, version in dependencies.items():
+                if (
+                    relative == SURVEY_PACKAGE
+                    and package.get("name") == "@leonaid/surveys"
+                    and section == "peerDependencies"
+                    and name in SURVEY_REACT_PEERS
+                    and version == f"^{SURVEY_REACT_VERSION}"
+                ):
+                    continue
                 if isinstance(version, str) and version.startswith("workspace:"):
                     continue
                 if not isinstance(version, str) or not PINNED_VERSION.fullmatch(

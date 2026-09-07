@@ -168,7 +168,10 @@ private and is not being published.
 Entrypoints: `editor`, `runner`, `contracts`, `analysis`, `analytics`, `exports`,
 `styles`, `editor-styles`, `analytics-styles`, `export-styles`. The current
 spike distributes TypeScript sources for a TypeScript-capable consumer bundler.
-React and React DOM are peer dependencies. Import the runner stylesheet once;
+React and React DOM are peer dependencies (`^19.2.8`). The independently packed
+consumer and LeonAid currently verify exactly `19.2.8`; the compatibility range
+does not claim that future releases have already been tested. Runtime hosts keep
+exact dependency versions and frozen lockfiles. Import the runner stylesheet once;
 the editor also uses it for preview. Use `--survey-accent` and `--survey-font`
 inside the host's survey container to customize the runner theme.
 

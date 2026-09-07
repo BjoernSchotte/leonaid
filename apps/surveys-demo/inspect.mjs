@@ -19,6 +19,18 @@ const versions = {
   scheduler: "0.27.0",
 };
 const inventory = [];
+const surveyManifest = JSON.parse(
+  readFileSync("node_modules/@leonaid/surveys/package.json", "utf8"),
+);
+const hostManifest = JSON.parse(readFileSync("package.json", "utf8"));
+assert.deepEqual(surveyManifest.peerDependencies, {
+  react: "^19.2.8",
+  "react-dom": "^19.2.8",
+});
+for (const name of ["react", "react-dom"]) {
+  assert.equal(hostManifest.dependencies[name], versions[name]);
+  assert.equal(surveyManifest.dependencies[name], undefined);
+}
 for (const [name, version] of Object.entries(versions)) {
   const path = `node_modules/${name}`;
   assert(
@@ -72,6 +84,8 @@ assert(
 );
 const proof = {
   inventory,
+  reactCompatibilityPeers: surveyManifest.peerDependencies,
+  exactHostReact: hostManifest.dependencies.react,
   sourceCount: map.sources.length,
   clientBytes: readFileSync("dist/client.js").length,
   tarballBytes: readFileSync("/artifact/surveys.tgz").length,
