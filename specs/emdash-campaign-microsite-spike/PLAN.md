@@ -1498,6 +1498,38 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `214fd73`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
+- [x] Accept native omitted empty Portable Text marks without weakening the
+      bounded editorial contract, and prove rich-field Charity creation in the
+      real editor. The pinned converter omits empty span `marks` and block
+      `markDefs`; treating them as mandatory caused native creation to return
+      403. Absence now means an empty collection. Null, malformed collections,
+      unknown annotations and executable nested properties remain rejected;
+      the direct contract proof covers 44 negative cases. No SQL/schema metadata
+      migration or new editor patch is required for this compatibility fix.
+      `campaign-media-http` passed in `leonaid-emdash-tmp-pwiqfpuqfn`:
+      Chromium, Firefox and WebKit each completed actual SMTP Core login,
+      heading/bold story input, FAQ, partner name/description/website/logo,
+      theme and SEO input, hero/social upload and explicit attributed draft
+      creation. Reload retained the actual rich fields and private images.
+      Native document-end keyboard navigation then appended text to the last
+      paragraph; DOM selection, outgoing PUT, stored fields and another reload
+      proved the exact position and preserved heading/bold content. The picker
+      proof waits for its visible selected-upload state, not just HTTP completion.
+      Existing media/search/recovery, reference isolation, five SQL-wait/logout
+      races, storage failure/retry, membership withdrawal, Core outage and
+      bootstrap restart/database-failure checks passed. No host ports were
+      published and all owned containers, networks and volumes were removed.
+      Earlier diagnostic runs exposed timing-dependent empty-paragraph click
+      selection and a picker selector missing its native `(selected)` suffix.
+      This checkpoint proves the explicit keyboard workflow, not arbitrary
+      pointer placement, full rich-editor UX or anonymous rendering.
+- [ ] Resolve and prove pointer placement in empty rich-text paragraphs after
+      reload, including immediate typing in all three browsers. A diagnostic
+      run in `leonaid-emdash-tmp-88hmfhqknc` preserved content but placed the
+      Firefox addition after the heading instead of the clicked last paragraph;
+      earlier immediate-input runs prefixed the heading. Do not close this from
+      the document-end keyboard proof. Full rich-field reorder/remove/link UX,
+      accessibility, public delivery and recovery also remain open.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation

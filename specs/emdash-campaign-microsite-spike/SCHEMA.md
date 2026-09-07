@@ -17,6 +17,13 @@ aggregate limits than EmDash's field metadata supports. The exported seed alone
 does not provide the complete LeonAid authorization or safe-content boundary;
 deploy the matching application and validator, not a standalone imported seed.
 
+The native Portable Text editor omits empty `marks` on spans and empty `markDefs`
+on blocks. The validator accepts those omissions as empty collections; it does
+not accept null, malformed arrays, unregistered marks or arbitrary nested keys.
+Present annotations remain bounded and every non-decorator mark must resolve
+to an allowed link definition in the same block. This is a runtime validation
+compatibility correction, not a change to collection metadata or SQL schema.
+
 ## Installation
 
 `installCampaignSchema(database)` is an operator-only helper. The runtime proof's

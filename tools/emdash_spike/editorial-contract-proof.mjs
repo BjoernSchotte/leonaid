@@ -16,6 +16,27 @@ const deny = (data) => {
   assert.equal(validCampaignEditorial(data), false);
   rejected++;
 };
+// Published native editor serializes absent empty marks/markDefs. Validate
+// their meaning directly; never normalize away unknown or malformed data.
+const { marks: _marks, ...plainSpan } = span;
+const { markDefs: _definitions, ...plainBlock } = block;
+for (const children of [[plainSpan], [{ ...span, marks: ["strong"] }]]) {
+  assert.equal(
+    validCampaignEditorial({ ...valid, body: [{ ...plainBlock, children }] }),
+    true,
+  );
+}
+for (const candidate of [
+  { ...plainBlock, markDefs: null },
+  { ...plainBlock, children: [{ ...span, marks: null }] },
+  { ...plainBlock, children: [{ ...span, marks: "strong" }] },
+  { ...plainBlock, children: [{ ...span, marks: ["unregistered"] }] },
+  {
+    ...plainBlock,
+    children: [{ ...plainSpan, html: "<script>unsafe()</script>" }],
+  },
+])
+  deny({ ...valid, body: [candidate] });
 for (const [field, limit] of Object.entries({
   title: 400,
   hero_title: 180,

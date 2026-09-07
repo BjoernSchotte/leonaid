@@ -53,7 +53,8 @@ const block = z
     level: z.number().int().min(1).max(3).optional(),
     markDefs: z
       .array(z.object({ _type: z.literal("link"), _key: key, href }).strict())
-      .max(30),
+      .max(30)
+      .optional(),
     children: z
       .array(
         z
@@ -61,7 +62,7 @@ const block = z
             _type: z.literal("span"),
             _key: key,
             text: text(4000),
-            marks: z.array(key).max(8),
+            marks: z.array(key).max(8).optional(),
           })
           .strict(),
       )
@@ -69,7 +70,9 @@ const block = z
   })
   .strict()
   .refine((value) => {
-    const definitions = value.markDefs.map((mark) => mark._key);
+    // Native EmDash omits empty arrays. Absence means no annotations, never
+    // permission to accept unregistered marks or relax the bounded schema.
+    const definitions = (value.markDefs ?? []).map((mark) => mark._key);
     const keys = value.children.map((child) => child._key);
     const marks = new Set([
       "strong",
@@ -83,7 +86,7 @@ const block = z
       new Set(definitions).size === definitions.length &&
       new Set(keys).size === keys.length &&
       value.children.every((child) =>
-        child.marks.every((mark) => marks.has(mark)),
+        (child.marks ?? []).every((mark) => marks.has(mark)),
       )
     );
   });
