@@ -3023,6 +3023,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
         starting that Core again restores the canonical 302. Existing alias
         API authorization, concurrency and replay tests plus 24 pure redirect
         contract tests also passed. Exit 0 and cleanup of only owned resources.
+        Full `./leonaid check` at source commit `c152e1e` exited 0: 256 unit
+        tests, 259 Python source checks, 25 public and 47 CMS Astro files without
+        diagnostics, current generated contracts and all format/privacy/policy
+        gates; the committed worktree remained unchanged. Existing dependency
+        deprecation warnings remain.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.
