@@ -95,8 +95,22 @@ try {
     WHERE datname=current_database() AND state='active'
     AND query=${"SELECT pg_sleep(5)"}`.execute(database);
   assert.equal(active.rows[0].count, 0);
+  // Server-side cancellation also covers queries outside our explicit
+  // transactions. It must not merely abandon a still-running driver promise.
+  await database.connection().execute(async (connection) => {
+    const setting = await sql`SHOW statement_timeout`.execute(connection);
+    assert.equal(setting.rows[0].statement_timeout, "5s");
+    const queryStarted = performance.now();
+    await assert.rejects(() => sql`SELECT pg_sleep(8)`.execute(connection), {
+      code: "57014",
+    });
+    assert.ok(performance.now() - queryStarted >= 4500);
+    assert.ok(performance.now() - queryStarted < 7000);
+    // Reuse this exact connection after server cancellation.
+    await sql`SELECT 1`.execute(connection);
+  });
   console.log(
-    "postgres-pool: exact production transform, five real occupied connections, bounded sixth acquisition, sanitized public reader failure, cancelled queue and recovery passed",
+    "postgres-pool: exact production transform, real pool saturation/queue cancellation, server SQL cancellation and same-connection recovery passed",
   );
 } finally {
   release();

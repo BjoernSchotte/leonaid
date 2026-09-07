@@ -10,6 +10,8 @@ export function postgresAdapterEntry() {
 // Upstream only forwards min/max. Bound actual pg acquisition rather than
 // racing a timer against an operation that would remain queued indefinitely.
 // Preserve upstream's fail-fast migration adapter and runtime credential reads.
+// A server-side statement timeout also covers native queries outside our
+// explicit transactions; those transactions retain their stricter local limits.
 export function patchPostgresSource(source) {
   assert.equal(
     createHash("sha256").update(source).digest("hex"),
@@ -20,7 +22,7 @@ export function patchPostgresSource(source) {
   assert.equal(source.split(needle).length, 2);
   return source.replace(
     needle,
-    `${needle},\n\t\tconnectionTimeoutMillis: 2000`,
+    `${needle},\n\t\tconnectionTimeoutMillis: 2000,\n\t\tstatement_timeout: 5000`,
   );
 }
 

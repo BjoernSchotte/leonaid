@@ -126,6 +126,8 @@ if [ "$mode" != auth ]; then
           node tools/emdash_spike/public-media-storage-proof.mjs restore
         public_media_probe --ready
       done
+      compose run --rm --no-deps --volume "$proof:/proof:ro" campaign-race-probe \
+        node tools/emdash_spike/public-database-http-proof.mjs
     fi
     visual_proof=$(mktemp -d)
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" --volume "$proof:/proof:ro" admin-browser \

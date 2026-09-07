@@ -1953,6 +1953,29 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Add a five-second server-side statement timeout to the hash-guarded
+      runtime PostgreSQL adapter. Existing explicit transaction-local limits
+      remain effective; operator migrations remain separate. `postgres-pool`
+      passed in `leonaid-emdash-tmp-fg8yredgsm`: PostgreSQL reports `5s`, cancels
+      an actual eight-second statement with SQLSTATE `57014` within 4.5–7
+      seconds, and successfully reuses that exact connection afterwards.
+      Existing pool-saturation, queue cancellation and recovery tests pass.
+      Extend `campaign-public-media` with actual HTTP failure isolation:
+      lock `options`, then `ec_campaign_pages` in the synthetic CMS database;
+      prove the public SQL request is blocked using PostgreSQL's blocking graph.
+      Concurrent anonymous page/image requests must return sanitized no-store
+      503 responses within six seconds while authenticated Core identity and
+      public Core campaign reads still return 200. Unlocking restores both CMS
+      responses. This passed in `leonaid-emdash-tmp-o4qnjgiwmf` alongside the
+      production build, TLS/bootstrap, publication/media-integrity, all three
+      browser engines and service-outage/recovery regressions. The initially
+      parallel HTTP run exhausted Docker's default address pools before startup;
+      its own partial network was removed, and the serial retry passed without
+      touching other stacks. All owned proof resources were removed; no host
+      ports were exposed. This proves these specific lock failures and Core
+      read availability, not full concurrent order acceptance, total request
+      deadlines, peak-load budgets or the complete failure matrix.
+
 - [x] Bound actual PostgreSQL pool acquisition in the CMS runtime to two
       seconds while retaining the existing five-connection maximum. The pinned
       upstream adapter ignores timeout options, so a hash-guarded build
