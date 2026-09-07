@@ -3002,6 +3002,11 @@ Dependencies: EMS-030, EMS-050, EMS-070
         only its own containers, networks and volumes. Actual order acceptance
         after this fix, reassignment/history, outage and primary-cutover gates
         remain separate; this checkpoint proves published target delivery.
+        Full `./leonaid check` at source commit `7ae0669` exited 0: 256 unit
+        tests, 259 Python source checks, 25 public and 47 CMS Astro files without
+        diagnostics, current generated contracts and all format/privacy/policy
+        gates, with an unchanged committed worktree. Existing dependency
+        deprecation warnings remain.
 - [ ] Include alias state in backup, restore, and synthetic fixtures. Test
       membership withdrawal, disabled aliases, collisions, reserved paths,
       simultaneous claims, and unauthorized cross-campaign reassignment.
