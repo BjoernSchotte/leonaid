@@ -2023,6 +2023,10 @@ fields are absent; generated TypeScript types compile.
       This supersedes the temporary order handoff, not the remaining accepted
       order gate: Twenty-backed success/idempotency, no-JavaScript input
       retention, final demo import/theme and redirect cutover remain open.
+      Quality gate: `./leonaid check` passed at `9248747`: 208 unit tests,
+      244 Python source files, 23 public and 46 CMS Astro files with zero
+      diagnostics, frontend/API/schema type checks, formatting and privacy/policy
+      checks; the committed worktree stayed unchanged.
 
 - [x] Extract the existing public order form into shared `PublicOrder.astro`
       with an explicit Core order-alias prop and shared price/unit formatters.
