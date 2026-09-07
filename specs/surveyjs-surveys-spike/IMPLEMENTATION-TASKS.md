@@ -186,7 +186,7 @@ The source-reviewed profile, limits, validation and host-rendering boundary are 
   Integration / supporting checks: **040.S1, 040.S2**.
   E2E — work-package regression gate: **040.S3, 040.S4, 040.S5**.
 
-- [x] **040.5** Add blank/Krapfentaxi/golf template selection with independent editable drafts and exact creation retry. Acceptance: **C-11**, real template creation/edit/reload/publication and zero-response checks. [Live evidence](proofs/SURV-040.md#template-creation-and-editor-regression).
+- [x] **040.5** Add blank/Krapfentaxi/golf template selection with independent editable drafts and exact creation retry. Acceptance: **C-11**, real template creation/edit/reload/publication and zero-response checks. Integration/E2E: **040.S6**, including persisted definitions and response counts. [Live evidence](proofs/SURV-040.md#template-creation-and-editor-regression).
 
 Tasks 040.1–040.4 are reconciled with the existing accepted main-plan criteria
 and the complete passing editor regression in that same proof.
@@ -239,6 +239,8 @@ and the complete passing editor regression in that same proof.
   Integration: **060.S1a**, [live evidence](proofs/SURV-060.md#persona-resource-api-matrix).
   [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
+  E2E — work-package regression gate: **060.S4b** (browser persona/resource matrix).
+
 - [x] **060.2b** Give publication-only members a validated publication review and submit action without granting draft editing. Bind publication to the reviewed revision and retain the exact operation after lost acknowledgement.
 
   Acceptance criteria: **060.A1/A4, publisher-only portion**.
@@ -251,6 +253,8 @@ and the complete passing editor regression in that same proof.
   E2E: **060.S4b**, [live evidence](proofs/SURV-060.md#active-survey-browser-permission-matrix).
   [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 
+  Integration / supporting checks: **060.S1a** (API persona/resource matrix).
+
 - [x] **060.2d** Exercise successful lifecycle handoffs between separate design, publish, archive and delete accounts; preserve completed answers through restore and prove requester-specific permanent erasure.
 
   Acceptance criteria: **060.A1/A4, lifecycle role journeys**.
@@ -262,6 +266,8 @@ and the complete passing editor regression in that same proof.
   Acceptance criteria: **060.A1, dynamic authority and child-resource boundaries**.
   Integration: **060.S1b**, [live evidence](proofs/SURV-060.md#changed-authority-and-child-resource-boundaries).
   Regression: **060.S4a–060.S4c**. [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
+
+  E2E — work-package regression gate: **060.S4a–060.S4c**.
 
 - [x] **060.2f** Verify populated invitation list/revocation scopes, successful single-grant invitation journeys and completed deletion status/replay ownership.
 
@@ -335,11 +341,31 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S1, 090.S2**.
   E2E: **090.S5**.
 
+- [ ] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey.
+
+  Acceptance criteria: **090.A5**, plus pending, failure, retry and completed states and authorized status access.
+  Integration / supporting checks: **090.S2**, persistent deletion-job state and object cleanup.
+  E2E: **090.S5**, including confirmation, reload and retry controls.
+  Existing [implementation evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance) must be reconciled with these task-level assertions before this acceptance box is checked.
+
 - [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
 
   Acceptance criteria: **090.A3**.
   Integration / supporting checks: **090.S3**.
   E2E — work-package regression gate: **090.S5**.
+
+- [ ] **090.2a** Prove encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion; block startup without a checkpoint, erase restored content with a valid checkpoint and preserve source image identities during no-build restoration.
+
+  Acceptance criteria: **090.A3, operator integration portion**.
+  Integration / supporting checks: **090.S3**, restricted to the operator assertions above; [existing evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
+  E2E — work-package regression gate: **090.S5**. The operator CLI proof does not replace browser coverage or complete the parent recovery criterion.
+  Leave task acceptance open until its existing evidence is reconciled assertion by assertion.
+
+- [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection.
+
+  Acceptance criteria: **090.A3, checkpoint continuity portion**; preserve the complete parent recovery contract.
+  Integration / supporting checks: **090.S3** and **090.S3a–090.S3f**. Require trustworthy cutoff provenance after unexpected host loss and preceding-backup compatibility; accepted sub-scenarios alone do not close this task.
+  E2E — work-package regression gate: **090.S5**. Restored participation/export access denial belongs to the direct recovery integration assertions.
 
 - [x] **090.2c** Publish authenticated checkpoints into a separately retained filesystem archive. Serialize publication/fetch, preserve prior erasures and reject interrupted, stale, corrupted or missing-current states; retrieve without a database and prove real Restic recovery after source-project removal.
 
@@ -347,11 +373,15 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3a**, [live evidence](proofs/SURV-090.md#independent-checkpoint-archive-and-interrupted-publication).
   Parent 090.2 and PLAN task 090.2b remain open for continuous independent retention, cutoff provenance and the remaining operator recovery contract.
 
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
+
 - [x] **090.2d** Archive committed manual deletion intent before successful API acknowledgement and before production worker erasure; preserve exact retry identity during outages and restore an old backup after source-project loss using only automatically retained material. [Live evidence](proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate).
 
   Acceptance criteria: **090.A3, acknowledgement portion**.
   Integration / supporting checks: **090.S3b**.
   Retention interruption is covered by 090.2e. Parent recovery acceptance remains open for independent host-loss cutoff and the operator compatibility contract.
+
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
 
 - [x] **090.2e** Prove interruption of a retention-originated publication after its database transaction commits and the pending archive document is durable. Recover through a zero-candidate sweep, preserving original deletion/outbox identities, then restart the production worker and verify eventual erasure plus inactive-answer preservation. [Live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).
 
@@ -359,12 +389,16 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **090.S3c**; existing retention browser regression.
   Full recovery acceptance remains open for independent host-loss cutoff and operator compatibility.
 
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
+
 - [x] **090.2f** Remove live-source availability from restore-only pilot preflight, explicitly report unperformed live checks, and retain environment/backup/decision validation. Require an immutable validator image in pilot Compose and release manifests, with no production build.
 
   Acceptance criteria: **090.A3, operator preflight portion**.
   Integration: **090.S3d**, [live evidence](proofs/SURV-090.md#offline-pilot-preflight-and-validator-release-binding).
   Nonempty restoration/input rejection are covered by 090.2g and interrupted
   reapplication by 090.2h. Independent cutoff provenance and preceding-release compatibility remain open.
+
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
 
 - [x] **090.2g** Prove nonempty survey recovery through `pilot-restore` after real encrypted backup, permanent deletion and source-project removal. Reject missing, tampered, wrong-key, wrong-installation and stale checkpoints on fresh targets, checking exact restored SQL answers and export objects offline. Valid recovery must erase all survey content before no-build startup and deny old authenticated/public access.
 
@@ -377,6 +411,8 @@ remain open until their remaining criteria pass.
 
   Acceptance: a forced interruption after committed erasures leaves application services stopped; `--resume` verifies configuration, backup, volume and phase identity, reruns erasure without reimport, preserves an independent SQL sentinel and denies old access after startup. Changed or unsafe receipts, replaced volumes, backwards cutoff and concurrent restore attempts sharing the operator lock directory fail closed.
   Integration: **090.S3f**; [Live evidence](proofs/SURV-090.md#interrupted-pilot-reapplication-and-authenticated-resume). Focused receipt/lock tests supplement the real encrypted-backup pilot journey. Parent 090.2 / 090.A3 still require host-loss cutoff provenance and preceding-backup compatibility.
+
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
 
 - [x] **090.3** Enforce documented payload, public-request and export limits; audit operations without answer content or resume credentials.
 
@@ -392,6 +428,8 @@ remain open until their remaining criteria pass.
   Integration: **090.S4a**, [live evidence](proofs/SURV-090.md#public-request-quota-acceptance).
   Parent 090.3 is accepted with the other limit/log sub-tasks.
 
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
+
 - [x] **090.3b** Enforce the raw request-body byte limit before JSON parsing;
   prove exact and excessive definition/answer payloads, chunked excess,
   unchanged persisted state and captured-log marker exclusion.
@@ -399,6 +437,8 @@ remain open until their remaining criteria pass.
   Acceptance criteria: **090.A4, payload and participation-log portion**.
   Integration: **090.S4b**, [live evidence](proofs/SURV-090.md#payload-boundaries-and-participation-log-acceptance).
   Parent 090.3 is accepted with the other limit/log sub-tasks.
+
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
 
 - [x] **090.3c** Bound new export-job admission across surveys per requester;
   prove exhaustion, independent users, authorization/replay precedence,
@@ -410,6 +450,8 @@ remain open until their remaining criteria pass.
   [Consolidated evidence](proofs/SURV-090.md#export-admission-and-log-acceptance).
 
 ## SURV-100 — Full acceptance and spike outcome
+
+  E2E — work-package regression gate: **090.S5**; this task's direct acceptance is established by the integration assertions above.
 
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
 
@@ -459,7 +501,7 @@ remain open until their remaining criteria pass.
 
 ## Final reconciliation
 
-- [ ] Every implementation task in PLAN.md has exactly one entry above.
+- [x] Every implementation task in PLAN.md has exactly one entry above (66 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
 - [ ] Every completed task links to its task-level proof; no inferred passing status.
 - [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
 - [ ] Remaining open tasks are listed in the spike report and prevent full completion.

@@ -10,6 +10,17 @@ Baseline checkout: `5f5f52cf13d7a8cca84c62107fec438f72bc875b`
 
 Companion documents: [Decisions](DECISIONS.md), [Capability matrix](CAPABILITIES.md),
 [Dependency and license review](DEPENDENCIES.md).
+
+Implementation tracking:
+
+- [Implementation task checklist](IMPLEMENTATION-TASKS.md): one checkable acceptance entry per implementation task, with acceptance criteria and integration/E2E scenario references.
+- [Test scenario checklist](TEST-SCENARIOS.md): independently checkable tests with observable expected results, including persistence, rejection and recovery.
+- [Task acceptance template](TASK-ACCEPTANCE.md): required execution evidence before accepting a task.
+
+Use section 10 below for deliverables and dependencies. Delivery and acceptance
+are tracked separately; an implemented task remains unaccepted until all of its
+required checks have evidence. Open checks are outstanding work, not passing tests.
+
 Architecture baseline: [ADR-0003](../leonaid-poc/decisions/ADR-0003-core-architecture.md).
 The German product navigation label remains **Umfragen**; planning documents,
 identifiers and the specification directory use English.
