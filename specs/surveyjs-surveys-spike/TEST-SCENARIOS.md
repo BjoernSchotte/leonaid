@@ -21,7 +21,7 @@ decompose the plan; they do not replace any of its acceptance requirements.
 - [ ] **000.S1 · Integration · 000.T1 → 000.A1:** Exercise versioned request/response and error fixtures for every write; authorization, invalid data, stale revisions and duplicate operations produce the documented result without unintended writes. Cover C-01–C-15 explicitly.
 - [ ] **000.S2 · Integration · 000.T1 → 000.A2:** Start with empty volumes, migrate and seed every required persona; perform a real API/database roundtrip and verify persisted values and isolated teardown.
 - [ ] **000.S3 · Dependency check · 000.T1 → 000.A4:** Inspect exact resolved software/assets; prohibited and unknown-license fixtures fail the command, allowed packages retain notices and own license stays UNDEFINED.
-- [ ] **000.S4 · E2E · 000.T2 → 000.A3:** Authenticate a synthetic member, reach both member/public hosts and open the public survey shell; deliberately fail an assertion and verify nonzero exit, sanitized diagnostics and cleanup.
+- [x] **000.S4 · E2E · 000.T2 → 000.A3:** Authenticate a synthetic member, reach both member/public hosts and open the public survey shell; deliberately fail an assertion and verify nonzero exit, sanitized diagnostics and cleanup. [Live evidence](proofs/SURV-000.md#foundation-browser-failure-diagnostics).
 
 ## SURV-010 — Autosave and validation
 

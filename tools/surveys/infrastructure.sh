@@ -9,6 +9,16 @@ project="leonaid-surveys-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 proof=$(mktemp -d)
 artifact="$root/.artifacts/surveys-infrastructure"
 owned=false
+foundation=false
+foundation_failure=0
+browser_trace=retain-on-failure
+browser_reporter=line
+if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
+  foundation=true
+  browser_trace=off
+  browser_reporter=./tools/surveys/foundation-reporter.mjs
+  if [ "$mode" = infrastructure-failure ]; then foundation_failure=1; fi
+fi
 python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 compose() {
   docker compose --project-name "$project" --env-file "$root/.env.local" \
@@ -21,11 +31,17 @@ cleanup() {
     compose ps >&2 || true
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
     mkdir -p "$artifact"
-    cp -R "$proof/test-results" "$artifact/" 2>/dev/null || true
-    cp "$proof"/surveys-accessibility* "$artifact/" 2>/dev/null || true
+    if [ "$foundation" = false ]; then
+      cp -R "$proof/test-results" "$artifact/" 2>/dev/null || true
+      cp "$proof"/surveys-accessibility* "$artifact/" 2>/dev/null || true
+    fi
   fi
   if [ "$owned" = true ]; then
     compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  fi
+  if [ "$foundation" = true ]; then
+    python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \
+      "$proof" "$artifact/foundation" "$project" "$status" || status=1
   fi
   rm -rf "$proof"
   exit "$status"
@@ -97,6 +113,13 @@ if [ "$mode" = permissions ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/permissions_live.py
   compose up --detach --wait --wait-timeout 60 worker
+fi
+if [ "$foundation" = true ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = permissions ]; then
@@ -349,12 +372,12 @@ if [ "$mode" = runner ]; then
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
 docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
-  --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test $browser_specs \
   --grep-invert 'trash and request|failed deletion' \
-  --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
 if [ "$mode" = permissions ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

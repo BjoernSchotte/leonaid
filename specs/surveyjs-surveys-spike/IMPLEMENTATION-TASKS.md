@@ -57,6 +57,12 @@ a substitute for completing an individual task.
   Integration / supporting checks: **000.S2**.
   E2E: **000.S4**.
 
+Foundation browser gate **000.T2 / 000.A3 / 000.S4** is accepted: an ordinary
+member reaches the member UI and published public survey shell, and an intentional
+browser assertion failure returns exit 1 with sanitized diagnostics and complete
+owned-stack teardown. See [the two-run proof](proofs/SURV-000.md#foundation-browser-failure-diagnostics).
+Task **000.4** remains open pending the full persona/fixture coverage review.
+
 - [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
 
   Acceptance criteria: **000.A1**.

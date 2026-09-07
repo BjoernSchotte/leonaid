@@ -20,21 +20,32 @@ from leonaid.domain.sessions import (
 
 async def main():
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
-    actor = UUID("10000000-0000-4000-8000-000000009701")
+    member = os.environ.get("SURVEY_FOUNDATION_MEMBER") == "1"
+    actor = UUID(
+        "10000000-0000-4000-8000-000000009702"
+        if member
+        else "10000000-0000-4000-8000-000000009701"
+    )
+    name = "Survey Test Member" if member else "Survey Test Admin"
     now = datetime.now(timezone.utc)
     token = secrets.token_urlsafe(48)
     try:
         await connection.execute(
             """INSERT INTO user_account(id,email,display_name,status,email_verified_at)
-            VALUES($1,'surveys-admin@example.invalid','Survey Test Admin','active',$2)
+            VALUES($1,$3,$4,'active',$2)
             ON CONFLICT(id) DO NOTHING""",
             actor,
             now,
+            "surveys-member@example.invalid"
+            if member
+            else "surveys-admin@example.invalid",
+            name,
         )
-        await connection.execute(
-            "INSERT INTO user_global_role(user_id,role) VALUES($1,'system_admin') ON CONFLICT DO NOTHING",
-            actor,
-        )
+        if not member:
+            await connection.execute(
+                "INSERT INTO user_global_role(user_id,role) VALUES($1,'system_admin') ON CONFLICT DO NOTHING",
+                actor,
+            )
         await connection.execute(
             """INSERT INTO user_session(id,user_id,token_digest,expires_at,last_seen_at,fresh_login_at,created_at,updated_at)
             VALUES($1,$2,$3,$4,$5,$5,$5,$5)""",
@@ -91,9 +102,17 @@ async def main():
                 "/api/v1/identity/me", cookies={SESSION_COOKIE_NAME: token}
             )
             assert response.status_code == 200, response.text
-            assert "Survey Test Admin" in response.text
+            assert name in response.text
         output = Path("/proof/session.env")
-        output.write_text("SURVEY_ADMIN_SESSION=" + token + "\n")
+        if member:
+            assert not await connection.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM user_global_role WHERE user_id=$1)", actor
+            )
+            output.write_text(
+                output.read_text() + "SURVEY_MEMBER_SESSION=" + token + "\n"
+            )
+        else:
+            output.write_text("SURVEY_ADMIN_SESSION=" + token + "\n")
         output.chmod(0o600)
         print(
             "PASS: PostgreSQL snapshot roundtrip, immutable version, cascade cleanup, real API identity and readiness"
