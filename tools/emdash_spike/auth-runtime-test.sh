@@ -4,6 +4,8 @@ root=$1
 mode=${2:-auth}
 orders=${3:-false}
 recovery=${4:-false}
+recovery_import=${5:-false}
+case "$recovery_import:$recovery:$mode:$orders" in false:*|true:true:migration:false) ;; *) exit 2 ;; esac
 case "$recovery:$mode:$orders" in false:*|true:migration:false|true:migration:true) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
@@ -128,7 +130,7 @@ cleanup() {
   fi
   compose down --volumes >/dev/null
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
-  rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json"
+  rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
   if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser"; rm -f "$proof/restic-password"; fi
   rmdir "$proof"
 }
@@ -265,6 +267,13 @@ if [ "$mode" != auth ]; then
   fi
   if [ "$mode" = migration ]; then
     fixture /repo/tools/emdash_spike/core_auth_fixture.py publication-open
+    if [ "$recovery_import" = true ]; then
+      compose run --rm --no-deps --volume "$proof:/proof" krapfentaxi-import-probe \
+        bun tools/emdash_spike/krapfentaxi-import-proof.mjs --prepare-recovery
+      compose up --no-deps --build --detach --wait public mailpit worker
+      . "$root/tools/emdash_spike/recovery-app-phase.sh"
+      exit 0
+    fi
     compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe
     compose up --no-deps --build --detach --wait public mailpit worker
     compose run --rm --no-deps admin-browser \

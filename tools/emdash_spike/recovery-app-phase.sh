@@ -1,11 +1,13 @@
 #!/bin/sh
-# Sourced only after the real importer and three browser publishing journeys.
+# Sourced after the imported browser journeys or an explicitly interrupted import.
 if [ "$orders" = true ]; then
   . "$root/tools/emdash_spike/recovery-orders-phase.sh"
   recovery_orders_prepare
 fi
-compose run --rm --no-deps admin-browser node \
-  tools/emdash_spike/recovery-isolation-browser-proof.mjs --prepare
+if [ "$recovery_import" = false ]; then
+  compose run --rm --no-deps admin-browser node \
+    tools/emdash_spike/recovery-isolation-browser-proof.mjs --prepare
+fi
 if [ "$orders" = false ]; then
   compose up --detach --wait twenty-postgres
   docker volume create --label "com.docker.compose.project=$project" \
@@ -36,8 +38,9 @@ LEONAID_BACKUP_SOURCE_PROJECT="$recovery_source" LEONAID_RESTORE_PROJECT="$recov
   LEONAID_BACKUP_PASSWORD_FILE="$proof/restic-password" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
 project=$recovery_target
-# Reuse exactly the images built before backup, with no seed, importer or CMS
-# schema installation on the restore target. This is test-only activation;
+# Reuse exactly the images built before backup, with no seed or CMS schema
+# installation on the restore target. Only recovery-import explicitly resumes
+# its existing journal after verifying restored state. This is test-only activation;
 # the operational release gate is still closed in restore.sh.
 if [ "$orders" = true ]; then
   compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
@@ -53,6 +56,14 @@ if [ "$orders" = true ]; then
   compose up --no-build --pull never --detach --wait --wait-timeout 420 twenty-server twenty-worker
 fi
 compose up --no-deps --no-build --detach --wait api campaign-site public mailpit worker proxy
+if [ "$recovery_import" = true ]; then
+  compose run --rm --no-deps --volume "$proof:/proof:ro" krapfentaxi-import-probe \
+    bun tools/emdash_spike/import-recovery-proof.mjs
+  compose run --rm --no-deps admin-browser \
+    node tools/emdash_spike/krapfentaxi-import-browser-proof.mjs
+  echo "import-recovery: resumed restored journal and actual three-browser draft/edit/publish journeys passed; no production activation"
+  return
+fi
 mkdir "$proof/recovery-control"
 recovery_authority_name="${project}-recovery-authority"
 compose run --rm --no-deps --name "$recovery_authority_name" \

@@ -3445,6 +3445,29 @@ another running checkout or authorize production deployment.
       tests, 263 Python files typechecked, both Astro applications (25/47 files,
       zero diagnostics), frontend typechecks, formatting and repository policy
       gates; the committed working tree remained unchanged.
+- [x] Resume an incomplete import journal after encrypted backup and fresh
+      restore. `./leonaid test-emdash-spike --case recovery-import` exited zero
+      in source `leonaid-poc112-tmp-roju6vgpy4` and fresh target
+      `leonaid-restore-tmp-roju6vgpy4`. The real importer was killed after the
+      hero reservation and again after its upload/confirmation. Backup captured
+      one ready original media record/object and an incomplete journal, with no
+      campaign page or revision. The real encrypted Restic backup passed its
+      integrity check; the target restored Core/CMS SQL, bootstrap state and
+      RustFS without seeding or CMS schema installation and reused source images.
+      Before any import write, the target compared every recorded import-journal,
+      content, revision, media, binding and upload-attempt row plus private
+      object keys/SHA-256 bytes against source evidence. Dry-run returned resume
+      without changing those records or objects. Actual apply then produced
+      exactly one draft and three media records/objects, preserving the original
+      hero ID, storage key and bytes; repeated apply made no change and preserved
+      a subsequent editorial edit. Chromium/Firefox/WebKit each completed real
+      Charity Admin login, native text/image editing, unpublished draft denial,
+      publication and private follow-up draft checks on the recovered campaign.
+      Source/target used separate Docker networks, no published host ports, and
+      removed their own containers, volumes and networks. Private comparison
+      evidence was temporary and removed, not committed. This closes incomplete
+      journal recovery at the first ready-asset boundary, not off-host recovery,
+      arbitrary in-flight writer coordination, upgrade or alias cutover/rollback.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.
