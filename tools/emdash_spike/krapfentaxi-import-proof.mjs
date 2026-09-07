@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { readFile, mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { request } from "node:https";
 import { sql } from "kysely";
 import { ContentRepository, MediaRepository, SchemaRegistry } from "emdash";
@@ -41,6 +41,71 @@ const snapshot = async () => ({
 });
 const run = (mode = "apply", checkpoint) =>
   importKrapfentaxi({ ...context, mode, checkpoint });
+const killAtDurableCheckpoint = async (phase) => {
+  const child = spawn(
+    process.execPath,
+    ["tools/emdash_spike/krapfentaxi-import-kill-child.mjs", phase],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let output = "";
+  let errors = false;
+  let ended = false;
+  const closed = new Promise((resolve) => {
+    child.on("error", () => {
+      errors = true;
+    });
+    child.on("close", (code, signal) => {
+      ended = true;
+      resolve({ code, signal });
+    });
+  });
+  child.stdout.on("data", (chunk) => {
+    output += chunk.toString();
+    if (output.length > 128) child.kill("SIGKILL");
+  });
+  child.stderr.on("data", () => {
+    errors = true;
+  });
+  try {
+    const deadline = Date.now() + 30000;
+    while (!ended && output !== "durable-checkpoint\n" && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.ok(!ended && !errors, "import child must reach its checkpoint");
+    assert.equal(output, "durable-checkpoint\n");
+    await assert.rejects(run(), /krapfentaxi_import_busy/);
+    assert.equal(child.kill("SIGKILL"), true);
+    const result = await closed;
+    assert.equal(result.code, null);
+    assert.equal(result.signal, "SIGKILL");
+    assert.equal(errors, false);
+    // The killed process cannot run finally/unlock. Prove PostgreSQL releases
+    // its session lock before continuing with the actual recovery operation.
+    const target = await context.resolveTarget();
+    let released = false;
+    const releaseDeadline = Date.now() + 10000;
+    while (!released && Date.now() < releaseDeadline) {
+      released = await database.connection().execute(async (connection) => {
+        const lock =
+          await sql`SELECT pg_try_advisory_lock(hashtextextended(${target.action.id},724381916)) AS acquired`.execute(
+            connection,
+          );
+        if (!lock.rows[0].acquired) return false;
+        await sql`SELECT pg_advisory_unlock(hashtextextended(${target.action.id},724381916))`.execute(
+          connection,
+        );
+        return true;
+      });
+      if (!released) await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(released, true, "killed import must release its session lock");
+    console.log(
+      `krapfentaxi-import: actual SIGKILL after ${phase}; concurrent importer denied and session lock released`,
+    );
+  } finally {
+    if (!ended) child.kill("SIGKILL");
+    await closed;
+  }
+};
 try {
   await installCampaignSchema(database);
   await installCampaignBindings(database);
@@ -119,13 +184,7 @@ try {
   } finally {
     await rm(privateDirectory, { recursive: true, force: true });
   }
-  await assert.rejects(
-    run("apply", async (phase, key) => {
-      if (phase === "reserved" && key === "hero")
-        throw new Error("synthetic_reserved_interruption");
-    }),
-    /synthetic_reserved_interruption/,
-  );
+  await killAtDurableCheckpoint("reserved");
   assert.equal((await rows("media", "id")).length, 1);
   const firstId = (await rows("media", "id"))[0].id;
   assert.deepEqual(await keys(), []);
@@ -133,29 +192,7 @@ try {
   assert.equal((await run("dry-run")).state, "resume");
   assert.deepEqual(await snapshot(), afterReserve);
 
-  let reached;
-  const ready = new Promise((resolve) => {
-    reached = resolve;
-  });
-  let release;
-  const barrier = new Promise((resolve) => {
-    release = resolve;
-  });
-  const paused = run("apply", async (phase, key) => {
-    if (phase === "ready" && key === "hero") {
-      reached();
-      await barrier;
-      throw new Error("synthetic_ready_interruption");
-    }
-  });
-  void paused.catch(() => {});
-  try {
-    await Promise.race([ready, paused]);
-    await assert.rejects(run(), /krapfentaxi_import_busy/);
-  } finally {
-    release();
-  }
-  await assert.rejects(paused, /synthetic_ready_interruption/);
+  await killAtDurableCheckpoint("ready");
   assert.equal((await rows("media", "id")).length, 1);
   assert.equal(
     (await new MediaRepository(database).findById(firstId)).status,
@@ -322,7 +359,7 @@ try {
   await assert.rejects(run(), /identity_denied/);
   assert.deepEqual(await snapshot(), edited);
   console.log(
-    "krapfentaxi-import: OK: actual Core target/identity, read-only dry run, atomic journal/media reservation, durable resume with same IDs, concurrent importer exclusion, actual PostgreSQL final-write rollback, private original RustFS assets, draft-only create, lost-success-reply recovery, preservation of editor changes and real Core logout denial; publication/browser/restart/backup gates remain open",
+    "krapfentaxi-import: OK: actual Core target/identity, read-only dry run, atomic journal/media reservation, actual SIGKILL at reserved/ready checkpoints and resume with same IDs, concurrent importer exclusion, actual PostgreSQL final-write rollback, private original RustFS assets, draft-only create, lost-success-reply recovery, preservation of editor changes and real Core logout denial; restored-journal resume remains a separate gate",
   );
 } finally {
   await database.destroy();

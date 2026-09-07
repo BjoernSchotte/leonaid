@@ -3422,6 +3422,25 @@ another running checkout or authorize production deployment.
       210 unit tests, 250 Python source checks, 24 public and 47 CMS Astro files
       without diagnostics, generated-type/format/privacy/policy gates and an
       unchanged committed tree. Existing dependency deprecation warnings remain.
+- [x] Prove importer recovery after actual process termination at durable media
+      boundaries. `./leonaid test-emdash-spike --case krapfentaxi-migration`
+      exited zero in isolated project `leonaid-emdash-tmp-vx1y6l47kc`. A separate
+      test-only Bun process ran the real importer and was terminated with
+      `SIGKILL` after the hero media reservation, then a new process resumed and
+      was terminated after the hero upload/confirmation. The parent verified
+      actual signal termination, competing-import denial while each child held
+      the advisory lock, and PostgreSQL session-lock release after each kill;
+      no importer `finally` handler could perform that cleanup. The journal and
+      original media ID survived both boundaries, with one reservation and no
+      object before upload, then one ready record/object after upload. The full
+      import subsequently completed with three original media assets and no
+      duplicate page. Existing final-transaction rollback, lost-success-reply,
+      repeat-run/later-edit preservation and revoked-session checks also passed.
+      Real Charity Admin login, native text/image editing, draft isolation and
+      publication then passed in Chromium/Firefox/WebKit. The project exposed
+      no host ports and removed its own containers, volumes and networks.
+      This closes process-kill/restart recovery, not resuming an incomplete
+      import journal from a restored backup or primary-alias cutover.
 - [ ] Render the migrated demo at `/campaigns/<archive_slug>/` with the existing
       offerings and working order form. Port the editorial sections sufficiently
       to remove their dependency on hard-coded copy in the new renderer.
