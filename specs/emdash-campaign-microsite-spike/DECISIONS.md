@@ -120,6 +120,27 @@ The additional client seam must be reviewed with the existing upstream proposal
 and removed if a proven published upstream fix makes it unnecessary; broad
 fork approval and production activation are still not implied.
 
+## Native repeater keyboard controls
+
+The exact-source client transform retains EmDash's repeater state, native
+`arrayMove`, autosave and field widgets. It replaces the SVG-only drag activator
+and clickable summary container with actual buttons, supplies an activator ref
+and explicitly configures the existing pointer and sortable keyboard sensors.
+Summary buttons expose expanded state; controls retain the existing restrained
+editor presentation with 44px minimum targets and visible keyboard focus.
+The reorder label reuses EmDash's compiled translation: a new interpolated
+fallback message is not compiled by Lingui in the production runtime.
+
+The real three-browser proof adds FAQ and partner entries, collapses their
+native panels, tabs to the drag button, and uses Space/ArrowUp/Space. It checks
+the actual picked-up and displaced UI states before dropping, then verifies
+the real autosave response and persistence after reload. Removing the added
+entry must restore the complete original document, including partner images.
+No request interception or injected React/DnD state substitutes for editing.
+This is a narrow spike compatibility seam, not approval for a broad fork;
+upstream review, pointer/touch sorting and full accessibility validation remain
+required before pilot release.
+
 ## Local execution boundary
 
 Do not operate the existing `leonaid` Compose project. Every spike test owns a

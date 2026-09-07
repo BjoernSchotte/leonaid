@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
+import { proveCampaignRepeaters } from "./campaign-repeater-browser-proof.mjs";
 
 const origin = "https://proxy:8443";
 const root = "/_emdash/api/content/campaign_pages";
@@ -334,6 +335,7 @@ for (const [index, [name, engine]] of Object.entries({
         .join(""),
       "Pointer insertion at the end.",
     );
+    await proveCampaignRepeaters({ page, json, apiPath: `${root}/${item.id}` });
     for (const field of ["hero_image", "social_image"]) {
       await expect
         .poll(() =>

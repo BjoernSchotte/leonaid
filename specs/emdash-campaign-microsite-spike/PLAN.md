@@ -236,21 +236,21 @@ a yearly alias must never retarget an old campaign's canonical or archive URL.
 
 ## 3. Current verified baseline
 
-| Area | Current contract | Evidence |
-| --- | --- | --- |
-| Public frontend | Astro 7.1.3, Node standalone SSR | `apps/public/package.json`, `apps/public/astro.config.mjs` |
-| Public routing | Existing catch-all resolves Core aliases and archives | `apps/public/src/pages/[...path].astro` |
-| Public data | Typed `PublicActionRouteResponse` contains authoritative action, offering, goal, beneficiary, and order-form data | `src/leonaid/entrypoints/fastapi/schemas.py`, `packages/api-client/openapi.json` |
-| Identity | `CurrentIdentity` exposes user ID, global roles, active action memberships, and session times | `src/leonaid/application/identity.py` |
-| Session | Cookie is `__Host-leonaid_session`, Secure, HttpOnly, SameSite=Lax, Path `/` | `src/leonaid/domain/sessions.py`, `src/leonaid/entrypoints/fastapi/routes.py` |
-| Campaign roles | `charity_admin` is action-scoped; `system_admin` is global | `src/leonaid/domain/identity.py` |
-| Deployment | Caddy fronts separate `api`, `web`, `pwa`, and `public` containers | `infra/compose/compose.yml`, `infra/proxy/Caddyfile` |
-| Production TLS | Pilot Caddy owns ports 80/443 and redirects HTTP to HTTPS | `infra/pilot/compose.yml`, `infra/pilot/Caddyfile` |
-| Recovery | Current backup contains Core PostgreSQL, Twenty PostgreSQL, Twenty storage, and RustFS | `tools/backup/backup.sh`, `tools/backup/restore.sh` |
-| EmDash | 0.36.0 supports Astro 6+, Node standalone, SQLite/PostgreSQL, S3 storage, and external auth adapters | upstream checkout at `6030629` |
-| External identity caveats | Email-based lookup, automatic first-user admin, development auth fallback, local session state | upstream `packages/core/src/astro/middleware/auth.ts`, `packages/core/src/auth/types.ts` |
-| Existing login return path | Local `returnTo` is supported | `apps/public/src/components/AuthPage.astro` |
-| Strict operational inventories | Backup and release validators require exact file/image sets | `tools/backup/manifest.py`, `tools/pilot_release/manifest.py` |
+| Area                           | Current contract                                                                                                  | Evidence                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Public frontend                | Astro 7.1.3, Node standalone SSR                                                                                  | `apps/public/package.json`, `apps/public/astro.config.mjs`                               |
+| Public routing                 | Existing catch-all resolves Core aliases and archives                                                             | `apps/public/src/pages/[...path].astro`                                                  |
+| Public data                    | Typed `PublicActionRouteResponse` contains authoritative action, offering, goal, beneficiary, and order-form data | `src/leonaid/entrypoints/fastapi/schemas.py`, `packages/api-client/openapi.json`         |
+| Identity                       | `CurrentIdentity` exposes user ID, global roles, active action memberships, and session times                     | `src/leonaid/application/identity.py`                                                    |
+| Session                        | Cookie is `__Host-leonaid_session`, Secure, HttpOnly, SameSite=Lax, Path `/`                                      | `src/leonaid/domain/sessions.py`, `src/leonaid/entrypoints/fastapi/routes.py`            |
+| Campaign roles                 | `charity_admin` is action-scoped; `system_admin` is global                                                        | `src/leonaid/domain/identity.py`                                                         |
+| Deployment                     | Caddy fronts separate `api`, `web`, `pwa`, and `public` containers                                                | `infra/compose/compose.yml`, `infra/proxy/Caddyfile`                                     |
+| Production TLS                 | Pilot Caddy owns ports 80/443 and redirects HTTP to HTTPS                                                         | `infra/pilot/compose.yml`, `infra/pilot/Caddyfile`                                       |
+| Recovery                       | Current backup contains Core PostgreSQL, Twenty PostgreSQL, Twenty storage, and RustFS                            | `tools/backup/backup.sh`, `tools/backup/restore.sh`                                      |
+| EmDash                         | 0.36.0 supports Astro 6+, Node standalone, SQLite/PostgreSQL, S3 storage, and external auth adapters              | upstream checkout at `6030629`                                                           |
+| External identity caveats      | Email-based lookup, automatic first-user admin, development auth fallback, local session state                    | upstream `packages/core/src/astro/middleware/auth.ts`, `packages/core/src/auth/types.ts` |
+| Existing login return path     | Local `returnTo` is supported                                                                                     | `apps/public/src/components/AuthPage.astro`                                              |
+| Strict operational inventories | Backup and release validators require exact file/image sets                                                       | `tools/backup/manifest.py`, `tools/pilot_release/manifest.py`                            |
 
 ### 3.1 Drift check
 
@@ -412,18 +412,18 @@ Use this map when reviewing the infrastructure changes as a whole. Inclusion in
 the plan is not implementation acceptance: the linked tasks and their live
 verification gates must still pass before activation.
 
-| Agreed requirement | Owning tasks | Required acceptance outcome |
-| --- | --- | --- |
-| One optional Docker service for all campaigns | EMS-000, EMS-010 | Base and pilot configurations work with CMS disabled and enabled; existing services retain their routes and availability. |
-| Existing PostgreSQL and RustFS | EMS-000, EMS-040, EMS-080 | Separate database/role and private bucket credentials; no Core database access; SQL and media survive fresh restore. |
-| Existing Core login and campaign permissions | EMS-020, EMS-030 | No second login or independent CMS session; foreign campaign reads and writes fail; revocation applies on the next protected request. |
-| Existing navigation and a same-origin editor | EMS-060 | Role-aware Edit microsite and Back to LeonAid navigation; top-level editor, not an iframe or duplicated React shell. |
-| HTTPS and protected first installation | EMS-010, EMS-070 | Existing Caddy owns TLS; fixed origin and trusted proxy handling; designated operator setup only; restart and recovery never reopen the wizard. |
-| Runtime fit and operational safety | EMS-010, EMS-070, EMS-080 | Explicit activation, isolated proofs, bounded resources, runtime-only secrets, sanitized monitoring and pinned releases. |
-| Astro microsites and live Core business data | EMS-040, EMS-050, EMS-085 | Canonical `/campaigns/<archive_slug>/` pages expose published content only; publishing needs no rebuild; Core remains authoritative for ordering. |
-| Editable Krapfentaxi demo | EMS-060, EMS-085 | Assigned Charity Admin edits text and media; drafts stay private; published edits appear anonymously and existing orders still work. |
-| Core-managed campaign aliases | EMS-082, EMS-085 | Per-campaign backend/UI management, globally unique safe aliases and a single redirect to the canonical page; historical URLs remain stable. |
-| Backup, upgrade and rollback compatibility | EMS-080, EMS-085 | Versioned manifests cover CMS state, keys and media; fresh restore works; CMS rollback preserves subsequently accepted Core orders. |
+| Agreed requirement                            | Owning tasks              | Required acceptance outcome                                                                                                                       |
+| --------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One optional Docker service for all campaigns | EMS-000, EMS-010          | Base and pilot configurations work with CMS disabled and enabled; existing services retain their routes and availability.                         |
+| Existing PostgreSQL and RustFS                | EMS-000, EMS-040, EMS-080 | Separate database/role and private bucket credentials; no Core database access; SQL and media survive fresh restore.                              |
+| Existing Core login and campaign permissions  | EMS-020, EMS-030          | No second login or independent CMS session; foreign campaign reads and writes fail; revocation applies on the next protected request.             |
+| Existing navigation and a same-origin editor  | EMS-060                   | Role-aware Edit microsite and Back to LeonAid navigation; top-level editor, not an iframe or duplicated React shell.                              |
+| HTTPS and protected first installation        | EMS-010, EMS-070          | Existing Caddy owns TLS; fixed origin and trusted proxy handling; designated operator setup only; restart and recovery never reopen the wizard.   |
+| Runtime fit and operational safety            | EMS-010, EMS-070, EMS-080 | Explicit activation, isolated proofs, bounded resources, runtime-only secrets, sanitized monitoring and pinned releases.                          |
+| Astro microsites and live Core business data  | EMS-040, EMS-050, EMS-085 | Canonical `/campaigns/<archive_slug>/` pages expose published content only; publishing needs no rebuild; Core remains authoritative for ordering. |
+| Editable Krapfentaxi demo                     | EMS-060, EMS-085          | Assigned Charity Admin edits text and media; drafts stay private; published edits appear anonymously and existing orders still work.              |
+| Core-managed campaign aliases                 | EMS-082, EMS-085          | Per-campaign backend/UI management, globally unique safe aliases and a single redirect to the canonical page; historical URLs remain stable.      |
+| Backup, upgrade and rollback compatibility    | EMS-080, EMS-085          | Versioned manifests cover CMS state, keys and media; fresh restore works; CMS rollback preserves subsequently accepted Core orders.               |
 
 Concrete hosting addresses, production credentials and operating runbooks remain
 in `leonaid-internal`. This plan and its PR authorize neither production
@@ -434,18 +434,18 @@ activation nor changes to another running stack.
 All product and verification work remains Docker-only. Do not require host
 Node, Bun, Python, SQLite, or EmDash CLIs.
 
-| Purpose | Command | Expected success |
-| --- | --- | --- |
-| Bootstrap | `./leonaid bootstrap` | locked Docker toolchains and secrets prepared |
-| Static gates | `./leonaid check` | format, types, unit tests, contracts, and policies pass |
-| Stack | `./leonaid dev` | all mandatory services healthy |
-| Identity | `./leonaid test-identity` | real role and session tests pass |
-| Session lifecycle | `./leonaid test-sessions` | login, refresh, and immediate revocation pass |
-| Existing public actions | `./leonaid test-public-actions` | aliases and archives remain green |
-| Existing public orders | `./leonaid test-public-orders` | real ordering journey remains green |
-| Security | `./leonaid test-security` | transport and authorization gates pass |
-| Backup | `./leonaid test-backup` | fresh-volume restore including the new CMS passes |
-| New spike | `./leonaid test-emdash-spike` | all EMS acceptance cases pass |
+| Purpose                 | Command                         | Expected success                                        |
+| ----------------------- | ------------------------------- | ------------------------------------------------------- |
+| Bootstrap               | `./leonaid bootstrap`           | locked Docker toolchains and secrets prepared           |
+| Static gates            | `./leonaid check`               | format, types, unit tests, contracts, and policies pass |
+| Stack                   | `./leonaid dev`                 | all mandatory services healthy                          |
+| Identity                | `./leonaid test-identity`       | real role and session tests pass                        |
+| Session lifecycle       | `./leonaid test-sessions`       | login, refresh, and immediate revocation pass           |
+| Existing public actions | `./leonaid test-public-actions` | aliases and archives remain green                       |
+| Existing public orders  | `./leonaid test-public-orders`  | real ordering journey remains green                     |
+| Security                | `./leonaid test-security`       | transport and authorization gates pass                  |
+| Backup                  | `./leonaid test-backup`         | fresh-volume restore including the new CMS passes       |
+| New spike               | `./leonaid test-emdash-spike`   | all EMS acceptance cases pass                           |
 
 The implementation must add `test-emdash-spike` to `./leonaid help`. It must
 start an isolated Compose project with empty volumes, use only synthetic Golden
@@ -630,7 +630,7 @@ Dependencies: EMS-010
       authentication and replacing upstream email lookup remain open below.
 
 - [x] Implement an EmDash `AuthDescriptor` and runtime `authenticate(request,
-      config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
+    config)` entrypoint inside `apps/campaign-site` or a narrowly scoped local
       workspace package. Production HTTP identity is proven below; browser
       navigation and broader editor access remain separate open gates.
 - [x] Extract the exact `__Host-leonaid_session` cookie from the incoming request
@@ -1501,8 +1501,7 @@ Dependencies: EMS-030 successful
 - [x] Accept native omitted empty Portable Text marks without weakening the
       bounded editorial contract, and prove rich-field Charity creation in the
       real editor. The pinned converter omits empty span `marks` and block
-      `markDefs`; treating them as mandatory caused native creation to return
-      403. Absence now means an empty collection. Null, malformed collections,
+      `markDefs`; treating them as mandatory caused native creation to return 403. Absence now means an empty collection. Null, malformed collections,
       unknown annotations and executable nested properties remain rejected;
       the direct contract proof covers 44 negative cases. No SQL/schema metadata
       migration or new editor patch is required for this compatibility fix.
@@ -1556,6 +1555,27 @@ Dependencies: EMS-030 successful
       Post-commit `./leonaid check` passed at `e000bc6`: 208 unit tests, 242
       Python source checks, 37 CMS files without diagnostics, all frontend/API/
       generated-type/format/privacy/policy gates and an unchanged committed tree.
+- [x] Prove native FAQ and partner add, keyboard reorder and removal with
+      autosave/reload persistence in Chromium, Firefox and WebKit. The narrow
+      exact-source client patch retains native repeater state and mutations,
+      uses real accessible drag/collapse buttons and the existing sortable
+      keyboard sensor. The proof reaches the drag handle through Tab navigation,
+      verifies picked-up/displaced UI states, then drops with Space. Actual PUT
+      responses, API readback and reload prove order; removal restores the whole
+      original document, including the partner logo and other editorial fields.
+      No injected DnD state or intercepted writes are used. See `DECISIONS.md`.
+      Focused `campaign-editor-pointer` passed in `leonaid-emdash-tmp-t9j62pc9hk`.
+      Full `campaign-media-http` passed in `leonaid-emdash-tmp-9o6z2vnlxm`,
+      including all existing image/search/recovery, reference isolation, five
+      SQL-wait/logout races, storage failure/retry, revocation, Core outage and
+      bootstrap restart/database-failure checks. No host ports; all owned test
+      resources were removed. Earlier failed runs were also fully cleaned:
+      production Lingui required an existing compiled interpolated label, and
+      keyboard proof needed observable drag-state synchronization before drop.
+      A transient external font-fetch build failure passed on retry; this does
+      not establish an offline/reproducible build guarantee.
+      Pointer/touch sorting, full accessibility and remaining rich-text/link UX,
+      public delivery, migration, aliases and recovery/release remain open.
 - [x] Revalidate the current Core actor after successful native content writes,
       result-reference checks and deferred tasks, before completing the CMS
       transaction. The same final check covers creation and all shared mutation
@@ -2263,16 +2283,16 @@ sanitized evidence.
 
 The new real integration test must cover at least this matrix:
 
-| Actor | Campaign A | Campaign B | Global CMS settings |
-| --- | --- | --- | --- |
-| System Admin | read/write/publish | read/write/publish | allowed |
-| Charity Admin for A | read/write/publish A | no draft visibility, no mutation | denied |
-| Charity Admin for B | no draft visibility, no mutation | read/write/publish B | denied |
-| Akquisiteur for A | denied | denied | denied |
-| Finance Reader | denied | denied | denied |
-| Driver for A | denied | denied | denied |
-| Suspended former Admin | denied | denied | denied |
-| Anonymous user | public published view only | public published view only | denied |
+| Actor                  | Campaign A                       | Campaign B                       | Global CMS settings |
+| ---------------------- | -------------------------------- | -------------------------------- | ------------------- |
+| System Admin           | read/write/publish               | read/write/publish               | allowed             |
+| Charity Admin for A    | read/write/publish A             | no draft visibility, no mutation | denied              |
+| Charity Admin for B    | no draft visibility, no mutation | read/write/publish B             | denied              |
+| Akquisiteur for A      | denied                           | denied                           | denied              |
+| Finance Reader         | denied                           | denied                           | denied              |
+| Driver for A           | denied                           | denied                           | denied              |
+| Suspended former Admin | denied                           | denied                           | denied              |
+| Anonymous user         | public published view only       | public published view only       | denied              |
 
 For every denied cell, test the browser route and direct HTTP/API request. UI
 hiding is not proof of authorization.

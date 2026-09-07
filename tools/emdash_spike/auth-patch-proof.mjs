@@ -34,6 +34,26 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+const repeater = revisioned.slice(
+  revisioned.indexOf("function RepeaterField("),
+  revisioned.indexOf("function SubFieldInput("),
+);
+assert.ok(
+  repeater.includes(
+    "useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })",
+  ),
+);
+assert.ok(
+  repeater.includes(
+    "useSensor(PointerSensor, { activationConstraint: { distance: 6 } })",
+  ),
+);
+assert.ok(repeater.includes("ref: setActivatorNodeRef"));
+assert.ok(repeater.includes('"aria-expanded": !isCollapsed'));
+assert.ok(repeater.includes('id: "2BPVq8", message: "Reorder {0}"'));
+assert.ok(
+  repeater.includes("emitChange(arrayMove(items, oldIndex, newIndex))"),
+);
 assert.ok(revisioned.includes("handleClick(view, _position, event)"));
 assert.ok(revisioned.includes("resolved.parent.content.size !== 0"));
 assert.ok(
