@@ -1978,6 +1978,9 @@ fields are absent; generated TypeScript types compile.
       adapter-level saturation proof plus runtime regression, not HTTP-level
       saturation or a whole-request deadline. SQL execution, total request
       budgets and mixed Core/CMS load acceptance remain open.
+      Post-commit `./leonaid check` passed at `868cdea`: 208 unit tests, 244
+      Python source checks, 45 CMS files without diagnostics, frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Extend the public-media live gate with real RustFS corruption and repair,
       without replacing the storage client or HTTP responses. The isolated
