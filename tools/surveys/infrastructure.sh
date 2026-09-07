@@ -129,6 +129,11 @@ if [ "$foundation" = true ]; then
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = branding ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs"
+fi
 if [ "$mode" = permissions ]; then
   browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
 fi
@@ -386,6 +391,9 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
+if [ "$mode" = branding ]; then
+  cp "$proof"/surveys-branding-*.png "$artifact/"
+fi
 if [ "$mode" = permissions ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/publisher_verify.py

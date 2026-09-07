@@ -41,6 +41,8 @@ Reconciled against [SURV-020 proof](proofs/SURV-020.md#browser-rendering-and-res
 - [x] **020.S3 · E2E · 020.T2 → 020.A3:** Submit a multipage questionnaire with host translations and styling; translated validation/save messages appear and adjacent host controls retain their styles.
 - [x] **020.S4 · E2E · 020.T2 → 020.A4:** Reload and restore in the chosen rendering mode; no unintended write or duplicate participation occurs, private state is not publicly cached, and the observed SSR/browser-only boundary is documented.
 
+- [x] **020.S6 · Integration / E2E · 020.1a:** In the packed consumer, switch local logos and reject external/encoded/traversal/query paths while retaining answers and page; verify mobile layout, backend restart and completion. In LeonAid, load the real local asset on desktop/mobile, persist an answer through the real API and restore identical response/revision after reload. Verify owned-stack teardown. [Live evidence](proofs/SURV-020.md#bounded-host-logo-integration).
+
 ## SURV-030 — Lifecycle and versions
 
 - [ ] **030.S1 · Integration · 030.T1 → 030.A1:** Migrate both empty and baseline databases; enumerate every allowed/forbidden lifecycle edge from PLAN section 5 and assert resulting state or rejection without mutation.

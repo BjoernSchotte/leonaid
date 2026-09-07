@@ -264,3 +264,53 @@ README/proof documentation and core-test wiring were completed afterwards.
 This closes 020.1 with the existing A1–A4 evidence and accepts SURV-020. It does
 not claim SSR hydration support, a production standalone editor backend, a full
 language catalogue or completion of the remaining SURV-000/060/090/100 work.
+
+## Bounded host logo integration
+
+**020.1a / 020.S6 accepted.** Runtime baseline `41fc4c1` plus this change.
+The runner now accepts optional host-owned `logo` configuration independently of
+questionnaire JSON. The image has bounded dimensions, host-supplied alt text and
+no-referrer policy. Only bounded root-relative static image paths are admitted;
+asset serving and avoiding external redirects remain the host's responsibility.
+
+The packed consumer command `rtk proxy sh tools/surveys/package.sh "$PWD"`
+exited **0**, project `surveys-package-833458328-8804`. Two Chromium tests passed
+before restart (**6.6s**) and two after (**1.8s**). The real separately installed
+package loaded the original and changed local SVG asset; six invalid URL/path
+forms produced no image element or external image request. Answer values and page
+survived configuration changes. The mobile screenshot was inspected; the logo
+fit within the viewport. Real SQLite persistence, restored revision/answers,
+completion and translated editor regression passed across the backend restart.
+The tarball dependency/bundle/notice inspector passed, and owned resources were
+removed without publishing host ports.
+
+The initial LeonAid branding run reached both logo assets, but its new test tried
+to click SurveyJS's visually hidden native radio input. The rendered rating label
+intercepted that click. This is a test interaction defect; the existing runner
+suite uses keyboard selection. The corrected run and final acceptance follow
+below once verified. No acceptance checkbox is closed by this failed attempt.
+
+The corrected command `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" branding`
+exited **0**, fresh project `leonaid-surveys-833458328-10462`. All **three Chromium
+tests passed (5.0s)**: the existing real-identity/member/public foundation plus
+LeonAid logo/response restoration at 1440 and 390 pixels. Each survey test loaded
+the actual `/favicon.svg` asset (`naturalWidth > 0`), selected a rating via
+keyboard, checked its value through the real API, reloaded and compared the entire
+response including revision. There was no horizontal document overflow. The
+normal harness also proved the PostgreSQL snapshot roundtrip and immutable
+version/cascade boundaries. Both the earlier failed project and this successful
+project removed their owned resources; no host ports or shared stack were used.
+
+Inspected evidence: [LeonAid desktop](assets/SURV-020-logo-desktop.png),
+[LeonAid mobile](assets/SURV-020-logo-mobile.png), and the
+[independent host mobile](assets/SURV-020-logo-consumer.png). The existing SurveyJS
+mobile progress strip partly clips its last step; the logo and answer controls
+remain within bounds. This is retained as a SURV-100 visual audit issue, not a
+claim that all mobile presentation is complete.
+
+Package TypeScript and Linux-container Astro checks passed (22 Astro files,
+zero errors/warnings/hints). The initial macOS Astro invocation could not load
+the Darwin native binding from the Linux dependency installation; the pinned
+Linux check completed successfully without reinstalling dependencies. Prettier,
+shell syntax and diff whitespace checks passed. No dependency or license choice
+changed; own license remains **UNDEFINED**.

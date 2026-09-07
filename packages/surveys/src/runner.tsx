@@ -14,6 +14,8 @@ export interface RunnerProps {
   participation: Participation;
   adapter: ParticipationAdapter;
   locale?: "de" | "en";
+  /** Host-owned static asset, separate from questionnaire JSON. */
+  logo?: { src: string; alt: string };
   messages?: Partial<RunnerMessages>;
 }
 export interface RunnerMessages {
@@ -213,11 +215,36 @@ export class SaveCoordinator {
   }
 }
 
+function HostLogo({ logo }: { logo: RunnerProps["logo"] }) {
+  // Root-relative static image paths only: no external origins, traversal,
+  // encoded separators, credentials or query strings.
+  if (
+    !logo ||
+    logo.src.length > 512 ||
+    logo.alt.length > 160 ||
+    !/^\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:svg|png|webp|jpg|jpeg|avif)$/i.test(
+      logo.src,
+    )
+  )
+    return null;
+  return (
+    <img
+      className="survey-host-logo"
+      src={logo.src}
+      alt={logo.alt}
+      width={160}
+      height={64}
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
 export function SurveyRunner({
   participation,
   adapter,
   locale = "de",
   messages,
+  logo,
 }: RunnerProps) {
   const [, render] = useState(0);
   const copy = useMemo(() => ({ ...defaultMessages, ...messages }), [messages]);
@@ -276,12 +303,14 @@ export function SurveyRunner({
   )
     return (
       <section className="survey-thanks">
+        <HostLogo logo={logo} />
         <h1>{copy.thankYouTitle}</h1>
         <p>{copy.thankYouBody}</p>
       </section>
     );
   return (
     <section className="survey-runner">
+      <HostLogo logo={logo} />
       <div
         className="survey-save"
         role="status"

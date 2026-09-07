@@ -39,3 +39,14 @@
   --sjs2-color-project-brand-600: var(--survey-accent, #00338d);
   --sjs2-typography-font-family-text: var(--survey-font, sans-serif);
 }
+
+.survey-runner > .survey-host-logo,
+.survey-thanks > .survey-host-logo {
+  display: block;
+  width: 10rem;
+  max-width: 100%;
+  height: 4rem;
+  object-fit: contain;
+  object-position: left center;
+  margin-block-end: 1rem;
+}

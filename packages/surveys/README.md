@@ -299,3 +299,21 @@ numbered labels, generated defaults, JSON errors, English preview and actual
 SQLite draft persistence across backend restart. Its deliberately small synthetic
 adapter supports load/save/validation and disables publication. It is not a
 production authentication or arbitrary-questionnaire validation service.
+
+### Host logo
+
+`SurveyRunner` accepts an optional `logo={{ src: "/brand/logo.svg", alt: "Your organization" }}`.
+This is host configuration, not a property accepted in questionnaire JSON. The
+same logo appears during participation and on the completion page. Changing it
+does not recreate the SurveyJS model or reset answers, current page or saving.
+
+Only root-relative static image paths are accepted: alphanumeric, underscore or
+hyphen directory/file names ending in svg, png, webp, jpg, jpeg or avif. The path
+is limited to 512 characters and the alt text to 160. External/protocol-relative
+URLs, query strings, fragments, percent encoding and traversal are omitted without
+an image request. An omitted logo renders no image. Hosts own the asset and its
+serving policy: use a static route that does not redirect off-origin and do not
+put participant data in a filename. The image sends no referrer and fits a
+160-by-64 CSS box constrained to the available width. No image upload or remote
+asset fetching service is added. LeonAid supplies its existing local brand mark;
+the independent demo supplies its own mark and an interactive configuration field.

@@ -30,6 +30,55 @@ test("packed consumer saves a multipage response in its own host", async ({
   await expect(
     page.getByText("Saved by the independent host", { exact: true }),
   ).toBeVisible();
+  const logo = page.getByRole("img", {
+    name: "Community feedback",
+    exact: true,
+  });
+  await expect(logo).toBeVisible();
+  await expect
+    .poll(() => logo.evaluate((img) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  const unexpectedImages = [];
+  page.on("request", (request) => {
+    if (
+      request.resourceType() === "image" &&
+      new URL(request.url()).origin !== baseURL
+    )
+      unexpectedImages.push(request.url());
+  });
+  const logoPath = page.getByLabel("Host logo path", { exact: true });
+  for (const unsafe of [
+    "//example.invalid/tracker.svg",
+    "https://example.invalid/logo.png",
+    "/../private.png",
+    "/%2fexample.invalid/logo.svg",
+    "/logo.svg?participation=secret",
+    "data:image/svg+xml,test",
+  ]) {
+    await logoPath.fill(unsafe);
+    await expect(logo).toHaveCount(0);
+    await expect(page.locator("[data-name=feedback] textarea")).toHaveValue(
+      "More community events",
+    );
+  }
+  await logoPath.fill("/alternate-logo.svg");
+  await expect(logo).toHaveAttribute("src", "/alternate-logo.svg");
+  await expect
+    .poll(() => logo.evaluate((img) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  expect(unexpectedImages).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(logo).toBeVisible();
+  expect(
+    await logo.evaluate(
+      (img) => img.getBoundingClientRect().right <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: `${proof}/consumer-logo-mobile.png`,
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1100, height: 850 });
   await control.click();
   await expect(control).toHaveCSS("background-color", "rgb(23, 61, 56)");
   await expect(page.locator(".sd-theme-root").first()).toHaveCSS(
@@ -147,6 +196,9 @@ test("packed consumer restores after backend restart without an extra save", asy
     diagnostics: await (await fetch("/api/diagnostics")).json(),
   }));
   expect(restored).toEqual(before);
+  await expect(
+    page.getByRole("img", { name: "Community feedback", exact: true }),
+  ).toBeVisible();
   expect(writes).toEqual([]);
   const exported = JSON.parse(
     readFileSync(`${proof}/consumer-export.json`, "utf8"),
@@ -190,6 +242,9 @@ test("packed consumer restores after backend restart without an extra save", asy
   const final = await page.evaluate(async () =>
     (await fetch("/api/participation")).json(),
   );
+  await expect(
+    page.getByRole("img", { name: "Community feedback", exact: true }),
+  ).toBeVisible();
   expect(final.value.id).toBe(before.participation.value.id);
   expect(final.value.response.status).toBe("completed");
   expect(final.value.response.answers).toEqual(

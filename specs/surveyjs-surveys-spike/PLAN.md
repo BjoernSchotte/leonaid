@@ -603,6 +603,7 @@ Dependencies: SURV-010.
 Implementation tasks:
 
 - [x] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration. Acceptance: **020.A1, 020.A2, 020.A3**. [Packed host-translated editor and entrypoint evidence](proofs/SURV-020.md#host-translated-editor-and-entrypoint-acceptance).
+- [x] **020.1a** Add bounded host-owned logo configuration, preserve participation state when it changes, and wire both LeonAid and the packed independent host. Acceptance: an allowed local asset loads on desktop/mobile and completion; unsafe paths issue no image request; saved answers survive host changes, reload and backend restart. Integration/E2E: packed consumer regression plus real LeonAid API/PostgreSQL/Chromium branding mode; **020.S6**. [Live evidence](proofs/SURV-020.md#bounded-host-logo-integration).
 - [x] **020.2** Build a standalone demo consuming a packed artifact outside workspace resolution; provide a minimal real backend adapter for its integration proof. Acceptance: **020.A1, 020.A3**. [Evidence](proofs/SURV-020.md).
 - [x] **020.3** Implement scoped SurveyJS token styling and the chosen browser hydration mode; investigate SSR and record the observed compatibility boundary. Acceptance: **020.A3, 020.A4**.
 - [x] **020.4** Add bundle/import and license checks, third-party notices and explicit OFL asset handling. Acceptance: **020.A2**. [Evidence](proofs/SURV-020.md).

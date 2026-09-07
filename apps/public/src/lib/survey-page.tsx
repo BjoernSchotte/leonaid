@@ -141,7 +141,11 @@ function ParticipationPage({ surveyId }: { surveyId: string }) {
     }
   }
   return participation ? (
-    <SurveyRunner participation={participation} adapter={adapter} />
+    <SurveyRunner
+      participation={participation}
+      adapter={adapter}
+      logo={{ src: "/favicon.svg", alt: "LeonAid" }}
+    />
   ) : (
     <section className="survey-introduction">
       <p className="survey-eyebrow">Lions · Rückmeldung zur Aktion</p>

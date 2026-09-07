@@ -40,6 +40,7 @@ function App() {
   const [participation, setParticipation] = useState<Participation | null>(
     null,
   );
+  const [logoSrc, setLogoSrc] = useState("/community-logo.svg");
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     void adapter.restore("current").then((result) => {
@@ -62,6 +63,14 @@ function App() {
         >
           Change host theme
         </button>
+        <label>
+          Host logo path
+          <input
+            aria-label="Host logo path"
+            value={logoSrc}
+            onChange={(event) => setLogoSrc(event.target.value)}
+          />
+        </label>
       </header>
       {!loaded ? (
         <p>Loading…</p>
@@ -70,6 +79,7 @@ function App() {
           participation={participation}
           adapter={adapter}
           locale="en"
+          logo={{ src: logoSrc, alt: "Community feedback" }}
           messages={messages}
         />
       ) : (

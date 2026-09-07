@@ -105,6 +105,11 @@ Task **000.4** is accepted after the full persona/fixture review and current per
 
 ## SURV-020 — Neutral package and independent demo
 
+- [x] **020.1a** Configure a bounded host logo independently of questionnaire JSON; retain respondent state across host changes and display the asset in both hosts and on completion. [Live evidence](proofs/SURV-020.md#bounded-host-logo-integration).
+
+  Acceptance: allowed local assets load; invalid/external paths create no image request; desktop/mobile layout remains bounded; persisted answers and revision survive reload/restart.
+  Integration / E2E: **020.S6**, packed independent consumer and real LeonAid services.
+
 - [ ] **020.1** Create separate editor, runner, analytics, contracts and styles entrypoints with host-supplied adapters and translation/theme configuration.
 
   Acceptance criteria: **020.A1, 020.A2, 020.A3**.

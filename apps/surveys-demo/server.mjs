@@ -151,6 +151,11 @@ Bun.serve({
   maxRequestBodySize: 16384,
   async fetch(request) {
     const path = new URL(request.url).pathname;
+    if (path === "/community-logo.svg" || path === "/alternate-logo.svg")
+      return new Response(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64"><rect width="160" height="64" rx="8" fill="${path === "/community-logo.svg" ? "#173d38" : "#85451b"}"/><circle cx="80" cy="32" r="20" fill="#fff"/></svg>`,
+        { headers: { "Content-Type": "image/svg+xml" } },
+      );
     if (path === "/health") return new Response("ok");
     if (path === "/" || path === "/exports" || path === "/editor")
       return new Response(
