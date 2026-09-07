@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 
 const path = "/campaigns/krapfentaxi-2026/";
 const orders = [];
 const burst = process.argv.includes("--burst");
 const imported = process.argv.includes("--imported");
+const beforeRecovery = process.argv.includes("--before-recovery");
+const afterRecovery = process.argv.includes("--after-recovery");
+assert.ok(!(beforeRecovery && afterRecovery));
+assert.ok(!(burst && (beforeRecovery || afterRecovery)));
+if (beforeRecovery || afterRecovery) {
+  assert.ok(
+    (await readdir("/proof")).every((name) => name === "orders-ui.json"),
+    "Recovery browser must receive only its receipt directory, not operator secrets",
+  );
+}
+const recoveryPrefix = beforeRecovery
+  ? "before-recovery-"
+  : afterRecovery
+    ? "after-recovery-"
+    : "";
 let timedOutOrders = 0;
 // Functional acceptance, not a burst/load test: each order performs several
 // CRM requests under Core's unchanged 100 requests/minute limiter. Keep these
@@ -26,7 +41,7 @@ for (const [engineName, engine] of Object.entries({
         "person",
         "mixed",
       ]) {
-        const label = `${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        const label = `${recoveryPrefix}${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         if (!burst)
           await new Promise((resolve) =>
             setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),

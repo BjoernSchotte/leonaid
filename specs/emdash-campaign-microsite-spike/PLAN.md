@@ -3004,6 +3004,35 @@ Dependencies: EMS-050, EMS-070
         tests, 263 Python files typechecked, both Astro applications (25/47 files,
         zero diagnostics), frontend typechecks, format and repository policy
         gates. The working tree was unchanged.
+- [x] Prove full application recovery with real Twenty-backed orders, not an
+      empty CRM fixture. `./leonaid test-emdash-spike --case recovery-orders`
+      exited zero in source project `leonaid-poc112-tmp-xfwzwuheuf` and fresh
+      target `leonaid-restore-tmp-xfwzwuheuf`. Before backup, the original
+      Krapfentaxi import and editorial browser journeys ran, then 24 real orders
+      were accepted across Chromium/Firefox/WebKit, JavaScript/native forms and
+      new-company/existing-company/person/mixed-unit scenarios. Core SQL and real
+      Twenty verified references, lines, totals, consent/audit and completed
+      idempotency receipts; twelve native POST replays created no duplicates.
+      The encrypted Restic backup passed its exact v2 inventory and integrity
+      checks. The fresh target reused the source application images and restored
+      CRM integration key without seeding, provisioning or rebuilding; Twenty
+      startup migrations were explicitly disabled. Its rendered configuration
+      proved no published host ports and exactly one isolated CRM subnet.
+      All 24 original orders and their completed receipts survived restore.
+      Another 24 independent browser orders and twelve native POST replays then
+      passed against restored Core/Twenty; both old and new records were checked
+      again. The order browser mounted a separate receipts-only proof directory,
+      not the privileged operator proof root containing credentials.
+      The complete restored Core login, current membership revocation/regrant,
+      bidirectional campaign/content/revision/editor/media isolation and private
+      media byte checks also passed in all three browser engines. Finally, 84
+      valid-payload public Core requests were denied even with a valid service
+      key: seven Core tables and real Twenty stayed unchanged; unauthorized
+      internal denial and an authorized internal positive control both passed.
+      Both projects and their owned volumes/networks were removed. This closes
+      local full Twenty/order recovery only: off-host recovery, importer journal
+      resume, operational release checks and upgrade/rollback preservation of
+      later orders remain separate requirements. No production activation.
 - [ ] Add an upgrade rehearsal from the pinned EmDash version to an explicitly
       selected successor only after backup. EmDash migrations have no automatic
       downgrade; rollback must restore the pre-upgrade database.

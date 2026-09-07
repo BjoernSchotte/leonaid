@@ -4,10 +4,14 @@ root=$1
 mode=${2:-auth}
 orders=${3:-false}
 recovery=${4:-false}
-case "$recovery:$mode:$orders" in false:*|true:migration:false) ;; *) exit 2 ;; esac
+case "$recovery:$mode:$orders" in false:*|true:migration:false|true:migration:true) ;; *) exit 2 ;; esac
 case "$orders:$mode" in false:*|true:public-http|true:migration) ;; *) exit 2 ;; esac
 TWENTY_INTEGRATION_API_KEY=
 export TWENTY_INTEGRATION_API_KEY
+if [ "$recovery:$orders" = true:true ]; then
+  EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS=false
+  export EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS
+fi
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component|migration|alias-http|alias-browser) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 if [ "$mode" = alias-http ]; then
@@ -70,6 +74,9 @@ EMDASH_ORDER_API_IMAGE="$project-api"
 export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$recovery:$orders" = true:true ]; then
+    set -- --file "$root/infra/emdash-spike/recovery-orders.test.yml" "$@"
+  fi
   if [ "$recovery" = true ]; then
     set -- --file "$root/infra/emdash-spike/recovery-app.test.yml" "$@"
   fi
@@ -121,8 +128,8 @@ cleanup() {
   fi
   compose down --volumes >/dev/null
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
-  rm -f "$proof/integration.env" "$proof/orders-ui.json"
-  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control"; rm -f "$proof/restic-password"; fi
+  rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json"
+  if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser"; rm -f "$proof/restic-password"; fi
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -265,6 +272,7 @@ if [ "$mode" != auth ]; then
     fixture /repo/tools/emdash_spike/redirect_http_proof.py --published
     if [ "$recovery" = true ]; then
       . "$root/tools/emdash_spike/recovery-app-phase.sh"
+      exit 0
     fi
     if [ "$orders" = true ]; then
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings

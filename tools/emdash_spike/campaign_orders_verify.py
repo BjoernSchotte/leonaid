@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -15,7 +16,11 @@ from tools.public_orders.contract import assert_commitment, twenty_collection
 
 
 async def main() -> None:
-    orders = json.loads(Path("/proof/orders-ui.json").read_text())
+    assert sys.argv[1:] in ([], ["--before-recovery"])
+    receipt_file = (
+        "/proof/pre-recovery-orders.json" if sys.argv[1:] else "/proof/orders-ui.json"
+    )
+    orders = json.loads(Path(receipt_file).read_text())
     assert len(orders) == 24
     assert len({item["publicReference"] for item in orders}) == 24
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=5)
@@ -45,6 +50,18 @@ async def main() -> None:
                     item["publicReference"],
                 )
                 assert len(rows) == 1
+                command = UUID(item["commandId"])
+                receipt = await connection.fetchrow(
+                    "SELECT command_type, request_hash, result, completed_at FROM command_receipt WHERE idempotency_key=$1",
+                    f"public.order:20000000-0000-4000-8000-000000000001:{command}",
+                )
+                assert receipt is not None
+                assert receipt["command_type"] == "create_public_order_v1"
+                assert receipt["completed_at"] is not None
+                assert len(receipt["request_hash"]) == 64
+                result = receipt["result"]
+                result = json.loads(result) if isinstance(result, str) else result
+                assert result["commitmentId"] == str(rows[0]["id"])
                 if item["scenario"] == "mixed":
                     row = await connection.fetchrow(
                         "SELECT * FROM commitment WHERE id=$1", rows[0]["id"]
@@ -137,7 +154,7 @@ async def main() -> None:
     finally:
         await connection.close()
     print(
-        "campaign-orders: 24 browser references including six mixed-unit orders verified in Core SQL, lines, consent/audit and real Twenty records; twelve native POST replays created no duplicate orders"
+        "campaign-orders: 24 browser references including six mixed-unit orders verified in Core SQL, completed idempotency receipts, lines, consent/audit and real Twenty records; twelve native POST replays created no duplicate orders"
     )
 
 
