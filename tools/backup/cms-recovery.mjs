@@ -1,8 +1,11 @@
 import pg from "pg";
-import { Kysely } from "kysely";
+import { Kysely, sql } from "kysely";
 import { createDialect } from "emdash/db/postgres";
+import { getExactMigrationStatus, MIGRATION_NAMES } from "emdash/db";
 import { provisionPostgres } from "../emdash_spike/provision-postgres.mjs";
 import { requireCampaignBindings } from "../../apps/campaign-site/src/auth/campaign-bindings.mjs";
+import { requireCampaignSchema } from "../../apps/campaign-site/src/install-campaign-schema.mjs";
+import { requireCampaignMedia } from "../../apps/campaign-site/src/auth/campaign-media.mjs";
 
 // Explicit one-shot operator, never the CMS HTTP process. Provisioning does
 // not run CMS migrations or repair missing guards in restored SQL.
@@ -20,7 +23,7 @@ try {
     } finally {
       await admin.end();
     }
-  } else if (mode === "verify") {
+  } else if (mode === "verify" || mode === "verify-application") {
     const database = new Kysely({
       dialect: createDialect({
         host: process.env.PGHOST,
@@ -30,7 +33,26 @@ try {
       }),
     });
     try {
-      await requireCampaignBindings(database);
+      await database
+        .transaction()
+        .setIsolationLevel("repeatable read")
+        .execute(async (transaction) => {
+          await sql`SET TRANSACTION READ ONLY`.execute(transaction);
+          await sql`SET LOCAL statement_timeout = '5s'`.execute(transaction);
+          await requireCampaignBindings(transaction);
+          if (mode === "verify-application") {
+            const migrations = await getExactMigrationStatus(transaction);
+            if (
+              migrations.pending.length ||
+              migrations.unknownApplied.length ||
+              JSON.stringify(migrations.knownApplied) !==
+                JSON.stringify(MIGRATION_NAMES)
+            )
+              throw new Error("cms_migration_inventory_mismatch");
+            await requireCampaignSchema(transaction);
+            await requireCampaignMedia(transaction);
+          }
+        });
     } finally {
       await database.destroy();
     }

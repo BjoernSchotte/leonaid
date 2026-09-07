@@ -86,3 +86,21 @@ image, checks the specific preflight refusal and verifies that the target still
 has no containers, volumes or networks. It then restores the same backup using
 the matching candidate and completes the browser journey. This is not yet the
 full production release-manifest, database-migration or upgrade/rollback gate.
+
+## Read-only restored application schema check
+
+`cms-recovery.mjs verify-application` checks the exact installed EmDash migration
+name inventory, the local editorial schema contract and media binding guards,
+constraints and columns, in addition to the existing campaign binding and
+cross-database denial checks. Database inspection uses a repeatable-read,
+read-only transaction with a bounded statement timeout. It never installs,
+repairs or runs migrations. Pending or unknown upstream migration names are
+rejected rather than accepted based on a migration count alone.
+
+Restore invokes this check when an explicit CMS image candidate is supplied,
+after SQL restoration and before returning to the still-closed application
+activation boundary. Data-only restores retain the narrower `verify` contract.
+The SQL recovery test proves six additional drift refusals, unchanged drifted
+values after verification, and full source-row/sequence equality after each
+fresh re-restore. This verifies the selected schema contracts and migration
+ledger, not an arbitrary upstream physical-DDL audit or a successor upgrade.

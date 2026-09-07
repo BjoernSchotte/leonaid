@@ -284,6 +284,9 @@ if [ "$topology" = emdash ]; then
     --exit-on-error --single-transaction --no-owner --no-privileges \
     <"$backup_root/emdash.dump"
   compose run --rm --no-deps cms-recovery-operator verify
+  if [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ]; then
+    compose run --rm --no-deps cms-recovery-operator verify-application
+  fi
 fi
 
 restore_state prepare --manifest "$backup_root/manifest.json"

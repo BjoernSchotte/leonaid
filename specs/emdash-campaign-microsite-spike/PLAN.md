@@ -3136,6 +3136,31 @@ Dependencies: EMS-050, EMS-070
         tests, 266 Python files typechecked, both release contracts, both Astro
         applications (25/47 files, zero diagnostics), frontend typechecks,
         formatting and repository policy gates; committed source was unchanged.
+  - [x] Verify restored application schema before image-backed recovery can
+        proceed to its activation boundary. `verify-application` adds exact
+        known/pending/unknown EmDash migration-name checks, the current editorial
+        schema contract and media guard/constraint/column checks to the existing
+        campaign binding and cross-database denial checks. Inspection runs in a
+        repeatable-read, read-only transaction with a five-second statement
+        timeout; no automatic installation, migration or repair is performed.
+        `recovery-sql` exited zero in `leonaid-emdash-tmp-vkksl4tfip`: six new
+        mutations (editorial version, field label, media version, disabled media
+        trigger, missing upstream migration and unknown upstream migration)
+        were refused with the expected fixed failure signal. The deliberately
+        altered state remained unchanged after each refusal. Each subsequent
+        pg_restore passed validation and exact all-CMS-row/sequence/ownership
+        comparisons; existing missing/disabled campaign-guard cases also passed.
+        Source media schema was installed explicitly before backup, never on
+        the restored target. `recovery-import` then exited zero in source
+        `leonaid-poc112-tmp-onotqh3ymv` and fresh target
+        `leonaid-restore-tmp-onotqh3ymv`, proving the integrated check passed
+        after SQL restore and before image-bound application startup, followed
+        by exact import-journal/media recovery and native edit/draft/publication
+        in Chromium/Firefox/WebKit. All owned Docker resources were removed;
+        networks were isolated and no host ports or production activation used.
+        This closes the named application contract/migration-ledger preflight,
+        not arbitrary upstream physical-DDL auditing, successor migration,
+        complete release promotion or rollback with later Core orders.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
