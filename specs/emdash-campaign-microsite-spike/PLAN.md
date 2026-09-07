@@ -3063,6 +3063,10 @@ Dependencies: EMS-050, EMS-070
         in v1, boolean/float/string/unsupported versions, and premature release
         promotion. This is a fail-closed prerequisite, not the completed v2 CMS
         image/package/patch/schema contract or a deployment/upgrade proof.
+        Full `./leonaid check` passed on source commit `2a35025`: 256 unit
+        tests, 263 Python files typechecked, both Astro applications (25/47
+        files, zero diagnostics), frontend typechecks, formatting and repository
+        policy gates. The committed working tree was unchanged.
 - [ ] Run a single controlled CMS migration step before enabling CMS traffic,
       not lazily on the first public request. If upstream startup migrates
       automatically, contain it in an exclusive no-traffic maintenance phase.
