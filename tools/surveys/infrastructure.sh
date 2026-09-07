@@ -63,8 +63,17 @@ if [ "$mode" = contracts ]; then
     --workdir /repo --entrypoint python api tools/surveys/write_contracts_live.py
   mkdir -p "$artifact"
   cp "$proof/write-contracts.json" "$artifact/"
+  if ! compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/write_replay_live.py \
+    >"$proof/write-replay.log" 2>&1; then
+    cp "$proof/write-replay.log" "$artifact/write-replay.log"
+    cat "$proof/write-replay.log" >&2
+    exit 1
+  fi
+  cat "$proof/write-replay.log"
+  cp "$proof/write-replay.json" "$artifact/"
 fi
-if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ]; then
+if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ] || [ "$mode" = contracts ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/responses.py
 fi
@@ -378,7 +387,7 @@ fi
 if [ "$mode" = editor ]; then
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
-if [ "$mode" = runner ]; then
+if [ "$mode" = runner ] || [ "$mode" = contracts ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
@@ -391,6 +400,10 @@ docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --grep-invert 'trash and request|failed deletion' \
   --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
+if [ "$mode" = contracts ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
+fi
 if [ "$mode" = branding ]; then
   cp "$proof"/surveys-branding-*.png "$artifact/"
 fi

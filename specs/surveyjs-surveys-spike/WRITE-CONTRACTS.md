@@ -87,7 +87,7 @@ each concrete HTTP method/path and request/response model in its evidence JSON.
 | `createSurveyResponseSelection` | `read_responses`; same version/date/status/test constraints | Same snapshot/replay semantics; returns frozen selection metadata, not all response contents |
 | `createSurveyExportSelection` | `export_raw` or `export_reports`; same version/date/status/test constraints | Same snapshot/replay semantics; exposes export selection metadata without requiring raw-response or aggregate viewing permission |
 | `createSurveyExport` | Product-specific `export_raw` or `export_reports`; authorized snapshot and test-data scope; quota may return 429 | Operation ID + snapshot ID + product, no expected revision; survey lock and requester admission lock; atomically inserts job and empty-payload outbox event; no job on rejected admission |
-| `startSurveyParticipation` | Active anonymous survey before scheduled end; invitation mode returns 403; bounded URL-safe client-generated resume secret | Operation ID, no revision; receipt scoped to secret digest; locks survey, snapshots published version and effective timeout; creates one participation for an exact replay and sets Secure/HttpOnly/SameSite cookie |
+| `startSurveyParticipation` | Active anonymous survey before scheduled end; invitation mode returns 403; bounded URL-safe client-generated resume secret | Operation ID, no revision; receipt scoped to secret digest; locks survey, snapshots published version and effective timeout; creates one participation for an exact replay; a resume credential already bound to another start/survey returns 409 `idempotency_conflict` without extra writes; sets Secure/HttpOnly/SameSite cookie |
 | `redeemSurveyInvitation` | Active invitation survey; valid unexpired/unrevoked token; unknown token hidden | Token only, no operation ID or revision; locked invitation binds to one participation; repeated redemption restores the same participation; timeout/version/expiry snapshotted at first redemption |
 | `saveSurveyResponse` | Active survey and valid unrevoked/unexpired participation cookie; completed response rejects new writes; answer types, values and known page required | Participation-scoped replay + revision; authoritative validation removes hidden answers; full snapshot and page saved atomically; revision advances, answer-change clock advances only when cleaned answers change |
 | `completeSurveyResponse` | Same respondent access; required/relevant final validation of stored answers | Participation-scoped replay + revision; no submitted answers in this request; atomically marks validated stored snapshot completed and advances revision/time; missing required answers do not complete |
@@ -125,3 +125,56 @@ also validates every response against ApiErrorResponse, its exact JSON keys,
 expected error code, correlated request ID/header and non-echoed invalid input.
 The source-reviewed profile/limits and host rendering contract are consolidated
 in [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md).
+
+
+## Concurrent duplicate-operation verification
+
+`tools/surveys/write_replay_live.py` is run by the same `contracts` infrastructure
+mode after the strict transport/error checks, while the production worker remains
+stopped. Its explicit expected-delta inventory must match every registered survey
+write. Each operation uses fresh synthetic setup through the real HTTP endpoints;
+private invitation material is read only inside the test process and is not retained.
+
+The test holds the operation's actual survey advisory lock, respondent survey row
+lock or settings singleton row lock in PostgreSQL. It submits two identical HTTP
+requests and waits until both backend calls are observed blocked through
+`pg_blocking_pids`, including queue dependencies. Only then does it release the
+lock. This proves overlapping server-side work, rather than assuming that two
+asynchronously submitted requests necessarily overlap.
+
+Both calls must succeed with the same response validated by the actual transport
+model. The test checks persisted business values and exact table-count deltas:
+for example, one immutable publication, one participation, one invitation/outbox
+pair or one export-job/outbox pair. Every unlisted survey/outbox table must retain
+its count. Validation produces no changed row contents. A third exact retry must
+return the same result and leave full row-content digests unchanged across all
+survey/outbox tables.
+
+For nineteen operations, a changed request must return the documented 409 code
+without changing any row contents. Draft validation has no operation key, so its
+changed expected revision returns `revision_conflict`; the other eighteen return
+`idempotency_conflict`. Anonymous start identity includes the resume-secret scope,
+so changing that secret is not a same-key conflict. Invitation redemption has no
+operation ID: repeat redemption must bind the same token to exactly one persisted
+participation. Neither special case is falsely classified as a changed-key test.
+
+This verifies duplicate operations and their persistence outcomes. Independent
+competing revision writes, cross-operation lifecycle races, changed authorization,
+worker execution and capability semantics still require their dedicated proofs.
+
+
+A dedicated cross-survey case holds the participation table until two requests
+with one credential are blocked on their independent inserts. The global
+`resume_digest` uniqueness constraint selects exactly one participant; the other
+request must return 409 `idempotency_conflict`, not a database-error 500. Exact
+winner replay succeeds, loser replay and a new operation ID with the winner's
+credential conflict; every replay leaves all row contents unchanged. The error
+must disclose neither the credential nor the winning participation ID.
+
+The insertion uses `ON CONFLICT(resume_digest) DO NOTHING RETURNING ...` and maps
+an absent inserted row to the domain conflict. This handles the cross-survey race
+atomically; a preceding existence check alone would not establish that guarantee.
+The normal stored-receipt path still runs first for an exact successful retry.
+
+[Accepted live results](proofs/SURV-000.md#concurrent-replay-for-every-write) cover
+the complete concurrent inventory, collision handling and respondent regression.

@@ -291,3 +291,82 @@ no host ports were published. Ruff and diff whitespace checks passed. This does
 not prove every domain error, replay or concurrency outcome. PROFILE-CONTRACT.md
 now consolidates the source-reviewed profile limits and host/server boundary,
 while **000.5 / 000.A1** remain open for complete acceptance.
+
+
+## Concurrent replay for every write
+
+**000.T1b / 000.S1b accepted.** Source: this increment based on `84fdf46`.
+`tools/surveys/write_replay_live.py` matches an explicit expected-persistence
+inventory against all **21** registered survey writes. The
+[write contract](../WRITE-CONTRACTS.md#concurrent-duplicate-operation-verification)
+describes the operation-specific identity and lock boundaries.
+
+For each write the test holds the actual PostgreSQL persistence lock and observes
+both HTTP requests waiting via `pg_blocking_pids` before release. Both responses
+must be identical and satisfy the actual response DTO. Direct SQL verifies the
+persisted definition, version, settings, lifecycle, invitation, deletion intent,
+snapshot, export job or participation outcome as applicable. Exact row deltas
+across all 14 survey/outbox tables prove only one intended creation/receipt/event.
+Draft validation leaves all row contents unchanged. A later exact retry preserves
+full row-content digests for every table. Nineteen changed requests return the
+expected 409 without writes: eighteen idempotency conflicts and one stale draft
+validation revision. Start credentials and token redemption retain their distinct
+identity semantics rather than pretending to expose the same operation-key API.
+
+The probe discovered an actual error: a valid client-provided resume credential
+already used by another start hit the global `resume_digest` uniqueness constraint
+and returned HTTP 500. Anonymous start now uses an atomic conflict-aware insert and
+returns 409 `idempotency_conflict` if no row was inserted. Existing exact receipts
+still replay first. No schema or dependency changes are needed.
+
+A dedicated cross-survey case holds the participation table until two independent
+start inserts using one credential are blocked. After release, exactly one request
+returns 200 and the other 409, with one participation and one operation receipt.
+The winning row is checked directly against its survey and credential digest.
+Winner replay succeeds; loser replay and a different operation ID with the same
+credential conflict without changing any rows. The conflict exposes neither the
+credential nor the winning participation ID.
+
+Command:
+
+```sh
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" contracts
+```
+
+Final project `leonaid-surveys-833458328-32442` exited **0**:
+
+- Existing 42 strict input/authentication/error-envelope checks pass.
+- All 21 forced-overlap duplicate-operation cases and the cross-survey credential
+  collision pass, with exact database/outbox assertions.
+- Existing real response API regression passes: creation, publication, start,
+  save, restore, completion, inactivity, hidden-answer cleanup, invalid types,
+  revisions and credentials.
+- **8 Chromium tests pass (29.5 seconds)**: foundation plus the complete respondent
+  suite, including mid-page browser closure/recovery, conditional validation,
+  offline retry, Unicode/bounds, hidden-page chains, matrix correction, stale
+  two-tab saves and a lost completion acknowledgement. Desktop execution;
+  the explicit mid-page viewport is 1280 × 960. No new mobile or manual visual
+  acceptance is claimed by this run.
+- The post-browser SQL probe confirms the exact winning answer, matching revision,
+  one start receipt and one durable completion receipt after the retry.
+
+[Sanitized operation results](assets/SURV-000-write-replay.json) contain operation
+names, expected table deltas and assertion outcomes, not response values,
+credentials or row-content digests. Failure diagnostics remain ignored locally.
+
+Earlier project `29598` failed on an incorrect settings URL in the new fixture.
+The subsequent diagnostic runs `30960` and `31520` failed before full acceptance;
+`31520` identified the reused-credential HTTP 500 with retained diagnostics. The
+fixture now uses fresh credentials for unrelated cases and tests intentional
+collisions explicitly. Runtime and test files were changed only after each prior
+run ended. Ruff, shell syntax, documentation links and staged whitespace checks
+are recorded with this change. All projects use unique names/volumes, explicitly
+unused subnets and no published host ports.
+
+This closes duplicate-operation evidence and the discovered credential-collision
+bug. It does not accept independent competing-revision/cross-operation races,
+complete C-01–C-15 traceability, recovery continuity or the final whole-journey gate.
+**000.A1 / 000.T1 and the full spike remain open.**
+
+Post-run Docker queries verified that all four run-owned projects have no remaining
+containers, volumes or networks. Parallel worktrees were left untouched.

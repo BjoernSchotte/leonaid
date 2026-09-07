@@ -1,0 +1,357 @@
+{
+  "syntheticOnly": true,
+  "crossSurveyCredentialCollision": {
+    "overlappingInsertsObserved": true,
+    "statuses": [
+      200,
+      409
+    ],
+    "participationDelta": 1,
+    "stableReplayAndNoExtraWrites": true
+  },
+  "operations": [
+    {
+      "operationId": "createSurvey",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey": 1,
+        "survey_draft": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "saveSurveyDraft",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "validateSurveyDraft",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {},
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "revision_conflict"
+    },
+    {
+      "operationId": "publishSurvey",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1,
+        "survey_version": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveySettings",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_settings_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveyTimeout",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "scheduleSurveyEnd",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveyAccess",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "transitionSurvey",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "duplicateSurvey",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey": 1,
+        "survey_draft": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "deleteSurveyPermanently",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "outbox_event": 1,
+        "survey_deletion": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyInvitation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "outbox_event": 1,
+        "survey_invitation": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "revokeSurveyInvitation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyAnalysis",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_analysis_snapshot": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyResponseSelection",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_analysis_snapshot": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyExportSelection",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_analysis_snapshot": 1,
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyExport",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "outbox_event": 1,
+        "survey_export_job": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "startSurveyParticipation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1,
+        "survey_participation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": null
+    },
+    {
+      "operationId": "redeemSurveyInvitation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_participation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": null
+    },
+    {
+      "operationId": "saveSurveyResponse",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "completeSurveyResponse",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    }
+  ],
+  "tablesChecked": [
+    "outbox_event",
+    "survey",
+    "survey_analysis_snapshot",
+    "survey_deletion",
+    "survey_draft",
+    "survey_export_job",
+    "survey_grant",
+    "survey_invitation",
+    "survey_operation",
+    "survey_participation",
+    "survey_recovery_identity",
+    "survey_settings",
+    "survey_settings_operation",
+    "survey_version"
+  ],
+  "scope": "Concurrent identical requests and changed-key rejection; independent competing revisions and cross-operation races require their separate proofs"
+}

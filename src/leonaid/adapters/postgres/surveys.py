@@ -1003,13 +1003,18 @@ class AsyncpgSurveyRepository:
                     "SELECT inactivity_timeout_seconds FROM survey_settings WHERE singleton"
                 )
                 row = await conn.fetchrow(
-                    "INSERT INTO survey_participation(id,survey_id,version_id,resume_digest,inactivity_timeout_seconds) VALUES($1,$2,$3,$4,$5) RETURNING *",
+                    "INSERT INTO survey_participation(id,survey_id,version_id,resume_digest,inactivity_timeout_seconds) VALUES($1,$2,$3,$4,$5) ON CONFLICT(resume_digest) DO NOTHING RETURNING *",
                     uuid4(),
                     survey_id,
                     survey["published_version_id"],
                     secret_hash,
                     timeout,
                 )
+                if row is None:
+                    raise Conflict(
+                        "idempotency_conflict",
+                        "Diese Zugangsdaten werden bereits für eine Teilnahme verwendet.",
+                    )
             else:
                 row = await conn.fetchrow(
                     "SELECT * FROM survey_participation WHERE id=$1 AND survey_id=$2 FOR UPDATE",
