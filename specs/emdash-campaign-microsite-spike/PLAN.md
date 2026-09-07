@@ -1947,6 +1947,9 @@ fields are absent; generated TypeScript types compile.
       resources removed; no host ports. This is direct Core HTTP evidence, not
       public TLS/browser cache acceptance, token redemption/order submission,
       dependency-failure deadlines, historical archive policy or Astro delivery.
+      Post-commit `./leonaid check` passed at `74f2dd9`: 208 unit tests, 243
+      Python source checks, 38 CMS files without diagnostics, all frontend/API/
+      generated-type/format/privacy/policy gates and an unchanged committed tree.
 
 - [x] Add and live-prove the internal active-campaign Core resolver prerequisite.
       `resolve_public_campaign` resolves the stable archive slug but applies fresh
