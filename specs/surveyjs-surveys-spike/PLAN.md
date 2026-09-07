@@ -726,19 +726,19 @@ Implementation tasks:
 
 - [x] **070.1** Implement immutable analysis snapshots, status/version filters and per-question relevance/answer denominators. Acceptance: **070.A1, 070.A2, 070.A3**. [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
 - [x] **070.2** Implement distributions, rating summaries, NPS and matrix aggregates with explicit handling of missing, hidden and invalid values. Acceptance: **070.A1, 070.A3**. [Engine progress and remaining host/UI acceptance](proofs/SURV-070.md). [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
-- [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views. Acceptance: **070.A2, 070.A3, 070.A4**.
+- [x] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views. Acceptance: **070.A2, 070.A3, 070.A4**. [Accepted evidence](proofs/SURV-070.md#authorized-raw-response-browser-views).
 
 Test implementation and verification tasks:
 
 - [x] **070.T1** Seed hand-calculated golden results for all supported aggregates, statuses and versions; assert denominators, empty data, hidden/missing answers and aggregate-only payload authorization. Acceptance: **070.A1, 070.A2**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
-- [ ] **070.T2** Switch status/version/date filters and compare chart labels with snapshot tables; exercise empty states, keyboard table access and denial of raw/free-text routes. Acceptance: **070.A3, 070.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **070.T2** Switch status/version/date filters and compare chart labels with snapshot tables; exercise empty states, keyboard table access and denial of raw/free-text routes. Acceptance: **070.A3, 070.A4**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Accepted evidence](proofs/SURV-070.md#authorized-raw-response-browser-views).
 
 Acceptance criteria:
 
 - [x] **070.A1 — Integration:** seeded golden data matches hand-calculated counts, percentages and NPS, including empty results, multiselect and partial responses; versions never merge implicitly. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [x] **070.A2 — Integration:** aggregate-only users receive no raw answer texts or recipient identities in any aggregate payload; unauthorized filters/resources are rejected. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [x] **070.A3 — E2E:** switch completed/partial/version filters and verify chart labels and tables against the same snapshot; empty states and zero denominators remain meaningful. [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
-- [ ] **070.A4 — E2E:** keyboard users can access equivalent table data; an aggregate-only persona cannot open individual response/free-text routes.
+- [x] **070.A4 — E2E:** keyboard users can access equivalent table data; an aggregate-only persona cannot open individual response/free-text routes. [Accepted evidence](proofs/SURV-070.md#authorized-raw-response-browser-views).
 
 ### SURV-080 — CSV, XLSX and Typst exports
 

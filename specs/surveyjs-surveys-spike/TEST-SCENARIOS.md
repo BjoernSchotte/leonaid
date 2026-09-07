@@ -81,7 +81,7 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 - [x] **070.S1 · Integration · 070.T1 → 070.A1:** Seed hand-calculated distributions, ratings, NPS, matrix and multiselect results with partial/hidden/missing answers and multiple versions; every count/denominator matches, including empty results, without implicit version merging. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [x] **070.S2 · Integration · 070.T1 → 070.A2:** Query aggregates with aggregate-only and unauthorized personas; reject forbidden resources/filters and exclude raw text and recipient identities from all aggregate payloads. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
 - [x] **070.S3 · E2E · 070.T2 → 070.A3:** Switch status/version/date filters and compare charts/tables with the same snapshot; labels, counts, empty states and zero denominators stay consistent. [Accepted evidence](proofs/SURV-070.md#analysis-ui-and-neutral-result-components).
-- [ ] **070.S4 · E2E · 070.T2 → 070.A4:** Reach equivalent table data by keyboard; an aggregate-only member cannot open individual-response or free-text routes.
+- [x] **070.S4 · E2E · 070.T2 → 070.A4:** Reach equivalent table data by keyboard; an aggregate-only member cannot open individual-response or free-text routes. [Accepted evidence](proofs/SURV-070.md#authorized-raw-response-browser-views).
 
 ## SURV-080 — Exports
 

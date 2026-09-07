@@ -2,9 +2,9 @@
 
 The initial engine increment started at baseline `0ac8da1` on 2026-09-07.
 The snapshot increment below starts at `29a33f7`. **070.A1 / 070.A2 and their
-integration scenarios are accepted.** The later UI increment below also accepts
-070.A3 / 070.S3 and tasks 070.1 / 070.2. Separately authorized raw-response
-integration remains open.
+integration scenarios are accepted.** The later UI increments below also accept
+070.A3/A4, S3/S4 and all three SURV-070 implementation tasks. Export and broader
+module/retention acceptance remain governed by their own work packages.
 
 ## Task ledger
 
@@ -12,9 +12,9 @@ integration remains open.
 |---|---|---|
 | 070.1 | Strict DTOs, immutable PostgreSQL snapshots, authorized filters, worker-delay consistency and real member filter UI | Accepted: A1/A2/A3 and S1/S2/S3 |
 | 070.2 | Neutral engine, batch combination, golden snapshot API and chart/table UI | Accepted: A1/A3 and S1/S3 |
-| 070.3 | Custom charts/tables and separately authorized raw-response API delivered | Raw/free-text browser views and their authorization E2E remain open under A4 |
+| 070.3 | Custom charts/tables and separately authorized raw-response API/browser views | Accepted: A2/A3/A4 and S2/S3/S4 |
 | 070.T1 | Engine and actual API golden data, aggregate-only/foreign/action/test scope rejection, immutable snapshot and batching/limit checks | Accepted for A1/A2; broader module capabilities remain tracked by SURV-060 |
-| 070.T2 | Actual analysis filters, chart/table values, empty states and keyboard tables pass | Raw-route-denial E2E remains open under A4 |
+| 070.T2 | Actual filters, chart/table values, empty states, keyboard tables and raw-route denial | Accepted: A3/A4 and S3/S4 |
 
 ## Aggregate semantics
 
@@ -237,7 +237,7 @@ action-membership, deadline and limit cases. Final Mypy on four application file
 and member-app TypeScript passed; generated OpenAPI/client includes all three
 routes. Source and test Ruff checks and `git diff --check` passed.
 
-## Remaining acceptance
+## Acceptance boundary before the raw-response UI increment
 
 After the UI increment below, 070.A4, 070.T2 and task 070.3 remain open for
 separately authorized individual/free-text routes and their E2E denial journeys. The private raw projection is not itself a delivered
@@ -389,3 +389,82 @@ check passes. OpenAPI/client generation and whitespace checks pass.
 This accepts the raw **API building block**, not 070.A4 or the full 070.3 task.
 The actual raw/free-text browser views, safe literal rendering and aggregate-only
 UI/direct-navigation denial journey still need implementation and live proof.
+
+## Authorized raw-response browser views
+
+Baseline `18162b8` plus the member UI, authored-label metadata and browser
+assertions in this increment. **070.A4 / 070.S4, 070.T2 and 070.3 are accepted.**
+The earlier sections retain their incremental gaps; the task ledger above gives
+the current reconciled acceptance state.
+
+`SurveyResponses` provides **Einzelantworten lesen** only with `read_responses`
+and outside trash. It independently loads authorized versions and captures a
+version/status/date/test selection, so a raw-only member can work without
+aggregate permission. A URL containing selection and participation IDs restores
+the fixed view after reload; every API request rechecks access. Aggregate-only
+members see a generic denial for such a URL and receive no raw-view component.
+
+The view offers 50-row paging, individual answers, free-text question selection,
+free-text paging and links from text to its individual response. The metadata
+now includes authored choice and matrix-row labels without answer counts or
+raw content; the UI renders those labels instead of internal choice values.
+Missing values remain explicitly unanswered. React text rendering preserves
+literal text and line breaks without interpreting HTML.
+
+Selection creation retains its operation ID/body across an uncertain response.
+Reading another individual first clears the old detail; a failed read cannot
+leave a different person's answer presented as the newly requested one. Current
+selection metadata remains visibly separate from unsubmitted filter changes.
+
+### Actual browser evidence
+
+`tests/e2e/surveys-responses.spec.mjs` adds two actual-browser journeys to
+`./leonaid test-surveys-analysis`, using synthetic sessions with only
+`read_responses` or only `view_aggregates`. The final run passed as
+`leonaid-surveys-833458328-31097`, exit **0**: four Chromium tests in **14.7s**,
+all preceding API/PostgreSQL/worker assertions, no host ports, and verified
+container/volume/network cleanup.
+
+The raw-only journey proves:
+
+- Direct selection/individual links and reload restore the original frozen text,
+  even after the actual response changed. Aggregate and test-source controls are
+  absent for this principal.
+- Paging the 51-row selection shows 50 rows, then the single 51st row and back.
+- Keyboard Enter loads free text. The two original strings link to the matching
+  frozen individual response; a fresh all-status selection has 52 rows and three
+  strings including the later update. A future date yields the empty state.
+- The authored `Alpha`/`Beta` choices and `Organisation: Gut` /
+  `Verpflegung: Verbesserungsbedarf` matrix labels appear in the detail.
+- A literal image/onerror string appears as text; no image element is created
+  and the seeded JavaScript marker remains undefined.
+- An interrupted individual GET removes the prior detail, reports failure and
+  succeeds on retry with the requested frozen answer.
+- A successfully committed selection whose HTTP response is deliberately lost
+  is retried with the identical operation/body and original stored selection ID.
+- At 390 × 844, text, question selection and response links remain available
+  without horizontal document overflow. Desktop uses 1280 × 900.
+
+The aggregate-only journey opens the same member URL and sees a generic denial,
+without the raw controls or content. Direct version, selection, summary,
+individual and free-text GETs and selection POST all return 404. Direct browser
+navigation to the individual API route also returns 404 without the raw text.
+The same command retains the preceding keyboard-accessible aggregate-table test,
+completing both parts of 070.S4 rather than treating absent routes as proof.
+
+The first run (`…-29703`) failed one test due to an ambiguous status locator
+matching both loading and applied-state messages; the other three passed. The
+locator was narrowed to the applied selection. The next run (`…-30434`) passed
+all four in 16.8s. The final run adds the explicit interrupted-read recovery case.
+
+[Individual view](assets/SURV-070-raw-individual.png) and
+[mobile free text](assets/SURV-070-raw-mobile.png) were visually inspected for
+literal rendering, readable labels, wrapping and reachable controls. Component
+captures temporarily make the host topbar static to avoid screenshot overlap.
+These bounded checks do not claim a complete accessibility audit.
+
+Final Python Ruff checks, Mypy on both modified Python modules, member TypeScript
+and diff whitespace checks passed. Generated OpenAPI/client matches the label
+metadata. No new dependency or license decision was introduced. The work package
+is accepted; raw/report exports, retention, full capability-matrix coverage and
+preview creation remain open under SURV-080/090/060.

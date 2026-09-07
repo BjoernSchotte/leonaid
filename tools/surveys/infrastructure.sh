@@ -94,7 +94,7 @@ if [ "$mode" = invitations ]; then
 fi
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = analysis ]; then
-  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs"
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
@@ -138,6 +138,7 @@ mkdir -p "$artifact"
 if [ "$mode" = analysis ]; then
   cp "$proof/survey-analysis-snapshot.json" "$artifact/"
   cp "$proof/raw-response-proof.json" "$artifact/"
+  cp "$proof"/surveys-responses-*.png "$artifact/"
   cp "$proof"/surveys-analytics-*.png "$artifact/"
 fi
 if [ "$mode" = aggregates ]; then

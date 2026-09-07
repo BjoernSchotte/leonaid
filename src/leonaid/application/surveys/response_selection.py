@@ -11,10 +11,17 @@ from leonaid.application.surveys.analysis_snapshot import (
 )
 
 
+class ResponseChoice(AggregateModel):
+    value: str | int | float | bool | None
+    label: str
+
+
 class ResponseQuestion(AggregateModel):
     id: str
     title: str
     kind: str
+    choices: list[ResponseChoice]
+    rows: list[ResponseChoice]
 
 
 class ResponseSelection(AggregateModel):

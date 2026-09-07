@@ -8884,6 +8884,41 @@
         "title": "ResolvedAnalysisFilter",
         "type": "object"
       },
+      "ResponseChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ResponseChoice",
+        "type": "object"
+      },
       "ResponseItem": {
         "additionalProperties": false,
         "properties": {
@@ -8979,6 +9014,13 @@
       "ResponseQuestion": {
         "additionalProperties": false,
         "properties": {
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseChoice"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -8986,6 +9028,13 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseChoice"
+            },
+            "title": "Rows",
+            "type": "array"
           },
           "title": {
             "title": "Title",
@@ -8995,7 +9044,9 @@
         "required": [
           "id",
           "title",
-          "kind"
+          "kind",
+          "choices",
+          "rows"
         ],
         "title": "ResponseQuestion",
         "type": "object"

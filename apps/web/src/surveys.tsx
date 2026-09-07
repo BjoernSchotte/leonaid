@@ -20,6 +20,7 @@ import type {
 import "@leonaid/surveys/editor-styles";
 import "./surveys.css";
 import { SurveyAnalysis } from "./survey-analysis";
+import { SurveyResponses } from "./survey-responses";
 
 const labels = {
   draft: "Entwurf",
@@ -865,6 +866,13 @@ export function SurveysPage({
               <SurveyAnalysis key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} />
             </details>
           )}
+          {summary.status !== "deleted" && allowed("read_responses") && (
+            <details className="surveys-settings" open={Boolean(new URLSearchParams(location.search).get("responseSelection"))}>
+              <summary>Einzelantworten lesen</summary>
+              <SurveyResponses key={summary.id} client={client} surveyId={summary.id} canTest={allowed("design")} />
+            </details>
+          )}
+          {new URLSearchParams(location.search).has("responseSelection") && (!allowed("read_responses") || summary.status === "deleted") && <p role="alert">Dieser Antwortstand ist für Sie nicht zugänglich.</p>}
           {draft && (
             <SurveyEditor
               draft={draft}

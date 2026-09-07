@@ -33,6 +33,21 @@ async def main():
             Path("tests/fixtures/surveys/analysis-golden.json").read_text()
         )["definition"]
 
+        for page in definition["pages"]:
+            for question in page["elements"]:
+                if question["name"] == "matrix":
+                    question["title"] = "Bewertung"
+                    question["rows"] = [
+                        {"value": "r1", "text": "Organisation"},
+                        {"value": "r2", "text": "Verpflegung"},
+                    ]
+                    question["columns"] = [
+                        {"value": "good", "text": "Gut"},
+                        {"value": "bad", "text": "Verbesserungsbedarf"},
+                    ]
+                elif question["name"] == "text":
+                    question["title"] = "Rückmeldung"
+
         async def create_survey(title):
             sid = uuid4()
             path = f"/api/v1/surveys/{sid}"
@@ -99,7 +114,14 @@ async def main():
             return pid, token
 
         literal = '<img src=x onerror="window.rawAnswerExecuted=true"> Synthetic literal feedback'
-        first, _ = await seed({"text": literal, "nps": 10})
+        first, _ = await seed(
+            {
+                "text": literal,
+                "nps": 10,
+                "multi": ["a", "b"],
+                "matrix": {"r1": "good", "r2": "bad"},
+            }
+        )
         partial, resume = await seed(
             {"text": "Saved partial feedback", "nps": 0}, "partial"
         )
@@ -114,7 +136,10 @@ async def main():
         assert selection == await call("POST", endpoint, body, reader)
         selected_path = endpoint + "/" + selection["id"]
         assert selection == await call("GET", selected_path, auth=reader)
-        assert all(set(q) == {"id", "title", "kind"} for q in selection["questions"])
+        assert all(
+            set(q) == {"id", "title", "kind", "choices", "rows"}
+            for q in selection["questions"]
+        )
         assert "statusCounts" not in selection and "answers" not in json.dumps(
             selection
         )

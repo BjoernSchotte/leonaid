@@ -25,7 +25,23 @@ def selection_metadata(snapshot: dict[str, Any]) -> dict[str, Any]:
             "filter": snapshot["filter"],
             "total": snapshot["participationCount"],
             "questions": [
-                {"id": q["questionId"], "title": q["title"], "kind": q["kind"]}
+                {
+                    "id": q["questionId"],
+                    "title": q["title"],
+                    "kind": q["kind"],
+                    "choices": [
+                        {"value": c["value"], "label": c["label"]}
+                        for c in (
+                            q["matrixRows"][0]["counts"]
+                            if q["matrixRows"]
+                            else q["counts"]
+                        )
+                    ],
+                    "rows": [
+                        {"value": r["rowId"], "label": r["label"]}
+                        for r in q["matrixRows"]
+                    ],
+                }
                 for q in snapshot["questions"]
             ],
         }

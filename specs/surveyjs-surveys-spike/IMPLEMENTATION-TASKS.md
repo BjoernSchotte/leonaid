@@ -228,9 +228,9 @@ a substitute for completing an individual task.
   Integration / supporting checks: **070.S1**.
   E2E: **070.S3**.
 
-- [ ] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views.
+- [x] **070.3** Build custom charts and accessible tables, plus separately authorized free-text/individual-response views.
 
-  Acceptance criteria: **070.A2, 070.A3, 070.A4**.
+  Acceptance criteria: **070.A2, 070.A3, 070.A4**. [Accepted evidence](proofs/SURV-070.md#authorized-raw-response-browser-views).
   Integration / supporting checks: **070.S2**.
   E2E: **070.S3, 070.S4**.
 
