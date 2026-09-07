@@ -7,6 +7,8 @@ case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|medi
 if [ "$mode" = order-component ] || [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$BUN_IMAGE" bun tools/emdash_spike/order-redisplay-proof.ts
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$BUN_IMAGE" bun tools/emdash_spike/order-presentation-proof.ts
 fi
 if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
@@ -86,6 +88,9 @@ if [ "$mode" = order-component ]; then
   visual_proof=$(mktemp -d)
   compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
     node tools/emdash_spike/public-order-component-proof.mjs
+  fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
+  compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+    node tools/emdash_spike/public-order-component-proof.mjs --mixed
   echo "public-order-component: synthetic screenshots retained in $visual_proof"
   exit 0
 fi
@@ -148,6 +153,9 @@ if [ "$mode" != auth ]; then
       node tools/emdash_spike/public-campaign-browser-proof.mjs
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
       node tools/emdash_spike/public-order-component-proof.mjs --campaign
+    fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
+    compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
+      node tools/emdash_spike/public-order-component-proof.mjs --campaign --mixed
     echo "public-campaign: synthetic screenshots retained in $visual_proof"
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"

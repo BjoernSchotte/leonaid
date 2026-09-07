@@ -79,6 +79,33 @@ status, or action-role assignments in EmDash. Every EmDash microsite record must
 contain an immutable LeonAid `action_id` reference. Public rendering must resolve
 that reference through the existing typed LeonAid API.
 
+Order transport clarification (confirmed by the user): the browser submits to
+the same-origin Astro form action, which calls LeonAid Core over the internal
+Docker network. Twenty remains the system of record for CRM companies and
+contacts; only Core coordinates CRM writes and owns order processing. Neither
+EmDash content APIs nor its database store orders or receive CRM credentials.
+The Core order endpoint `/api/v1/public/actions/{public_alias}/orders` must NOT
+be reachable through public web ingress. The `public` segment is an application
+contract name, not permission to expose this endpoint on the internet.
+
+- [ ] Deny the Core order route at every public ingress before generic API
+      forwarding, independently of request method, including trailing-slash and
+      encoded/normalized path variants. Apply the same policy to local and pilot
+      routing and the pilot test configuration; preserve unrelated Core API
+      routes. Never grant access based on caller-supplied forwarded headers.
+- [ ] Keep Core free of published host ports and use the internal service URL
+      for the Astro order adapter. Document the permitted internal callers:
+      the campaign Astro service and the existing public Astro service while
+      its shared action/legacy form remains in use. A deny rule at ingress is
+      not proof of exclusive service-to-service authorization; inventory and
+      enforce that boundary separately if other containers can reach Core.
+- [ ] Live-prove direct public Core order requests are denied without redirects
+      or Core mutations, while real browser submissions through Astro still
+      reach Core and complete successfully with Twenty. Include forged internal
+      headers, both JS and native form transport, and unrelated API regression
+      checks. Retain Core's own token, price, publication, validation and
+      idempotency checks; internal reachability never bypasses them.
+
 ### 2.2 Preserve the LeonAid frontend shell; do not embed EmDash in an iframe
 
 The existing React admin application remains the primary LeonAid management
@@ -1995,6 +2022,31 @@ mutable `action_id` values are rejected; Core-owned and executable-content
 fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
+
+- [x] Share one unit-aware quantity-preview formatter between SSR and browser
+      enhancement. Keep boxes, packages, individual pieces and sponsoring
+      separate; show physical contents only when known for boxes/packages.
+      Empty and invalid selections have explicit messages. Aggregate only
+      matching units and contents; do not count sponsoring as physical pieces.
+      `public-order-component` passed in `leonaid-emdash-tmp-i8ts9pl52q` and
+      `campaign-public-http` passed in `leonaid-emdash-tmp-3lfbnqg6gw`, serially.
+      Both real Astro pages passed Chromium/Firefox/WebKit with and without JS,
+      first with the original offering and then with three extra synthetic
+      offerings inserted into the isolated Core PostgreSQL database (24 form
+      journeys total). The mixed selection retained three boxes, two packages,
+      four pieces and one sponsoring after the real Core dependency error;
+      its preview stayed unit-specific and its total was 115 EUR. Initial SSR
+      and enhanced summaries agree; JS input updates and native error redisplay
+      use the same formatter. Focused tests cover ordering, aggregation,
+      different/missing package sizes, zero and invalid quantities. Existing
+      retained-input, escaped-markup, no-cookie/no-false-success, publication,
+      draft/TLS and Core-outage regressions passed. Synthetic full-page mobile
+      screenshots were inspected for layout; exact summary text and overflow
+      were browser-asserted. No host ports were published; all owned containers,
+      networks and volumes were removed. This closes the selection-preview
+      issue only: accepted-order confirmation summaries, successful ordering,
+      idempotency and the full validation matrix remain open. Core order/CRM
+      authority and the existing Astro-to-Core transport are unchanged.
 
 - [x] Preserve request-local order inputs on native form errors without cookies,
       CMS storage or another identity. The shared form uses a bounded 64 KiB

@@ -142,6 +142,26 @@ async def main() -> None:
                         KLARA_ID,
                         now - timedelta(days=1),
                     )
+        elif sys.argv[1] == "prepare-mixed-offerings":
+            async with connection.transaction():
+                for suffix, unit in [
+                    (91, "package"),
+                    (92, "piece"),
+                    (93, "sponsoring"),
+                ]:
+                    await connection.execute(
+                        """INSERT INTO offering
+                        (id, action_id, code, name, status, unit,
+                         allowed_quantity_units, pieces_per_unit,
+                         unit_price_minor, currency)
+                        VALUES ($1, $2, $3, $4, 'active', $5,
+                                ARRAY[$5]::text[], NULL, 100, 'EUR')""",
+                        UUID(f"70000000-0000-4000-8000-{suffix:012d}"),
+                        UUID("20000000-0000-4000-8000-000000000001"),
+                        f"synthetic-{unit}",
+                        f"Synthetic {unit}",
+                        unit,
+                    )
         elif sys.argv[1].startswith("publication-"):
             mode = sys.argv[1].removeprefix("publication-")
             if mode not in {

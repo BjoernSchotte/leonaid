@@ -5,7 +5,12 @@ import type {
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
-import { money, offeringPrice, offeringUnit } from "../lib/order-presentation";
+import {
+  money,
+  offeringPrice,
+  offeringUnit,
+  orderQuantitySummary,
+} from "../lib/order-presentation";
 import { readOrderRedisplay } from "../lib/order-redisplay";
 
 interface Props {
@@ -33,10 +38,12 @@ const totalMinor = action.offerings.reduce(
     sum + quantityFor(offering.id, index) * offering.unitPriceMinor,
   0,
 );
-const totalPieces = action.offerings.reduce(
-  (sum, offering, index) =>
-    sum + quantityFor(offering.id, index) * (offering.piecesPerUnit ?? 1),
-  0,
+const quantitySummary = orderQuantitySummary(
+  action.offerings.map((offering, index) => ({
+    unit: offering.unit,
+    piecesPerUnit: offering.piecesPerUnit,
+    quantity: quantityFor(offering.id, index),
+  })),
 );
 ---
 
@@ -258,9 +265,7 @@ const totalPieces = action.offerings.reduce(
                   <strong data-order-preview-total>
                     {money(totalMinor, action.offerings[0]?.currency ?? "EUR")}
                   </strong>
-                  <small data-order-preview-quantity>
-                    {`${totalPieces} ${action.offerings[0]?.piecesPerUnit ? "Stück" : "Einheiten"}`}
-                  </small>
+                  <small data-order-preview-quantity>{quantitySummary}</small>
                 </div>
               </fieldset>
 

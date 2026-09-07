@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { chromium, firefox, webkit } from "playwright";
 
 const campaign = process.argv.includes("--campaign");
+const mixed = process.argv.includes("--mixed");
 const pagePath = campaign ? "/campaigns/krapfentaxi-2026/" : "/krapfentaxi";
 
 // Real public Astro + Core. This fixture intentionally has no CRM credentials:
@@ -21,6 +22,12 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       assert.match(response.headers()["cache-control"], /no-store/);
       const form = page.locator("[data-order-form]");
       await form.waitFor();
+      assert.equal(
+        (
+          await form.locator("[data-order-preview-quantity]").textContent()
+        ).trim(),
+        "1 Box (24 Stück)",
+      );
       const commandId = await form.locator('[name="commandId"]').inputValue();
       assert.equal(await form.count(), 1);
       assert.equal(
@@ -53,6 +60,31 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       for (const [field, value] of Object.entries(inputs))
         await form.locator(`[name="${field}"]`).fill(value);
       await form.locator('[name="quantity"]').first().fill("3");
+      if (mixed) {
+        assert.equal(await form.locator('[name="quantity"]').count(), 4);
+        for (const [unit, quantity] of [
+          ["package", "2"],
+          ["piece", "4"],
+          ["sponsoring", "1"],
+        ])
+          await form
+            .locator(`[data-quantity][data-unit="${unit}"]`)
+            .fill(quantity);
+      }
+      const expectedQuantity = mixed
+        ? "3 Boxen (72 Stück) · 2 Pakete · 4 Stück · 1 Sponsoring"
+        : "3 Boxen (72 Stück)";
+      const assertQuantity = async () => {
+        const summary = (
+          await form.locator("[data-order-preview-quantity]").textContent()
+        ).trim();
+        // Offering order belongs to Core; each unlike unit must remain explicit.
+        assert.deepEqual(
+          summary.split(" · ").sort(),
+          expectedQuantity.split(" · ").sort(),
+        );
+      };
+      if (javaScriptEnabled) await assertQuantity();
       await form.locator('[name="privacyAcknowledged"]').check();
       await form.locator('[name="bindingOrderConfirmed"]').check();
       assert.equal(
@@ -94,8 +126,22 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
       );
       assert.match(
         await form.locator("[data-order-preview-total]").textContent(),
-        /108,00/,
+        mixed ? /115,00/ : /108,00/,
       );
+      await assertQuantity();
+      if (mixed) {
+        for (const [unit, quantity] of [
+          ["package", "2"],
+          ["piece", "4"],
+          ["sponsoring", "1"],
+        ])
+          assert.equal(
+            await form
+              .locator(`[data-quantity][data-unit="${unit}"]`)
+              .inputValue(),
+            quantity,
+          );
+      }
       assert.equal(
         await form.locator('[name="billingSameAsDelivery"]').isChecked(),
         false,
@@ -134,17 +180,17 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           "form-proof@leonaid.invalid",
         );
         await page.screenshot({
-          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}-desktop.png`,
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}${mixed ? "-mixed" : ""}-desktop.png`,
           fullPage: true,
         });
       } else
         await page.screenshot({
-          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}-mobile-nojs.png`,
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}${mixed ? "-mixed" : ""}-mobile-nojs.png`,
           fullPage: true,
         });
       await context.close();
       console.log(
-        `public-order-component: campaign=${campaign} ${name} JS=${javaScriptEnabled}; real POST/error, escaped retained fields, separate billing, quantities and command ID, no false success or cookie passed`,
+        `public-order-component: campaign=${campaign} mixed=${mixed} ${name} JS=${javaScriptEnabled}; real POST/error, escaped retained fields, separate billing, unit-specific summaries and command ID, no false success or cookie passed`,
       );
     }
   } finally {
