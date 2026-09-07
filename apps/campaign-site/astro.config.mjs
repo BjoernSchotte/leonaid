@@ -7,6 +7,7 @@ import routeContract from "./route-contract.mjs";
 import stableIdentityPatch from "./emdash-auth-patch.mjs";
 import editorRevisionPatch from "./emdash-editor-patch.mjs";
 import contentLogPatch from "./emdash-content-log-patch.mjs";
+import postgresPatch from "./emdash-postgres-patch.mjs";
 
 export default defineConfig({
   output: "server",
@@ -23,6 +24,7 @@ export default defineConfig({
     stableIdentityPatch(),
     editorRevisionPatch(),
     contentLogPatch(),
+    postgresPatch(),
     react(),
     emdash({
       // A fixed public favicon avoids the native shell resolving global CMS

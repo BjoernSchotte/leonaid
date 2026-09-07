@@ -1953,6 +1953,32 @@ fields are absent; generated TypeScript types compile.
 
 ### EMS-050 — Render live campaign microsites from both systems
 
+- [x] Bound actual PostgreSQL pool acquisition in the CMS runtime to two
+      seconds while retaining the existing five-connection maximum. The pinned
+      upstream adapter ignores timeout options, so a hash-guarded build
+      transform adds `connectionTimeoutMillis: 2000` to its actual `pg.Pool`.
+      Preserve the upstream fail-fast migration dialect and runtime-only
+      credentials. Source drift/double patching or a production build that did
+      not apply the transform must fail closed. No additional pool or database
+      service is introduced; operator migration scripts remain separate.
+      `postgres-pool` passed in `leonaid-emdash-tmp-jl3gly3zyd`: load the exact
+      production transform with the real installed driver, hold five actual
+      PostgreSQL connections, and require further acquisitions to reject in
+      1.8–4 seconds. The public reader returns `PublishedCampaignUnavailable`.
+      Releasing the connections restores capacity; server activity confirms
+      an expired queued query never runs later. Byte/semantic drift and double
+      application are rejected. The initial fixture import used pg's CommonJS
+      entry; selecting its real ESM export corrected the fixture without
+      changing the driver or production patch.
+      `campaign-public-media` then passed in `leonaid-emdash-tmp-o02d7pqyzn`:
+      production build confirms patch application, and actual Core/CMS/TLS,
+      native publish/draft isolation, media corruption/repair, three-browser
+      desktop/mobile and service failure/recovery regressions pass. All owned
+      resources were removed; no host ports were published. This is a real
+      adapter-level saturation proof plus runtime regression, not HTTP-level
+      saturation or a whole-request deadline. SQL execution, total request
+      budgets and mixed Core/CMS load acceptance remain open.
+
 - [x] Extend the public-media live gate with real RustFS corruption and repair,
       without replacing the storage client or HTTP responses. The isolated
       operator targets only the proof's known synthetic campaign/media ID and
