@@ -3246,6 +3246,19 @@ another running checkout or authorize production deployment.
         proves normal order completion on the imported canonical page, not
         cutover/alias recovery, additional price/availability transitions, or
         burst/deadline behaviour on this theme.
+        Post-alias regression at `17931ef`: the complete `krapfentaxi-orders`
+        case passed again in isolated `leonaid-emdash-tmp-ng6d1viv94`, after
+        the strict campaign-response correction and the alias-management UI
+        integration. This also executes the published-target redirect proof
+        and alias reassignment: the original published campaign remains 200
+        with its last WebKit editorial marker, while its canonical Core identity
+        and historical archive stay unchanged. All 24 actual browser orders,
+        six mixed-unit orders, twelve duplicate-free native replays and 84
+        valid-payload public Core denials passed, with real Core/Twenty checks.
+        No CMS republish was needed for the subsequently configured Core
+        offerings. Exit 0 and complete cleanup of only owned resources. The
+        latest source quality gate remains the successful full check at
+        `c5ac72f`; this rerun changes only recorded evidence, not source code.
         Full `./leonaid check` at source commit `6a0cb59` exited 0: 210 unit
         tests, 250 Python source checks, 24 public and 47 CMS Astro files without
         diagnostics, generated-type/format/privacy/policy gates and an unchanged
