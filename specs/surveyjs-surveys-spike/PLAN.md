@@ -731,6 +731,8 @@ Implementation tasks:
 - [x] **060.2e** Recheck revoked grants, expired action memberships and suspended accounts using existing sessions; reject foreign snapshot, response, version and export-job IDs without changing survey state. Acceptance: **060.A1, dynamic authority and child-resource boundaries**. Integration: **060.S1b**. [Live evidence](proofs/SURV-060.md#changed-authority-and-child-resource-boundaries). [Consolidated acceptance](proofs/SURV-060.md#consolidated-surv-060-acceptance).
 - [x] **060.2f** Prove populated invitation scopes and single-grant invite/complete/revoke journeys on desktop/mobile, plus requester-specific completed deletion status and exact replay. Acceptance: **060.A1/A4**. Integration/E2E: **060.S4d**. [Live evidence](proofs/SURV-060.md#invitation-and-deletion-special-scopes).
 - [x] **060.3** Implement anonymous links, revocable attributable invitations, secure resume sessions and synthetic invitation delivery through outbox/worker/Mailpit. Acceptance: **060.A2, 060.A3**.
+
+  Retry evidence: **060.S3a** supersedes the historical fabricated-500 test with two lost real acknowledgements and one unchanged server response. [Live correction](proofs/SURV-060.md#real-response-invitation-retry-and-test-policy-correction).
 - [x] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis. Acceptance: **060.A5**. [Live preview, timeout and stored analysis proof](proofs/SURV-060.md#preview-isolation-and-timeout-snapshot-acceptance).
 
 Test implementation and verification tasks:

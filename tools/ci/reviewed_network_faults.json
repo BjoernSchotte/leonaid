@@ -1,0 +1,62 @@
+[
+  {
+    "path": "tests/e2e/surveys-analytics.spec.mjs",
+    "sha256": "e56cb72cf6ae6eaf719fab5fadba54059308c04ca45cdf50d151662fc0b7a432",
+    "reason": "Drop one acknowledgement after a real analysis snapshot is committed; retry and verify the stored snapshot."
+  },
+  {
+    "path": "tests/e2e/surveys-authoring.spec.mjs",
+    "sha256": "634eb4d18f8cb0c610e21f19a725233758f4bb3c3569ad2f8375a15478bec5bf",
+    "reason": "Drop one real publication acknowledgement; subsequent request reaches the server unchanged."
+  },
+  {
+    "path": "tests/e2e/surveys-deletion.spec.mjs",
+    "sha256": "4f3cc5f0fdf71463915bde2e1176ded7da1e174e8eabce56706f779bebc7ad52",
+    "reason": "Fetch real pending deletion status, drop acknowledgement and verify durable deletion on reload."
+  },
+  {
+    "path": "tests/e2e/surveys-export-states.spec.mjs",
+    "sha256": "57ac398caee2936c218bb9cda5eb31a3535c54e31e373b5d1c76f48ca1ee412f",
+    "reason": "Abort one status read while real worker failures and recovery determine export state."
+  },
+  {
+    "path": "tests/e2e/surveys-exports.spec.mjs",
+    "sha256": "1fbe2f46269a663abd44b351ccec093f50057591964399a4cf9d4cd81e224def",
+    "reason": "Drop a committed export request acknowledgement; forward retries and inspect actual downloads."
+  },
+  {
+    "path": "tests/e2e/surveys-import-recovery.spec.mjs",
+    "sha256": "8c4e1c7329ceeb81d843a9e69818f749161cddaf7757dcf3b39f725e7e8cb62b",
+    "reason": "Commit the first real draft save before losing acknowledgement; abort while disconnected, then retry against persisted revisions."
+  },
+  {
+    "path": "tests/e2e/surveys-invitations.spec.mjs",
+    "sha256": "128a6ed2957d7dd3f0a2bbbcff302ce35fb7468202b69de4e326029ba03cb2ed",
+    "reason": "Fetch actual API responses for three identical requests; abort the first two acknowledgements and forward the unmodified third response; verify one Mailpit message."
+  },
+  {
+    "path": "tests/e2e/surveys-package.spec.mjs",
+    "sha256": "52d4b2047817dc40fde3a34a664499c7dd2cb65916ff38341cab1a0d83809ef9",
+    "reason": "Drop a real independent-backend export acknowledgement and verify identical retry plus real download."
+  },
+  {
+    "path": "tests/e2e/surveys-publisher.spec.mjs",
+    "sha256": "8ec69fccb8f9e4702d5e5af79c9ba72da64c63caf0e9babd5e5998b14dd630b5",
+    "reason": "Drop the first committed publication acknowledgement and forward the unmodified real retry response."
+  },
+  {
+    "path": "tests/e2e/surveys-responses.spec.mjs",
+    "sha256": "d48fd3c676a3e42ebd4e95beeace4551d0ee7947ffc6465c4ebb0b26411e8e8c",
+    "reason": "Abort one response read and one committed response-selection acknowledgement; validate stored selection and restored responses."
+  },
+  {
+    "path": "tests/e2e/surveys-runner.spec.mjs",
+    "sha256": "2fd5e0338e39c531d165e4fc3d5e57f2be23096610035066e7d150e39ac937fd",
+    "reason": "Delay a real save to create a competing-revision conflict; drop a committed completion acknowledgement and forward the unmodified retry response."
+  },
+  {
+    "path": "tests/e2e/surveys-templates.spec.mjs",
+    "sha256": "b326eb171511d66e4d6202595903ad2b625edce41582fdc622d525c34ea35253",
+    "reason": "Drop one actual template creation acknowledgement and retry the original request; inspect independent persisted definitions."
+  }
+]

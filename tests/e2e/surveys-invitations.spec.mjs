@@ -67,19 +67,9 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
       attempts.push(route.request().postDataJSON());
       const response = await route.fetch();
       expect(response.status()).toBe(200);
-      if (attempts.length === 1) await route.abort("failed");
-      else if (attempts.length === 2)
-        await route.fulfill({
-          status: 500,
-          contentType: "application/json",
-          body: JSON.stringify({
-            error: {
-              code: "internal_error",
-              message: "Synthetic unconfirmed server response",
-              requestId: "synthetic",
-            },
-          }),
-        });
+      // Lose two real acknowledgements after the server has committed each request.
+      // A retry must reuse the original operation without duplicating delivery.
+      if (attempts.length <= 2) await route.abort("failed");
       else await route.fulfill({ response });
     });
     await page
@@ -89,9 +79,8 @@ test("member invites through Mailpit, recipient completes, and revocation blocks
     await page
       .getByRole("button", { name: "Einladung senden", exact: true })
       .click();
-    await expect(page.getByRole("alert")).toContainText(
-      "Synthetic unconfirmed server response",
-    );
+    await expect.poll(() => attempts.length).toBe(2);
+    await expect(page.getByRole("alert")).toBeVisible();
     await page
       .getByRole("button", { name: "Einladung senden", exact: true })
       .click();

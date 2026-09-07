@@ -282,6 +282,8 @@ and the complete passing editor regression in that same proof.
   Integration / supporting checks: **060.S2**.
   E2E: **060.S3**.
 
+  Integration/E2E retry correction: **060.S3a**, [real-response proof](proofs/SURV-060.md#real-response-invitation-retry-and-test-policy-correction). No fabricated HTTP response is accepted as current retry evidence.
+
 - [x] **060.4** Add preview/test participation isolation so author testing does not contaminate collected responses or analysis.
 
   Acceptance criteria: **060.A5**.

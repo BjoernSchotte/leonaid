@@ -188,6 +188,8 @@ and `tests/e2e/surveys-invitations.spec.mjs`:
    through the real member UI at 1440 × 1000, then submits a personal invitation.
 2. After the server commits, the test first loses the response, then substitutes
    a synthetic 500 response for a successful retry. A third attempt succeeds.
+   **Correction:** this response substitution was outside the permitted test
+   boundary. The current real-response proof below supersedes this retry claim.
    All three request bodies are identical; only one invitation and one Mailpit
    message exist.
 3. A recipient at 390 × 844 opens the actual message's link (only its origin is
@@ -391,7 +393,8 @@ ambiguity does not become an exactly-once physical delivery guarantee.
 Both Chromium scenarios passed in **4.9 s**: the foundation test and
 `surveys-invitations.spec.mjs` at the existing desktop member/mobile respondent
 viewports. The member creates and publishes an invitation-only survey, retries
-lost/synthetic error acknowledgements with the same operation, receives one
+lost/synthetic error acknowledgements with the same operation (retry evidence
+superseded by the real-response proof below), receives one
 Mailpit message, and revokes access after the recipient completes. PostgreSQL
 independently verifies exactly one completed, attributable response. Direct URL
 capture still proves the fragment credential does not enter request URLs.
@@ -845,3 +848,56 @@ are credited to their recorded runs, not claimed as rerun by `permissions` mode.
 Tasks **060.1–060.4, 060.T1 and 060.T2**, scenarios **060.S1–060.S5** and all five
 SURV-060 acceptance criteria are now accepted. Recovery continuity, broad contract
 consolidation and the full spike/CI acceptance in other work packages remain open.
+
+
+## Real-response invitation retry and test-policy correction
+
+Verified on 2026-09-07 against `f9ed1f1` plus the source changes identified below.
+This supersedes the historical synthetic-HTTP-500 retry evidence; it does not
+claim that the HTTP-500 UI branch has now been exercised.
+
+The browser now executes three identical invitation requests against the actual
+API. Every fetched response must be HTTP 200. It drops the first two transport
+acknowledgements and forwards the third real response unchanged. The UI displays
+an error after each lost acknowledgement and eventually confirms the invitation.
+The three request bodies are identical, Mailpit contains exactly one message,
+and the recipient completes and then loses access after revocation.
+
+Command: `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" invitations`.
+Exit **0**; project `leonaid-surveys-833458328-66219`, seven unused explicit
+subnets, no published host ports. Both Chromium tests passed in **9.2 seconds**
+(member 1440 × 1000, respondent 390 × 844). Independent PostgreSQL verification
+confirmed one attributable completed participation with the expected answer.
+The same run stopped the actual SMTP service, checked retrying/terminal failure
+and cancelled delivery, restored SMTP and verified guarded real delivery.
+Eight real export files were parsed; credential exclusion, retained raw answers
+and captured application-log marker checks passed. Owned teardown passed;
+a separate Docker label inventory confirmed no containers, volumes or networks.
+
+The existing blanket interception prohibition also rejected legitimate transport
+faults authorized by PLAN section 10. The policy now requires a complete-file
+SHA-256 review for each of twelve inspected fault tests. The review documents
+abort/delay/unchanged-response behavior. It is a review record, not an automatic
+semantic proof or a directory exemption: changing any reviewed source invalidates
+its exception. Adding an exception requires inspecting the actual callback and
+its server/persistence assertions, never merely refreshing a hash to make CI green.
+Mock libraries, module substitutions and I/O-port test implementations remain
+forbidden even in reviewed files; arbitrary receiver names and whitespace in
+`.route(...)` calls are detected.
+
+`rtk proxy python3 tools/ci/no_test_doubles_test.py .` exited **0**: current-source
+policy check, one allowed transport-fault fixture and twelve negative cases,
+including modified/fabricated responses under stale review, unreviewed receiver
+aliases, forbidden libraries/module replacement despite a matching hash, and
+missing reviewed source. These are policy tests, not substituted service proofs.
+The other eleven reviewed fault suites retain their own scoped live evidence;
+this change alone does not accept the full aggregate or remote CI gate.
+
+Source hashes (SHA-256):
+
+| File | SHA-256 |
+|---|---|
+| `tests/e2e/surveys-invitations.spec.mjs` | `128a6ed2957d7dd3f0a2bbbcff302ce35fb7468202b69de4e326029ba03cb2ed` |
+| `tools/ci/no_test_doubles.py` | `17477d84cfc85a311190feaaf018e9276a04358b8ffcd62670a3cf8f111ba48d` |
+| `tools/ci/no_test_doubles_test.py` | `679fe577e5929531ca5ff44b80ffd12ba7343b604de3d58aec0810f59e77d289` |
+| `tools/ci/reviewed_network_faults.json` | `80a5024c602e0d07778a92fbfe9f1151419fdfb54f754c3f586f1848a6fc6676` |

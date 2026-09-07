@@ -92,6 +92,8 @@ Reconciled against [runner restart and tab-loss evidence](proofs/SURV-050.md#pro
 - [x] **060.S4d · Integration/E2E · 060.2f → 060.A1/A4:** Check populated invitation lists and foreign revocation IDs; exercise 56 invitation-mode persona/view combinations and four single-grant delivery/completion/revocation journeys. After real erasure, assert requester/admin status access and requester-only exact replay across all personas. [Live evidence](proofs/SURV-060.md#invitation-and-deletion-special-scopes).
 - [x] **060.S5 · E2E · 060.T2 → 060.A5:** Change the timeout in the backend UI; a new participation uses it and an existing participation retains its effective setting. Preview/test responses remain excluded from collected-response analysis.
 
+- [x] **060.S3a · Integration / E2E · 060.T2 → 060.A2, 060.A3:** Fetch three real successful invitation responses; lose the first two acknowledgements and forward the third unchanged. Assert identical request bodies, visible retry states, exactly one Mailpit message and one stored completed participation; verify revocation, real SMTP outage/recovery, eight parsed exports and credential-free application logs. [Live correction](proofs/SURV-060.md#real-response-invitation-retry-and-test-policy-correction). Historical fabricated-500 evidence is superseded, not treated as a passing HTTP-500 branch.
+
 ## SURV-070 — Analysis
 
 - [x] **070.S1 · Integration · 070.T1 → 070.A1:** Seed hand-calculated distributions, ratings, NPS, matrix and multiselect results with partial/hidden/missing answers and multiple versions; every count/denominator matches, including empty results, without implicit version merging. [Accepted evidence](proofs/SURV-070.md#immutable-analysis-snapshots).
