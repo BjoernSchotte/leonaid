@@ -627,3 +627,40 @@ failure browser states remain further hardening/acceptance work. The scope of
 A3 is the specified queue/download revocation gate, not all possible concurrency
 interleavings across the entire module. SURV-080 remains incomplete until its
 remaining tasks and workbook-render gate pass.
+
+## XLSX consumer render review: reproduced failure
+
+On source baseline `601520d`, `tools/surveys/xlsx_render.py` creates normal and
+long-label workbooks through the production `render_tabular` implementation and
+the existing frozen synthetic snapshot. It does not author a substitute workbook.
+Pinned UV execution exited 0; the generated file hashes and sizes are recorded in
+[baseline workbook evidence](assets/SURV-080-xlsx-before.json).
+
+LibreOffice 7.1.1.2 (build fe0b08f4af1bacafe4c7ecc87ce55bb426164676) converted
+both actual XLSX files to PDF using calc_pdf_Export. Conversion used a separate
+UserInstallation under `/private/tmp/leonaid-surveys-xlsx-render-497a`, leaving
+normal application profiles untouched. The sandboxed attempt terminated with
+signal 6; the authorized native invocation exited 0. This is one concrete consumer
+render, not a claim of compatibility with every Excel/LibreOffice release.
+
+Both tiny fixtures produced 24 pages. Text extraction shows the metrics table
+split into five horizontal slices and distributions into four. Manual inspection
+of page 17 confirms the chart is cut off horizontally: the 0–100 percent axis
+ends visibly around 60 and bars continue beyond the page. Long titles and labels
+are also clipped. Evidence: [normal chart failure](assets/SURV-080-xlsx-before-normal.png)
+and [long-label failure](assets/SURV-080-xlsx-before-long.png).
+
+Reproduction after fixture generation:
+
+```sh
+rtk proxy /Applications/LibreOffice.app/Contents/MacOS/soffice \
+  -env:UserInstallation=file:///private/tmp/leonaid-surveys-xlsx-render-497a \
+  --headless --convert-to pdf --outdir .artifacts/surveys-xlsx \
+  .artifacts/surveys-xlsx/normal.xlsx .artifacts/surveys-xlsx/long-labels.xlsx
+```
+
+080.A5 remains failed/open. Required corrections include explicit usable page
+layout and print areas, chart placement that does not split a chart across pages,
+and readable handling of long titles/labels while retaining full source labels
+in the workbook. Re-render and inspect corrected consumer output before accepting
+080.2 or the overall export-render gate. No renderer fix is claimed in this increment.
