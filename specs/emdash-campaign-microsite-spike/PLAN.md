@@ -2484,6 +2484,35 @@ keyboard and 200% zoom checks.
 
 ### EMS-070 — Add same-domain TLS routing and secure first-run setup
 
+- [x] Live-prove accepted campaign orders against real isolated Twenty using
+      `./leonaid test-emdash-spike --case campaign-orders`. The pinned stack
+      provisions its own Twenty database, Redis, worker and schema. A short-lived
+      operator verifies a freshly created restricted CRM key and seeds synthetic
+      companies/people; only Core receives the runtime CRM credential. No order
+      is stored through EmDash content APIs.
+      The successful project `leonaid-emdash-tmp-xfg419em1s` completed 18 browser
+      orders: Chromium, Firefox and WebKit, each with JavaScript on desktop and
+      without JavaScript at mobile width, for new companies, existing companies
+      and private persons. All responses returned HTTP 200 from Astro with the
+      expected reference and total. Core SQL independently verified each order,
+      line pricing, recipient/consent snapshots and audit evidence; real Twenty
+      reads verified the associated company/person records. Nine exact native
+      POST retries returned the original reference and created no extra orders.
+      Replay is explicit browser-native form resubmission, not a claim that all
+      browsers repeat POST on reload (Firefox uses GET). Synthetic visitors have
+      distinct browser identifiers; Core's existing five-attempt admission limit
+      is unchanged. The browser supplies an incorrect internal caller key, which
+      cannot override Astro's server-held key. Consent uses normal hit-tested
+      clicks after explicit viewport positioning, avoiding smooth-scroll races.
+      Twelve failure/redisplay cases, publication-window checks, Core outage and
+      364 direct ingress rejection requests also passed. All owned containers,
+      volumes and networks were removed; no host ports were published. The CRM
+      test network uses an explicit collision-checked subnet because the host's
+      automatic address pools were exhausted; Docker rejects concurrent overlap.
+      Synthetic screenshots were retained in `tmp.6M8YVy0v80`; the WebKit mobile
+      private-order confirmation was visually inspected. This is not production
+      activation, a load test, a mixed-unit success-summary proof, or the complete
+      migration/recovery and security matrix. Those broader gates remain open.
 - [x] Authenticate internal order callers independently of network location.
       Add a dedicated 32-byte hex `LEONAID_ORDER_SUBMISSION_KEY`, distributed
       only to Core, `public` and `campaign-site` runtime services. The shared

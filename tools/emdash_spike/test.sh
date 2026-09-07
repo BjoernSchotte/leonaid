@@ -13,10 +13,13 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
-  campaign-public-content|campaign-public-http|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot) ;;
+  campaign-public-content|campaign-public-http|campaign-public-media|postgres-pool|public-order-component|order-ingress-pilot|campaign-orders) ;;
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
+if [ "$test_case" = campaign-orders ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" public-http true
+fi
 if [ "$test_case" = order-ingress-pilot ] || [ "$test_case" = all ]; then
   for config in Caddyfile Caddyfile.test; do
     /bin/sh "$root/tools/emdash_spike/order-ingress-pilot-test.sh" "$root" "$config"
@@ -81,6 +84,7 @@ if [ "$test_case" = all ] || [ "$test_case" = postgres ]; then
   /bin/sh "$root/tools/emdash_spike/postgres-test.sh" "$root"
 fi
 if [ "$test_case" = all ]; then
+  /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" public-http true
   /bin/sh "$root/tools/emdash_spike/auth-runtime-test.sh" "$root" order-component
   /bin/sh "$root/tools/emdash_spike/campaign-content-test.sh" "$root" pool
   /bin/sh "$root/tools/emdash_spike/rustfs-test.sh" "$root"

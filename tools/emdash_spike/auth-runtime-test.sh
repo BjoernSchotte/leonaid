@@ -2,6 +2,10 @@
 set -eu
 root=$1
 mode=${2:-auth}
+orders=${3:-false}
+case "$orders:$mode" in false:*|true:public-http) ;; *) exit 2 ;; esac
+TWENTY_INTEGRATION_API_KEY=
+export TWENTY_INTEGRATION_API_KEY
 case "$mode" in auth|bootstrap|browser|surface|content|race|isolation|media|media-editor|core-public|public-http|public-media|order-component) ;; *) exit 2 ;; esac
 . "$root/infra/locks/images.env"
 # Each proof has an independent server-only key; never reuse a parallel stack's.
@@ -19,11 +23,26 @@ if [ "$mode" = public-http ] || [ "$mode" = public-media ]; then
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$NODE_IMAGE" node tools/emdash_spike/editorial-html-proof.mjs
 fi
+if [ "$orders" = true ]; then
+  docker run --rm --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+    node /workspace/tools/emdash_spike/order-subnet.mjs --self-test
+  # Read only network topology. Docker atomically rejects a concurrent overlap;
+  # never remove another project's networks or reuse their address space.
+  EMDASH_ORDER_CRM_SUBNET=$(docker network inspect $(docker network ls -q) | \
+    docker run --rm -i --network none --volume "$root:/workspace:ro" "$NODE_IMAGE" \
+      node /workspace/tools/emdash_spike/order-subnet.mjs)
+  export EMDASH_ORDER_CRM_SUBNET
+fi
 proof=$(mktemp -d)
 suffix=$(basename "$proof" | tr '[:upper:].' '[:lower:]-')
 project="leonaid-emdash-$suffix"
+EMDASH_ORDER_API_IMAGE="$project-api"
+export EMDASH_ORDER_API_IMAGE
 compose() {
   set -- --profile emdash "$@"
+  if [ "$orders" = true ]; then
+    set -- --file "$root/infra/emdash-spike/orders.test.yml" "$@"
+  fi
   if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ]; then
     set -- --file "$root/infra/emdash-spike/media-runtime.test.yml" "$@"
   fi
@@ -46,6 +65,7 @@ fi
 cleanup() {
   compose down --volumes >/dev/null
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
+  rm -f "$proof/integration.env" "$proof/orders-ui.json"
   rmdir "$proof"
 }
 trap cleanup EXIT
@@ -74,6 +94,13 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   }
   assert.deepEqual(Object.keys(services["admin-browser"].networks),["edge"]);
   assert.ok(!services["campaign-race-probe"].ports?.length);
+  for(const name of ["twenty-server","twenty-worker","twenty-postgres","twenty-redis","orders-operator"]) {
+    if(services[name]) assert.ok(!services[name].ports?.length);
+  }
+  if(services["orders-operator"]) {
+    assert.deepEqual(Object.keys(services["orders-operator"].networks).sort(),["core-data","edge"]);
+    assert.equal(services["orders-operator"].environment.TWENTY_BASE_URL,"http://twenty-server:3000");
+  }
   assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
 compose up --detach --wait core-postgres
@@ -180,6 +207,20 @@ if [ "$mode" != auth ]; then
     compose run --rm --no-deps --volume "$visual_proof:/visual-proof" admin-browser \
       node tools/emdash_spike/public-order-component-proof.mjs --campaign --mixed
     echo "public-campaign: synthetic screenshots retained in $visual_proof"
+    if [ "$orders" = true ]; then
+      compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+      compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator
+      TWENTY_INTEGRATION_API_KEY=$(sed -n 's/^TWENTY_INTEGRATION_API_KEY=//p' "$proof/integration.env")
+      export TWENTY_INTEGRATION_API_KEY
+      if [ "${#TWENTY_INTEGRATION_API_KEY}" -lt 32 ]; then
+        echo "campaign-orders: restricted key missing" >&2
+        exit 1
+      fi
+      compose up --no-deps --detach --wait api
+      compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
+        node tools/emdash_spike/campaign-orders-browser-proof.mjs
+      fixture /repo/tools/emdash_spike/campaign_orders_verify.py
+    fi
     for publication_state in none future expired; do
       fixture /repo/tools/emdash_spike/core_auth_fixture.py "publication-$publication_state"
       public_probe --inactive

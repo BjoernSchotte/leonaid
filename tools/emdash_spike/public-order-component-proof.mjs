@@ -85,6 +85,13 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         );
       };
       if (javaScriptEnabled) await assertQuantity();
+      // Position independently of global smooth scrolling; retain a normal,
+      // hit-tested browser click rather than setting consent programmatically.
+      await form
+        .locator('[name="privacyAcknowledged"]')
+        .evaluate((element) =>
+          element.scrollIntoView({ behavior: "instant", block: "center" }),
+        );
       await form.locator('[name="privacyAcknowledged"]').check();
       await form.locator('[name="bindingOrderConfirmed"]').check();
       assert.equal(
