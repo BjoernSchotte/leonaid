@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import { browserLogin, coreLogout } from "./browser-login.mjs";
 import { observeMediaUpload } from "./media-upload-observer.mjs";
+import { normalizeCampaignImage } from "../../apps/campaign-site/src/auth/campaign-image.mjs";
 
 const mode = process.argv[2];
 assert.ok(["--changed", "--restored"].includes(mode));
@@ -23,6 +24,10 @@ if (mode === "--changed") {
   const replacement = await readFile(
     "apps/public/src/assets/krapfentaxi/hero.webp",
   );
+  // Uploads intentionally re-encode raster images to discard private metadata
+  // and appended bytes. Public delivery must match the normalized upload, not
+  // the original fixture; retain an exact byte-integrity assertion.
+  const expectedImage = await normalizeCampaignImage(replacement, "image/webp");
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -149,7 +154,7 @@ if (mode === "--changed") {
       `${origin}${canonical}media/${witness.newHero}`,
     );
     assert.equal(newMedia.status(), 200);
-    assert.equal(hash(await newMedia.body()), hash(replacement));
+    assert.equal(hash(await newMedia.body()), expectedImage.contentHash);
     await changeText(newDraft);
     assert.ok(!(await publicHtml()).includes(newDraft));
     await writeFile(witnessFile, JSON.stringify(witness), {

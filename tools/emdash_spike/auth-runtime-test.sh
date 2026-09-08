@@ -224,6 +224,14 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
     for(const key of Object.keys(importer.environment)) assert.ok(!key.startsWith("TWENTY_") && key!=="CORE_POSTGRES_PASSWORD");
   }
   console.log("emdash-auth-runtime: isolated services and Edge-only probe; no host ports");'
+if [ "$recovery:$orders" = true:true ]; then
+  # Follow the base Compose dependency: Core starts only after Twenty is
+  # healthy. Identity-only fixtures deliberately remove that dependency, but
+  # full recovery/order acceptance must not defer CRM initialization until
+  # after the CMS/editor workload. All writers still run together for orders.
+  compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+  echo "recovery-orders: fresh Twenty ready before Core/CMS, matching base startup dependency"
+fi
 compose up --detach --wait core-postgres
 compose run --rm --no-deps cms-db-operator
 if [ "$mode" = media ] || [ "$mode" = media-editor ] || [ "$mode" = public-media ] || [ "$mode" = migration ]; then

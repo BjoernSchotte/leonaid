@@ -2,6 +2,8 @@ services:
   admin-browser:
     volumes:
       - ../../apps/public/src/assets/krapfentaxi/logo.png:/workspace/apps/public/src/assets/krapfentaxi/logo.png:ro
+      - ../../apps/public/src/assets/krapfentaxi/hero.webp:/workspace/apps/public/src/assets/krapfentaxi/hero.webp:ro
+      - ../../apps/campaign-site/src/auth/campaign-image.mjs:/workspace/apps/campaign-site/src/auth/campaign-image.mjs:ro
   krapfentaxi-import-probe:
     image: docker.io/oven/bun:1.2.19-alpine@sha256:7dc0e33a62cbc1606d14b07706c3a00ae66e8e9d0e81b83241ed609763e66d55
     working_dir: /workspace

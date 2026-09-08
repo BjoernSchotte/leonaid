@@ -3908,6 +3908,45 @@ another running checkout or authorize production deployment.
       without diagnostics, all generated-type/format/policy gates passed,
       and the committed working tree unchanged.
 
+      Isolated diagnostic `leonaid-poc112-crm-diagnostic-9md01p` subsequently
+      started the unchanged pinned Twenty server/worker with fresh PostgreSQL,
+      Redis and storage, explicit unused network ranges and no host ports.
+      The original migration and healthcheck policies were retained. All four
+      containers became healthy with zero restarts and no OOM flags; fixed
+      markers confirmed completed migrations and cron registration. Exit 0,
+      owned resources cleaned. This does not prove the earlier combined-start
+      failure's cause. Full recovery/order tests now follow the existing base
+      Compose dependency by starting healthy Twenty before Core/CMS, instead
+      of initializing CRM only after editor/browser workloads. Subsequent
+      order, backup, cutover and rollback gates still run the complete stack;
+      no timeout or functional acceptance criterion was relaxed.
+
+      Follow-up `leonaid-poc112-tmp-dir2mum89b` passed the reordered fresh
+      Twenty startup, complete importer proof, all three native editor
+      journeys, 24 real browser orders and 12 duplicate-free native replays,
+      with Core/Twenty verification. Encrypted snapshot `2c6713c1` passed
+      full integrity verification and checked source-service resumption.
+      The real Core command then activated the primary campaign renderer and
+      its canonical redirect. The next browser phase exited 1 before editing:
+      the existing repository `hero.webp` fixture was absent from the browser
+      container's selective mounts. The overlay now mounts that one file
+      read-only, without exposing the repository or operator configuration.
+      Owned resources were cleaned. Post-cutover orders and CMS-only rollback
+      remain unproven by this run; no broader acceptance box is checked.
+
+      Run `leonaid-poc112-tmp-fndbydxbye` then repeated all 24 browser orders
+      and Core/Twenty verification, saved encrypted snapshot `edb89e9a`, read
+      every pack without errors, resumed source services with readiness checks,
+      and activated the primary alias through Core. The corrected selective
+      image mount worked: native post-backup upload, confirmation and publication
+      succeeded. The run exited 1 on an incorrect test comparison between public
+      normalized image bytes and the unprocessed input fixture. The production
+      upload deliberately re-encodes raster bytes to remove metadata and appended
+      content. The assertion now compares the exact hash of the normalized
+      fixture instead; the normalizer is mounted read-only into the probe.
+      This does not relax byte integrity or restore requirements. Owned resources
+      were cleaned; post-cutover orders and CMS-only rollback remain open.
+
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 
