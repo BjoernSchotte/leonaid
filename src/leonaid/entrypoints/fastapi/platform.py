@@ -159,7 +159,9 @@ def error_response(
     )
 
 
-def build_service(settings: Settings) -> PlatformApplicationService:
+def build_service(
+    settings: Settings, postgres_probe: PostgresReadinessProbe
+) -> PlatformApplicationService:
     identity = PlatformIdentity(
         service=settings.service_name,
         release=settings.service_version,
@@ -168,9 +170,7 @@ def build_service(settings: Settings) -> PlatformApplicationService:
     return PlatformApplicationService(
         identity=identity,
         probes=(
-            PostgresReadinessProbe(
-                settings.core_database_url.get_secret_value(),
-            ),
+            postgres_probe,
             HttpReadinessProbe("twenty", str(settings.twenty_health_url)),
             HttpReadinessProbe("rustfs", str(settings.rustfs_health_url)),
         ),
@@ -187,7 +187,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             if settings.order_submission_key is not None
             else None
         )
-        application.state.platform_service = build_service(settings)
         pool = await create_pool(settings.core_database_url.get_secret_value())
         checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
             pool,
@@ -203,6 +202,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 public_base_url=str(settings.public_base_url),
                 checkpoint_publisher=checkpoint_publisher,
             )
+        )
+        application.state.platform_service = build_service(
+            settings, PostgresReadinessProbe(pool)
         )
         api_metrics = ApiMetrics()
         application.state.operations_service = OperationsService(

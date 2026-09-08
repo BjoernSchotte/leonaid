@@ -13,6 +13,7 @@ if [ "$#" -ne 0 ]; then
   test_case=$2
 fi
 case "$test_case" in
+  core-readiness-pool) ;;
   twenty-startup|alias-renderer|cutover-rollback) ;;
   migration-operator) ;;
   release-legacy-boundary) ;;
@@ -23,6 +24,9 @@ case "$test_case" in
   all|dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser|authorization-inventory|authorization-surface|campaign-content|campaign-runtime|schema-runtime|schema-migration|campaign-auth-race|campaign-editorial-isolation|campaign-media-binding|campaign-media-upload|campaign-media-http|campaign-editor-pointer|campaign-core-public) ;;
   *) echo "emdash-spike: case not implemented: $test_case" >&2; exit 2 ;;
 esac
+if [ "$test_case" = core-readiness-pool ]; then
+  /bin/sh "$root/tools/emdash_spike/core-readiness-pool-test.sh" "$root"
+fi
 if [ "$test_case" = twenty-startup ]; then
   /bin/sh "$root/tools/emdash_spike/twenty-startup-test.sh" "$root"
 fi

@@ -58,6 +58,7 @@ Commands:
   test-emdash-spike --case campaign-public-http
   test-emdash-spike --case campaign-public-media
   test-emdash-spike --case postgres-pool
+  test-emdash-spike --case core-readiness-pool
   test-emdash-spike --case public-order-component
   test-emdash-spike --case order-ingress-pilot
   test-emdash-spike --case campaign-orders

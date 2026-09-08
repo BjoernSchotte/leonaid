@@ -556,12 +556,13 @@ acceptance obligations, not additional infrastructure services:
       Core health check or an expected CRM-unavailable error is not an order
       availability proof. Run resource-heavy proof stacks serially when Docker
       address pools or host capacity cannot safely accommodate them together.
-      Source inventory (2026-09-08, not completed live budget acceptance): per
+      Pre-change source inventory at `694213e` (2026-09-08, not completed live
+      budget acceptance): per
       process, Core's application pool permits 10 connections, the outbox
       worker 5, CMS content 5, CMS identity mapping 5 and CMS readiness 1.
       The worker readiness loop adds one transient connection: 27 in total
-      before Core readiness and operators. Core readiness currently creates a
-      separate connection per request, so 27 is not a global upper bound.
+      before Core readiness and operators. At that revision, Core readiness
+      created a separate connection per request, so 27 was not a global upper bound.
       Account for overlapping readiness requests, migration/backup/provisioning
       operators and process replicas before claiming reserved headroom. Twenty
       uses a separate PostgreSQL instance; its connections do not consume the
@@ -573,6 +574,24 @@ acceptance obligations, not additional infrastructure services:
       `superuser_reserved_connections=3`: 97 ordinary slots. The difference
       from the 27 inventoried runtime connections is 70 slots before Core
       readiness, operators and replicas, not verified reserved headroom.
+  - [x] Bound Core readiness to the existing application pool (2026-09-08).
+        Acquisition and query share a three-second deadline; no independent
+        connection is opened per readiness request. Focused
+        `./leonaid test-emdash-spike --case core-readiness-pool` exited 0 in
+        `leonaid-readiness-tmp-fgxsjdiipz`: three ordinary checks, two held
+        test-pool connections, bounded waiting with unchanged PostgreSQL client
+        count, cancellation and same-pool recovery passed. Three actual Core
+        HTTP checks before, during and after PostgreSQL stop/restart proved
+        the database readiness result and preserved process liveness without
+        restarting Core. Twenty/RustFS were deliberately absent; their failed
+        readiness kept the aggregate response at 503 and is not a claim of
+        complete stack readiness. Independent exact-project inspection found
+        no remaining containers, volumes or networks; no host ports were
+        published. Targeted Python lint/type checks, shell syntax and all 269
+        unit tests passed. The configured Core pool limit remains 10 per process.
+        This removes the extra Core-readiness connection term; CMS/worker pool
+        inventory, operator headroom, combined editing/upload/orders and modest
+        multiworker acceptance remain open under the parent checklist item.
 - [ ] **Route and order compatibility (EMS-050/082/085):** inventory both Astro
       applications' generated assets and action endpoints in the final build.
       Verify native form POST and JavaScript submissions on the canonical
