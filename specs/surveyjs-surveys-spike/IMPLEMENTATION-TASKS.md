@@ -481,6 +481,8 @@ terminal-state proofs below; the full spike retains its separate open gates.
 
 - [x] **100.1a** Distinguish fixed browser actionability categories in sanitized CI metadata without exposing selectors or raw errors. Acceptance: five actual Chromium timeout fixtures produce the expected categories with private canaries excluded; existing diagnostic privacy tests pass. Integration/operator verification: **100.S1a**. This accepts diagnostic collection only; the recurring Journey timeout and parent aggregate remain open. [Live evidence](proofs/SURV-100-BROWSER-DIAGNOSTICS.md).
 
+The Restic cleanup portion of **100.1 / 100.S1** now has [three complete passing modes](proofs/SURV-100-RESTIC-CLEANUP.md), a real cleanup-failure probe and independent final inventories. The parent task and cross-harness repeated aggregate remain open.
+
 - [x] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
 
   Acceptance criteria: **100.A2, 100.A4**.

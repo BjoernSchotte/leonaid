@@ -26,27 +26,51 @@ target_compose() {
     --file "$root/infra/compose/compose.yml" --file "$proof/target.yml" \
     --file "$proof/images.json" --profile dev-mail "$@"
 }
+verify_project_absent() {
+  checked_project=$1
+  for inventory in containers volumes networks; do
+    case "$inventory" in
+      containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+    esac
+    if [ -n "$remaining" ]; then
+      echo "survey-restic: owned $inventory remain for $checked_project" >&2
+      return 1
+    fi
+  done
+}
 cleanup() {
   status=$?
   if [ "$source_owned" = true ]; then
-    source_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+    source_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$source_project" || status=1
   fi
   if [ "$target_owned" = true ]; then
-    target_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+    target_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$target_project" || status=1
   fi
   if [ "$archive_owned" = true ]; then
-    docker volume rm "$archive_volume" >/dev/null 2>&1 || true
+    docker volume rm "$archive_volume" >/dev/null 2>&1 || status=1
+    remaining=$(docker volume ls -q --filter "name=^${archive_volume}$") || status=1
+    if [ -n "$remaining" ]; then status=1; fi
   fi
+  if [ "$status" -eq 0 ]; then echo 'survey-restic: owned source/target containers, volumes, networks and archive volume removed'; fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 for project in "$source_project" "$target_project"; do
-  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
-  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
+  existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
+  existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
+  existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+  [ -z "$existing" ]
 done
 if [ "$mode" != manual ]; then
-  [ -z "$(docker volume ls -q --filter "name=^${archive_volume}$")" ]
+  existing=$(docker volume ls -q --filter "name=^${archive_volume}$")
+  [ -z "$existing" ]
   docker volume create --label "leonaid.survey-recovery-proof=$suffix" "$archive_volume" >/dev/null
   archive_owned=true
 fi
@@ -154,8 +178,7 @@ fi
 # Recovery material survives as a separate file or archive volume. Continuous
 # coverage across loss of this host is deliberately not claimed by this test.
 source_compose down --volumes --remove-orphans
-[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$source_project")" ]
-[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$source_project")" ]
+verify_project_absent "$source_project"
 if [ "$mode" != manual ]; then
   archive_fetch
   mv "$proof/fetched-checkpoint.json" "$proof/recovery-checkpoint.json"
@@ -191,7 +214,7 @@ done
 # restoration (e.g. a bad manifest) cannot masquerade as successful gate coverage.
 probe target_compose restored
 target_compose down --volumes --remove-orphans
-[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$target_project")" ]
+verify_project_absent "$target_project"
 restore "$proof/recovery-checkpoint.json"
 probe target_compose online-restic
 python3 - "$target_project" "$proof" <<'PY'
@@ -210,8 +233,7 @@ docker run --rm --network "${target_project}_edge" --env-file "$proof/session.en
   node_modules/.bin/playwright test tests/e2e/surveys-infrastructure.spec.mjs \
   --browser=chromium --output=/proof/test-results --reporter=line
 target_compose down --volumes --remove-orphans
-[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$target_project")" ]
-[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$target_project")" ]
+verify_project_absent "$target_project"
 mkdir -p "$root/.artifacts/surveys-restic"
 python3 - "$proof/restic-recovery-proof.json" "$mode" <<'PY'
 import json, pathlib, sys

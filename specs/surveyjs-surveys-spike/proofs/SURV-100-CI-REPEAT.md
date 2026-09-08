@@ -71,12 +71,13 @@ SURV-090 independent-host-loss recovery are separate requirements. The same
 reports retain all three manual-review references.
 
 **100.S1 remains open for final cleanup reconciliation across every harness.**
-The Restic success path verifies source/target container and volume removal, but
-its trap suppresses archive-volume removal errors and does not independently
-assert final network absence. The published metadata does not contain the final
-resource inventory. This is a limit of the cleanup evidence, not an observed
-resource leak or a failed recovery assertion. The stricter cleanup scenario must
-not be inferred solely from the 76 zero exits.
+At this historical CI revision, the Restic success path verifies source/target
+container and volume removal, but its trap suppresses archive-volume removal
+errors and does not independently assert final network absence. That gap is now
+fixed and all three complete modes pass with strict cleanup and independent final
+inventories: [Restic cleanup evidence](SURV-100-RESTIC-CLEANUP.md). This new scoped
+proof does not retroactively strengthen the 76 historical exits or accept the
+final cross-harness cleanup and repeated aggregate.
 
 No raw browser trace, credential, session file or unrestricted service log is
 included in this proof. Own package licensing remains **UNDEFINED**; no publication

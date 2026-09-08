@@ -1,0 +1,146 @@
+{
+  "scope": "Three complete Restic modes with strict cleanup; contribution to 100.S1, not complete aggregate acceptance",
+  "syntheticOnly": true,
+  "runs": [
+    {
+      "mode": "manual",
+      "command": "sh tools/surveys/restic_recovery.sh \"$PWD\" manual",
+      "exitCode": 0,
+      "seconds": 1782.298,
+      "sourceCheckpoint": "fb9ac9d3b0afb76c6131fdbb6c4a0d86ddaca353",
+      "sourceHashes": {
+        "tools/surveys/restic_recovery.sh": "18a0612abce3ff3f39ec9af8c64fc1ec4cecb758e0da624b096b5af01f339829",
+        "tools/backup/restore.sh": "1befffdc50d941823519aba4fe7530678ee3d1f0e9c406f323b0ab44846a6b5e",
+        "tools/surveys/recovery_live.py": "8af5e14f47bc9b31c65e20feccfaad82ba374c9fe3292f85e523f4bed7aa0403"
+      },
+      "ownedSourceAndTargetContainersVolumesNetworksAbsent": true,
+      "ownedArchiveVolumeAbsent": true,
+      "proofSha256": "1e8ee5e6196593526bce08ab467e737c42f0889d507a52895cd418370ce508f3",
+      "assertions": {
+        "syntheticOnly": true,
+        "postBackupDeletionReappliedByRestoreOperator": true,
+        "restoredRelationalContentAndExactExportVersionAbsent": true,
+        "limitations": [
+          "The checkpoint was explicitly exported and retained before source-project removal; automatic newest-checkpoint retention across host loss remains unproven",
+          "The local encrypted Restic repository models independent storage; physical remote-host placement is not covered"
+        ],
+        "cliCheckpointExportMode600": true,
+        "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+        "existingResticBackupRotationAndReadDataCheck": true,
+        "sourceContainersAndVolumesRemovedBeforeRestore": true,
+        "missingCheckpointBlocksActualFreshTargetRestore": true,
+        "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+        "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+        "allBuiltServiceImageIdsMatchSource": true,
+        "foundationChromiumPassed": true,
+        "targetTeardownVerified": true
+      }
+    },
+    {
+      "mode": "archive",
+      "command": "sh tools/surveys/restic_recovery.sh \"$PWD\" archive",
+      "exitCode": 0,
+      "seconds": 2005.203,
+      "sourceCheckpoint": "8a9e10790d203b59c2623e758e226e6276ee79ba",
+      "sourceHashes": {
+        "tools/surveys/restic_recovery.sh": "18a0612abce3ff3f39ec9af8c64fc1ec4cecb758e0da624b096b5af01f339829",
+        "tools/backup/restore.sh": "1befffdc50d941823519aba4fe7530678ee3d1f0e9c406f323b0ab44846a6b5e",
+        "tools/surveys/recovery_live.py": "8af5e14f47bc9b31c65e20feccfaad82ba374c9fe3292f85e523f4bed7aa0403"
+      },
+      "ownedSourceAndTargetContainersVolumesNetworksAbsent": true,
+      "ownedArchiveVolumeAbsent": true,
+      "proofSha256": "38b071e2f980e17e1407ab8d414898ae8b1162ea641efc4139b4e83dec7350fc",
+      "assertions": {
+        "syntheticOnly": true,
+        "postBackupDeletionReappliedByRestoreOperator": true,
+        "restoredRelationalContentAndExactExportVersionAbsent": true,
+        "limitations": [
+          "The checkpoint was explicitly exported and retained before source-project removal; automatic newest-checkpoint retention across host loss remains unproven",
+          "The local encrypted Restic repository models independent storage; physical remote-host placement is not covered"
+        ],
+        "cliCheckpointExportMode600": true,
+        "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+        "existingResticBackupRotationAndReadDataCheck": true,
+        "sourceContainersAndVolumesRemovedBeforeRestore": true,
+        "missingCheckpointBlocksActualFreshTargetRestore": true,
+        "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+        "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+        "allBuiltServiceImageIdsMatchSource": true,
+        "foundationChromiumPassed": true,
+        "targetTeardownVerified": true,
+        "independentArchiveVolumeOutsideSourceProject": true,
+        "staleArchiveRejectedBeforeOutput": true,
+        "publisherAbruptExitBoundariesProven": [
+          "after-pending",
+          "after-current"
+        ],
+        "interruptedPublicationBlocksFetchUntilRepublished": true,
+        "offlineArchiveFetchAfterSourceContainersAndVolumesRemoved": true
+      }
+    },
+    {
+      "mode": "durable",
+      "command": "sh tools/surveys/restic_recovery.sh \"$PWD\" durable",
+      "exitCode": 0,
+      "seconds": 1869.274,
+      "sourceCheckpoint": "8a9e10790d203b59c2623e758e226e6276ee79ba",
+      "sourceHashes": {
+        "tools/surveys/restic_recovery.sh": "18a0612abce3ff3f39ec9af8c64fc1ec4cecb758e0da624b096b5af01f339829",
+        "tools/backup/restore.sh": "1befffdc50d941823519aba4fe7530678ee3d1f0e9c406f323b0ab44846a6b5e",
+        "tools/surveys/recovery_live.py": "8af5e14f47bc9b31c65e20feccfaad82ba374c9fe3292f85e523f4bed7aa0403"
+      },
+      "ownedSourceAndTargetContainersVolumesNetworksAbsent": true,
+      "ownedArchiveVolumeAbsent": true,
+      "proofSha256": "4fa344f01a74ea4cecd1ad07fcb9b9f569c956344f74324dbe3904a867e45240",
+      "assertions": {
+        "syntheticOnly": true,
+        "postBackupDeletionReappliedByRestoreOperator": true,
+        "restoredRelationalContentAndExactExportVersionAbsent": true,
+        "limitations": [
+          "Independent named volume models retained storage; physical remote-host durability is not covered",
+          "This proves the exact acknowledged ledger; trustworthy unexpected-host-loss cutoff and pilot release-wrapper compatibility remain open"
+        ],
+        "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+        "existingResticBackupRotationAndReadDataCheck": true,
+        "sourceContainersAndVolumesRemovedBeforeRestore": true,
+        "missingCheckpointBlocksActualFreshTargetRestore": true,
+        "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+        "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+        "allBuiltServiceImageIdsMatchSource": true,
+        "foundationChromiumPassed": true,
+        "targetTeardownVerified": true,
+        "archiveOutageReturns503WithDurableRetryableIntent": true,
+        "productionWorkerPreservesContentDuringArchiveOutage": true,
+        "exactRetryAcknowledgesOnlyAfterIndependentPublication": true,
+        "changedOperationRejectedWithoutChangingIntent": true,
+        "workerRechecksArchiveAfterSuccessfulApiAcknowledgement": true,
+        "exactIntentAndSingleOutboxIdentityPreservedThroughRetries": true,
+        "unchangedLedgerDoesNotCreateNewArchiveVersion": true,
+        "noExplicitPostDeletionCheckpointExportOrPublication": true,
+        "offlineFetchedCheckpointMode600": true,
+        "independentArchiveVolumeOutsideSourceProject": true,
+        "offlineArchiveFetchAfterSourceContainersAndVolumesRemoved": true
+      }
+    }
+  ],
+  "realArchiveCleanupFailureProbe": {
+    "scope": "actual unchanged cleanup function and real Docker volume in-use failure; full recovery runs pending",
+    "harnessSha256": "18a0612abce3ff3f39ec9af8c64fc1ec4cecb758e0da624b096b5af01f339829",
+    "cases": [
+      {
+        "case": "in-use archive rejects cleanup",
+        "exitCode": 1,
+        "archiveExists": true
+      },
+      {
+        "case": "released archive cleanup succeeds",
+        "exitCode": 0,
+        "archiveExists": false
+      }
+    ],
+    "ownedResourcesAbsent": true
+  },
+  "independentFinalInventoryPassed": true,
+  "fullAggregateAccepted": false,
+  "independentSourceHostLossAccepted": false
+}
