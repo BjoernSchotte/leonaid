@@ -2565,9 +2565,16 @@ Dependencies: EMS-030, EMS-050
       campaign chooser that reveals only manageable campaigns.
       Dashboard and action-management entry points are implemented and visibly
       exercised; remaining selected-action surfaces and selection changes must
-      still be audited. The native list's separate View published link currently
-      uses `/campaign_pages/<binding UUID>` and needs Core-canonical routing,
-      just like the editor's already corrected Live View control.
+      still be audited.
+- [x] Route the native list's View published link to the Core-canonical campaign
+      URL, sharing the editor's validated URL function. Published list items
+      receive response-only metadata from the existing authorized Core lookup;
+      no editable slug, persisted field or additional route is introduced.
+      Exact installed-source patch assertions and all 49 Astro file checks
+      passed. Visible In-App Browser acceptance confirmed the Krapfentaxi list
+      link targets `/campaigns/krapfentaxi-2026/`; opening that URL displayed
+      the published Astro page, original media and order form. No order was
+      submitted and the existing pending editorial draft was left unchanged.
 - [ ] Open EmDash as a normal top-level navigation on the same origin; do not
       use `target=_blank` by default and do not add an iframe.
 - [x] Add a visible **Back to LeonAid** affordance in the EmDash admin branding

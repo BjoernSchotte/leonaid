@@ -98,13 +98,23 @@ assert.ok(logout.includes("window.alert("));
 assert.ok(!logout.includes("/_emdash/api/auth/logout"));
 const liveViewExpression = revisioned.match(/const liveViewUrl = ([^\n]+);/);
 assert.ok(liveViewExpression);
+const urlFunction = revisioned.match(/function leonaidContentUrl\([^]*?\n\}/);
+assert.ok(urlFunction);
+assert.ok(
+  revisioned.includes(
+    'item.status === "published" && leonaidContentUrl(collection, item, urlPattern)',
+  ),
+);
+assert.ok(
+  revisioned.includes("href: leonaidContentUrl(collection, item, urlPattern)"),
+);
 const liveView = new Function(
   "collection",
   "isLive",
   "item",
   "contentUrl",
   "urlPattern",
-  `return ${liveViewExpression[1]};`,
+  `${urlFunction[0]}\nreturn ${liveViewExpression[1]};`,
 );
 const canonical = "/campaigns/krapfentaxi-2026/";
 assert.equal(

@@ -85,9 +85,30 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const runtimeDiscard = emdash.handleContentDiscardDraft;
     const runtimePublish = emdash.handleContentPublish;
     const runtimeUnpublish = emdash.handleContentUnpublish;
+    const livePath = async (actionId: unknown) => {
+      const campaign = await requireCurrentCampaignActor(
+        request,
+        actor,
+        String(actionId),
+      );
+      return `/campaigns/${campaign.archiveSlug}/`;
+    };
     // EmDash creates this object per request. Never mutate the shared runtime.
-    emdash.handleContentList = (collection, parameters) =>
-      listCampaignContent(database, profile, collection, parameters);
+    emdash.handleContentList = async (collection, parameters) => {
+      const result = await listCampaignContent(
+        database,
+        profile,
+        collection,
+        parameters,
+      );
+      if (result.success)
+        for (const item of result.data.items)
+          if (item.status === "published")
+            Object.assign(item, {
+              leonaidLivePath: await livePath(item.data.action_id),
+            });
+      return result;
+    };
     emdash.handleContentGet = async (collection, id) => {
       const access = await getCampaignContent(
         database,
@@ -115,14 +136,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
           .execute((transaction) =>
             resolveCampaignEditorMedia(transaction, data.action_id, data),
           );
-        const campaign = await requireCurrentCampaignActor(
-          request,
-          actor,
-          String(data.action_id),
-        );
         // Response-only metadata, never an editable field or a stored slug.
         Object.assign(item, {
-          leonaidLivePath: `/campaigns/${campaign.archiveSlug}/`,
+          leonaidLivePath: await livePath(data.action_id),
         });
       }
       return result;
