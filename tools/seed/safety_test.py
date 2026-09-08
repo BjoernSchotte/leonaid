@@ -1,16 +1,21 @@
 """Verify isolated test names do not weaken destructive reset target checks."""
 
 import copy
+from pathlib import Path
+import sys
+from typing import Any
 import unittest
 
-from safety import ResetSafetyError, validate
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.seed.safety import ResetSafetyError, validate
 
 
 class ResetSafetyTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.project = "leonaid-poc012-test-833458328-12345"
         self.environment = {"LEONAID_ENV": "local", "LEONAID_RESET_ALLOWED": "true"}
-        self.config = {
+        self.config: dict[str, Any] = {
             "name": self.project,
             "services": {
                 "api": {
@@ -34,14 +39,14 @@ class ResetSafetyTests(unittest.TestCase):
             "volumes": {"core-postgres-data": {}},
         }
 
-    def test_existing_and_isolated_local_names(self):
+    def test_existing_and_isolated_local_names(self) -> None:
         for name in ("leonaid", "leonaid-poc012-test", self.project):
             with self.subTest(name=name):
                 config = copy.deepcopy(self.config)
                 config["name"] = name
                 validate(config, project_name=name, env_values=self.environment)
 
-    def test_arbitrary_or_production_names_remain_rejected(self):
+    def test_arbitrary_or_production_names_remain_rejected(self) -> None:
         for name in (
             "leonaid-production",
             "leonaid-staging",
@@ -59,7 +64,7 @@ class ResetSafetyTests(unittest.TestCase):
                 with self.assertRaises(ResetSafetyError):
                     validate(config, project_name=name, env_values=self.environment)
 
-    def test_unique_name_still_requires_every_target_boundary(self):
+    def test_unique_name_still_requires_every_target_boundary(self) -> None:
         variants = []
         for service, key, bad in (
             (

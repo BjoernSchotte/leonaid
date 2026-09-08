@@ -41,3 +41,19 @@ This is operator integration evidence, not a browser survey journey or independe
 host-loss recovery proof. Backup, upgrade/rollback, the combined legacy regression
 gate and final spike acceptance remain open. No implementation-task checkbox is
 changed by this scoped delivery.
+
+## CI typing follow-up
+
+CI on `4ca45b1` found eight typing errors in the new safety test: an unqualified
+import, missing return annotations and inference of the mixed test configuration.
+The follow-up gives the fixture an explicit JSON-object type and resolves the
+production safety module from the repository root for direct script execution.
+All fixtures and assertions are preserved.
+
+All three tests pass locally and in the pinned Python container with `/tmp` as
+the working directory and an empty `PYTHONPATH`. Ruff and its format check pass.
+The exact Mypy file list from `tools/ci/lint-types.sh` also passes against an
+isolated `4ca45b1` checkout with only the corrected test overlaid: **277 source
+files, zero issues**. The machine-readable evidence retains the original full
+service-run hashes and adds the corrected test hash and complete typing scope
+under `testTypingFollowUp`.
