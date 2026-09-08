@@ -4554,6 +4554,17 @@ Preparation of this configuration is not yet visible-browser acceptance.
       anonymously. This proves visible logout separation, not the still-running
       enhanced order-timeout/retry acceptance or every session-revocation case.
 
+- [x] Complete the visible public-order journey after actual Core logout.
+      On `d329785`, the same In-App Browser that had been denied CMS access
+      submitted one new synthetic private-person order on the canonical Astro
+      campaign without logging in again. It displayed an accepted reference,
+      EUR 36.00 and one box / 24 pieces. A separate read-only Core SQL and actual
+      Twenty API check verified exactly one matching order, review-ready and
+      public-form state, line/amount, consent text version, audit confirmations
+      and the linked CRM person. No browser session or service key was injected.
+      This closes the earlier visible order's shared-Charity-session limitation;
+      timeout/retry, replay and broader regression gates remain separate.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.
