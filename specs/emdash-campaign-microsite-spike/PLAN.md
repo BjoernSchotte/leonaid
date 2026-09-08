@@ -4540,6 +4540,20 @@ Preparation of this configuration is not yet visible-browser acceptance.
       the In-App Browser reloaded the Charity editor and displayed Live View
       pointing to `/campaigns/krapfentaxi-2026/` with the saved published content.
 
+- [x] Make native CMS logout use the existing Core session authority and visibly
+      verify logged-out separation. The original EmDash button called its denied
+      native auth endpoint and did not end the Core session. The integrity-pinned
+      editor patch now posts to `/api/v1/auth/logout`, refuses redirects, checks
+      success and returns to Core administration. Failure leaves an explicit
+      warning that the session may remain active; no CMS auth route was opened.
+      Installed-source patch checks and the production CMS build passed. After
+      replacing only the visible stack's CMS, the In-App Browser showed Klara's
+      published editor, then Core's signed-out page after Log out. A fresh editor
+      navigation redirected to Core login with a return target. A fresh canonical
+      campaign navigation still rendered the published text and order form
+      anonymously. This proves visible logout separation, not the still-running
+      enhanced order-timeout/retry acceptance or every session-revocation case.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.

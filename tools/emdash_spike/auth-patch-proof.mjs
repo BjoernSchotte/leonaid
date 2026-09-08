@@ -34,6 +34,16 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+const logout = revisioned.slice(
+  revisioned.indexOf("async function handleLogout()"),
+  revisioned.indexOf("function Header()"),
+);
+assert.ok(logout.includes('apiFetch("/api/v1/auth/logout"'));
+assert.ok(logout.includes('redirect: "error"'));
+assert.ok(logout.includes('if (!res.ok) throw new Error("logout_failed")'));
+assert.ok(logout.includes('window.location.href = "/admin/"'));
+assert.ok(logout.includes("window.alert("));
+assert.ok(!logout.includes("/_emdash/api/auth/logout"));
 const liveViewExpression = revisioned.match(/const liveViewUrl = ([^\n]+);/);
 assert.ok(liveViewExpression);
 const liveView = new Function(

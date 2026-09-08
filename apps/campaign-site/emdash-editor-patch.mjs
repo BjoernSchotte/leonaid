@@ -22,6 +22,12 @@ export function patchEditorSource(source) {
     assert.equal(source.split(before).length, 2);
     source = source.replace(before, after);
   };
+  // A CMS logout must revoke the same Core session used by both surfaces.
+  // Never open native EmDash auth routes or pretend a failed logout succeeded.
+  replace(
+    '\tconst res = await apiFetch("/_emdash/api/auth/logout?redirect=/_emdash/admin/login", {\n\t\tmethod: "POST",\n\t\tcredentials: "same-origin"\n\t});\n\tif (res.redirected) window.location.href = res.url;\n\telse window.location.href = "/_emdash/admin/login";',
+    '\ttry {\n\t\tconst res = await apiFetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin", redirect: "error" });\n\t\tif (!res.ok) throw new Error("logout_failed");\n\t\twindow.location.href = "/admin/";\n\t} catch {\n\t\twindow.alert("Sign out failed. Please try again; your session may still be active.");\n\t}',
+  );
   // Core owns campaign URLs. Keep the native Live View control, but never use
   // the CMS binding UUID as a public slug. Missing metadata hides the link.
   replace(
