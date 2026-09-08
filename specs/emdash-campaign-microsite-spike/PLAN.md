@@ -1,6 +1,6 @@
 # EmDash Campaign Microsite Spike — Implementation and Verification Plan
 
-Status: implementation in progress; dependency checkpoint verified, live gates pending
+Status: local spike closure in progress; production readiness is a separate follow-up
 
 Plan basis: LeonAid commit `5f5f52c`, 6 September 2026
 
@@ -17,9 +17,84 @@ Primary product references:
 > **Execution rule:** This is a bounded feasibility spike, not authorization to
 > deploy to production. It includes migrating the Krapfentaxi demo and switching
 > its entry route in the isolated worktree/demo environment. Implement each task in dependency
-> order, run every named verification gate, and record evidence before checking
+> order, run the applicable phase's verification gates, and record evidence before checking
 > a task off. Stop at any STOP condition instead of weakening authentication,
 > campaign isolation, recovery, or the existing public-order journey.
+
+### Acceptance split — user decision, 2026-09-09
+
+The immediate deliverable is a **locally usable, evidenced EmDash spike**, not
+a production-ready deployment. The user explicitly approved this split to
+finish the useful end-to-end result without completing the production rollout
+machinery first. This section governs phase assignment where older wording
+below requires every gate for a single undifferentiated `GO`.
+
+Do not delete outstanding requirements, mark deferred work as implemented, or
+weaken security checks to obtain a green result. Historical checkpoints remain
+evidence for their stated scope only. Already implemented production tooling
+stays intact; do not remove it merely because its completion is deferred.
+
+#### Phase A — finish now: local spike
+
+- [ ] Close navigation defects that obstruct ordinary campaign work: the
+      selected campaign opens in its correct authorized editor, Core and CMS
+      remain in the same tab/origin, Back works, and unsaved edits are protected.
+      Reuse the existing links and native browser behaviour; no additional
+      shell redesign or cosmetic polish is required.
+- [ ] Complete one coherent, visible In-App Browser acceptance journey on the
+      isolated demo: existing Core login → authorized Krapfentaxi editor →
+      change and publish → anonymous `/campaigns/krapfentaxi-2026/` reflects
+      the change without rebuilding → ordinary synthetic order succeeds.
+      Independently verify the order in Core and its linked Twenty records.
+      Record how temporary editorial changes/test orders are handled; do not
+      silently delete order/audit history.
+- [ ] Consolidate the existing authorization, draft isolation, alias,
+      bootstrap/TLS and internal-order-transport evidence against current code.
+      Keep the section 7 matrix, section 8 security/privacy boundaries and
+      section 10 STOP conditions mandatory. Reuse applicable successful tests;
+      rerun changed paths or fill missing proof, not the whole browser matrix
+      after every unrelated documentation change.
+- [ ] Complete a current encrypted local backup and fresh-project restore
+      proof for the migrated campaign, revisions, media and required key/
+      bootstrap state. Verify restored application access, published content
+      and media, closed setup and preservation of newer Core orders during a
+      CMS-only recovery. Backup on the MacBook is sufficient; a snapshot alone
+      is not. Retain the existing recovery tools and safety checks.
+- [ ] Run the repository quality checks and relevant functional regressions;
+      use normal representative traffic, no stress or capacity certification.
+      Existing successful Chromium/Firefox/WebKit evidence remains useful;
+      additional exhaustive navigation/zoom/device permutations are Phase B,
+      except where needed to reproduce or verify an actual usability defect.
+- [ ] Write `RESULT.md` with the exact source revision, commands, sanitized
+      evidence, remaining limitations and an explicit `GO_LOCAL`,
+      `SYSTEM_ADMIN_ONLY` or `NO_GO`. Commit and push each verified milestone to
+      the existing draft PR. `GO_LOCAL` must not imply production approval.
+
+Phase A retains shared Core authentication, campaign-scoped Charity Admin
+authorization, Core-managed aliases and authoritative operational data,
+PostgreSQL/RustFS isolation, secure first-run setup, and the private
+Astro → Core → Twenty ordering boundary. None is deferred for speed.
+
+#### Phase B — retained follow-up: production readiness
+
+The following incomplete parts of the original EMS tasks remain open but no
+longer block `GO_LOCAL`:
+
+| Follow-up                        | Original scope retained                                                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilot deployment                 | EMS-010/070/080: production domain/runtime-origin configuration, digest promotion, explicit CMS profile activation/deactivation and full pilot topology validation. Local fixed-origin HTTPS remains mandatory in Phase A. |
+| Release and operator integration | EMS-080: full release-v2 activation gates, doctor/deployment integration, monitoring/alerts, SBOM and vulnerability pipeline integration. Existing safeguards are not bypassed.                                            |
+| Version upgrade rehearsal        | EMS-080: test a selected upstream successor and restore the pre-upgrade database/image on failure. Local backup/restore and CMS-only data-loss protection remain Phase A requirements.                                     |
+| Extended acceptance combinations | Remaining exhaustive shell-navigation/browser/device/200% zoom permutations and production multiworker/resource-headroom certification. Known accessibility or ordinary-use defects are not deferred by this row.          |
+| Production decision              | Final production `GO`, deployment credentials/domain approval and any actual activation. Off-host disaster recovery remains unproven and must be decided before production use.                                            |
+
+All requirements not explicitly assigned to Phase B above remain Phase A.
+Mixed EMS tasks must report their local and production portions separately;
+their unchecked parent boxes must not be blanket-checked at local closure.
+Do not rename an incomplete full-suite command or suppress its failures to
+make it represent local acceptance. `RESULT.md` must list the exact successful
+case commands used for Phase A and separately identify unexecuted/unfinished
+Phase B gates. The original full-suite gate remains a production follow-up.
 
 ## 1. Objective
 
@@ -39,8 +114,9 @@ The spike succeeds when:
 5. public microsites combine editorial EmDash content with authoritative live
    data from LeonAid Core;
 6. all campaign microsites are served below the same LeonAid domain;
-7. HTTPS, first-run setup, backup, restore, upgrade, and failure behaviour are
+7. HTTPS, first-run setup, backup, restore, and failure behaviour are
    demonstrated with the real Docker Compose stack and real browser sessions;
+   the successor-version upgrade rehearsal belongs to Phase B;
 8. the existing LeonAid admin shell, public aliases, order forms, and canonical
    archive routes continue to work.
 9. the existing Krapfentaxi demo's editorial content is editable in EmDash;
@@ -4455,6 +4531,8 @@ Dependencies: EMS-020 and either EMS-085 or the EMS-030 STOP path
       LeonAid and EmDash commits, executed commands, evidence IDs, limitations,
       operational cost, and recommendation.
 - [ ] Record one of these outcomes:
+  - `GO_LOCAL`: all Phase A requirements above are evidenced; production
+    follow-up items remain explicitly open and no production approval is given;
   - `GO`: same login, complete campaign isolation, same-domain rendering,
     recovery, Krapfentaxi migration, alias administration, edit-to-public
     delivery, and regressions are proven;
@@ -4477,7 +4555,9 @@ git diff --check
 git status --short
 ```
 
-Expected: the full spike returns success only for `GO`; limited/no-go outcomes
+Expected: the full spike returns success only for `GO`; `GO_LOCAL` is an
+explicit evidence-report outcome, not a claim that this full command passed.
+Limited/no-go outcomes
 return a clearly classified non-zero result or explicit report status without
 claiming completion. The working tree contains only planned source, tests, and
 sanitized evidence.
@@ -4671,7 +4751,7 @@ Preparation of this configuration is not yet visible-browser acceptance.
 - [x] Re-run the isolated fresh-import/editor acceptance after the visible
       Live View and Core logout fixes. On `dcd4013` plus the narrowly scoped
       browser diagnostic change, `./leonaid test-emdash-spike --case
-      krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
+    krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
       passed actual Charity login, native text/image changes, private drafts,
       publication and anonymous rendering. Core-managed redirect GET/HEAD,
       withdrawal/restoration and reassignment checks also passed. Importer
@@ -4699,11 +4779,12 @@ Preparation of this configuration is not yet visible-browser acceptance.
       This supplements, rather than replaces, the three-engine automated
       command-ID and exact-replay checks above.
 
-The spike is complete only when every applicable task is checked, every command
-has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
+The local spike is complete only when every Phase A requirement has recorded
+sanitized evidence and `RESULT.md` contains an explicit outcome. Phase B remains
+open in this plan and must not be marked implemented at local closure.
 A successful build or a visually working EmDash editor is not sufficient.
 
-For `GO`, all of the following must be green:
+For the later full `GO` (not `GO_LOCAL`), all of the following must be green:
 
 ```sh
 ./leonaid check
