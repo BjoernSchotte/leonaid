@@ -4565,6 +4565,21 @@ Preparation of this configuration is not yet visible-browser acceptance.
       This closes the earlier visible order's shared-Charity-session limitation;
       timeout/retry, replay and broader regression gates remain separate.
 
+- [x] Re-run the isolated fresh-import/editor acceptance after the visible
+      Live View and Core logout fixes. On `dcd4013` plus the narrowly scoped
+      browser diagnostic change, `./leonaid test-emdash-spike --case
+      krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
+      passed actual Charity login, native text/image changes, private drafts,
+      publication and anonymous rendering. Core-managed redirect GET/HEAD,
+      withdrawal/restoration and reassignment checks also passed. Importer
+      interruption/resume and preservation of editorial changes passed. The
+      previous 15-second autosave timeout did not recur; this is not evidence
+      of a diagnosed or fixed product race. No timeout was increased and no
+      Save click substituted for autosave. The separate disposable Compose
+      project was removed by its runner; the persistent demo remained visible
+      in the In-App Browser. Enhanced order timeout/retry acceptance is still
+      separate and unproven.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.

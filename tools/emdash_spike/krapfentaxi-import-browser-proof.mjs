@@ -59,13 +59,35 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     }
     await expect(page.locator("#field-story_title")).toBeVisible();
     const changeText = async (value) => {
-      const saved = page.waitForResponse(
-        (r) =>
-          new URL(r.url()).pathname === api && r.request().method() === "PUT",
+      const field = page.locator("#field-story_title");
+      assert.notEqual(
+        await field.inputValue(),
+        value,
+        "Expected an actual editorial change",
       );
-      await page.locator("#field-story_title").fill(value);
-      await page.locator("#field-title").click();
-      assert.equal((await saved).status(), 200);
+      try {
+        const [saved] = await Promise.all([
+          page.waitForResponse(
+            (r) =>
+              new URL(r.url()).pathname === api &&
+              r.request().method() === "PUT",
+          ),
+          (async () => {
+            await field.fill(value);
+            await expect(field).toHaveValue(value);
+            await page.locator("#field-title").click();
+          })(),
+        ]);
+        assert.equal(saved.status(), 200);
+      } catch (error) {
+        console.log(
+          `import-editor: engine=${name}; valueRetained=${(await field.inputValue()) === value}; saveEnabled=${await page
+            .getByRole("button", { name: "Save", exact: true })
+            .isEnabled()
+            .catch(() => false)}`,
+        );
+        throw error;
+      }
       await expect(
         page.getByRole("button", { name: "Saved", exact: true }),
       ).toBeVisible();
