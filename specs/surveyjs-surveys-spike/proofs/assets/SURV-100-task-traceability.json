@@ -3,7 +3,7 @@
   "reviewOnly": true,
   "finalTraceabilityAccepted": true,
   "wholeSpikeAccepted": false,
-  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Nine explicitly open tasks prevent full spike completion.",
+  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Eight explicitly open tasks prevent full spike completion.",
   "tasks": [
     {
       "task": "000.1",
@@ -1138,14 +1138,13 @@
     },
     {
       "task": "100.3m",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A3"
       ],
       "evidence": [
-        "proofs/SURV-100-OPERATIONS.md"
-      ],
-      "remaining": "Feature flags readiness, UI screenshot mismatch and UX heading/performance failures need diagnosis and complete successful reruns."
+        "proofs/SURV-100-UI-UX.md"
+      ]
     },
     {
       "task": "100.4",
@@ -1188,8 +1187,8 @@
   ],
   "reviewEvidence": {
     "taskCount": 104,
-    "acceptedTasks": 95,
-    "openTasks": 9,
+    "acceptedTasks": 96,
+    "openTasks": 8,
     "capabilityCount": 15,
     "runtimeComparisonBase": "419738db48d3816cc9b8853a1b3be9925c7983db",
     "runtimeComparisonHead": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
@@ -1212,5 +1211,10 @@
     "sourceCheckpoint": "61b8a5ce9c22b746421f4077d78e68168cf9c415",
     "proof": "proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md",
     "scope": "100.3k acceptance after all three full runs"
+  },
+  "uiUxAcceptanceFollowUp": {
+    "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+    "proof": "proofs/SURV-100-UI-UX.md",
+    "scope": "100.3m acceptance after complete feature flags, UI and UX runs plus route-loading Journey regression; exact changed inputs recorded in proof"
   }
 }

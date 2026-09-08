@@ -9,7 +9,8 @@ Own license decision: **UNDEFINED**, for both LeonAid and the new package
 Baseline checkout: `5f5f52cf13d7a8cca84c62107fec438f72bc875b`
 
 Companion documents: [Decisions](DECISIONS.md), [Capability matrix](CAPABILITIES.md),
-[Dependency and license review](DEPENDENCIES.md), [Provisional outcome](OUTCOME.md).
+[Dependency and license review](DEPENDENCIES.md).
+The outcome report (`OUTCOME.md`) is still pending delivery under **100.4**.
 
 Implementation tracking:
 
@@ -868,7 +869,7 @@ Implementation tasks:
 - [ ] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Candidate builds/scans passed locally; application and CI integration remain open. The prior VEX proposal was not approved or delivered.
 
 - [x] **100.3j** Isolate and execute operations, dashboard and application security regressions. Acceptance: **100.A3, these three named suites only**; retain original authorization, real dependency outage/recovery, database, browser and accessibility assertions, reserve unique networks without host ports and verify owned cleanup. Integration/E2E: **100.S2i**. Application security tests are independent of the pending Caddy image disposition. [Live evidence](proofs/SURV-100-OPERATIONS.md).
-- [ ] **100.3m** Complete the feature flags, UI system and UX acceptance regressions. Acceptance: **100.A3, these three named suites only**; retain original feature authorization, screenshot, accessibility and performance assertions and verify owned cleanup. Integration/E2E: **100.S2l**. The initial runs failed; isolation guard tests and the successful 100.3j suites do not accept them.
+- [x] **100.3m** Complete the feature flags, UI system and UX acceptance regressions. Acceptance: **100.A3, these three named suites only**; retain original feature authorization, screenshot, accessibility and performance assertions and verify owned cleanup. Integration/E2E: **100.S2l**. All three complete runs and the route-loading Journey regression pass with independent cleanup. [Live evidence](proofs/SURV-100-UI-UX.md). The full parent gate remains open.
 - [x] **100.3k** Isolate and execute privacy, testkit and the existing Golden Journey. Acceptance: **100.A3, three named suites only**; retain privacy/data-boundary checks, real testkit services and browser verification, and all Golden Journey browsers/rounds including deterministic reset. Re-reserve networks for each owned reset generation and verify final cleanup. Integration/E2E: **100.S2j**. [Complete live evidence](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md).
 - [x] **100.3l** Isolate and execute the remaining seed, backup and upgrade operator regressions. Acceptance: **100.A3, three named suites only**; isolate CLI state, snapshots, source/target projects and restore state, preserve every original destructive-target rejection, seed/reset equivalence, encrypted backup, recovery and upgrade/rollback assertion, and verify owned cleanup. Integration/operator and browser E2E: **100.S2k**. Existing empty-erasure backup fixtures do not accept SURV-090 independent-host recovery. [Seed](proofs/SURV-100-SEED.md), [backup](proofs/SURV-100-BACKUP.md) and [upgrade/rollback](proofs/SURV-100-UPGRADE.md) pass with independently verified cleanup.
 

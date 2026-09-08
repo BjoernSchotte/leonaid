@@ -15,6 +15,9 @@ args = sys.argv[1:]
 with Path(os.environ["LEONAID_GUARD_CALLS"]).open("a") as stream:
     stream.write(json.dumps(args) + "\\n")
 mode = os.environ["LEONAID_GUARD_CASE"]
+selected = os.environ.get("LEONAID_GUARD_PROJECT_PREFIX")
+if selected and not any(arg.startswith("label=com.docker.compose.project=" + selected) for arg in args):
+    raise SystemExit(0)
 if mode == "inventory-error":
     raise SystemExit(64)
 kind = {"ps": "containers", "volume": "volumes", "network": "networks"}.get(args[0])
@@ -31,6 +34,7 @@ class RegressionIsolationTests(unittest.TestCase):
         for suite in (
             "compose/test.sh",
             "surveys/infrastructure.sh",
+            "surveys/restic_recovery.sh",
             "core/test.sh",
             "schema/test.sh",
             "outbox/test.sh",
@@ -56,9 +60,18 @@ class RegressionIsolationTests(unittest.TestCase):
             "mail_relay/test.sh",
             "invoice_delivery/test.sh",
             "invoice_settlements/test.sh",
+            "feature_flags/test.sh",
             "operations/test.sh",
+            "ui_system/test.sh",
             "dashboard/test.sh",
+            "ux_acceptance/test.sh",
             "security/test.sh",
+            "privacy/test.sh",
+            "testkit/test.sh",
+            "golden_journey/test.sh",
+            "backup/test.sh",
+            "upgrade/test.sh",
+            "seed/test.sh",
             "identity/test.sh",
             "policy/test.sh",
             "public_actions/test.sh",
@@ -109,6 +122,71 @@ class RegressionIsolationTests(unittest.TestCase):
                             "compose" in call or "rm" in call or "down" in call
                             for call in observed
                         )
+                    )
+
+    def test_operator_target_collision_rejects_before_source_acquisition(self):
+        root = Path(__file__).resolve().parents[2]
+        for suite, source_prefix, target_prefix in (
+            ("backup/test.sh", "leonaid-poc112-source-", "leonaid-restore-poc112-"),
+            (
+                "upgrade/test.sh",
+                "leonaid-poc113-upgrade-",
+                "leonaid-restore-poc113-rollback-",
+            ),
+            (
+                "surveys/restic_recovery.sh",
+                "leonaid-poc112-surveys-",
+                "leonaid-restore-surveys-",
+            ),
+        ):
+            for case in ("containers", "volumes", "networks", "inventory-error"):
+                with (
+                    self.subTest(suite=suite, case=case),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
+                    temporary = Path(directory)
+                    docker = temporary / "docker"
+                    docker.write_text(FAKE_DOCKER)
+                    docker.chmod(0o700)
+                    calls = temporary / "calls.jsonl"
+                    result = subprocess.run(
+                        ["sh", str(root / "tools" / suite), str(root)],
+                        env={
+                            **os.environ,
+                            "PATH": str(temporary) + os.pathsep + os.environ["PATH"],
+                            "LEONAID_GUARD_CASE": case,
+                            "LEONAID_GUARD_CALLS": str(calls),
+                            "LEONAID_GUARD_PROJECT_PREFIX": target_prefix,
+                        },
+                        capture_output=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(
+                        result.returncode, 64 if case == "inventory-error" else 1
+                    )
+                    observed = [
+                        json.loads(line) for line in calls.read_text().splitlines()
+                    ]
+                    expected = {
+                        "containers": 4,
+                        "volumes": 5,
+                        "networks": 6,
+                        "inventory-error": 4,
+                    }[case]
+                    self.assertEqual(len(observed), expected)
+                    self.assertTrue(all("--filter" in call for call in observed))
+                    self.assertTrue(
+                        all(source_prefix in call[-1] for call in observed[:3])
+                    )
+                    self.assertTrue(
+                        all(target_prefix in call[-1] for call in observed[3:])
+                    )
+                    self.assertEqual(
+                        [call[0] for call in observed[:3]], ["ps", "volume", "network"]
+                    )
+                    self.assertEqual(
+                        [call[0] for call in observed[3:]],
+                        ["ps", "volume", "network"][: expected - 3],
                     )
 
 

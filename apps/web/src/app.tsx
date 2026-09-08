@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { SurveysPage } from "./surveys";
+import { lazy, Suspense, useEffect } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -21,6 +20,10 @@ import {
   UiSystemCatalogPage,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+
+const SurveysPage = lazy(() =>
+  import("./surveys").then(({ SurveysPage }) => ({ default: SurveysPage })),
+);
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
@@ -184,14 +187,23 @@ export function App({ client }: AppProps) {
       >
         <PreviewNotice />
         {currentRoute.kind === "surveys" ? (
-          <SurveysPage
-            client={client}
-            identity={identity.data}
-            createNew={"createNew" in currentRoute && currentRoute.createNew}
-            surveyId={
-              "surveyId" in currentRoute ? currentRoute.surveyId : undefined
+          <Suspense
+            fallback={
+              <div className="action-loading" role="status" aria-live="polite">
+                <span aria-hidden="true" />
+                <p>Umfragen werden geladen …</p>
+              </div>
             }
-          />
+          >
+            <SurveysPage
+              client={client}
+              identity={identity.data}
+              createNew={"createNew" in currentRoute && currentRoute.createNew}
+              surveyId={
+                "surveyId" in currentRoute ? currentRoute.surveyId : undefined
+              }
+            />
+          </Suspense>
         ) : currentRoute.kind === "new" ? (
           <CreateActionPage client={client} />
         ) : currentRoute.kind === "manage" ? (

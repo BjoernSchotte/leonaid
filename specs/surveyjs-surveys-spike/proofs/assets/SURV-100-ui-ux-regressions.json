@@ -1,0 +1,179 @@
+{
+  "syntheticOnly": true,
+  "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+  "sourceScope": "Checkpoint plus worktree changes identified by exact per-run hashes",
+  "acceptedTask": "100.3m",
+  "acceptedScenario": "100.S2l",
+  "runs": [
+    {
+      "exitCode": 0,
+      "seconds": 718.487,
+      "project": "leonaid-poc096-test-833458328-48672",
+      "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+      "ownedResourcesAbsent": true,
+      "mode": "feature_flags",
+      "command": "sh tools/feature_flags/test.sh \"$PWD\"",
+      "sourceHashes": {
+        "tools/feature_flags/test.sh": "907bbf3b7d549978bf2b57c25079072640b8726a208f01bb99bf4698b281e62a",
+        "tools/feature_flags/contract.py": "c2d1cece7efbb16c9cbd2ccaba4e30c4d1197ff80753dc701a210db3886ba847",
+        "tests/e2e/feature-flags.spec.mjs": "ef3302a13548944d0d5adee228f8ad02a39fd9a6bad3c0d39fd5e2ec352edf03",
+        "apps/web/src/app.tsx": "c3c65cf4c3e53a91303552031425b666bacc8213400c5d5740db1f4dfd4b3ccd",
+        "infra/compose/compose.yml": "2b3ca134642e80a5d1ba91f47f2e3d3d1ceb9e7f3c7702bb50f082463b994d9e",
+        "infra/locks/images.env": "0a9e4a00139a1e0fa6416a1a3dc928f1a44bc5a6536cad23e5e5df58d996b7ed"
+      },
+      "browserTestsPassed": 1,
+      "browserSeconds": 3.6,
+      "apiRestartPersistencePassed": true
+    },
+    {
+      "exitCode": 0,
+      "seconds": 451.121,
+      "project": "leonaid-poc100-test-833458328-43246",
+      "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+      "sourceHashes": {
+        "tools/ui_system/test.sh": "db9b100b63d19f6b6afab58eed0b40af8edac6ed98124bc87ae46a1e7ba74f09",
+        "tests/e2e/ui-system.spec.mjs": "34e884b32d122b42f1058f9a512790b7858b478f3c415ec14cd3fcc5bd23984e",
+        "tests/e2e/ui-system.spec.mjs-snapshots/ui-system-desktop-chromium-1440-linux.png": "81ee42a0252143e131a81242dda8c3953492e8351fd49781640d9016034380a2",
+        "tests/e2e/ui-system.spec.mjs-snapshots/ui-system-mobile-chromium-1440-linux.png": "1be1df6d7eb182f0954abe4bf03108231a2164199b4b83146396250be1b1180f",
+        "src/leonaid/application/identity.py": "25db98aa42fc5fb9cfc3b7b1cbf581b1da30f2bdce7d40fdec50fca8aa688ff4",
+        "packages/ui/src/styles/tokens.css": "3ce9da4c72a44981d917a0b66bbfcd1fd4c88a1d941f2a1b1c4013e3efe8a195",
+        "apps/web/src/app.tsx": "c3c65cf4c3e53a91303552031425b666bacc8213400c5d5740db1f4dfd4b3ccd",
+        "apps/web/src/surveys.tsx": "029aee7979f233782e25d95bcc69b291d10d164646d03eb51fe8edc9474e6334",
+        "packages/ui/src/styles/globals.css": "66d128406159a802e9c755efd141b59ff765ea7ce841aa8d1bb3abc100138486",
+        "packages/ui/src/components/theme-switcher.tsx": "0fdc90b304963452bdffc12f3cb2e8abb6f87a30e8df0a97b122af12885cb5d9",
+        "infra/compose/compose.yml": "2b3ca134642e80a5d1ba91f47f2e3d3d1ceb9e7f3c7702bb50f082463b994d9e",
+        "infra/locks/images.env": "0a9e4a00139a1e0fa6416a1a3dc928f1a44bc5a6536cad23e5e5df58d996b7ed"
+      },
+      "ownedResourcesAbsent": true,
+      "browserTestsPassed": 2,
+      "browserSeconds": 20.2,
+      "visualReview": "All four actual viewport screenshots inspected: synthetic system identity, readable light/dark catalog, intact desktop and mobile shell, visible restored theme focus; ordinary below-fold clipping is expected",
+      "screenshots": {
+        "ui-system-desktop.png": "81ee42a0252143e131a81242dda8c3953492e8351fd49781640d9016034380a2",
+        "ui-system-desktop-collapsed.png": "aa3ddb9b49b7800e343749dc525d9e2945b1f5a0b4a1bcbffc75417444564ef0",
+        "ui-system-dark.png": "e6af1f570dc602f3a3c62d39b1c95a69676e28d81dbcad6d57c93aa9721005d2",
+        "ui-system-mobile.png": "6cb38753caa177493fb085ffa84b960b9cff4da020a2745e43926cd85fc6fff2"
+      },
+      "mode": "ui_system",
+      "command": "LEONAID_UPDATE_SCREENSHOTS=0 sh tools/ui_system/test.sh \"$PWD\""
+    },
+    {
+      "mode": "ux_acceptance",
+      "exitCode": 0,
+      "seconds": 641.881,
+      "project": "leonaid-poc102-test-833458328-33020",
+      "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+      "sourceHashes": {
+        "apps/web/src/app.tsx": "c3c65cf4c3e53a91303552031425b666bacc8213400c5d5740db1f4dfd4b3ccd",
+        "apps/web/src/surveys.tsx": "029aee7979f233782e25d95bcc69b291d10d164646d03eb51fe8edc9474e6334",
+        "apps/web/vite.config.ts": "3bfe1351447ee999a77af86fd955da4c15782aed89dd86b574929e658a99ef1a",
+        "src/leonaid/application/identity.py": "25db98aa42fc5fb9cfc3b7b1cbf581b1da30f2bdce7d40fdec50fca8aa688ff4",
+        "packages/ui/src/styles/tokens.css": "3ce9da4c72a44981d917a0b66bbfcd1fd4c88a1d941f2a1b1c4013e3efe8a195",
+        "infra/compose/compose.yml": "2b3ca134642e80a5d1ba91f47f2e3d3d1ceb9e7f3c7702bb50f082463b994d9e",
+        "infra/locks/images.env": "0a9e4a00139a1e0fa6416a1a3dc928f1a44bc5a6536cad23e5e5df58d996b7ed",
+        "tools/ux_acceptance/test.sh": "ffe2299098581dd14a5edc20bd9ceb3dcc60f8455c28f6ffd40d6ab1a9ed90d9",
+        "tests/e2e/ux-acceptance.spec.mjs": "d49cc422ede1fb61ed2e901f27aabf55e0d48c904bb6e2f3b797cda5ce8e8670"
+      },
+      "ownedResourcesAbsent": true,
+      "command": "sh tools/ux_acceptance/test.sh \"$PWD\"",
+      "browserTestsPassed": 4,
+      "browserSeconds": 15.4
+    }
+  ],
+  "routeJourneyRegression": {
+    "mode": "journeys",
+    "exitCode": 0,
+    "seconds": 542.636,
+    "project": "leonaid-surveys-833458328-36551",
+    "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+    "sourceHashes": {
+      "apps/web/src/app.tsx": "c3c65cf4c3e53a91303552031425b666bacc8213400c5d5740db1f4dfd4b3ccd",
+      "apps/web/src/surveys.tsx": "029aee7979f233782e25d95bcc69b291d10d164646d03eb51fe8edc9474e6334",
+      "apps/web/vite.config.ts": "3bfe1351447ee999a77af86fd955da4c15782aed89dd86b574929e658a99ef1a",
+      "src/leonaid/application/identity.py": "25db98aa42fc5fb9cfc3b7b1cbf581b1da30f2bdce7d40fdec50fca8aa688ff4",
+      "packages/ui/src/styles/tokens.css": "3ce9da4c72a44981d917a0b66bbfcd1fd4c88a1d941f2a1b1c4013e3efe8a195",
+      "infra/compose/compose.yml": "2b3ca134642e80a5d1ba91f47f2e3d3d1ceb9e7f3c7702bb50f082463b994d9e",
+      "infra/locks/images.env": "0a9e4a00139a1e0fa6416a1a3dc928f1a44bc5a6536cad23e5e5df58d996b7ed",
+      "tools/surveys/infrastructure.sh": "420d6b138fd2d1611f8cd520d746a992c78fd1ed326aebfcd2c520af05eb8172",
+      "tests/e2e/surveys-journey.spec.mjs": "bd390ec4ab31f2ab4c33352606828ded6747f665a16ef24fdc875c96975816f7",
+      "packages/surveys/src/runner.tsx": "b0190ef93e3e2193941a8f24ab9356f7202afff5aafbe4640296fad41fae1dbd",
+      "tools/surveys/journey_verify.py": "8d30969e457e35c8e3332f384020ef871da490214e76e1b3e8d4b72052b07bc4"
+    },
+    "ownedResourcesAbsent": true,
+    "command": "sh tools/surveys/infrastructure.sh \"$PWD\" journeys",
+    "browserTestsPassed": 5,
+    "browserDurationDisplay": "1.4m"
+  },
+  "performance": {
+    "budgets": {
+      "cls": 0.1,
+      "domContentLoadedMilliseconds": 2500,
+      "lcpMilliseconds": 2500,
+      "mainThreadTaskMilliseconds": 1800,
+      "transferredBytes": 1000000
+    },
+    "measured": [
+      {
+        "cls": 0.0002,
+        "domContentLoadedMilliseconds": 162,
+        "lcpMilliseconds": 364,
+        "transferredBytes": 180414,
+        "mainThreadTaskMilliseconds": 310,
+        "route": "/krapfentaxi"
+      },
+      {
+        "cls": 0,
+        "domContentLoadedMilliseconds": 780,
+        "lcpMilliseconds": 980,
+        "transferredBytes": 740220,
+        "mainThreadTaskMilliseconds": 379,
+        "route": "/app/?action=20000000-0000-4000-8000-000000000001"
+      },
+      {
+        "cls": 0,
+        "domContentLoadedMilliseconds": 933,
+        "lcpMilliseconds": 1204,
+        "transferredBytes": 894266,
+        "mainThreadTaskMilliseconds": 581,
+        "route": "/admin/?action=20000000-0000-4000-8000-000000000001"
+      }
+    ],
+    "profile": {
+      "browser": "Chromium via Playwright 1.54.1",
+      "cpuThrottlingRate": 4,
+      "network": {
+        "downloadMbps": 10,
+        "latencyMilliseconds": 40,
+        "uploadMbps": 5
+      },
+      "viewport": "390x844"
+    }
+  },
+  "guard": {
+    "beforeSha256": "d52ba68c31702358f98741193cfb067e39b079e575030a978d5be8f2f205f288",
+    "formattedSha256": "f57362d6d1b84d49c2b7dd1f6d8d9e42347be135dc9cab1b1ac42ae9bb6f808d",
+    "astIdentical": true,
+    "guardExitCode": 0,
+    "guardSeconds": 46.292,
+    "casesPerMethod": [
+      176,
+      12
+    ],
+    "totalCases": 188,
+    "ruffLintExitCode": 0,
+    "formattedNotAppliedYet": false,
+    "appliedAfterFeatureFlagTerminal": true,
+    "ruffFormatExitCode": 0
+  },
+  "reviewedScreenshots": {
+    "SURV-100-ui-desktop.png": "81ee42a0252143e131a81242dda8c3953492e8351fd49781640d9016034380a2",
+    "SURV-100-ui-collapsed.png": "aa3ddb9b49b7800e343749dc525d9e2945b1f5a0b4a1bcbffc75417444564ef0",
+    "SURV-100-ui-dark.png": "e6af1f570dc602f3a3c62d39b1c95a69676e28d81dbcad6d57c93aa9721005d2",
+    "SURV-100-ui-mobile.png": "6cb38753caa177493fb085ffa84b960b9cff4da020a2745e43926cd85fc6fff2"
+  },
+  "hostPortsPublished": false,
+  "networksReservedBeforeStartup": true,
+  "acceptedLegacySuites": 42,
+  "totalLegacySuites": 42,
+  "wholeSpikeAccepted": false
+}

@@ -138,10 +138,20 @@ test("UI-Katalog belegt alle Basiszustände mit realer Identität", async ({
       fullPage: false,
     });
 
+    const themeMenu = page.getByRole("menu");
     await page.getByTestId("theme-trigger").click();
+    await expect(themeMenu).toHaveCSS("opacity", "1");
+    await expectNoSeriousAccessibilityViolations(page, "Farbschema-Menü Light");
     await page.getByTestId("theme-dark").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(page.locator(".ui-theme-menu")).toHaveCount(0);
     await expectNoSeriousAccessibilityViolations(page, "Katalog Dark");
+    await page.getByTestId("theme-trigger").click();
+    await expect(themeMenu).toHaveCSS("opacity", "1");
+    await expectNoSeriousAccessibilityViolations(page, "Farbschema-Menü Dark");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".ui-theme-menu")).toHaveCount(0);
+    await expect(page.getByTestId("theme-trigger")).toBeFocused();
     await page.screenshot({
       path: `${artifactDirectory}/ui-system-dark.png`,
       fullPage: false,
