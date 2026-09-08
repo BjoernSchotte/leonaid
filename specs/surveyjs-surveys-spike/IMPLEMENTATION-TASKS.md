@@ -325,8 +325,8 @@ and the complete passing editor regression in that same proof.
 
 Browser criteria **080.A4 / 080.S4** and **080.A6 / 080.S6** are
 [accepted](proofs/SURV-080.md#populated-browser-exports-and-permission-revocation).
-Task 080.1 also has accepted A1/A2 integration evidence below; the other tasks
-remain open until their remaining criteria pass.
+Tasks 080.1–080.3 are accepted by the tabular, consolidated-render and
+terminal-state proofs below; the full spike retains its separate open gates.
 
 - [x] **080.1** Implement response CSV/XLSX and analysis XLSX from a shared AnalysisSnapshot, with stable columns, metadata, denominators and formula-safe text. [Accepted evidence](proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance).
 
@@ -481,7 +481,7 @@ remain open until their remaining criteria pass.
 
 - [x] **100.1a** Distinguish fixed browser actionability categories in sanitized CI metadata without exposing selectors or raw errors. Acceptance: five actual Chromium timeout fixtures produce the expected categories with private canaries excluded; existing diagnostic privacy tests pass. Integration/operator verification: **100.S1a**. This accepts diagnostic collection only; the recurring Journey timeout and parent aggregate remain open. [Live evidence](proofs/SURV-100-BROWSER-DIAGNOSTICS.md).
 
-- [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
+- [x] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
 
   Acceptance criteria: **100.A2, 100.A4**.
   Integration / supporting checks: **100.S3**.
@@ -489,10 +489,12 @@ remain open until their remaining criteria pass.
 
 Browser delivery and **100.A2 / 100.T2 / 100.S4** are accepted after all four
 complete journeys and independent parsing/erasure verification. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
-Task-level **100.2** acceptance remains open solely for its broader **100.A4**
-capability/task reconciliation gate; successful journeys do not close that audit.
+Task-level **100.2** is now accepted: **100.A2** has the complete desktop/mobile
+journey proof and repeated CI, and **100.A4** has the [task/capability review](TRACEABILITY.md#review-decision).
+This does not accept the uncommitted rating-helper change or the remaining
+regression, recovery, cleanup and delivery requirements.
 
-- [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The broader 100.2 capability audit remains open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
+- [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The capability/task audit is reconciled in [TRACEABILITY.md](TRACEABILITY.md#review-decision); broader regression and delivery gates remain open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
 
 - [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
 
@@ -527,8 +529,13 @@ capability/task reconciliation gate; successful journeys do not close that audit
 - [x] **100.3f** Isolate and execute the existing invitation, session, matching, assignment, activity and action regressions. Acceptance: **100.A3, six named suites only**; preserve real API/SQL/SMTP/CRM assertions and complete browser journeys, reserve owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2e**; the remaining legacy suites and full **100.3 / 100.A3** stay open. [Live evidence](proofs/SURV-100.md#six-isolated-browser-regressions).
 - [x] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone. [Live evidence](proofs/SURV-100.md#six-more-isolated-regressions).
 - [x] **100.3h** Isolate and execute the existing Typst, storage, documents, mail relay, invoice delivery and invoice settlement regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/SMTP/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2g**. Guard-only results do not accept the real-service requirement. [Live evidence](proofs/SURV-100-DOCUMENT-MAIL.md).
+
+- [ ] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Candidate builds/scans passed locally; application and CI integration remain open. The prior VEX proposal was not approved or delivered.
+
 - [x] **100.3j** Isolate and execute operations, dashboard and application security regressions. Acceptance: **100.A3, these three named suites only**; retain original authorization, real dependency outage/recovery, database, browser and accessibility assertions, reserve unique networks without host ports and verify owned cleanup. Integration/E2E: **100.S2i**. Application security tests are independent of the pending Caddy image disposition. [Live evidence](proofs/SURV-100-OPERATIONS.md).
 - [ ] **100.3m** Complete the feature flags, UI system and UX acceptance regressions. Acceptance: **100.A3, these three named suites only**; retain original feature authorization, screenshot, accessibility and performance assertions and verify owned cleanup. Integration/E2E: **100.S2l**. The initial runs failed; isolation guard tests and the successful 100.3j suites do not accept them.
+- [ ] **100.3k** Isolate and execute privacy, testkit and the existing Golden Journey. Acceptance: **100.A3, three named suites only**; retain privacy/data-boundary checks, real testkit services and browser verification, and all Golden Journey browsers/rounds including deterministic reset. Re-reserve networks for each owned reset generation and verify final cleanup. Integration/E2E: **100.S2j**.
+- [ ] **100.3l** Isolate and execute the remaining seed, backup and upgrade operator regressions. Acceptance: **100.A3, three named suites only**; isolate CLI state, snapshots, source/target projects and restore state, preserve every original destructive-target rejection, seed/reset equivalence, encrypted backup, recovery and upgrade/rollback assertion, and verify owned cleanup. Integration/operator and browser E2E: **100.S2k**. Existing empty-erasure backup fixtures do not accept SURV-090 independent-host recovery.
 
 - [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
@@ -538,7 +545,7 @@ capability/task reconciliation gate; successful journeys do not close that audit
 
 ## Final reconciliation
 
-- [x] Every implementation task in PLAN.md has exactly one entry above (72 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
-- [ ] Every completed task links to its task-level proof; no inferred passing status.
+- [x] Every implementation task in PLAN.md has exactly one entry above (76 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
+- [x] Every completed task links to its task-level proof; no inferred passing status. [Reviewed inventory](TRACEABILITY.md#review-decision).
 - [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
 - [ ] Remaining open tasks are listed in the spike report and prevent full completion.

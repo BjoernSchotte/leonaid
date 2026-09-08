@@ -2,9 +2,10 @@
 
 Date: 2026-09-06
 
-Status: required scope with implementation evidence indexed below. The final
-cross-layer/whole-journey gate remains open; individual historical proofs apply
-only to their stated fixtures and acceptance boundaries.
+Status: required scope with implementation evidence indexed below and the
+[100.A4 review](TRACEABILITY.md#review-decision) completed. The broader regression,
+recovery and delivery gates remain open; individual proofs apply only to their
+stated fixtures and acceptance boundaries.
 
 Own license decision: **UNDEFINED**
 
@@ -125,9 +126,10 @@ and remaining limitations. The general write boundary is indexed separately in
 | C-15 | `tools/surveys/rendering-probe.ts`; packed consumer restart/write counters; actual Astro HTML/cache/header and zero-restoration-write assertions | [Chosen browser-mount disposition](proofs/SURV-020.md#browser-rendering-and-restoration-disposition); SSR answer fidelity is not selected or claimed |
 
 Browser filenames in this table live under `tests/e2e/`; JSON fixture filenames
-live under `tests/fixtures/surveys/` unless otherwise stated. Open SURV-000 contract
-coverage, SURV-090 recovery and SURV-100 aggregate/final capability reconciliation
-remain acceptance blockers even when a capability has several useful proofs.
+live under `tests/fixtures/surveys/` unless otherwise stated. SURV-000 contract coverage and 100.A1/100.A4 are now accepted within their
+recorded scopes. Independent-host recovery, final cleanup, existing regressions
+and delivery review remain acceptance blockers even when a capability has
+several useful proofs.
 The complete desktop/mobile sample journeys have their own scoped
 [accepted evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys);
 a later failing or incomplete regression is not silently treated as a pass.
