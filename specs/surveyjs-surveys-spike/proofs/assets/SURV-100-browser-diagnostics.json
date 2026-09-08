@@ -1,0 +1,62 @@
+{
+  "sourceCheckpoint": "86bf028",
+  "reviewScope": "Six additional fixed browser-actionability categories; no raw browser errors published",
+  "browserCommandExitCode": 0,
+  "privacyUnitTests": 5,
+  "privacyUnitExitCode": 0,
+  "playwrightImage": "mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f",
+  "fixtureSha256": "4b55e3f6815ca5de292463419c2cdf93877e4bdf3ea9f647d52dd532ff726136",
+  "classifierSha256": "628b4b7606d77a154750cb8d65f9fcfcbb3a55e88e775dae9f6cde3ab2c88e5e",
+  "cases": [
+    {
+      "case": "absent",
+      "observedMarkers": [
+        "browser-locator-wait"
+      ],
+      "publicLocations": [],
+      "privateCanaryExcluded": true
+    },
+    {
+      "case": "hidden",
+      "observedMarkers": [
+        "browser-element-hidden",
+        "browser-locator-resolved",
+        "browser-locator-wait"
+      ],
+      "publicLocations": [],
+      "privateCanaryExcluded": true
+    },
+    {
+      "case": "disabled",
+      "observedMarkers": [
+        "browser-element-disabled",
+        "browser-locator-resolved",
+        "browser-locator-wait"
+      ],
+      "publicLocations": [],
+      "privateCanaryExcluded": true
+    },
+    {
+      "case": "intercepted",
+      "observedMarkers": [
+        "browser-locator-resolved",
+        "browser-locator-wait",
+        "browser-pointer-intercepted"
+      ],
+      "publicLocations": [],
+      "privateCanaryExcluded": true
+    },
+    {
+      "case": "outside",
+      "observedMarkers": [
+        "browser-element-outside-viewport",
+        "browser-locator-resolved",
+        "browser-locator-wait"
+      ],
+      "publicLocations": [],
+      "privateCanaryExcluded": true
+    }
+  ],
+  "fullJourneyAccepted": false,
+  "wholeSpikeAccepted": false
+}

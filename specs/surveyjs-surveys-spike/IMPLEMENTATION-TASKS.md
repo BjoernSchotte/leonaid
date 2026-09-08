@@ -477,6 +477,8 @@ remain open until their remaining criteria pass.
   Integration / supporting checks: **100.S1, 100.S2, 100.S3**.
   E2E: **100.S4**.
 
+- [x] **100.1a** Distinguish fixed browser actionability categories in sanitized CI metadata without exposing selectors or raw errors. Acceptance: five actual Chromium timeout fixtures produce the expected categories with private canaries excluded; existing diagnostic privacy tests pass. Integration/operator verification: **100.S1a**. This accepts diagnostic collection only; the recurring Journey timeout and parent aggregate remain open. [Live evidence](proofs/SURV-100-BROWSER-DIAGNOSTICS.md).
+
 - [ ] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys.
 
   Acceptance criteria: **100.A2, 100.A4**.
