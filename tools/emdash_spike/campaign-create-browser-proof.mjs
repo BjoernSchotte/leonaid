@@ -84,6 +84,38 @@ for (const [index, [name, engine]] of engines.entries()) {
     assert.equal(uncreated.status(), 303);
     assert.equal(uncreated.headers().location, newPath);
     assert.equal((await json(apiRoot)).total, before.total);
+    const leaveWithWarning = async (accept, navigate) => {
+      const warning = page.waitForEvent("dialog").then(async (dialog) => {
+        assert.equal(dialog.type(), "beforeunload");
+        if (accept) await dialog.accept();
+        else await dialog.dismiss();
+      });
+      await Promise.all([warning, navigate()]);
+    };
+    await page.goto(origin + editorRoot);
+    await page.goto(origin + newPath);
+    await expect(page.locator("#field-action_id")).toHaveValue(action);
+    // Focus alone activates browser leave warnings, but is not an edit.
+    await page.locator("#field-hero_title").click();
+    await page.goBack();
+    await page.waitForURL(origin + editorRoot);
+    await page.goto(origin + newPath);
+    await page.locator("#field-hero_title").fill("Unsaved navigation proof");
+    await leaveWithWarning(false, () =>
+      page
+        .getByRole("link", { name: "Zurück zu LeonAid", exact: true })
+        .click(),
+    );
+    assert.equal(page.url(), origin + newPath);
+    await expect(page.locator("#field-hero_title")).toHaveValue(
+      "Unsaved navigation proof",
+    );
+    await leaveWithWarning(true, () => page.goBack());
+    await page.waitForURL(origin + editorRoot);
+    assert.equal((await json(apiRoot)).total, before.total);
+    console.log(
+      `campaign-navigation-browser: OK: ${name}: untouched prefill returns; actual beforeunload cancel preserves input; confirm leaves; no draft created`,
+    );
     const submit = async (status) => {
       assert.equal((await page.goto(origin + newPath)).status(), 200);
       await page.locator("#field-title").fill(title);
@@ -157,7 +189,8 @@ for (const [index, [name, engine]] of engines.entries()) {
     );
     await submit(409);
     assert.equal((await json(apiRoot)).total, before.total + 1);
-    await page.goto(origin + editorPath);
+    // The rejected duplicate remains an unsaved form; discard it explicitly.
+    await leaveWithWarning(true, () => page.goto(origin + editorPath));
     const saved = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === `${apiRoot}/${created.item.id}` &&

@@ -2611,8 +2611,8 @@ Dependencies: EMS-030, EMS-050
 - [ ] Preserve keyboard focus, browser Back behaviour, mobile navigation, and
       unsaved-change warnings across the transition.
       Visible browser Back returned from the unchanged existing editor to
-      acquisition/orders. The complete three-engine warning interaction and
-      history/focus gate remains open; the new-form regression is fixed below.
+      acquisition/orders. The complete history/focus and existing-editor
+      transition gate remains open; new-form dialogs are covered below.
 - [x] Do not warn solely because a new campaign form is prefilled. Native
       EmDash deliberately makes all new forms dirty to enable Save. Preserve
       that behaviour, but compare new-form navigation state with its initial
@@ -2627,6 +2627,22 @@ Dependencies: EMS-030, EMS-050
       browser tool. Both unsaved test tabs were closed; the scoped native list
       still contained only the existing Krapfentaxi page. No content was saved
       or published. Native Save/autosave semantics were not changed.
+- [x] Exercise actual new-form `beforeunload` dialogs in Chromium, Firefox and
+      WebKit using the existing `admin-browser` acceptance runner. Focusing an
+      untouched prefilled input must still permit browser Back. After editing,
+      cancelling the native dialog preserves the URL and input; accepting it
+      returns to the list. An independent scoped API count confirms no draft
+      was created by these transitions. Subsequent native creation, duplicate
+      rejection and autosave/reload also passed in all three engines. The
+      rejected duplicate remains an unsaved form and is explicitly discarded
+      through its real warning before continuing; no dialog is silently ignored.
+      Evidence: isolated project `leonaid-emdash-tmp-3zx7nz258o`, with no host
+      ports. The full `admin-browser` command exited successfully, including
+      actual SMTP login/fresh login, Core logout and revocation, editor conflict
+      and publication regressions, reserved trashed bindings, TLS/bootstrap
+      restart and database-outage denial. Its owned containers, volumes and
+      networks were removed. This supplements the visible In-App Browser proof above, not the
+      still-outstanding full `shell-navigation` gate or its 200% zoom checks.
 - [ ] Do not copy operational LeonAid forms or domain mutations into EmDash.
 
 Verification:
