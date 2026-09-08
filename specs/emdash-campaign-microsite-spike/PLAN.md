@@ -4485,6 +4485,13 @@ Preparation of this configuration is not yet visible-browser acceptance.
       the same Core user without another login or passkey. The setup URL returned
       503 after completion. This proves initial setup/identity handoff, not the
       still-pending campaign schema, import, scoped Charity editor or ordering.
+- [x] Initialize campaign schema in the persistent local stack without fixture
+      content. With only that CMS stopped, the dedicated CMS-role operator
+      installed the existing versioned schema, binding and media guards using
+      one database connection and a completed-bootstrap check. After restart,
+      the In-App Browser displayed `Campaign pages` and an empty collection,
+      confirming that no synthetic published test pages were seeded. The
+      Krapfentaxi content import remains separate and pending.
 
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.

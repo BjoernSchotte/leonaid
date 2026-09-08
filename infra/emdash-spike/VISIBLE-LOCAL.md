@@ -29,11 +29,21 @@ ordinary `up` operations. This local operator currently assumes the default
 
 Open `https://localhost:<HTTPS port>/` visibly in the In-App Browser. Verify the
 administration at `/admin/`, Core health at `/api/health/live`, CMS at `/_emdash/`
-and the imported campaign at `/campaigns/krapfentaxi/`. A reachable login page is
-not proof of editorial access, and an empty database is not a campaign import.
+and the imported campaign at `/campaigns/krapfentaxi-2026/`. A reachable login page
+is not proof of editorial access, and an empty database is not a campaign import.
 Complete the existing designated-operator setup, synthetic Core seed, Twenty
 provisioning and campaign import before claiming integrated acceptance. Do not
 copy session cookies or database state from a parallel project.
+
+After the visible designated-operator setup, stop only this project's
+`campaign-site`. Run `cms-db-operator` with the command
+`node tools/emdash_spike/initialize-local-campaign.mjs`, environment
+`LEONAID_ENV=local`, and this project's `cms-bootstrap-state` volume mounted
+read-only at `/app/bootstrap-state`. This installs the existing campaign schema,
+binding and media guards without test pages or publication. It uses the dedicated
+CMS role and one database connection. Restart the CMS only after success; on
+failure leave it stopped and investigate. This is initial local preparation,
+not the production migration/release procedure and not a campaign import.
 
 Caddy's local CA persists in the project-specific `visible-local-caddy-data`
 volume. Trust must be established explicitly for the local browser; do not
