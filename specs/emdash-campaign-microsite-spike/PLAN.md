@@ -4598,6 +4598,22 @@ Preparation of this configuration is not yet visible-browser acceptance.
       in the In-App Browser. Enhanced order timeout/retry acceptance is still
       separate and unproven.
 
+- [x] Demonstrate order timeout and ordinary retry in the visible In-App Browser.
+      After automated acceptance on `3db1743`, the persistent isolated demo
+      received one synthetic private-person order through the canonical Astro
+      form. A bounded operator session held only that synthetic person's Core
+      advisory lock, observed the actual PostgreSQL blocking relationship and
+      verified no matching order after Core cancelled its wait. The session
+      then closed and released the lock. The visible browser displayed the
+      expected processing-timeout message with entered values and consents
+      retained. Clicking submit again without reload produced one accepted
+      reference, EUR 36.00 and one box / 24 pieces. Independent read-only Core
+      SQL and the actual Twenty API verified exactly one matching order,
+      amount/line, consent, audit and the linked CRM person. No timeout budget,
+      response or session was substituted; other projects were not modified.
+      This supplements, rather than replaces, the three-engine automated
+      command-ID and exact-replay checks above.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.
