@@ -5,17 +5,25 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-source_project=${LEONAID_UPGRADE_TEST_PROJECT:-leonaid-poc113-upgrade}
-rollback_project=${LEONAID_UPGRADE_ROLLBACK_PROJECT:-leonaid-restore-poc113-rollback}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+source_project=${LEONAID_UPGRADE_TEST_PROJECT:-leonaid-poc113-upgrade}-$suffix
+rollback_project=${LEONAID_UPGRADE_ROLLBACK_PROJECT:-leonaid-restore-poc113-rollback}-$suffix
+source_owned=false
+rollback_owned=false
+restore_generation=0
 source_http_port=${LEONAID_UPGRADE_TEST_PORT:-18133}
 source_https_port=${LEONAID_UPGRADE_TEST_HTTPS_PORT:-18493}
 rollback_http_port=${LEONAID_UPGRADE_ROLLBACK_PORT:-18134}
 rollback_https_port=${LEONAID_UPGRADE_ROLLBACK_HTTPS_PORT:-18494}
 compose_file="$root/infra/compose/compose.yml"
 source_overlay="$root/infra/upgrade/compose.source.yml"
-rollback_network_overlay="$root/infra/upgrade/compose.rollback-network.yml"
+rollback_network_template="$root/infra/upgrade/compose.rollback-network.yml"
 env_file="$root/.env.local"
-proof=$(mktemp -d)
+mkdir -p "$root/.artifacts"
+proof=$(mktemp -d "$root/.artifacts/upgrade-regression.XXXXXX")
+chmod 700 "$proof"
+source_isolation="$proof/source.yml"
+rollback_network_overlay="$proof/rollback.yml"
 repository="$proof/repository"
 password_file="$proof/restic-password"
 artifact_directory=${LEONAID_UPGRADE_ARTIFACT_DIR:-"$root/.artifacts/poc113"}
@@ -34,6 +42,7 @@ source_old() {
       --env-file "$env_file" \
       --file "$compose_file" \
       --file "$source_overlay" \
+      --file "$source_isolation" \
       "$@"
 }
 
@@ -45,6 +54,7 @@ source_target() {
       --project-name "$source_project" \
       --env-file "$env_file" \
       --file "$compose_file" \
+      --file "$source_isolation" \
       "$@"
 }
 
@@ -73,29 +83,52 @@ rollback_target() {
       "$@"
 }
 
+verify_cleanup() {
+  checked_project=$1
+  for inventory in containers volumes networks; do
+    case "$inventory" in
+      containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+    esac
+    if [ -n "$remaining" ]; then
+      echo "test-isolation: owned $inventory remain for $checked_project" >&2
+      return 1
+    fi
+  done
+}
+
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    mkdir -p "$artifact_directory/failures"
-    cp "$proof"/twenty-*.log "$artifact_directory/failures/" \
-      >/dev/null 2>&1 || true
-    echo "upgrade-test: Diagnose der fehlgeschlagenen Services:" >&2
-    source_target ps --all >&2 || true
-    rollback_target ps --all >&2 || true
-    source_target logs --no-color --tail=260 \
-      api core-postgres rustfs twenty-postgres twenty-server \
-      twenty-worker proxy >&2 || true
-    rollback_target logs --no-color --tail=260 \
-      api core-postgres rustfs twenty-postgres twenty-server \
-      twenty-worker proxy >&2 || true
+    if [ "$source_owned" = true ] || [ "$rollback_owned" = true ]; then
+      mkdir -p "$artifact_directory/failures"
+      cp "$proof"/twenty-*.log "$artifact_directory/failures/" >/dev/null 2>&1 || true
+    fi
+    echo "upgrade-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
+    if [ "$source_owned" = true ]; then
+      source_target ps --all >&2 || true
+      source_target logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
+    fi
+    if [ "$rollback_owned" = true ]; then
+      rollback_target ps --all >&2 || true
+      rollback_target logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
+    fi
   fi
-  rollback_target --profile dev-mail down \
-    --volumes --remove-orphans >/dev/null 2>&1 || true
-  if [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
-    source_target --profile dev-mail down \
-      --volumes --remove-orphans >/dev/null 2>&1 || true
-  else
-    echo "upgrade-test: Zielversion bleibt sichtbar unter http://127.0.0.1:$source_http_port/admin/"
+  if [ "$rollback_owned" = true ]; then
+    if ! rollback_target --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    if ! verify_cleanup "$rollback_project"; then status=1; fi
+  fi
+  if [ "$source_owned" = true ]; then
+    if [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
+      if ! source_target --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+      if ! verify_cleanup "$source_project"; then status=1; fi
+    else
+      echo "upgrade-test: Owned source project retained stopped without host ports: $source_project"
+    fi
+  fi
+  if [ "$status" -eq 0 ] && [ "$source_owned" = true ] && [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ]; then
+    echo "test-isolation: $source_project and $rollback_project passed and owned resources were removed"
   fi
   rm -rf "$proof"
   exit "$status"
@@ -244,6 +277,13 @@ run_dashboard_contract() {
     --workdir /repo \
     --entrypoint python \
     api tools/dashboard/contract.py
+  $runner run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api tools/upgrade/survey_contract.py
 }
 
 run_maintenance_contract() {
@@ -468,6 +508,21 @@ response.raise_for_status()'
 }
 
 restore_source_version() {
+  verify_cleanup "$rollback_project"
+  restore_generation=$((restore_generation + 1))
+  python3 "$root/tools/surveys/network_override.py" "$rollback_network_overlay"
+  python3 - "$rollback_network_template" "$rollback_network_overlay" <<'PY_OVERLAY'
+from pathlib import Path
+import sys
+original = Path(sys.argv[1]).read_text()
+path = Path(sys.argv[2])
+selected = path.read_text()
+assert original.startswith("services:\n  proxy:\n")
+original = original.replace("services:\n  proxy:\n", "services:\n  proxy:\n    ports: !reset []\n", 1)
+path.write_text(original + selected[selected.index("networks:\n"):])
+PY_OVERLAY
+  rollback_owned=true
+  rollback_old --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$rollback_project" "$rollback_network_overlay"
   LEONAID_HTTP_PORT="$rollback_http_port" \
     LEONAID_HTTPS_PORT="$rollback_https_port" \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
@@ -478,15 +533,24 @@ restore_source_version() {
     LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
     LEONAID_RESTORE_START_APP=false \
+    LEONAID_RESTORE_STATE_FILE="$proof/restore-state-$restore_generation.json" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_RESTORE_COMPOSE_OVERLAY_SECONDARY="$rollback_network_overlay" \
     /bin/sh "$root/tools/backup/restore.sh" "$root"
 }
 
-source_old --profile dev-mail down \
-  --volumes --remove-orphans >/dev/null 2>&1 || true
-rollback_old --profile dev-mail down \
-  --volumes --remove-orphans >/dev/null 2>&1 || true
+# Refuse either occupied identity before acquiring any source resources.
+for checked_project in "$source_project" "$rollback_project"; do
+  existing=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+  existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+  existing=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+done
+python3 "$root/tools/surveys/network_override.py" "$source_isolation"
+source_owned=true
+source_old --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$source_project" "$source_isolation"
 mkdir -p "$repository"
 docker run --rm \
   --user "$(id -u):$(id -g)" \
@@ -558,6 +622,8 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_BACKUP_REPOSITORY="$repository" \
   LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
+  LEONAID_BACKUP_COMPOSE_OVERLAY="$source_overlay" \
+  LEONAID_BACKUP_COMPOSE_OVERLAY_SECONDARY="$source_isolation" \
   /bin/sh "$root/tools/backup/backup.sh" "$root"
 
 . "$root/tools/backup/survey-recovery-fixture.sh"
@@ -567,6 +633,7 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
   LEONAID_HTTPS_PORT="$source_https_port" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$source_isolation" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" enable "$root"
 run_maintenance_contract source maintenance
 running_writers=$(source_target ps --services --filter status=running)
@@ -585,6 +652,7 @@ LEONAID_COMPOSE_PROJECT="$source_project" \
   LEONAID_HTTP_PORT="$source_http_port" \
   LEONAID_HTTPS_PORT="$source_https_port" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
+  LEONAID_MAINTENANCE_COMPOSE_OVERLAY="$source_isolation" \
   /bin/sh "$root/infra/upgrade/maintenance.sh" disable "$root"
 source_target --profile dev-mail up --detach --wait --wait-timeout 420
 run_maintenance_contract source available
@@ -596,6 +664,8 @@ record_release_event \
   "$release_v2" staging_verified passed PILOT-043-STAGING-V2 \
   2026-07-28T08:40:00Z
 
+# Retain source data but run only one full owned stack at a time.
+source_target --profile '*' stop
 restore_source_version
 rollback_old build api public pwa web survey-validator
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
@@ -622,7 +692,7 @@ record_release_event \
   "$release_v2" production_failed failed PILOT-043-MIGRATION-FAILURE \
   2026-07-28T09:01:00Z
 
-rollback_target --profile dev-mail down --volumes --remove-orphans
+rollback_target --profile '*' down --volumes --remove-orphans
 record_release_event \
   "$release_v2" rollback_started passed PILOT-043-MIGRATION-ROLLBACK \
   2026-07-28T09:02:00Z
@@ -680,7 +750,7 @@ record_release_event \
   "$release_v2" production_failed failed PILOT-043-POST-SMOKE-FAILURE \
   2026-07-28T09:41:00Z
 
-rollback_target --profile dev-mail down --volumes --remove-orphans
+rollback_target --profile '*' down --volumes --remove-orphans
 record_release_event \
   "$release_v2" rollback_started passed PILOT-043-POST-SMOKE-ROLLBACK \
   2026-07-28T09:42:00Z

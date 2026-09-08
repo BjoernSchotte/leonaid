@@ -3,7 +3,7 @@
   "reviewOnly": true,
   "finalTraceabilityAccepted": true,
   "wholeSpikeAccepted": false,
-  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Eleven explicitly open tasks prevent full spike completion.",
+  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Ten explicitly open tasks prevent full spike completion.",
   "tasks": [
     {
       "task": "000.1",
@@ -1127,14 +1127,15 @@
     },
     {
       "task": "100.3l",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A3"
       ],
       "evidence": [
-        "proofs/SURV-100.md"
-      ],
-      "remaining": "Seed/backup/upgrade isolation prepared; actual operator runs remain unaccepted."
+        "proofs/SURV-100-SEED.md",
+        "proofs/SURV-100-BACKUP.md",
+        "proofs/SURV-100-UPGRADE.md"
+      ]
     },
     {
       "task": "100.3m",
@@ -1188,8 +1189,8 @@
   ],
   "reviewEvidence": {
     "taskCount": 104,
-    "acceptedTasks": 93,
-    "openTasks": 11,
+    "acceptedTasks": 94,
+    "openTasks": 10,
     "capabilityCount": 15,
     "runtimeComparisonBase": "419738db48d3816cc9b8853a1b3be9925c7983db",
     "runtimeComparisonHead": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
@@ -1202,5 +1203,10 @@
     "runtimeChangedFiles": [],
     "fullSurveyCiEvidence": "proofs/SURV-100-CI-REPEAT.md",
     "manualReviewIsNotNewExecution": true
+  },
+  "operatorAcceptanceFollowUp": {
+    "sourceCheckpoint": "5649ed76ee3f88505567cfc8cedad5a90124d711",
+    "proof": "proofs/SURV-100-UPGRADE.md",
+    "scope": "100.3l acceptance after all three operator runs; original 100.A4 review preserved"
   }
 }
