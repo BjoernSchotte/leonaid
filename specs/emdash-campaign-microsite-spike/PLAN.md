@@ -3903,6 +3903,10 @@ another running checkout or authorize production deployment.
       flag; this does not establish the readiness failure's cause. Owned
       resources were removed. The importer correction is live-proven; the
       broader cutover/rollback gate remains open.
+      Full `./leonaid check` at `a3e8b28` exited 0 with 269 unit tests,
+      274 Python source files typechecked, 25 public and 49 CMS Astro files
+      without diagnostics, all generated-type/format/policy gates passed,
+      and the committed working tree unchanged.
 
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
