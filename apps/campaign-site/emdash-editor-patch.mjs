@@ -31,15 +31,17 @@ export function patchEditorSource(source) {
   replace(
     "\tconst isDirty = isNew || currentData !== lastSavedData;",
     `\tconst isDirty = isNew || currentData !== lastSavedData;
+\tconst leonaidInitialData = React$1.useRef(currentData);
+\tconst leonaidUnsaved = isNew ? currentData !== leonaidInitialData.current : isDirty;
 \tReact$1.useEffect(() => {
-\t\tif (collection !== "campaign_pages" || !isDirty) return;
+\t\tif (collection !== "campaign_pages" || !leonaidUnsaved) return;
 \t\tconst warnBeforeLeaving = (event) => {
 \t\t\tevent.preventDefault();
 \t\t\tevent.returnValue = "";
 \t\t};
 \t\twindow.addEventListener("beforeunload", warnBeforeLeaving);
 \t\treturn () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-\t}, [collection, isDirty]);`,
+\t}, [collection, leonaidUnsaved]);`,
   );
   // A CMS logout must revoke the same Core session used by both surfaces.
   // Never open native EmDash auth routes or pretend a failed logout succeeded.

@@ -44,9 +44,35 @@ assert.ok(header.includes('children: "Zurück zu LeonAid"'));
 assert.ok(!header.includes("external: true"));
 assert.ok(!header.includes('message: "View Site"'));
 const guard = revisioned.match(
-  /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !isDirty\)[\s\S]+?\}, \[collection, isDirty\]\);/,
+  /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !leonaidUnsaved\)[\s\S]+?\}, \[collection, leonaidUnsaved\]\);/,
 );
 assert.ok(guard);
+assert.ok(
+  revisioned.includes(
+    "const leonaidInitialData = React$1.useRef(currentData);",
+  ),
+);
+// New forms remain saveable, but only actual edits warrant a leave warning.
+const unsavedExpression = revisioned.match(/const leonaidUnsaved = ([^\n]+);/);
+assert.ok(unsavedExpression);
+const hasUnsaved = new Function(
+  "isNew",
+  "currentData",
+  "leonaidInitialData",
+  "isDirty",
+  `return ${unsavedExpression[1]};`,
+);
+for (const [isNew, current, initial, dirty, expected] of [
+  [true, "prefilled", "prefilled", true, false],
+  [true, "edited", "prefilled", true, true],
+  [true, "prefilled", "prefilled", true, false],
+  [false, "saved", "loaded", false, false],
+  [false, "edited", "loaded", true, true],
+])
+  assert.equal(
+    hasUnsaved(isNew, current, { current: initial }, dirty),
+    expected,
+  );
 for (const [collection, dirty, expected] of [
   ["campaign_pages", true, 1],
   ["campaign_pages", false, 0],
@@ -54,7 +80,7 @@ for (const [collection, dirty, expected] of [
 ]) {
   const listeners = new Map();
   let cleanup;
-  new Function("React$1", "window", "collection", "isDirty", guard[0])(
+  new Function("React$1", "window", "collection", "leonaidUnsaved", guard[0])(
     {
       useEffect: (effect) => {
         cleanup = effect();

@@ -2611,11 +2611,22 @@ Dependencies: EMS-030, EMS-050
 - [ ] Preserve keyboard focus, browser Back behaviour, mobile navigation, and
       unsaved-change warnings across the transition.
       Visible browser Back returned from the unchanged existing editor to
-      acquisition/orders. Returning from the untouched, campaign-prefilled new
-      form instead aborted navigation; no actionable dialog was exposed by the
-      In-App Browser. Diagnose and prove this separate new-form case before
-      closing the warning/history gate; do not treat arrival at the form as
-      proof of the complete round trip.
+      acquisition/orders. The complete three-engine warning interaction and
+      history/focus gate remains open; the new-form regression is fixed below.
+- [x] Do not warn solely because a new campaign form is prefilled. Native
+      EmDash deliberately makes all new forms dirty to enable Save. Preserve
+      that behaviour, but compare new-form navigation state with its initial
+      serialized state; existing editors retain the saved-state guard. The
+      exact-source patch proof checks clean/new/changed/saved conditions and
+      listener cleanup. All 49 Astro checks and the CMS production build passed.
+      After updating only the isolated visible CMS, the In-App Browser completed
+      acquisition 2025 → prefilled new form → browser Back, retaining the 2025
+      selection and shared login. After entering a synthetic hero heading,
+      Back was aborted and the input remained intact. This proves protection,
+      not interaction with a displayed confirm dialog: none was exposed by this
+      browser tool. Both unsaved test tabs were closed; the scoped native list
+      still contained only the existing Krapfentaxi page. No content was saved
+      or published. Native Save/autosave semantics were not changed.
 - [ ] Do not copy operational LeonAid forms or domain mutations into EmDash.
 
 Verification:
