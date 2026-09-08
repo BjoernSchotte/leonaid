@@ -148,6 +148,14 @@ if (mode === "--changed") {
     );
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     assert.equal((await published).status(), 200);
+    // The POST finishes before the native editor refetches its content and
+    // resets form state. Wait for the actual published UI before editing the
+    // next draft; do not substitute a delay or reload for this transition.
+    await expect(
+      page.getByRole("button", { name: /^Unpublish / }),
+    ).toBeVisible();
+    await expect(page.locator("#field-story_title")).toHaveValue(newTitle);
+    assert.equal((await json(api)).item.draftRevisionId, null);
     const changed = await publicHtml();
     assert.ok(changed.includes(newTitle) && changed.includes(witness.newHero));
     const newMedia = await anonymous.request.get(
