@@ -3858,7 +3858,14 @@ another running checkout or authorize production deployment.
       set `LEONAID_ENV=test`, matching the existing internal-ingress proof;
       the guard remains intact. All owned resources were cleaned. Cutover,
       newer-order preservation and CMS-only restore still require the full
-      subsequent live run; do not mark the parent rollback item complete.
+        subsequent live run; do not mark the parent rollback item complete.
+
+      Source quality for `3aa8776` was reverified after Docker recovered:
+      `./leonaid check` exited 0, with 269 unit tests, 273 Python source files
+      typechecked, 25 public and 49 CMS Astro files without diagnostics, and
+      all generated-type, formatting and policy gates passed. The committed
+      tree remained unchanged. The earlier interrupted check has no claimed
+      result; this completed rerun supplies the evidence instead.
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 
