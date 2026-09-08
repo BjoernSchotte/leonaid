@@ -874,7 +874,7 @@ Test implementation and verification tasks:
 
 Acceptance criteria:
 
-- [ ] **100.A1 — Integration:** the entire survey suite passes from empty test volumes and on a repeat run; migrations, worker restart, object storage and recovery evidence are recorded.
+- [x] **100.A1 — Integration:** the entire survey suite passes from empty test volumes and on a repeat run; migrations, worker restart, object storage and recovery evidence are recorded. [Complete repeated CI evidence](proofs/SURV-100-CI-REPEAT.md): 38 checks, two passes, 76 zero exits at e030836. Final cleanup reconciliation and the broader acceptance remain open.
 - [x] **100.A2 — E2E:** both browser journeys pass on desktop and a mobile viewport against real services, including partial response persistence, version isolation, role boundaries and all exports. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
 - [ ] **100.A3 — Regression:** affected `./leonaid test-identity`, `test-policy`, `test-public-actions`, `test-public-orders` and `test-integration` checks pass; justify any excluded suite by untouched boundaries.
 - [ ] **100.A4 — Traceability:** each C-01–C-15 capability links to actual test/proof evidence; every task is either completed with evidence or explicitly open and prevents a claim of full spike completion.

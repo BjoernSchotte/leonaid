@@ -471,6 +471,8 @@ remain open until their remaining criteria pass.
 
 ## SURV-100 — Full acceptance and spike outcome
 
+**100.A1 is accepted:** all 38 survey checks passed twice in the complete CI matrix at e030836. [Evidence](proofs/SURV-100-CI-REPEAT.md). Parent tasks remain open for their other criteria; 100.S1 retains the final cross-harness cleanup reconciliation.
+
 - [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
 
   Acceptance criteria: **100.A1, 100.A2, 100.A3, 100.A5**.

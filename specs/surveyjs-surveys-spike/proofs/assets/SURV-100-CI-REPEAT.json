@@ -1,0 +1,617 @@
+{
+  "schemaVersion": 1,
+  "scope": "SURV-100.A1: complete survey manifest, two passes at the recorded source revision; not full spike acceptance",
+  "workflowUrl": "https://github.com/BjoernSchotte/leonaid/actions/runs/34192365764",
+  "sourceCommit": "e03083601786911eaf57f95f63ba835a22663213",
+  "testedMergeCommit": "738c1d216f67dfeeccb2db0180fc426adf8d4dd1",
+  "mergeComparisonChangedFiles": [],
+  "manifestSha256": "c48840bfc159665bba969ecfe4bc318b94ad9c497db3e893dbc29249f52d468f",
+  "checkCount": 38,
+  "requestedPasses": 2,
+  "totalSuccessfulExecutions": 76,
+  "groups": [
+    {
+      "group": "foundation",
+      "sourceReportSha256": "fd5145217dc6017c1791996e189b0d4f7062b55c6ba058f4aab2b164f4a196d6",
+      "startedAt": "2026-09-08T05:54:07.445932+00:00",
+      "finishedAt": "2026-09-08T06:06:21.011205+00:00",
+      "checks": [
+        {
+          "id": "gate-controller",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 0.665
+        },
+        {
+          "id": "restore-receipts",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 0.315
+        },
+        {
+          "id": "core",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 8.285
+        },
+        {
+          "id": "validation-candidate",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 2.471
+        },
+        {
+          "id": "dependencies",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 0.816
+        },
+        {
+          "id": "migrations",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 23.603
+        },
+        {
+          "id": "foundation-diagnostics",
+          "group": "foundation",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 381.928
+        },
+        {
+          "id": "gate-controller",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 0.615
+        },
+        {
+          "id": "restore-receipts",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 0.265
+        },
+        {
+          "id": "core",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 7.034
+        },
+        {
+          "id": "validation-candidate",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 2.472
+        },
+        {
+          "id": "dependencies",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 0.818
+        },
+        {
+          "id": "migrations",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 13.149
+        },
+        {
+          "id": "foundation-diagnostics",
+          "group": "foundation",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 291.123
+        }
+      ]
+    },
+    {
+      "group": "integration",
+      "sourceReportSha256": "25b1c7577764619fdd7abd32e96e9c72b4c0787428c9301aef81dd5d52302589",
+      "startedAt": "2026-09-08T05:54:22.333597+00:00",
+      "finishedAt": "2026-09-08T06:44:08.742572+00:00",
+      "checks": [
+        {
+          "id": "aggregate-engine",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 19.103
+        },
+        {
+          "id": "contracts",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 289.805
+        },
+        {
+          "id": "lifecycle",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 164.745
+        },
+        {
+          "id": "lifecycle-concurrency",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 95.525
+        },
+        {
+          "id": "invitations",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 161.641
+        },
+        {
+          "id": "permissions",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 262.01
+        },
+        {
+          "id": "aggregates",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 145.316
+        },
+        {
+          "id": "analysis",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 166.604
+        },
+        {
+          "id": "request-limits",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 125.976
+        },
+        {
+          "id": "payload-limits",
+          "group": "integration",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 126.729
+        },
+        {
+          "id": "aggregate-engine",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 18.957
+        },
+        {
+          "id": "contracts",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 179.123
+        },
+        {
+          "id": "lifecycle",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 166.648
+        },
+        {
+          "id": "lifecycle-concurrency",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 99.985
+        },
+        {
+          "id": "invitations",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 160.887
+        },
+        {
+          "id": "permissions",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 257.451
+        },
+        {
+          "id": "aggregates",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 144.266
+        },
+        {
+          "id": "analysis",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 160.085
+        },
+        {
+          "id": "request-limits",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 123.071
+        },
+        {
+          "id": "payload-limits",
+          "group": "integration",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 118.477
+        }
+      ]
+    },
+    {
+      "group": "editor",
+      "sourceReportSha256": "565800ecfd14e9c6ea74c47c8cccc33be007fbb0d468ccb71c4e49fd4f508bfc",
+      "startedAt": "2026-09-08T05:54:16.645397+00:00",
+      "finishedAt": "2026-09-08T06:10:43.411970+00:00",
+      "checks": [
+        {
+          "id": "editor",
+          "group": "editor",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 288.603
+        },
+        {
+          "id": "preview",
+          "group": "editor",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 124.373
+        },
+        {
+          "id": "branding",
+          "group": "editor",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 136.597
+        },
+        {
+          "id": "editor",
+          "group": "editor",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 191.488
+        },
+        {
+          "id": "preview",
+          "group": "editor",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 119.677
+        },
+        {
+          "id": "branding",
+          "group": "editor",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 126.027
+        }
+      ]
+    },
+    {
+      "group": "responses",
+      "sourceReportSha256": "08273a4c85aad10ad098c13b94696f0d629e4ec79d0b27da872b37ee9695926d",
+      "startedAt": "2026-09-08T05:54:10.466166+00:00",
+      "finishedAt": "2026-09-08T06:09:18.574973+00:00",
+      "checks": [
+        {
+          "id": "responses",
+          "group": "responses",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 234.731
+        },
+        {
+          "id": "runner",
+          "group": "responses",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 267.88
+        },
+        {
+          "id": "responses",
+          "group": "responses",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 140.863
+        },
+        {
+          "id": "runner",
+          "group": "responses",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 264.633
+        }
+      ]
+    },
+    {
+      "group": "exports",
+      "sourceReportSha256": "256566237030c46811392be0e1f8bf172a924c6b1708ffabc391c80f082bf221",
+      "startedAt": "2026-09-08T05:54:24.219707+00:00",
+      "finishedAt": "2026-09-08T06:25:02.563695+00:00",
+      "checks": [
+        {
+          "id": "exports",
+          "group": "exports",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 314.897
+        },
+        {
+          "id": "export-permissions",
+          "group": "exports",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 137.352
+        },
+        {
+          "id": "export-states",
+          "group": "exports",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 150.315
+        },
+        {
+          "id": "export-recovery",
+          "group": "exports",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 237.281
+        },
+        {
+          "id": "export-limits",
+          "group": "exports",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 132.895
+        },
+        {
+          "id": "exports",
+          "group": "exports",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 198.76
+        },
+        {
+          "id": "export-permissions",
+          "group": "exports",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 142.916
+        },
+        {
+          "id": "export-states",
+          "group": "exports",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 148.288
+        },
+        {
+          "id": "export-recovery",
+          "group": "exports",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 239.886
+        },
+        {
+          "id": "export-limits",
+          "group": "exports",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 135.75
+        }
+      ]
+    },
+    {
+      "group": "recovery",
+      "sourceReportSha256": "fe21864caeb8bb6fefb8b6a1ceba057f6f0ff4e667fb70ddb8681bba5000b676",
+      "startedAt": "2026-09-08T05:54:10.590117+00:00",
+      "finishedAt": "2026-09-08T07:39:04.732868+00:00",
+      "checks": [
+        {
+          "id": "deletion",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 257.612
+        },
+        {
+          "id": "deletion-races",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 156.33
+        },
+        {
+          "id": "deletion-ui",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 174.191
+        },
+        {
+          "id": "retention",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 169.222
+        },
+        {
+          "id": "recovery",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 265.781
+        },
+        {
+          "id": "restic-manual",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 427.387
+        },
+        {
+          "id": "restic-archive",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 434.65
+        },
+        {
+          "id": "restic-durable",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 425.78
+        },
+        {
+          "id": "pilot-survey-recovery",
+          "group": "recovery",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 870.87
+        },
+        {
+          "id": "deletion",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 160.092
+        },
+        {
+          "id": "deletion-races",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 156.43
+        },
+        {
+          "id": "deletion-ui",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 172.82
+        },
+        {
+          "id": "retention",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 168.058
+        },
+        {
+          "id": "recovery",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 264.836
+        },
+        {
+          "id": "restic-manual",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 436.506
+        },
+        {
+          "id": "restic-archive",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 444.835
+        },
+        {
+          "id": "restic-durable",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 436.559
+        },
+        {
+          "id": "pilot-survey-recovery",
+          "group": "recovery",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 872.173
+        }
+      ]
+    },
+    {
+      "group": "package",
+      "sourceReportSha256": "ee47e56e17af5996d8b982f506e4a7c36e350b5bab7baaf03afe39b803dfc28c",
+      "startedAt": "2026-09-08T05:54:15.018806+00:00",
+      "finishedAt": "2026-09-08T05:55:29.235230+00:00",
+      "checks": [
+        {
+          "id": "packed-consumer",
+          "group": "package",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 51.078
+        },
+        {
+          "id": "packed-consumer",
+          "group": "package",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 23.137
+        }
+      ]
+    },
+    {
+      "group": "e2e",
+      "sourceReportSha256": "d9ccd722bec66af8dd82555b8ff28051d4e1b1f7a5c7ccd7240ee84706f2af97",
+      "startedAt": "2026-09-08T05:54:11.903309+00:00",
+      "finishedAt": "2026-09-08T06:03:23.390845+00:00",
+      "checks": [
+        {
+          "id": "journeys",
+          "group": "e2e",
+          "pass": 1,
+          "exitCode": 0,
+          "seconds": 324.075
+        },
+        {
+          "id": "journeys",
+          "group": "e2e",
+          "pass": 2,
+          "exitCode": 0,
+          "seconds": 227.411
+        }
+      ]
+    }
+  ],
+  "manualReviewRequired": [
+    "specs/surveyjs-surveys-spike/proofs/SURV-080.md#consolidated-render-acceptance",
+    "specs/surveyjs-surveys-spike/CAPABILITIES.md",
+    "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
+  ],
+  "wholeSpikeAccepted": false,
+  "uncommittedWorkingTreeAccepted": false
+}
