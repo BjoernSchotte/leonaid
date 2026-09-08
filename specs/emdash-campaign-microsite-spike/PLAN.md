@@ -3946,6 +3946,13 @@ another running checkout or authorize production deployment.
       fixture instead; the normalizer is mounted read-only into the probe.
       This does not relax byte integrity or restore requirements. Owned resources
       were cleaned; post-cutover orders and CMS-only rollback remain open.
+      A netless probe in the pinned browser image independently normalized the
+      source fixture and reproduced the exact hash of the LIVE public response.
+      Full `./leonaid check` at `fd6642c` exited 0: 269 unit tests,
+      274 Python source files typechecked, 25 public and 49 CMS Astro files
+      without diagnostics, generated-type/format/privacy/policy gates passed,
+      and the committed working tree unchanged. Existing upstream dependency
+      warnings remain; this quality gate is not the full rollback acceptance.
 
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
