@@ -21,8 +21,8 @@ mkdir -p "$artifact_directory"
 export LEONAID_CI_ARTIFACT_DIR="$artifact_directory"
 
 set +e
-"$@" 2>&1 | tee "$artifact_directory/command.log"
-status=${PIPESTATUS[0]}
+bash "$root/tools/ci/capture-command.sh" "$artifact_directory/command.log" "$@"
+status=$?
 set -e
 
 {

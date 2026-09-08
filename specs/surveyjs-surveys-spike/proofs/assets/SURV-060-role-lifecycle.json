@@ -1,0 +1,30 @@
+{
+  "syntheticOnly": true,
+  "sqlVerified": true,
+  "journeys": [
+    {
+      "kind": "standalone",
+      "mobile": false,
+      "separateRoleJourney": true,
+      "finalState": "ended"
+    },
+    {
+      "kind": "standalone",
+      "mobile": true,
+      "separateRoleJourney": true,
+      "finalState": "erased"
+    },
+    {
+      "kind": "action",
+      "mobile": false,
+      "separateRoleJourney": true,
+      "finalState": "ended"
+    },
+    {
+      "kind": "action",
+      "mobile": true,
+      "separateRoleJourney": true,
+      "finalState": "erased"
+    }
+  ]
+}

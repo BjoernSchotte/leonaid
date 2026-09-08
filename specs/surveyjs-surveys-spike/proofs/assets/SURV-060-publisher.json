@@ -1,0 +1,9 @@
+{
+  "exactRetry": true,
+  "staleReviewRejected": true,
+  "previewPublicWrites": 0,
+  "syntheticOnly": true,
+  "publishedVersions": 1,
+  "persistedParticipations": 0,
+  "publishedReviewedRevision": true
+}

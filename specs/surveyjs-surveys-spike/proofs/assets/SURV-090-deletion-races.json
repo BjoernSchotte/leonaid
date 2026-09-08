@@ -1,0 +1,43 @@
+{
+  "syntheticOnly": true,
+  "ordering": "observed PostgreSQL lock waiters and actual S3 upload barrier",
+  "cases": [
+    {
+      "operation": "save",
+      "first": "response",
+      "passed": true
+    },
+    {
+      "operation": "save",
+      "first": "deletion",
+      "passed": true
+    },
+    {
+      "operation": "complete",
+      "first": "response",
+      "passed": true
+    },
+    {
+      "operation": "complete",
+      "first": "deletion",
+      "passed": true
+    },
+    {
+      "operation": "export",
+      "first": "export",
+      "passed": true,
+      "actualUploadedVersionsRemoved": 1
+    },
+    {
+      "operation": "export",
+      "first": "deletion",
+      "passed": true,
+      "actualUploadedVersionsRemoved": 0
+    }
+  ],
+  "lateResponseWritesRejected": true,
+  "lateExportRedeliveryHarmless": true,
+  "allTargetedDatabaseRowsAbsent": true,
+  "downloadsDenied": true,
+  "scope": "Production API, PostgreSQL, export/deletion handlers and RustFS; queue leasing covered separately"
+}

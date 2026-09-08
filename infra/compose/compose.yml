@@ -8,7 +8,8 @@ x-logging: &default-logging
 
 services:
   proxy:
-    image: docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    build:
+      context: ../proxy/image
     logging: *default-logging
     restart: unless-stopped
     ports:
@@ -35,6 +36,26 @@ services:
       timeout: 3s
       retries: 20
 
+  survey-validator:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.survey-validator
+    logging: *default-logging
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    networks:
+      - core-data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build:
       context: ../..
@@ -45,6 +66,7 @@ services:
     environment:
       LEONAID_ENV: ${LEONAID_ENV:-local}
       LEONAID_SERVICE_NAME: leonaid-api
+      LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
       LEONAID_SERVICE_VERSION: 0.0.0
       LEONAID_API_VERSION: v1
       LEONAID_SECRET_KEY: ${LEONAID_SECRET_KEY}
@@ -77,6 +99,7 @@ services:
       MAIL_TEST_API_URL: http://mailpit:8025/mail
     volumes:
       - maintenance-state:/run/leonaid-maintenance:ro
+      - survey-erasure-archive:/recovery/survey-erasure
     networks:
       - edge
       - core-data
@@ -85,6 +108,8 @@ services:
       - mail-data
       - telemetry
     depends_on:
+      survey-validator:
+        condition: service_healthy
       core-postgres:
         condition: service_healthy
       twenty-server:
@@ -109,6 +134,7 @@ services:
     restart: unless-stopped
     command: ["python", "-m", "leonaid.entrypoints.worker.platform"]
     environment:
+      LEONAID_SURVEY_ERASURE_ARCHIVE_DIR: /recovery/survey-erasure
       CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
       RUSTFS_ENDPOINT_URL: http://rustfs:9000
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
@@ -136,6 +162,8 @@ services:
       OUTBOX_MAX_ATTEMPTS: "5"
       OUTBOX_BASE_BACKOFF_SECONDS: "5"
       OUTBOX_CLAIM_LEASE_SECONDS: "300"
+    volumes:
+      - survey-erasure-archive:/recovery/survey-erasure
     networks:
       - core-data
       - crm-data
@@ -509,6 +537,7 @@ services:
       retries: 20
 
 volumes:
+  survey-erasure-archive:
   core-postgres-data:
   twenty-postgres-data:
   twenty-redis-data:

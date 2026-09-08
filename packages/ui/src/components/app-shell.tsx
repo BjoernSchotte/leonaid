@@ -60,6 +60,7 @@ const implementedWebNavigation = new Set([
   "orders",
   "privacy",
   "system",
+  "surveys",
 ]);
 const implementedPwaNavigation = new Set([
   "activities",

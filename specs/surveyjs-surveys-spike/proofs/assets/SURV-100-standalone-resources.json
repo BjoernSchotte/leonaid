@@ -1,0 +1,48 @@
+{
+  "parentCommit": "5aedbe581a8cc9c1b4d6294024347a4ddff13210",
+  "sourceHashes": {
+    "tools/surveys/standalone_resources.sh": "031a395a4696d448efabaaaa6f18c52651e4835d421bd763e0dfd1249877ffc5",
+    "tools/surveys/standalone_resources_live.py": "d728f358b44ddc6913e9cfd64ad476268597d89e177817364f669423991f7fa2",
+    "tools/surveys/migrations.sh": "2d6afc98053873c45ce3d65700de3a0e11887050a7587ea33c3872bb6d742e2c",
+    "tools/surveys/package.sh": "230d76d7e7694ee36e659f3ad8328fd5293015e78f02df0a48aab7e2ec1456f2",
+    "tools/surveys/aggregate-engine.sh": "f55e83524c17a8cc8a24712d2515bbe22e8489a6273ade1b19966f6da185f4e7",
+    "tools/surveys/gate.json": "397bd4359ed9757957a8727a7016079208c96ad69784760b935a8776f4021d98"
+  },
+  "safety": {
+    "command": "python3 tools/surveys/standalone_resources_live.py",
+    "exitCode": 0,
+    "realVolumeCollisionsRejected": 3,
+    "realUnavailableDaemonRejections": 3,
+    "realBusyVolumeCleanupFailureAndRetryPassed": true,
+    "logSha256": "0c496dbe15bde102ee4302893995dd689136ca5c0782dcd80b167faf2392974d"
+  },
+  "completeServiceRuns": [
+    {
+      "script": "migrations",
+      "project": "surveys-migrations-833458328-96343",
+      "exitCode": 0,
+      "seconds": 382.399,
+      "ownedResourcesAbsent": true,
+      "independentInventoriesChecked": 4
+    },
+    {
+      "script": "package",
+      "project": "surveys-package-833458328-97587",
+      "exitCode": 0,
+      "seconds": 179.244,
+      "ownedResourcesAbsent": true,
+      "independentInventoriesChecked": 4
+    },
+    {
+      "script": "aggregate-engine",
+      "project": "surveys-engine-833458328-98120",
+      "exitCode": 0,
+      "seconds": 222.372,
+      "ownedResourcesAbsent": true,
+      "independentInventoriesChecked": 4
+    }
+  ],
+  "browserTestsPassed": 4,
+  "wholeSpikeAccepted": false,
+  "remaining": "Final repeated aggregate, integrated Caddy CI and independent-host recovery remain open."
+}

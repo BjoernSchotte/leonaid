@@ -1,0 +1,64 @@
+{
+  "sourceRevision": "875221c1054314e83a1737e0384ee2dbad3fd398",
+  "targetRevision": "cf20bec5faeb49c11a7f6f78fde54c9bd28dc061",
+  "processResult": {
+    "exitCode": 0,
+    "seconds": 1954.151
+  },
+  "runtimeInputsUnchanged": 845,
+  "emptyInventories": 20,
+  "inputHashes": {
+    "backup-manifest.json": "b8ef8fc8dabe59f107d073a9c23137869cbded4d243a5220f0f6043708380e8b",
+    "recovery-checkpoint.json": "22fd1bcd2ec672a7d04bf2aa7fae434c0795cf55fa8a1478f983cf0955825676",
+    "recovery-cutoff.txt": "83e88a39c3e8984277d7677c7e477ddd498e32cd64faa67c36fd274b76c5e87a",
+    "images.json": "ad6ec75ff12b53d4dbac75e8e98fd5fd34c6828efe352bfb6a28ed7b25345034"
+  },
+  "targetImages": {
+    "services": {
+      "api": {
+        "image": "sha256:435054ea2012d3f8e5d1d2822a7cf22986a1e0f3054b323274f05915798fdb2f"
+      },
+      "worker": {
+        "image": "sha256:7a528cf35d1ac4dda4ee63b3209417d18abe88796803f0a156d9a7d1e41ed01b"
+      },
+      "web": {
+        "image": "sha256:04f6d7e9df6b6a4ef87f45a63a1f45eeb980da89e46a3dfdc06401a5f37b12a0"
+      },
+      "pwa": {
+        "image": "sha256:8627c5939c3f50abfe08807498e78c751bfa9cb715beafd850bd870cbc33581e"
+      },
+      "public": {
+        "image": "sha256:e7aad44733dadad8f6072cd275c6d4d5d3657ae13754b5ccb6ef15f6bc9f2137"
+      },
+      "survey-validator": {
+        "image": "sha256:382d0863e7ae940ef18595207d6ac6bb376e9b9b721087bace7f4edf70abc3b9"
+      },
+      "proxy": {
+        "image": "sha256:272be0475481ca3edcffc6f3da625f46ef5495189d3a72978cc201aac5c396b8"
+      }
+    }
+  },
+  "harnessSha256": "cbf6f72f49d375f75985e9f94d1c728d84a03f5ac8d2b2ca7d836482c5f490ce",
+  "result": {
+    "syntheticOnly": true,
+    "postBackupDeletionReappliedByRestoreOperator": true,
+    "restoredRelationalContentAndExactExportVersionAbsent": true,
+    "limitations": [
+      "The checkpoint was explicitly exported and retained before source-project removal; automatic newest-checkpoint retention across host loss remains unproven",
+      "The local encrypted Restic repository models independent storage; physical remote-host placement is not covered"
+    ],
+    "cliCheckpointExportMode600": true,
+    "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+    "existingResticBackupRotationAndReadDataCheck": true,
+    "sourceContainersAndVolumesRemovedBeforeRestore": true,
+    "missingCheckpointBlocksActualFreshTargetRestore": true,
+    "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+    "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+    "allBuiltServiceImageIdsMatchCurrentTargetBuild": true,
+    "backupSourceRevision": "875221c1054314e83a1737e0384ee2dbad3fd398",
+    "restoreTargetRevision": "cf20bec5faeb49c11a7f6f78fde54c9bd28dc061",
+    "foundationChromiumPassed": true,
+    "targetTeardownVerified": true
+  },
+  "fullRecoveryAccepted": false
+}

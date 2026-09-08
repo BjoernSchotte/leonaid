@@ -1,0 +1,7 @@
+{
+  "reportOnlyRawCreateAndDownloadDenied": true,
+  "reportDownloadBeforeRevocation": true,
+  "aggregateAccessAfterRevocation": true,
+  "existingReportAfterRevocationDenied": true,
+  "staleDownloadAfterTrashCleared": true
+}

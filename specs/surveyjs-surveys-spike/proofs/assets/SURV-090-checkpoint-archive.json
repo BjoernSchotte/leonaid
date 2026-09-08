@@ -1,0 +1,27 @@
+{
+  "syntheticOnly": true,
+  "postBackupDeletionReappliedByRestoreOperator": true,
+  "restoredRelationalContentAndExactExportVersionAbsent": true,
+  "limitations": [
+    "The checkpoint was explicitly exported and retained before source-project removal; automatic newest-checkpoint retention across host loss remains unproven",
+    "The local encrypted Restic repository models independent storage; physical remote-host placement is not covered"
+  ],
+  "cliCheckpointExportMode600": true,
+  "restoredSessionAndPublicAccessDeniedAfterRestart": true,
+  "existingResticBackupRotationAndReadDataCheck": true,
+  "sourceContainersAndVolumesRemovedBeforeRestore": true,
+  "missingCheckpointBlocksActualFreshTargetRestore": true,
+  "rejectionLeavesOldSurveyAndExactObjectOffline": true,
+  "validCheckpointAllowsFullNoBuildApplicationStartup": true,
+  "allBuiltServiceImageIdsMatchSource": true,
+  "foundationChromiumPassed": true,
+  "targetTeardownVerified": true,
+  "independentArchiveVolumeOutsideSourceProject": true,
+  "staleArchiveRejectedBeforeOutput": true,
+  "publisherAbruptExitBoundariesProven": [
+    "after-pending",
+    "after-current"
+  ],
+  "interruptedPublicationBlocksFetchUntilRepublished": true,
+  "offlineArchiveFetchAfterSourceContainersAndVolumesRemoved": true
+}

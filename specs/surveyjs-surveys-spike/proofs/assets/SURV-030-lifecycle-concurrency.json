@@ -1,0 +1,262 @@
+{
+  "syntheticOnly": true,
+  "project": "leonaid-surveys-lifecycle-833458328-6584",
+  "exitCode": 0,
+  "independentCleanupVerified": true,
+  "iterations": [
+    {
+      "syntheticOnly": true,
+      "cases": [
+        {
+          "order": [
+            "save-a",
+            "save-b"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "save-b",
+            "save-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "save-a",
+            "publish"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish",
+            "save-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish-a",
+            "publish-b"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish-b",
+            "publish-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "end",
+            "complete"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "complete",
+            "end"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            200
+          ],
+          "persistedOutcomeVerified": true
+        }
+      ]
+    },
+    {
+      "syntheticOnly": true,
+      "cases": [
+        {
+          "order": [
+            "save-a",
+            "save-b"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "save-b",
+            "save-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "save-a",
+            "publish"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish",
+            "save-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish-a",
+            "publish-b"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "publish-b",
+            "publish-a"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "end",
+            "complete"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            409
+          ],
+          "persistedOutcomeVerified": true
+        },
+        {
+          "order": [
+            "complete",
+            "end"
+          ],
+          "blockedRequestsObserved": [
+            1,
+            2
+          ],
+          "httpStatuses": [
+            200,
+            200
+          ],
+          "persistedOutcomeVerified": true
+        }
+      ]
+    }
+  ],
+  "sourceHashes": {
+    "tools/surveys/lifecycle_concurrency.sh": "cba882c8ba9856264b68274248a8fca29d252db08bacd5c49d386b612af6baa7",
+    "tools/surveys/lifecycle_concurrency_live.py": "d5a29a6914913bf8a7cf86bdf571a171262de24caf73ec033884441dc986c5df"
+  }
+}

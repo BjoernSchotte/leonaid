@@ -123,7 +123,24 @@ export LEONAID_BACKUP_CREDENTIALS_FILE='/secure/leonaid/restic-backend.env'
 
 Der Befehl prüft Restic- und Manifest-Prüfsummen, baut frische Volumes,
 restauriert Twenty/RustFS, startet frische PostgreSQL-Container, spielt beide
-Dumps ein und startet danach den vollständigen Core-Stack.
+Dumps mit Abbruch bei Fehlern ein und startet danach den vollständigen Core-Stack.
+
+Enthält die wiederhergestellte Datenbank das Umfragemodul, muss vor dem Restore
+zusätzlich `LEONAID_SURVEY_ERASURE_CHECKPOINT` auf ein unabhängig aufbewahrtes,
+authentifiziertes Löschverzeichnis zeigen. Mit
+`LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH` wird der unabhängig ermittelte
+erforderliche Aktualitätszeitpunkt als ISO-8601-Zeit mit Zeitzone angegeben.
+Beide Variablen gelten auch für `pilot-restore`. Ein altes Verzeichnis aus
+dem wiederhergestellten Backup genügt nicht für spätere Löschungen.
+
+Der Restore wendet die Löschungen vor dem Anwendungsstart erneut an. Fehlende,
+ungültige oder zu alte Nachweise sowie fehlgeschlagene Löschungen brechen den
+Restore ab; die Anwendungsdienste bleiben gestoppt. Das gilt auch bei
+`LEONAID_RESTORE_START_APP=false`. Nach einem Fehler dürfen sie nicht manuell
+gestartet werden, bevor die Prüfung erfolgreich wiederholt wurde.
+Der [Recovery-Vertrag](../../specs/surveyjs-surveys-spike/RECOVERY.md) beschreibt
+die Eingaben, Wiederholung und noch offenen Nachweise für unabhängige
+Aufbewahrung, ältere Umfrage-Schemata und den vollständigen Operatorweg.
 
 ## Vollständiger Wiederanlauf
 

@@ -1,5 +1,7 @@
 services:
   proxy:
+    image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE fehlt}
+    build: !reset null
     ports: !override
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:80:80"
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"
@@ -31,6 +33,10 @@ services:
       MAIL_TEST_API_URL: !reset null
       RUSTFS_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
       OBJECT_STORAGE_BUCKET: ${RUSTFS_BUCKET:?RUSTFS_BUCKET fehlt}
+
+  survey-validator:
+    image: ${LEONAID_SURVEY_VALIDATOR_IMAGE:?LEONAID_SURVEY_VALIDATOR_IMAGE fehlt}
+    build: !reset null
 
   worker:
     image: ${LEONAID_CORE_IMAGE:?LEONAID_CORE_IMAGE fehlt}

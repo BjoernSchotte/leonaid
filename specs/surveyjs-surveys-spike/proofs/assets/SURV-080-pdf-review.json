@@ -1,0 +1,24 @@
+{
+  "baseline": "84f4c85",
+  "date": "2026-09-07",
+  "reviewer": "assistant visual inspection of Poppler page PNGs",
+  "pdfPagesInspected": {
+    "normal": 4,
+    "long-labels": 8,
+    "empty": 4,
+    "worker": 4
+  },
+  "findings": "No clipping, overlapping text, missing glyphs or unreadable table values in these final fixtures; chart continuation headers repeat question context.",
+  "limitations": [
+    "No PDF accessibility certification",
+    "No rendered XLSX review yet",
+    "Fonts restricted to pinned Typst built-in CFF Identity-H profile; unsupported glyphs reject PDF generation"
+  ],
+  "sourceSha256": {
+    "src/leonaid/adapters/typst/survey_renderer.py": "4d2106932ffd222bc1e60acec80450aa23b7409e80b70049166cb96b291a74e0",
+    "src/leonaid/adapters/typst/templates/survey-analysis-v1.typ": "4ebbfb0b9d571f9463000997b97d16b114eff8c517875cb8108cfc2472889f9f",
+    "src/leonaid/adapters/postgres/survey_exports.py": "1a69d82de9d38131fadea96b3e49c6d6cff22b12108bf15efdcc93f04019f6d7",
+    "tools/surveys/pdf_render.py": "a542ac5420d190e0501be3f674f33a5ca89db14c5cfada14dfc7590cb4e0cfda",
+    "tools/surveys/exports_live.py": "1d34932b5bfeaf91eb144f52740db55dbe8d2ac70e197140e5052a32dcbb1756"
+  }
+}

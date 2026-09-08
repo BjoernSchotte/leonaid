@@ -872,7 +872,7 @@ async def run(arguments: argparse.Namespace) -> None:
                 "sponsors",
                 "activities",
                 "commitment",
-            } or navigation_keys(anna_payload, "web"):
+            } or navigation_keys(anna_payload, "web") != {"surveys"}:
                 raise ContractFailure("Akquisiteur-Navigation enthält falsche Bereiche")
 
             suspended = await identity_response(client, tokens["GESA_SESSION"])

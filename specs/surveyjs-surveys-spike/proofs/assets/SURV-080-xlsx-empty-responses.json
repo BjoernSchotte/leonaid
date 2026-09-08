@@ -1,0 +1,7 @@
+{
+  "responsePages": 6,
+  "rawContinuationPages": 3,
+  "everyParticipationIdOnEachContinuation": true,
+  "emptyPages": 12,
+  "emptyChartsWithExplicitNoData": 5
+}

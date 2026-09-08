@@ -28,3 +28,6 @@ apps/*/.astro/
 .local/pilot/backups/
 .local/pilot/manifests/
 .local/test-logins.md
+
+# Private operator restore receipts belong with the target environment.
+*.restore-state.json

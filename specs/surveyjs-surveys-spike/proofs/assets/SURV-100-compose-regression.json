@@ -1,0 +1,25 @@
+{
+  "baseline": "b18b534",
+  "project": "leonaid-poc010-test-833458328-72306",
+  "exitCode": 0,
+  "isolation": {
+    "uniqueProject": true,
+    "explicitUnusedSubnets": 7,
+    "proxyOnlyLoopbackPorts": 2,
+    "cleanupVerified": true
+  },
+  "assertions": [
+    "default-service-inventory-including-survey-validator",
+    "all-default-services-healthy",
+    "proxy-only-loopback-bindings",
+    "HTTP-and-TLS-health-and-all-host-routes",
+    "golden-PostgreSQL-and-RustFS-persistence-after-restart",
+    "Twenty-schema-count-stable-after-restart",
+    "optional-mailing-mail-and-observability-services",
+    "owned-resource-removal"
+  ],
+  "sourceSha256": {
+    "tools/compose/test.sh": "d8104db01802cde0ba022a6d3c3dab15a0ae3e6b3a1b4c606aaa6c9a9fa117b5",
+    "tools/testing/regression_isolation_test.py": "69e63f8a4216d38971f5af760c87440ac82beded5caa27cdd8efb90ef68ae44b"
+  }
+}

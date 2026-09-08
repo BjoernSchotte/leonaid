@@ -99,8 +99,8 @@ Commands:
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
                     Back up the productive pilot and publish a fresh manifest
   pilot-restore --env-file FILE --backup-manifest FILE --target-env-file FILE
-                --password-file FILE --confirm RESTORE:TARGET
-                    Restore into an explicitly confirmed fresh pilot project
+                --password-file FILE --confirm RESTORE:TARGET [--resume]
+                    Restore fresh, or resume a verified quarantined pilot target
   test-ui-system    Prove shared UI patterns, themes, A11y and visual baselines
   test-dashboard    Prove role dashboards, real SQL metrics and drilldowns
   test-ux-acceptance
@@ -115,6 +115,28 @@ Commands:
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
+  test-surveys [--group GROUP] [--repeat N] [--list]
+                    Run the manifest-defined survey gates with private logs and safe summaries
+  test-surveys-integration
+  test-surveys-exports
+  test-surveys-e2e
+  test-surveys-editor
+  test-surveys-lifecycle
+  test-surveys-invitations
+  test-surveys-aggregates
+  test-surveys-analysis
+  test-surveys-migrations
+  test-surveys-core
+  test-surveys-validation-candidate
+  test-surveys-package
+  test-surveys-runner
+                    Prove browser autosave, partial resume and reconnect with real services
+  test-surveys-responses
+                    Prove real survey response API persistence and validation
+  test-surveys-infrastructure
+                    Prove survey migration and UI foundations in a fresh isolated stack
+  test-surveys-dependencies
+                    Verify the pinned survey dependency and asset license boundary
   test-unit         Run unit tests with Golden Data domain objects
   test-integration  Rebuild and test real services from empty volumes
   test-e2e          Run all currently implemented real browser journeys
@@ -525,7 +547,7 @@ pilot_doctor() {
   test_decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
   if [ -n "$test_network$test_ca_file$test_decisions_file" ]; then
     case "$project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-doctor: BLOCKED: Testdiagnose ist nur in isolierten Testprojekten zulässig" >&2
         rm -f "$config_file"
@@ -646,7 +668,7 @@ pilot_test_overlay() {
   overlay=${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}
   [ -n "$overlay" ] || return 1
   case "$project" in
-    leonaid-production-test|leonaid-staging-test) ;;
+    leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
     *)
       echo "pilot: BLOCKED: Test-Overlay ist nur für isolierte Testprojekte zulässig" >&2
       return 1
@@ -740,7 +762,7 @@ pilot_decision_gate() {
   decisions_file=${LEONAID_PILOT_TEST_DECISIONS_FILE:-}
   if [ -n "$decisions_file" ]; then
     case "$project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-doctor: BLOCKED: Testentscheidungen sind nur in isolierten Testprojekten zulässig" >&2
         return 1
@@ -1378,8 +1400,13 @@ pilot_restore() {
   password_file=
   credentials_file=
   confirm=
+  resume=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --resume)
+        resume=true
+        shift
+        ;;
       --env-file)
         [ "$#" -ge 2 ] || {
           echo "pilot-restore: ERROR: --env-file benötigt einen Pfad" >&2
@@ -1492,14 +1519,16 @@ pilot_restore() {
   if [ -n "${LEONAID_PILOT_TEST_RESTORE_OVERLAY:-}" ]; then
     restore_overlay_secondary=${LEONAID_PILOT_TEST_RESTORE_OVERLAY}
     case "$source_project" in
-      leonaid-production-test|leonaid-staging-test) ;;
+      leonaid-production-test|leonaid-staging-test|leonaid-production-test-[a-z0-9]*|leonaid-staging-test-[a-z0-9]*) ;;
       *)
         echo "pilot-restore: BLOCKED: Test-Restore-Overlay ist nur für isolierte Testprojekte zulässig" >&2
         exit 1
         ;;
     esac
   fi
-  LEONAID_ENV_FILE="$target_env_file" \
+  LEONAID_RESTORE_RESUME="$resume" \
+    LEONAID_RESTORE_EXPECTED_MANIFEST="$backup_manifest" \
+    LEONAID_ENV_FILE="$target_env_file" \
     LEONAID_BACKUP_SOURCE_PROJECT="$source_project" \
     LEONAID_RESTORE_PROJECT="$target_project" \
     LEONAID_RESTORE_CONFIRM="$confirm" \
@@ -1989,6 +2018,36 @@ case "$command" in
     ;;
   test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
   test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
+  test-surveys) shift; python3 "$root/tools/surveys/gate.py" --root "$root" "$@" ;;
+  test-surveys-integration) python3 "$root/tools/surveys/gate.py" --root "$root" --group integration --group recovery ;;
+  test-surveys-exports) python3 "$root/tools/surveys/gate.py" --root "$root" --group exports ;;
+  test-surveys-e2e) python3 "$root/tools/surveys/gate.py" --root "$root" --group e2e ;;
+  test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
+  test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
+  test-surveys-invitations) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" invitations ;;
+  test-surveys-aggregates) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" aggregates ;;
+  test-surveys-analysis) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" analysis ;;
+  test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
+  test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
+  test-surveys-core)
+    mkdir -p "$root/.artifacts/surveys"
+    run_bun bun tools/surveys/parity.mjs .artifacts/surveys/parity.json
+    run_python uv run --frozen --no-sync python tools/surveys/parity.py .artifacts/surveys/parity.json
+    run_python uv run --frozen --no-sync pytest tests/unit/test_survey*.py -q
+    run_bun bun test tools/surveys/saves.test.ts tools/surveys/analysis.test.ts tools/surveys/editor.test.ts tools/surveys/editor-i18n.test.ts
+    ;;
+  test-surveys-validation-candidate)
+    run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py prepare
+    run_bun bun tools/surveys/validation-candidate.mjs .artifacts/surveys/candidate-input.json .artifacts/surveys/candidate-output.json
+    run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py verify
+    ;;
+  test-surveys-runner) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" runner ;;
+  test-surveys-responses) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" responses ;;
+  test-surveys-infrastructure) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" ;;
+  test-surveys-dependencies)
+    run_bun bun tools/surveys/dependencies.mjs
+    run_python uv run --frozen --no-sync python tools/surveys/python_dependencies.py
+    ;;
   test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
   test-user-admin) /bin/sh "$root/tools/user_admin/test.sh" "$root" ;;
   test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;

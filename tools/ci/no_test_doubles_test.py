@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -31,6 +32,27 @@ def expect_failure(checker: Path, root: Path, expected: str) -> None:
         raise AssertionError(
             f"Policy-Fall {expected!r} wurde nicht abgewiesen: {output}"
         )
+
+
+def write_review(root: Path, source: str) -> Path:
+    path = root / "tests/e2e/reviewed.spec.mjs"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source, encoding="utf-8")
+    manifest = root / "tools/ci/reviewed_network_faults.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps(
+            [
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "reason": "Policy fixture: drop one transport request, no server replacement.",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 def main() -> None:
@@ -98,7 +120,41 @@ def main() -> None:
         fixture.write_text('{"status": 200}\n', encoding="utf-8")
         expect_failure(checker, http_fixture, "HTTP-Fixture-Datei")
 
-    print("no-test-doubles-test: OK: sechs negative Policy-Fälle abgewiesen")
+        fault = root / "reviewed-fault"
+        write_base(source, fault)
+        test_source = "await second.route('/api/**', route => route.abort('failed'));\n"
+        path = write_review(fault, test_source)
+        subprocess.run([sys.executable, str(checker), str(fault)], check=True)
+
+        path.write_text(
+            test_source + "route.fulfill({status: 500});\n", encoding="utf-8"
+        )
+        expect_failure(checker, fault, "stale network fault review")
+
+        write_review(fault, test_source + 'import "unrelated";\n')
+        path.write_text(test_source, encoding="utf-8")
+        expect_failure(checker, fault, "stale network fault review")
+
+        write_review(fault, test_source + 'import { http } from "msw";\n')
+        expect_failure(checker, fault, "verbotene Response-/Mock-Bibliothek msw")
+
+        write_review(fault, test_source + 'vi.mock("service");\n')
+        expect_failure(checker, fault, "Modulersatz")
+
+        write_review(fault, test_source)
+        (fault / "tests/e2e/unreviewed.spec.mjs").write_text(
+            "await anotherBrowser . route ('/api/**', handler);\n",
+            encoding="utf-8",
+        )
+        expect_failure(checker, fault, "Browser-Netzwerkinterception")
+        (fault / "tests/e2e/unreviewed.spec.mjs").unlink()
+
+        path.unlink()
+        expect_failure(checker, fault, "invalid network fault review")
+
+    print(
+        "no-test-doubles-test: OK: real-source check, reviewed fault and 12 negative policy cases"
+    )
 
 
 if __name__ == "__main__":

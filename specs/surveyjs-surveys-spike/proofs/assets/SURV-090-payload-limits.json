@@ -1,0 +1,12 @@
+{
+  "syntheticOnly": true,
+  "wireByteLimit": 1048576,
+  "jsonByteLimit": 262144,
+  "exactWireAndDefinitionBoundaryAccepted": true,
+  "fixedAndChunkedOversizeRejected": true,
+  "oversizeCreatesLeftNoRows": true,
+  "oversizeDraftPreservedRevision": 1,
+  "exactAnswerBoundaryAccepted": true,
+  "rejectedAnswersPreservedRevision": 2,
+  "apiWorkerValidatorLogsScanned": true
+}

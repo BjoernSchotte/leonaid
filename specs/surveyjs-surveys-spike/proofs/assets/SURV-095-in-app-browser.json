@@ -1,0 +1,140 @@
+{
+  "proof": "SURV-095",
+  "date": "2026-09-08",
+  "surface": "Codex in-app browser",
+  "sourceCheckpoint": "913c2f751136bee433c3f4ef139c6ec628a5da95",
+  "workingTreeChanges": [
+    "apps/web/src/surveys.tsx",
+    "tests/e2e/surveys-journey.spec.mjs"
+  ],
+  "syntheticDataOnly": true,
+  "caTrustedInMacOS": true,
+  "certificateWarningBypassed": false,
+  "executed": [
+    "standalone-create",
+    "page-duplicate-remove-undo-redo",
+    "page-mouse-drag",
+    "page-keyboard-ordering",
+    "question-rename-required-duplicate-move",
+    "visual-equality-condition",
+    "json-export-import-roundtrip",
+    "invalid-json-diagnostic",
+    "unsupported-upload-preserved-publication-rejected",
+    "first-publication-analysis-refresh",
+    "second-publication-analysis-refresh",
+    "all-initial-question-renderers",
+    "required-and-numeric-rejection",
+    "acknowledged-save-reload-resume",
+    "hidden-answer-cleared",
+    "30-second-partial-timeout",
+    "partial-analysis-then-completed-analysis",
+    "chart-table-equivalence",
+    "raw-response-and-free-text",
+    "four-real-downloads",
+    "five-pdf-pages-visually-reviewed",
+    "mailpit-invitation-redemption-revocation",
+    "ordinary-member-foreign-list-and-direct-access-denied",
+    "end-archive-trash-restore",
+    "permanent-erasure-confirmation-cancel",
+    "desktop-and-390x844-viewport",
+    "scheduled-end-persisted-and-automatically-ended",
+    "global-retention-and-default-timeout-save-reload"
+  ],
+  "automatedCoverageNotManuallyRecreated": [
+    "complete-role-matrix",
+    "invitation-expiry",
+    "concurrent-revisions",
+    "worker-and-engine-failures",
+    "retention-erasure",
+    "permanent-database-and-object-erasure",
+    "backup-restore"
+  ],
+  "regression": {
+    "command": "./leonaid test-surveys-e2e",
+    "exitCode": 0,
+    "seconds": 515.72,
+    "completeJourneys": 4,
+    "sourceHashes": {
+      "apps/web/src/surveys.tsx": "da64247e7360d85fa794c9580df66abf9e50b9ac72f7c9b4b63d8d5ecbe08d1c",
+      "tests/e2e/surveys-journey.spec.mjs": "b74a07dcabd61ac171b47062c0873e4b2ba916c0fcb9253162f67403784d6ea9"
+    },
+    "testedBeforeFormattingHash": "2176ad03de6e6cc1cf33e1fbb58b7da3186b4b21be8bc80ee142ed9d1564d321",
+    "postTestChange": "Prettier formatting only"
+  },
+  "downloads": [
+    {
+      "sha256": "74590d8e7c134fefbcdc384634864ca91efe9d34361d8ffebb451105cbb623c2",
+      "bytes": 36040,
+      "format": "analysis.pdf",
+      "renderedPagesReviewed": 5
+    },
+    {
+      "sha256": "00ec64c98c1e2b52f63b766ab77037d7dd277d91e12a8a202de6805764af79ec",
+      "bytes": 19146,
+      "sheets": {
+        "Metadata": {
+          "rows": 21,
+          "columns": 2
+        },
+        "Questions": {
+          "rows": 34,
+          "columns": 6
+        },
+        "Metrics": {
+          "rows": 11,
+          "columns": 13
+        },
+        "Distributions": {
+          "rows": 25,
+          "columns": 10
+        },
+        "Matrix rows": {
+          "rows": 3,
+          "columns": 6
+        },
+        "Charts": {
+          "rows": 1,
+          "columns": 4
+        },
+        "Last page": {
+          "rows": 4,
+          "columns": 5
+        }
+      },
+      "hasSyntheticText": false,
+      "hiddenAnswerAbsent": true,
+      "format": "analysis_xlsx.xlsx"
+    },
+    {
+      "sha256": "be78f63e6e881a422770003d720f61af22c6fd9db007fb848c022eedbf05f9dd",
+      "bytes": 2663,
+      "rows": 3,
+      "hasSyntheticText": true,
+      "hiddenAnswerAbsent": true,
+      "format": "responses.csv"
+    },
+    {
+      "sha256": "c84cf556399258fea0a702321ad58b708ccc642e49d136c001836c8575fbad31",
+      "bytes": 9614,
+      "sheets": {
+        "Metadata": {
+          "rows": 21,
+          "columns": 2
+        },
+        "Questions": {
+          "rows": 34,
+          "columns": 6
+        },
+        "Responses": {
+          "rows": 2,
+          "columns": 28
+        }
+      },
+      "hasSyntheticText": true,
+      "hiddenAnswerAbsent": true,
+      "format": "responses_xlsx.xlsx"
+    }
+  ],
+  "cleanupVerified": true,
+  "independentEmptyResourceInventories": 10
+}

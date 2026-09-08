@@ -1,0 +1,32 @@
+{
+  "name": "@leonaid/surveys",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "files": [
+    "src",
+    "README.md",
+    "THIRD-PARTY-NOTICES.txt"
+  ],
+  "exports": {
+    "./contracts": "./src/contracts.ts",
+    "./analysis": "./src/analysis.ts",
+    "./runner": "./src/runner.tsx",
+    "./styles": "./src/styles.css",
+    "./editor": "./src/editor.tsx",
+    "./editor-styles": "./src/editor.css",
+    "./analytics": "./src/analytics.tsx",
+    "./analytics-styles": "./src/analytics.css",
+    "./exports": "./src/exports.tsx",
+    "./export-styles": "./src/exports.css"
+  },
+  "dependencies": {
+    "survey-core": "3.0.3",
+    "survey-react-ui": "3.0.3"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

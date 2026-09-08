@@ -1,0 +1,181 @@
+.survey-editor {
+  --se-accent: var(--survey-accent, #00338d);
+  --se-control-border: var(--survey-control-border, #6f7e94);
+  --se-focus: var(--survey-focus, var(--se-accent));
+  color: var(--survey-foreground, #172238);
+  background: var(--survey-background, #fff);
+  font-family: var(--survey-font, sans-serif);
+  padding: 1.5rem;
+}
+.survey-editor * {
+  box-sizing: border-box;
+}
+.se-toolbar,
+.se-actions,
+.se-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.se-toolbar {
+  border-bottom: 1px solid #cbd3df;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+.se-toolbar [role="status"] {
+  flex: 1;
+  min-width: 12rem;
+}
+.survey-editor:not(.survey-preview) label {
+  display: block;
+  margin-block: 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.survey-editor:not(.survey-preview) input:not([type="checkbox"]),
+.survey-editor:not(.survey-preview) textarea,
+.survey-editor:not(.survey-preview) select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--se-control-border);
+  border-radius: 4px;
+  padding: 0.6rem;
+  margin-top: 0.35rem;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+.survey-editor:not(.survey-preview) button,
+.survey-preview > .se-toolbar button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--se-control-border);
+  background: transparent;
+  color: inherit;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+.survey-editor:not(.survey-preview) button:disabled,
+.survey-preview > .se-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.survey-editor :focus-visible,
+.survey-editor [data-editor-focus]:focus {
+  outline: 3px solid var(--se-focus);
+  outline-offset: 3px;
+  /* Host motion rules must not animate the appearance of keyboard focus. */
+  transition-property: none;
+}
+.se-title input {
+  font-size: 1.6rem !important;
+}
+.se-workspace {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 2.5fr) minmax(
+      15rem,
+      1.4fr
+    );
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+.se-workspace h2 {
+  font-size: 1rem;
+  margin-top: 0;
+}
+.se-workspace ol {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.se-workspace li {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid #dbe0e8;
+  padding: 0.5rem 0;
+}
+.se-workspace li > button {
+  text-align: left;
+  flex: 1;
+  border-color: transparent;
+}
+.se-workspace button[aria-current],
+.se-workspace button[aria-pressed="true"] {
+  border-color: var(--se-accent);
+  color: var(--se-accent);
+  background: #edf2fa;
+}
+.se-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.se-canvas {
+  padding: 1rem;
+  background: var(--survey-canvas, #f5f7fa);
+  border-top: 3px solid var(--se-accent);
+}
+.se-canvas small,
+.se-canvas strong {
+  display: block;
+}
+.se-canvas small {
+  color: #586780;
+  margin-bottom: 0.4rem;
+}
+.se-canvas li > button {
+  background: var(--survey-background, #fff);
+  padding: 1rem;
+}
+.se-workspace aside {
+  border-left: 1px solid #dbe0e8;
+  padding-left: 1.5rem;
+}
+.se-workspace fieldset {
+  border: 1px solid #dbe0e8;
+  margin: 1rem 0;
+  padding: 0.75rem;
+}
+@media (max-width: 1050px) {
+  .se-workspace {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+  .se-workspace aside {
+    grid-column: 2;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+@media (max-width: 650px) {
+  .survey-editor {
+    padding: 0.75rem;
+  }
+  .se-workspace {
+    display: block;
+  }
+  .se-workspace nav ol {
+    display: flex;
+    overflow: auto;
+  }
+  .se-workspace nav li {
+    min-width: 11rem;
+  }
+  .se-workspace aside {
+    margin-top: 1.5rem;
+  }
+}
+
+.survey-editor > .se-editing {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.survey-editor .se-editing:disabled {
+  opacity: 0.7;
+}

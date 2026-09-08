@@ -1,0 +1,67 @@
+{
+  "title": "Verkettete Rückfragen",
+  "pages": [
+    {
+      "name": "start",
+      "elements": [
+        {
+          "name": "topic",
+          "type": "radiogroup",
+          "title": "Weitere Fragen beantworten?",
+          "choices": [
+            {
+              "value": "yes",
+              "text": "Ja"
+            },
+            {
+              "value": "no",
+              "text": "Nein"
+            }
+          ],
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "name": "details",
+      "title": "Details",
+      "visibleIf": "{topic} = 'yes'",
+      "elements": [
+        {
+          "name": "detail",
+          "type": "text",
+          "title": "Ihr Anliegen",
+          "isRequired": true
+        },
+        {
+          "name": "explanation",
+          "type": "comment",
+          "title": "Ergänzung",
+          "visibleIf": "{detail} notempty"
+        }
+      ]
+    },
+    {
+      "name": "followup",
+      "visibleIf": "{detail} notempty",
+      "elements": [
+        {
+          "name": "followup",
+          "type": "text",
+          "title": "Nachfrage",
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "name": "end",
+      "elements": [
+        {
+          "name": "closing",
+          "type": "text",
+          "title": "Abschluss"
+        }
+      ]
+    }
+  ]
+}

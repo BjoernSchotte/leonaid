@@ -71,6 +71,29 @@ INVITATION_REISSUE_PATH: Final = re.compile(
 MEMBER_EMAIL_CHANGE_PATH: Final = re.compile(
     r"^/api/v1/identity/members/[0-9a-fA-F-]{36}/email-change$"
 )
+SURVEY_PUBLIC_PATH: Final = re.compile(
+    # Match the router's path segments, not just canonical UUID spelling:
+    # Pydantic also accepts compact/URN UUIDs, which must share the same quota.
+    r"^/api/v1/public/surveys/[^/]+"
+    r"(?P<operation>/invitation/redeem|/participations(?:/[^/]+(?:/complete)?)?)?/?$"
+)
+
+
+def survey_rate_policy(request: Request) -> RateLimitPolicy | None:
+    match = SURVEY_PUBLIC_PATH.fullmatch(request.url.path)
+    if match is None:
+        return None
+    operation = (match.group("operation") or "").rstrip("/")
+    if request.method == "POST" and operation in (
+        "/participations",
+        "/invitation/redeem",
+    ):
+        return RateLimitPolicy("survey.public.start", 30, timedelta(minutes=1))
+    if request.method in UNSAFE_METHODS:
+        return RateLimitPolicy("survey.public.write", 300, timedelta(minutes=1))
+    if request.method in ("GET", "HEAD"):
+        return RateLimitPolicy("survey.public.read", 600, timedelta(minutes=1))
+    return None
 
 
 def client_address(request: Request, *, trust_proxy_headers: bool) -> str:
@@ -96,6 +119,7 @@ def request_fingerprint(
     *,
     secret: str,
     trust_proxy_headers: bool,
+    address_only: bool = False,
 ) -> str:
     session = request.cookies.get(SESSION_COOKIE_NAME, "")
     address = client_address(
@@ -103,7 +127,13 @@ def request_fingerprint(
         trust_proxy_headers=trust_proxy_headers,
     )
     user_agent = request.headers.get("user-agent", "unknown")[:320]
-    material = f"{address}|{user_agent}|{session[:256]}".encode()
+    # Public survey quotas span surveys and cannot be reset with client-chosen
+    # cookies, User-Agent values or participation IDs. Store only a keyed digest.
+    material = (
+        f"survey-address:{address}"
+        if address_only
+        else f"{address}|{user_agent}|{session[:256]}"
+    ).encode()
     return hmac.new(
         secret.encode(),
         b"leonaid-security-rate:v1:" + material,
@@ -140,6 +170,9 @@ async def rate_limit_violation(
     trust_proxy_headers: bool,
 ) -> RateLimitPolicy | None:
     policy = RATE_LIMITS.get((request.method, request.url.path))
+    survey_policy = survey_rate_policy(request)
+    if policy is None:
+        policy = survey_policy
     if (
         policy is None
         and request.method == "POST"
@@ -168,6 +201,7 @@ async def rate_limit_violation(
             request,
             secret=secret,
             trust_proxy_headers=trust_proxy_headers,
+            address_only=survey_policy is not None,
         ),
         attempted_at=datetime.now(timezone.utc),
         window=policy.window,

@@ -32,6 +32,7 @@ def _images() -> dict[str, str]:
             "public",
             "pwa",
             "rustfs",
+            "survey-validator",
             "twenty-postgres",
             "twenty-redis",
             "twenty-server",

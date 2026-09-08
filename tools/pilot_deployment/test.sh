@@ -4,13 +4,34 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-project=${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}
-runtime_project=${LEONAID_PILOT_RUNTIME_PROJECT:-$project}
-build_project=${LEONAID_PILOT_BUILD_PROJECT:-leonaid-pilot040-release}
-http_port=${LEONAID_PILOT_TEST_HTTP_PORT:-19080}
-https_port=${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}
-restore_http_port=${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-19081}
-restore_https_port=${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-19444}
+mode=${2:-baseline}
+case "$mode" in baseline|surveys) ;; *) echo "Expected baseline or surveys mode" >&2; exit 64 ;; esac
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project="${LEONAID_PILOT_DEPLOYMENT_PROJECT:-leonaid-production-test}-$suffix"
+runtime_project="$project"
+build_project="leonaid-pilot-release-$suffix"
+# Bind all requested ports together before releasing them. Docker still fails
+# safely if another process wins a port before startup; existing stacks stay put.
+set -- $(python3 - "${LEONAID_PILOT_TEST_HTTP_PORT:-0}" \
+  "${LEONAID_PILOT_TEST_HTTPS_PORT:-0}" \
+  "${LEONAID_PILOT_RESTORE_TEST_HTTP_PORT:-0}" \
+  "${LEONAID_PILOT_RESTORE_TEST_HTTPS_PORT:-0}" <<'PORTS'
+import socket, sys
+sockets = []
+for value in sys.argv[1:]:
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", int(value)))
+    sockets.append(sock)
+print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
+PORTS
+)
+[ "$#" -eq 4 ] || { echo 'Pilot test port allocation failed' >&2; exit 1; }
+http_port=$1
+https_port=$2
+restore_http_port=$3
+restore_https_port=$4
+export LEONAID_PILOT_TEST_HTTP_PORT="$http_port"
+export LEONAID_PILOT_TEST_HTTPS_PORT="$https_port"
 workspace=$(mktemp -d)
 manifest_proof_directory=$(mktemp -d)
 config="$workspace/compose.json"
@@ -26,20 +47,43 @@ wrong_restic_password_file="$workspace/wrong-restic-password"
 backup_credentials_file="$workspace/backup-s3.env"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
-operator_backup_project=leonaid-pilot-operator-backup
+operator_backup_project="leonaid-pilot-backup-$suffix"
 operator_backup_container="$operator_backup_project-rustfs"
 operator_backup_volume="$operator_backup_project-rustfs-data"
 operator_backup_bucket=leonaid-pilot-operator
-restore_project=leonaid-restore-pilot-operator
+restore_project="leonaid-restore-pilot-$suffix"
 core_image_tag="$build_project-api:latest"
 web_image_tag="$build_project-web:latest"
 pwa_image_tag="$build_project-pwa:latest"
 public_image_tag="$build_project-public:latest"
+survey_validator_image_tag="$build_project-survey-validator:latest"
+export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE="$survey_validator_image_tag"
+proxy_image_tag="$build_project-proxy:latest"
+export LEONAID_TEST_PROXY_IMAGE="$proxy_image_tag"
 core_image="$core_image_tag"
 web_image="$web_image_tag"
 pwa_image="$pwa_image_tag"
 public_image="$public_image_tag"
 release_commit=$(git -C "$root" rev-parse HEAD)
+mkdir -p "$root/.artifacts"
+overlay_directory=$(mktemp -d "$root/.artifacts/pilot-isolation.XXXXXX")
+source_overlay="$overlay_directory/source.yml"
+target_overlay="$overlay_directory/target.yml"
+runtime_owned=false
+restore_owned=false
+backup_owned=false
+build_owned=false
+make_overlay() {
+  destination=$1
+  python3 "$root/tools/surveys/network_override.py" "$overlay_directory/networks.yml"
+  python3 - "$root/infra/pilot/compose.test.yml" "$overlay_directory/networks.yml" "$destination" <<'OVERLAY'
+from pathlib import Path
+import sys
+base, network, target = map(Path, sys.argv[1:])
+target.write_text(base.read_text() + "\nnetworks:\n" + network.read_text().split("\nnetworks:\n", 1)[1])
+OVERLAY
+}
+
 
 runtime_compose() {
   LEONAID_PILOT_TEST_HTTP_PORT="$http_port" \
@@ -53,7 +97,7 @@ runtime_compose() {
     --env-file "$env_file" \
     --file "$root/infra/compose/compose.yml" \
     --file "$root/infra/pilot/compose.yml" \
-    --file "$root/infra/pilot/compose.test.yml" \
+    --file "$source_overlay" \
     "$@"
 }
 
@@ -69,16 +113,50 @@ restore_compose() {
     --env-file "$target_env_file" \
     --file "$root/infra/compose/compose.yml" \
     --file "$root/infra/pilot/compose.yml" \
-    --file "$root/infra/pilot/compose.test.yml" \
+    --file "$target_overlay" \
     "$@"
+}
+
+survey_probe() {
+  compose_runner=$1
+  shift
+  "$compose_runner" run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/recovery_live.py "$@"
+}
+
+verify_project_absent() {
+  checked_project=$1
+  remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+}
+
+verify_backup_absent() {
+  remaining=$(docker ps -aq --filter "name=^/${operator_backup_container}$") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker volume ls -q --filter "name=^${operator_backup_volume}$") || return 1
+  [ -z "$remaining" ] || return 1
+}
+
+verify_images_absent() {
+  for image in "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" "$proxy_image_tag"; do
+    remaining=$(docker image ls -q --filter "reference=$image") || return 1
+    [ -z "$remaining" ] || return 1
+  done
 }
 
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
     echo "pilot-deployment-test: Diagnose der fehlgeschlagenen Services:" >&2
-    runtime_compose ps >&2 || true
-    runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
+    if [ "$runtime_owned" = true ]; then
+      runtime_compose ps >&2 || true
+      runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
+    fi
     if [ -f "$backup_manifest" ]; then
       docker run --rm \
         --volume "$backup_manifest:/proof/manifest.json:ro" \
@@ -97,21 +175,39 @@ print(
 )' >&2 || true
     fi
   fi
-  runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
-  docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
-  docker image rm \
-    "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" \
-    >/dev/null 2>&1 || true
+  if [ "$runtime_owned" = true ]; then
+    runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$project" || status=1
+  fi
+  if [ "$restore_owned" = true ]; then
+    restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$restore_project" || status=1
+  fi
+  if [ "$backup_owned" = true ]; then
+    docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
+    docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || status=1
+    verify_backup_absent || status=1
+    verify_project_absent "$operator_backup_project" || status=1
+  fi
+  if [ "$build_owned" = true ]; then
+    docker image rm "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" "$proxy_image_tag" >/dev/null 2>&1 || status=1
+    verify_images_absent || status=1
+    verify_project_absent "$build_project" || status=1
+  fi
+  rm -rf "$overlay_directory"
   rm -rf "$manifest_proof_directory"
   rm -rf "$workspace"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
-docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
+for owned_project in "$project" "$restore_project" "$build_project" "$operator_backup_project"; do
+  verify_project_absent "$owned_project"
+done
+verify_backup_absent
+verify_images_absent
+make_overlay "$source_overlay"
+backup_owned=true
 docker volume create \
   --label "com.docker.compose.project=$operator_backup_project" \
   "$operator_backup_volume" >/dev/null
@@ -200,6 +296,8 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_WEB_IMAGE=registry.example.org/leonaid/web@sha256:$digest" \
     "LEONAID_PWA_IMAGE=registry.example.org/leonaid/pwa@sha256:$digest" \
     "LEONAID_PUBLIC_IMAGE=registry.example.org/leonaid/public@sha256:$digest" \
+    "LEONAID_PROXY_IMAGE=registry.example.org/leonaid/proxy@sha256:$digest" \
+    "LEONAID_SURVEY_VALIDATOR_IMAGE=registry.example.org/leonaid/survey-validator@sha256:$digest" \
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
     "LEONAID_ALLOWED_ORIGINS=https://portal.leonaid.org" \
@@ -255,19 +353,20 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
 
-echo "pilot-deployment-test: baut vier Release-Images vor dem Deployment"
+echo "pilot-deployment-test: baut sechs Release-Images vor dem Deployment"
+build_owned=true
 docker compose \
   --project-name "$build_project" \
   --env-file "$root/.env.local" \
   --file "$root/infra/compose/compose.yml" \
-  build api web pwa public
+  build api web pwa public survey-validator proxy
 
 echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
-runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+runtime_owned=true
 runtime_compose up --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
-  api core-postgres proxy public pwa rustfs twenty-postgres twenty-redis \
+  api core-postgres proxy public pwa rustfs survey-validator twenty-postgres twenty-redis \
   twenty-server twenty-worker web worker | sort)
 actual_services=$(runtime_compose ps --services --filter status=running | sort)
 if [ "$actual_services" != "$expected_services" ]; then
@@ -300,6 +399,11 @@ curl --fail --silent --insecure \
   "https://$crm_url:$https_port/healthz" | grep -q '"status":"ok"'
 
 proxy_id=$(runtime_compose ps --quiet proxy)
+# Compose may recreate the proxy during immutable-image deployment. Resolve its
+# stable name once; Docker resolves the current container at each Doctor launch.
+proxy_container=$(docker inspect --format '{{.Name}}' "$proxy_id")
+proxy_container=${proxy_container#/}
+[ -n "$proxy_container" ]
 runtime_compose exec --no-TTY proxy \
   cat /data/caddy/pki/authorities/local/root.crt >"$ca_file"
 chmod 600 "$ca_file"
@@ -331,7 +435,7 @@ docker run --rm \
 
 echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
 docker run --rm \
-  --network "container:$proxy_id" \
+  --network "container:$proxy_container" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
@@ -390,22 +494,36 @@ core_image=$(docker image inspect --format '{{.Id}}' "$core_image_tag")
 web_image=$(docker image inspect --format '{{.Id}}' "$web_image_tag")
 pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
 public_image=$(docker image inspect --format '{{.Id}}' "$public_image_tag")
+LEONAID_TEST_SURVEY_VALIDATOR_IMAGE=$(docker image inspect --format '{{.Id}}' "$survey_validator_image_tag")
+export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE
+LEONAID_TEST_PROXY_IMAGE=$(docker image inspect --format '{{.Id}}' "$build_project-proxy:latest")
+export LEONAID_TEST_PROXY_IMAGE
+config="$workspace/runtime-compose.json"
 runtime_compose config --format json >"$config"
-docker run --rm \
+python3 - "$config" <<'CONFIG'
+import hashlib, json, pathlib, sys
+data = pathlib.Path(sys.argv[1]).read_bytes()
+value = json.loads(data)
+assert len([service for service in value["services"].values() if not service.get("profiles")]) == 13
+print(f"pilot-deployment-test: runtime config valid, bytes={len(data)}, sha256={hashlib.sha256(data).hexdigest()}")
+CONFIG
+# Send the complete host snapshot through stdin: the same shared directory was
+# mounted earlier by the Doctor and can expose stale file contents on macOS.
+docker run --rm --interactive \
   --user "$(id -u):$(id -g)" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof" \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
-  python tools/pilot_release/manifest.py create \
+  sh -eu -c 'cat > /tmp/runtime-compose.json; exec python tools/pilot_release/manifest.py create "$@"' sh \
     --root /workspace \
     --release-id pilot-deploy-test \
     --version 0.1.0-test \
     --git-commit "$release_commit" \
     --deployment-mode test \
-    --compose-config /proof/compose.json \
-    --output /proof/release-manifest.json
+    --compose-config /tmp/runtime-compose.json \
+    --output /proof/release-manifest.json <"$config"
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$root:/workspace:ro" \
@@ -442,7 +560,7 @@ value["images"]["api"]="sha256:"+"b"*64
 p.write_text(json.dumps(value,sort_keys=True,indent=2)+"\n",encoding="utf-8")'
 set +e
 drift_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -464,9 +582,9 @@ if ! printf '%s' "$drift_output" |
   echo "pilot-deployment-test: ERROR: Manifest-Drift ist nicht diagnostizierbar" >&2
   exit 1
 fi
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -494,11 +612,19 @@ docker run --rm \
   --volume "${project}_twenty-server-data:/data" \
   "$ALPINE_IMAGE" \
   sh -eu -c 'printf "%s\n" "twenty-storage-operator-backup" > /data/pilot-operator-probe'
+if [ "$mode" = surveys ]; then
+  runtime_compose stop worker
+  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/infrastructure.py
+  survey_probe runtime_compose seed
+  runtime_compose up --detach --wait --wait-timeout 420 worker
+fi
 set +e
 wrong_backup_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -525,9 +651,9 @@ fi
 echo "pilot-deployment-test: beweist den vollständigen Operator-Release"
 set +e
 missing_staging_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -572,9 +698,9 @@ fi
   --result passed \
   --evidence-id PILOT-043-STAGING-OPERATOR \
   --occurred-at 2026-07-30T12:02:00Z
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -614,15 +740,31 @@ assert set(value["files"])=={
   "core.dump","twenty.dump","twenty-storage.tar","rustfs-data.tar"
 }'
 
+. "$root/tools/backup/survey-recovery-fixture.sh"
+if [ "$mode" = surveys ]; then
+  runtime_compose stop worker
+  survey_probe runtime_compose delete
+  runtime_compose run --rm --no-deps --volume "$root:/repo:ro" \
+    --volume "$workspace:/proof" --workdir /repo --entrypoint python api \
+    tools/surveys/recovery.py export --output /proof/recovery-checkpoint.json
+  survey_probe runtime_compose pilot-inputs
+  LEONAID_SURVEY_ERASURE_CHECKPOINT="$workspace/recovery-checkpoint.json"
+  LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$(cat "$workspace/recovery-cutoff.txt")
+  export LEONAID_SURVEY_ERASURE_CHECKPOINT LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH
+else
+  prepare_survey_recovery_fixture runtime_compose "$workspace"
+fi
+make_overlay "$target_overlay"
+restore_owned=true
 cp "$env_file" "$target_env_file"
 printf '%s\n' "LEONAID_COMPOSE_PROJECT=$restore_project" >>"$target_env_file"
 chmod 600 "$target_env_file"
 set +e
 wrong_restore_output=$(
-  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
-    LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+  LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
+    LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
     LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
@@ -649,10 +791,12 @@ if ! printf '%s' "$wrong_restore_output" |
   echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
   exit 1
 fi
-LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
-  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$root/infra/pilot/compose.test.yml" \
+restore_doctor_network="container:$proxy_container"
+run_pilot_restore() {
+LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
+  LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="$restore_doctor_network" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
   LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
@@ -666,7 +810,117 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$root/infra/pilot/compose.test.yml" \
     --target-env-file "$target_env_file" \
     --password-file "$restic_password_file" \
     --credentials-file "$backup_credentials_file" \
-    --confirm "RESTORE:$restore_project"
+    --confirm "RESTORE:$restore_project" "$@"
+}
+if [ "$mode" = surveys ]; then
+  # Both DBs, objects, writers and source archive are gone. Only independently
+  # retained encrypted backups, explicit checkpoint and operator inputs remain.
+  runtime_compose down --volumes --remove-orphans
+  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
+  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
+  runtime_owned=false
+  restore_doctor_network=none
+  valid_checkpoint=$LEONAID_SURVEY_ERASURE_CHECKPOINT
+  valid_cutoff=$LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH
+  for invalid in missing tampered wrong-key wrong-installation stale; do
+    case "$invalid" in
+      missing) LEONAID_SURVEY_ERASURE_CHECKPOINT= ;;
+      stale)
+        LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+        LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$(cat "$workspace/pilot-stale-cutoff.txt")
+        ;;
+      *) LEONAID_SURVEY_ERASURE_CHECKPOINT="$workspace/pilot-$invalid.json" ;;
+    esac
+    failed=0
+    run_pilot_restore >"$workspace/$invalid-restore.log" 2>&1 || failed=$?
+    [ "$failed" -eq 1 ] || { echo "Expected rejected $invalid restore, got $failed" >&2; exit 1; }
+    for service in api public proxy worker; do
+      [ -z "$(restore_compose ps --status running --quiet "$service")" ]
+    done
+    # This proves rejection at the actual restored-data boundary, rather than
+    # accidentally accepting an earlier configuration/backup failure as coverage.
+    survey_probe restore_compose restored
+    if [ "$invalid" = missing ]; then
+      # A new normal restore must still refuse existing volumes.
+      failed_fresh=0
+      run_pilot_restore >"$workspace/repeated-fresh.log" 2>&1 || failed_fresh=$?
+      [ "$failed_fresh" -eq 1 ]
+      LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+      # Marker distinguishes continuation from a destructive repeat pg_restore.
+      restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+        --set ON_ERROR_STOP=1 --command "CREATE TABLE restore_resume_probe(value text); INSERT INTO restore_resume_probe VALUES('preserve-on-resume')" >/dev/null
+      restore_compose pause rustfs
+      run_pilot_restore --resume >"$workspace/interrupted-resume.log" 2>&1 &
+      resumed_pid=$!
+      attempts=0
+      while :; do
+        count=$(restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+          --tuples-only --no-align --command "SELECT count(*) FROM survey_deletion")
+        [ "$count" -gt 0 ] && break
+        kill -0 "$resumed_pid" 2>/dev/null || { echo 'Resume stopped before committed revocations' >&2; exit 1; }
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 90 ] || { echo 'Resume did not reach committed revocations' >&2; exit 1; }
+        sleep 1
+      done
+      interrupted_container=$(docker ps -q \
+        --filter "label=com.docker.compose.project=$restore_project" \
+        --filter label=com.docker.compose.service=api \
+        --filter label=com.docker.compose.oneoff=True)
+      [ -n "$interrupted_container" ]
+      docker kill "$interrupted_container" >/dev/null
+      interrupted_status=0
+      wait "$resumed_pid" || interrupted_status=$?
+      [ "$interrupted_status" -ne 0 ]
+      restore_compose unpause rustfs
+      for service in api public proxy worker; do
+        [ -z "$(restore_compose ps --status running --quiet "$service")" ]
+      done
+      # Continue only the existing quarantine; no source DB/storage reimport.
+      LEONAID_RESTORE_START_APP=false run_pilot_restore --resume
+      preserved=$(restore_compose exec -T core-postgres psql --username leonaid --dbname leonaid \
+        --tuples-only --no-align --command "SELECT value FROM restore_resume_probe")
+      [ "$preserved" = preserve-on-resume ]
+      # Verify phase completion still permits the intentional application start.
+      LEONAID_RESTORE_START_APP=true run_pilot_restore --resume
+      survey_probe restore_compose online-restic
+      echo 'pilot-survey-recovery: interrupted reapplication resumed without reimport; original marker preserved'
+    fi
+    restore_compose down --volumes --remove-orphans
+    [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$restore_project")" ]
+    LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH=$valid_cutoff
+    echo "pilot-survey-recovery: $invalid input rejected; old survey/object verified offline"
+  done
+  LEONAID_SURVEY_ERASURE_CHECKPOINT=$valid_checkpoint
+fi
+run_pilot_restore
+if [ "$mode" = surveys ]; then
+  survey_probe restore_compose online-restic
+  mkdir -p "$root/.artifacts/pilot-surveys"
+  python3 - "$workspace/restic-recovery-proof.json" "$root/.artifacts/pilot-surveys/recovery-proof.json" "$suffix" <<'REPORT'
+import json
+from pathlib import Path
+import sys
+result = json.loads(Path(sys.argv[1]).read_text())
+result.update({
+    "run": sys.argv[3],
+    "actualPilotRestoreWrapper": True,
+    "sourceContainersAndVolumesRemovedBeforeAllRestores": True,
+    "doctorRanWithNetworkNoneAfterSourceRemoval": True,
+    "rejectedInputs": ["missing", "tampered", "wrong-key", "wrong-installation", "stale"],
+    "eachRejectionVerifiedOriginalSqlAnswerAndExactExportObjectOffline": True,
+    "eachRejectionUsedFreshTargetVolumes": True,
+    "validCheckpointAllowsNoBuildApplicationStartup": True,
+    "interruptedReapplicationResumedWithoutReimport": True,
+    "limitations": [
+        "Checkpoint and cutoff were explicitly retained before source removal; automatic newest-checkpoint provenance across unexpected host loss remains open",
+        "Encrypted S3-compatible Restic storage is outside the source project but on the same Docker host",
+        "Preceding-backup compatibility through the pilot wrapper remains open",
+    ],
+})
+Path(sys.argv[2]).write_text(json.dumps(result, indent=2) + "\n")
+REPORT
+  echo "pilot-survey-recovery: valid checkpoint removed post-backup deleted content before startup"
+fi
 restore_compose exec -T core-postgres psql \
   --username "${CORE_POSTGRES_USER:-leonaid}" \
   --dbname "${CORE_POSTGRES_DB:-leonaid}" \

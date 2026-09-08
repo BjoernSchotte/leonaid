@@ -1,0 +1,8 @@
+{
+  "queuedRevocationCancelsWithoutObject": true,
+  "revocationAfterRealUploadCancelsWithReference": true,
+  "revocationDuringRealReadDeniesArtifactReturn": true,
+  "revokedSelectionReplayAndVersionsDenied": true,
+  "revokedJobReplayAndDownloadsDenied": true,
+  "productionOutboxAndStorageAdapters": true
+}

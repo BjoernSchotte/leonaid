@@ -1,0 +1,11 @@
+{
+  "participations": 5,
+  "completed": 4,
+  "partial": 1,
+  "nps": 33.333333333333336,
+  "mean": 15,
+  "browserDownloadsParsed": 4,
+  "rawCsvXlsxAgreement": true,
+  "aggregateFilesExcludeRawText": true,
+  "reportGrantRevoked": true
+}

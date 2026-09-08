@@ -1,0 +1,18 @@
+{
+  "syntheticOnly": true,
+  "nearLimitCountersSeeded": true,
+  "windowSeconds": 60,
+  "startLimit": 30,
+  "writeLimit": 300,
+  "readLimit": 600,
+  "concurrentLastPermitStatuses": [
+    200,
+    429
+  ],
+  "participationsAfterRejectedStarts": 2,
+  "rejectedWritesPreservedRevision": 2,
+  "cookieAndUserAgentRotationRejected": true,
+  "crossSurveyAndRedeemShareQuota": true,
+  "alternateUuidSpellingsShareQuota": true,
+  "expiryAndIdempotentRetryPassed": true
+}

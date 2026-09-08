@@ -1,0 +1,1 @@
+{"products": ["responses_csv", "responses_xlsx", "analysis_xlsx", "analysis_pdf"], "realWorker": true, "parsedDownloads": 4, "anonymousObjectAccessDenied": true, "revokedQueuedJobCancelled": true, "deletedSurveyDownloadsDenied": true, "outboxPayloadsContainNoAnswers": true, "objectReferencesRetained": true, "missingGlyphJobFailedWithoutArtifact": true}

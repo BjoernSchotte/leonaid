@@ -1,0 +1,31 @@
+{
+  "syntheticOnly": true,
+  "personas": [
+    "admin",
+    "design",
+    "publish",
+    "archive",
+    "view_aggregates",
+    "read_responses",
+    "export_raw",
+    "export_reports",
+    "manage_invitations",
+    "delete",
+    "owner",
+    "manager",
+    "member",
+    "outsider"
+  ],
+  "resourceKinds": [
+    "standalone",
+    "member-action",
+    "foreign-action",
+    "foreign-standalone"
+  ],
+  "positiveReads": 118,
+  "deniedReads": 676,
+  "deniedWrites": 891,
+  "personaResourcePairs": 56,
+  "listsCountsSearchPaginationScoped": true,
+  "deniedOperationsPreserveSqlFingerprint": true
+}

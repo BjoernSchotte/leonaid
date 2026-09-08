@@ -1,0 +1,1233 @@
+{
+  "sourceCheckpoint": "913c2f751136bee433c3f4ef139c6ec628a5da95",
+  "reviewOnly": true,
+  "finalTraceabilityAccepted": true,
+  "wholeSpikeAccepted": false,
+  "scope": "101 functional-spike tasks accepted using the complete two-pass CI checkpoint plus targeted changed-source E2E, manual walkthrough and artifact review. Three original independent recovery obligations are deferred before production, not passed.",
+  "tasks": [
+    {
+      "task": "000.1",
+      "status": "accepted",
+      "criteria": [
+        "000.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md"
+      ]
+    },
+    {
+      "task": "000.2",
+      "status": "accepted",
+      "criteria": [
+        "000.A1",
+        "000.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md"
+      ]
+    },
+    {
+      "task": "000.3",
+      "status": "accepted",
+      "criteria": [
+        "000.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md",
+        "proofs/SURV-000.md#complete-runtime-dependency-disposition"
+      ]
+    },
+    {
+      "task": "000.4",
+      "status": "accepted",
+      "criteria": [
+        "000.A1",
+        "000.A2",
+        "000.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md",
+        "proofs/SURV-000.md#persona-and-fixture-foundation",
+        "proofs/SURV-000.md#foundation-browser-failure-diagnostics"
+      ]
+    },
+    {
+      "task": "000.5",
+      "status": "accepted",
+      "criteria": [
+        "000.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md"
+      ]
+    },
+    {
+      "task": "000.T1",
+      "status": "accepted",
+      "criteria": [
+        "000.A1",
+        "000.A2",
+        "000.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-000-CONTRACT-REVIEW.md"
+      ]
+    },
+    {
+      "task": "000.T1a",
+      "status": "accepted",
+      "criteria": [],
+      "evidence": [
+        "proofs/SURV-000.md#complete-write-transport-inventory"
+      ]
+    },
+    {
+      "task": "000.T1b",
+      "status": "accepted",
+      "criteria": [
+        "000.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-000.md#concurrent-replay-for-every-write"
+      ]
+    },
+    {
+      "task": "000.T1c",
+      "status": "accepted",
+      "criteria": [
+        "000.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-000.md#competing-revisions-for-every-revision-bearing-write"
+      ]
+    },
+    {
+      "task": "000.T2",
+      "status": "accepted",
+      "criteria": [
+        "000.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-000.md#foundation-browser-failure-diagnostics"
+      ]
+    },
+    {
+      "task": "010.1",
+      "status": "accepted",
+      "criteria": [
+        "010.A2",
+        "010.A3",
+        "010.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation"
+      ]
+    },
+    {
+      "task": "010.2",
+      "status": "accepted",
+      "criteria": [
+        "010.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation",
+        "proofs/SURV-010.md#isolated-validation-candidate-selection",
+        "proofs/SURV-010.md#shared-core-backend-integration"
+      ]
+    },
+    {
+      "task": "010.3",
+      "status": "accepted",
+      "criteria": [
+        "010.A1",
+        "010.A2",
+        "010.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation",
+        "proofs/SURV-010.md#shared-core-backend-integration"
+      ]
+    },
+    {
+      "task": "010.4",
+      "status": "accepted",
+      "criteria": [
+        "010.A3",
+        "010.A4",
+        "010.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation"
+      ]
+    },
+    {
+      "task": "010.T1",
+      "status": "accepted",
+      "criteria": [
+        "010.A1",
+        "010.A2",
+        "010.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation",
+        "proofs/SURV-010.md#shared-core-backend-integration"
+      ]
+    },
+    {
+      "task": "010.T2",
+      "status": "accepted",
+      "criteria": [
+        "010.A3",
+        "010.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-010.md#task-and-scenario-reconciliation"
+      ]
+    },
+    {
+      "task": "020.1",
+      "status": "accepted",
+      "criteria": [
+        "020.A1",
+        "020.A2",
+        "020.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance",
+        "proofs/SURV-020.md#host-translated-editor-and-entrypoint-acceptance"
+      ]
+    },
+    {
+      "task": "020.1a",
+      "status": "accepted",
+      "criteria": [],
+      "evidence": [
+        "proofs/SURV-020.md#bounded-host-logo-integration"
+      ]
+    },
+    {
+      "task": "020.2",
+      "status": "accepted",
+      "criteria": [
+        "020.A1",
+        "020.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance",
+        "proofs/SURV-020.md"
+      ]
+    },
+    {
+      "task": "020.3",
+      "status": "accepted",
+      "criteria": [
+        "020.A3",
+        "020.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance"
+      ]
+    },
+    {
+      "task": "020.3a",
+      "status": "accepted",
+      "criteria": [],
+      "evidence": [
+        "proofs/SURV-020.md#responsive-progress-navigation"
+      ]
+    },
+    {
+      "task": "020.4",
+      "status": "accepted",
+      "criteria": [
+        "020.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance",
+        "proofs/SURV-020.md"
+      ]
+    },
+    {
+      "task": "020.T1",
+      "status": "accepted",
+      "criteria": [
+        "020.A1",
+        "020.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance",
+        "proofs/SURV-020.md"
+      ]
+    },
+    {
+      "task": "020.T2",
+      "status": "accepted",
+      "criteria": [
+        "020.A3",
+        "020.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-020.md#delivery-and-acceptance"
+      ]
+    },
+    {
+      "task": "030.1",
+      "status": "accepted",
+      "criteria": [
+        "030.A1",
+        "030.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation"
+      ]
+    },
+    {
+      "task": "030.2",
+      "status": "accepted",
+      "criteria": [
+        "030.A2",
+        "030.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#populated-invitation-duplication"
+      ]
+    },
+    {
+      "task": "030.3",
+      "status": "accepted",
+      "criteria": [
+        "030.A1",
+        "030.A2",
+        "030.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation"
+      ]
+    },
+    {
+      "task": "030.T1",
+      "status": "accepted",
+      "criteria": [
+        "030.A1",
+        "030.A2",
+        "030.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation"
+      ]
+    },
+    {
+      "task": "030.T1a",
+      "status": "accepted",
+      "criteria": [
+        "030.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation",
+        "proofs/SURV-030.md#observed-lifecycle-lock-orders"
+      ]
+    },
+    {
+      "task": "030.T2",
+      "status": "accepted",
+      "criteria": [
+        "030.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-030.md#migration-and-lifecycle-task-reconciliation",
+        "proofs/SURV-060.md"
+      ]
+    },
+    {
+      "task": "040.1",
+      "status": "accepted",
+      "criteria": [
+        "040.A1",
+        "040.A3",
+        "040.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.2",
+      "status": "accepted",
+      "criteria": [
+        "040.A2",
+        "040.A3",
+        "040.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.3",
+      "status": "accepted",
+      "criteria": [
+        "040.A1",
+        "040.A2",
+        "040.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.4",
+      "status": "accepted",
+      "criteria": [
+        "040.A1",
+        "040.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.5",
+      "status": "accepted",
+      "criteria": [],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.T1",
+      "status": "accepted",
+      "criteria": [
+        "040.A1",
+        "040.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "040.T2",
+      "status": "accepted",
+      "criteria": [
+        "040.A3",
+        "040.A4",
+        "040.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-040.md#template-creation-and-editor-regression"
+      ]
+    },
+    {
+      "task": "050.1",
+      "status": "accepted",
+      "criteria": [
+        "050.A3",
+        "050.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance"
+      ]
+    },
+    {
+      "task": "050.1a",
+      "status": "accepted",
+      "criteria": [],
+      "evidence": [
+        "proofs/SURV-050.md#published-completion-text"
+      ]
+    },
+    {
+      "task": "050.2",
+      "status": "accepted",
+      "criteria": [
+        "050.A1",
+        "050.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance",
+        "proofs/SURV-050.md#process-restart-and-untransmitted-tab-loss"
+      ]
+    },
+    {
+      "task": "050.3",
+      "status": "accepted",
+      "criteria": [
+        "050.A2",
+        "050.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance"
+      ]
+    },
+    {
+      "task": "050.4",
+      "status": "accepted",
+      "criteria": [
+        "050.A3",
+        "050.A4",
+        "050.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance"
+      ]
+    },
+    {
+      "task": "050.T1",
+      "status": "accepted",
+      "criteria": [
+        "050.A1",
+        "050.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance"
+      ]
+    },
+    {
+      "task": "050.T2",
+      "status": "accepted",
+      "criteria": [
+        "050.A3",
+        "050.A4",
+        "050.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-050.md#analysis-consumer-acceptance"
+      ]
+    },
+    {
+      "task": "060.1",
+      "status": "accepted",
+      "criteria": [
+        "060.A4",
+        "060.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md"
+      ]
+    },
+    {
+      "task": "060.2",
+      "status": "accepted",
+      "criteria": [
+        "060.A1",
+        "060.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance"
+      ]
+    },
+    {
+      "task": "060.2a",
+      "status": "accepted",
+      "criteria": [
+        "060.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#persona-resource-api-matrix"
+      ]
+    },
+    {
+      "task": "060.2b",
+      "status": "accepted",
+      "criteria": [
+        "060.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#publisher-only-review-and-publication"
+      ]
+    },
+    {
+      "task": "060.2c",
+      "status": "accepted",
+      "criteria": [
+        "060.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#active-survey-browser-permission-matrix"
+      ]
+    },
+    {
+      "task": "060.2d",
+      "status": "accepted",
+      "criteria": [
+        "060.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#separate-role-lifecycle-journeys"
+      ]
+    },
+    {
+      "task": "060.2e",
+      "status": "accepted",
+      "criteria": [
+        "060.A1"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#changed-authority-and-child-resource-boundaries"
+      ]
+    },
+    {
+      "task": "060.2f",
+      "status": "accepted",
+      "criteria": [
+        "060.A1",
+        "060.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#invitation-and-deletion-special-scopes"
+      ]
+    },
+    {
+      "task": "060.3",
+      "status": "accepted",
+      "criteria": [
+        "060.A2",
+        "060.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#personal-invitations",
+        "proofs/SURV-060.md#invitation-credential-and-expired-resume-acceptance",
+        "proofs/SURV-060.md#real-response-invitation-retry-and-test-policy-correction"
+      ]
+    },
+    {
+      "task": "060.4",
+      "status": "accepted",
+      "criteria": [
+        "060.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance",
+        "proofs/SURV-060.md#preview-isolation-and-timeout-snapshot-acceptance"
+      ]
+    },
+    {
+      "task": "060.T1",
+      "status": "accepted",
+      "criteria": [
+        "060.A1",
+        "060.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance"
+      ]
+    },
+    {
+      "task": "060.T2",
+      "status": "accepted",
+      "criteria": [
+        "060.A3",
+        "060.A4",
+        "060.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-060.md#consolidated-surv-060-acceptance"
+      ]
+    },
+    {
+      "task": "070.1",
+      "status": "accepted",
+      "criteria": [
+        "070.A1",
+        "070.A2",
+        "070.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-070.md#analysis-gate-reconciliation",
+        "proofs/SURV-070.md#analysis-ui-and-neutral-result-components"
+      ]
+    },
+    {
+      "task": "070.2",
+      "status": "accepted",
+      "criteria": [
+        "070.A1",
+        "070.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-070.md#analysis-gate-reconciliation",
+        "proofs/SURV-070.md#analysis-ui-and-neutral-result-components",
+        "proofs/SURV-070.md"
+      ]
+    },
+    {
+      "task": "070.3",
+      "status": "accepted",
+      "criteria": [
+        "070.A2",
+        "070.A3",
+        "070.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-070.md#analysis-gate-reconciliation",
+        "proofs/SURV-070.md#authorized-raw-response-browser-views"
+      ]
+    },
+    {
+      "task": "070.T1",
+      "status": "accepted",
+      "criteria": [
+        "070.A1",
+        "070.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-070.md#analysis-gate-reconciliation",
+        "proofs/SURV-070.md#immutable-analysis-snapshots"
+      ]
+    },
+    {
+      "task": "070.T2",
+      "status": "accepted",
+      "criteria": [
+        "070.A3",
+        "070.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-070.md#analysis-gate-reconciliation",
+        "proofs/SURV-070.md#authorized-raw-response-browser-views"
+      ]
+    },
+    {
+      "task": "080.1",
+      "status": "accepted",
+      "criteria": [
+        "080.A1",
+        "080.A2",
+        "080.A4",
+        "080.A6"
+      ],
+      "evidence": [
+        "proofs/SURV-080.md#worker-recovery-and-tabular-task-acceptance"
+      ]
+    },
+    {
+      "task": "080.2",
+      "status": "accepted",
+      "criteria": [
+        "080.A1",
+        "080.A4",
+        "080.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-080.md#consolidated-render-acceptance"
+      ]
+    },
+    {
+      "task": "080.3",
+      "status": "accepted",
+      "criteria": [
+        "080.A3",
+        "080.A4",
+        "080.A6"
+      ],
+      "evidence": [
+        "proofs/SURV-080.md#terminal-job-state-acceptance"
+      ]
+    },
+    {
+      "task": "080.T1",
+      "status": "accepted",
+      "criteria": [
+        "080.A1",
+        "080.A2",
+        "080.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-080.md#terminal-job-state-acceptance",
+        "proofs/SURV-080.md#permission-boundary-acceptance"
+      ]
+    },
+    {
+      "task": "080.T2",
+      "status": "accepted",
+      "criteria": [
+        "080.A4",
+        "080.A5",
+        "080.A6"
+      ],
+      "evidence": [
+        "proofs/SURV-080.md#consolidated-render-acceptance"
+      ]
+    },
+    {
+      "task": "090.1",
+      "status": "accepted",
+      "criteria": [
+        "090.A1",
+        "090.A2",
+        "090.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#deterministic-deletion-interleavings"
+      ]
+    },
+    {
+      "task": "090.1a",
+      "status": "accepted",
+      "criteria": [
+        "090.A1",
+        "090.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance"
+      ]
+    },
+    {
+      "task": "090.2",
+      "status": "deferred",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
+      ],
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
+    },
+    {
+      "task": "090.2a",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore",
+        "proofs/TASK-STATUS-RECONCILIATION.md"
+      ]
+    },
+    {
+      "task": "090.2b",
+      "status": "deferred",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
+      ],
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
+    },
+    {
+      "task": "090.2c",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#independent-checkpoint-archive-and-interrupted-publication"
+      ]
+    },
+    {
+      "task": "090.2d",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate"
+      ]
+    },
+    {
+      "task": "090.2e",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#retention-publication-interruption-and-recovery"
+      ]
+    },
+    {
+      "task": "090.2f",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#offline-pilot-preflight-and-validator-release-binding"
+      ]
+    },
+    {
+      "task": "090.2g",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#pilot-restore-with-post-backup-survey-erasure"
+      ]
+    },
+    {
+      "task": "090.2h",
+      "status": "accepted",
+      "criteria": [
+        "090.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#interrupted-pilot-reapplication-and-authenticated-resume"
+      ]
+    },
+    {
+      "task": "090.3",
+      "status": "accepted",
+      "criteria": [
+        "090.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#export-admission-and-log-acceptance"
+      ]
+    },
+    {
+      "task": "090.3a",
+      "status": "accepted",
+      "criteria": [
+        "090.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#public-request-quota-acceptance"
+      ]
+    },
+    {
+      "task": "090.3b",
+      "status": "accepted",
+      "criteria": [
+        "090.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#payload-boundaries-and-participation-log-acceptance"
+      ]
+    },
+    {
+      "task": "090.3c",
+      "status": "accepted",
+      "criteria": [
+        "090.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#export-admission-and-log-acceptance"
+      ]
+    },
+    {
+      "task": "090.T1",
+      "status": "deferred",
+      "criteria": [
+        "090.A1",
+        "090.A2",
+        "090.A3",
+        "090.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
+      ],
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
+    },
+    {
+      "task": "090.T2",
+      "status": "accepted",
+      "criteria": [
+        "090.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance"
+      ]
+    },
+    {
+      "task": "100.1",
+      "status": "accepted",
+      "criteria": [
+        "100.A1",
+        "100.A2",
+        "100.A3",
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CI-REPEAT.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
+    },
+    {
+      "task": "100.1a",
+      "status": "accepted",
+      "criteria": [
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100-BROWSER-DIAGNOSTICS.md"
+      ],
+      "scope": "Diagnostic collection portion only; full delivery and Journey acceptance remain open."
+    },
+    {
+      "task": "100.2",
+      "status": "accepted",
+      "criteria": [
+        "100.A2",
+        "100.A4"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md",
+        "proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys",
+        "proofs/SURV-100-CI-REPEAT.md",
+        "TRACEABILITY.md#review-decision"
+      ]
+    },
+    {
+      "task": "100.2a",
+      "status": "accepted",
+      "criteria": [
+        "100.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-100-DROPDOWN.md"
+      ]
+    },
+    {
+      "task": "100.3",
+      "status": "accepted",
+      "criteria": [
+        "100.A3",
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
+    },
+    {
+      "task": "100.3a",
+      "status": "accepted",
+      "criteria": [
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#react-peer-policy-and-packed-consumer"
+      ]
+    },
+    {
+      "task": "100.3b",
+      "status": "accepted",
+      "criteria": [
+        "090.A3",
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#isolated-pilot-operator-regression"
+      ]
+    },
+    {
+      "task": "100.3c",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#isolated-identity-policy-and-public-regressions"
+      ]
+    },
+    {
+      "task": "100.3d",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#isolated-compose-regression"
+      ]
+    },
+    {
+      "task": "100.3e",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#reserved-networks-and-seven-backend-regressions"
+      ]
+    },
+    {
+      "task": "100.3f",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#six-isolated-browser-regressions"
+      ]
+    },
+    {
+      "task": "100.3g",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md#six-more-isolated-regressions"
+      ]
+    },
+    {
+      "task": "100.3h",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-DOCUMENT-MAIL.md"
+      ]
+    },
+    {
+      "task": "100.3i",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-CADDY.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
+    },
+    {
+      "task": "100.3j",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-OPERATIONS.md"
+      ]
+    },
+    {
+      "task": "100.3k",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md"
+      ]
+    },
+    {
+      "task": "100.3l",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-SEED.md",
+        "proofs/SURV-100-BACKUP.md",
+        "proofs/SURV-100-UPGRADE.md"
+      ]
+    },
+    {
+      "task": "100.3m",
+      "status": "accepted",
+      "criteria": [
+        "100.A3"
+      ],
+      "evidence": [
+        "proofs/SURV-100-UI-UX.md"
+      ]
+    },
+    {
+      "task": "100.4",
+      "status": "accepted",
+      "criteria": [
+        "100.A4",
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
+    },
+    {
+      "task": "100.T1",
+      "status": "accepted",
+      "criteria": [
+        "100.A1",
+        "100.A3",
+        "100.A4",
+        "100.A5"
+      ],
+      "evidence": [
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CI-REPEAT.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
+    },
+    {
+      "task": "100.T2",
+      "status": "accepted",
+      "criteria": [
+        "100.A2"
+      ],
+      "evidence": [
+        "proofs/SURV-100-DROPDOWN.md",
+        "proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys"
+      ]
+    }
+  ],
+  "reviewEvidence": {
+    "taskCount": 104,
+    "acceptedTasks": 101,
+    "openTasks": 0,
+    "capabilityCount": 15,
+    "runtimeComparisonBase": "419738db48d3816cc9b8853a1b3be9925c7983db",
+    "runtimeComparisonHead": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
+    "runtimePaths": [
+      "apps",
+      "packages",
+      "src",
+      "migrations"
+    ],
+    "runtimeChangedFiles": [],
+    "fullSurveyCiEvidence": "proofs/SURV-100-CI-REPEAT.md",
+    "manualReviewIsNotNewExecution": true,
+    "deferredTasks": 3,
+    "historicalRuntimeComparison": true,
+    "finalCloseoutEvidence": "proofs/SURV-100-CLOSEOUT.md"
+  },
+  "operatorAcceptanceFollowUp": {
+    "sourceCheckpoint": "5649ed76ee3f88505567cfc8cedad5a90124d711",
+    "proof": "proofs/SURV-100-UPGRADE.md",
+    "scope": "100.3l acceptance after all three operator runs; original 100.A4 review preserved"
+  },
+  "privacyTestkitGoldenFollowUp": {
+    "sourceCheckpoint": "61b8a5ce9c22b746421f4077d78e68168cf9c415",
+    "proof": "proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md",
+    "scope": "100.3k acceptance after all three full runs"
+  },
+  "uiUxAcceptanceFollowUp": {
+    "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
+    "proof": "proofs/SURV-100-UI-UX.md",
+    "scope": "100.3m acceptance after complete feature flags, UI and UX runs plus route-loading Journey regression; exact changed inputs recorded in proof"
+  },
+  "agreedFunctionalSpikeAccepted": true
+}

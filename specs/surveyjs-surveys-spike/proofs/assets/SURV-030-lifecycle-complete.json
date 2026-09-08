@@ -1,0 +1,11 @@
+{
+  "syntheticOnly": true,
+  "lifecycleActionPairs": 25,
+  "permanentDeletionStatusCases": 5,
+  "publicationStatusCases": 5,
+  "unpublishedErasure": true,
+  "postErasureTransitionsRejected": 5,
+  "postErasurePublicationRejected": true,
+  "actualWorkerCompletedBothErasures": true,
+  "draftPublicationVersionAndDuplicationAssertions": true
+}

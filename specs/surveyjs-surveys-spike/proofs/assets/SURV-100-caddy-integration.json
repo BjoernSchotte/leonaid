@@ -1,0 +1,183 @@
+{
+  "parentCommit": "5aedbe581a8cc9c1b4d6294024347a4ddff13210",
+  "candidatePilotRuns": [
+    {
+      "mode": "baseline",
+      "exitCode": 0,
+      "seconds": 3344.392,
+      "projects": [
+        "leonaid-production-test-3397817358-83085",
+        "leonaid-restore-pilot-3397817358-83085",
+        "leonaid-pilot-release-3397817358-83085",
+        "leonaid-pilot-backup-3397817358-83085"
+      ],
+      "candidateOnly": true,
+      "gitHead": "5aedbe581a8cc9c1b4d6294024347a4ddff13210",
+      "ownedResourcesAbsent": true,
+      "namedBackupResourcesAbsent": true,
+      "allSixOwnedImageTagsAbsent": true,
+      "independentInventoriesChecked": 20
+    },
+    {
+      "mode": "surveys",
+      "exitCode": 0,
+      "seconds": 6227.611,
+      "projects": [
+        "leonaid-production-test-3397817358-58045",
+        "leonaid-restore-pilot-3397817358-58045",
+        "leonaid-pilot-release-3397817358-58045",
+        "leonaid-pilot-backup-3397817358-58045"
+      ],
+      "candidateOnly": true,
+      "ownedResourcesAbsent": true,
+      "surveyProofSha256": "a8162e3d4acf341ab6231a336748027aa70046f839ffcc7c6a5450e867bf8097",
+      "namedBackupResourcesAbsent": true,
+      "allSixOwnedImageTagsAbsent": true,
+      "independentInventoriesChecked": 20
+    }
+  ],
+  "promotedFiles": [
+    {
+      "path": "infra/compose/compose.yml",
+      "candidateSha256": "3813d90187212ad12b0824b203a8c0abc1b1513ca7e94be65e0f5a229e667c87",
+      "mainSha256Before": "2b3ca134642e80a5d1ba91f47f2e3d3d1ceb9e7f3c7702bb50f082463b994d9e"
+    },
+    {
+      "path": "infra/locks/external-systems.lock",
+      "candidateSha256": "53a5bc6e05119b5ead495a9b066cf6dc853d2dddcb2649287fddeb06ed868dae",
+      "mainSha256Before": "2a0f074b23709ba445d034149731b6df0d79ebd18bd44c23d4a1d880ef8fce53"
+    },
+    {
+      "path": "infra/locks/images.env",
+      "candidateSha256": "e63570c3e0e7e9360b45a1ab9118f2eb74c7f15f37ab8f5f1b86a211bb7cd5bb",
+      "mainSha256Before": "0a9e4a00139a1e0fa6416a1a3dc928f1a44bc5a6536cad23e5e5df58d996b7ed"
+    },
+    {
+      "path": "infra/pilot/compose.test.yml",
+      "candidateSha256": "1921c50360e8e81616e6211ddfc5d80145ef68836d3184d2ec10a25540469ccf",
+      "mainSha256Before": "bdf1991f4063654dbe4840e5d114f24adcee1430a3588409202d82072b01feac"
+    },
+    {
+      "path": "infra/pilot/compose.yml",
+      "candidateSha256": "2df12716b8248366831658fd7ba0d32c8df2ddf2173069ad850d77f58150f811",
+      "mainSha256Before": "d46e74139bf6bb0b677561f8190a9f0ed36042b76dc9f2437333bfa4a13dd401"
+    },
+    {
+      "path": "infra/pilot/production.env.example",
+      "candidateSha256": "1b4c5397530487d34e9c5647615f260cc6fcaf339f1dcab524ada17752f1296a",
+      "mainSha256Before": "e4ac24c608d9e5349e3581986b4cbd0988833e38e8b2c6d08c029f980a993133"
+    },
+    {
+      "path": "infra/proxy/image/.dockerignore",
+      "candidateSha256": "968671aff002076ef6d16a66c2dac09493ef05d454a5aae781ffd87df6b470a2",
+      "mainSha256Before": null
+    },
+    {
+      "path": "infra/proxy/image/Dockerfile",
+      "candidateSha256": "822ada320ca6e16381f657a03e402c34fadccc761ce1b395b4b0cb1e22e7575f",
+      "mainSha256Before": null
+    },
+    {
+      "path": "infra/proxy/image/README.md",
+      "candidateSha256": "ed5060b320be433fbddfef1cc8db5260ade5abaada8b651fd6a6c4884b833a6c",
+      "mainSha256Before": null
+    },
+    {
+      "path": "infra/proxy/image/go.mod",
+      "candidateSha256": "75929317d1f753fed9c5d6d3c1ee91c352530dad547be6c0aa7f25bb384679fb",
+      "mainSha256Before": null
+    },
+    {
+      "path": "infra/proxy/image/go.sum",
+      "candidateSha256": "3e9423f0969fed2fd12c17ce62c6675da4b465ae6f0bb3df53bf83395ab55afd",
+      "mainSha256Before": null
+    },
+    {
+      "path": "infra/proxy/image/main.go",
+      "candidateSha256": "8b4e6780e3f6842721584c9f7a5f56a8d70261364a0ad7e4f4b46440494e4a6a",
+      "mainSha256Before": null
+    },
+    {
+      "path": "tools/ci/security.sh",
+      "candidateSha256": "daccc131de104b27798b216fb22f054f2595292fe47da9ddeb1a8eb5cf941247",
+      "mainSha256Before": "f12ebbd67a0639b71583dfca091406d363ef5ee0443e206f158825acdf612364"
+    },
+    {
+      "path": "tools/pilot_deployment/doctor.py",
+      "candidateSha256": "e8e003d810f1a6701f8fdd349799cb530e449b296285958a82caaf6449be4255",
+      "mainSha256Before": "e0ac6822c0e0fed1172ca83c1f06897c614edfbb37269f14fb7c15f4eb6573e9"
+    },
+    {
+      "path": "tools/pilot_deployment/test.py",
+      "candidateSha256": "ba153e13424160eed2136da62494aabaa55d7ee693e819f84d43030849313192",
+      "mainSha256Before": "75032d9ec73ed070252f968d7430e5c88b68ad796c5e13bec3e228f9461b505a"
+    },
+    {
+      "path": "tools/pilot_deployment/test.sh",
+      "candidateSha256": "e515df1eab34547f9a536fcc14b9ad6564654a6cb483250365ee41f5c7f35ab6",
+      "mainSha256Before": "8ccb2cd7c7a25ee2955986aaba031d2cd9c5b90fb0600b4d328cb4db7b85be84"
+    },
+    {
+      "path": "tools/pins/check.py",
+      "candidateSha256": "bac13e23be3c20de5bba2b68751147438cf5c7583980abeda2fda226a6a09af2",
+      "mainSha256Before": "68aa371531b1de5f03bf55cde031002be79235aecc4dcf73a32b53a9bf7703b0"
+    },
+    {
+      "path": "tools/proxy/export-image.sh",
+      "candidateSha256": "236a6104631c9eb23f48281c4748767f365556aa8f5814e23accf9489faf5291",
+      "mainSha256Before": null
+    },
+    {
+      "path": "tools/proxy/scan-image.sh",
+      "candidateSha256": "3aa03ac712a1408eb7f8b4d0648ca956982fd05aebad4064f359dc49e7d11a7b",
+      "mainSha256Before": null
+    },
+    {
+      "path": "tools/sbom/generate.sh",
+      "candidateSha256": "dfbfeb2e180fb943cade0ba82cf55de657f84779aad9be347fa8795beb4a576b",
+      "mainSha256Before": "7b2f76e96a34de8876d3e4804480e87871d9588eb2b109efe0339abab27616f4"
+    },
+    {
+      "path": "tools/surveys/pilot_preflight_live.py",
+      "candidateSha256": "439a4e26b116dcd633db3e9b332c781946b6de91db093459516cc6731f4f8b96",
+      "mainSha256Before": "6daa26580260e6383404371d24c6faa0ab54fbefad7eed15ba76b43676be15f0"
+    },
+    {
+      "path": "tools/surveys/restic_recovery.sh",
+      "candidateSha256": "537190b2215a294dcba7c6b54c9abf9d1be5f54aa62c04f1799a869c95fbf9f4",
+      "mainSha256Before": "18a0612abce3ff3f39ec9af8c64fc1ec4cecb758e0da624b096b5af01f339829"
+    },
+    {
+      "path": "tools/upgrade/test.sh",
+      "candidateSha256": "1cff91955e491a667373b212c20a44eccc752f7d8850cc8129470bcdcfd78455",
+      "mainSha256Before": "cddf31d067d29ac12ac153b0f246660454b08d9b07907d16220c7d325bf438f7"
+    }
+  ],
+  "preservedFiles": {
+    "apps/web/src/app.tsx": "c3c65cf4c3e53a91303552031425b666bacc8213400c5d5740db1f4dfd4b3ccd",
+    "tests/e2e/ui-system.spec.mjs": "34e884b32d122b42f1058f9a512790b7858b478f3c415ec14cd3fcc5bd23984e",
+    "tests/e2e/ui-system.spec.mjs-snapshots/ui-system-desktop-chromium-1440-linux.png": "81ee42a0252143e131a81242dda8c3953492e8351fd49781640d9016034380a2",
+    "tools/feature_flags/test.sh": "907bbf3b7d549978bf2b57c25079072640b8726a208f01bb99bf4698b281e62a",
+    "tools/ui_system/test.sh": "db9b100b63d19f6b6afab58eed0b40af8edac6ed98124bc87ae46a1e7ba74f09",
+    "tools/ux_acceptance/test.sh": "ffe2299098581dd14a5edc20bd9ceb3dcc60f8455c28f6ffd40d6ab1a9ed90d9",
+    "tools/testing/regression_isolation_test.py": "f57362d6d1b84d49c2b7dd1f6d8d9e42347be135dc9cab1b1ac42ae9bb6f808d",
+    "specs/surveyjs-surveys-spike/proofs/SURV-080.md": "9eadd566216ba376db8cebd64d969b7c0ecc7f374d33e7d43c92b12d5f894a50",
+    "tools/seed/safety_test.py": "b43c6085a21bffd0f058e8fd4d3c4f7dcdce2e6a3cf3c29e2820d94417eae8b3",
+    "tools/surveys/standalone_resources.sh": "031a395a4696d448efabaaaa6f18c52651e4835d421bd763e0dfd1249877ffc5",
+    "tools/surveys/standalone_resources_live.py": "d728f358b44ddc6913e9cfd64ad476268597d89e177817364f669423991f7fa2",
+    "tools/surveys/migrations.sh": "2d6afc98053873c45ce3d65700de3a0e11887050a7587ea33c3872bb6d742e2c",
+    "tools/surveys/package.sh": "230d76d7e7694ee36e659f3ad8328fd5293015e78f02df0a48aab7e2ec1456f2",
+    "tools/surveys/aggregate-engine.sh": "f55e83524c17a8cc8a24712d2515bbe22e8489a6273ade1b19966f6da185f4e7",
+    "tools/surveys/gate.json": "397bd4359ed9757957a8727a7016079208c96ad69784760b935a8776f4021d98"
+  },
+  "localIntegratedChecks": {
+    "pins": 0,
+    "noTestDoubles": 0,
+    "gateController": {
+      "exitCode": 0,
+      "tests": 7
+    }
+  },
+  "branchCiAccepted": false,
+  "wholeSpikeAccepted": false
+}

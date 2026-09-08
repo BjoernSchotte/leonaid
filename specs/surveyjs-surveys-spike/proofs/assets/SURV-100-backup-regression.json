@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "scope": "Complete existing backup regression; parent 100.3l and 100.S2k remain open for upgrade",
+  "run": {
+    "mode": "backup",
+    "exitCode": 0,
+    "seconds": 1629.297,
+    "ownedResourcesAbsent": true,
+    "projects": [
+      "leonaid-poc112-source-833458328-61795",
+      "leonaid-restore-poc112-833458328-61795"
+    ],
+    "sourceCheckpoint": "631a8c3f0d436d2b2a2b3b53224c0845fa5c1072",
+    "sourceHashes": {
+      "tools/backup/test.sh": "b4433add2819fe860e7a1b8949982b0ef5ee58698eb78e91f838eb2deb7cea7e"
+    }
+  },
+  "inventoryEqual": true,
+  "inventoryCounts": {
+    "coreTables": 60,
+    "twentyTables": 99,
+    "rustfsObjects": 3
+  },
+  "beforeInventorySha256": "c0e66e054178c1c74c2d3618aff4ace1e01d99d1c8aec37aa69d48b15160cfd2",
+  "afterInventorySha256": "c0e66e054178c1c74c2d3618aff4ace1e01d99d1c8aec37aa69d48b15160cfd2",
+  "browser": {
+    "engine": "chromium",
+    "testsPassed": 1,
+    "seconds": 3.0,
+    "screenshotSha256": "cae28d65566d3a86553ca7ba3b137996a391689ddf0610cd1bad1279c15c0de6"
+  },
+  "recoveryReport": {
+    "result": "passed",
+    "rpoMeasuredSeconds": 286,
+    "rpoTargetSeconds": 86400,
+    "rtoMeasuredSeconds": 597,
+    "rtoTargetSeconds": 7200,
+    "schemaVersion": 1
+  },
+  "privateLogSha256": "9cca04a6533a99ad06a79358e7fcdd311427fd51b793bfbb80b10fc929a858b4",
+  "repository": "isolated local Restic test repository with explicit allow-local-test",
+  "parentTaskAccepted": false,
+  "businessSequencePreservedExceptIsolationBindings": true,
+  "allowedBindingDifferences": [
+    "source backup Compose overlay",
+    "target restore Compose overlay",
+    "private restore state file",
+    "source cleanup before reserving target networks"
+  ]
+}

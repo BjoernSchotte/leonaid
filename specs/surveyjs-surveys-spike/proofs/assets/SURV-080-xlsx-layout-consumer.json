@@ -1,0 +1,24 @@
+{
+  "long-labels.pdf": {
+    "pages": 16,
+    "chartPages": [
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "fullScaleOnEachChart": true
+  },
+  "normal.pdf": {
+    "pages": 12,
+    "chartPages": [
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "fullScaleOnEachChart": true
+  }
+}

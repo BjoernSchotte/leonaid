@@ -5,15 +5,22 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-source_project=${LEONAID_BACKUP_TEST_SOURCE_PROJECT:-leonaid-poc112-source}
-target_project=${LEONAID_BACKUP_TEST_TARGET_PROJECT:-leonaid-restore-poc112}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+source_project=${LEONAID_BACKUP_TEST_SOURCE_PROJECT:-leonaid-poc112-source}-$suffix
+target_project=${LEONAID_BACKUP_TEST_TARGET_PROJECT:-leonaid-restore-poc112}-$suffix
+source_owned=false
+target_owned=false
 source_http_port=${LEONAID_BACKUP_TEST_SOURCE_PORT:-18122}
 source_https_port=${LEONAID_BACKUP_TEST_SOURCE_HTTPS_PORT:-18482}
 target_http_port=${LEONAID_BACKUP_TEST_TARGET_PORT:-18123}
 target_https_port=${LEONAID_BACKUP_TEST_TARGET_HTTPS_PORT:-18483}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
-proof=$(mktemp -d)
+mkdir -p "$root/.artifacts"
+proof=$(mktemp -d "$root/.artifacts/backup-regression.XXXXXX")
+chmod 700 "$proof"
+source_isolation="$proof/source.yml"
+target_isolation="$proof/target.yml"
 repository="$proof/repository"
 password_file="$proof/restic-password"
 artifact_directory="$root/.artifacts/poc112"
@@ -28,6 +35,7 @@ source_compose() {
       --project-name "$source_project" \
       --env-file "$env_file" \
       --file "$compose_file" \
+      --file "$source_isolation" \
       "$@"
 }
 
@@ -39,25 +47,52 @@ target_compose() {
       --project-name "$target_project" \
       --env-file "$env_file" \
       --file "$compose_file" \
+      --file "$target_isolation" \
       "$@"
+}
+
+verify_cleanup() {
+  checked_project=$1
+  for inventory in containers volumes networks; do
+    case "$inventory" in
+      containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+      networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1 ;;
+    esac
+    if [ -n "$remaining" ]; then
+      echo "test-isolation: owned $inventory remain for $checked_project" >&2
+      return 1
+    fi
+  done
 }
 
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
-    echo "backup-test: Diagnose der fehlgeschlagenen Services:" >&2
-    source_compose ps --all >&2 || true
-    target_compose ps --all >&2 || true
-    target_compose logs --no-color --tail=240 \
-      api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
+    echo "backup-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
+    if [ "$source_owned" = true ]; then
+      source_compose ps --all >&2 || true
+      source_compose logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
+    fi
+    if [ "$target_owned" = true ]; then
+      target_compose ps --all >&2 || true
+      target_compose logs --no-color --tail=240 api core-postgres rustfs twenty-postgres twenty-server proxy >&2 || true
+    fi
   fi
-  source_compose --profile dev-mail down \
-    --volumes --remove-orphans >/dev/null 2>&1 || true
-  if [ "${LEONAID_BACKUP_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
-    target_compose --profile dev-mail down \
-      --volumes --remove-orphans >/dev/null 2>&1 || true
-  else
-    echo "backup-test: Restore bleibt sichtbar unter http://127.0.0.1:$target_http_port/admin/"
+  if [ "$source_owned" = true ]; then
+    if ! source_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    if ! verify_cleanup "$source_project"; then status=1; fi
+  fi
+  if [ "$target_owned" = true ]; then
+    if [ "${LEONAID_BACKUP_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
+      if ! target_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+      if ! verify_cleanup "$target_project"; then status=1; fi
+    else
+      echo "backup-test: Owned restore project retained without host ports: $target_project"
+    fi
+  fi
+  if [ "$status" -eq 0 ] && [ "$source_owned" = true ] && [ "${LEONAID_BACKUP_KEEP:-false}" != "true" ]; then
+    echo "test-isolation: $source_project and $target_project passed and owned resources were removed"
   fi
   rm -rf "$proof"
   exit "$status"
@@ -68,6 +103,18 @@ trap cleanup EXIT HUP INT TERM
   echo "backup-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
   exit 1
 }
+# Check both resource identities before acquiring either one.
+for checked_project in "$source_project" "$target_project"; do
+  existing=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+  existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+  existing=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project")
+  [ -z "$existing" ]
+done
+python3 "$root/tools/surveys/network_override.py" "$source_isolation"
+source_owned=true
+source_compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$source_project" "$source_isolation"
 docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
@@ -79,11 +126,6 @@ twenty_password=$(sed -n 's/^TWENTY_POSTGRES_PASSWORD=//p' "$env_file" | tail -n
   echo "backup-test: ERROR: TWENTY_POSTGRES_PASSWORD fehlt" >&2
   exit 1
 }
-
-source_compose --profile dev-mail down \
-  --volumes --remove-orphans >/dev/null 2>&1 || true
-target_compose --profile dev-mail down \
-  --volumes --remove-orphans >/dev/null 2>&1 || true
 
 mkdir -p "$repository"
 docker run --rm \
@@ -152,6 +194,7 @@ source_compose run --rm --no-deps \
 
 recovery_checkpoint=$(date +%s)
 LEONAID_COMPOSE_PROJECT="$source_project" \
+  LEONAID_BACKUP_COMPOSE_OVERLAY="$source_isolation" \
   LEONAID_HTTP_PORT="$source_http_port" \
   LEONAID_HTTPS_PORT="$source_https_port" \
   TWENTY_INTEGRATION_API_KEY="$integration_key" \
@@ -210,7 +253,13 @@ if docker run --rm \
   exit 1
 fi
 
-source_compose --profile dev-mail down --volumes --remove-orphans
+. "$root/tools/backup/survey-recovery-fixture.sh"
+prepare_survey_recovery_fixture source_compose "$proof"
+source_compose --profile '*' down --volumes --remove-orphans
+verify_cleanup "$source_project"
+python3 "$root/tools/surveys/network_override.py" "$target_isolation"
+target_owned=true
+target_compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$target_project" "$target_isolation"
 restore_started=$(date +%s)
 LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_HTTPS_PORT="$target_https_port" \
@@ -222,6 +271,8 @@ LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   LEONAID_RESTORE_START_APP=false \
+  LEONAID_RESTORE_COMPOSE_OVERLAY="$target_isolation" \
+  LEONAID_RESTORE_STATE_FILE="$proof/restore-state.json" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"
 
 target_compose build api public pwa web

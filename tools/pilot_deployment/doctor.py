@@ -65,6 +65,8 @@ REQUIRED_ENVIRONMENT_KEYS = (
     "LEONAID_PUBLIC_IMAGE",
     "LEONAID_PWA_IMAGE",
     "LEONAID_RELEASE_COMMIT",
+    "LEONAID_SURVEY_VALIDATOR_IMAGE",
+    "LEONAID_PROXY_IMAGE",
     "LEONAID_MONITORED_DISK_PATH",
     "LEONAID_WEB_IMAGE",
     "MAIL_FROM",
@@ -418,17 +420,24 @@ def report_json(
         if stop_ids
         else "blocked"
     )
+    live_status = (
+        "not_checked_restore"
+        if gate == "pilot-restore"
+        else "ok"
+        if infrastructure_ready
+        else "blocked"
+    )
     return json.dumps(
         {
             "checks": {
                 "backupAge": "ok" if infrastructure_ready else "blocked",
-                "dependencies": "ok" if infrastructure_ready else "blocked",
+                "dependencies": live_status,
                 "disk": "ok" if infrastructure_ready else "blocked",
-                "dns": "ok" if infrastructure_ready else "blocked",
+                "dns": live_status,
                 "environment": "ok" if infrastructure_ready else "blocked",
                 "secrets": "ok" if infrastructure_ready else "blocked",
-                "time": "ok" if infrastructure_ready else "blocked",
-                "tls": "ok" if infrastructure_ready else "blocked",
+                "time": live_status,
+                "tls": live_status,
             },
             "deploymentOnly": deployment_only,
             "gate": gate,
@@ -486,6 +495,74 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+def probe_running_installation(
+    arguments: argparse.Namespace, environment: dict[str, str]
+) -> None:
+    resolve = parse_resolve(arguments.resolve)
+    context = tls_context(arguments.ca_file)
+    public_base = environment["LEONAID_PUBLIC_BASE_URL"].rstrip("/")
+    crm_base = environment["TWENTY_PUBLIC_BASE_URL"].rstrip("/")
+    common_headers = (
+        "strict-transport-security",
+        "x-content-type-options",
+        "referrer-policy",
+        "permissions-policy",
+    )
+    portal_body, _ = probe_https(
+        name="portal",
+        url=f"{public_base}/admin/",
+        context=context,
+        resolve=resolve,
+        timeout_seconds=arguments.timeout_seconds,
+        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+        required_headers=(*common_headers, "content-security-policy"),
+    )
+    if not portal_body:
+        raise DoctorError("portal_response_empty")
+    api_body, _ = probe_https(
+        name="api",
+        url=f"{public_base}/api/health/ready",
+        context=context,
+        resolve=resolve,
+        timeout_seconds=arguments.timeout_seconds,
+        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+        required_headers=common_headers,
+    )
+    if parse_json_body(api_body, "api").get("status") != "ready":
+        raise DoctorError("api_dependency_readiness_failed")
+    crm_body, _ = probe_https(
+        name="twenty",
+        url=f"{crm_base}/healthz",
+        context=context,
+        resolve=resolve,
+        timeout_seconds=arguments.timeout_seconds,
+        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+        required_headers=common_headers,
+    )
+    if parse_json_body(crm_body, "twenty").get("status") != "ok":
+        raise DoctorError("twenty_readiness_failed")
+    mail_body, provider_date = probe_https(
+        name="mail-provider",
+        url=environment["MAIL_HEALTH_URL"],
+        context=context,
+        resolve=resolve,
+        timeout_seconds=arguments.timeout_seconds,
+        min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
+        required_headers=common_headers,
+    )
+    if not mail_body:
+        raise DoctorError("mail_provider_response_empty")
+    if provider_date is None:
+        raise DoctorError("provider_date_missing")
+    skew = abs(
+        (
+            dt.datetime.now(dt.timezone.utc) - provider_date.astimezone(dt.timezone.utc)
+        ).total_seconds()
+    )
+    if skew > arguments.maximum_clock_skew_seconds:
+        raise DoctorError("clock_skew_exceeded")
+
+
 def main() -> int:
     arguments = parser().parse_args()
     root = arguments.root.resolve()
@@ -520,70 +597,8 @@ def main() -> int:
         if shutil.disk_usage(arguments.disk_path).free < arguments.minimum_free_bytes:
             raise DoctorError("disk_space_insufficient")
 
-        resolve = parse_resolve(arguments.resolve)
-        context = tls_context(arguments.ca_file)
-        public_base = environment["LEONAID_PUBLIC_BASE_URL"].rstrip("/")
-        crm_base = environment["TWENTY_PUBLIC_BASE_URL"].rstrip("/")
-        common_headers = (
-            "strict-transport-security",
-            "x-content-type-options",
-            "referrer-policy",
-            "permissions-policy",
-        )
-        portal_body, _ = probe_https(
-            name="portal",
-            url=f"{public_base}/admin/",
-            context=context,
-            resolve=resolve,
-            timeout_seconds=arguments.timeout_seconds,
-            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-            required_headers=(*common_headers, "content-security-policy"),
-        )
-        if not portal_body:
-            raise DoctorError("portal_response_empty")
-        api_body, _ = probe_https(
-            name="api",
-            url=f"{public_base}/api/health/ready",
-            context=context,
-            resolve=resolve,
-            timeout_seconds=arguments.timeout_seconds,
-            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-            required_headers=common_headers,
-        )
-        if parse_json_body(api_body, "api").get("status") != "ready":
-            raise DoctorError("api_dependency_readiness_failed")
-        crm_body, _ = probe_https(
-            name="twenty",
-            url=f"{crm_base}/healthz",
-            context=context,
-            resolve=resolve,
-            timeout_seconds=arguments.timeout_seconds,
-            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-            required_headers=common_headers,
-        )
-        if parse_json_body(crm_body, "twenty").get("status") != "ok":
-            raise DoctorError("twenty_readiness_failed")
-        mail_body, provider_date = probe_https(
-            name="mail-provider",
-            url=environment["MAIL_HEALTH_URL"],
-            context=context,
-            resolve=resolve,
-            timeout_seconds=arguments.timeout_seconds,
-            min_certificate_validity_hours=arguments.minimum_certificate_validity_hours,
-            required_headers=common_headers,
-        )
-        if not mail_body:
-            raise DoctorError("mail_provider_response_empty")
-        if provider_date is None:
-            raise DoctorError("provider_date_missing")
-        skew = abs(
-            (
-                dt.datetime.now(dt.timezone.utc)
-                - provider_date.astimezone(dt.timezone.utc)
-            ).total_seconds()
-        )
-        if skew > arguments.maximum_clock_skew_seconds:
-            raise DoctorError("clock_skew_exceeded")
+        if arguments.gate != "pilot-restore":
+            probe_running_installation(arguments, environment)
 
         open_ids: list[str] = []
         stop_ids: list[str] = []
@@ -610,6 +625,17 @@ def main() -> int:
             print(
                 f"pilot-doctor: BLOCKED ({arguments.gate}): " + ",".join(open_ids),
                 file=sys.stderr,
+            )
+        elif arguments.gate == "pilot-restore":
+            decision_scope = (
+                "Entscheidungen nicht geprüft (nur Diagnose)"
+                if arguments.deployment_only
+                else "erforderliche Entscheidungen geprüft"
+            )
+            print(
+                "pilot-restore-preflight: OK: Konfiguration, Backup-Alter und Speicher geprüft; "
+                f"{decision_scope}; Quell-Erreichbarkeit "
+                "und Ziel-Betriebsbereitschaft sind nicht geprüft"
             )
         elif arguments.deployment_only:
             print(

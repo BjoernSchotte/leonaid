@@ -1,0 +1,26 @@
+[
+  {
+    "name": "normal",
+    "sha256": "64d0fdbf0da1558b2cb169046cc5ace8ebdc262ed418aa2cef1853eacd511b1b",
+    "sizeBytes": 17896,
+    "renderer": "survey-tabular-v2"
+  },
+  {
+    "name": "long-labels",
+    "sha256": "7a9e82363fa041f0304987b7ac79d468e703b1cf923a3bf05db6cf2efaf6f604",
+    "sizeBytes": 19172,
+    "renderer": "survey-tabular-v2"
+  },
+  {
+    "name": "empty",
+    "sha256": "3cd6a56b23a5d32b1160fdea960f34f1dfa547e978029f7ad0637f0c28568bcd",
+    "sizeBytes": 17606,
+    "renderer": "survey-tabular-v2"
+  },
+  {
+    "name": "responses",
+    "sha256": "3cbcd582c73f5146c8cddb0ee3b44c3442e12ff61c5fcfe1db46438476ebc246",
+    "sizeBytes": 9930,
+    "renderer": "survey-tabular-v2"
+  }
+]

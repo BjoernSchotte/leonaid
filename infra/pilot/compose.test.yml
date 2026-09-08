@@ -1,5 +1,7 @@
 services:
   proxy:
+    image: ${LEONAID_TEST_PROXY_IMAGE:?LEONAID_TEST_PROXY_IMAGE fehlt}
+    build: !reset null
     ports: !override
       - "127.0.0.1:${LEONAID_PILOT_TEST_HTTP_PORT:-19080}:80"
       - "127.0.0.1:${LEONAID_PILOT_TEST_HTTPS_PORT:-19443}:443"
@@ -22,3 +24,6 @@ services:
 
   public:
     image: ${LEONAID_TEST_PUBLIC_IMAGE:?LEONAID_TEST_PUBLIC_IMAGE fehlt}
+
+  survey-validator:
+    image: ${LEONAID_TEST_SURVEY_VALIDATOR_IMAGE:?LEONAID_TEST_SURVEY_VALIDATOR_IMAGE fehlt}

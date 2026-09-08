@@ -1,0 +1,8 @@
+{
+  "realMissingTypstFailures": 5,
+  "retryVisibleBeforeFurtherAttempts": true,
+  "deadLetterWithoutObject": true,
+  "genericPersistedErrorOnly": true,
+  "newJobSameSnapshotAfterRestoration": true,
+  "replacementRenderedAndStored": true
+}

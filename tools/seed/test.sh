@@ -5,7 +5,14 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=leonaid-poc012-test
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=leonaid-poc012-test-$suffix
+owned=false
+checkout_root="$root"
+mkdir -p "$root/.artifacts"
+proof=$(mktemp -d "$root/.artifacts/seed-regression.XXXXXX")
+chmod 700 "$proof"
+isolation_file="$proof/isolation.yml"
 port=18082
 https_port=18445
 env_file="$root/.env.local"
@@ -23,6 +30,7 @@ export LEONAID_HTTP_PORT="$port"
 export LEONAID_HTTPS_PORT="$https_port"
 
 compose() {
+  if [ -n "$isolation_file" ]; then set -- --file "$isolation_file" "$@"; fi
   docker compose \
     --project-name "$project" \
     --env-file "$env_file" \
@@ -33,17 +41,87 @@ compose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
-    echo "seed-test: Diagnose der fehlgeschlagenen echten Services:" >&2
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+    echo "seed-test: Diagnose der fehlgeschlagenen eigenen Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 >&2 || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    # The harness owns these externally declared networks across both CLI resets.
+    networks=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1
+    for network in $networks; do
+      if ! docker network rm "$network" >/dev/null; then status=1; fi
+    done
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then status=1; fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
-compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+# Refuse occupied or unreadable resource identities before cloning or mutation.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$checkout_root/tools/seed/safety_test.py"
+# Run the real operator CLI with its own .local, generated artifacts and Git ignore rules.
+# Only the reset-name safety change may differ from the recorded source checkpoint.
+python3 - "$checkout_root" "$proof/checkout" <<'PY_CHECKOUT'
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+source, target = map(Path, sys.argv[1:])
+target.mkdir(mode=0o700)
+commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+archive = subprocess.Popen(["git", "-C", str(source), "archive", commit], stdout=subprocess.PIPE)
+try:
+    subprocess.run(["tar", "-xf", "-", "-C", str(target)], stdin=archive.stdout, check=True)
+finally:
+    archive.stdout.close()
+assert archive.wait() == 0
+subprocess.run(["git", "-C", str(target), "init", "--quiet"], check=True)
+shutil.copy2(source / ".env.local", target / ".env.local")
+(target / ".env.local").chmod(0o600)
+shutil.copy2(source / "tools/seed/safety.py", target / "tools/seed/safety.py")
+print(f"seed-test: isolated operator source checkpoint {commit}")
+PY_CHECKOUT
+root="$proof/checkout"
+env_file="$root/.env.local"
+compose_file="$root/infra/compose/compose.yml"
+fixture="$root/tests/fixtures/golden/v1"
+snapshot_directory="$root/.local/snapshots"
+python3 "$checkout_root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$checkout_root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
+# Preserve environment interpolation so the real CLI can install its newly provisioned key.
+compose --profile '*' config --no-interpolate --format json >"$proof/operator-compose.json"
+python3 - "$proof/operator-compose.json" "$compose_file" "$project" <<'PY_NETWORKS'
+import json
+from pathlib import Path
+import sys
+config = json.loads(Path(sys.argv[1]).read_text())
+project = sys.argv[3]
+for key, network in config["networks"].items():
+    assert network["name"] == f"{project}_{key}"
+    config["networks"][key] = {"name": network["name"], "external": True}
+path = Path(sys.argv[2])
+path.write_text(json.dumps(config, indent=2) + "\n")
+path.chmod(0o600)
+PY_NETWORKS
+isolation_file=""
 
 echo "seed-test: beweist Ablehnung eines Produktions-DSN vor jeder Löschung"
 if compose config --format json |

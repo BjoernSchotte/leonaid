@@ -1,0 +1,9 @@
+{
+  "syntheticOnly": true,
+  "previewAnswerAbsent": true,
+  "realResponses": 2,
+  "seededTestResponses": 1,
+  "oldTimeoutSeconds": 60,
+  "newTimeoutSeconds": 1,
+  "productionAndTestSnapshotsSeparated": true
+}

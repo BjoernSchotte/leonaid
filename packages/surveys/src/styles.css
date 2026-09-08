@@ -1,0 +1,80 @@
+@import "survey-core/survey-core.fontless.css";
+.survey-runner {
+  max-width: 56rem;
+  margin-inline: auto;
+}
+.survey-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #d4dbe4;
+  color: #22364e;
+  font-size: 0.95rem;
+}
+.survey-save[data-save-state="error"],
+.survey-save[data-save-state="conflict"] {
+  color: #8a2718;
+}
+.survey-save button {
+  padding: 0.65rem 1rem;
+  min-height: 44px;
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.survey-thanks {
+  max-width: 44rem;
+  margin: 5rem auto;
+}
+.survey-thanks h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.survey-runner .sd-theme-root {
+  --sjs2-color-project-brand-600: var(--survey-accent, #00338d);
+  --sjs2-typography-font-family-text: var(--survey-font, sans-serif);
+}
+
+.survey-runner > .survey-host-logo,
+.survey-thanks > .survey-host-logo {
+  display: block;
+  width: 10rem;
+  max-width: 100%;
+  height: 4rem;
+  object-fit: contain;
+  object-position: left center;
+  margin-block-end: 1rem;
+}
+
+/* Fit the step controls to the host container, including narrow desktop embeds. */
+.survey-runner .sd-progress-buttons {
+  container-type: inline-size;
+}
+@container (max-width: 32rem) {
+  .survey-runner .sd-progress-buttons__list {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr));
+    gap: 0.5rem;
+  }
+  .survey-runner .sd-progress-buttons__list li {
+    min-width: 0;
+    align-items: center;
+  }
+  .survey-runner .sd-progress-buttons__list li::after {
+    display: none;
+  }
+  .survey-runner .sd-progress-buttons__button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+.survey-thanks .survey-completion-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

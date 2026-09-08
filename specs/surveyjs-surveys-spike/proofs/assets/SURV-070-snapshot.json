@@ -1,0 +1,332 @@
+{
+  "id": "be04a5c9-c2ab-43bd-bb41-cd75182ba55f",
+  "surveyId": "5c4c7991-a4df-4099-950e-418bab713478",
+  "createdAt": "2026-09-06T23:28:00.556605+00:00",
+  "filter": {
+    "versionId": "4a47ac44-52ba-45e1-b1b2-2a61c5d9c3d0",
+    "statuses": [
+      "partial",
+      "completed"
+    ],
+    "isTest": false,
+    "createdFrom": null,
+    "createdBefore": null
+  },
+  "versionNumber": 1,
+  "rendererVersion": "3.0.3",
+  "capabilityProfile": "initial-v1",
+  "participationCount": 5,
+  "statusCounts": {
+    "in_progress": 1,
+    "partial": 4,
+    "completed": 1
+  },
+  "lastPageCounts": [
+    {
+      "pageId": "main",
+      "title": "main",
+      "count": 4
+    },
+    {
+      "pageId": "followup",
+      "title": "followup",
+      "count": 0
+    },
+    {
+      "pageId": null,
+      "title": "Keine bekannte Seite",
+      "count": 1
+    }
+  ],
+  "questions": [
+    {
+      "questionId": "gate",
+      "title": "gate",
+      "kind": "radiogroup",
+      "relevant": 5,
+      "answered": 4,
+      "unanswered": 1,
+      "hidden": 0,
+      "invalid": 0,
+      "counts": [
+        {
+          "value": "yes",
+          "label": "yes",
+          "count": 3,
+          "percentage": 75.0
+        },
+        {
+          "value": "no",
+          "label": "no",
+          "count": 1,
+          "percentage": 25.0
+        }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "multi",
+      "title": "multi",
+      "kind": "checkbox",
+      "relevant": 5,
+      "answered": 2,
+      "unanswered": 2,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [
+        {
+          "value": "a",
+          "label": "Alpha",
+          "count": 2,
+          "percentage": 100.0
+        },
+        {
+          "value": "b",
+          "label": "Beta",
+          "count": 1,
+          "percentage": 50.0
+        }
+      ],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "nps",
+      "title": "nps",
+      "kind": "rating",
+      "relevant": 5,
+      "answered": 3,
+      "unanswered": 1,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [
+        {
+          "value": 0,
+          "label": "0",
+          "count": 1,
+          "percentage": 33.33333333333333
+        },
+        {
+          "value": 1,
+          "label": "1",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 2,
+          "label": "2",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 3,
+          "label": "3",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 4,
+          "label": "4",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 5,
+          "label": "5",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 6,
+          "label": "6",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 7,
+          "label": "7",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 8,
+          "label": "8",
+          "count": 0,
+          "percentage": 0.0
+        },
+        {
+          "value": 9,
+          "label": "9",
+          "count": 1,
+          "percentage": 33.33333333333333
+        },
+        {
+          "value": 10,
+          "label": "10",
+          "count": 1,
+          "percentage": 33.33333333333333
+        }
+      ],
+      "sum": 19.0,
+      "mean": 6.333333333333333,
+      "minimum": 0.0,
+      "maximum": 10.0,
+      "nps": 33.33333333333333,
+      "matrixRows": []
+    },
+    {
+      "questionId": "number",
+      "title": "number",
+      "kind": "number",
+      "relevant": 5,
+      "answered": 2,
+      "unanswered": 2,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [],
+      "sum": 30.0,
+      "mean": 15.0,
+      "minimum": 10.0,
+      "maximum": 20.0,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "matrix",
+      "title": "matrix",
+      "kind": "matrix",
+      "relevant": 5,
+      "answered": 2,
+      "unanswered": 2,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": [
+        {
+          "rowId": "r1",
+          "label": "r1",
+          "answered": 2,
+          "unanswered": 2,
+          "invalid": 1,
+          "counts": [
+            {
+              "value": "good",
+              "label": "good",
+              "count": 1,
+              "percentage": 50.0
+            },
+            {
+              "value": "bad",
+              "label": "bad",
+              "count": 1,
+              "percentage": 50.0
+            }
+          ]
+        },
+        {
+          "rowId": "r2",
+          "label": "r2",
+          "answered": 1,
+          "unanswered": 3,
+          "invalid": 1,
+          "counts": [
+            {
+              "value": "good",
+              "label": "good",
+              "count": 0,
+              "percentage": 0.0
+            },
+            {
+              "value": "bad",
+              "label": "bad",
+              "count": 1,
+              "percentage": 100.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "questionId": "text",
+      "title": "text",
+      "kind": "comment",
+      "relevant": 5,
+      "answered": 2,
+      "unanswered": 2,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "date",
+      "title": "date",
+      "kind": "date",
+      "relevant": 5,
+      "answered": 1,
+      "unanswered": 3,
+      "hidden": 0,
+      "invalid": 1,
+      "counts": [],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "follow",
+      "title": "follow",
+      "kind": "text",
+      "relevant": 3,
+      "answered": 1,
+      "unanswered": 2,
+      "hidden": 2,
+      "invalid": 0,
+      "counts": [],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    },
+    {
+      "questionId": "conditional",
+      "title": "conditional",
+      "kind": "text",
+      "relevant": 2,
+      "answered": 1,
+      "unanswered": 1,
+      "hidden": 3,
+      "invalid": 0,
+      "counts": [],
+      "sum": null,
+      "mean": null,
+      "minimum": null,
+      "maximum": null,
+      "nps": null,
+      "matrixRows": []
+    }
+  ]
+}

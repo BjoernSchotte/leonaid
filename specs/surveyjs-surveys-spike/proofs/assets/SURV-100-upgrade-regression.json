@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "scope": "Complete seed, backup and upgrade operator regressions; 100.3l and 100.S2k accepted, whole spike incomplete",
+  "run": {
+    "mode": "upgrade",
+    "exitCode": 0,
+    "seconds": 5534.656,
+    "ownedResourcesAbsent": true,
+    "projects": [
+      "leonaid-poc113-upgrade-833458328-68889",
+      "leonaid-restore-poc113-rollback-833458328-68889"
+    ],
+    "sourceCheckpoint": "5649ed76ee3f88505567cfc8cedad5a90124d711",
+    "sourceHashes": {
+      "tools/upgrade/test.sh": "cddf31d067d29ac12ac153b0f246660454b08d9b07907d16220c7d325bf438f7",
+      "infra/upgrade/compose.rollback-network.yml": "fee8ef3e5b9e4ef5cb2842216ee395210aa0af66c421fb23d445bdc7e70c92f5",
+      "tools/upgrade/survey_contract.py": "d01f2d7441609cc42aab94bc7de517b8e33537c97bbe24219cd6ffd07ae0c41c"
+    }
+  },
+  "operatorReport": {
+    "backupRollback": "passed",
+    "coreMigrationFailureDetected": "passed",
+    "failedUpgradeDetected": "passed",
+    "maintenanceWriteBoundary": "passed",
+    "postContract": "passed",
+    "postE2e": "passed",
+    "postGoldenJourney": "passed",
+    "preContract": "passed",
+    "preE2e": "passed",
+    "preGoldenJourney": "passed",
+    "releaseLedger": "passed",
+    "result": "passed",
+    "rollbackGoldenJourney": "passed",
+    "rollbackJourneyEquivalent": "passed",
+    "sameManifestPromotion": "passed",
+    "schemaVersion": 1,
+    "source": {
+      "rustfs": "1.0.0-beta.10",
+      "twenty": "2.23.2"
+    },
+    "target": {
+      "rustfs": "1.0.0-beta.11",
+      "twenty": "2.24.0"
+    }
+  },
+  "snapshotHashes": {
+    "pre-upgrade": "5ba823e686790aba56bdbf51497cbc767af948816a90af76e204a5544d4ea548",
+    "post-upgrade": "5ba823e686790aba56bdbf51497cbc767af948816a90af76e204a5544d4ea548",
+    "migration-failure-restored": "5ba823e686790aba56bdbf51497cbc767af948816a90af76e204a5544d4ea548",
+    "production-v2": "5ba823e686790aba56bdbf51497cbc767af948816a90af76e204a5544d4ea548",
+    "rollback-restored": "5ba823e686790aba56bdbf51497cbc767af948816a90af76e204a5544d4ea548"
+  },
+  "deliberateMutationHash": "6e5d68d6ebdeb8fc1613819963bd8bb8673d950be6e0e3e3ff6efd5a5b26ecd1",
+  "normalizedJourneySha256": "20f7f4585a424106f0d51f6d800ddaafbb027d848cb2e3add13c25bb3502e1ee",
+  "releaseEventCount": 13,
+  "independentCleanup": {
+    "leonaid-poc113-upgrade-833458328-68889": {
+      "containers": 0,
+      "volumes": 0,
+      "networks": 0
+    },
+    "leonaid-restore-poc113-rollback-833458328-68889": {
+      "containers": 0,
+      "volumes": 0,
+      "networks": 0
+    }
+  },
+  "browser": {
+    "dashboardTestsPassed": 3,
+    "journeyTestsPassed": 9,
+    "journeyEngines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "rollbackJourneySeconds": 42.7,
+    "rollbackScreenshotSha256": "e4129f4fa096e49b446aa477f715c8b9dede78f0008f352f7b0a34ba88e3c6f7"
+  },
+  "comparisonScope": {
+    "betweenPhases": [
+      "businessCounts",
+      "companies",
+      "datasetVersion",
+      "PDF invoice numbers and byte sizes",
+      "round"
+    ],
+    "withinEachPhase": [
+      "stored PDF hash and size match database",
+      "browser download bytes match stored PDF",
+      "email attachment hash matches stored PDF"
+    ],
+    "crossPhasePdfHashEqualityAsserted": false
+  },
+  "businessSequenceReview": {
+    "baselineRevision": "61b8a5ce9c22b746421f4077d78e68168cf9c415",
+    "path": "tools/upgrade/test.sh",
+    "baselineSha256": "d45a83eb2d6c004b7227b4e1a2c74d7b29fcf9ca08172b36dcd46e85ea1e46cf",
+    "currentSha256": "cddf31d067d29ac12ac153b0f246660454b08d9b07907d16220c7d325bf438f7",
+    "businessSequencePreserved": true,
+    "normalizedBusinessSha256": "dd43b0659a1f6652687c2bbf4b37f408c83dd2b2f881a6931b472c9b2dfdd398",
+    "allowedChanges": {
+      "sourceBackupOverlayBindings": 2,
+      "maintenanceOverlayBindings": 2,
+      "stopSourceBeforeRollback": 1,
+      "allProfilesOwnedTeardown": 2
+    }
+  },
+  "privateLogSha256": "d33042c4e25a18d40cf7e35e17ae07a2d0860f6144f886247ccbe3ae1e76b674",
+  "parentTaskAccepted": true,
+  "independentHostLossAccepted": false
+}

@@ -4,12 +4,15 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-project=${LEONAID_ACTION_ADMIN_TEST_PROJECT:-leonaid-poc052-test}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_ACTION_ADMIN_TEST_PROJECT:-leonaid-poc052-test}-$suffix
+owned=false
 http_port=${LEONAID_ACTION_ADMIN_TEST_PORT:-18092}
 https_port=${LEONAID_ACTION_ADMIN_TEST_HTTPS_PORT:-18452}
 compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 proof=$(mktemp -d)
+isolation_file="$proof/compose-isolation.yml"
 artifact_directory="$root/.artifacts/poc052"
 host_user_id=$(id -u)
 host_group_id=$(id -g)
@@ -21,19 +24,34 @@ compose() {
       --project-name "$project" \
       --env-file "$env_file" \
       --file "$compose_file" \
+      --file "$isolation_file" \
       "$@"
 }
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "action-admin-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=160 core-postgres api web proxy >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -44,7 +62,16 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
-compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 compose up --build --detach --wait --wait-timeout 420 proxy
 
 compose run --rm --no-deps \

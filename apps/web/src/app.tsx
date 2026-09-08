@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -20,6 +20,10 @@ import {
   UiSystemCatalogPage,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
+
+const SurveysPage = lazy(() =>
+  import("./surveys").then(({ SurveysPage }) => ({ default: SurveysPage })),
+);
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
@@ -44,6 +48,11 @@ function RedirectToOperationalApp() {
 function route() {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
+  if (pathname === "/surveys" || pathname === "/surveys/new")
+    return { kind: "surveys", createNew: pathname.endsWith("/new") } as const;
+  const surveyMatch = pathname.match(/^\/surveys\/([0-9a-f-]{36})$/);
+  if (surveyMatch)
+    return { kind: "surveys", surveyId: surveyMatch[1] } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
   if (pathname === "/actions") return { kind: "list" } as const;
   if (pathname === "/members") return { kind: "members" } as const;
@@ -113,50 +122,57 @@ export function App({ client }: AppProps) {
     );
   }
 
-  if (!identity.data.navigation.some((item) => item.surface === "web")) {
+  if (
+    route().kind !== "surveys" &&
+    !identity.data.navigation.some(
+      (item) => item.surface === "web" && item.key !== "surveys",
+    )
+  ) {
     return <RedirectToOperationalApp />;
   }
 
   const currentRoute = route();
   const currentAction =
-    currentRoute.kind === "manage"
-      ? (identity.data.actionMemberships.find(
-          (item) => item.actionId === currentRoute.actionId,
-        )?.actionName ?? "Aktion verwalten")
-      : currentRoute.kind === "new"
-        ? "Neue Aktion"
-        : currentRoute.kind === "activities"
-          ? "Neues"
-          : currentRoute.kind === "acquisition"
-            ? "Akquise"
-            : currentRoute.kind === "orders"
-              ? "Bestellungen"
-              : currentRoute.kind === "invoices"
-                ? "Rechnungen"
-                : currentRoute.kind === "members"
-                  ? "Mitglieder"
-                  : currentRoute.kind === "system"
-                    ? "System"
-                    : currentRoute.kind === "privacy"
-                      ? "Datenschutz"
-                      : currentRoute.kind === "legal"
-                        ? "Organisation & Recht"
-                        : currentRoute.kind === "system-ui"
-                          ? "UI-Basis"
-                          : currentRoute.kind === "dashboard"
-                            ? (identity.data.actionMemberships.find(
-                                (item) =>
-                                  item.role === "charity_admin" &&
-                                  item.actionId ===
-                                    new URLSearchParams(
-                                      window.location.search,
-                                    ).get("action"),
-                              )?.actionName ??
-                              identity.data.actionMemberships.find(
-                                (item) => item.role === "charity_admin",
-                              )?.actionName ??
-                              "Charity-Übersicht")
-                            : "Alle Aktionen";
+    currentRoute.kind === "surveys"
+      ? "Umfragen"
+      : currentRoute.kind === "manage"
+        ? (identity.data.actionMemberships.find(
+            (item) => item.actionId === currentRoute.actionId,
+          )?.actionName ?? "Aktion verwalten")
+        : currentRoute.kind === "new"
+          ? "Neue Aktion"
+          : currentRoute.kind === "activities"
+            ? "Neues"
+            : currentRoute.kind === "acquisition"
+              ? "Akquise"
+              : currentRoute.kind === "orders"
+                ? "Bestellungen"
+                : currentRoute.kind === "invoices"
+                  ? "Rechnungen"
+                  : currentRoute.kind === "members"
+                    ? "Mitglieder"
+                    : currentRoute.kind === "system"
+                      ? "System"
+                      : currentRoute.kind === "privacy"
+                        ? "Datenschutz"
+                        : currentRoute.kind === "legal"
+                          ? "Organisation & Recht"
+                          : currentRoute.kind === "system-ui"
+                            ? "UI-Basis"
+                            : currentRoute.kind === "dashboard"
+                              ? (identity.data.actionMemberships.find(
+                                  (item) =>
+                                    item.role === "charity_admin" &&
+                                    item.actionId ===
+                                      new URLSearchParams(
+                                        window.location.search,
+                                      ).get("action"),
+                                )?.actionName ??
+                                identity.data.actionMemberships.find(
+                                  (item) => item.role === "charity_admin",
+                                )?.actionName ??
+                                "Charity-Übersicht")
+                              : "Alle Aktionen";
 
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
@@ -170,7 +186,25 @@ export function App({ client }: AppProps) {
         }}
       >
         <PreviewNotice />
-        {currentRoute.kind === "new" ? (
+        {currentRoute.kind === "surveys" ? (
+          <Suspense
+            fallback={
+              <div className="action-loading" role="status" aria-live="polite">
+                <span aria-hidden="true" />
+                <p>Umfragen werden geladen …</p>
+              </div>
+            }
+          >
+            <SurveysPage
+              client={client}
+              identity={identity.data}
+              createNew={"createNew" in currentRoute && currentRoute.createNew}
+              surveyId={
+                "surveyId" in currentRoute ? currentRoute.surveyId : undefined
+              }
+            />
+          </Suspense>
+        ) : currentRoute.kind === "new" ? (
           <CreateActionPage client={client} />
         ) : currentRoute.kind === "manage" ? (
           <ManageActionPage

@@ -10,6 +10,17 @@ Form `image:version@sha256:digest` verwenden.
 Browser-Revisionen fest. `uv.lock` und `bun.lock` sind die kanonischen
 Paket-Locks. Die Toolchain-Versionen stehen in `.tool-versions`.
 
+Die React-Peers von `packages/surveys` deklarieren als eng begrenzte Ausnahme
+den Kompatibilitätsbereich `^19.2.8`. Der Pin-Checker erlaubt dies ausschließlich
+für `react` und `react-dom` im Peer-Abschnitt dieses Packages. Alle LeonAid-Hosts,
+die das Package direkt einbinden, müssen beide Laufzeitabhängigkeiten exakt auf
+`19.2.8` setzen. Andere Packages und Abhängigkeitsabschnitte bleiben exakt gepinnt.
+Der unabhängige Consumer prüft zusätzlich die tatsächlichen installierten
+Versionen und verwendet seinen eigenen Frozen Lockfile. Ein Versionswechsel
+benötigt eine gemeinsame Aktualisierung dieser Policy, der Hosts und Locks sowie
+einen erneuten Consumer-Test. Der Peer-Bereich allein ist kein Testnachweis für
+zukünftige React-Versionen.
+
 Updates erfolgen ausschließlich in einem expliziten Renovate-PR oder einem
 manuell eröffneten Upgrade-PR. Ein solcher PR aktualisiert Tag und Digest,
 setzt `reviewedAt` sowie `nextReviewOn`, erzeugt alle Locks und SBOMs neu und

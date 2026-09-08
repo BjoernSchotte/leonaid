@@ -1,0 +1,94 @@
+{
+  "title": "Antworttypen prüfen",
+  "pages": [
+    {
+      "name": "types",
+      "elements": [
+        {
+          "name": "text",
+          "title": "text",
+          "isRequired": true,
+          "type": "text"
+        },
+        {
+          "name": "comment",
+          "title": "comment",
+          "isRequired": true,
+          "type": "comment"
+        },
+        {
+          "name": "number",
+          "title": "number",
+          "isRequired": true,
+          "type": "text",
+          "inputType": "number",
+          "min": 0,
+          "max": 10
+        },
+        {
+          "name": "date",
+          "title": "date",
+          "isRequired": true,
+          "type": "text",
+          "inputType": "date",
+          "min": "2026-01-01",
+          "max": "2026-12-31"
+        },
+        {
+          "name": "radio",
+          "title": "radio",
+          "isRequired": true,
+          "type": "radiogroup",
+          "choices": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "dropdown",
+          "title": "dropdown",
+          "isRequired": true,
+          "type": "dropdown",
+          "choices": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "checkbox",
+          "title": "checkbox",
+          "isRequired": true,
+          "type": "checkbox",
+          "choices": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "rating",
+          "title": "rating",
+          "isRequired": true,
+          "type": "rating",
+          "rateMin": 0,
+          "rateMax": 10,
+          "rateStep": 1
+        },
+        {
+          "name": "matrix",
+          "title": "matrix",
+          "isRequired": true,
+          "type": "matrix",
+          "rows": [
+            "a",
+            "b"
+          ],
+          "columns": [
+            1,
+            2
+          ],
+          "isAllRowRequired": true
+        }
+      ]
+    }
+  ]
+}

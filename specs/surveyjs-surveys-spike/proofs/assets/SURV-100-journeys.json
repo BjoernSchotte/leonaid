@@ -1,0 +1,72 @@
+{
+  "syntheticOnly": true,
+  "journeys": [
+    {
+      "template": "krapfentaxi",
+      "viewport": [
+        1440,
+        960
+      ],
+      "partialResumeAndVersionIsolation": true,
+      "outsiderDenied": true,
+      "browserExportsParsed": 4,
+      "csvXlsxAgreement": true,
+      "snapshotMetricsAgree": true,
+      "sqlContentErased": true,
+      "allObjectVersionsErased": true
+    },
+    {
+      "template": "krapfentaxi",
+      "viewport": [
+        390,
+        960
+      ],
+      "partialResumeAndVersionIsolation": true,
+      "outsiderDenied": true,
+      "browserExportsParsed": 4,
+      "csvXlsxAgreement": true,
+      "snapshotMetricsAgree": true,
+      "sqlContentErased": true,
+      "allObjectVersionsErased": true
+    },
+    {
+      "template": "golf",
+      "viewport": [
+        1440,
+        960
+      ],
+      "partialResumeAndVersionIsolation": true,
+      "outsiderDenied": true,
+      "browserExportsParsed": 4,
+      "csvXlsxAgreement": true,
+      "snapshotMetricsAgree": true,
+      "sqlContentErased": true,
+      "allObjectVersionsErased": true
+    },
+    {
+      "template": "golf",
+      "viewport": [
+        390,
+        960
+      ],
+      "partialResumeAndVersionIsolation": true,
+      "outsiderDenied": true,
+      "browserExportsParsed": 4,
+      "csvXlsxAgreement": true,
+      "snapshotMetricsAgree": true,
+      "sqlContentErased": true,
+      "allObjectVersionsErased": true
+    }
+  ],
+  "baseRevision": "ebcadc7",
+  "project": "leonaid-surveys-833458328-49837",
+  "exitCode": 0,
+  "chromiumTestsPassed": 5,
+  "browserDurationReported": "1.2m",
+  "ownedContainersVolumesNetworksRemoved": true,
+  "sourceSha256": {
+    "tests/e2e/surveys-journey.spec.mjs": "fbf466f5e0c31def8fc985c7620a28c09e7841c83247c6f9fd16655761031fe3",
+    "tools/surveys/journey_verify.py": "8d30969e457e35c8e3332f384020ef871da490214e76e1b3e8d4b72052b07bc4",
+    "tools/surveys/infrastructure.sh": "d68a2784a79eee93cc3ab5eee94d458226b6ec68547e6fd75c9104b2bb9b6b42"
+  }
+}

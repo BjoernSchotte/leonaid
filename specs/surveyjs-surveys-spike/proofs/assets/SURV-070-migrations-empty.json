@@ -1,0 +1,24 @@
+{
+  "mode": "empty",
+  "revision": "0030_survey_analysis",
+  "preexistingDataPreserved": false,
+  "checks": [
+    "immutable publication",
+    "version belongs to participation survey",
+    "published version belongs to survey",
+    "invitation participation belongs to same survey",
+    "invitation redemption timestamp matches association",
+    "positive participation timeout",
+    "immutable analysis snapshot",
+    "analysis version belongs to same survey",
+    "analysis metadata requires version identity",
+    "bounded survey timeout",
+    "completion timestamp required",
+    "trash timestamp required",
+    "known lifecycle state",
+    "one version number per survey",
+    "known grant capability",
+    "singleton settings",
+    "effective partial status preserves answers"
+  ]
+}

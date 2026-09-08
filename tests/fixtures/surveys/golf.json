@@ -1,0 +1,103 @@
+{
+  "title": "Lions Open – Ihr Feedback",
+  "showProgressBar": "top",
+  "pages": [
+    {
+      "name": "ratings",
+      "elements": [
+        {
+          "type": "matrix",
+          "name": "event_rating",
+          "title": "Wie bewerten Sie das Turnier?",
+          "rows": [
+            {
+              "value": "organization",
+              "text": "Organisation"
+            },
+            {
+              "value": "course",
+              "text": "Golfplatz"
+            },
+            {
+              "value": "catering",
+              "text": "Verpflegung"
+            }
+          ],
+          "columns": [
+            {
+              "value": 1,
+              "text": "Schlecht"
+            },
+            {
+              "value": 2,
+              "text": "Mittel"
+            },
+            {
+              "value": 3,
+              "text": "Gut"
+            }
+          ],
+          "isAllRowRequired": true,
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "name": "improvements",
+      "elements": [
+        {
+          "type": "checkbox",
+          "name": "improvements",
+          "title": "Was sollen wir verbessern?",
+          "choices": [
+            {
+              "value": "schedule",
+              "text": "Zeitplan"
+            },
+            {
+              "value": "food",
+              "text": "Essen"
+            },
+            {
+              "value": "communication",
+              "text": "Kommunikation"
+            }
+          ],
+          "maxSelectedChoices": 2
+        },
+        {
+          "type": "comment",
+          "name": "food_feedback",
+          "title": "Was wünschen Sie sich beim Essen?",
+          "visibleIf": "{improvements} contains 'food'",
+          "maxLength": 1000
+        }
+      ]
+    },
+    {
+      "name": "next_time",
+      "elements": [
+        {
+          "type": "dropdown",
+          "name": "return",
+          "title": "Nehmen Sie wieder teil?",
+          "choices": ["yes", "no", "maybe"]
+        },
+        {
+          "type": "text",
+          "inputType": "number",
+          "name": "handicap",
+          "title": "Optionales Handicap",
+          "min": -10,
+          "max": 54
+        },
+        {
+          "type": "text",
+          "inputType": "date",
+          "name": "preferred_date",
+          "title": "Wunschtermin"
+        }
+      ]
+    }
+  ]
+}

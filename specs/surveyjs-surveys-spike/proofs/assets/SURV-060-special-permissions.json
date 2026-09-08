@@ -1,0 +1,57 @@
+{
+  "syntheticOnly": true,
+  "invitationControlMatrix": [
+    {
+      "mobile": false,
+      "pairs": 28,
+      "recipientDataScoped": true
+    },
+    {
+      "mobile": true,
+      "pairs": 28,
+      "recipientDataScoped": true
+    }
+  ],
+  "invitationJourneys": [
+    {
+      "kind": "standalone",
+      "mobile": false,
+      "singleGrantJourney": true,
+      "delivered": true,
+      "completed": true,
+      "revoked": true
+    },
+    {
+      "kind": "standalone",
+      "mobile": true,
+      "singleGrantJourney": true,
+      "delivered": true,
+      "completed": true,
+      "revoked": true
+    },
+    {
+      "kind": "action",
+      "mobile": false,
+      "singleGrantJourney": true,
+      "delivered": true,
+      "completed": true,
+      "revoked": true
+    },
+    {
+      "kind": "action",
+      "mobile": true,
+      "singleGrantJourney": true,
+      "delivered": true,
+      "completed": true,
+      "revoked": true
+    }
+  ],
+  "invitationSqlAndOperationOwnershipVerified": true,
+  "deletion": {
+    "positiveStatusReads": 4,
+    "deniedStatusReads": 24,
+    "exactRequesterReplays": 2,
+    "deniedForeignReplays": 26
+  },
+  "deletionLedgerUnchanged": true
+}

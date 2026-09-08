@@ -83,3 +83,25 @@ def test_proxy_address_is_used_only_when_explicitly_trusted() -> None:
         secret=SECRET,
         trust_proxy_headers=False,
     )
+
+
+def test_public_quota_identity_ignores_client_controlled_rotation() -> None:
+    rotated = request(
+        headers=(
+            (b"user-agent", b"another-browser"),
+            (b"cookie", b"__Host-leonaid_session=another-session"),
+            (b"x-forwarded-for", b"203.0.113.20"),
+        )
+    )
+
+    def fingerprint(value: Request, *, trusted: bool = False) -> str:
+        return request_fingerprint(
+            value, secret=SECRET, trust_proxy_headers=trusted, address_only=True
+        )
+
+    # Forwarding headers are ignored unless the deployment explicitly trusts its
+    # proxy. Cookies/User-Agent never influence this public quota's identity.
+    assert fingerprint(rotated) == fingerprint(request())
+    assert fingerprint(rotated, trusted=True) != fingerprint(request())
+    assert fingerprint(request(client=("10.0.0.6", 50000))) != fingerprint(request())
+    assert "10.0.0.5" not in fingerprint(request())

@@ -1,0 +1,29 @@
+{
+  "syntheticOnly": true,
+  "lifecycleActionPairs": 25,
+  "permanentDeletionStatusCases": 5,
+  "publicationStatusCases": 5,
+  "unpublishedErasure": true,
+  "postErasureTransitionsRejected": 5,
+  "postErasurePublicationRejected": true,
+  "actualWorkerCompletedBothErasures": true,
+  "draftPublicationVersionAndDuplicationAssertions": true,
+  "populatedInvitationDuplication": {
+    "sourceRecipients": 2,
+    "sourceResponses": 2,
+    "versionBindingPreserved": true,
+    "duplicateRecipientsResponsesCredentials": 0,
+    "sourceRowsUnchanged": true
+  },
+  "command": "sh tools/surveys/infrastructure.sh \"$PWD\" lifecycle",
+  "project": "leonaid-surveys-833458328-28844",
+  "exitCode": 0,
+  "seconds": 211.791,
+  "browserTestsPassed": 3,
+  "browserSeconds": 6.8,
+  "ownedContainersVolumesNetworksAbsent": true,
+  "sourceSha256": {
+    "tools/surveys/lifecycle.py": "6b67ae885b030d3d241c6e34e191c8973b5f50a5462f7a08803d9646431f3f77",
+    "tools/surveys/infrastructure.sh": "420d6b138fd2d1611f8cd520d746a992c78fd1ed326aebfcd2c520af05eb8172"
+  }
+}

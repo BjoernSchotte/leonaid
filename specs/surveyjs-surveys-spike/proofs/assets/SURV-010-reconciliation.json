@@ -1,0 +1,18 @@
+{
+  "syntheticOnly": true,
+  "scope": "Completed first-pass runner leaf only; whole aggregate remains running and unaccepted",
+  "project": "leonaid-surveys-833458328-91690",
+  "exitCode": 0,
+  "browserTests": 8,
+  "browserSeconds": 28.7,
+  "apiValidationCases": 192,
+  "independentCleanupVerified": true,
+  "sourceHashes": {
+    "tools/surveys/infrastructure.sh": "23126d0b10be54e8734580e72953dcef555455f47730275fbb05f5bc21d02aa2",
+    "tools/surveys/responses.py": "24fbc75e2e8b32191041e19a82b10820f36dae7cc952bc6b1318755331e2d401",
+    "tools/surveys/validation_live.py": "8cbed7f5e9862f02c39663558bf8f31b26cc1405e7157c18b61efa6cd670d7af",
+    "tools/surveys/validation_candidate.py": "34be4ca3f04b2c785bab4ed98d579ee5034f92b7216d0a634b1f96851c7e65a4",
+    "tools/surveys/timeouts.py": "91a82ffe448b7b4ec9299c2ebf988d592bbd739bf85083a2406ed9989aab9af3",
+    "tests/e2e/surveys-runner.spec.mjs": "2fd5e0338e39c531d165e4fc3d5e57f2be23096610035066e7d150e39ac937fd"
+  }
+}

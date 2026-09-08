@@ -17,6 +17,7 @@ REQUIRED_SERVICES = {
     "public",
     "pwa",
     "rustfs",
+    "survey-validator",
     "twenty-postgres",
     "twenty-redis",
     "twenty-server",

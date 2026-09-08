@@ -1,0 +1,946 @@
+[
+  {
+    "name": "candidate_text_numeric_equal",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = 1"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "1",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "1",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_numeric_greater",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} > 0"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "1",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "1",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_lexical_order",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} < 'z'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "abc",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "abc",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_number_quoted_equal",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = '1'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 1,
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 1,
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_case_equal",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = 'abc'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "ABC",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "ABC",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_number_contains",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} contains '2'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 123,
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 123,
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_checkbox_numeric_string",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} contains '1'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": [
+        1
+      ],
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": [
+        1
+      ],
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_matrix_empty",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "matrix",
+              "rows": [
+                "a"
+              ],
+              "columns": [
+                1,
+                2
+              ]
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} empty"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": {},
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": {},
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_zero_present",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} notempty"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 0,
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 0,
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_text_not_numeric",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} > 0"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "abc",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source"
+    ],
+    "expectedAnswers": {
+      "source": "abc"
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_date_lexical_order",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "date"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} < '2026-10-01'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "2026-09-06",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "2026-09-06",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_compound_numeric",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "({source} > 0 and {source} < 3) or {source} = 'never'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "2",
+      "followup": "detail"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "2",
+      "followup": "detail"
+    },
+    "expectedPythonDifferences": [
+      "partialValid",
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_numeric_equal_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = 1"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "1"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "1"
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_numeric_greater_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} > 0"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "1"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "1"
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_lexical_order_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} < 'z'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "abc"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "abc"
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_number_quoted_equal_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = '1'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 1
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 1
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_text_case_equal_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} = 'abc'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "ABC"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "ABC"
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_number_contains_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} contains '2'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 123
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 123
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_checkbox_numeric_string_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "checkbox",
+              "choices": [
+                1,
+                2
+              ]
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} contains '1'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": [
+        1
+      ]
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": [
+        1
+      ]
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_matrix_empty_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "matrix",
+              "rows": [
+                "a"
+              ],
+              "columns": [
+                1,
+                2
+              ]
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} empty"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": {}
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": {}
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_zero_present_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "number"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} notempty"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": 0
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": 0
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_text_not_numeric_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} > 0"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "abc"
+    },
+    "expectedPartial": true,
+    "expectedComplete": true,
+    "expectedVisible": [
+      "source"
+    ],
+    "expectedAnswers": {
+      "source": "abc"
+    },
+    "expectedPythonDifferences": []
+  },
+  {
+    "name": "candidate_date_lexical_order_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text",
+              "inputType": "date"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "{source} < '2026-10-01'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "2026-09-06"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "2026-09-06"
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  },
+  {
+    "name": "candidate_compound_numeric_missing_followup",
+    "definition": {
+      "pages": [
+        {
+          "name": "page",
+          "elements": [
+            {
+              "name": "source",
+              "type": "text"
+            },
+            {
+              "name": "followup",
+              "type": "text",
+              "isRequired": true,
+              "visibleIf": "({source} > 0 and {source} < 3) or {source} = 'never'"
+            }
+          ]
+        }
+      ]
+    },
+    "answers": {
+      "source": "2"
+    },
+    "expectedPartial": true,
+    "expectedComplete": false,
+    "expectedVisible": [
+      "source",
+      "followup"
+    ],
+    "expectedAnswers": {
+      "source": "2"
+    },
+    "expectedPythonDifferences": [
+      "completeValid"
+    ]
+  }
+]

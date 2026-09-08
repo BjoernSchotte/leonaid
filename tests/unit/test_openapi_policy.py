@@ -1,9 +1,26 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 from tools.openapi.breaking import breaking_changes, digest, is_approved
 from tools.openapi.generate import generate_typescript
+from tools.openapi.check_frontend import violations
+
+
+def test_independent_consumer_exception_cannot_bypass_leonaid_transport(
+    tmp_path: Path,
+) -> None:
+    demo = tmp_path / "demo.tsx"
+    web = tmp_path / "web.tsx"
+    demo.write_text('fetch("/api/diagnostics"); fetch("/api/participation")')
+    assert violations([tmp_path], independent_client=demo) == []
+    web.write_text('fetch("/api/participation")')
+    assert len(violations([tmp_path], independent_client=demo)) == 1
+    demo.write_text('fetch("/api/v1/surveys")')
+    assert len(violations([tmp_path], independent_client=demo)) == 2
+    demo.write_text('fetch("/api/other-private-route")')
+    assert len(violations([tmp_path], independent_client=demo)) == 2
 
 
 def document(

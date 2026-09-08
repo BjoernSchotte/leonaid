@@ -1,0 +1,13 @@
+{
+  "name": "independent-surveys-consumer",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@leonaid/surveys": "file:/artifact/surveys.tgz",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "overrides": { "scheduler": "0.27.0" }
+}

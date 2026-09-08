@@ -1,0 +1,282 @@
+{
+  "sourceCheckpoint": "419738db48d3816cc9b8853a1b3be9925c7983db",
+  "reviewOnly": true,
+  "newServiceRunClaimed": false,
+  "operations": [
+    {
+      "operationId": "createSurveyExport",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/exports",
+      "requestModel": "CreateSurveyExport",
+      "responseModel": "SurveyExportJob",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "createSurveyExportSelection",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/export-selections",
+      "requestModel": "CreateAnalysisSnapshot",
+      "responseModel": "SurveyExportSelection",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "createSurveyAnalysis",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/analysis",
+      "requestModel": "CreateAnalysisSnapshot",
+      "responseModel": "AnalysisSnapshot",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "createSurveyResponseSelection",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/response-selections",
+      "requestModel": "CreateAnalysisSnapshot",
+      "responseModel": "ResponseSelection",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "updateSurveySettings",
+      "method": "PUT",
+      "path": "/api/v1/survey-settings",
+      "requestModel": "TimeoutSettings",
+      "responseModel": "TimeoutSettingsResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "updateSurveyTimeout",
+      "method": "PUT",
+      "path": "/api/v1/surveys/{survey_id}/settings",
+      "requestModel": "SurveyTimeoutSettings",
+      "responseModel": "SurveySummaryResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "scheduleSurveyEnd",
+      "method": "PUT",
+      "path": "/api/v1/surveys/{survey_id}/schedule",
+      "requestModel": "SurveySchedule",
+      "responseModel": "SurveySummaryResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "createSurvey",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}",
+      "requestModel": "Create",
+      "responseModel": "SurveyDraftResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "deleteSurveyPermanently",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/delete-permanently",
+      "requestModel": "Mutation",
+      "responseModel": "SurveyDeletionResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "transitionSurvey",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/transition",
+      "requestModel": "Transition",
+      "responseModel": "SurveySummaryResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "duplicateSurvey",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/duplicate",
+      "requestModel": "Duplicate",
+      "responseModel": "SurveySummaryResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "validateSurveyDraft",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/draft/validate",
+      "requestModel": "DraftValidation",
+      "responseModel": "SurveyDraftResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "saveSurveyDraft",
+      "method": "PUT",
+      "path": "/api/v1/surveys/{survey_id}/draft",
+      "requestModel": "DraftSave",
+      "responseModel": "SurveyDraftResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "publishSurvey",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/publish",
+      "requestModel": "Mutation",
+      "responseModel": "SurveyVersionResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "updateSurveyAccess",
+      "method": "PUT",
+      "path": "/api/v1/surveys/{survey_id}/access",
+      "requestModel": "SurveyAccess",
+      "responseModel": "SurveySummaryResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "createSurveyInvitation",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/invitations",
+      "requestModel": "SurveyInvitationCreate",
+      "responseModel": "SurveyInvitationResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "revokeSurveyInvitation",
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/invitations/{invitation_id}/revoke",
+      "requestModel": "Mutation",
+      "responseModel": "SurveyInvitationResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "redeemSurveyInvitation",
+      "method": "POST",
+      "path": "/api/v1/public/surveys/{survey_id}/invitation/redeem",
+      "requestModel": "RedeemInvitation",
+      "responseModel": "SurveyParticipationResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "startSurveyParticipation",
+      "method": "POST",
+      "path": "/api/v1/public/surveys/{survey_id}/participations",
+      "requestModel": "Start",
+      "responseModel": "SurveyParticipationResponse",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": null,
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "saveSurveyResponse",
+      "method": "PUT",
+      "path": "/api/v1/public/surveys/{survey_id}/participations/{participation_id}",
+      "requestModel": "AnswerSave",
+      "responseModel": "SurveyResponseSnapshot",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    },
+    {
+      "operationId": "completeSurveyResponse",
+      "method": "POST",
+      "path": "/api/v1/public/surveys/{survey_id}/participations/{participation_id}/complete",
+      "requestModel": "Mutation",
+      "responseModel": "SurveyResponseSnapshot",
+      "errorEvidence": "SURV-000-error-contracts.json",
+      "replayEvidence": "SURV-000-write-replay.json",
+      "competingRevisionEvidence": "SURV-000-competing-revisions.json",
+      "currentRouteMatchesRecordedEvidence": true
+    }
+  ],
+  "revisionBearingOperations": [
+    "completeSurveyResponse",
+    "createSurveyInvitation",
+    "deleteSurveyPermanently",
+    "duplicateSurvey",
+    "publishSurvey",
+    "revokeSurveyInvitation",
+    "saveSurveyDraft",
+    "saveSurveyResponse",
+    "scheduleSurveyEnd",
+    "transitionSurvey",
+    "updateSurveyAccess",
+    "updateSurveySettings",
+    "updateSurveyTimeout",
+    "validateSurveyDraft"
+  ],
+  "capabilities": [
+    "C-01",
+    "C-02",
+    "C-03",
+    "C-04",
+    "C-05",
+    "C-06",
+    "C-07",
+    "C-08",
+    "C-09",
+    "C-10",
+    "C-11",
+    "C-12",
+    "C-13",
+    "C-14",
+    "C-15"
+  ],
+  "capabilityEvidenceIndex": "../CAPABILITIES.md#5-capability-to-fixture-evidence-index",
+  "crossOperationEvidence": [
+    "SURV-030.md#observed-lifecycle-lock-orders",
+    "SURV-090.md#deterministic-deletion-interleavings"
+  ],
+  "authorizationEvidence": [
+    "SURV-060.md#consolidated-surv-060-acceptance",
+    "SURV-060.md#invitation-and-deletion-special-scopes",
+    "SURV-050.md#live-scenarios"
+  ],
+  "wholeSpikeAccepted": false
+}

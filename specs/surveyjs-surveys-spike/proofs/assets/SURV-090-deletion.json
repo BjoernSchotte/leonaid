@@ -1,0 +1,27 @@
+{
+  "syntheticOnly": true,
+  "requestGuards": true,
+  "contentFreeLedger": true,
+  "exportVersions": 2,
+  "uncommittedUploadRemoved": true,
+  "actualDeleteBeforeProcessExit": 73,
+  "deletionAttempts": 2,
+  "removedDatabaseTables": [
+    "survey",
+    "survey_draft",
+    "survey_version",
+    "survey_participation",
+    "survey_operation",
+    "survey_invitation",
+    "survey_grant",
+    "survey_analysis_snapshot",
+    "survey_export_job"
+  ],
+  "restoreAndRecreationBlocked": true,
+  "lateExportHarmless": true,
+  "limitations": [
+    "No UI acceptance yet",
+    "Retention scheduling and backup restoration are separate open tasks",
+    "Fixed object-storage bucket for this proof"
+  ]
+}

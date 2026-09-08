@@ -5,6 +5,9 @@ services:
   api:
     networks: !override
       - edge
+  survey-validator:
+    networks: !override
+      - edge
   worker:
     networks: !override
       - edge

@@ -1,0 +1,18 @@
+{
+  "syntheticOnly": true,
+  "disabledByDefault": true,
+  "adminOnlySettings": true,
+  "invalidAndStaleRequestsRejected": true,
+  "exactPolicyReplay": true,
+  "omittedFieldsPreservePolicy": true,
+  "busySurveySkipped": true,
+  "restoreResetsClock": true,
+  "archivePreservesClock": true,
+  "inactivityPreservesAnswers": true,
+  "restartedProductionWorkerErasedSurveys": 2,
+  "independentStages": true,
+  "activeAndDraftPreserved": true,
+  "limitations": [
+    "Backup restore and full concurrency matrix remain open"
+  ]
+}

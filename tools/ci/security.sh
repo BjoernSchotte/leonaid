@@ -7,6 +7,11 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/capture_command_test.py /workspace
+
+docker run --rm \
+  --volume "$root:/workspace:ro" \
+  "$PYTHON_IMAGE" \
   python /workspace/tools/ci/no_test_doubles_test.py /workspace
 docker run --rm \
   --volume "$root:/workspace:ro" \
@@ -80,16 +85,7 @@ for image_name in \
     "$image_name"
 done
 
-docker run --rm \
-  --volume /var/run/docker.sock:/var/run/docker.sock \
-  --volume leonaid-trivy-cache:/root/.cache/trivy \
-  "$TRIVY_IMAGE" \
-  image \
-  --scanners vuln \
-  --severity CRITICAL \
-  --ignore-unfixed \
-  --exit-code 1 \
-  "$CADDY_IMAGE"
+/bin/sh "$root/tools/proxy/scan-image.sh" "$root"
 
 /bin/sh "$root/tools/security/test.sh" "$root"
 

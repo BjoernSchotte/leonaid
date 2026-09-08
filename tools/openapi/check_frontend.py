@@ -21,7 +21,9 @@ GENERATED_IMPORT = re.compile(
 )
 
 
-def violations(paths: Iterable[Path]) -> list[str]:
+def violations(
+    paths: Iterable[Path], *, independent_client: Path | None = None
+) -> list[str]:
     problems: list[str] = []
     for root in paths:
         if not root.exists():
@@ -32,7 +34,26 @@ def violations(paths: Iterable[Path]) -> list[str]:
             if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
                 continue
             text = path.read_text(encoding="utf-8")
-            if DIRECT_API_FETCH.search(text):
+            transport_text = text
+            if independent_client is not None:
+                # The packed consumer has its own backend. Exempt only reviewed
+                # routes in these exact adapter files, never LeonAid's /api/v1.
+                demo = independent_client.parent
+                routes = {
+                    independent_client: r"([\"'])/api/(?:participation|diagnostics)\1",
+                    demo / "editor.tsx": r"([\"'])/api/editor\1",
+                    demo / "exports.tsx": (
+                        r"(?:([\"'])/api/(?:exports|export-source)\1|"
+                        r"`/api/exports/\$\{encodeURIComponent\(id\)\}(?:/download)?`)"
+                    ),
+                }
+                if path in routes:
+                    transport_text = re.sub(
+                        r"\bfetch\s*\(\s*" + routes[path],
+                        "independentTransport(",
+                        text,
+                    )
+            if DIRECT_API_FETCH.search(transport_text):
                 problems.append(f"{path}: direkter API-fetch statt @leonaid/api-client")
             if GENERATED_IMPORT.search(text):
                 problems.append(
@@ -51,7 +72,8 @@ def main() -> int:
             root / "apps",
             root / "packages/features",
             root / "packages/ui",
-        )
+        ),
+        independent_client=root / "apps/surveys-demo/client.tsx",
     )
     if problems:
         for problem in problems:

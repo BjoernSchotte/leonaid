@@ -1,0 +1,69 @@
+{
+  "syntheticOnly": true,
+  "runs": [
+    {
+      "suite": "typst",
+      "command": "sh tools/typst/test.sh \"$PWD\"",
+      "project": "leonaid-poc091-test-833458328-44800",
+      "exitCode": 0,
+      "seconds": 207.651,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "42153961c43b801834656c3a437df66727336f39aabea5d659452436f578f64d"
+    },
+    {
+      "suite": "storage",
+      "command": "sh tools/storage/test.sh \"$PWD\"",
+      "project": "leonaid-poc092-test-833458328-45556",
+      "exitCode": 0,
+      "seconds": 375.375,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "571ace46da4c6f177413b0b72ec9e62b0cab3667973fe82bcb6ff16f8f939252"
+    },
+    {
+      "suite": "documents",
+      "command": "sh tools/documents/test.sh \"$PWD\"",
+      "project": "leonaid-poc093-test-833458328-50138",
+      "exitCode": 0,
+      "seconds": 588.599,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "17e780befc0573d336966bd9b682e523fa68127e51fb6d36e0aa6f4fc06e6f04"
+    },
+    {
+      "suite": "mail_relay",
+      "command": "sh tools/mail_relay/test.sh \"$PWD\"",
+      "project": "leonaid-pilot020-test-833458328-52751",
+      "exitCode": 0,
+      "seconds": 21.527,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "76b9ce12c74d1b1e446b85424452fbfd42b9c059374c8e71f5794d4e75c92c1f"
+    },
+    {
+      "suite": "invoice_delivery",
+      "command": "sh tools/invoice_delivery/test.sh \"$PWD\"",
+      "project": "leonaid-poc094-test-833458328-54314",
+      "exitCode": 0,
+      "seconds": 935.365,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "b3586ddb77a3cc72f4750a0b87b6739a91f6b50d7ac0dc1faa2edc3c3dfe1adb"
+    },
+    {
+      "suite": "invoice_settlements",
+      "command": "sh tools/invoice_settlements/test.sh \"$PWD\"",
+      "project": "leonaid-poc095-test-833458328-57043",
+      "exitCode": 0,
+      "seconds": 605.971,
+      "ownedContainersVolumesNetworksAbsent": true,
+      "originalServiceAndAssertionSequenceUnchanged": true,
+      "sourceSha256": "0ded97e7b338271f242f489d3010d93b972f641fac26cdf878e1cad8ba9050ac"
+    }
+  ],
+  "hostPortsPublished": false,
+  "networksReservedBeforeStartup": true,
+  "guardCasesInDeliveredSubset": 124,
+  "guardBoundary": "The 31 delivered harnesses are a subset of the passing 40-harness / 160-case guard run; actual service runs are separately recorded above."
+}

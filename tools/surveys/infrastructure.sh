@@ -1,0 +1,605 @@
+#!/bin/sh
+set -eu
+root=${1:-$(pwd)}
+mode=${2:-infrastructure}
+root=$(cd "$root" && pwd)
+. "$root/infra/locks/images.env"
+# A fresh project per invocation; no published host ports and no shared volumes.
+project="leonaid-surveys-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+proof=$(mktemp -d)
+artifact="$root/.artifacts/surveys-infrastructure"
+owned=false
+foundation=false
+foundation_failure=0
+browser_trace=retain-on-failure
+browser_reporter=line
+if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
+  foundation=true
+  browser_trace=off
+  browser_reporter=./tools/surveys/foundation-reporter.mjs
+  if [ "$mode" = infrastructure-failure ]; then foundation_failure=1; fi
+fi
+compose() {
+  docker compose --project-name "$project" --env-file "$root/.env.local" \
+    --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
+    --profile dev-mail "$@"
+}
+cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+    compose ps >&2 || true
+    # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
+    mkdir -p "$artifact"
+    if [ "$foundation" = false ]; then
+      cp -R "$proof/test-results" "$artifact/" 2>/dev/null || true
+      cp "$proof"/surveys-accessibility* "$artifact/" 2>/dev/null || true
+    fi
+  fi
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+  fi
+  if [ "$foundation" = true ] && [ "$owned" = true ]; then
+    python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \
+      "$proof" "$artifact/foundation" "$project" "$status" || status=1
+  fi
+  rm -rf "$proof"
+  exit "$status"
+}
+trap cleanup EXIT HUP INT TERM
+[ -f "$root/.env.local" ] || { echo 'Run ./leonaid bootstrap first' >&2; exit 1; }
+# Refuse to touch any project that already has resources, even on PID reuse.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
+owned=true
+compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$proof/compose.yml"
+compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
+  --entrypoint alembic api upgrade head
+compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
+if [ "$mode" = contracts ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/write_contracts_live.py
+  mkdir -p "$artifact"
+  cp "$proof/write-contracts.json" "$artifact/"
+  if ! compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/write_replay_live.py \
+    >"$proof/write-replay.log" 2>&1; then
+    cp "$proof/write-replay.log" "$artifact/write-replay.log"
+    cat "$proof/write-replay.log" >&2
+    exit 1
+  fi
+  cat "$proof/write-replay.log"
+  cp "$proof/write-replay.json" "$artifact/"
+  if ! compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/write_replay_live.py --competing-revisions \
+    >"$proof/write-competing-revisions.log" 2>&1; then
+    cp "$proof/write-competing-revisions.log" "$artifact/"
+    cat "$proof/write-competing-revisions.log" >&2
+    exit 1
+  fi
+  cat "$proof/write-competing-revisions.log"
+  cp "$proof/write-competing-revisions.json" "$artifact/"
+fi
+if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ] || [ "$mode" = contracts ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/responses.py
+fi
+if [ "$mode" = lifecycle ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/schedule.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/schedule.py recover
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/lifecycle.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/module.py seed
+fi
+if [ "$mode" = runner ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/timeouts.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/timeouts.py recover
+  validator_check() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/validation_live.py "$1"
+  }
+  validator_check cases
+  validator_check seed
+  compose stop survey-validator
+  validator_check unavailable
+  compose up --detach --wait --wait-timeout 60 survey-validator
+  validator_check recover
+  validator_check seed
+  compose pause survey-validator
+  validator_check unavailable
+  compose unpause survey-validator
+  validator_check recover
+fi
+if [ "$mode" = invitations ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitations.py prepare
+  compose stop mailpit
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitations.py failure
+  compose up --detach --wait --wait-timeout 60 mailpit
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitations.py recover
+fi
+if [ "$mode" = permissions ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/permissions_live.py
+  compose up --detach --wait --wait-timeout 60 worker
+fi
+if [ "$foundation" = true ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
+fi
+browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
+if [ "$mode" = journeys ]; then
+  compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
+  browser_specs="$browser_specs tests/e2e/surveys-journey.spec.mjs"
+fi
+if [ "$mode" = branding ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs tests/e2e/surveys-completion-message.spec.mjs"
+fi
+if [ "$mode" = permissions ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
+fi
+state_worker_pid=""
+if [ "$mode" = export-limits ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_limits_live.py
+  compose logs --no-color api worker survey-validator > "$proof/export-limit-logs.txt"
+  python3 - "$proof" <<'PY'
+import json
+import sys
+from pathlib import Path
+proof = Path(sys.argv[1])
+logs = (proof / "export-limit-logs.txt").read_text()
+assert "http.request.completed" in logs
+assert all(marker not in logs for marker in json.loads((proof / "export-limit-markers.json").read_text())), "Sensitive marker in export logs"
+result = json.loads((proof / "export-limits-proof.json").read_text())
+result["apiWorkerValidatorLogsScanned"] = True
+(proof / "export-limits-proof.json").write_text(json.dumps(result, indent=2) + "\n")
+print("PASS: captured export logs omit seeded answer, resume and member session markers")
+PY
+fi
+if [ "$mode" = payload-limits ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/payload_limits_live.py
+  compose logs --no-color api worker survey-validator > "$proof/payload-logs.txt"
+  python3 - "$proof" <<'PY'
+import json
+import sys
+from pathlib import Path
+proof = Path(sys.argv[1])
+logs = (proof / "payload-logs.txt").read_text()
+assert "http.request.completed" in logs, "Expected actual API diagnostics"
+assert all(marker not in logs for marker in json.loads((proof / "payload-markers.json").read_text())), "Sensitive marker in captured logs"
+result = json.loads((proof / "payload-limits-proof.json").read_text())
+result["apiWorkerValidatorLogsScanned"] = True
+(proof / "payload-limits-proof.json").write_text(json.dumps(result, indent=2) + "\n")
+print("PASS: captured API/worker/validator logs contain no seeded answer, resume or member session markers")
+PY
+fi
+if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/request_limits_live.py
+fi
+if [ "$mode" = preview ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/preview_live.py seed
+  browser_specs="$browser_specs tests/e2e/surveys-preview.spec.mjs"
+fi
+if [ "$mode" = deletion-ui ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_live.py seed
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-deletion.spec.mjs \
+    --grep 'trash and request' --browser=chromium --output=/proof/test-results --reporter=line
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/deletion_ui_live.py
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-deletion.spec.mjs \
+    --grep 'failed deletion' --browser=chromium --output=/proof/test-results --reporter=line
+  compose up --detach --wait --wait-timeout 60 worker
+  browser_specs="$browser_specs tests/e2e/surveys-deletion.spec.mjs"
+fi
+if [ "$mode" = recovery ]; then
+  recovery_probe() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/recovery_live.py "$1"
+  }
+  compose stop worker
+  recovery_probe seed
+  compose stop proxy public api worker rustfs
+  compose exec -T core-postgres pg_dump --username leonaid --dbname leonaid \
+    --format custom --no-owner --no-privileges > "$proof/recovery-core.dump"
+  docker run --rm --volume "${project}_rustfs-data:/source:ro" --volume "$proof:/proof" \
+    "$ALPINE_IMAGE" tar -C /source -cf /proof/recovery-rustfs.tar .
+  compose up --detach --wait --wait-timeout 90 rustfs api public proxy
+  recovery_probe delete
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery.py export \
+    --output /proof/recovery-checkpoint.json
+  compose stop proxy public api worker rustfs
+  compose exec -T core-postgres pg_restore --username leonaid --dbname leonaid \
+    --clean --if-exists --exit-on-error --no-owner --no-privileges < "$proof/recovery-core.dump"
+  # This volume belongs exclusively to the fresh, collision-checked test project.
+  docker run --rm --volume "${project}_rustfs-data:/target" --volume "$proof:/proof:ro" \
+    "$ALPINE_IMAGE" sh -c 'find /target -mindepth 1 -delete && tar -C /target -xf /proof/recovery-rustfs.tar'
+  compose up --detach --no-deps --wait --wait-timeout 90 rustfs
+  recovery_probe restored
+  cutoff=$(cat "$proof/recovery-cutoff.txt")
+  . "$root/tools/backup/survey-erasure-gate.sh"
+  reapply() {
+    LEONAID_SURVEY_ERASURE_CHECKPOINT="$1" \
+      LEONAID_SURVEY_ERASURE_REQUIRED_THROUGH="$2" apply_survey_erasure_gate
+  }
+  rejected_gate() {
+    bad_status=0
+    reapply "$1" "$2" || bad_status=$?
+    [ "$bad_status" -eq 1 ] || { echo 'Expected recovery gate rejection' >&2; exit 1; }
+    for service in api public proxy worker; do
+      [ -z "$(compose ps --status running --quiet "$service")" ] || exit 1
+    done
+    recovery_probe restored
+  }
+  rejected_gate '' "$cutoff"
+  rejected_gate "$proof/recovery-checkpoint.json" ''
+  rejected_gate "$proof/recovery-tampered.json" "$cutoff"
+  # A cutoff after the export rejects an authentic but insufficiently current file.
+  rejected_gate "$proof/recovery-checkpoint.json" '2099-01-01T00:00:00+00:00'
+  reapply "$proof/recovery-checkpoint.json" "$cutoff"
+  reapply "$proof/recovery-checkpoint.json" "$cutoff"
+  recovery_probe verify
+  compose up --detach --wait --wait-timeout 90 api public proxy worker
+  recovery_probe online
+fi
+if [ "$mode" = retention ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/retention_live.py prepare
+  retention_crash_status=0
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python worker tools/surveys/retention_archive_live.py crash || retention_crash_status=$?
+  [ "$retention_crash_status" -eq 73 ] || { echo 'Expected retention publisher crash after pending checkpoint' >&2; exit 1; }
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python worker tools/surveys/retention_archive_live.py recover
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/retention_live.py recover
+  browser_specs="$browser_specs tests/e2e/surveys-retention.spec.mjs"
+fi
+if [ "$mode" = deletion-races ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/deletion_races_live.py
+fi
+if [ "$mode" = deletion ]; then
+  compose stop worker
+  deletion_probe() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/deletion_live.py "$1"
+  }
+  deletion_probe prepare
+  crash_status=0
+  deletion_probe crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected deletion probe exit 73' >&2; exit 1; }
+  deletion_probe recover
+fi
+if [ "$mode" = export-states ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_states_live.py &
+  state_worker_pid=$!
+  browser_specs="$browser_specs tests/e2e/surveys-export-states.spec.mjs"
+fi
+if [ "$mode" = export-permissions ]; then
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_permissions_live.py
+fi
+if [ "$mode" = export-recovery ]; then
+  recovery() {
+    compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+      --workdir /repo --entrypoint python api tools/surveys/export_recovery_live.py "$@"
+  }
+  compose stop worker
+  recovery seed crash
+  crash_status=0
+  recovery crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected export probe exit 73' >&2; exit 1; }
+  recovery inspect-crash
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover
+  compose stop worker
+  recovery seed cancel
+  crash_status=0
+  recovery crash || crash_status=$?
+  [ "$crash_status" -eq 73 ] || { echo 'Expected export probe exit 73' >&2; exit 1; }
+  recovery inspect-crash
+  recovery cancel
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover-cancel
+  compose stop worker
+  recovery seed renderer
+  recovery renderer-fail
+  recovery inspect-failure
+  compose up --detach --wait --wait-timeout 60 worker
+  recovery recover
+  compose stop worker
+  recovery seed storage
+  compose stop rustfs
+  compose up --detach --no-deps --wait --wait-timeout 60 worker
+  recovery inspect-failure
+  compose up --detach --wait --wait-timeout 60 rustfs
+  recovery recover
+fi
+if [ "$mode" = exports ]; then
+  mkdir -p "$root/.artifacts"
+  for renderer in pdf_render xlsx_render; do
+    compose run --rm --no-deps --volume "$root:/repo:ro" \
+      --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
+      --entrypoint python api "tools/surveys/$renderer.py"
+  done
+  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/exports_live.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/exports_live.py recover
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
+fi
+if [ "$mode" = analysis ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
+  compose stop worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py prepare
+  compose up --detach --wait --wait-timeout 60 worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_snapshot_live.py recover
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/raw_responses_live.py
+fi
+if [ "$mode" = aggregates ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
+  compose stop survey-validator
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py unavailable
+  compose up --detach --wait --wait-timeout 60 survey-validator
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
+fi
+if [ "$mode" = invitations ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"
+fi
+if [ "$mode" = lifecycle ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
+fi
+if [ "$mode" = editor ]; then
+  browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
+fi
+if [ "$mode" = runner ] || [ "$mode" = contracts ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
+  browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
+fi
+docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+  --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+  --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+  --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+  node_modules/.bin/playwright test $browser_specs \
+  --grep-invert 'trash and request|failed deletion' \
+  --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
+mkdir -p "$artifact"
+if [ "$mode" = journeys ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/journey_verify.py
+  cp "$proof/journeys-proof.json" "$artifact/"
+fi
+if [ "$mode" = contracts ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
+fi
+if [ "$mode" = branding ]; then
+  cp "$proof"/surveys-branding-*.png "$artifact/"
+fi
+if [ "$mode" = permissions ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/publisher_verify.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/role_lifecycle_verify.py
+  cp "$proof/role-lifecycle-proof.json" "$artifact/"
+  cp "$proof/permissions-proof.json" "$artifact/"
+  cp "$proof/permission-boundaries-proof.json" "$artifact/"
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/special_permissions_verify.py
+  cp "$proof/invitation-scope-proof.json" "$artifact/"
+  cp "$proof/special-permissions-proof.json" "$artifact/"
+  cp "$proof/publisher-proof.json" "$artifact/"
+  cp "$proof/publisher-review-mobile.png" "$artifact/"
+  python3 - "$proof" "$artifact" <<'PYMATRIX'
+import json
+import sys
+from pathlib import Path
+proof, artifact = map(Path, sys.argv[1:])
+rows = [json.loads(path.read_text()) for path in sorted(proof.glob("permission-browser-*-*.json"))]
+assert len(rows) == 28 and sum(row["resourcePairs"] for row in rows) == 112
+(artifact / "permissions-browser-proof.json").write_text(json.dumps({"syntheticOnly": True, "cases": rows}, indent=2) + "\n")
+PYMATRIX
+fi
+if [ "$mode" = export-limits ]; then
+  cp "$proof/export-limits-proof.json" "$artifact/"
+fi
+if [ "$mode" = payload-limits ]; then
+  cp "$proof/payload-limits-proof.json" "$artifact/"
+fi
+if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+  cp "$proof/request-limits-proof.json" "$artifact/"
+fi
+if [ "$mode" = preview ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/preview_live.py verify
+  cp "$proof/preview-proof.json" "$artifact/"
+fi
+if [ "$mode" = lifecycle ]; then
+  cp "$proof/lifecycle-proof.json" "$artifact/"
+fi
+if [ "$mode" = deletion-ui ]; then
+  cp "$proof/deletion-ui-proof.json" "$artifact/"
+  cp "$proof/deletion-confirm-mobile.png" "$artifact/"
+  cp "$proof/deletion-completed-mobile.png" "$artifact/"
+fi
+if [ "$mode" = recovery ]; then
+  cp "$proof/recovery-proof.json" "$artifact/"
+fi
+if [ "$mode" = retention ]; then
+  cp "$proof/retention-proof.json" "$artifact/"
+  cp "$proof/retention-archive-proof.json" "$artifact/"
+  cp "$proof/retention-browser-proof.json" "$artifact/"
+  cp "$proof/retention-mobile.png" "$artifact/"
+fi
+if [ "$mode" = deletion-races ]; then
+  cp "$proof/deletion-races-proof.json" "$artifact/"
+fi
+if [ "$mode" = deletion ]; then
+  cp "$proof/deletion-proof.json" "$artifact/"
+fi
+if [ "$mode" = export-states ]; then
+  wait "$state_worker_pid"
+  cp "$proof/export-state-worker-proof.json" "$artifact/"
+  cp "$proof/export-state-browser-proof.json" "$artifact/"
+  cp "$proof/export-state-failed.png" "$artifact/"
+fi
+if [ "$mode" = export-permissions ]; then
+  cp "$proof/export-permission-boundaries.json" "$artifact/"
+fi
+if [ "$mode" = export-recovery ]; then
+  cp "$proof/export-recovery-proof.json" "$artifact/"
+fi
+if [ "$mode" = exports ]; then
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot|export-only members' \
+    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke
+  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
+    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
+    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
+    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'revoked report' \
+    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  cp "$proof/export-only-proof.json" "$artifact/"
+  cp "$proof/export-only-mobile.png" "$artifact/"
+  cp "$proof/export-browser-values-proof.json" "$artifact/"
+  cp "$proof/export-browser-permissions-proof.json" "$artifact/"
+  cp "$proof/survey-exports-proof.json" "$artifact/"
+  cp "$proof/survey-worker-report.pdf" "$artifact/"
+  cp "$proof/survey-export-browser.json" "$artifact/"
+  cp "$proof/surveys-exports-mobile.png" "$artifact/"
+fi
+if [ "$mode" = analysis ]; then
+  cp "$proof/survey-analysis-snapshot.json" "$artifact/"
+  cp "$proof/raw-response-proof.json" "$artifact/"
+  cp "$proof"/surveys-responses-*.png "$artifact/"
+  cp "$proof"/surveys-analytics-*.png "$artifact/"
+fi
+if [ "$mode" = aggregates ]; then
+  cp "$proof/surveys-aggregates.json" "$artifact/"
+fi
+if [ "$mode" = invitations ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitations.py verify
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/invitation_privacy_live.py
+  compose logs --no-color api worker survey-validator > "$proof/invitation-logs.txt"
+  python3 - "$proof" <<'PYSCAN'
+import json
+import sys
+from pathlib import Path
+proof = Path(sys.argv[1])
+logs = (proof / "invitation-logs.txt").read_text()
+assert "http.request.completed" in logs
+assert all(marker not in logs for marker in json.loads((proof / "invitation-private-markers.json").read_text())), "Sensitive invitation marker in application logs"
+result = json.loads((proof / "invitation-privacy-proof.json").read_text())
+result["apiWorkerValidatorLogsScanned"] = True
+(proof / "invitation-privacy-proof.json").write_text(json.dumps(result, indent=2) + "\n")
+print("PASS: invitation application logs omit credentials and answer markers")
+PYSCAN
+  cp "$proof/invitation-privacy-proof.json" "$artifact/"
+fi
+if [ "$mode" = lifecycle ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/module.py verify
+  cp "$proof"/surveys-module-*.png "$artifact/"
+fi
+cp "$proof/surveys-public.png" "$artifact/"
+if [ "$mode" = editor ]; then
+  cp "$proof/surveys-editor.png" "$artifact/"
+  cp "$proof"/surveys-authoring-*.png "$artifact/"
+  cp "$proof"/surveys-template-*.png "$artifact/"
+  cp "$proof"/surveys-accessibility* "$artifact/"
+fi
+if [ "$mode" = runner ]; then
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/restart.py prepare
+  compose restart api worker
+  compose up --detach --no-deps --wait --wait-timeout 90 api worker
+  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/restart.py recover
+  cp "$proof/surveys-mid-page.png" "$artifact/"
+fi
+compose down --volumes --remove-orphans
+[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
+[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
+echo 'PASS: isolated survey foundation, real API/PostgreSQL/browser, no host ports, teardown verified'

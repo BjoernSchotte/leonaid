@@ -1,0 +1,276 @@
+{
+  "syntheticOnly": true,
+  "operations": [
+    {
+      "operationId": "saveSurveyDraft",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "validateSurveyDraft",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "competingRevision": true,
+      "secondOperationConflictCode": null,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {},
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "revision_conflict"
+    },
+    {
+      "operationId": "publishSurvey",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1,
+        "survey_version": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveySettings",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_settings_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveyTimeout",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "scheduleSurveyEnd",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "updateSurveyAccess",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "transitionSurvey",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "duplicateSurvey",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": null,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey": 2,
+        "survey_draft": 2,
+        "survey_operation": 2
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "deleteSurveyPermanently",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "idempotency_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "outbox_event": 1,
+        "survey_deletion": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "createSurveyInvitation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": null,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "outbox_event": 2,
+        "survey_invitation": 2,
+        "survey_operation": 2
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "revokeSurveyInvitation",
+      "concurrentStatuses": [
+        200,
+        200
+      ],
+      "identicalResponse": true,
+      "competingRevision": true,
+      "secondOperationConflictCode": null,
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 2
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "saveSurveyResponse",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "revision_conflict",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    },
+    {
+      "operationId": "completeSurveyResponse",
+      "concurrentStatuses": [
+        200,
+        409
+      ],
+      "identicalResponse": false,
+      "competingRevision": true,
+      "secondOperationConflictCode": "closed",
+      "bothRequestsObservedBlockedOnPersistenceLock": true,
+      "storedOperationOutcomeVerified": true,
+      "exactRowDeltas": {
+        "survey_operation": 1
+      },
+      "laterReplayPreservedAllRows": true,
+      "changedRequestConflictCode": "idempotency_conflict"
+    }
+  ],
+  "tablesChecked": [
+    "outbox_event",
+    "survey",
+    "survey_analysis_snapshot",
+    "survey_deletion",
+    "survey_draft",
+    "survey_export_job",
+    "survey_grant",
+    "survey_invitation",
+    "survey_operation",
+    "survey_participation",
+    "survey_recovery_identity",
+    "survey_settings",
+    "survey_settings_operation",
+    "survey_version"
+  ],
+  "scope": "All revision-bearing transport operations; two different operation keys at one revision with observed ordered lock contention and exact later retries",
+  "project": "leonaid-surveys-833458328-30053",
+  "command": "sh tools/surveys/infrastructure.sh \"$PWD\" contracts",
+  "exitCode": 0,
+  "seconds": 231.886,
+  "browserTestsPassed": 8,
+  "browserSeconds": 30.0,
+  "ownedContainersVolumesNetworksAbsent": true,
+  "exactReplayOperationsAlsoPassed": 21,
+  "sourceSha256": {
+    "tools/surveys/write_replay_live.py": "13412fbbc70017309d44b5c3b0951eadebc70ae5e8d31c2937ae70712c917fed",
+    "tools/surveys/infrastructure.sh": "420d6b138fd2d1611f8cd520d746a992c78fd1ed326aebfcd2c520af05eb8172"
+  }
+}

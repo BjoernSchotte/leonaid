@@ -17,6 +17,7 @@ import asyncpg
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
+from leonaid.adapters.mail.survey_smtp import SurveyInvitationSmtpHandler
 from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
@@ -26,6 +27,9 @@ from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
+from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
+from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import TypstInvoiceRenderer
@@ -99,6 +103,17 @@ async def build_worker(
         reply_to=mail_settings.reply_to,
     )
     handlers: dict[str, OutboxEventHandler] = {
+        "survey.delete.v1": AsyncpgSurveyDeletion(
+            pool, object_storage, configured_publisher(pool)
+        ),
+        "survey.export.render.v1": AsyncpgSurveyExports(pool, object_storage),
+        "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
+            pool,
+            transport=mail_transport,
+            secure_payload=SecureMailPayload(
+                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+            ),
+        ),
         "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
         "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
             repository=AsyncpgGeneratedDocumentRepository(pool),

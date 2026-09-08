@@ -1,0 +1,92 @@
+{
+  "syntheticOnly": true,
+  "suites": [
+    {
+      "suite": "invitations/test.sh",
+      "exitCode": 0,
+      "seconds": 316.315,
+      "project": "leonaid-poc041-test-833458328-95589",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 6,
+          "reportedDuration": "36.9s"
+        }
+      ]
+    },
+    {
+      "suite": "sessions/test.sh",
+      "exitCode": 0,
+      "seconds": 207.611,
+      "project": "leonaid-poc042-test-833458328-97093",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 2,
+          "reportedDuration": "10.7s"
+        }
+      ]
+    },
+    {
+      "suite": "matching/test.sh",
+      "exitCode": 0,
+      "seconds": 285.571,
+      "project": "leonaid-poc032-test-833458328-97907",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 1,
+          "reportedDuration": "22.9s"
+        }
+      ]
+    },
+    {
+      "suite": "assignments/test.sh",
+      "exitCode": 0,
+      "seconds": 293.807,
+      "project": "leonaid-poc060-test-833458328-99117",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 1,
+          "reportedDuration": "24.8s"
+        }
+      ]
+    },
+    {
+      "suite": "activities/test.sh",
+      "exitCode": 0,
+      "seconds": 648.674,
+      "project": "leonaid-poc061-test-833458328-2247",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 1,
+          "reportedDuration": "10.1s"
+        }
+      ]
+    },
+    {
+      "suite": "actions/test.sh",
+      "exitCode": 0,
+      "seconds": 236.829,
+      "project": "leonaid-poc050-test-833458328-4994",
+      "independentCleanupVerified": true,
+      "browserResults": [
+        {
+          "passed": 1,
+          "reportedDuration": "11.5s"
+        }
+      ]
+    }
+  ],
+  "sourceHashes": {
+    "tools/testing/regression_isolation_test.py": "0d9eaf761e9b38700b46c7c58fefb306892a3385ff50751e8bf1bc44531e58b1",
+    "tools/invitations/test.sh": "9bda2c7472326ed306e5b485b64722aeb2663e5cf087b80877e2886f4d8268ec",
+    "tools/sessions/test.sh": "37b3c1ff4da21f4378fb86adacad73cf979ed5c37b645ee1a09688e90ad9159e",
+    "tools/matching/test.sh": "21d5f45b69dc6a8babcbb204f89042253995322fb4765a010e2e44cb00ca0bc7",
+    "tools/assignments/test.sh": "f1223c9b6354e36f15a8cb198027c4d5853551a08ab5c1c94b0ffad356f7ac97",
+    "tools/activities/test.sh": "cacbf83238bda92e500faa767f5e066a0498a0b72cfadd260709760972953da2",
+    "tools/actions/test.sh": "2b9cf41d2a9102d9501c01d68c8305d1d3206ed44e0bf45c60523dfb65d477d9"
+  }
+}
