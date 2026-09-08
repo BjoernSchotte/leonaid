@@ -142,6 +142,23 @@ async def main() -> None:
                         KLARA_ID,
                         now - timedelta(days=1),
                     )
+        elif sys.argv[1] in {"commerce-price", "commerce-closed", "commerce-restored"}:
+            assert os.environ["LEONAID_ENV"] == "test"
+            action_id = UUID("20000000-0000-4000-8000-000000000001")
+            async with connection.transaction():
+                result = await connection.execute(
+                    "UPDATE offering SET unit_price_minor=$1 WHERE id=$2 AND action_id=$3",
+                    3600 if sys.argv[1] == "commerce-restored" else 4250,
+                    UUID("70000000-0000-4000-8000-000000000001"),
+                    action_id,
+                )
+                assert result == "UPDATE 1"
+                result = await connection.execute(
+                    "UPDATE order_form_configuration SET status=$1 WHERE action_id=$2",
+                    "inactive" if sys.argv[1] == "commerce-closed" else "active",
+                    action_id,
+                )
+                assert result == "UPDATE 1"
         elif sys.argv[1] == "prepare-mixed-offerings":
             async with connection.transaction():
                 for suffix, unit in [

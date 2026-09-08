@@ -161,6 +161,10 @@ cleanup() {
   rm -f "$proof/sessions.json" "$proof/race-sessions.json" "$proof/reference-sessions.json" "$proof/cms-id" "$proof/root.crt" "$proof/media-http-state.json" "$proof/media-pagination.json" "$proof/public-media.json" "$proof/public-media.png"
   rm -f "$proof/integration.env" "$proof/orders-ui.json" "$proof/pre-recovery-orders.json" "$proof/import-recovery.json"
   rm -f "$proof/recovery-aliases.json"
+  if [ -d "$proof/core-commerce" ]; then
+    rm -f "$proof/core-commerce/core-commerce-editorial.json"
+    rmdir "$proof/core-commerce"
+  fi
   if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
 }
@@ -344,6 +348,16 @@ if [ "$mode" != auth ]; then
       exit 0
     fi
     if [ "$orders" = true ]; then
+      # Only real Core rows change between ordinary anonymous browser reads.
+      # A dedicated directory excludes operator keys from the editorial witness.
+      mkdir "$proof/core-commerce"
+      compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
+        node tools/emdash_spike/core-commerce-browser-proof.mjs baseline
+      for commerce_phase in price closed restored; do
+        LEONAID_ENV=test fixture /repo/tools/emdash_spike/core_auth_fixture.py "commerce-$commerce_phase"
+        compose run --rm --no-deps --volume "$proof/core-commerce:/proof" admin-browser \
+          node tools/emdash_spike/core-commerce-browser-proof.mjs "$commerce_phase"
+      done
       fixture /repo/tools/emdash_spike/core_auth_fixture.py prepare-mixed-offerings
       compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
       compose run --rm --no-deps --user "$(id -u):$(id -g)" --volume "$proof:/proof" orders-operator
