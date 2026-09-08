@@ -58,6 +58,8 @@ pwa_image_tag="$build_project-pwa:latest"
 public_image_tag="$build_project-public:latest"
 survey_validator_image_tag="$build_project-survey-validator:latest"
 export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE="$survey_validator_image_tag"
+proxy_image_tag="$build_project-proxy:latest"
+export LEONAID_TEST_PROXY_IMAGE="$proxy_image_tag"
 core_image="$core_image_tag"
 web_image="$web_image_tag"
 pwa_image="$pwa_image_tag"
@@ -123,12 +125,38 @@ survey_probe() {
     tools/surveys/recovery_live.py "$@"
 }
 
+verify_project_absent() {
+  checked_project=$1
+  remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$checked_project") || return 1
+  [ -z "$remaining" ] || return 1
+}
+
+verify_backup_absent() {
+  remaining=$(docker ps -aq --filter "name=^/${operator_backup_container}$") || return 1
+  [ -z "$remaining" ] || return 1
+  remaining=$(docker volume ls -q --filter "name=^${operator_backup_volume}$") || return 1
+  [ -z "$remaining" ] || return 1
+}
+
+verify_images_absent() {
+  for image in "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" "$proxy_image_tag"; do
+    remaining=$(docker image ls -q --filter "reference=$image") || return 1
+    [ -z "$remaining" ] || return 1
+  done
+}
+
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
     echo "pilot-deployment-test: Diagnose der fehlgeschlagenen Services:" >&2
-    runtime_compose ps >&2 || true
-    runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
+    if [ "$runtime_owned" = true ]; then
+      runtime_compose ps >&2 || true
+      runtime_compose logs --no-color --tail=80 api worker proxy >&2 || true
+    fi
     if [ -f "$backup_manifest" ]; then
       docker run --rm \
         --volume "$backup_manifest:/proof/manifest.json:ro" \
@@ -147,15 +175,25 @@ print(
 )' >&2 || true
     fi
   fi
-  if [ "$runtime_owned" = true ]; then runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || true; fi
-  if [ "$restore_owned" = true ]; then restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || true; fi
-  if [ "$backup_owned" = true ]; then
-    docker rm --force "$operator_backup_container" >/dev/null 2>&1 || true
-    docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || true
+  if [ "$runtime_owned" = true ]; then
+    runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$project" || status=1
   fi
-  if [ "$build_owned" = true ]; then docker image rm \
-    "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" \
-    >/dev/null 2>&1 || true; fi
+  if [ "$restore_owned" = true ]; then
+    restore_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    verify_project_absent "$restore_project" || status=1
+  fi
+  if [ "$backup_owned" = true ]; then
+    docker rm --force "$operator_backup_container" >/dev/null 2>&1 || status=1
+    docker volume rm "$operator_backup_volume" >/dev/null 2>&1 || status=1
+    verify_backup_absent || status=1
+    verify_project_absent "$operator_backup_project" || status=1
+  fi
+  if [ "$build_owned" = true ]; then
+    docker image rm "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag" "$proxy_image_tag" >/dev/null 2>&1 || status=1
+    verify_images_absent || status=1
+    verify_project_absent "$build_project" || status=1
+  fi
   rm -rf "$overlay_directory"
   rm -rf "$manifest_proof_directory"
   rm -rf "$workspace"
@@ -164,18 +202,10 @@ print(
 trap cleanup EXIT HUP INT TERM
 
 for owned_project in "$project" "$restore_project" "$build_project" "$operator_backup_project"; do
-  [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$owned_project")" ]
-  [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$owned_project")" ]
-  [ -z "$(docker network ls -q --filter "label=com.docker.compose.project=$owned_project")" ]
+  verify_project_absent "$owned_project"
 done
-[ -z "$(docker ps -aq --filter "name=^/${operator_backup_container}$")" ]
-[ -z "$(docker volume ls -q --filter "name=^${operator_backup_volume}$")" ]
-for image in "$core_image_tag" "$web_image_tag" "$pwa_image_tag" "$public_image_tag" "$survey_validator_image_tag"; do
-  if docker image inspect "$image" >/dev/null 2>&1; then
-    echo 'Pilot test image name already exists; leaving it untouched' >&2
-    exit 1
-  fi
-done
+verify_backup_absent
+verify_images_absent
 make_overlay "$source_overlay"
 backup_owned=true
 docker volume create \
@@ -266,6 +296,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_WEB_IMAGE=registry.example.org/leonaid/web@sha256:$digest" \
     "LEONAID_PWA_IMAGE=registry.example.org/leonaid/pwa@sha256:$digest" \
     "LEONAID_PUBLIC_IMAGE=registry.example.org/leonaid/public@sha256:$digest" \
+    "LEONAID_PROXY_IMAGE=registry.example.org/leonaid/proxy@sha256:$digest" \
     "LEONAID_SURVEY_VALIDATOR_IMAGE=registry.example.org/leonaid/survey-validator@sha256:$digest" \
     "LEONAID_PUBLIC_DOMAIN=portal.leonaid.org" \
     "LEONAID_PUBLIC_BASE_URL=https://portal.leonaid.org" \
@@ -322,13 +353,13 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
 
-echo "pilot-deployment-test: baut fünf Release-Images vor dem Deployment"
+echo "pilot-deployment-test: baut sechs Release-Images vor dem Deployment"
 build_owned=true
 docker compose \
   --project-name "$build_project" \
   --env-file "$root/.env.local" \
   --file "$root/infra/compose/compose.yml" \
-  build api web pwa public survey-validator
+  build api web pwa public survey-validator proxy
 
 echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
 runtime_owned=true
@@ -368,6 +399,11 @@ curl --fail --silent --insecure \
   "https://$crm_url:$https_port/healthz" | grep -q '"status":"ok"'
 
 proxy_id=$(runtime_compose ps --quiet proxy)
+# Compose may recreate the proxy during immutable-image deployment. Resolve its
+# stable name once; Docker resolves the current container at each Doctor launch.
+proxy_container=$(docker inspect --format '{{.Name}}' "$proxy_id")
+proxy_container=${proxy_container#/}
+[ -n "$proxy_container" ]
 runtime_compose exec --no-TTY proxy \
   cat /data/caddy/pki/authorities/local/root.crt >"$ca_file"
 chmod 600 "$ca_file"
@@ -399,7 +435,7 @@ docker run --rm \
 
 echo "pilot-deployment-test: prüft den Deployment Doctor gegen reale TLS-Dienste"
 docker run --rm \
-  --network "container:$proxy_id" \
+  --network "container:$proxy_container" \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \
   --volume "$workspace:/proof:ro" \
@@ -460,6 +496,8 @@ pwa_image=$(docker image inspect --format '{{.Id}}' "$pwa_image_tag")
 public_image=$(docker image inspect --format '{{.Id}}' "$public_image_tag")
 LEONAID_TEST_SURVEY_VALIDATOR_IMAGE=$(docker image inspect --format '{{.Id}}' "$survey_validator_image_tag")
 export LEONAID_TEST_SURVEY_VALIDATOR_IMAGE
+LEONAID_TEST_PROXY_IMAGE=$(docker image inspect --format '{{.Id}}' "$build_project-proxy:latest")
+export LEONAID_TEST_PROXY_IMAGE
 config="$workspace/runtime-compose.json"
 runtime_compose config --format json >"$config"
 python3 - "$config" <<'CONFIG'
@@ -546,7 +584,7 @@ if ! printf '%s' "$drift_output" |
 fi
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -586,7 +624,7 @@ set +e
 wrong_backup_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -615,7 +653,7 @@ set +e
 missing_staging_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_TEST_CORE_IMAGE="$core_image" \
     LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -662,7 +700,7 @@ fi
   --occurred-at 2026-07-30T12:02:00Z
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+  LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
   LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
   LEONAID_TEST_CORE_IMAGE="$core_image" \
   LEONAID_TEST_WEB_IMAGE="$web_image" \
@@ -726,7 +764,7 @@ wrong_restore_output=$(
   LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
     LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \
     LEONAID_PILOT_TEST_DECISIONS_FILE="$accepted_decisions" \
-    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_id" \
+    LEONAID_PILOT_TEST_DOCTOR_NETWORK="container:$proxy_container" \
     LEONAID_PILOT_TEST_CA_FILE="$ca_file" \
     LEONAID_PILOT_TEST_HTTP_PORT="$restore_http_port" \
     LEONAID_PILOT_TEST_HTTPS_PORT="$restore_https_port" \
@@ -753,7 +791,7 @@ if ! printf '%s' "$wrong_restore_output" |
   echo "pilot-deployment-test: ERROR: Restore-Ablehnung ist nicht diagnostizierbar" >&2
   exit 1
 fi
-restore_doctor_network="container:$proxy_id"
+restore_doctor_network="container:$proxy_container"
 run_pilot_restore() {
 LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
   LEONAID_PILOT_TEST_RESTORE_OVERLAY="$target_overlay" \

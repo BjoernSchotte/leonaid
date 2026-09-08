@@ -27,6 +27,14 @@ def main() -> None:
     mutations: list[tuple[str, dict[str, Any]]] = []
 
     changed = copy.deepcopy(config)
+    changed["services"]["proxy"]["build"] = {"context": "../proxy/image"}
+    mutations.append(("Proxy-Live-Build", changed))
+
+    changed = copy.deepcopy(config)
+    changed["services"]["proxy"]["image"] = "registry.example.org/leonaid/proxy:latest"
+    mutations.append(("ungepinntes Proxy-Image", changed))
+
+    changed = copy.deepcopy(config)
     changed["services"]["api"]["ports"] = [
         {"target": 8000, "published": "8000", "protocol": "tcp"}
     ]
@@ -71,7 +79,7 @@ def main() -> None:
         rejected(mutation, label)
 
     print(
-        "pilot-deployment-contract-test: OK: sieben reale Compose-Mutationen "
+        "pilot-deployment-contract-test: OK: neun reale Compose-Mutationen "
         "fail-closed abgewiesen"
     )
 

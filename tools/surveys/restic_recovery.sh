@@ -105,7 +105,7 @@ python3 - "$source_project" "$proof" <<'PY'
 import json, pathlib, secrets, subprocess, sys
 project, directory = sys.argv[1], pathlib.Path(sys.argv[2])
 services = {}
-for service in ('api', 'worker', 'web', 'pwa', 'public', 'survey-validator'):
+for service in ('api', 'worker', 'web', 'pwa', 'public', 'survey-validator', 'proxy'):
     image = subprocess.check_output(
         ['docker', 'image', 'inspect', '--format', '{{.Id}}', f'{project}-{service}'], text=True
     ).strip()

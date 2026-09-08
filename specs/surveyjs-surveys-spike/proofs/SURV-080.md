@@ -1,5 +1,8 @@
 # SURV-080 — Export implementation evidence
 
+Command examples below normalize the original local checkout path to `"$PWD"`.
+Run them from the repository root; this notation change does not alter the recorded test results.
+
 The initial tabular increment started at `8add0a6`; subsequent baselines are below.
 **080.1–080.3 and 080.T1–080.T2 are accepted.**
 Criteria 080.A1–A6 are proven below. SURV-080 is accepted for the specified spike
@@ -144,7 +147,7 @@ deletion is blocked until controlled retention removes export jobs and objects.
 `tools/surveys/exports_live.py` ran in the actual API/worker/RustFS stack via:
 
 ```sh
-rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" exports
 ```
 
 Project `leonaid-surveys-833458328-37646`, exit 0, all owned resources removed.
@@ -171,7 +174,7 @@ Sanitized result: [tabular API proof](assets/SURV-080-tabular-api.json).
 Migration command:
 
 ```sh
-rtk proxy sh tools/surveys/migrations.sh /Users/bjoern/.codex/worktrees/497a/leonaid
+rtk proxy sh tools/surveys/migrations.sh "$PWD"
 ```
 
 Project `surveys-migrations-833458328-37939`, exit 0 and verified resource cleanup.
@@ -251,7 +254,7 @@ certification. [Review record and source hashes](assets/SURV-080-pdf-review.json
 The final command was:
 
 ```sh
-rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports
+rtk proxy sh tools/surveys/infrastructure.sh "$PWD" exports
 ```
 
 Project `leonaid-surveys-833458328-41834`, exit 0, no host ports, owned resources
@@ -295,7 +298,7 @@ Verification:
 
 - Pinned Bun container: `bunx --no-install tsc --noEmit -p apps/web/tsconfig.json`
   exited 0. `git diff --check` passed.
-- `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports`
+- `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" exports`
   exited 0 in project `leonaid-surveys-833458328-45881`. No published host
   ports; private project networks and volumes were removed and teardown checked.
 - Existing real API/outbox/worker/RustFS/Typst proof passed for all four products,
@@ -367,7 +370,7 @@ downloads**, not fresh files downloaded by a different client:
   private text markers. XLSX includes charts; their visual rendering remains a
   separate, still-open gate.
 
-Execution: `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid exports`
+Execution: `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" exports`
 exited 0 in project `leonaid-surveys-833458328-48277`. Four browser tests passed:
 two foundation/empty-export cases in 9.8s, populated export in 12.7s, revocation
 in 4.5s. The existing four-product API/worker/private-storage proof also passed.
@@ -434,7 +437,7 @@ Unicode text and multiselect/matrix values survive, and empty strings remain
 distinguishable from missing values through their type columns. Both products
 are obtained through actual authenticated API downloads after real worker jobs.
 
-Command: `rtk proxy sh tools/surveys/infrastructure.sh /Users/bjoern/.codex/worktrees/497a/leonaid export-recovery`.
+Command: `rtk proxy sh tools/surveys/infrastructure.sh "$PWD" export-recovery`.
 Final project `leonaid-surveys-833458328-51058` exited 0: crash and renderer jobs
 completed on attempt 2, storage on attempt 3; each has exactly one object version.
 Foundation browser regression passed in 1.9s. All owned containers, networks and
@@ -487,7 +490,7 @@ Verification on the source in this commit:
   upload still has no object reference. Four browser cases passed (9.7s for
   the two foundation/empty cases, 11.5s populated exports, 3.2s revocation).
 - Both commands used `rtk proxy sh tools/surveys/infrastructure.sh
-  /Users/bjoern/.codex/worktrees/497a/leonaid <mode>` with isolated resources,
+  "$PWD" <mode>` with isolated resources,
   no host ports, and successful verified teardown. The failed pre-fix run also
   terminated and its cleanup completed before source changes or reruns.
 - Pinned UV container: `uv run --frozen --no-sync pytest -q
@@ -509,7 +512,7 @@ implements the export adapter and persists both the job and immutable CSV bytes.
 The host supplies its own messages, styling and supported product list.
 
 Verification: `rtk proxy sh tools/surveys/package.sh
-/Users/bjoern/.codex/worktrees/497a/leonaid` exited 0 in isolated Docker project
+"$PWD"` exited 0 in isolated Docker project
 `surveys-package-833458328-74032`. The first Chromium journey passed in 3.8s;
 the restart journey passed in 1.6s. No host ports were published, and teardown
 was verified. The test commits a real request before dropping its acknowledgement,
@@ -556,7 +559,7 @@ regenerated from the actual transport contracts.
 Verification on this increment:
 
 - `rtk proxy sh tools/surveys/infrastructure.sh
-  /Users/bjoern/.codex/worktrees/497a/leonaid exports`: exit 0, isolated project
+  "$PWD" exports`: exit 0, isolated project
   `leonaid-surveys-833458328-76423`, no host ports, verified teardown.
 - Real worker/storage regression: all four export files parsed against frozen
   input, with existing cancellation, idempotency and denial checks passing.
@@ -594,7 +597,7 @@ upload or read. It does not replace file IO, authorization, rendering or queue
 processing and adds no production fault-injection option.
 
 `rtk proxy sh tools/surveys/infrastructure.sh
-/Users/bjoern/.codex/worktrees/497a/leonaid export-permissions` ran in project
+"$PWD" export-permissions` ran in project
 `leonaid-surveys-833458328-77821`. All integration assertions passed, as did the
 real member/public browser foundation case (902ms). The run exited 0, with no
 published host ports and verified resource cleanup.
@@ -816,7 +819,7 @@ ID but the same immutable snapshot. The failed job remains a dead-letter record
 with no object; its persisted error code/detail contain only the generic failure.
 
 Command: `rtk proxy sh tools/surveys/infrastructure.sh
-/Users/bjoern/.codex/worktrees/497a/leonaid export-states` exited 0 in project
+"$PWD" export-states` exited 0 in project
 `leonaid-surveys-833458328-82845`. The export journey and member/public foundation
 case passed (two Chromium cases, 8.0s). The worker probe passed and was joined
 before teardown. No host ports were published; cleanup was verified.

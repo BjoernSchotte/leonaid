@@ -27,6 +27,7 @@ REQUIRED_SYSTEMS = {
     "alpine",
     "bun",
     "caddy",
+    "caddy-builder",
     "mailpit",
     "node",
     "listmonk",
@@ -62,6 +63,7 @@ SURVEY_REACT_PEERS = {"react", "react-dom"}
 ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
     Path("infra/pilot/compose.yml"): {
         "LEONAID_CORE_IMAGE",
+        "LEONAID_PROXY_IMAGE",
         "LEONAID_PUBLIC_IMAGE",
         "LEONAID_SURVEY_VALIDATOR_IMAGE",
         "LEONAID_PWA_IMAGE",
@@ -69,6 +71,7 @@ ALLOWED_DYNAMIC_IMAGE_VARIABLES = {
     },
     Path("infra/pilot/compose.test.yml"): {
         "LEONAID_TEST_CORE_IMAGE",
+        "LEONAID_TEST_PROXY_IMAGE",
         "LEONAID_TEST_PUBLIC_IMAGE",
         "LEONAID_TEST_SURVEY_VALIDATOR_IMAGE",
         "LEONAID_TEST_PWA_IMAGE",
@@ -478,7 +481,7 @@ def check_image_references(root: Path, problems: Problems) -> None:
             and ("compose" in name or relative.parts[:2] == (".github", "workflows"))
         ):
             candidates.append(path)
-    reference = re.compile(r"(?:^\s*image:\s*|^\s*FROM\s+)([^\s#]+)", re.IGNORECASE)
+    reference = re.compile(r"(?:^\s*image:\s*|^\s*FROM\s+(?:--platform=[^\s]+\s+)?)([^\s#]+)", re.IGNORECASE)
     dynamic_reference = re.compile(
         r"^\s*image:\s*\$\{(?P<variable>[A-Z][A-Z0-9_]*)"
         r"(?::[^}]*)?\}\s*(?:#.*)?$"

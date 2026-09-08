@@ -16,7 +16,7 @@ It does not accept the whole spike or uncommitted implementation changes.
 - **090.T1:** Requires the still-open full 090.A3 recovery criterion.
 - **100.1:** 100.A1 is accepted by the complete two-pass CI at e030836. Final cross-harness cleanup reconciliation, affected regressions and delivery gates remain incomplete.
 - **100.3:** Remaining existing regressions and final packed/delivery review remain incomplete.
-- **100.3i:** Corrected source-built Caddy images passed bounded candidate checks; application/CI, release/restore and SBOM integration remain open. No VEX exception is approved or delivered.
+- **100.3i:** Corrected Caddy candidate images, application security, SBOM generation and the complete survey pilot pass. Both complete candidate pilot modes pass with independent cleanup. The reviewed changes are integrated; final branch CI remains open. No VEX exception is approved or delivered.
 - **100.4:** Task/capability reconciliation is accepted; final delivery review and outcome report remain open.
 - **100.T1:** 100.A1 and 100.A4 are accepted. Final cross-harness cleanup, existing regressions, delivery review and independent-host recovery prerequisites remain incomplete.
 
@@ -176,7 +176,7 @@ all four journeys, 16 downloads and independent cleanup. Earlier intermittent fa
 the history, alongside the subsequent two complete successful CI executions.
 
 **100.S3 remains open for its separate 100.A5 delivery requirement.** Likewise,
-100.1, 100.3, 100.4 and 100.T1 retain their remaining criteria. The eleven open
+100.1, 100.3, 100.4 and 100.T1 retain their remaining criteria. The eight open
 tasks above, plus their open scenarios and criteria, prevent a full-completion
 claim. The outcome document remains provisional. Own license stays **UNDEFINED**,
 commercial SurveyJS components are excluded, and no package publication or

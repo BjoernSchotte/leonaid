@@ -1,5 +1,7 @@
 services:
   proxy:
+    image: ${LEONAID_PROXY_IMAGE:?LEONAID_PROXY_IMAGE fehlt}
+    build: !reset null
     ports: !override
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:80:80"
       - "${LEONAID_BIND_ADDRESS:-0.0.0.0}:443:443"

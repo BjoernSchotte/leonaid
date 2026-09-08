@@ -75,6 +75,7 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
         "pwa": "PWA",
         "public": "PUBLIC",
         "survey-validator": "SURVEY_VALIDATOR",
+        "proxy": "PROXY",
     }.items():
         values[f"LEONAID_{key}_IMAGE"] = subprocess.check_output(
             [

@@ -4,19 +4,25 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 project="surveys-engine-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+. "$root/tools/surveys/standalone_resources.sh"
+standalone_absent
 proof=$(mktemp -d)
 network=false
 container=false
+volume=false
+image=false
 cleanup() {
   status=$?
-  if [ "$container" = true ]; then docker rm -f "$project" >/dev/null; fi
-  if [ "$network" = true ]; then docker network rm "$project" >/dev/null; fi
+  trap - EXIT HUP INT TERM
+  set +e
+  standalone_cleanup || status=1
   rm -rf "$proof"
   exit "$status"
 }
-trap cleanup EXIT HUP INT TERM
-if docker network inspect "$project" >/dev/null 2>&1; then exit 1; fi
-[ -z "$(docker ps -aq --filter "name=^/$project$")" ] || exit 1
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 # Separate from the full fresh-image infrastructure build; use pinned installed modules.
 docker run --rm --volume "$root:/workspace:ro" --volume "$proof:/proof" \
   --workdir /workspace "$BUN_IMAGE" bun -e '
@@ -25,13 +31,13 @@ docker run --rm --volume "$root:/workspace:ro" --volume "$proof:/proof" \
     if (!result.success) throw new Error("aggregate engine bundle failed");
   '
 subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
-docker network create --internal --subnet "$subnet" "$project" >/dev/null
 network=true
+docker network create --internal --subnet "$subnet" "$project" >/dev/null
+container=true
 docker run --detach --name "$project" --network "$project" --network-alias survey-validator \
   --user bun --cap-drop ALL --security-opt no-new-privileges:true \
   --volume "$proof/survey-validator.js:/app/validator.mjs:ro" \
   "$BUN_IMAGE" bun /app/validator.mjs >/dev/null
-container=true
 ready() {
   attempts=0
   until docker exec "$project" wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1; do

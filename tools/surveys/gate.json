@@ -37,6 +37,11 @@
       "argv": ["./leonaid", "test-surveys-dependencies"]
     },
     {
+      "id": "standalone-resources",
+      "group": "foundation",
+      "argv": ["python3", "tools/surveys/standalone_resources_live.py"]
+    },
+    {
       "id": "migrations",
       "group": "foundation",
       "argv": ["./leonaid", "test-surveys-migrations"]

@@ -161,6 +161,7 @@ create_release_manifest() {
   web_id=$(docker image inspect --format '{{.Id}}' "${source_project}-web:latest")
   pwa_id=$(docker image inspect --format '{{.Id}}' "${source_project}-pwa:latest")
   public_id=$(docker image inspect --format '{{.Id}}' "${source_project}-public:latest")
+  proxy_id=$(docker image inspect --format '{{.Id}}' "${source_project}-proxy:latest")
   survey_validator_id=$(docker image inspect --format '{{.Id}}' "${source_project}-survey-validator:latest")
   docker run --rm \
     --user "$(id -u):$(id -g)" \
@@ -173,7 +174,7 @@ create_release_manifest() {
     --env "RUSTFS_RELEASE_IMAGE=$rustfs_image" \
     --env "POSTGRES_RELEASE_IMAGE=$POSTGRES_IMAGE" \
     --env "REDIS_RELEASE_IMAGE=$REDIS_IMAGE" \
-    --env "CADDY_RELEASE_IMAGE=$CADDY_IMAGE" \
+    --env "CADDY_RELEASE_IMAGE=$proxy_id" \
     --env "IMAGE_OUTPUT=/proof/$(basename "$images")" \
     --volume "$proof:/proof" \
     "$PYTHON_IMAGE" \
@@ -561,7 +562,7 @@ pathlib.Path("/proof/restic-password").write_text(secrets.token_urlsafe(48)+"\n"
 chmod 600 "$password_file"
 
 run_plan_gate
-source_old build api public pwa web survey-validator
+source_old build api public pwa web survey-validator proxy
 create_release_manifest \
   pilot-release-v1 1.0.0 \
   "$TWENTY_UPGRADE_SOURCE_IMAGE" "$RUSTFS_UPGRADE_SOURCE_IMAGE" \
@@ -667,7 +668,7 @@ record_release_event \
 # Retain source data but run only one full owned stack at a time.
 source_target --profile '*' stop
 restore_source_version
-rollback_old build api public pwa web survey-validator
+rollback_old build api public pwa web survey-validator proxy
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback failure-clone-before golden
@@ -755,7 +756,7 @@ record_release_event \
   "$release_v2" rollback_started passed PILOT-043-POST-SMOKE-ROLLBACK \
   2026-07-28T09:42:00Z
 restore_source_version
-rollback_old build api public pwa web survey-validator
+rollback_old build api public pwa web survey-validator proxy
 rollback_old --profile dev-mail up --detach --wait --wait-timeout 420
 run_dashboard_contract rollback
 snapshot_and_verify rollback rollback-restored golden

@@ -4,30 +4,36 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 project="surveys-migrations-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+. "$root/tools/surveys/standalone_resources.sh"
+standalone_absent
 proof=$(mktemp -d)
 network=false
 volume=false
 container=false
+image=false
 cleanup() {
   status=$?
-  if [ "$container" = true ]; then docker rm -f "$project" >/dev/null; fi
-  if [ "$volume" = true ]; then docker volume rm "$project" >/dev/null; fi
-  if [ "$network" = true ]; then docker network rm "$project" >/dev/null; fi
-  docker image rm "$project" >/dev/null 2>&1 || true
+  trap - EXIT HUP INT TERM
+  set +e
+  standalone_cleanup || status=1
   rm -rf "$proof"
   exit "$status"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+image=true
 docker build --file "$root/infra/compose/Dockerfile.core" --tag "$project" "$root"
 subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
-docker network create --internal --subnet "$subnet" "$project" >/dev/null
 network=true
-docker volume create "$project" >/dev/null
+docker network create --internal --subnet "$subnet" "$project" >/dev/null
 volume=true
+docker volume create "$project" >/dev/null
+container=true
 docker run --detach --name "$project" --network "$project" --network-alias postgres \
   --env POSTGRES_PASSWORD=synthetic-survey-proof \
   --volume "$project:/var/lib/postgresql/data" "$POSTGRES_IMAGE" >/dev/null
-container=true
 attempts=0
 until docker exec "$project" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do
   attempts=$((attempts + 1))

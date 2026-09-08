@@ -55,6 +55,16 @@ docker run --rm \
   dir:/scan --select-catalogers +javascript-package-cataloger \
   -o cyclonedx-json=/out/frontend.cdx.json
 
+/bin/sh "$root/tools/proxy/export-image.sh" "$root" "$tmp/proxy.tar"
+docker run --rm \
+  --user "$host_user_id:$host_group_id" \
+  -e SYFT_CACHE_DIR=/tmp/syft-cache \
+  -v "$tmp/syft-tmp:/tmp" \
+  -v "$tmp/proxy.tar:/image/proxy.tar:ro" \
+  -v "$output:/out" \
+  "$SYFT_IMAGE" \
+  docker-archive:/image/proxy.tar -o cyclonedx-json=/out/container-caddy.cdx.json
+
 python_image="$PYTHON_IMAGE"
 node_image="$NODE_IMAGE"
 twenty_image="$TWENTY_IMAGE"
@@ -63,7 +73,6 @@ redis_image="$REDIS_IMAGE"
 rustfs_image="$RUSTFS_IMAGE"
 seaweedfs_image="$SEAWEEDFS_IMAGE"
 mailpit_image="$MAILPIT_IMAGE"
-caddy_image="$CADDY_IMAGE"
 typst_image="$TYPST_IMAGE"
 playwright_image="$PLAYWRIGHT_IMAGE"
 listmonk_image="$LISTMONK_IMAGE"
@@ -71,7 +80,7 @@ otel_image="$OTEL_IMAGE"
 prometheus_image="$PROMETHEUS_IMAGE"
 alertmanager_image="$ALERTMANAGER_IMAGE"
 
-for system_id in python node twenty postgres redis rustfs seaweedfs mailpit caddy typst playwright listmonk otel prometheus alertmanager; do
+for system_id in python node twenty postgres redis rustfs seaweedfs mailpit typst playwright listmonk otel prometheus alertmanager; do
   eval "image=\${${system_id}_image}"
   docker run --rm \
     --user "$host_user_id:$host_group_id" \
