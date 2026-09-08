@@ -26,6 +26,15 @@ def load_manifest(root: Path) -> dict:
     assert len(groups) == len(set(groups)) and groups and checks
     ids = [check["id"] for check in checks]
     assert len(ids) == len(set(ids))
+    shards = manifest["ciShards"]
+    assigned = [name for names in shards.values() for name in names]
+    assert set(assigned) == set(ids) and len(assigned) == len(ids), (
+        "CI shards must contain every check exactly once"
+    )
+    assert all(
+        re.fullmatch(r"[a-z][a-z0-9-]*", name) and names
+        for name, names in shards.items()
+    )
     for check in checks:
         assert re.fullmatch(r"[a-z][a-z0-9-]*", check["id"])
         assert check["group"] in groups
@@ -81,12 +90,17 @@ def save_report(path: Path, report: dict) -> None:
     os.replace(temporary, path)
 
 
-def execute(argv: list[str], root: Path, log: Path) -> int:
+def execute(
+    argv: list[str], root: Path, log: Path, image_cache: Path | None = None
+) -> int:
     env = {
         key: value
         for key, value in os.environ.items()
         if not key.startswith("LEONAID_CI_")
     }
+    env.pop("LEONAID_SURVEY_IMAGE_CACHE", None)
+    if image_cache is not None:
+        env["LEONAID_SURVEY_IMAGE_CACHE"] = str(image_cache)
     interrupted = False
     with log.open("x") as output:
         log.chmod(0o600)
@@ -126,9 +140,14 @@ def execute(argv: list[str], root: Path, log: Path) -> int:
                 signal.signal(sig, handler)
 
 
-def run(root: Path, manifest: dict, groups: list[str], repeat: int) -> int:
+def run(
+    root: Path, manifest: dict, groups: list[str], repeat: int, shard: str | None = None
+) -> int:
     directory = root / ".artifacts/surveys-gate"
     selected = [check for check in manifest["checks"] if check["group"] in groups]
+    if shard is not None:
+        selected = [c for c in selected if c["id"] in manifest["ciShards"][shard]]
+        groups = list(dict.fromkeys(c["group"] for c in selected))
     assert selected
     with exclusive_run(directory):
         private = Path(tempfile.mkdtemp(prefix="private-", dir=directory))
@@ -147,6 +166,7 @@ def run(root: Path, manifest: dict, groups: list[str], repeat: int) -> int:
             ).hexdigest(),
             "startedAt": datetime.now(timezone.utc).isoformat(),
             "groups": groups,
+            "shard": shard,
             "requestedPasses": repeat,
             "checksPerPass": len(selected),
             "status": "running",
@@ -164,6 +184,7 @@ def run(root: Path, manifest: dict, groups: list[str], repeat: int) -> int:
                     [part.replace("{root}", str(root)) for part in check["argv"]],
                     root,
                     private / f"{iteration}-{name}.log",
+                    private / f"images-{iteration}",
                 )
                 report["checks"].append(
                     {
@@ -206,6 +227,7 @@ def main() -> int:
         "--root", type=Path, default=Path(__file__).resolve().parents[2]
     )
     parser.add_argument("--group", action="append", default=[])
+    parser.add_argument("--shard", help="Run one complete CI shard from the manifest")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
@@ -215,12 +237,19 @@ def main() -> int:
         parser.error("--repeat must be between 1 and 10")
     if any(group not in manifest["groups"] for group in args.group):
         parser.error("Unknown group; use --list for the manifest")
+    if args.shard and (args.shard not in manifest["ciShards"] or args.group):
+        parser.error("Use a known --shard without --group")
     groups = list(dict.fromkeys(args.group or manifest["groups"]))
     if args.list:
-        print(json.dumps({**manifest, "selectedGroups": groups}, indent=2))
+        print(
+            json.dumps(
+                {**manifest, "selectedGroups": groups, "selectedShard": args.shard},
+                indent=2,
+            )
+        )
         return 0
     try:
-        return run(root, manifest, groups, args.repeat)
+        return run(root, manifest, groups, args.repeat, args.shard)
     except RuntimeError:
         print(
             "Survey gate refused: another aggregate holds this checkout lock.",

@@ -115,7 +115,7 @@ Commands:
   restore           Restore only into an explicitly confirmed fresh project
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
-  test-surveys [--group GROUP] [--repeat N] [--list]
+  test-surveys [--group GROUP | --shard SHARD] [--repeat N] [--list]
                     Run the manifest-defined survey gates with private logs and safe summaries
   test-surveys-integration
   test-surveys-exports

@@ -18,38 +18,44 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       groups: ${{ steps.manifest.outputs.groups }}
+      shards: ${{ steps.manifest.outputs.shards }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify run-local image isolation
+        run: python3 tools/surveys/image_cache_test.py
       - name: Read the same group inventory as the local aggregate
         id: manifest
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import pathlib
-          print('groups=' + json.dumps(json.loads(pathlib.Path('tools/surveys/gate.json').read_text())['groups']))
+          import tools.surveys.gate as gate
+          manifest = gate.load_manifest(pathlib.Path('.'))
+          print('groups=' + json.dumps(manifest['groups']))
+          print('shards=' + json.dumps(list(manifest['ciShards'])))
           PY
 
   surveys:
-    name: Surveys / ${{ matrix.group }}
+    name: Survey shard / ${{ matrix.shard }}
     needs: inventory
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(needs.inventory.outputs.groups) }}
+        shard: ${{ fromJSON(needs.inventory.outputs.shards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Bootstrap pinned Docker toolchains
         run: ./leonaid bootstrap
-      - name: Execute the complete group twice with fresh owned service state
+      - name: Execute each assigned check once with fresh owned service state
         env:
-          SURVEY_GATE_GROUP: ${{ matrix.group }}
+          SURVEY_GATE_SHARD: ${{ matrix.shard }}
         # Proofs contain credentials and remain mode 0600. Linux bind mounts
         # preserve container-root ownership; the controller must share that UID.
         run: |
           sudo git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          sudo ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
+          sudo ./leonaid test-surveys --shard "$SURVEY_GATE_SHARD"
       - name: Collect bounded diagnostic metadata
         if: always()
         run: |
@@ -63,7 +69,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: surveys-${{ matrix.group }}
+          name: surveys-${{ matrix.shard }}
           path: ${{ runner.temp }}/surveys-ci-results/*.json
           if-no-files-found: error
           retention-days: 14
+
+  acceptance:
+    name: Surveys / ${{ matrix.group }}
+    needs: [inventory, surveys]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        group: ${{ fromJSON(needs.inventory.outputs.groups || '["foundation","integration","editor","responses","exports","recovery","package","e2e"]') }}
+    steps:
+      - name: Require every survey shard
+        env:
+          RESULT: ${{ needs.surveys.result }}
+        run: test "$RESULT" = success

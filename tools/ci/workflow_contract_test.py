@@ -33,6 +33,16 @@ def main() -> None:
             raise AssertionError("Fehlender Artefakt-Upload wurde nicht abgewiesen.")
         mutations = (
             (
+                "needs: integration-shards",
+                "needs: unit",
+                "Sammelcheck",
+            ),
+            (
+                'test "$RESULT" = success',
+                'test "$RESULT" != failure',
+                "Sammelcheck",
+            ),
+            (
                 "if: inputs.cold_run == true && inputs.artifact_probe != true",
                 "if: inputs.artifact_probe != true",
                 "cold_run",
@@ -68,7 +78,7 @@ def main() -> None:
                     f"Cold-Run-Vertragsbruch {expected!r} wurde nicht abgewiesen."
                 )
     print(
-        "ci-workflow-contract-test: OK: zehn Jobs, Cold-Rehearsal und "
+        "ci-workflow-contract-test: OK: Pflichtchecks, Shards, Cold-Rehearsal und "
         "fehlender Upload werden geprüft"
     )
 

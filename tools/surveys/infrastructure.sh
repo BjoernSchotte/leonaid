@@ -19,7 +19,22 @@ if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
   browser_reporter=./tools/surveys/foundation-reporter.mjs
   if [ "$mode" = infrastructure-failure ]; then foundation_failure=1; fi
 fi
+# Only the locked aggregate supplies this run-local image cache. Standalone
+# and foundation cold-build checks retain the original build path.
+image_cache=${LEONAID_SURVEY_IMAGE_CACHE:-}
+if [ "$foundation" = true ]; then image_cache=""; fi
+if [ -n "$image_cache" ] && [ ! -f "$image_cache/images.json" ]; then
+  docker compose --env-file "$root/.env.local" \
+    --file "$root/infra/compose/compose.yml" --profile '*' config --format json | \
+    python3 "$root/tools/surveys/image_cache.py" "$image_cache"
+fi
 compose() {
+  if [ -n "$image_cache" ]; then
+    docker compose --project-name "$project" --env-file "$root/.env.local" \
+      --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
+      --file "$image_cache/images.json" --profile dev-mail "$@"
+    return
+  fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
     --profile dev-mail "$@"
@@ -68,7 +83,15 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$proof/compose.yml"
-compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+if [ -n "$image_cache" ]; then
+  if [ ! -f "$image_cache/built" ]; then
+    compose build
+    touch "$image_cache/built"
+  fi
+  compose up --no-build --detach --wait --wait-timeout 420 proxy worker mailpit
+else
+  compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

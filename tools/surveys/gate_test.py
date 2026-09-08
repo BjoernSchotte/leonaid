@@ -109,6 +109,17 @@ class GateTests(unittest.TestCase):
             127,
         )
 
+    def test_shard_runs_only_assigned_checks_once(self):
+        source = "from pathlib import Path; p=Path('count'); p.write_text(str(int(p.read_text())+1) if p.exists() else '1')"
+        manifest = self.manifest([self.check("one", source), self.check("two", source)])
+        manifest["ciShards"] = {"first": ["one"], "second": ["two"]}
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(gate.run(self.root, manifest, ["fixture"], 1, "second"), 0)
+        self.assertEqual((self.root / "count").read_text(), "1")
+        report = self.report()
+        self.assertEqual(report["shard"], "second")
+        self.assertEqual([c["id"] for c in report["checks"]], ["two"])
+
     def test_checkout_lock_excludes_a_second_process_and_releases(self):
         directory = self.root / "lock"
         source = f"import runpy; m=runpy.run_path({str(HERE / 'gate.py')!r}); from pathlib import Path\nwith m['exclusive_run'](Path({str(directory)!r})): print('entered')"
@@ -172,17 +183,21 @@ class GateTests(unittest.TestCase):
             target = self.root / reference.split("#")[0]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.touch()
-        for change in ("missing", "recursive"):
+        for change in ("missing", "recursive", "unassigned", "duplicate"):
             with self.subTest(change=change):
                 manifest = json.loads(json.dumps(original))
                 if change == "missing":
                     manifest["checks"] = [
                         c for c in manifest["checks"] if c["id"] != "journeys"
                     ]
-                else:
+                elif change == "recursive":
                     next(c for c in manifest["checks"] if c["id"] == "core")["argv"][
                         1
                     ] = "test-surveys"
+                elif change == "unassigned":
+                    manifest["ciShards"].pop(next(iter(manifest["ciShards"])))
+                else:
+                    manifest["ciShards"]["duplicate"] = ["journeys"]
                 (self.root / "tools/surveys/gate.json").write_text(json.dumps(manifest))
                 with self.assertRaises(AssertionError):
                     gate.load_manifest(self.root)

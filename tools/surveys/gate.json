@@ -286,5 +286,78 @@
     "specs/surveyjs-surveys-spike/proofs/SURV-080.md#consolidated-render-acceptance",
     "specs/surveyjs-surveys-spike/CAPABILITIES.md",
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
-  ]
+  ],
+  "ciShards": {
+    "integration-engine": [
+      "aggregate-engine",
+      "aggregates",
+      "analysis"
+    ],
+    "integration-lifecycle": [
+      "lifecycle",
+      "lifecycle-concurrency"
+    ],
+    "integration-access": [
+      "contracts",
+      "invitations",
+      "permissions"
+    ],
+    "integration-limits": [
+      "request-limits",
+      "payload-limits"
+    ],
+    "editor-authoring": [
+      "editor"
+    ],
+    "editor-preview": [
+      "preview",
+      "branding"
+    ],
+    "exports-download": [
+      "exports",
+      "export-permissions"
+    ],
+    "exports-recovery": [
+      "export-states",
+      "export-recovery",
+      "export-limits"
+    ],
+    "recovery-deletion": [
+      "deletion",
+      "deletion-races",
+      "deletion-ui"
+    ],
+    "recovery-retention": [
+      "retention",
+      "recovery"
+    ],
+    "recovery-restic": [
+      "restic-manual",
+      "restic-archive",
+      "restic-durable"
+    ],
+    "recovery-pilot": [
+      "pilot-survey-recovery"
+    ],
+    "foundation": [
+      "gate-controller",
+      "restore-receipts",
+      "core",
+      "validation-candidate",
+      "dependencies",
+      "standalone-resources",
+      "migrations",
+      "foundation-diagnostics"
+    ],
+    "responses": [
+      "responses",
+      "runner"
+    ],
+    "package": [
+      "packed-consumer"
+    ],
+    "e2e": [
+      "journeys"
+    ]
+  }
 }

@@ -15,6 +15,7 @@ Run from the repository root after `./leonaid bootstrap`:
 ./leonaid test-surveys
 ./leonaid test-surveys --repeat 2
 ./leonaid test-surveys --group exports
+./leonaid test-surveys --shard exports-download
 ./leonaid test-surveys-integration
 ./leonaid test-surveys-exports
 ./leonaid test-surveys-e2e
@@ -23,7 +24,9 @@ Run from the repository root after `./leonaid bootstrap`:
 The default aggregate executes all 39 entries in
 [`tools/surveys/gate.json`](../../tools/surveys/gate.json), in manifest order.
 `--repeat 2` executes the whole selection twice; every service harness creates
-fresh owned resources each time. It does not rerun only failed cases. A nonzero
+fresh owned resources each time. This is an explicit local option, not the CI
+default. `--shard` selects one complete CI partition and cannot be combined with
+`--group`. It does not rerun only failed cases. A nonzero
 child exit stops the aggregate immediately and preserves that exit code. Skipped
 later checks and missing second-pass checks do not count as passed.
 
@@ -43,7 +46,9 @@ part of the full aggregate. Existing individual leaf commands remain available.
 | e2e | 1 | Both complete sample journeys on desktop/mobile, actual invitation/downloads and independent file/SQL/object erasure verification |
 
 The loader rejects a new infrastructure mode until the manifest covers it,
-duplicate mode coverage and recursive aggregate leaf commands. The package's
+duplicate mode coverage and recursive aggregate leaf commands. The
+CI shard inventory must include every check exactly once; omissions and duplicate
+assignments are rejected before CI launches its matrix. The package's
 manual rendering/accessibility findings and C-01–C-15/task reconciliation remain
 separate acceptance requirements. Passing automation cannot certify them.
 
@@ -60,6 +65,12 @@ subnets. Survey infrastructure/consumer/migration tests publish no host ports;
 the pilot harness allocates free loopback ports for its actual TLS operator
 workflow. No global prune or shared-project reset is part of this gate.
 
+Infrastructure checks within one aggregate pass reuse the images built by its
+first infrastructure check. The image namespace belongs to that private run,
+and subsequent checks use `--no-build`. Containers, volumes and networks remain
+fresh for each check. Standalone calls and foundation cold-build checks retain
+their original build path. See [CI runtime](../../tools/ci/README.md).
+
 Raw child stdout/stderr is saved in owner-only logs beneath
 `.artifacts/surveys-gate/private-*/`. It is neither echoed by the controller nor
 included in the published result directory. These logs and the existing local
@@ -68,7 +79,7 @@ remain local and ignored. Inspect only the relevant failure when diagnosing it.
 
 Each run creates a distinct JSON result under
 `.artifacts/surveys-gate/results/`, initially `running`, then `passed`, `failed`
-or `interrupted`. Results contain the commit, manifest digest, selected groups,
+or `interrupted`. Results contain the commit, manifest digest, selected groups/shard,
 requested passes, per-check exit codes/durations and remaining manual-review
 references. They contain no child output, arbitrary command arguments, tokens,
 answers, recipient addresses, raw traces or downloaded files. A `running` result
@@ -81,9 +92,13 @@ remains unaccepted and requires checking its exact owned resources.
 
 ## CI and final acceptance
 
-[`surveys.yml`](../../.github/workflows/surveys.yml) reads the same manifest groups
-into a matrix. Each group uses a separate ephemeral runner and runs twice after
-bootstrap. The controller and diagnostic collector share the container proof
+[`surveys.yml`](../../.github/workflows/surveys.yml) reads the manifest's 16 CI
+shards into a matrix. Each shard uses a separate ephemeral runner and runs once
+after bootstrap. The historical two-pass spike acceptance above remains a record
+of that revision. The current CI requires all 39 checks once. Existing
+`Surveys / <group>` check names summarize the matrix and require every shard to
+succeed, including when other shards fail or are cancelled.
+The controller and diagnostic collector share the container proof
 owner on Linux. Only `results/*.json` and the fixed
 `results/diagnostics/metadata.json` are copied into `$RUNNER_TEMP/surveys-ci-results/`
 for upload; private logs and general `.artifacts` contents remain excluded and
