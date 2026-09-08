@@ -4492,6 +4492,18 @@ Preparation of this configuration is not yet visible-browser acceptance.
       the In-App Browser displayed `Campaign pages` and an empty collection,
       confirming that no synthetic published test pages were seeded. The
       Krapfentaxi content import remains separate and pending.
+- [x] Import the original Krapfentaxi demo as a draft into the persistent local
+      stack and inspect its text and media with an actual Charity Core login in
+      the In-App Browser. The dry run reported three assets and no publication;
+      apply completed with `published: false`. Visible inspection exposed an
+      ID-only image-reference issue. The authorized editor response now resolves
+      validated, campaign-bound storage metadata after native draft hydration,
+      without changing stored content or opening another media route. A real
+      PostgreSQL check proved foreign-campaign/forged-path denial and unchanged
+      input, content and revisions. The rebuilt CMS passed Astro checks for all
+      49 files, then visibly rendered the original images for the Charity user;
+      all four image uses had nonzero natural dimensions. Publication and order
+      acceptance in this visible stack remain pending.
 
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.

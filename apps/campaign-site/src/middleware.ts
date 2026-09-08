@@ -3,7 +3,7 @@ import { campaignMediaRoute } from "./auth/campaign-media-routes.mjs";
 import { campaignMediaHttp } from "./auth/campaign-media-http";
 import {
   CampaignMediaReferenceError,
-  requireCampaignMediaReferences,
+  resolveCampaignEditorMedia,
 } from "./auth/campaign-media-references.mjs";
 import {
   readCoreIdentity,
@@ -99,18 +99,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
       // the live columns. Binding guards prevent rebinding between these reads.
       const result = await runtimeGet(collection, id);
       if (result.success) {
-        const data = result.data?.item.data;
+        const item = result.data?.item;
+        const data = item?.data;
         if (
+          !item ||
           !data ||
           typeof data !== "object" ||
           !("action_id" in data) ||
           data.action_id !== access.data.item.data.action_id
         )
           throw new CoreIdentityError(503);
-        await database
+        item.data = await database
           .transaction()
           .execute((transaction) =>
-            requireCampaignMediaReferences(transaction, data.action_id, data),
+            resolveCampaignEditorMedia(transaction, data.action_id, data),
           );
       }
       return result;

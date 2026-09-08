@@ -35,7 +35,7 @@ export async function requireCampaignMediaReferences(
       ? data.partners.map((partner) => partner?.logo)
       : []),
   ].filter((value) => value !== null && value !== undefined);
-  if (!refs.length) return;
+  if (!refs.length) return [];
   if (
     refs.length > 33 ||
     refs.some((value) => !campaignImageReference.safeParse(value).success)
@@ -105,4 +105,28 @@ export async function requireCampaignMediaReferences(
     )
       throw new CampaignMediaReferenceError();
   }
+  return rows;
+}
+
+// Resolve ID-only imports for the native editor only AFTER validating all
+// references against this campaign. Never perform a global media lookup or
+// persist presentation metadata into the stored draft/revision during reads.
+export async function resolveCampaignEditorMedia(transaction, actionId, data) {
+  const rows = await requireCampaignMediaReferences(
+    transaction,
+    actionId,
+    data,
+  );
+  const resolved = structuredClone(data);
+  const refs = [
+    resolved.hero_image,
+    resolved.social_image,
+    resolved.brand_logo,
+    ...(resolved.partners ?? []).map((partner) => partner.logo),
+  ].filter(Boolean);
+  for (const ref of refs) {
+    const row = rows.find((item) => item.id === ref.id);
+    ref.meta = { ...ref.meta, storageKey: row.storage_key };
+  }
+  return resolved;
 }

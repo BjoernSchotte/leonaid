@@ -45,6 +45,17 @@ CMS role and one database connection. Restart the CMS only after success; on
 failure leave it stopped and investigate. This is initial local preparation,
 not the production migration/release procedure and not a campaign import.
 
+For the Golden Krapfentaxi import, run the `local-campaign-import` one-off
+service. Mount only this project's public Caddy root certificate read-only at
+`/proof/root.crt` and set `NODE_EXTRA_CA_CERTS=/proof/root.crt`; never disable TLS
+verification. Its default command is a dry run. After reviewing that result,
+explicitly run `bun tools/emdash_spike/local-krapfentaxi-import.mjs apply`.
+The operator logs in as the synthetic Golden System Admin through real Core and
+Mailpit, uses that user's existing CMS identity mapping, and logs its own session
+out afterwards. No session is inserted into SQL or copied from the browser.
+The existing importer creates a draft only and refuses an automatic overwrite.
+Inspect and publish the imported campaign through the visible CMS editor.
+
 Caddy's local CA persists in the project-specific `visible-local-caddy-data`
 volume. Trust must be established explicitly for the local browser; do not
 disable origin checks, replace HTTPS with HTTP, or silently install a system CA.

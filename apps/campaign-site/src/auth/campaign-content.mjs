@@ -5,7 +5,10 @@ import {
   handleRevisionGet,
   handleContentCompare,
 } from "emdash";
-import { requireCampaignMediaReferences } from "./campaign-media-references.mjs";
+import {
+  requireCampaignMediaReferences,
+  resolveCampaignEditorMedia,
+} from "./campaign-media-references.mjs";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,7 +98,7 @@ export async function getCampaignContent(database, profile, collection, id) {
     // change the authorization target between lookup and upstream data access.
     const result = await handleContentGet(transaction, collection, entry.id);
     if (result.success)
-      await requireCampaignMediaReferences(
+      result.data.item.data = await resolveCampaignEditorMedia(
         transaction,
         entry.action_id,
         result.data.item.data,

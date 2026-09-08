@@ -14,6 +14,15 @@ services:
     profiles: [cms-operator]
   cms-probe:
     profiles: [cms-operator]
+  local-campaign-import:
+    extends:
+      file: ../emdash-spike/import-runtime.test.yml
+      service: krapfentaxi-import-probe
+    profiles: [cms-operator]
+    networks: !override [edge, cms-data, storage-data]
+    environment:
+      LEONAID_ENV: local
+    command: [bun, tools/emdash_spike/local-krapfentaxi-import.mjs, dry-run]
 
 volumes:
   visible-local-caddy-data:
