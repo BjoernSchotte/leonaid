@@ -2643,6 +2643,12 @@ keyboard and 200% zoom checks.
         published. This closes removal of deliberate workload saturation, not
         combined modest concurrency, enhanced timeout/retry or whole-spike
         acceptance. Historical burst evidence above is retained, not rerun.
+        Quality evidence: full `./leonaid check` exited 0 on committed source
+        `d7d93d280aaad224ff8b78e751b816e5ce094f5d`; 269 unit tests, typing of
+        277 Python sources, formatting of 322 Python files, public/CMS Astro
+        checks on 27/49 files without diagnostics, generated types, formatting,
+        privacy and repository policy gates passed. The committed tree remained
+        unchanged. Existing Pydantic and Vite dependency warnings remain.
   - [ ] Preserve enhanced JavaScript timeout/retry coverage with a targeted
         real dependency fault, including the expected 503 response, retained
         command/input, successful retry and independent Core/Twenty duplicate
