@@ -22,6 +22,25 @@ export function patchEditorSource(source) {
     assert.equal(source.split(before).length, 2);
     source = source.replace(before, after);
   };
+  // Reuse the existing header affordance. A plain same-tab link preserves
+  // browser history; the editor's dirty state guards document navigation.
+  replace(
+    '\t\t\t\t/* @__PURE__ */ jsxs(LinkButton, {\n\t\t\t\t\tvariant: "ghost",\n\t\t\t\t\tsize: "sm",\n\t\t\t\t\thref: "/",\n\t\t\t\t\texternal: true,\n\t\t\t\t\tchildren: [/* @__PURE__ */ jsx(ArrowSquareOut, { className: "h-4 w-4 me-1" }), _t({\n\t\t\t\t\t\tid: "4/SFQS",\n\t\t\t\t\t\tmessage: "View Site"\n\t\t\t\t\t})]\n\t\t\t\t}),',
+    '\t\t\t\t/* @__PURE__ */ jsx("a", { href: "/admin/", className: "flex items-center rounded-md px-3 py-2 text-sm hover:bg-kumo-tint", style: { minHeight: 44 }, children: "Zurück zu LeonAid" }),',
+  );
+  replace(
+    "\tconst isDirty = isNew || currentData !== lastSavedData;",
+    `\tconst isDirty = isNew || currentData !== lastSavedData;
+\tReact$1.useEffect(() => {
+\t\tif (collection !== "campaign_pages" || !isDirty) return;
+\t\tconst warnBeforeLeaving = (event) => {
+\t\t\tevent.preventDefault();
+\t\t\tevent.returnValue = "";
+\t\t};
+\t\twindow.addEventListener("beforeunload", warnBeforeLeaving);
+\t\treturn () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+\t}, [collection, isDirty]);`,
+  );
   // A CMS logout must revoke the same Core session used by both surfaces.
   // Never open native EmDash auth routes or pretend a failed logout succeeded.
   replace(

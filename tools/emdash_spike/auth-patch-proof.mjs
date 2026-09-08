@@ -34,6 +34,58 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+const header = revisioned.slice(
+  revisioned.indexOf("function Header()"),
+  revisioned.indexOf("//#region src/components/WelcomeModal.tsx"),
+);
+assert.ok(header.includes('href: "/admin/"'));
+assert.ok(header.includes('jsx("a", { href: "/admin/"'));
+assert.ok(header.includes('children: "Zurück zu LeonAid"'));
+assert.ok(!header.includes("external: true"));
+assert.ok(!header.includes('message: "View Site"'));
+const guard = revisioned.match(
+  /React\$1\.useEffect\(\(\) => \{\n\t\tif \(collection !== "campaign_pages" \|\| !isDirty\)[\s\S]+?\}, \[collection, isDirty\]\);/,
+);
+assert.ok(guard);
+for (const [collection, dirty, expected] of [
+  ["campaign_pages", true, 1],
+  ["campaign_pages", false, 0],
+  ["posts", true, 0],
+]) {
+  const listeners = new Map();
+  let cleanup;
+  new Function("React$1", "window", "collection", "isDirty", guard[0])(
+    {
+      useEffect: (effect) => {
+        cleanup = effect();
+      },
+    },
+    {
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener: (name, listener) => {
+        assert.equal(listeners.get(name), listener);
+        listeners.delete(name);
+      },
+    },
+    collection,
+    dirty,
+  );
+  assert.equal(listeners.size, expected);
+  if (expected) {
+    let prevented = false;
+    const event = {
+      preventDefault: () => {
+        prevented = true;
+      },
+      returnValue: null,
+    };
+    listeners.get("beforeunload")(event);
+    assert.ok(prevented);
+    assert.equal(event.returnValue, "");
+    cleanup();
+    assert.equal(listeners.size, 0);
+  }
+}
 const logout = revisioned.slice(
   revisioned.indexOf("async function handleLogout()"),
   revisioned.indexOf("function Header()"),

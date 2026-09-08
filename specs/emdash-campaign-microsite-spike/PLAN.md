@@ -2554,8 +2554,22 @@ Dependencies: EMS-030, EMS-050
       campaign chooser that reveals only manageable campaigns.
 - [ ] Open EmDash as a normal top-level navigation on the same origin; do not
       use `target=_blank` by default and do not add an iframe.
-- [ ] Add a visible **Back to LeonAid** affordance in the EmDash admin branding
+- [x] Add a visible **Back to LeonAid** affordance in the EmDash admin branding
       or supported extension point.
+      Reuse the native header's former View Site position with a styled HTML
+      anchor labelled `Zurück zu LeonAid`, targeting `/admin/` in the same tab.
+      The initial Kumo LinkButton attempt was rejected by visible acceptance:
+      EmDash's LinkProvider rewrote it to `/_emdash/admin/admin`. The HTML
+      anchor avoids that router without a second navigation system. The exact
+      installed-source patch test now requires the native anchor. Targeted
+      patch checks and the production CMS build passed (49 Astro files without
+      diagnostics). After updating only the visible demo CMS, the In-App
+      Browser showed the correct target and clicking it opened the Charity
+      dashboard in the same tab with the existing Core login. The existing
+      campaign dirty state also installs/removes a native beforeunload warning;
+      its guard and cleanup are checked in the patch proof, but the actual
+      browser warning interaction and the broader transition checks below are
+      still separate acceptance work.
 - [ ] Preserve keyboard focus, browser Back behaviour, mobile navigation, and
       unsaved-change warnings across the transition.
 - [ ] Do not copy operational LeonAid forms or domain mutations into EmDash.
