@@ -2652,6 +2652,12 @@ keyboard and 200% zoom checks.
         after the CRM write transport timeout at this partial-write boundary,
         not every cancellation boundary, body/whole-response deadlines or
         combined-load/multiworker capacity; the parent acceptance remains open.
+        Full `./leonaid check` on source commit `a27bc9f` exited 0: 269 unit
+        tests, 276 Python source files typechecked, 321 Python files formatted,
+        public/CMS Astro checks on 25/49 files without diagnostics, generated
+        types, formatting, privacy and repository policy gates passed. The
+        committed tree remained unchanged. Existing Pydantic and Vite dependency
+        warnings remain.
   - Native-browser deadline proof was added to `krapfentaxi-orders` using
     a real PostgreSQL advisory-lock controller, a browser-visible native error,
     unchanged command/input retry and full Core/Twenty snapshots before timeout
