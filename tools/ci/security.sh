@@ -7,6 +7,11 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \
+  python /workspace/tools/ci/capture_command_test.py /workspace
+
+docker run --rm \
+  --volume "$root:/workspace:ro" \
+  "$PYTHON_IMAGE" \
   python /workspace/tools/ci/no_test_doubles_test.py /workspace
 docker run --rm \
   --volume "$root:/workspace:ro" \

@@ -1,0 +1,25 @@
+{
+  "parentCommit": "562de8b2985a8d66b18b657530d07fc6407f98a8",
+  "failedCiJob": 102181646282,
+  "originalJobFailure": "Artifact sanitizer rejected non-UTF-8 command.log after all security commands succeeded",
+  "sourceHashes": {
+    "tools/ci/capture-command.sh": "186f9c0c56265cf84ba0f7732210ce40f23205ec3d902e89bcbf4d59e160dd0a",
+    "tools/ci/capture_command_test.py": "5d37d1519be3a2d0479cd25114bb770059b559977580dc938505fde84d6bc930",
+    "tools/ci/run-job.sh": "1ffba1db4f503287787b1c6778a44abdff908a091f21b374bc9ae92d5d0db416",
+    "tools/ci/security.sh": "eafe163fdcabb616faa137c01fa64c7a29483b8451452fe358cba29eaad5fd46"
+  },
+  "processTests": {
+    "cases": 5,
+    "macosExitCode": 0,
+    "pinnedLinuxPythonExitCode": 0
+  },
+  "actualCiWrapper": {
+    "trivyExitCode": 0,
+    "sanitizedArtifactCount": 2,
+    "commandLogSha256": "f071ad634039239de27248336eda8be6afba4fae140a800eedffd94207ba862b",
+    "genuinelyInvalidInputExitCode": 70,
+    "genuinelyInvalidLogDiscarded": true
+  },
+  "sanitizerUnchanged": true,
+  "fullCiAccepted": false
+}
