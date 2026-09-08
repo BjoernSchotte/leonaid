@@ -55,6 +55,8 @@ if [ "$test_case" = recovery-app ] || [ "$test_case" = recovery-orders ] || [ "$
     "$PYTHON_IMAGE" python tools/backup/compose_overlays_test.py
   docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
     "$PYTHON_IMAGE" python tools/backup/restore_scope_test.py
+  docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+    "$PYTHON_IMAGE" python tools/backup/resume_test.py
   recovery_orders=false
   recovery_import=false
   cutover_rollback=false

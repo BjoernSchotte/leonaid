@@ -5,8 +5,15 @@
 source_runtime_identity() {
   for service in api core-postgres twenty-server twenty-worker rustfs public proxy; do
     instance=$(compose ps --quiet "$service")
-    [ -n "$instance" ] || return 1
-    docker inspect --format '{{.Id}} {{.State.Running}}' "$instance"
+    if [ -z "$instance" ]; then
+      echo "cutover-rollback: required source service missing: $service" >&2
+      return 1
+    fi
+    identity=$(docker inspect --format '{{.Id}} {{.State.Running}}' "$instance") || return 1
+    case "$identity" in
+      *" true") printf '%s\n' "$identity" ;;
+      *) echo "cutover-rollback: required source service not running: $service" >&2; return 1 ;;
+    esac
   done
 }
 source_runtime_before=$(source_runtime_identity)

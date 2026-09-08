@@ -3858,7 +3858,7 @@ another running checkout or authorize production deployment.
       set `LEONAID_ENV=test`, matching the existing internal-ingress proof;
       the guard remains intact. All owned resources were cleaned. Cutover,
       newer-order preservation and CMS-only restore still require the full
-        subsequent live run; do not mark the parent rollback item complete.
+      subsequent live run; do not mark the parent rollback item complete.
 
       Source quality for `3aa8776` was reverified after Docker recovered:
       `./leonaid check` exited 0, with 269 unit tests, 273 Python source files
@@ -3866,6 +3866,21 @@ another running checkout or authorize production deployment.
       all generated-type, formatting and policy gates passed. The committed
       tree remained unchanged. The earlier interrupted check has no claimed
       result; this completed rerun supplies the evidence instead.
+
+      Follow-up `leonaid-poc112-tmp-feorhypjjh` again passed all 24 actual
+      browser orders, twelve native replays and Core/Twenty verification.
+      Encrypted snapshot `36627002` passed the exact seven-file inventory and
+      full Restic integrity check. The run then exited 1 before cutover; a
+      read-only status snapshot showed the source API and RustFS containers
+      as `Dead`. All owned test resources were removed. The Docker lifecycle
+      cause is not established. Backup cleanup previously suppressed restart
+      failures and printed success before resumption; it now requires
+      `compose start --wait --wait-timeout 420`, propagates restart failure
+      while preserving an earlier failure, and emits final success only after
+      cleanup. Raw restart output stays private. Cutover now diagnoses missing
+      or stopped required source services explicitly. These changes do not
+      claim a successful cutover or rollback; the full live gate remains open.
+
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 

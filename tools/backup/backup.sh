@@ -107,12 +107,19 @@ compose() {
 cleanup() {
   status=$?
   if [ "$writers_stopped" = "true" ] && [ -n "$restart_services" ]; then
-    compose start $restart_services >/dev/null 2>&1 || true
+    echo "backup: resuming previously running services; waiting for readiness"
+    if ! compose start --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
+      echo "backup: ERROR: source services failed to resume; inspect service health before continuing" >&2
+      if [ "$status" -eq 0 ]; then status=1; fi
+    fi
   fi
   if [ -n "$manifest_output_tmp" ]; then
     rm -f "$manifest_output_tmp"
   fi
   rm -rf "$stage"
+  if [ "$status" -eq 0 ]; then
+    echo "backup: OK: $project konsistent, verschlüsselt und integritätsgeprüft; source services resumed"
+  fi
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
@@ -288,4 +295,4 @@ if [ -n "$manifest_output" ]; then
   manifest_output_tmp=
 fi
 
-echo "backup: OK: $project konsistent, verschlüsselt und integritätsgeprüft"
+echo "backup: snapshot integrity verified; completing source recovery"
