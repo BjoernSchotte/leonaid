@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scope": "Complete seed regression only; parent 100.3l and 100.S2k remain open",
+  "run": {
+    "mode": "seed",
+    "exitCode": 0,
+    "seconds": 1803.991,
+    "ownedResourcesAbsent": true,
+    "projects": [
+      "leonaid-poc012-test-833458328-53359"
+    ],
+    "sourceCheckpoint": "631a8c3f0d436d2b2a2b3b53224c0845fa5c1072",
+    "sourceHashes": {
+      "tools/seed/test.sh": "60b59c225e3d9554e973de84acd28971dfc85b471087565102d9fbb20442d4ac",
+      "tools/seed/safety.py": "37791386c1cc8aedb6acb6c6f50ace16b6eb518fb18e413978384d022cc2576f",
+      "tools/seed/safety_test.py": "a3f644baa15a5efe894779870685c42ff9b37ba4d76c678b0bee6a4331f17dc4"
+    }
+  },
+  "originalBusinessSequenceUnchanged": true,
+  "privateLogSha256": "7ff49c8f7a5098734b6df78cd29ddb0f6740e54b1ff85ad98fb8d3e956155681",
+  "assertionsObserved": [
+    "reset-safety: ABGEWIESEN:",
+    "snapshot-check: OK: golden",
+    "snapshot-check: OK: mutated",
+    "snapshot-check: OK: equivalent",
+    "seed-test: OK: Sicherheit, Idempotenz, Mutation und exakter Reset bewiesen",
+    "passed and owned resources were removed"
+  ],
+  "parentTaskAccepted": false
+}
