@@ -3880,6 +3880,11 @@ another running checkout or authorize production deployment.
       cleanup. Raw restart output stays private. Cutover now diagnoses missing
       or stopped required source services explicitly. These changes do not
       claim a successful cutover or rollback; the full live gate remains open.
+      The focused netless regression passed all six cleanup/restart cases,
+      including original-error preservation and private-output suppression.
+      Full `./leonaid check` at `1cd8708` exited 0: 269 unit tests, 274 Python
+      source files typechecked, public/CMS Astro checks on 25/49 files without
+      diagnostics, generated-type/format/policy gates and an unchanged tree.
 
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
