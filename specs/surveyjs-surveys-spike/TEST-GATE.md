@@ -1,8 +1,10 @@
 # Survey test gate
 
-The aggregate implementation is under verification. A command existing or a
-single group passing does not accept **100.A1**, the remote CI lane or the whole
-spike. Consult the per-run result and the acceptance checklist.
+The agreed functional spike is accepted in [the closeout review](proofs/SURV-100-CLOSEOUT.md).
+A command existing or one group passing is never sufficient: the review records
+all 39 checks twice, manual evidence and a separate regression for the final
+publication-refresh correction. Independent physical host-loss acceptance stays
+deferred before production; a future push-triggered CI is not pre-labelled passing.
 
 ## Commands
 
@@ -18,7 +20,7 @@ Run from the repository root after `./leonaid bootstrap`:
 ./leonaid test-surveys-e2e
 ```
 
-The default aggregate executes all 38 entries in
+The default aggregate executes all 39 entries in
 [`tools/surveys/gate.json`](../../tools/surveys/gate.json), in manifest order.
 `--repeat 2` executes the whole selection twice; every service harness creates
 fresh owned resources each time. It does not rerun only failed cases. A nonzero
@@ -31,7 +33,7 @@ part of the full aggregate. Existing individual leaf commands remain available.
 
 | Group | Checks | Scope |
 |---|---:|---|
-| foundation | 7 | Controller process behavior, restore receipts, all survey unit tests, validation comparison, dependency inventory, empty/existing-data migrations and deliberate browser failure diagnostics |
+| foundation | 8 | Controller process behavior, standalone resource safety, restore receipts, all survey unit tests, validation comparison, dependency inventory, empty/existing-data migrations and deliberate browser failure diagnostics |
 | integration | 10 | Real aggregate engine outage/restart, all write contracts, lifecycle and observed competing lock orders, invitations, permissions, aggregates/analysis and public/payload limits |
 | editor | 3 | Full editor/authoring/accessibility suite, preview isolation and host branding/completion/progress |
 | responses | 2 | Response API and complete autosave, validation-adapter, resume/restart/browser suite |
@@ -91,8 +93,10 @@ proof does not substitute for observing the actual GitHub Actions run.
 This survey aggregate does not invoke the repository's 42-command
 `test-integration` suite or replace **100.A3**. Those existing regression checks
 have their own acceptance, including safe isolation of their legacy harnesses.
-The unresolved host-loss recovery and other open criteria remain required even
-when a narrower recovery fixture or the complete automated gate passes.
+Independent physical host-loss recovery and independent newest-deletion-cutoff
+provenance are deferred to deployment-specific operational acceptance before
+production use, as agreed in PLAN.md. They are not counted as passing tests.
+Existing local recovery and deletion-reapplication checks remain mandatory.
 
 
 ## Bounded CI diagnostics

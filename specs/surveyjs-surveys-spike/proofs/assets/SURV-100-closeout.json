@@ -1,0 +1,604 @@
+{
+  "sourceCheckpoint": "913c2f751136bee433c3f4ef139c6ec628a5da95",
+  "testedMerge": "8ce63d96f424da32b0ce4e28633611904b8b5cd2",
+  "mergeSourceFilesEqual": true,
+  "manifestSha256": "397bd4359ed9757957a8727a7016079208c96ad69784760b935a8776f4021d98",
+  "checksPerPass": 39,
+  "passes": 2,
+  "zeroExits": 78,
+  "groups": {
+    "recovery": [
+      {
+        "id": "deletion",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 456.231
+      },
+      {
+        "id": "deletion-races",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 151.068
+      },
+      {
+        "id": "deletion-ui",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 168.612
+      },
+      {
+        "id": "retention",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 164.3
+      },
+      {
+        "id": "recovery",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 259.518
+      },
+      {
+        "id": "restic-manual",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 432.05
+      },
+      {
+        "id": "restic-archive",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 458.293
+      },
+      {
+        "id": "restic-durable",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 448.099
+      },
+      {
+        "id": "pilot-survey-recovery",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 865.085
+      },
+      {
+        "id": "deletion",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 159.938
+      },
+      {
+        "id": "deletion-races",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 151.221
+      },
+      {
+        "id": "deletion-ui",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 173.881
+      },
+      {
+        "id": "retention",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 164.16
+      },
+      {
+        "id": "recovery",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 263.432
+      },
+      {
+        "id": "restic-manual",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 431.495
+      },
+      {
+        "id": "restic-archive",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 441.175
+      },
+      {
+        "id": "restic-durable",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 432.45
+      },
+      {
+        "id": "pilot-survey-recovery",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 860.774
+      }
+    ],
+    "integration": [
+      {
+        "id": "aggregate-engine",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 20.579
+      },
+      {
+        "id": "contracts",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 479.455
+      },
+      {
+        "id": "lifecycle",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 186.131
+      },
+      {
+        "id": "lifecycle-concurrency",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 120.867
+      },
+      {
+        "id": "invitations",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 183.676
+      },
+      {
+        "id": "permissions",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 348.721
+      },
+      {
+        "id": "aggregates",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 167.723
+      },
+      {
+        "id": "analysis",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 202.641
+      },
+      {
+        "id": "request-limits",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 150.718
+      },
+      {
+        "id": "payload-limits",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 150.567
+      },
+      {
+        "id": "aggregate-engine",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 20.63
+      },
+      {
+        "id": "contracts",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 208.254
+      },
+      {
+        "id": "lifecycle",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 185.228
+      },
+      {
+        "id": "lifecycle-concurrency",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 115.381
+      },
+      {
+        "id": "invitations",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 183.324
+      },
+      {
+        "id": "permissions",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 347.171
+      },
+      {
+        "id": "aggregates",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 166.614
+      },
+      {
+        "id": "analysis",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 191.495
+      },
+      {
+        "id": "request-limits",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 144.482
+      },
+      {
+        "id": "payload-limits",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 144.882
+      }
+    ],
+    "exports": [
+      {
+        "id": "exports",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 484.329
+      },
+      {
+        "id": "export-permissions",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 155.178
+      },
+      {
+        "id": "export-states",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 163.098
+      },
+      {
+        "id": "export-recovery",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 246.732
+      },
+      {
+        "id": "export-limits",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 145.733
+      },
+      {
+        "id": "exports",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 209.399
+      },
+      {
+        "id": "export-permissions",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 155.631
+      },
+      {
+        "id": "export-states",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 163.506
+      },
+      {
+        "id": "export-recovery",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 246.983
+      },
+      {
+        "id": "export-limits",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 145.887
+      }
+    ],
+    "editor": [
+      {
+        "id": "editor",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 497.404
+      },
+      {
+        "id": "preview",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 144.271
+      },
+      {
+        "id": "branding",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 151.869
+      },
+      {
+        "id": "editor",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 228.155
+      },
+      {
+        "id": "preview",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 144.476
+      },
+      {
+        "id": "branding",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 153.323
+      }
+    ],
+    "responses": [
+      {
+        "id": "responses",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 379.11
+      },
+      {
+        "id": "runner",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 247.835
+      },
+      {
+        "id": "responses",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 134.349
+      },
+      {
+        "id": "runner",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 248.085
+      }
+    ],
+    "foundation": [
+      {
+        "id": "gate-controller",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 0.665
+      },
+      {
+        "id": "restore-receipts",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 0.465
+      },
+      {
+        "id": "core",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 7.93
+      },
+      {
+        "id": "validation-candidate",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 2.87
+      },
+      {
+        "id": "dependencies",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 0.815
+      },
+      {
+        "id": "standalone-resources",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 0.815
+      },
+      {
+        "id": "migrations",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 28.315
+      },
+      {
+        "id": "foundation-diagnostics",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 510.266
+      },
+      {
+        "id": "gate-controller",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 0.615
+      },
+      {
+        "id": "restore-receipts",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 0.214
+      },
+      {
+        "id": "core",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 7.127
+      },
+      {
+        "id": "validation-candidate",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 2.218
+      },
+      {
+        "id": "dependencies",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 0.715
+      },
+      {
+        "id": "standalone-resources",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 0.765
+      },
+      {
+        "id": "migrations",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 11.637
+      },
+      {
+        "id": "foundation-diagnostics",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 249.685
+      }
+    ],
+    "e2e": [
+      {
+        "id": "journeys",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 480.267
+      },
+      {
+        "id": "journeys",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 211.418
+      }
+    ],
+    "package": [
+      {
+        "id": "packed-consumer",
+        "pass": 1,
+        "exitCode": 0,
+        "seconds": 51.335
+      },
+      {
+        "id": "packed-consumer",
+        "pass": 2,
+        "exitCode": 0,
+        "seconds": 23.127
+      }
+    ]
+  },
+  "mainCi": [
+    {
+      "name": "Contract",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264700"
+    },
+    {
+      "name": "Security",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264793"
+    },
+    {
+      "name": "Lint and types",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264805"
+    },
+    {
+      "name": "Unit",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264858"
+    },
+    {
+      "name": "Integration",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264886"
+    },
+    {
+      "name": "E2E / acquisition",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264888"
+    },
+    {
+      "name": "Build",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264903"
+    },
+    {
+      "name": "E2E / public",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264936"
+    },
+    {
+      "name": "Golden journey",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264938"
+    },
+    {
+      "name": "E2E / actions",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215264960"
+    },
+    {
+      "name": "E2E / invoices",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215265064"
+    },
+    {
+      "name": "E2E / identity",
+      "conclusion": "success",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215265115"
+    },
+    {
+      "name": "Artifact probe",
+      "conclusion": "skipped",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215266123"
+    },
+    {
+      "name": "Pilot cold rehearsal",
+      "conclusion": "skipped",
+      "url": "https://github.com/BjoernSchotte/leonaid/actions/runs/34271899823/job/102215266769"
+    }
+  ],
+  "targetedChangedSourceProof": "SURV-095-in-app-browser.json",
+  "scope": "Full CI checkpoint followed by targeted publication-refresh E2E and manual proof. A later push-triggered CI is not pre-labelled passing.",
+  "agreedFunctionalSpikeAccepted": true,
+  "independentHostLossRecoveryAccepted": false,
+  "artifactReview": {
+    "filesChecked": 207,
+    "fileTargetsChecked": 792,
+    "privateValuesChecked": 20,
+    "findings": [],
+    "unchangedPreviouslyParsedPdfs": 8,
+    "scope": "Tracked spec/proof raw bytes and Markdown file targets, JSON parsing; hash equivalence to prior PDF text/metadata scan. No new render/OCR or anchor review."
+  },
+  "taskReconciliation": {
+    "tasks": 104,
+    "states": {
+      "accepted": 101,
+      "deferred": 3
+    },
+    "taskEvidenceTargetsAndFragments": 170,
+    "capabilityIds": [
+      "C-01",
+      "C-02",
+      "C-03",
+      "C-04",
+      "C-05",
+      "C-06",
+      "C-07",
+      "C-08",
+      "C-09",
+      "C-10",
+      "C-11",
+      "C-12",
+      "C-13",
+      "C-14",
+      "C-15"
+    ]
+  }
+}

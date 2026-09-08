@@ -7,7 +7,9 @@ Own license: **UNDEFINED**. Commercial components remain excluded.
 
 A checkbox here means **task acceptance**, not merely code delivery. Open entries
 await a task-by-task evidence review; checked entries retain their linked proof.
-This does not reset checked delivery or criteria in PLAN.md. Check a task only when every listed criterion
+The scope decision in PLAN.md retains 090.2, 090.2b and 090.T1 as deferred
+deployment obligations, not failed or passed spike tests. This does not reset
+checked delivery or criteria in PLAN.md. Check a task only when every listed criterion
 and relevant assertion passes, and link the task-specific proof using
 [TASK-ACCEPTANCE.md](TASK-ACCEPTANCE.md).
 
@@ -363,7 +365,7 @@ terminal-state proofs below; the full spike retains its separate open gates.
   E2E: **090.S5**, including confirmation, reload and retry controls.
   [Task-level source and evidence reconciliation](proofs/SURV-090.md#deletion-task-and-scenario-reconciliation) covers these assertions.
 
-- [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
+- [ ] **090.2** **Deferred to deployment acceptance:** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data.
 
   Acceptance criteria: **090.A3**.
   Integration / supporting checks: **090.S3**.
@@ -376,7 +378,7 @@ terminal-state proofs below; the full spike retains its separate open gates.
   E2E — work-package regression gate: **090.S5**. The operator CLI proof does not replace browser coverage or complete the parent recovery criterion.
   [Assertion reconciliation](proofs/TASK-STATUS-RECONCILIATION.md) accepts this operator portion; parent 090.2 / 090.A3 remain open.
 
-- [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection.
+- [ ] **090.2b** **Deferred to deployment acceptance:** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection.
 
   Acceptance criteria: **090.A3, checkpoint continuity portion**; preserve the complete parent recovery contract.
   Integration / supporting checks: **090.S3** and **090.S3a–090.S3f**. Require trustworthy cutoff provenance after unexpected host loss and preceding-backup compatibility; accepted sub-scenarios alone do not close this task.
@@ -473,7 +475,7 @@ terminal-state proofs below; the full spike retains its separate open gates.
 
 **100.A1 is accepted:** all 38 survey checks passed twice in the complete CI matrix at e030836. [Evidence](proofs/SURV-100-CI-REPEAT.md). Parent tasks remain open for their other criteria; 100.S1 retains the final cross-harness cleanup reconciliation.
 
-- [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
+- [x] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling.
 
   Acceptance criteria: **100.A1, 100.A2, 100.A3, 100.A5**.
   Integration / supporting checks: **100.S1, 100.S2, 100.S3**.
@@ -498,7 +500,7 @@ The remaining regression, recovery, cleanup and delivery requirements stay open.
 
 - [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The capability/task audit is reconciled in [TRACEABILITY.md](TRACEABILITY.md#review-decision); broader regression and delivery gates remain open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
 
-- [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
+- [x] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites.
 
   Acceptance criteria: **100.A3, 100.A5**.
   Integration / supporting checks: **100.S2, 100.S3**.
@@ -532,14 +534,14 @@ The remaining regression, recovery, cleanup and delivery requirements stay open.
 - [x] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone. [Live evidence](proofs/SURV-100.md#six-more-isolated-regressions).
 - [x] **100.3h** Isolate and execute the existing Typst, storage, documents, mail relay, invoice delivery and invoice settlement regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/SMTP/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2g**. Guard-only results do not accept the real-service requirement. [Live evidence](proofs/SURV-100-DOCUMENT-MAIL.md).
 
-- [ ] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Candidate builds/scans passed locally; application and CI integration remain open. The prior VEX proposal was not approved or delivered.
+- [x] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Both architecture builds/scans, application integration and branch Security/SBOM CI pass; see the closeout proof. The prior VEX proposal was not approved or delivered.
 
 - [x] **100.3j** Isolate and execute operations, dashboard and application security regressions. Acceptance: **100.A3, these three named suites only**; retain original authorization, real dependency outage/recovery, database, browser and accessibility assertions, reserve unique networks without host ports and verify owned cleanup. Integration/E2E: **100.S2i**. Application security tests are independent of the pending Caddy image disposition. [Live evidence](proofs/SURV-100-OPERATIONS.md).
 - [x] **100.3m** Complete the feature flags, UI system and UX acceptance regressions. Acceptance: **100.A3, these three named suites only**; retain original feature authorization, screenshot, accessibility and performance assertions and verify owned cleanup. Integration/E2E: **100.S2l**. All three complete runs and the route-loading Journey regression pass with independent cleanup. [Live evidence](proofs/SURV-100-UI-UX.md). The full parent gate remains open.
 - [x] **100.3k** Isolate and execute privacy, testkit and the existing Golden Journey. Acceptance: **100.A3, three named suites only**; retain privacy/data-boundary checks, real testkit services and browser verification, and all Golden Journey browsers/rounds including deterministic reset. Re-reserve networks for each owned reset generation and verify final cleanup. Integration/E2E: **100.S2j**. [Complete live evidence](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md).
 - [x] **100.3l** Isolate and execute the remaining seed, backup and upgrade operator regressions. Acceptance: **100.A3, three named suites only**; isolate CLI state, snapshots, source/target projects and restore state, preserve every original destructive-target rejection, seed/reset equivalence, encrypted backup, recovery and upgrade/rollback assertion, and verify owned cleanup. Integration/operator and browser E2E: **100.S2k**. Existing empty-erasure backup fixtures do not accept SURV-090 independent-host recovery. [Seed](proofs/SURV-100-SEED.md), [backup](proofs/SURV-100-BACKUP.md) and [upgrade/rollback](proofs/SURV-100-UPGRADE.md) pass with independently verified cleanup.
 
-- [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
+- [x] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided.
 
   Acceptance criteria: **100.A4, 100.A5**.
   Integration / supporting checks: **100.S3**.
@@ -549,5 +551,14 @@ The remaining regression, recovery, cleanup and delivery requirements stay open.
 
 - [x] Every implementation task in PLAN.md has exactly one entry above (76 implementation IDs reconciled; this is a documentation inventory check, not implementation acceptance).
 - [x] Every completed task links to its task-level proof; no inferred passing status. [Reviewed inventory](TRACEABILITY.md#review-decision).
-- [ ] Changes to tasks, criteria or scenarios update this matrix in the same commit.
-- [ ] Remaining open tasks are listed in the spike report and prevent full completion.
+- [x] Changes to tasks, criteria or scenarios update this matrix in the same commit.
+- [x] Remaining deployment obligations are listed as deferred in the spike report; they prevent a production-recovery claim, not the agreed functional-spike closeout.
+
+## Final functional closeout — 2026-09-08
+
+[Final acceptance evidence](proofs/SURV-100-CLOSEOUT.md). Tasks 100.1, 100.3, 100.3i, 100.4 and 100.T1
+are accepted using the full two-pass CI checkpoint, the changed-source
+publication-refresh regression, the final in-app walkthrough and artifact
+review. Historical paragraphs describing these tasks as open retain their
+original checkpoint context. Tasks 090.2, 090.2b and 090.T1 remain unchecked
+deployment obligations under the agreed scope decision.

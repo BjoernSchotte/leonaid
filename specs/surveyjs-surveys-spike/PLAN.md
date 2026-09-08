@@ -29,6 +29,15 @@ identifiers and the specification directory use English.
 
 ## 1. Objective and scope
 
+Completion scope agreed on 2026-09-08: finish the functional spike using the
+existing automated gates and a final Codex in-app-browser walkthrough. Independent
+physical source-host-loss recovery and independent newest-deletion-cutoff
+provenance move to deployment-specific operational acceptance before production
+use. They must remain recorded as deferred, not as passing tests. Existing local
+backup/restore, deletion reapplication, authorization and privacy requirements
+remain part of spike acceptance. No additional product features or test framework
+are required for this closeout.
+
 Provide a dedicated Surveys module for non-technical LeonAid members. Surveys
 can stand alone or optionally belong to a CharityAction. An author creates a
 multi-page questionnaire visually, publishes it, collects partial and complete
@@ -545,9 +554,10 @@ proof together. The acceptance IDs and required outcomes remain authoritative.
 - [x] **Analysis gate:** accept SURV-070 against hand-calculated fixtures before
   using its snapshots as the reference values for SURV-080 export acceptance.
   [Reconciled golden/API/browser evidence](proofs/SURV-070.md#analysis-gate-reconciliation).
-- [ ] **Final gate:** complete SURV-100 only after all required predecessor
-  criteria and the exit criteria below pass. Record any missing prerequisite as
-  open; do not replace it with a narrower successful test.
+- [x] **Final gate:** the agreed functional-spike scope passes with the full CI
+  checkpoint, targeted changed-source regression and manual review. The three
+  independent host-loss obligations remain deferred to deployment acceptance,
+  not passed. [Final acceptance evidence](proofs/SURV-100-CLOSEOUT.md).
 
 Independent implementation may proceed while a gate is open, but dependent
 acceptance remains open until its prerequisite evidence exists. These gates
@@ -811,9 +821,9 @@ Implementation tasks:
 
 - [x] **090.1** Implement trash/restore, configurable retention and retryable permanent deletion of definitions, responses, invitations and export objects. Acceptance: **090.A1, 090.A2, 090.A5**. [Consolidated evidence](proofs/SURV-090.md#deterministic-deletion-interleavings).
 - [x] **090.1a** Deliver explicit permanent-erasure confirmation, durable reloadable status and administrative retry controls; prove the open-respondent trash/restore journey. Acceptance: **090.A5**, plus actual pending/failure/retry/completed states and access checks. [Evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance). Parent 090.1 is now accepted with the deterministic 090.A1 interleavings.
-- [ ] **090.2** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data. Acceptance: **090.A3**.
+- [ ] **090.2** **Deferred to deployment acceptance:** Implement content-free deletion records and restore-time reapplication; integrate the existing backup/recovery workflow using isolated synthetic data. Acceptance: **090.A3**.
 - [x] **090.2a** Prove the existing encrypted Restic backup, manifest validation and fresh-target restore with a post-backup deletion: absent checkpoint blocks startup, valid checkpoint erases restored data before startup, and no-build restoration preserves source image identities. Acceptance: **090.A3, operator integration portion**. [Live evidence](proofs/SURV-090.md#full-restic-backup-and-fresh-target-restore).
-- [ ] **090.2b** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection. Acceptance: **090.A3, checkpoint continuity portion**; preserve the full parent task's scope and the recovery contract.
+- [ ] **090.2b** **Deferred to deployment acceptance:** Retain the latest authenticated deletion checkpoint independently and prove the required recovery cutoff across source loss, including interrupted publication and stale-file rejection. Acceptance: **090.A3, checkpoint continuity portion**; preserve the full parent task's scope and the recovery contract.
 - [x] **090.2c** Provide an authenticated filesystem archive with interruption-safe publication and offline fetch; prove stale/incomplete archive rejection and real Restic restoration after source-project removal. Acceptance: **090.A3, archive primitive portion**. Integration: **090.S3a**. [Live evidence](proofs/SURV-090.md#independent-checkpoint-archive-and-interrupted-publication). Full 090.2b remains open for continuously coupling accepted erasures to independent retention and establishing the recovery cutoff across unexpected host loss.
 - [x] **090.2d** Couple manual deletion acknowledgement and production worker cleanup to the independent archive. Prove archive-outage HTTP 503, durable exact-operation retries, unchanged original ledger/outbox identity, no cleanup during outage and real old-backup restoration after source-project removal without an explicit post-deletion export. Acceptance: **090.A3, acknowledgement portion**. Integration: **090.S3b**. Retention-originated interruption is covered by 090.2e; full 090.2b remains open for host-loss cutoff provenance and the remaining operator recovery contract. [Live evidence](proofs/SURV-090.md#automatic-archive-acknowledgement-and-worker-gate).
 - [x] **090.2e** Interrupt retention after its database commit and durable pending archive publication; recover with zero new candidates and unchanged ledger/event identities, then prove production-worker completion and preservation of inactive answers. Acceptance: **090.A3, retention continuity portion**. Integration: **090.S3c**, plus existing retention browser regression. Parent 090.2b remains open for independent host-loss cutoff and operator compatibility. [Live evidence](proofs/SURV-090.md#retention-publication-interruption-and-recovery).
@@ -827,14 +837,14 @@ Implementation tasks:
 
 Test implementation and verification tasks:
 
-- [ ] **090.T1** Race deletion with saves/completion/export, interrupt and retry database/object cleanup, restore a real synthetic backup and reapply deletion records; verify limits and scan logs for seeded sensitive markers. Acceptance: **090.A1, 090.A2, 090.A3, 090.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [ ] **090.T1** **Deferred to deployment acceptance:** Race deletion with saves/completion/export, interrupt and retry database/object cleanup, restore a real synthetic backup and reapply deletion records; verify limits and scan logs for seeded sensitive markers. Acceptance: **090.A1, 090.A2, 090.A3, 090.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 - [x] **090.T2** Trash a survey while its public page is open; verify visible save rejection, blocked invitations/downloads, and restoration without automatic public reopening. Acceptance: **090.A5**. [Chromium, PostgreSQL and worker proof](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance), including separate mobile visual observations.
 
 Acceptance criteria:
 
 - [x] **090.A1 — Integration:** race deletion against autosave, completion and export workers; no late write recreates deleted data or leaves a downloadable export. [Six real lock-order cases](proofs/SURV-090.md#deterministic-deletion-interleavings).
 - [x] **090.A2 — Integration:** crash/retry permanent deletion across PostgreSQL and RustFS; all targeted content is removed and repeated processing remains safe. [Evidence](proofs/SURV-090.md#durable-erasure-and-process-crash-recovery).
-- [ ] **090.A3 — Integration:** restore a real test backup, reapply deletion records and verify previously deleted survey data is inaccessible and removed; demonstrate that inactivity alone deletes nothing.
+- [ ] **090.A3 — Integration (full host-loss scope deferred to deployment acceptance):** restore a real test backup, reapply deletion records and verify previously deleted survey data is inaccessible and removed; demonstrate that inactivity alone deletes nothing.
 - [x] **090.A4 — Integration:** over-limit requests fail predictably without partial writes; inspect captured logs for seeded sensitive markers and credentials. [Public, payload and export evidence](proofs/SURV-090.md#export-admission-and-log-acceptance).
 - [x] **090.A5 — E2E:** trash a survey while its public page is open; subsequent saves fail visibly, invitations/downloads stop working, and restore keeps participation closed until the permitted lifecycle action. [Evidence](proofs/SURV-090.md#manual-erasure-status-and-open-respondent-browser-acceptance).
 
@@ -849,7 +859,7 @@ Dependencies: SURV-000–090, including deferred lifecycle E2E acceptance.
 
 Implementation tasks:
 
-- [ ] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling. Acceptance: **100.A1, 100.A2, 100.A3, 100.A5**.
+- [x] **100.1** Wire the aggregate survey test command and CI lane, deterministic isolation/cleanup and failure artifact handling. Acceptance: **100.A1, 100.A2, 100.A3, 100.A5**.
 
   [All three complete Restic modes now pass with strict cleanup](proofs/SURV-100-RESTIC-CLEANUP.md), including a real archive-removal failure probe and independent final inventories. This resolves the Restic cleanup defect; the parent task and final repeated aggregate remain open.
   [Standalone collision rejection and cleanup are now live-proven](proofs/SURV-100-STANDALONE-RESOURCES.md), including complete migrations, packed-consumer and aggregate-engine runs. The revised aggregate includes the new safety test (39 checks per pass); final repeated CI and parent acceptance remain open.
@@ -860,7 +870,7 @@ Implementation tasks:
 - [x] **100.2** Execute complete author → invite/public participation → abandon/resume → analyze → export → archive/delete journeys for both sample surveys. Acceptance: **100.A2, 100.A4**. Browser delivery and **100.A2** are [proven](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys); **100.A4** is [reconciled with explicit open tasks](TRACEABILITY.md#review-decision).
 - [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The capability/task audit is reconciled in [TRACEABILITY.md](TRACEABILITY.md#review-decision); broader regression and delivery gates remain open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
 
-- [ ] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites. Acceptance: **100.A3, 100.A5**.
+- [x] **100.3** Verify the packed independent consumer and run affected existing identity, policy, public and integration regression suites. Acceptance: **100.A3, 100.A5**.
 - [x] **100.3a** Resolve the React peer-range versus runtime pin-policy conflict; reject unreviewed exceptions and host drift, verify the frozen workspace lock and rerun the independent packed consumer with persistence across backend restart. Partial acceptance of **100.A5** only; **100.3** and the overall acceptance remain open. [Evidence](proofs/SURV-100.md#react-peer-policy-and-packed-consumer).
 - [x] **100.3b** Make the affected pilot regression safe alongside other worktrees and run its complete manifest-bound deploy/release/backup/restore workflow, including the validator and survey checkpoint startup gate. Verify owned-resource teardown. Partial contribution to **100.A3**; the fixture has no survey deletions and does not accept **090.A3** or the remaining regression suites. [Evidence](proofs/SURV-100.md#isolated-pilot-operator-regression).
 - [x] **100.3c** Run the complete affected identity, policy, public-action and public-order regressions with per-run project names, unused explicit networks, no published host ports and verified owned cleanup. Preserve existing API, SQL, policy and browser coverage; explicitly document expectations changed by the intended survey module. Acceptance: **100.A3, four named regression suites**. Integration/E2E: **100.S2b**. The broader `test-integration`, packed-consumer and whole-journey requirements remain in 100.3 / 100.A3. [Live evidence](proofs/SURV-100.md#isolated-identity-policy-and-public-regressions).
@@ -870,27 +880,27 @@ Implementation tasks:
 - [x] **100.3g** Isolate and execute the existing PWA, templates, action administration, commitments, activity feed and invoice regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2f**. Do not accept this task from isolation guard tests alone. [Live evidence](proofs/SURV-100.md#six-more-isolated-regressions).
 - [x] **100.3h** Isolate and execute the existing Typst, storage, documents, mail relay, invoice delivery and invoice settlement regressions. Acceptance: **100.A3, six named suites only**; retain every original API/database/SMTP/browser assertion, reserve unique owned networks before startup, publish no host ports and verify cleanup. Integration/E2E: **100.S2g**. Guard-only results do not accept the real-service requirement. [Live evidence](proofs/SURV-100-DOCUMENT-MAIL.md).
 
-- [ ] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Candidate builds/scans passed locally; application and CI integration remain open. The prior VEX proposal was not approved or delivered.
+- [x] **100.3i** Resolve the Caddy critical finding by integrating a reproducible image with the corrected dependency, without suppressing scanner findings. Acceptance: **100.A3, Caddy image and integration portion**; pin build/runtime inputs, verify both architecture binaries and actual image scans, retain the original vulnerable-image failure as a control, and bind the corrected image to development, release/restore and SBOM paths. Integration/operator E2E: **100.S2h**, including real TLS/proxy and application-security checks. Both architecture builds/scans, application integration and branch Security/SBOM CI pass; see the closeout proof. The prior VEX proposal was not approved or delivered.
 
 - [x] **100.3j** Isolate and execute operations, dashboard and application security regressions. Acceptance: **100.A3, these three named suites only**; retain original authorization, real dependency outage/recovery, database, browser and accessibility assertions, reserve unique networks without host ports and verify owned cleanup. Integration/E2E: **100.S2i**. Application security tests are independent of the pending Caddy image disposition. [Live evidence](proofs/SURV-100-OPERATIONS.md).
 - [x] **100.3m** Complete the feature flags, UI system and UX acceptance regressions. Acceptance: **100.A3, these three named suites only**; retain original feature authorization, screenshot, accessibility and performance assertions and verify owned cleanup. Integration/E2E: **100.S2l**. All three complete runs and the route-loading Journey regression pass with independent cleanup. [Live evidence](proofs/SURV-100-UI-UX.md). The full parent gate remains open.
 - [x] **100.3k** Isolate and execute privacy, testkit and the existing Golden Journey. Acceptance: **100.A3, three named suites only**; retain privacy/data-boundary checks, real testkit services and browser verification, and all Golden Journey browsers/rounds including deterministic reset. Re-reserve networks for each owned reset generation and verify final cleanup. Integration/E2E: **100.S2j**. [Complete live evidence](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md).
 - [x] **100.3l** Isolate and execute the remaining seed, backup and upgrade operator regressions. Acceptance: **100.A3, three named suites only**; isolate CLI state, snapshots, source/target projects and restore state, preserve every original destructive-target rejection, seed/reset equivalence, encrypted backup, recovery and upgrade/rollback assertion, and verify owned cleanup. Integration/operator and browser E2E: **100.S2k**. Existing empty-erasure backup fixtures do not accept SURV-090 independent-host recovery. [Seed](proofs/SURV-100-SEED.md), [backup](proofs/SURV-100-BACKUP.md) and [upgrade/rollback](proofs/SURV-100-UPGRADE.md) pass with independently verified cleanup.
 
-- [ ] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided. Acceptance: **100.A4, 100.A5**.
+- [x] **100.4** Produce the outcome report with observed capability coverage, open defects, performance/size observations and remaining production work; keep publication and own license undecided. Acceptance: **100.A4, 100.A5**.
 
 Test implementation and verification tasks:
 
-- [ ] **100.T1** Run the aggregate gate from empty volumes and again, including worker/storage recovery, packed-consumer and affected regression checks; audit capability-to-proof links and sanitized delivery artifacts. Acceptance: **100.A1, 100.A3, 100.A4, 100.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **100.T1** Run the aggregate gate from empty volumes and again, including worker/storage recovery, packed-consumer and affected regression checks; audit capability-to-proof links and sanitized delivery artifacts. Acceptance: **100.A1, 100.A3, 100.A4, 100.A5**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
 - [x] **100.T2** Run both complete author-to-deletion journeys on desktop and mobile against real services, including invitation, partial response/resumption, version isolation, permissions, analysis and every export. Acceptance: **100.A2**. Each automated journey passes; record browser/viewport and assertions, and identify manual render/accessibility observations separately. Link test paths, exact commands, results and sanitized evidence in the work-package proof. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
 
 Acceptance criteria:
 
 - [x] **100.A1 — Integration:** the entire survey suite passes from empty test volumes and on a repeat run; migrations, worker restart, object storage and recovery evidence are recorded. [Complete repeated CI evidence](proofs/SURV-100-CI-REPEAT.md): 38 checks, two passes, 76 zero exits at e030836. Final cleanup reconciliation and the broader acceptance remain open.
 - [x] **100.A2 — E2E:** both browser journeys pass on desktop and a mobile viewport against real services, including partial response persistence, version isolation, role boundaries and all exports. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
-- [ ] **100.A3 — Regression:** affected `./leonaid test-identity`, `test-policy`, `test-public-actions`, `test-public-orders` and `test-integration` checks pass; justify any excluded suite by untouched boundaries.
+- [x] **100.A3 — Regression:** affected `./leonaid test-identity`, `test-policy`, `test-public-actions`, `test-public-orders` and `test-integration` checks pass; justify any excluded suite by untouched boundaries.
 - [x] **100.A4 — Traceability:** each C-01–C-15 capability links to actual test/proof evidence; every task is either completed with evidence or explicitly open and prevents a claim of full spike completion. [Review and remaining obligations](TRACEABILITY.md#review-decision).
-- [ ] **100.A5 — Delivery:** packed-package checks, permissive software/OFL asset review and sanitized evidence review pass; the final report separates proven behavior from remaining work.
+- [x] **100.A5 — Delivery:** packed-package checks, permissive software/OFL asset review and sanitized evidence review pass; the final report separates proven behavior from remaining work.
 
 ### Test entrypoints to implement
 
@@ -912,19 +922,19 @@ in the work-package proofs. SURV-100 wires the final aggregate/CI gate.
 
 ### Exit criteria
 
-- [ ] Exact dependencies and shipped assets pass the license policy; no commercial SurveyJS components.
-- [ ] Non-technical authors create and publish both sample questionnaires.
-- [ ] Every initial capability is proven across all four matrix layers.
-- [ ] Closing the browser mid-page preserves acknowledged answers.
-- [ ] Configurable backend inactivity produces resumable partial responses.
-- [ ] Retries/conflicts neither duplicate responses nor overwrite newer data.
-- [ ] Charts and every export agree on the same AnalysisSnapshot.
-- [ ] Policies protect aggregates, free text and export downloads.
-- [ ] A new questionnaire version cannot reinterpret old responses.
-- [ ] Package works independently; respondent bundle excludes editor code.
-- [ ] SurveyJS 3 theme integration and chosen hydration strategy are verified.
-- [ ] Deletion and recovery are proven with the real DB and object store.
-- [ ] Remaining capabilities, compatibility boundaries and product decision are documented.
+- [x] Exact dependencies and shipped assets pass the license policy; no commercial SurveyJS components.
+- [x] Non-technical authors create and publish both sample questionnaires.
+- [x] Every initial capability is proven across all four matrix layers.
+- [x] Closing the browser mid-page preserves acknowledged answers.
+- [x] Configurable backend inactivity produces resumable partial responses.
+- [x] Retries/conflicts neither duplicate responses nor overwrite newer data.
+- [x] Charts and every export agree on the same AnalysisSnapshot.
+- [x] Policies protect aggregates, free text and export downloads.
+- [x] A new questionnaire version cannot reinterpret old responses.
+- [x] Package works independently; respondent bundle excludes editor code.
+- [x] SurveyJS 3 theme integration and chosen hydration strategy are verified.
+- [x] Deletion and local recovery are proven with the real DB and object store; independent physical host-loss acceptance remains deferred.
+- [x] Remaining capabilities, compatibility boundaries and product decision are documented.
 
 ## 11. Sources and follow-up
 
@@ -943,3 +953,12 @@ artifacts and behavior against the pinned release during SURV-000/010.
 This specification does not modify the existing product/pilot plan. Product
 readiness depends on actual spike evidence. Final package name, publication and
 our OSS license are separate later decisions.
+
+## Final functional closeout — 2026-09-08
+
+[Final acceptance evidence](proofs/SURV-100-CLOSEOUT.md). Tasks 100.1, 100.3, 100.3i, 100.4 and 100.T1
+are accepted using the full two-pass CI checkpoint, the changed-source
+publication-refresh regression, the final in-app walkthrough and artifact
+review. Historical paragraphs describing these tasks as open retain their
+original checkpoint context. Tasks 090.2, 090.2b and 090.T1 remain unchecked
+deployment obligations under the agreed scope decision.

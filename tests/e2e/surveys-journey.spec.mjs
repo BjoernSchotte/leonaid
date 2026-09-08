@@ -162,6 +162,14 @@ for (const template of ["krapfentaxi", "golf"])
           "data-survey-status",
           "active",
         );
+        await page.getByText("Antworten auswerten", { exact: true }).click();
+        await expect(
+          page.getByRole("combobox", {
+            name: "Fragebogen-Version",
+            exact: true,
+          }),
+        ).toContainText("Version 1");
+        await page.getByText("Antworten auswerten", { exact: true }).click();
         const version1 = (await (await admin.request.get(api)).json())
           .publishedVersionId;
         expect((await outsider.request.get(api)).status()).toBe(404);

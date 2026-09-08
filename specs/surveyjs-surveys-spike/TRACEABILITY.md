@@ -1,29 +1,41 @@
 # Task and capability traceability
 
-**100.A4 is accepted** at source checkpoint `b450783`, with the explicit open
-obligations below. The [104-task inventory](proofs/assets/SURV-100-task-traceability.json)
-contains 96 accepted tasks with scoped evidence and 8 open tasks after the
-[operator](proofs/SURV-100-UPGRADE.md) and
-[privacy/testkit/Golden Journey](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md) follow-ups. The original review
-introduced follow-ups 100.3i, 100.3k and 100.3l; 100.3k and 100.3l are now accepted.
-The [feature flags/UI/UX follow-up](proofs/SURV-100-UI-UX.md) now accepts 100.3m.
-It does not accept the whole spike or uncommitted implementation changes.
+The final functional closeout contains **101 accepted, 0 open and
+3 deferred tasks** from the original 104-task inventory. The five SURV-100
+closeout items now have final CI, regression, walkthrough and delivery evidence. The three deferred
+items are deployment obligations agreed in [PLAN.md](PLAN.md); they are not
+successful tests. See [closeout evidence](proofs/SURV-100-CLOSEOUT.md) and the
+[machine-readable inventory](proofs/assets/SURV-100-task-traceability.json).
 
-## Remaining obligations
+## Deferred deployment obligations
 
-- **090.2:** Independent host-loss cutoff provenance and preceding-backup compatibility remain unproven.
-- **090.2b:** An independently retained current cutoff must survive unexpected source-host loss; primitive and source-project-loss proofs are insufficient.
-- **090.T1:** Requires the still-open full 090.A3 recovery criterion.
-- **100.1:** 100.A1 is accepted by the complete two-pass CI at e030836. Final cross-harness cleanup reconciliation, affected regressions and delivery gates remain incomplete.
-- **100.3:** Remaining existing regressions and final packed/delivery review remain incomplete.
-- **100.3i:** Corrected Caddy candidate images, application security, SBOM generation and the complete survey pilot pass. Both complete candidate pilot modes pass with independent cleanup. The reviewed changes are integrated; final branch CI remains open. No VEX exception is approved or delivered.
-- **100.4:** Task/capability reconciliation is accepted; final delivery review and outcome report remain open.
-- **100.T1:** 100.A1 and 100.A4 are accepted. Final cross-harness cleanup, existing regressions, delivery review and independent-host recovery prerequisites remain incomplete.
+- **090.2:** Full recovery acceptance still needs independent physical source-host loss; the existing local cross-revision recovery is proven for its exact revisions.
+- **090.2b:** Prove independently retained current deletion-cutoff provenance after unexpected host loss, including detecting a missing newest checkpoint.
+- **090.T1:** The original full recovery criterion inherits those deployment requirements.
+
+These must pass before production use. Keep them unchecked and explicitly
+deferred; do not relabel same-host Docker removal as physical host-loss proof.
+Existing deletion, local restore, checkpoint rejection and reapplication checks
+remain mandatory in the spike aggregate.
+
+## Current closeout
+
+The final in-app-browser walkthrough found and verified a publication-refresh
+fix. It is separately covered by all four complete existing E2E journeys.
+The full CI checkpoint and this changed-source test are distinguished in the
+[closeout proof](proofs/SURV-100-CLOSEOUT.md). Historical scoped reviews below
+retain their tested revisions; their former “open” statements do not silently
+accept tasks or override this current inventory.
 
 ## Accepted task evidence
 
 | Task | Recorded proof |
 | --- | --- |
+| 100.1 | [final closeout](proofs/SURV-100-CLOSEOUT.md) |
+| 100.3 | [final closeout](proofs/SURV-100-CLOSEOUT.md) |
+| 100.3i | [final closeout](proofs/SURV-100-CLOSEOUT.md) |
+| 100.4 | [final closeout](proofs/SURV-100-CLOSEOUT.md) |
+| 100.T1 | [final closeout](proofs/SURV-100-CLOSEOUT.md) |
 | 000.1 | [evidence](proofs/SURV-000-CONTRACT-REVIEW.md) |
 | 000.2 | [evidence](proofs/SURV-000-CONTRACT-REVIEW.md) |
 | 000.3 | [evidence](proofs/SURV-000-CONTRACT-REVIEW.md), [evidence](proofs/SURV-000.md#complete-runtime-dependency-disposition) |
@@ -130,6 +142,10 @@ validation and reporting evidence. The profile remains bounded; this does not
 claim support for arbitrary SurveyJS JSON or commercial components.
 
 ## Review decision
+
+The following records the original 100.A4 review and its historical boundaries.
+Current scope and any later acceptance are recorded above and in the closeout
+proof; a deferred task remains unaccepted for deployment.
 
 The criterion is a reconciliation requirement: each capability must link to
 actual test/proof evidence, and every task must be either accepted with evidence

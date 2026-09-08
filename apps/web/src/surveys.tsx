@@ -1174,7 +1174,7 @@ export function SurveysPage({
             <details className="surveys-settings">
               <summary>Antworten auswerten</summary>
               <SurveyAnalysis
-                key={summary.id}
+                key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
                 client={client}
                 surveyId={summary.id}
                 canTest={allowed("design")}
@@ -1189,7 +1189,7 @@ export function SurveysPage({
               <details className="surveys-settings">
                 <summary>Antworten exportieren</summary>
                 <SurveyAnalysis
-                  key={summary.id}
+                  key={`${summary.id}:${summary.publishedVersionId ?? "draft"}`}
                   client={client}
                   surveyId={summary.id}
                   canTest={allowed("design")}

@@ -1,9 +1,9 @@
 {
-  "sourceCheckpoint": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
+  "sourceCheckpoint": "913c2f751136bee433c3f4ef139c6ec628a5da95",
   "reviewOnly": true,
   "finalTraceabilityAccepted": true,
   "wholeSpikeAccepted": false,
-  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Eight explicitly open tasks prevent full spike completion.",
+  "scope": "101 functional-spike tasks accepted using the complete two-pass CI checkpoint plus targeted changed-source E2E, manual walkthrough and artifact review. Three original independent recovery obligations are deferred before production, not passed.",
   "tasks": [
     {
       "task": "000.1",
@@ -783,14 +783,17 @@
     },
     {
       "task": "090.2",
-      "status": "open",
+      "status": "deferred",
       "criteria": [
         "090.A3"
       ],
       "evidence": [
-        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation"
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
       ],
-      "remaining": "Independent host-loss cutoff provenance and preceding-backup compatibility remain unproven."
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
     },
     {
       "task": "090.2a",
@@ -806,14 +809,17 @@
     },
     {
       "task": "090.2b",
-      "status": "open",
+      "status": "deferred",
       "criteria": [
         "090.A3"
       ],
       "evidence": [
-        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation"
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
       ],
-      "remaining": "An independently retained current cutoff must survive unexpected source-host loss; primitive and source-project-loss proofs are insufficient."
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
     },
     {
       "task": "090.2c",
@@ -927,7 +933,7 @@
     },
     {
       "task": "090.T1",
-      "status": "open",
+      "status": "deferred",
       "criteria": [
         "090.A1",
         "090.A2",
@@ -935,9 +941,12 @@
         "090.A4"
       ],
       "evidence": [
-        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation"
+        "proofs/SURV-090.md#deletion-task-and-scenario-reconciliation",
+        "proofs/SURV-100-CLOSEOUT.md",
+        "proofs/SURV-090-CROSS-REVISION.md"
       ],
-      "remaining": "Requires the still-open full 090.A3 recovery criterion."
+      "remaining": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use.",
+      "reason": "Independent physical host-loss recovery and newest deletion-cutoff provenance must be proved for the actual deployment before production use."
     },
     {
       "task": "090.T2",
@@ -952,7 +961,7 @@
     },
     {
       "task": "100.1",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A1",
         "100.A2",
@@ -961,9 +970,9 @@
       ],
       "evidence": [
         "proofs/SURV-100.md",
-        "proofs/SURV-100-CI-REPEAT.md"
-      ],
-      "remaining": "100.A1 is accepted by the complete two-pass CI at e030836. Final cross-harness cleanup reconciliation, affected regressions and delivery gates remain incomplete."
+        "proofs/SURV-100-CI-REPEAT.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
     },
     {
       "task": "100.1a",
@@ -1002,15 +1011,15 @@
     },
     {
       "task": "100.3",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A3",
         "100.A5"
       ],
       "evidence": [
-        "proofs/SURV-100.md"
-      ],
-      "remaining": "Remaining existing regressions and final packed/delivery review remain incomplete."
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
     },
     {
       "task": "100.3a",
@@ -1095,14 +1104,14 @@
     },
     {
       "task": "100.3i",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A3"
       ],
       "evidence": [
-        "TRACEABILITY.md#remaining-obligations"
-      ],
-      "remaining": "Corrected source-built Caddy images passed bounded candidate checks; application/CI, release/restore and SBOM integration remain open. No VEX exception is approved or delivered."
+        "proofs/SURV-100-CADDY.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
     },
     {
       "task": "100.3j",
@@ -1148,19 +1157,19 @@
     },
     {
       "task": "100.4",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A4",
         "100.A5"
       ],
       "evidence": [
-        "proofs/SURV-100.md"
-      ],
-      "remaining": "Task/capability reconciliation is accepted; final delivery review and outcome report remain open."
+        "proofs/SURV-100.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
     },
     {
       "task": "100.T1",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A1",
         "100.A3",
@@ -1169,9 +1178,9 @@
       ],
       "evidence": [
         "proofs/SURV-100.md",
-        "proofs/SURV-100-CI-REPEAT.md"
-      ],
-      "remaining": "100.A1 and 100.A4 are accepted. Final cross-harness cleanup, existing regressions, delivery review and independent-host recovery prerequisites remain incomplete."
+        "proofs/SURV-100-CI-REPEAT.md",
+        "proofs/SURV-100-CLOSEOUT.md"
+      ]
     },
     {
       "task": "100.T2",
@@ -1187,8 +1196,8 @@
   ],
   "reviewEvidence": {
     "taskCount": 104,
-    "acceptedTasks": 96,
-    "openTasks": 8,
+    "acceptedTasks": 101,
+    "openTasks": 0,
     "capabilityCount": 15,
     "runtimeComparisonBase": "419738db48d3816cc9b8853a1b3be9925c7983db",
     "runtimeComparisonHead": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
@@ -1200,7 +1209,10 @@
     ],
     "runtimeChangedFiles": [],
     "fullSurveyCiEvidence": "proofs/SURV-100-CI-REPEAT.md",
-    "manualReviewIsNotNewExecution": true
+    "manualReviewIsNotNewExecution": true,
+    "deferredTasks": 3,
+    "historicalRuntimeComparison": true,
+    "finalCloseoutEvidence": "proofs/SURV-100-CLOSEOUT.md"
   },
   "operatorAcceptanceFollowUp": {
     "sourceCheckpoint": "5649ed76ee3f88505567cfc8cedad5a90124d711",
@@ -1216,5 +1228,6 @@
     "sourceCheckpoint": "99000e11fbc5135fe7f5fd3a16e58a442300b318",
     "proof": "proofs/SURV-100-UI-UX.md",
     "scope": "100.3m acceptance after complete feature flags, UI and UX runs plus route-loading Journey regression; exact changed inputs recorded in proof"
-  }
+  },
+  "agreedFunctionalSpikeAccepted": true
 }
