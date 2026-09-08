@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "scope": "100.3k / 100.S2j: complete privacy, testkit and Golden Journey regressions",
+  "privacyAndTestkit": {
+    "sourceCheckpoint": "86bf028d9a6698c49a0c503148a44e1486035f6f",
+    "suites": [
+      {
+        "run": {
+          "mode": "privacy",
+          "exitCode": 0,
+          "seconds": 1615.315,
+          "ownedResourcesAbsent": true,
+          "project": "leonaid-poc111-test-833458328-8435"
+        },
+        "harnessSha256": "b1fbaf8bda6bbaf581c3d2db326d372117348db1c92c9cf7e403b035f60f023f",
+        "originalBusinessBodyUnchanged": true,
+        "privateLogSha256": "33ee8982b65c42bcb44d35600d05f21ec497722ea343da5b7865cee440fbae72",
+        "independentResourceInventory": {
+          "containers": 0,
+          "volumes": 0,
+          "networks": 0
+        }
+      },
+      {
+        "run": {
+          "mode": "testkit",
+          "exitCode": 0,
+          "seconds": 759.799,
+          "ownedResourcesAbsent": true,
+          "project": "leonaid-poc013-test-833458328-17891"
+        },
+        "harnessSha256": "e264c2a4532f9f2a18e66df94eba2aa93387d47c2408d27e2ecc01b2c855c421",
+        "originalBusinessBodyUnchanged": true,
+        "privateLogSha256": "625dddbbf21b5808fb1c609c8c7066e1d9787eff0fdf808a12472333bbc4f6bb",
+        "independentResourceInventory": {
+          "containers": 0,
+          "volumes": 0,
+          "networks": 0
+        }
+      }
+    ],
+    "testkitArtifactHashes": {
+      "ui-proof.json": "b8ffd41ef1a5759366799f6571dc78dd41862ad93ca7f2d3d6aae5fa6b214d00",
+      "testkit-ui.png": "ea15ab922c3f4d2be08f38054646d7f39c8b5a580347d3f78bda75495a75f5e1",
+      "api-proof.json": "a070ec74534d5aff608057f751bb3095d706cf1933dd420ee84000bf6adaa6a9"
+    },
+    "testkitIdentityMatchesAcrossSystems": true
+  },
+  "goldenJourney": {
+    "mode": "golden_journey",
+    "exitCode": 0,
+    "seconds": 1379.483,
+    "ownedResourcesAbsent": true,
+    "projects": [
+      "leonaid-poc122-test-833458328-92307"
+    ],
+    "sourceCheckpoint": "61b8a5ce9c22b746421f4077d78e68168cf9c415",
+    "sourceHashes": {
+      "tools/golden_journey/test.sh": "f3cec6a522f6ba9b6570b1aaf4219dda2dcad0b280122ef94e41707b83c72184",
+      "tests/e2e/golden-journey.spec.mjs": "5f9f006b4c65f93099bd9c8af1e9b2b819a62b151ecf17083f0ce67a27321da6",
+      "tools/golden_journey/contract.py": "e17b99c6c7c2b9106442fdae52bec15e3b24a335cb2fe7ecf1f5a87b33e10b80"
+    }
+  },
+  "goldenIndependentCleanup": {
+    "leonaid-poc122-test-833458328-92307": {
+      "containers": 0,
+      "volumes": 0,
+      "networks": 0
+    }
+  },
+  "goldenBrowserRounds": [
+    {
+      "round": "primary-1",
+      "passed": 3,
+      "seconds": 40.8
+    },
+    {
+      "round": "primary-2",
+      "passed": 3,
+      "seconds": 37.2
+    },
+    {
+      "round": "reset-repeat-1",
+      "passed": 3,
+      "seconds": 45.9
+    }
+  ],
+  "goldenComparison": {
+    "businessCounts": {
+      "activities": 3,
+      "assignments": 3,
+      "deliveries": 3,
+      "duplicate_outbox": 0,
+      "internal_orders": 3,
+      "journey_users_total": 3,
+      "memberships": 3,
+      "paid_invoices": 3,
+      "payments": 3,
+      "public_orders": 3,
+      "users": 3
+    },
+    "companies": [
+      "Golden Journey round-1-chromium GmbH",
+      "Golden Journey round-1-firefox GmbH",
+      "Golden Journey round-1-webkit GmbH"
+    ],
+    "datasetVersion": "1.0.0",
+    "pdfs": {
+      "KT26-0004": {
+        "sizeBytes": 23595
+      },
+      "KT26-0005": {
+        "sizeBytes": 24062
+      },
+      "KT26-0006": {
+        "sizeBytes": 23491
+      }
+    },
+    "round": "round-1"
+  },
+  "normalizedComparisonSha256": "56929c3f8890c9051998f6ce6cfce52598c6b0152e950e57dd469f4a7c843788",
+  "goldenPrivateLogSha256": "c0784de11d3a10e2db12309e2129b8f31c330af2ee78dba6b2062c71301c5b05",
+  "goldenBusinessSequenceReview": {
+    "baselineRevision": "fb9ac9d3b0afb76c6131fdbb6c4a0d86ddaca353",
+    "harnessSha256": "f3cec6a522f6ba9b6570b1aaf4219dda2dcad0b280122ef94e41707b83c72184",
+    "roundBodyPreservedExceptArtifactMountAndOutput": true,
+    "roundBodySha256": "6979a99e1b2248d89c1416e30447f0a7eb0ec4b4c3e981691f8d2d391a87c0f2",
+    "completeBusinessSequenceAndFinalComparisonUnchanged": true,
+    "businessTailSha256": "2a21d84994b8b1c29e1d9f38dc297eaf77ab26e95cca474da902bba9ae4e07bd"
+  },
+  "parentTaskAccepted": true,
+  "wholeSpikeAccepted": false,
+  "screenshots": {
+    "SURV-100-privacy-after-erasure-mobile.png": "1577f16f10c061d3f94fc6fad2f6a1a8d9a7acd9acc5f4dd31a62144a06a6e51",
+    "SURV-100-testkit-ui.png": "ea15ab922c3f4d2be08f38054646d7f39c8b5a580347d3f78bda75495a75f5e1",
+    "SURV-100-golden-firefox-admin.png": "8f3c9bf3497fbd9cabce73966b419867886101d1bda4d5648be2a5c4ab4e8c8d"
+  }
+}

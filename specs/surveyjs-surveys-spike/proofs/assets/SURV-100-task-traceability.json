@@ -3,7 +3,7 @@
   "reviewOnly": true,
   "finalTraceabilityAccepted": true,
   "wholeSpikeAccepted": false,
-  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Ten explicitly open tasks prevent full spike completion.",
+  "scope": "100.A4 task/capability reconciliation at b450783 plus this documentation increment. Historical scoped proofs are not new service runs. Nine explicitly open tasks prevent full spike completion.",
   "tasks": [
     {
       "task": "000.1",
@@ -1116,14 +1116,13 @@
     },
     {
       "task": "100.3k",
-      "status": "open",
+      "status": "accepted",
       "criteria": [
         "100.A3"
       ],
       "evidence": [
-        "proofs/SURV-100.md"
-      ],
-      "remaining": "Privacy and testkit passed with owned cleanup. Golden Journey failed second-round Firefox activity-save confirmation; full three-browser, three-round acceptance remains open."
+        "proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md"
+      ]
     },
     {
       "task": "100.3l",
@@ -1189,8 +1188,8 @@
   ],
   "reviewEvidence": {
     "taskCount": 104,
-    "acceptedTasks": 94,
-    "openTasks": 10,
+    "acceptedTasks": 95,
+    "openTasks": 9,
     "capabilityCount": 15,
     "runtimeComparisonBase": "419738db48d3816cc9b8853a1b3be9925c7983db",
     "runtimeComparisonHead": "b4507832c3fe81f4b7a73ab4cd8ec5d53ddcf0ba",
@@ -1208,5 +1207,10 @@
     "sourceCheckpoint": "5649ed76ee3f88505567cfc8cedad5a90124d711",
     "proof": "proofs/SURV-100-UPGRADE.md",
     "scope": "100.3l acceptance after all three operator runs; original 100.A4 review preserved"
+  },
+  "privacyTestkitGoldenFollowUp": {
+    "sourceCheckpoint": "61b8a5ce9c22b746421f4077d78e68168cf9c415",
+    "proof": "proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md",
+    "scope": "100.3k acceptance after all three full runs"
   }
 }

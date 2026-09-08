@@ -2,9 +2,10 @@
 
 **100.A4 is accepted** at source checkpoint `b450783`, with the explicit open
 obligations below. The [104-task inventory](proofs/assets/SURV-100-task-traceability.json)
-contains 94 accepted tasks with scoped evidence and 10 open tasks after the
-[operator acceptance follow-up](proofs/SURV-100-UPGRADE.md). The original review
-introduced follow-ups 100.3i, 100.3k and 100.3l; 100.3l is now accepted.
+contains 95 accepted tasks with scoped evidence and 9 open tasks after the
+[operator](proofs/SURV-100-UPGRADE.md) and
+[privacy/testkit/Golden Journey](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md) follow-ups. The original review
+introduced follow-ups 100.3i, 100.3k and 100.3l; 100.3k and 100.3l are now accepted.
 It does not accept the whole spike or uncommitted implementation changes.
 
 ## Remaining obligations
@@ -15,7 +16,6 @@ It does not accept the whole spike or uncommitted implementation changes.
 - **100.1:** 100.A1 is accepted by the complete two-pass CI at e030836. Final cross-harness cleanup reconciliation, affected regressions and delivery gates remain incomplete.
 - **100.3:** Remaining existing regressions and final packed/delivery review remain incomplete.
 - **100.3i:** Corrected source-built Caddy images passed bounded candidate checks; application/CI, release/restore and SBOM integration remain open. No VEX exception is approved or delivered.
-- **100.3k:** Privacy and testkit passed with owned cleanup. Golden Journey failed second-round Firefox activity-save confirmation; full three-browser, three-round acceptance remains open.
 - **100.3m:** Feature flags readiness, UI screenshot mismatch and UX heading/performance failures need diagnosis and complete successful reruns.
 - **100.4:** Task/capability reconciliation is accepted; final delivery review and outcome report remain open.
 - **100.T1:** 100.A1 and 100.A4 are accepted. Final cross-harness cleanup, existing regressions, delivery review and independent-host recovery prerequisites remain incomplete.
@@ -116,6 +116,7 @@ It does not accept the whole spike or uncommitted implementation changes.
 | 100.3g | [evidence](proofs/SURV-100.md#six-more-isolated-regressions) |
 | 100.3h | [evidence](proofs/SURV-100-DOCUMENT-MAIL.md) |
 | 100.3j | [evidence](proofs/SURV-100-OPERATIONS.md) |
+| 100.3k | [evidence](proofs/SURV-100-PRIVACY-TESTKIT-GOLDEN.md) |
 | 100.3l | [seed](proofs/SURV-100-SEED.md), [backup](proofs/SURV-100-BACKUP.md), [upgrade/rollback](proofs/SURV-100-UPGRADE.md) |
 | 100.T2 | [evidence](proofs/SURV-100-DROPDOWN.md), [evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys) |
 

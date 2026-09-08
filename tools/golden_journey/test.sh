@@ -5,13 +5,17 @@ root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
 
-project=${LEONAID_GOLDEN_JOURNEY_PROJECT:-leonaid-poc122-test}
+suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
+project=${LEONAID_GOLDEN_JOURNEY_PROJECT:-leonaid-poc122-test}-$suffix
+owned=false
 http_port=${LEONAID_GOLDEN_JOURNEY_PORT:-18142}
 https_port=${LEONAID_GOLDEN_JOURNEY_HTTPS_PORT:-18502}
 compose_file="$root/infra/compose/compose.yml"
 network_overlay="$root/infra/upgrade/compose.rollback-network.yml"
 env_file="$root/.env.local"
 proof=$(mktemp -d)
+browser_results="$root/.artifacts/golden-journey-browser/$project"
+isolation_file="$proof/compose-isolation.yml"
 integration_key=""
 journey_generation=0
 token_filename=""
@@ -27,12 +31,13 @@ compose() {
       --env-file "$env_file" \
       --file "$compose_file" \
       --file "$network_overlay" \
+      --file "$isolation_file" \
       "$@"
 }
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
     echo "golden-journey: Diagnose der fehlgeschlagenen Services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=400 \
@@ -41,7 +46,22 @@ cleanup() {
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$owned" = true ]; then
+    if ! compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+    for inventory in containers volumes networks; do
+      case "$inventory" in
+        containers) remaining=$(docker ps -aq --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        volumes) remaining=$(docker volume ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+        networks) remaining=$(docker network ls -q --filter "label=com.docker.compose.project=$project") || status=1 ;;
+      esac
+      if [ -n "$remaining" ]; then
+        echo "test-isolation: owned $inventory remain for $project" >&2
+        status=1
+      fi
+    done
+    if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  if [ "$status" -eq 0 ]; then rm -rf "$browser_results"; fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -67,7 +87,12 @@ start_golden() {
   integration_key=""
   journey_generation=$((journey_generation + 1))
   token_filename="integration-$journey_generation.env"
-  compose --profile dev-mail down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if [ "$journey_generation" -gt 1 ]; then
+    # Reset only the stack acquired by this invocation, before reseeding it.
+    compose --profile '*' down --volumes --remove-orphans
+    python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+  fi
+  compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
   compose build api worker public pwa web
   compose --profile dev-mail up --detach --wait --wait-timeout 420 \
     core-postgres rustfs mailpit twenty-server twenty-worker
@@ -139,6 +164,7 @@ run_round() {
     --env LEONAID_E2E_ARTIFACT_DIR="/proof/$artifact_path" \
     --env LEONAID_GOLDEN_JOURNEY_ROUND="$round_name" \
     --env-file "$proof/sessions-$round_name.env" \
+    --volume "$browser_results:/browser-results" \
     --volume "$root:/workspace:ro" \
     --volume "$proof:/proof" \
     --workdir /workspace \
@@ -150,7 +176,7 @@ run_round() {
     --project=chromium-390 \
     --project=firefox-390 \
     --project=webkit-390 \
-    --output="/proof/results-$round_name" \
+    --output="/browser-results/generation-$journey_generation-$round_name" \
     --trace=retain-on-failure \
     --reporter=line
 
@@ -162,6 +188,18 @@ if [ ! -f "$env_file" ]; then
   echo "golden-journey: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
   exit 1
 fi
+
+# Refuse existing resources and unreadable inventories before Docker mutations.
+existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+existing=$(docker network ls -q --filter "label=com.docker.compose.project=$project")
+[ -z "$existing" ]
+python3 "$root/tools/surveys/network_override.py" "$isolation_file"
+owned=true
+mkdir -p "$browser_results"
+chmod 700 "$browser_results"
 
 start_golden
 run_round round-1 primary primary-round-1.json primary-round-1.normalized.json
