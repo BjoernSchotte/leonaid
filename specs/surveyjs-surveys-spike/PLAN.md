@@ -558,26 +558,28 @@ Dependencies: none.
 
 Implementation tasks:
 
-- [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency. Acceptance: **000.A1**.
-- [ ] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence. Acceptance: **000.A1, 000.A2**.
+- [x] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency. Acceptance: **000.A1**.
+- [x] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence. Acceptance: **000.A1, 000.A2**.
 - [x] **000.3** Pin compatible SurveyJS 3 core/React versions and permissive editor/chart/XLSX dependencies; inventory transitive software and asset licenses, including OFL notices. Acceptance: **000.A4**. [Current evidence](proofs/SURV-000.md#complete-runtime-dependency-disposition).
 - [x] **000.4** Build deterministic Krapfentaxi/golf fixtures and persona seeds in the existing testkit; add isolated Docker test entrypoints and artifact collection. Acceptance: **000.A2, 000.A3**. [Fixture evidence](proofs/SURV-000.md#persona-and-fixture-foundation).
-- [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy. Acceptance: **000.A1**.
+- [x] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy. Acceptance: **000.A1**.
 
 Test implementation and verification tasks:
 
-- [ ] **000.T1** Add DTO/error-contract checks, persona/capability fixture coverage, clean-stack migration and database roundtrip tests, plus prohibited/unknown-dependency negative fixtures. Acceptance: **000.A1, 000.A2, 000.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
-- [x] **000.T1a** Inventory every registered survey write with its request/response DTO; prove unknown-field rejection and unauthenticated/missing-resource rejection against the real API with unchanged survey/outbox row contents, including a persisted answer fixture. [Contract inventory](WRITE-CONTRACTS.md) and [live evidence](proofs/SURV-000.md#complete-write-transport-inventory). This accepts the transport subset only; **000.T1 / 000.A1** remain open for full error, role, concurrency and C-01–C-15 traceability.
+- [x] **000.T1** Add DTO/error-contract checks, persona/capability fixture coverage, clean-stack migration and database roundtrip tests, plus prohibited/unknown-dependency negative fixtures. Acceptance: **000.A1, 000.A2, 000.A4**. All automated checks exit zero; record explicit review findings for non-executable checks. Link test paths, exact commands, results and sanitized evidence in the work-package proof.
+- [x] **000.T1a** Inventory every registered survey write with its request/response DTO; prove unknown-field rejection and unauthenticated/missing-resource rejection against the real API with unchanged survey/outbox row contents, including a persisted answer fixture. [Contract inventory](WRITE-CONTRACTS.md) and [live evidence](proofs/SURV-000.md#complete-write-transport-inventory). This accepts the transport subset only. The full error, role, concurrency and C-01–C-15 reconciliation is accepted in the consolidated review below.
 - [x] **000.T1b** Hold the actual persistence lock until both identical requests are observed blocked, then verify both responses and a later exact retry for every registered survey write. Verify the actual response DTO, exactly-once row/outbox deltas and unchanged full row contents on replay; reject changed data under the same key according to each operation's identity contract. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**. This does not replace competing-revision, cross-operation race or C-01–C-15 coverage. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
 - [x] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs. [Live evidence](proofs/SURV-000.md#competing-revisions-for-every-revision-bearing-write).
 - [x] **000.T2** Add a Playwright smoke journey through both hosts: authenticate a synthetic member, open a public route, and verify failure diagnostics and cleanup. Acceptance: **000.A3**. [Live evidence](proofs/SURV-000.md#foundation-browser-failure-diagnostics): a real Chromium success and deliberate failure both complete the member/public/survey-shell steps; expected exits, credential-free diagnostics and isolated teardown are verified.
 
 Acceptance criteria:
 
-- [ ] **000.A1 — Contract:** every write defines authorization, invalid-input behavior, concurrency behavior and persistence outcome; fixtures cover all C-01–C-15 capabilities.
+- [x] **000.A1 — Contract:** every write defines authorization, invalid-input behavior, concurrency behavior and persistence outcome; fixtures cover all C-01–C-15 capabilities.
 - [x] **000.A2 — Integration:** a clean test stack migrates/seeds successfully; a test client reaches the real API and verifies a database roundtrip, with isolated teardown. [Evidence](proofs/SURV-000.md).
 - [x] **000.A3 — E2E infrastructure:** Playwright reaches both UI hosts, authenticates a synthetic member and opens a public route; failures retain useful sanitized diagnostics and fail the command. [Live evidence](proofs/SURV-000.md#foundation-browser-failure-diagnostics).
 - [x] **000.A4 — Dependencies:** automated inventory rejects a prohibited or unknown dependency in a negative fixture; no commercial SurveyJS packages are selected and own license remains UNDEFINED. [Evidence](proofs/SURV-000.md).
+
+[Consolidated contract review](proofs/SURV-000-CONTRACT-REVIEW.md) closes the remaining SURV-000 contract, role and capability reconciliation using the named existing live proofs. The full spike/CI and independent recovery gates remain open.
 
 ### SURV-010 — Vertical autosave and authoritative validation proof
 

@@ -1,8 +1,9 @@
 # Survey write contracts
 
 Own license: **UNDEFINED**. Transport version: `/api/v1`. This inventory describes
-the implementation, not completion of SURV-000.A1. The capability/fixture mapping
-and complete per-operation concurrency evidence remain required by that gate.
+the implementation. The [consolidated contract review](proofs/SURV-000-CONTRACT-REVIEW.md)
+accepts SURV-000.A1 from the current route inventory and recorded live error, role,
+concurrency and capability evidence. Final aggregate/CI acceptance remains separate.
 
 ## Sources and boundaries
 

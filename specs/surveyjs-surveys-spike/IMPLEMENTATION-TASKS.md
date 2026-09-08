@@ -37,20 +37,20 @@ The [write-contract inventory](WRITE-CONTRACTS.md) records all 21 transport
 operations, authorization, revision/replay scope and persistence behavior.
 **000.T1a / 000.S1a** prove their strict negative transport boundary against real
 stored data; [evidence](proofs/SURV-000.md#complete-write-transport-inventory).
-This does not close the full contracts/persona/capability acceptance below.
+[Consolidated contract review](proofs/SURV-000-CONTRACT-REVIEW.md) now closes the full SURV-000 contracts/persona/capability acceptance using the recorded live proofs.
 
-- [x] **000.T1b** Prove concurrent identical requests and later replay for all 21 survey write operations, with observed overlapping persistence-lock waits, exact database/outbox deltas, actual stored-value and response-model validation and unchanged complete row contents on replay/conflict. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**; full cross-operation/competing-revision and capability coverage remains required. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
+- [x] **000.T1b** Prove concurrent identical requests and later replay for all 21 survey write operations, with observed overlapping persistence-lock waits, exact database/outbox deltas, actual stored-value and response-model validation and unchanged complete row contents on replay/conflict. Handle reused resume credentials atomically with a documented 409 and no duplicate participation, including competing starts across surveys. Acceptance: **000.A1, duplicate-operation portion**. Integration: **000.S1b**; cross-operation and capability coverage is reconciled in the consolidated review above. [Live evidence](proofs/SURV-000.md#concurrent-replay-for-every-write).
 - [x] **000.T1c** Exercise every revision-bearing survey transport with two distinct operation keys at the same revision (read-only validation has no key), holding the real persistence lock until both requests are observed waiting. Verify documented rejection or independent success, winning stored values, exact table/outbox deltas and unchanged full row contents on later retries. Acceptance: **000.A1, competing-revision portion**. Integration: **000.S1c**; retain separate cross-operation and capability proofs. [Live evidence](proofs/SURV-000.md#competing-revisions-for-every-revision-bearing-write).
 
-- [ ] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
+- [x] **000.1** Define versioned DTOs and ports for drafts, publication, participation, saves, completion, aggregates and exports; specify errors, revision conflicts and idempotency.
 
   Acceptance criteria: **000.A1**.
   Integration / supporting checks: **000.S1**.
   E2E — work-package regression gate: **000.S4**.
 
-Role/entity/migration mapping is documented in [ROLES-AND-DATA.md](ROLES-AND-DATA.md); the broader contract acceptance remains open.
+Role/entity/migration mapping is documented in [ROLES-AND-DATA.md](ROLES-AND-DATA.md); the broader contract acceptance is recorded in the consolidated review above.
 
-- [ ] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence.
+- [x] **000.2** Map existing roles and resource scopes to survey capabilities; define database entities, constraints and migration sequence.
 
   Acceptance criteria: **000.A1, 000.A2**.
   Integration / supporting checks: **000.S1, 000.S2**.
@@ -74,9 +74,9 @@ browser assertion failure returns exit 1 with sanitized diagnostics and complete
 owned-stack teardown. See [the two-run proof](proofs/SURV-000.md#foundation-browser-failure-diagnostics).
 Task **000.4** is accepted after the full persona/fixture review and current permissions run. [Fixture evidence](proofs/SURV-000.md#persona-and-fixture-foundation).
 
-The source-reviewed profile, limits, validation and host-rendering boundary are in [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md). Full **000.A1** acceptance remains open.
+The source-reviewed profile, limits, validation and host-rendering boundary are in [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md). The consolidated review above accepts **000.A1**.
 
-- [ ] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
+- [x] **000.5** Specify the initial capability profile, limits and client/server semantics; record chosen token mapping and SSR/hydration probe strategy.
 
   Acceptance criteria: **000.A1**.
   Integration / supporting checks: **000.S1**.

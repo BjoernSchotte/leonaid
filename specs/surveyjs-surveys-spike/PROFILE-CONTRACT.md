@@ -2,8 +2,8 @@
 
 Own license: **UNDEFINED**. Published definitions record profile `initial-v1`
 and renderer `3.0.3`; the renderer package is pinned. This is the source-reviewed
-contract for SURV-000.5, not a claim that the entire contract or final spike gate
-has passed. [CAPABILITIES.md](CAPABILITIES.md) links all fifteen required
+contract for SURV-000.5, accepted by the [consolidated review](proofs/SURV-000-CONTRACT-REVIEW.md).
+The final spike gate remains open. [CAPABILITIES.md](CAPABILITIES.md) links all fifteen required
 capabilities to their fixtures and work-package evidence.
 
 ## Executable definition boundary

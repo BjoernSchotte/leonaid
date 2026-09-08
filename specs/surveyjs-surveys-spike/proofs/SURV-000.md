@@ -1,6 +1,8 @@
 # SURV-000 evidence
 
-Status: partial, 2026-09-06. Work package remains open.
+Status: SURV-000 accepted after the [consolidated contract review](SURV-000-CONTRACT-REVIEW.md),
+source checkpoint `419738d`. Earlier open-status statements below describe their
+original runs and are superseded by that reconciliation. The full spike remains open.
 
 ## 000.A4 — Dependency admission gate
 
