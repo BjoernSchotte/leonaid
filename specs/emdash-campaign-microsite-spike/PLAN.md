@@ -4456,6 +4456,29 @@ Stop and report instead of improvising if:
 
 ## 11. Completion definition
 
+Interactive acceptance clarification: the user must also be able to follow LIVE
+browser checks in a visible browser, preferably the In-App Browser. A disposable
+headless-only stack does not satisfy this requirement. The full worktree stack
+must expose the administration, ordinary Core API and public campaign frontend
+through its own loopback HTTPS ingress; the Core order mutation remains private.
+Use `infra/emdash-spike/visible-local.yml` and its accompanying instructions for
+isolated local ports, explicit non-overlapping networks and persistent Caddy CA
+state. Do not weaken CMS origin checks or reuse another worktree's containers.
+Preparation of this configuration is not yet visible-browser acceptance.
+
+- [x] Establish a persistent, isolated full-stack HTTPS ingress and visibly prove
+      the normal Core login. Local evidence: the dedicated worktree Compose
+      project started with separate explicit subnets and loopback ports; all
+      application/dependency health checks passed. CMS database migrations and
+      scoped RustFS provisioning passed. After the user's explicit request, the
+      verified project-local public Caddy CA was imported into the macOS login
+      keychain for SSL trust. The In-App Browser loaded administration without a
+      certificate warning, requested a login for a synthetic Golden account,
+      and completed the actual mailed-code flow into System Administration.
+      No session was injected. This proves ingress and Core login only: visible
+      CMS setup, campaign migration, editorial publication and ordering remain
+      required and are not implied by this checkbox.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.

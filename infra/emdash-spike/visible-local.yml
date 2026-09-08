@@ -1,0 +1,53 @@
+# Interactive, full-stack local acceptance. Apply after compose.yml and
+# service.test.yml; do not combine with the headless test isolation overlays.
+# Supply a checked, unused /24 prefix and unique loopback ports per worktree.
+services:
+  proxy:
+    ports: !override
+      - "127.0.0.1:${LEONAID_HTTP_PORT:?dedicated HTTP port required}:8080"
+      - "127.0.0.1:${LEONAID_HTTPS_PORT:?dedicated HTTPS port required}:8443"
+    volumes:
+      - visible-local-caddy-data:/data
+  cms-db-operator:
+    profiles: [cms-operator]
+  cms-storage-operator:
+    profiles: [cms-operator]
+  cms-probe:
+    profiles: [cms-operator]
+
+volumes:
+  visible-local-caddy-data:
+
+networks:
+  core-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.0/28"
+  cms-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.16/28"
+  crm-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.32/28"
+  storage-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.48/28"
+  edge:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.64/28"
+  mail-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.80/28"
+  mailing-data:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.96/28"
+  telemetry:
+    ipam:
+      config: !override
+        - subnet: "${EMDASH_LOCAL_NET_PREFIX:?checked free subnet required}.112/28"
