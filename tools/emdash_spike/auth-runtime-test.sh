@@ -402,6 +402,7 @@ if [ "$mode" != auth ]; then
       compose up --no-deps --detach --wait api
       visual_proof=$(mktemp -d)
       . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
+      LEONAID_ENV=test fixture /repo/tools/emdash_spike/order_body_deadline.py
       compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
         node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
       fixture /repo/tools/emdash_spike/campaign_orders_verify.py

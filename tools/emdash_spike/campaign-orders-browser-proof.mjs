@@ -6,6 +6,30 @@ import {
   deadlineWait,
 } from "./native-order-deadline-control.mjs";
 
+async function checkConsents(page, form, label) {
+  try {
+    for (const name of ["privacyAcknowledged", "bindingOrderConfirmed"]) {
+      const checkbox = form.locator(`[name="${name}"]`);
+      // Position each control independently on the long, smoothly scrolled
+      // page. The consent itself still requires an ordinary hit-tested click.
+      await checkbox.evaluate((element) =>
+        element.scrollIntoView({ behavior: "instant", block: "center" }),
+      );
+      await checkbox.check();
+      assert.equal(await checkbox.isChecked(), true);
+    }
+  } catch (error) {
+    await page.screenshot({
+      path: `/visual-proof/checkbox-failure-${label}.png`,
+      fullPage: true,
+    });
+    console.log(
+      `campaign-orders: checkbox failure screenshot retained for ${label}`,
+    );
+    throw error;
+  }
+}
+
 const legacyEntry = process.argv.includes("--legacy-entry");
 const primaryAlias = process.argv.includes("--primary-alias");
 const postCutover = process.argv.includes("--after-cutover");
@@ -159,26 +183,7 @@ for (const [engineName, engine] of Object.entries({
         }
         for (const [name, value] of Object.entries(fields))
           await form.locator(`[name="${name}"]`).fill(value);
-        try {
-          // Establish the viewport independently of global smooth scrolling.
-          // Consent still requires an ordinary hit-tested browser click.
-          await form
-            .locator('[name="privacyAcknowledged"]')
-            .evaluate((element) =>
-              element.scrollIntoView({ behavior: "instant", block: "center" }),
-            );
-          await form.locator('[name="privacyAcknowledged"]').check();
-        } catch (error) {
-          await page.screenshot({
-            path: `/visual-proof/checkbox-failure-${label}.png`,
-            fullPage: true,
-          });
-          console.log(
-            `campaign-orders: checkbox failure screenshot retained for ${label}`,
-          );
-          throw error;
-        }
-        await form.locator('[name="bindingOrderConfirmed"]').check();
+        await checkConsents(page, form, label);
         const commandId = await form.locator('[name="commandId"]').inputValue();
         const retryForm = await form.evaluate((element) => ({
           action: element.action,
@@ -268,16 +273,7 @@ for (const [engineName, engine] of Object.entries({
             } else {
               await new Promise((resolve) => setTimeout(resolve, 45000));
             }
-            await form
-              .locator('[name="privacyAcknowledged"]')
-              .evaluate((element) =>
-                element.scrollIntoView({
-                  behavior: "instant",
-                  block: "center",
-                }),
-              );
-            await form.locator('[name="privacyAcknowledged"]').check();
-            await form.locator('[name="bindingOrderConfirmed"]').check();
+            await checkConsents(page, form, `${label}-retry`);
             const retried = page.waitForResponse(
               (reply) =>
                 reply.request().method() === "POST" &&

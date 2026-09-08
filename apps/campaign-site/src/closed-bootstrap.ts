@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { guardOrderBody } from "../../public/src/lib/order-body";
 import { cmsMaintenanceClosed } from "./cms-maintenance.mjs";
 import { withEmDashRuntime } from "emdash/middleware";
 import {
@@ -84,6 +85,10 @@ export const onRequest = defineMiddleware(
       try {
         if (!hasSecurePublicOrigin(request))
           return new Response("Invalid CMS origin", { status: 403, headers });
+        if (nativeOrderPost) {
+          const rejectedBody = await guardOrderBody(request);
+          if (rejectedBody) return rejectedBody;
+        }
         await requireCompletedBootstrap(bootstrapDirectory);
         if (!(await setupIsComplete())) throw new Error();
         if (nativeOrderPost) {

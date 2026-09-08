@@ -20,6 +20,24 @@
 	}
 }
 
+(order_declared_body_limit) {
+	@oversized_order {
+		method POST
+		expression `(path('/_actions/createPublicOrder', '/_actions/createPublicOrder/') || query({'_action': 'createPublicOrder'})) && {http.request.header.Content-Length} != '' && int({http.request.header.Content-Length}) > 65536`
+	}
+	route @oversized_order {
+		# Reject before a proxy request-body reader is started. Bound the HTTP/1
+		# server's post-response drain as well as returning an immediate error.
+		request_body {
+			read_timeout 1s
+		}
+		header Cache-Control no-store
+		respond "Das Bestellformular ist zu groß. Diese Anfrage wurde nicht an die Bestellverarbeitung weitergeleitet." 413 {
+			close
+		}
+	}
+}
+
 (leonaid_routes) {
 	handle /_health {
 		respond "ready" 200
@@ -50,6 +68,7 @@
 	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
 	handle @campaign_routes {
 		import leonaid_headers
+		import order_declared_body_limit
 		reverse_proxy campaign-site:3000 {
 			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
 			# This affects only CMS body-limit responses, not other applications.
@@ -94,7 +113,14 @@
 
 	handle {
 		import leonaid_headers
-		reverse_proxy public:3000
+		import order_declared_body_limit
+		reverse_proxy public:3000 {
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+		}
 	}
 }
 

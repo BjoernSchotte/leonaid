@@ -70,6 +70,21 @@ is deferred, not proven: a backup on the same MacBook does not protect against
 loss or failure of that host. No external backup target or credentials are
 needed to complete this spike.
 
+### Load-test acceptance scope — user decision, 2026-09-08
+
+Normal representative tests are sufficient for this spike. Use a small, bounded
+number of concurrent editorial and Core journeys (editing/publishing, an ordinary
+media upload, login and accepted orders). Do not run stress, endurance,
+saturation, maximum-throughput or deliberately resource-exhausting load tests.
+Record the configured database connection budget and verify ordinary concurrent
+operation without harming other stacks on the shared MacBook. Any multiworker
+check must use similarly modest functional concurrency, not a load ramp.
+
+Existing security, timeout, failure/retry and duplicate-prevention requirements
+remain functional acceptance criteria. This decision supersedes broader load or
+capacity wording below and in historical checkpoints; it does not claim or
+require a production capacity benchmark or SLO certification.
+
 ### 2.1 LeonAid Core remains authoritative
 
 LeonAid Core continues to own:
@@ -532,10 +547,11 @@ acceptance obligations, not additional infrastructure services:
       browser URLs. Test upload, read, delete, restart and restore using only
       the scoped CMS credentials; do not substitute root credentials when a
       compatibility test fails.
-- [ ] **Shared-server capacity (EMS-010/050):** record the combined PostgreSQL
+- [ ] **Normal concurrent operation (EMS-010/050):** record the combined PostgreSQL
       connection budget, including Core, worker, CMS and operator headroom.
       Test bounded whole-request latency as well as individual SQL timeouts.
-      Exercise CMS publishing, media uploads and dependency failures alongside
+      With modest bounded concurrency, exercise CMS publishing, ordinary media
+      uploads and functional dependency failures alongside
       actual Core login and accepted orders with Twenty available. A read-only
       Core health check or an expected CRM-unavailable error is not an order
       availability proof. Run resource-heavy proof stacks serially when Docker
@@ -2583,10 +2599,11 @@ keyboard and 200% zoom checks.
       diagnostics, API/schema/type generation, formatting and privacy/CI gates.
       The working tree remained unchanged; existing upstream Pydantic/Vite
       deprecation warnings remain.
-- [ ] Complete burst/uncertain-outcome acceptance beyond the measured cases:
+- [ ] Complete functional uncertain-outcome acceptance beyond the measured cases:
       native-browser timeout recovery, cancellation during partial CRM writes,
       body/whole-response deadlines, and acceptable resource use under combined
-      Core/CMS load and multiple runtime workers. Keep command identity and
+      normal concurrent Core/CMS use and a modest multiworker functional check,
+      within the load-test scope fixed in section 2. Keep command identity and
       prove no duplicate orders or CRM records. The processing budget and one
       sequential browser burst above are not a production capacity/SLO proof.
   - [x] Native-browser processing-timeout recovery (2026-09-08): the complete
@@ -2658,6 +2675,33 @@ keyboard and 200% zoom checks.
         types, formatting, privacy and repository policy gates passed. The
         committed tree remained unchanged. Existing Pydantic and Vite dependency
         warnings remain.
+  - [x] Bound HTTP/1 order-body ingress and prove ordinary-order regression
+        (2026-09-08). Full `./leonaid test-emdash-spike --case krapfentaxi-orders`
+        exited 0 in `leonaid-emdash-tmp-githmuxev6`. Both native renderers and
+        action RPC passed all eighteen real TLS cases: stalled fixed-length,
+        chunked and multipart bodies returned complete 408 responses plus EOF
+        in 4003–4017 ms; header-declared overflow returned 413 plus EOF in
+        1001 ms; streamed overflow returned 413 plus EOF in 2–4 ms. Exactly
+        64 KiB reached the native pages and RPC schema validation, not the size
+        rejection. Complete HTTP response framing, no-store and absence of
+        session cookies were checked. Seven Core business/receipt/audit tables
+        and complete observed Twenty company/person collections were unchanged.
+        Three native Core-timeout and three partial-CRM retry/replay cases also
+        passed. All 24 normal browser orders, including six mixed-unit orders,
+        passed independent Core SQL and real Twenty verification; twelve exact
+        native replays created no duplicates. Overall this run verified 30
+        browser orders and eighteen native replays. All 84 valid-payload public
+        Core order requests were denied even with a valid service key, with
+        unchanged Core/Twenty state and verified internal negative/positive
+        controls. Import, three-browser edit/publish, aliases and all four Core
+        commerce states passed. The corrected per-checkbox viewport positioning
+        passed the formerly failing Firefox scenario with ordinary hit-tested
+        clicks. Independent exact-project checks confirmed no remaining test
+        containers, volumes or networks; no host ports were exposed. Pinned
+        Caddy also validated the mirrored pilot configuration with synthetic
+        domains. This closes the measured body-ingress boundary, not remaining
+        whole-response/cancellation, modest concurrent-use, pilot live or final
+        whole-spike acceptance gates.
   - Native-browser deadline proof was added to `krapfentaxi-orders` using
     a real PostgreSQL advisory-lock controller, a browser-visible native error,
     unchanged command/input retry and full Core/Twenty snapshots before timeout
@@ -2672,6 +2716,73 @@ keyboard and 200% zoom checks.
     result; actual PostgreSQL blocker observation remains mandatory. No product
     timeout or acceptance threshold was relaxed. All owned test resources
     were cleaned; this failed run does not prove native timeout recovery.
+  - Body-ingress preparation, not acceptance: shared public/CMS middleware now
+    checks order bodies before Astro parsing, with the existing 64-KiB ceiling
+    and a four-second total read budget. First live run
+    `leonaid-emdash-tmp-xdte5inem1` exited 1 on 2026-09-08. Import, all three
+    editor journeys, aliases, commerce states and six native Core/partial-CRM
+    timeout recovery cases passed. The campaign route returned complete TLS
+    408 responses and connection EOF for stalled fixed-length, chunked and
+    multipart requests after 4012/4010/4011 ms. The next, header-declared
+    oversized request timed out; the other routes and remaining order matrix
+    were not reached. The adapter-owned original request is no longer cancelled
+    before writing an error response; its socket must remain available for that
+    response, with Connection: close terminating ingress afterwards. Fixed
+    case/status diagnostics now distinguish missing headers from missing EOF.
+    This correction still needs live verification. Independent label checks
+    confirmed all owned containers, volumes and networks were removed.
+  - Focused body-transport diagnosis, not acceptance (2026-09-08): actual
+    Astro and pinned Caddy in `leonaid-order-body-tmp-fxrejiakkl`, with an
+    explicit isolated subnet and no host ports or Core/CRM credentials,
+    reproduced the header-declared overflow failure (exit 1). Direct Astro
+    returned 413 and connection EOF in 9 ms. Through TLS, the same request
+    received 413, `Connection: close`, and 144 bytes including chunk framing,
+    but failed the eight-second EOF deadline. A live, loopback-only Caddy
+    goroutine snapshot caught `net/http.(*response).finishRequest` waiting in
+    `net/http.(*body).Close`, `io.CopyN`, and TLS request-body `Read`.
+    This establishes server-side post-response body draining, not merely a
+    client EOF-observation issue. Earlier response-handler read-deadline and
+    global full-duplex experiments did not fix it; both were removed. The
+    bounded-rejection/connection-cleanup gate remains open, as do the full
+    eighteen-case Core/Twenty snapshot and normal-order regression proofs.
+    The test client's TLS shutdown now has a separate one-second cleanup
+    bound after failure; no response/EOF acceptance threshold was relaxed.
+    Independent exact-project label checks confirmed no remaining containers,
+    volumes or networks after this failed run.
+  - Focused body-transport correction (2026-09-08), full acceptance still open:
+    the edge now rejects header-declared oversized order POSTs before starting
+    an upstream body reader, with a one-second read deadline for post-response
+    cleanup. Other routes/uploads are unaffected; Astro retains its own byte
+    counter and four-second body deadline. Actual Astro/Caddy run
+    `leonaid-order-body-tmp-bmtb5mjbpx` exited 0: declared overflow returned 413
+    plus EOF in 1002 ms, streamed overflow in 6 ms, and three stalled-body
+    variants returned 408 plus EOF in 4006/4005/4005 ms. Exactly 65536 bytes
+    reached Astro's schema validation in 31 ms, verified by the structured
+    `AstroActionInputError` and `website`/`too_big` issue. The prior focused
+    run `leonaid-order-body-tmp-gmjodvahbc` had already passed the five rejection
+    cases but correctly failed an erroneous test expectation of 422: Astro
+    input errors use 400, distinct from Core's 422. The test now asserts that
+    semantic distinction and complete HTTP body framing, rather than merely
+    changing the expected status. Full native-renderer/Core/Twenty and normal
+    order regression proof is still required before closing this checkpoint.
+  - Full run `leonaid-emdash-tmp-xgrycyot6z` (2026-09-08) proved all eighteen
+    body-ingress cases across canonical campaign, legacy frontend and action
+    RPC with complete responses and EOF. All seven Core tables and the complete
+    observed Twenty company/person collections remained unchanged. Three native
+    Core-timeout and three partial-CRM recovery/replay cases also passed, as did
+    import, three-browser editorial publication, aliases and four-state Core
+    commerce. The run nevertheless exited 1 during the normal order matrix:
+    Firefox's second native scenario failed to check `bindingOrderConfirmed`.
+    Playwright reported an unstable target and intervening confirmation fieldset
+    during scrolling, then a click that did not change state. The test had
+    positioned only the privacy checkbox independently of global smooth
+    scrolling, leaving the binding checkbox outside that step and its screenshot
+    failure handler. Both initial and retry consent controls now use the same
+    individual viewport positioning followed by ordinary hit-tested checks,
+    checked-state assertions and failure screenshots; no force click, injected
+    consent, delay or increased timeout was added. This adjustment still needs
+    live verification. The full 24-order/84-public-denial regression gate stays
+    open. Independent exact-project label checks confirmed complete cleanup.
 - [x] Live-prove accepted campaign orders against real isolated Twenty using
       `./leonaid test-emdash-spike --case campaign-orders`. The pinned stack
       provisions its own Twenty database, Redis, worker and schema. A short-lived
