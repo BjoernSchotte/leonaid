@@ -1,0 +1,50 @@
+{
+  "syntheticOnly": true,
+  "sourceCheckpoint": "86bf028d9a6698c49a0c503148a44e1486035f6f",
+  "runs": [
+    {
+      "mode": "operations",
+      "exitCode": 0,
+      "seconds": 834.219,
+      "ownedResourcesAbsent": true,
+      "project": "leonaid-poc114-test-833458328-93044",
+      "command": "sh tools/operations/test.sh \"$PWD\"",
+      "sourceSha256": "1787acb598d0acdd4651199dd69db705da5581f12f681c1e68ecfbf3159e67dc",
+      "originalServiceAndAssertionSequenceUnchanged": true
+    },
+    {
+      "mode": "dashboard",
+      "exitCode": 0,
+      "seconds": 453.485,
+      "ownedResourcesAbsent": true,
+      "project": "leonaid-poc101-test-833458328-100",
+      "command": "sh tools/dashboard/test.sh \"$PWD\"",
+      "sourceSha256": "3403ea659d6070ab518db28cedab9b7a9e0348f493b603fb0b81f3094861da62",
+      "originalServiceAndAssertionSequenceUnchanged": true
+    },
+    {
+      "mode": "security",
+      "exitCode": 0,
+      "seconds": 409.357,
+      "ownedResourcesAbsent": true,
+      "project": "leonaid-poc110-test-833458328-7355",
+      "command": "sh tools/security/test.sh \"$PWD\"",
+      "sourceSha256": "546f22299c8830d9971b580c2b7b0e1f542209646459396aece45a160d8ec301",
+      "originalServiceAndAssertionSequenceUnchanged": true
+    }
+  ],
+  "hostPortsPublished": false,
+  "networksReservedBeforeStartup": true,
+  "acceptedLegacySuites": 33,
+  "totalLegacySuites": 42,
+  "wholeSpikeAccepted": false,
+  "guard": {
+    "deliveredHarnesses": 34,
+    "deliveredCases": 136,
+    "exitCode": 0,
+    "seconds": 21.032,
+    "expandedCases": 180,
+    "expandedExitCode": 0,
+    "expandedSeconds": 33.391
+  }
+}
