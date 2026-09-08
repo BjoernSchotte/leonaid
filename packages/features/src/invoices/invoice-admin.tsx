@@ -28,6 +28,7 @@ import {
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
+import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
 
 interface InvoiceAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -1211,6 +1212,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
               </option>
             ))}
           </select>
+          <CampaignEditorLink actionId={actionId} identity={identity} />
         </div>
       </header>
 

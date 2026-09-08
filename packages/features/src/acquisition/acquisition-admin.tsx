@@ -15,6 +15,8 @@ import type {
 } from "@leonaid/api-client";
 import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
 
+import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+
 type AssignmentFilter =
   | "all"
   | "open"
@@ -126,10 +128,11 @@ export function AcquisitionAdminPage({
             Arbeitsliste.
           </p>
         </div>
-        <label className="acq-action-picker">
-          <span>Charity-Aktion</span>
+        <div className="acq-field acq-action-picker">
+          <label htmlFor="acquisition-admin-action">Charity-Aktion</label>
           <select
             data-testid="acquisition-admin-action"
+            id="acquisition-admin-action"
             onChange={(event) => {
               setActionId(event.target.value);
               const url = new URL(window.location.href);
@@ -148,7 +151,8 @@ export function AcquisitionAdminPage({
               </option>
             ))}
           </select>
-        </label>
+          <CampaignEditorLink actionId={actionId} identity={identity} />
+        </div>
       </header>
 
       <div className="acq-admin-toolbar">

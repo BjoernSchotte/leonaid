@@ -1,3 +1,5 @@
+import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+
 import {
   Calendar03Icon,
   Invoice03Icon,
@@ -470,6 +472,7 @@ export function CommitmentAdminPage({
               </option>
             ))}
           </select>
+          <CampaignEditorLink actionId={actionId} identity={identity} />
         </div>
       </header>
 

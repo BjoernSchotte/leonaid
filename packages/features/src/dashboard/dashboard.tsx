@@ -1,3 +1,5 @@
+import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+
 import {
   Activity01Icon,
   ArrowRight02Icon,
@@ -523,12 +525,7 @@ export function RoleDashboardPage({
           </select>
         </label>
         {mode === "charity_admin" ? (
-          <a
-            className="ui-button ui-button--secondary"
-            href={`/_emdash/admin/campaigns/${actionId}`}
-          >
-            Microsite bearbeiten
-          </a>
+          <CampaignEditorLink actionId={actionId} identity={identity} />
         ) : null}
       </header>
 

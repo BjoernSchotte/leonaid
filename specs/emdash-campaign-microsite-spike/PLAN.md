@@ -2564,8 +2564,23 @@ Dependencies: EMS-030, EMS-050
       editing route for that `action_id`. Otherwise link to an authorized
       campaign chooser that reveals only manageable campaigns.
       Dashboard and action-management entry points are implemented and visibly
-      exercised; remaining selected-action surfaces and selection changes must
-      still be audited.
+      exercised. Contextual operational entry points are covered below; the
+      global sidebar's selected-action behaviour and remaining administrative
+      surfaces still need the full shell-navigation audit.
+- [x] Add selected-action editing links to acquisition, order administration
+      and invoices, reusing the dashboard link as a shared component. Check
+      authorization for the selected action, not merely a Charity Admin role
+      on another action; System Admins are eligible, finance-only access is not.
+      The focused component test covers same-tab routing, changed selection,
+      finance exclusion, System Admin admission and empty selection. Web typing,
+      formatting and production build passed. In the isolated visible demo,
+      Klara reached the exact existing Krapfentaxi editor from all three pages
+      without another login. Changing the acquisition selector to 2025 updated
+      the link; Tab/Enter opened the correctly campaign-prefilled new form
+      without saving it. At 390px the acquisition link remains visible and
+      opens the existing editor; the old mobile hide rule is limited to the
+      existing sponsor button. No operational forms or mutations were copied.
+      This does not prove the full three-engine shell-navigation gate.
 - [x] Route the native list's View published link to the Core-canonical campaign
       URL, sharing the editor's validated URL function. Published list items
       receive response-only metadata from the existing authorized Core lookup;
@@ -2595,6 +2610,12 @@ Dependencies: EMS-030, EMS-050
       still separate acceptance work.
 - [ ] Preserve keyboard focus, browser Back behaviour, mobile navigation, and
       unsaved-change warnings across the transition.
+      Visible browser Back returned from the unchanged existing editor to
+      acquisition/orders. Returning from the untouched, campaign-prefilled new
+      form instead aborted navigation; no actionable dialog was exposed by the
+      In-App Browser. Diagnose and prove this separate new-form case before
+      closing the warning/history gate; do not treat arrival at the form as
+      proof of the complete round trip.
 - [ ] Do not copy operational LeonAid forms or domain mutations into EmDash.
 
 Verification:
