@@ -4515,6 +4515,18 @@ Preparation of this configuration is not yet visible-browser acceptance.
       A separate cookie-free HTTPS request, validating the project Caddy CA,
       confirmed the edited text and order submit control in the public HTML.
       This does not yet prove an accepted order in this persistent stack.
+- [x] Submit an ordinary synthetic order through the visible Astro form in the
+      persistent local stack. On `3f2e9f9`, the existing scoped operator
+      provisioned real Twenty schema, verified restricted-key permissions and
+      seeded Golden CRM data. Only this stack's Core was recreated with its own
+      generated integration key. The In-App Browser submitted one private-person
+      order and showed an accepted reference, EUR 36.00 and one box / 24 pieces.
+      An independent read-only SQL/API check verified exactly one matching Core
+      order, review-ready/public-form state, amount, line, consent, audit flags
+      and the linked actual Twenty person. No session or service key was injected
+      into the browser. The browser still shared the Charity login; this proves
+      the public form journey, not a separate logged-out browser session, replay
+      or all ingress-denial cases.
 - [ ] Correct and visibly verify the native editor's Live View destination.
       Publication exposed a link to `/campaign_pages/<action_id>` instead of
       the canonical `/campaigns/krapfentaxi-2026/`; the canonical public page

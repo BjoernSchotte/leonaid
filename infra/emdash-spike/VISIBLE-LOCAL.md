@@ -35,6 +35,14 @@ Complete the existing designated-operator setup, synthetic Core seed, Twenty
 provisioning and campaign import before claiming integrated acceptance. Do not
 copy session cookies or database state from a parallel project.
 
+Keep this stack's generated restricted Twenty integration key in a private,
+untracked environment file. Supply that file as a second `--env-file` after
+`.env.local` for subsequent Core recreation; otherwise Compose can replace the
+working key with the empty base value. Never copy a key from another project or
+commit it with acceptance evidence. The existing scoped `orders_operator.py`
+can prepare the synthetic Golden CRM and verify key permissions in this isolated
+local acceptance stack; it must not be run against production data.
+
 After the visible designated-operator setup, stop only this project's
 `campaign-site`. Run `cms-db-operator` with the command
 `node tools/emdash_spike/initialize-local-campaign.mjs`, environment
