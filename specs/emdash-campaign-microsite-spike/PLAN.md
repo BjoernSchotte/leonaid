@@ -4478,6 +4478,13 @@ Preparation of this configuration is not yet visible-browser acceptance.
       No session was injected. This proves ingress and Core login only: visible
       CMS setup, campaign migration, editorial publication and ordering remain
       required and are not implied by this checkbox.
+- [x] Complete initial CMS setup visibly using the existing Core login in the
+      persistent local stack. The designated synthetic System Admin was armed
+      through the existing 15-minute operator control. The In-App Browser
+      completed the site-title/tagline step and entered the EmDash dashboard as
+      the same Core user without another login or passkey. The setup URL returned
+      503 after completion. This proves initial setup/identity handoff, not the
+      still-pending campaign schema, import, scoped Charity editor or ordering.
 
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
