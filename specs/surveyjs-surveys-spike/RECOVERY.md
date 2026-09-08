@@ -296,7 +296,11 @@ to force a restore through validation.
   not that the supplied file is the newest file ever exported.
 - Interrupted reapplication through the wrapper has
   [live evidence](proofs/SURV-090.md#interrupted-pilot-reapplication-and-authenticated-resume).
-  Prove migration compatibility with supported preceding backup revisions. Key/identity and
+  The [cross-revision Restic proof](proofs/SURV-090-CROSS-REVISION.md) restores an
+  actual backup from `875221c` with current `cf20bec` images, reapplies its
+  post-backup erasure and proves inaccessible content after startup. Both
+  revisions use migration 0034; this does not prove older-schema migrations.
+  Prove remaining migration compatibility with supported preceding backup revisions. Key/identity and
   stale/tampered/missing-input rejections are covered by the nonempty pilot proof.
 
 Until these items pass, 090.2 and 090.A3 remain open. The automatic gate and its

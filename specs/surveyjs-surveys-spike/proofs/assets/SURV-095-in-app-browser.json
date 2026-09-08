@@ -1,0 +1,34 @@
+{
+  "proof": "SURV-095",
+  "date": "2026-09-08",
+  "surface": "Codex in-app browser",
+  "fixture": "https://localhost:55858",
+  "syntheticDataOnly": true,
+  "passed": [
+    "module-navigation-empty-state-status-filter",
+    "template-creation-three-pages",
+    "editor-page-and-question-controls",
+    "preview-progress-validation-navigation",
+    "publish-close-archive-lifecycle",
+    "public-participation",
+    "server-backed-partial-save-and-resume",
+    "analysis-filters-and-statistics",
+    "analysis-excel-ready"
+  ],
+  "open": [
+    "authorization-boundaries",
+    "invitation-expiry-revocation",
+    "timeout-expiry",
+    "all-question-renderers",
+    "json-roundtrip-diagnostics",
+    "conflict-behavior",
+    "actual-csv-xlsx-pdf-content-and-render-review",
+    "responsive-and-keyboard-only-check",
+    "permanent-deletion"
+  ],
+  "participation": {
+    "surveyId": "07b252f6-07d0-4504-85b5-e43c6eddb6c2",
+    "selectedRating": 5,
+    "recoveredAfterReload": true
+  }
+}

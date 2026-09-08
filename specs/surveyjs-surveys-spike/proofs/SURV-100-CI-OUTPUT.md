@@ -36,3 +36,13 @@ unchanged. The Security command additionally runs the new process tests.
 [Exact source hashes and results](assets/SURV-100-ci-output-capture.json) identify
 the tested dirty inputs relative to `562de8b`. The full corrected branch CI must
 still pass; this scoped repair does not accept the aggregate or the full spike.
+
+## Branch Security CI confirmation
+
+The [complete Security job](https://github.com/BjoernSchotte/leonaid/actions/runs/34264442655/job/102190483025)
+on `cf20bec` succeeds in 8 minutes 34 seconds. Its retained log confirms real
+transport/security assertions, browser behavior, removal of owned test resources,
+and the dependency/image gates. The final unchanged sanitizer accepts both
+artifacts with zero secret occurrences redacted. The four source hashes above
+still match the checkout. This confirms the output-capture repair in branch CI;
+other integration and Survey acceptance jobs remain pending at this review.

@@ -21,5 +21,14 @@
     "genuinelyInvalidLogDiscarded": true
   },
   "sanitizerUnchanged": true,
-  "fullCiAccepted": false
+  "fullCiAccepted": false,
+  "branchSecurityCi": {
+    "sourceCommit": "cf20bec5faeb49c11a7f6f78fde54c9bd28dc061",
+    "runId": 34264442655,
+    "jobId": 102190483025,
+    "conclusion": "success",
+    "sanitizedArtifactCount": 2,
+    "redactedSecretOccurrences": 0,
+    "ownedResourceCleanupVerified": true
+  }
 }
