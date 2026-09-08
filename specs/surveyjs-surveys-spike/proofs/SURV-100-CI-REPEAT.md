@@ -62,8 +62,9 @@ These are the actual manifest children, not substitutions inferred from unit tes
 
 This accepts the complete repeated survey suite at the recorded revision. It does
 not accept later uncommitted working-tree changes or establish that an intermittent
-browser failure can never recur. The strengthened rating helper remains subject
-to its separate local live run.
+browser failure can never recur. The strengthened rating helper subsequently
+passed its [separate complete local live run](SURV-100-RATING-JOURNEY.md); that
+result does not establish the historical CI failure's cause.
 
 **100.1, 100.T1, 100.A3–A5 and full spike completion remain open.** Existing
 application/operator regressions, the final capability/delivery review and

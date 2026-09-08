@@ -37,10 +37,12 @@ async function rate(page, name, value) {
       await page
         .getByRole("option", { name: String(value), exact: true })
         .click({ timeout: 1000 });
-    } else
-      await question
-        .locator(`input[type=radio][value="${value}"]`)
-        .press("Space", { timeout: 1000 });
+      await expect(dropdown).toContainText(String(value), { timeout: 1000 });
+    } else {
+      const radio = question.locator(`input[type=radio][value="${value}"]`);
+      await radio.press("Space", { timeout: 1000 });
+      await expect(radio).toBeChecked({ timeout: 1000 });
+    }
   }).toPass({ timeout: 15000, intervals: [100, 250] });
 }
 async function invite(page, request, sid, suffix) {

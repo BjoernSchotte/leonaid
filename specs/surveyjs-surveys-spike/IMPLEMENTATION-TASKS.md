@@ -493,8 +493,8 @@ Browser delivery and **100.A2 / 100.T2 / 100.S4** are accepted after all four
 complete journeys and independent parsing/erasure verification. [Live evidence](proofs/SURV-100.md#complete-desktop-and-mobile-survey-journeys).
 Task-level **100.2** is now accepted: **100.A2** has the complete desktop/mobile
 journey proof and repeated CI, and **100.A4** has the [task/capability review](TRACEABILITY.md#review-decision).
-This does not accept the uncommitted rating-helper change or the remaining
-regression, recovery, cleanup and delivery requirements.
+The [strengthened rating helper now passes its complete local journey regression](proofs/SURV-100-RATING-JOURNEY.md).
+The remaining regression, recovery, cleanup and delivery requirements stay open.
 
 - [x] **100.2a** Fix pointer selection in the public Golf dropdown when host focus changes cause document scrolling. Acceptance: **100.A2, complete-journey regression**; the original unchanged browser tests must select the option through a real pointer hit, complete all four desktop/mobile journeys, verify all 16 downloads and SQL/object erasure, and prove owned cleanup. Integration/E2E: **100.S4a**. The capability/task audit is reconciled in [TRACEABILITY.md](TRACEABILITY.md#review-decision); broader regression and delivery gates remain open. [Live evidence](proofs/SURV-100-DROPDOWN.md).
 

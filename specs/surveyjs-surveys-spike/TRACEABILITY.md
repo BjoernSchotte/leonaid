@@ -169,8 +169,9 @@ all accessibility tools or general performance certification.
 **100.2 is accepted** because its complete desktop/mobile author-to-deletion
 journeys already satisfy 100.A2 and this reconciliation now satisfies 100.A4.
 The aborted local rerun stopped during image building, produced no browser result,
-and does not validate the stronger uncommitted rating helper. Its repetition
-remains required for that change. Earlier intermittent failures are retained in
+and did not validate the stronger rating helper. Its subsequent
+[complete repetition now passes](proofs/SURV-100-RATING-JOURNEY.md), including
+all four journeys, 16 downloads and independent cleanup. Earlier intermittent failures are retained in
 the history, alongside the subsequent two complete successful CI executions.
 
 **100.S3 remains open for its separate 100.A5 delivery requirement.** Likewise,

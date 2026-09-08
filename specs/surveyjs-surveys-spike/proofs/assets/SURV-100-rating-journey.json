@@ -1,0 +1,122 @@
+{
+  "scope": "Selected-value test helper and complete desktop/mobile service-backed Journey repetition",
+  "syntheticOnly": true,
+  "command": "sh tools/surveys/infrastructure.sh \"$PWD\" journeys",
+  "run": {
+    "mode": "journeys",
+    "exitCode": 0,
+    "seconds": 495.847,
+    "ownedResourcesAbsent": true,
+    "projects": [
+      "leonaid-surveys-833458328-25341"
+    ],
+    "sourceCheckpoint": "8a9e10790d203b59c2623e758e226e6276ee79ba",
+    "sourceHashes": {
+      "tools/surveys/infrastructure.sh": "420d6b138fd2d1611f8cd520d746a992c78fd1ed326aebfcd2c520af05eb8172",
+      "tests/e2e/surveys-journey.spec.mjs": "bd390ec4ab31f2ab4c33352606828ded6747f665a16ef24fdc875c96975816f7",
+      "packages/surveys/src/runner.tsx": "b0190ef93e3e2193941a8f24ab9356f7202afff5aafbe4640296fad41fae1dbd",
+      "tools/surveys/journey_verify.py": "8d30969e457e35c8e3332f384020ef871da490214e76e1b3e8d4b72052b07bc4"
+    }
+  },
+  "independentFinalInventoriesEmpty": true,
+  "browserTestsPassed": 5,
+  "browserDurationReported": "1.2m",
+  "journeyProofSha256": "ead23980cfcb52fac730044b4af20c4483becc1b8291d7da3fe44c054c62cf42",
+  "journeyProof": {
+    "syntheticOnly": true,
+    "journeys": [
+      {
+        "template": "krapfentaxi",
+        "viewport": [
+          1440,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "krapfentaxi",
+        "viewport": [
+          390,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "golf",
+        "viewport": [
+          1440,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      },
+      {
+        "template": "golf",
+        "viewport": [
+          390,
+          960
+        ],
+        "partialResumeAndVersionIsolation": true,
+        "outsiderDenied": true,
+        "browserExportsParsed": 4,
+        "csvXlsxAgreement": true,
+        "snapshotMetricsAgree": true,
+        "sqlContentErased": true,
+        "allObjectVersionsErased": true
+      }
+    ]
+  },
+  "controlledBrowserDiagnostic": {
+    "scope": "Actual runner and Chromium with simulated save adapter and a deliberately hidden rating for one second; does not establish historical CI root cause",
+    "cases": [
+      {
+        "width": 1440,
+        "helper": "original",
+        "advancedToNextPage": false,
+        "savedDeliveryRating": null,
+        "validationErrorCount": 1
+      },
+      {
+        "width": 1440,
+        "helper": "checked",
+        "advancedToNextPage": true,
+        "savedDeliveryRating": 5,
+        "validationErrorCount": 0
+      },
+      {
+        "width": 390,
+        "helper": "original",
+        "advancedToNextPage": false,
+        "savedDeliveryRating": null,
+        "validationErrorCount": 1
+      },
+      {
+        "width": 390,
+        "helper": "checked",
+        "advancedToNextPage": true,
+        "savedDeliveryRating": 5,
+        "validationErrorCount": 0
+      }
+    ]
+  },
+  "originalRetryBudgetAndBusinessAssertionsPreserved": true,
+  "historicalCiFailureRootCauseEstablished": false,
+  "fullAggregateAccepted": false
+}
