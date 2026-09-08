@@ -3886,6 +3886,24 @@ another running checkout or authorize production deployment.
       source files typechecked, public/CMS Astro checks on 25/49 files without
       diagnostics, generated-type/format/policy gates and an unchanged tree.
 
+      Run `leonaid-poc112-tmp-ringlt1ymb` failed before browser orders/backup:
+      the importer comparison after logout detected only the independently
+      written `system:scheduler:last_completed_at` option. The pinned EmDash
+      scheduler source confirms this periodic health write. Import snapshots
+      now exclude exactly that heartbeat, retain every other option and add a
+      real-SQL negative control for unexpected option changes. Snapshot failure
+      messages no longer dump row values. This run exited 1 and cleaned its own
+      resources; it supplies no additional rollback acceptance evidence.
+      Follow-up `leonaid-poc112-tmp-uxljbebva2` passed the corrected full
+      importer proof, including the real-SQL unexpected-option control and
+      logout comparison, then all three actual native editor/publish journeys
+      and alias HTTP checks. It exited 1 during fresh Twenty startup, before
+      orders or backup: Compose reported the server unhealthy. A preceding
+      read-only state check showed it running with zero restarts and no OOM
+      flag; this does not establish the readiness failure's cause. Owned
+      resources were removed. The importer correction is live-proven; the
+      broader cutover/rollback gate remains open.
+
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
 

@@ -29,7 +29,11 @@ const snapshot = async () => ({
   media: await rows("media", "id"),
   bindings: await rows("leonaid_campaign_media", "media_id"),
   attempts: await rows("_emdash_media_upload_attempts", "storage_key"),
-  options: await rows("options", "name"),
+  // EmDash's independent scheduler writes this heartbeat while the real CMS
+  // is running. It is not importer state; retain every other option exactly.
+  options: (await rows("options", "name")).filter(
+    ({ name }) => name !== "system:scheduler:last_completed_at",
+  ),
   fields: await rows("_emdash_fields", "id"),
   journal: (
     await sql`SELECT to_regclass('public.leonaid_krapfentaxi_import') AS relation`.execute(
@@ -40,6 +44,12 @@ const snapshot = async () => ({
     : null,
   objects: await keys(),
 });
+const assertSnapshot = async (expected) =>
+  assert.equal(
+    isDeepStrictEqual(await snapshot(), expected),
+    true,
+    "import state changed; row values intentionally withheld",
+  );
 const run = (mode = "apply", checkpoint) =>
   importKrapfentaxi({ ...context, mode, checkpoint });
 const killAtDurableCheckpoint = async (phase) => {
@@ -132,7 +142,7 @@ async function prove() {
       run(),
       /krapfentaxi_import_existing_editorial_content/,
     );
-    assert.deepEqual(await snapshot(), occupied);
+    await assertSnapshot(occupied);
     // Delete only the synthetic row just created in this isolated empty fixture.
     await database
       .deleteFrom("ec_campaign_pages")
@@ -144,15 +154,31 @@ async function prove() {
     });
     const drifted = await snapshot();
     await assert.rejects(run("dry-run"), /campaign_schema_drift/);
-    assert.deepEqual(await snapshot(), drifted);
+    await assertSnapshot(drifted);
     await registry.updateField("campaign_pages", "hero_summary", {
       validation: { maxLength: 1200 },
     });
     const before = await snapshot();
+    // Real SQL negative control: excluding one heartbeat must not suppress
+    // unexpected changes to any other persisted option.
+    const optionProbe = "leonaid:import-proof-unexpected-option";
+    await database
+      .insertInto("options")
+      .values({ name: optionProbe, value: "true" })
+      .execute();
+    try {
+      assert.equal(isDeepStrictEqual(await snapshot(), before), false);
+    } finally {
+      await database
+        .deleteFrom("options")
+        .where("name", "=", optionProbe)
+        .execute();
+    }
+    await assertSnapshot(before);
     const preview = await run("dry-run");
     assert.equal(preview.state, "create");
     assert.equal(preview.assets, 3);
-    assert.deepEqual(await snapshot(), before);
+    await assertSnapshot(before);
     const privateDirectory = await mkdtemp(
       join(tmpdir(), "leonaid-import-cli-"),
     );
@@ -178,7 +204,7 @@ async function prove() {
       assert.equal(accepted.status, 0, "operator CLI dry run must succeed");
       assert.deepEqual(JSON.parse(accepted.stdout), preview);
       assert.equal(accepted.stderr, "");
-      assert.deepEqual(await snapshot(), before);
+      await assertSnapshot(before);
       await chmod(sessionFile, 0o644);
       const denied = cli();
       assert.equal(denied.status, 1);
@@ -187,7 +213,7 @@ async function prove() {
         denied.stderr,
         "krapfentaxi-import: denied or unavailable; no automatic overwrite or publication; inspect private operator state before retrying\n",
       );
-      assert.deepEqual(await snapshot(), before);
+      await assertSnapshot(before);
     } finally {
       await rm(privateDirectory, { recursive: true, force: true });
     }
@@ -197,7 +223,7 @@ async function prove() {
     assert.deepEqual(await keys(), []);
     const afterReserve = await snapshot();
     assert.equal((await run("dry-run")).state, "resume");
-    assert.deepEqual(await snapshot(), afterReserve);
+    await assertSnapshot(afterReserve);
 
     await killAtDurableCheckpoint("ready");
     assert.equal((await rows("media", "id")).length, 1);
@@ -259,7 +285,7 @@ async function prove() {
     const committed = await snapshot();
     const repeated = await run();
     assert.equal(repeated.state, "preserved");
-    assert.deepEqual(await snapshot(), committed);
+    await assertSnapshot(committed);
     assert.deepEqual(await keys(), readyKeys);
     const repository = new ContentRepository(database);
     const item = await repository.findById(
@@ -281,7 +307,7 @@ async function prove() {
     const edited = await snapshot();
     assert.equal((await run()).state, "preserved");
     assert.equal((await run("dry-run")).state, "preserved");
-    assert.deepEqual(await snapshot(), edited);
+    await assertSnapshot(edited);
     const repeatDirectory = await mkdtemp(
       join(tmpdir(), "leonaid-import-repeat-"),
     );
@@ -309,7 +335,7 @@ async function prove() {
       );
       assert.equal(JSON.parse(cli.stdout).state, "preserved");
       assert.equal(cli.stderr, "");
-      assert.deepEqual(await snapshot(), edited);
+      await assertSnapshot(edited);
     } finally {
       await rm(repeatDirectory, { recursive: true, force: true });
     }
@@ -382,7 +408,7 @@ async function prove() {
     });
     assert.equal(status, 200);
     await assert.rejects(run(), /identity_denied/);
-    assert.deepEqual(await snapshot(), edited);
+    await assertSnapshot(edited);
     console.log(
       "krapfentaxi-import: OK: actual Core target/identity, read-only dry run, atomic journal/media reservation, actual SIGKILL at reserved/ready checkpoints and resume with same IDs, concurrent importer exclusion, actual PostgreSQL final-write rollback, private original RustFS assets, draft-only create, lost-success-reply recovery, preservation of editor changes and real Core logout denial; restored-journal resume remains a separate gate",
     );
