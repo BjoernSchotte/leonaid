@@ -522,6 +522,14 @@ export function RoleDashboardPage({
             ))}
           </select>
         </label>
+        {mode === "charity_admin" ? (
+          <a
+            className="ui-button ui-button--secondary"
+            href={`/_emdash/admin/campaigns/${actionId}`}
+          >
+            Microsite bearbeiten
+          </a>
+        ) : null}
       </header>
 
       {dashboard.isPending ? (

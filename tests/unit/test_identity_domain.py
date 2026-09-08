@@ -337,6 +337,12 @@ def test_navigation_keeps_backoffice_overview_for_authorized_roles(
     assert any(
         item.surface == "web" and item.key == "overview-web" for item in navigation
     )
+    microsites = [item for item in navigation if item.key == "microsite"]
+    allowed = principal.is_system_admin or action_role is ActionRole.CHARITY_ADMIN
+    assert len(microsites) == int(allowed)
+    if allowed:
+        assert microsites[0].surface == "web"
+        assert microsites[0].href == "/_emdash/admin/content/campaign_pages"
 
 
 def test_role_management_matrix_separates_global_and_action_scopes() -> None:

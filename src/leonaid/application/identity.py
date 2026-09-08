@@ -381,6 +381,16 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if ActionRole.DRIVER in action_roles:
         items.append(NavigationItem("delivery", "Auslieferung", "/app/delivery", "pwa"))
 
+    if principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles:
+        items.append(
+            NavigationItem(
+                "microsite",
+                "Microsite bearbeiten",
+                "/_emdash/admin/content/campaign_pages",
+                "web",
+            )
+        )
+
     seen: set[tuple[str, str]] = set()
     unique: list[NavigationItem] = []
     for item in items:

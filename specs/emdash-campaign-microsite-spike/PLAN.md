@@ -2525,8 +2525,19 @@ Dependencies: EMS-030, EMS-050
       checks, API parity, frontend/CMS type checks, formatting and privacy/policy
       gates, with unchanged worktree. This does not close the navigation entry,
       existing-microsite resolver, chooser, Back affordance or Charity admission.
-- [ ] Add **Edit microsite** to the existing role-aware LeonAid navigation for
+- [x] Add **Edit microsite** to the existing role-aware LeonAid navigation for
       System Admins and Charity Admins only.
+      Core emits the `microsite` navigation item only for these roles; the
+      existing AppShell renders it on desktop and in its mobile drawer. The
+      destination is the already server-scoped native campaign-page list, not
+      a second chooser implementation. All 28 identity unit tests passed,
+      including System/Charity admission and finance exclusion; UI/features/web
+      typing and both production builds passed. In the visible isolated demo,
+      Klara opened the list from the mobile drawer with the existing login.
+      Dashboard and action-management contextual links also reached the exact
+      Krapfentaxi editor through its Core-action resolver in the same tab.
+      This does not yet prove all selected-action surfaces or the complete
+      shell-navigation acceptance command.
 - [x] Add the selected-action resolver prerequisite for System Admins:
       `GET /_emdash/admin/campaigns/<Core UUID>` rechecks Core access and returns
       a no-store 303 to the exact native editor or the campaign-prefilled new
@@ -2552,6 +2563,11 @@ Dependencies: EMS-030, EMS-050
 - [ ] Where an action is already selected, link to the campaign-scoped EmDash
       editing route for that `action_id`. Otherwise link to an authorized
       campaign chooser that reveals only manageable campaigns.
+      Dashboard and action-management entry points are implemented and visibly
+      exercised; remaining selected-action surfaces and selection changes must
+      still be audited. The native list's separate View published link currently
+      uses `/campaign_pages/<binding UUID>` and needs Core-canonical routing,
+      just like the editor's already corrected Live View control.
 - [ ] Open EmDash as a normal top-level navigation on the same origin; do not
       use `target=_blank` by default and do not add an iframe.
 - [x] Add a visible **Back to LeonAid** affordance in the EmDash admin branding

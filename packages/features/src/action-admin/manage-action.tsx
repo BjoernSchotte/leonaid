@@ -223,6 +223,12 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         >
           {statusLabels[action.status]}
         </span>
+        <a
+          className="ui-button ui-button--secondary"
+          href={`/_emdash/admin/campaigns/${action.id}`}
+        >
+          Microsite bearbeiten
+        </a>
       </header>
 
       {archived ? (
