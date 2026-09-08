@@ -4505,6 +4505,22 @@ Preparation of this configuration is not yet visible-browser acceptance.
       all four image uses had nonzero natural dimensions. Publication and order
       acceptance in this visible stack remain pending.
 
+- [x] Visibly save and publish the imported campaign as the synthetic Charity
+      operator through the normal Core identity. On source `001486f`, the In-App
+      Browser saved the hero heading `Krapfen teilen. Gemeinsam helfen.` as a
+      draft; the canonical public route still showed the unpublished state.
+      Clicking Publish changed the editor control to Unpublish. Reloading
+      `/campaigns/krapfentaxi-2026/` then rendered the edited text, original
+      campaign images and Core-backed ordering data without a build or deploy.
+      A separate cookie-free HTTPS request, validating the project Caddy CA,
+      confirmed the edited text and order submit control in the public HTML.
+      This does not yet prove an accepted order in this persistent stack.
+- [ ] Correct and visibly verify the native editor's Live View destination.
+      Publication exposed a link to `/campaign_pages/<action_id>` instead of
+      the canonical `/campaigns/krapfentaxi-2026/`; the canonical public page
+      itself works. Resolve the destination through the campaign routing
+      authority, without allowing an editor-supplied arbitrary redirect.
+
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.
 A successful build or a visually working EmDash editor is not sufficient.
