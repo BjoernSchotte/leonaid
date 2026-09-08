@@ -114,7 +114,14 @@ export async function requireCoreCampaign(request: Request, actionId: string) {
   if (!z.uuid().safeParse(actionId).success) throw new CoreIdentityError(403);
   try {
     const result = z
-      .object({ id: z.uuid(), isPublished: z.boolean() })
+      .object({
+        id: z.uuid(),
+        isPublished: z.boolean(),
+        archiveSlug: z
+          .string()
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+          .max(160),
+      })
       .safeParse(
         await client.getCharityAction(actionId, {
           headers: { Cookie: coreSessionCookie(request) },

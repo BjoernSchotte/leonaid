@@ -9,6 +9,7 @@ import {
   readCoreIdentity,
   CoreIdentityError,
   requireCorePublication,
+  requireCurrentCampaignActor,
 } from "./auth/core-identity";
 import {
   isCampaignReadRoute,
@@ -114,6 +115,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
           .execute((transaction) =>
             resolveCampaignEditorMedia(transaction, data.action_id, data),
           );
+        const campaign = await requireCurrentCampaignActor(
+          request,
+          actor,
+          String(data.action_id),
+        );
+        // Response-only metadata, never an editable field or a stored slug.
+        Object.assign(item, {
+          leonaidLivePath: `/campaigns/${campaign.archiveSlug}/`,
+        });
       }
       return result;
     };

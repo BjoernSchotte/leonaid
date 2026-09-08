@@ -34,6 +34,38 @@ console.log(
 const editor = await readFile(require.resolve("@emdash-cms/admin"), "utf8");
 const revisioned = patchEditorSource(editor);
 assert.notEqual(revisioned, editor);
+const liveViewExpression = revisioned.match(/const liveViewUrl = ([^\n]+);/);
+assert.ok(liveViewExpression);
+const liveView = new Function(
+  "collection",
+  "isLive",
+  "item",
+  "contentUrl",
+  "urlPattern",
+  `return ${liveViewExpression[1]};`,
+);
+const canonical = "/campaigns/krapfentaxi-2026/";
+assert.equal(
+  liveView("campaign_pages", true, { leonaidLivePath: canonical }),
+  canonical,
+);
+assert.equal(
+  liveView("campaign_pages", false, { leonaidLivePath: canonical }),
+  null,
+);
+for (const path of [
+  undefined,
+  "https://evil.invalid/",
+  "//evil.invalid/",
+  "/campaigns/../admin/",
+  "/campaigns/a/?preview=1",
+  "/campaign_pages/binding-id",
+]) {
+  assert.equal(
+    liveView("campaign_pages", true, { leonaidLivePath: path }),
+    null,
+  );
+}
 const repeater = revisioned.slice(
   revisioned.indexOf("function RepeaterField("),
   revisioned.indexOf("function SubFieldInput("),

@@ -4527,11 +4527,18 @@ Preparation of this configuration is not yet visible-browser acceptance.
       into the browser. The browser still shared the Charity login; this proves
       the public form journey, not a separate logged-out browser session, replay
       or all ingress-denial cases.
-- [ ] Correct and visibly verify the native editor's Live View destination.
+- [x] Correct and visibly verify the native editor's Live View destination.
       Publication exposed a link to `/campaign_pages/<action_id>` instead of
       the canonical `/campaigns/krapfentaxi-2026/`; the canonical public page
-      itself works. Resolve the destination through the campaign routing
-      authority, without allowing an editor-supplied arbitrary redirect.
+      itself works. The authorized item response now supplies response-only
+      canonical-path metadata from a fresh Core campaign/actor check. The native
+      editor uses that path, not its binding UUID, and hides missing or invalid
+      destinations. No route, redirect authority or editable URL field was added.
+      The pinned production build passed all 49 Astro checks; installed-source
+      patch tests passed, including draft/missing/external/traversal/query URL
+      rejection and upstream drift checks. After replacing only this stack's CMS,
+      the In-App Browser reloaded the Charity editor and displayed Live View
+      pointing to `/campaigns/krapfentaxi-2026/` with the saved published content.
 
 The spike is complete only when every applicable task is checked, every command
 has recorded sanitized evidence, and `RESULT.md` contains an explicit outcome.

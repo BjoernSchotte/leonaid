@@ -22,6 +22,12 @@ export function patchEditorSource(source) {
     assert.equal(source.split(before).length, 2);
     source = source.replace(before, after);
   };
+  // Core owns campaign URLs. Keep the native Live View control, but never use
+  // the CMS binding UUID as a public slug. Missing metadata hides the link.
+  replace(
+    "\tconst liveViewUrl = isLive && item?.slug ? contentUrl(collection, item.slug, urlPattern) : null;",
+    '\tconst liveViewUrl = collection === "campaign_pages" ? (isLive && /^\\/campaigns\\/[a-z0-9]+(?:-[a-z0-9]+)*\\/$/.test(item?.leonaidLivePath ?? "") ? item.leonaidLivePath : null) : (isLive && item?.slug ? contentUrl(collection, item.slug, urlPattern) : null);',
+  );
   // Firefox can retain the old selection when an unfocused editor receives a
   // click in an empty paragraph. Use the supported ProseMirror click seam;
   // preserve modifier/drag/keyboard behavior and never modify document content.
