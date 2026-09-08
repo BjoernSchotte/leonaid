@@ -140,6 +140,16 @@ if [ -n "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" 
   exit 1
 fi
 cleanup() {
+  if [ -n "${native_deadline_pid:-}" ]; then
+    native_deadline_container=$(docker ps -aq \
+      --filter "name=^/${native_deadline_name}$" \
+      --filter "label=com.docker.compose.project=$project" \
+      --filter "label=com.docker.compose.service=api" \
+      --filter "label=com.docker.compose.oneoff=True")
+    if [ -n "$native_deadline_container" ]; then docker stop "$native_deadline_container" >/dev/null || true; fi
+    wait "$native_deadline_pid" || true
+    native_deadline_pid=
+  fi
   if [ "$recovery" = true ]; then
     if [ -n "${recovery_authority_pid:-}" ]; then
       authority_container=$(docker ps -aq \
@@ -164,6 +174,16 @@ cleanup() {
   if [ -d "$proof/core-commerce" ]; then
     rm -f "$proof/core-commerce/core-commerce-editorial.json"
     rmdir "$proof/core-commerce"
+  fi
+  if [ -d "$proof/native-order-deadline" ]; then
+    for engine in chromium firefox webkit; do
+      for stage in locked timeout released accepted replay-ready replayed verified; do
+        rm -f "$proof/native-order-deadline/deadline-$engine-native-person-$stage" \
+          "$proof/native-order-deadline/deadline-$engine-native-person-$stage.tmp"
+      done
+    done
+    rm -f "$proof/native-order-deadline/orders-ui.json"
+    rmdir "$proof/native-order-deadline"
   fi
   if [ "$recovery" = true ]; then rm -rf "$proof/repository" "$proof/recovery-control" "$proof/recovery-orders-browser" "$proof/cutover-browser"; rm -f "$proof/restic-password" "$proof/cutover-state.json" "$proof/after-cutover-orders.json" "$proof/after-rollback-orders.json"; fi
   rmdir "$proof"
@@ -369,6 +389,7 @@ if [ "$mode" != auth ]; then
       fi
       compose up --no-deps --detach --wait api
       visual_proof=$(mktemp -d)
+      . "$root/tools/emdash_spike/native-order-deadline-phase.sh"
       compose run --rm --no-deps --volume "$proof:/proof" --volume "$visual_proof:/visual-proof" admin-browser \
         node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported
       fixture /repo/tools/emdash_spike/campaign_orders_verify.py

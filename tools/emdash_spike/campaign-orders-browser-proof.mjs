@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
+import {
+  deadlineSignal,
+  deadlineWait,
+} from "./native-order-deadline-control.mjs";
 
 const legacyEntry = process.argv.includes("--legacy-entry");
 const primaryAlias = process.argv.includes("--primary-alias");
@@ -10,6 +14,7 @@ const path = legacyEntry ? "/krapfentaxi" : "/campaigns/krapfentaxi-2026/";
 const orders = [];
 const burst = process.argv.includes("--burst");
 const imported = process.argv.includes("--imported");
+const nativeDeadline = process.argv.includes("--native-deadline");
 const beforeRecovery = process.argv.includes("--before-recovery");
 const afterRecovery = process.argv.includes("--after-recovery");
 const afterRollback = process.argv.includes("--after-rollback");
@@ -19,6 +24,17 @@ assert.ok(
 assert.ok(!(burst && (beforeRecovery || afterRecovery || afterRollback)));
 assert.ok(!postCutover || (imported && afterRecovery && primaryAlias));
 assert.ok(!legacyEntry || afterRollback);
+assert.ok(
+  !nativeDeadline ||
+    (imported &&
+      !burst &&
+      !beforeRecovery &&
+      !afterRecovery &&
+      !afterRollback &&
+      !postCutover &&
+      !legacyEntry &&
+      !primaryAlias),
+);
 if (beforeRecovery || afterRecovery || afterRollback) {
   assert.ok(
     (await readdir("/proof")).every((name) => name === "orders-ui.json"),
@@ -45,14 +61,11 @@ for (const [engineName, engine] of Object.entries({
 })) {
   const browser = await engine.launch({ headless: true });
   try {
-    for (const javaScriptEnabled of [false, true]) {
-      for (const scenario of [
-        "new-company",
-        "existing-company",
-        "person",
-        "mixed",
-      ]) {
-        const label = `${recoveryPrefix}${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+    for (const javaScriptEnabled of nativeDeadline ? [false] : [false, true]) {
+      for (const scenario of nativeDeadline
+        ? ["person"]
+        : ["new-company", "existing-company", "person", "mixed"]) {
+        const label = `${nativeDeadline ? "deadline-" : ""}${recoveryPrefix}${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         if (!burst)
           await new Promise((resolve) =>
             setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
@@ -173,6 +186,7 @@ for (const [engineName, engine] of Object.entries({
           await form.evaluate((element) => element.checkValidity()),
           true,
         );
+        if (nativeDeadline) await deadlineWait(label, "locked");
         const submitted = page.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
@@ -199,11 +213,16 @@ for (const [engineName, engine] of Object.entries({
             `Astro order response for ${label}`,
           );
         const success = page.locator("[data-order-success]:visible");
-        if (burst) {
+        if (burst || nativeDeadline) {
           const error = page.locator(
             '[data-form-message][data-state="error"]:visible',
           );
           await success.or(error).first().waitFor({ timeout: 15000 });
+          if (nativeDeadline)
+            assert.ok(
+              await error.isVisible(),
+              "Real locked native order must reach the processing deadline",
+            );
           if (await error.isVisible()) {
             // The Core processing deadline, not Astro's transport timeout or
             // an arbitrary validation failure, must be visible to the visitor.
@@ -225,11 +244,20 @@ for (const [engineName, engine] of Object.entries({
                 await form.locator(`[name="${name}"]`).inputValue(),
                 value,
               );
+            assert.equal(
+              await form.locator('[name="quantity"]').first().inputValue(),
+              String(quantity),
+            );
             timedOutOrders += 1;
             console.log(
-              `campaign-orders: ${label}; bounded Core deadline observed, retrying the unchanged command after CRM window recovery`,
+              `campaign-orders: ${label}; bounded Core deadline observed, retrying the unchanged command after ${nativeDeadline ? "verified SQL lock release" : "CRM window recovery"}`,
             );
-            await new Promise((resolve) => setTimeout(resolve, 45000));
+            if (nativeDeadline) {
+              await deadlineSignal(label, "timeout");
+              await deadlineWait(label, "released");
+            } else {
+              await new Promise((resolve) => setTimeout(resolve, 45000));
+            }
             await form
               .locator('[name="privacyAcknowledged"]')
               .evaluate((element) =>
@@ -305,6 +333,10 @@ for (const [engineName, engine] of Object.entries({
           0,
         );
         let nativeReplay = false;
+        if (nativeDeadline) {
+          await deadlineSignal(label, "accepted", { commandId, reference });
+          await deadlineWait(label, "replay-ready");
+        }
         if (!javaScriptEnabled) {
           // Reload is GET in Firefox. Re-submit the exact original fields via
           // the browser's native form transport, preserving duplicate names.
@@ -348,6 +380,10 @@ for (const [engineName, engine] of Object.entries({
           );
           nativeReplay = true;
         }
+        if (nativeDeadline) {
+          await deadlineSignal(label, "replayed");
+          await deadlineWait(label, "verified");
+        }
         assert.equal(new URL(page.url()).pathname, path);
         assert.equal((await context.cookies()).length, 0);
         assert.equal(
@@ -386,4 +422,5 @@ if (burst)
     timedOutOrders > 0,
     "Burst must exercise actual deadline recovery, not just successful requests",
   );
+if (nativeDeadline) assert.equal(timedOutOrders, 3);
 await writeFile("/proof/orders-ui.json", JSON.stringify(orders));

@@ -2589,6 +2589,50 @@ keyboard and 200% zoom checks.
       Core/CMS load and multiple runtime workers. Keep command identity and
       prove no duplicate orders or CRM records. The processing budget and one
       sequential browser burst above are not a production capacity/SLO proof.
+  - [x] Native-browser processing-timeout recovery (2026-09-08): the complete
+        `./leonaid test-emdash-spike --case krapfentaxi-orders` exited 0 in
+        `leonaid-emdash-tmp-dmj7gxlinq`. The real imported page was exercised
+        with JavaScript disabled in Chromium, Firefox and WebKit at mobile
+        width. A separate controller used Core's actual name normalization and
+        PostgreSQL advisory lock; it observed the actual blocking relationship
+        in PostgreSQL before each browser displayed the processing-timeout
+        message. Native HTML responses completed after 8214/8223/8207 ms,
+        below the unchanged 11-second acceptance limit. The same command ID,
+        all entered fields and quantity survived the error redisplay. Before
+        releasing each lock, the controller verified that the cancelled Core
+        wait had ended and seven Core tables plus complete Twenty company/person
+        collections were unchanged. An ordinary native submit on the retained
+        form then succeeded with the same command. Core SQL verified the exact
+        commitment, lines, total, consent and completed command receipt; Twenty
+        contained exactly one new matching person and no company changes. An
+        exact native POST replay preserved the reference and left the full
+        Core/Twenty snapshot unchanged. All three error-message screenshots
+        were inspected and clearly instruct retrying the same order without
+        reloading, with inputs retained and confirmation required again.
+        The subsequent 24-order normal matrix and twelve native replays also
+        passed independent Core/Twenty verification, as did all 84 valid-payload
+        public Core denials and internal negative/positive controls. There were
+        27 verified browser orders and 15 duplicate-free native replays overall.
+        Import/editor/alias/Core-commerce regressions passed. The project had
+        explicit isolated networks and no host ports; independent Docker label
+        checks confirmed no owned containers, volumes or networks remained.
+        This closes native-browser retry after the processing timeout only;
+        cancellation after partial CRM writes, body/whole-response deadlines,
+        combined load and multiworker capacity remain open under the parent.
+  - Native-browser deadline proof was added to `krapfentaxi-orders` using
+    a real PostgreSQL advisory-lock controller, a browser-visible native error,
+    unchanged command/input retry and full Core/Twenty snapshots before timeout
+    and after exact replay. First run `leonaid-emdash-tmp-w4maao8pvq` on
+    2026-09-08 exited 1: import, all three editorial journeys, aliases and the
+    four-state Core commerce matrix passed, as did fresh Twenty provisioning.
+    The first native Chromium order succeeded after 253 ms rather than timing
+    out, correctly failing the required error assertion. Inspection showed
+    that the controller retained hyphens in its party key, while Core uses
+    `normalize_match_name`, which replaces punctuation with spaces. The
+    controller now calls the same normalizer and asserts its exact synthetic
+    result; actual PostgreSQL blocker observation remains mandatory. No product
+    timeout or acceptance threshold was relaxed. All owned test resources
+    were cleaned; this failed run does not prove native timeout recovery.
 - [x] Live-prove accepted campaign orders against real isolated Twenty using
       `./leonaid test-emdash-spike --case campaign-orders`. The pinned stack
       provisions its own Twenty database, Redis, worker and schema. A short-lived
@@ -3885,174 +3929,174 @@ cutover-rollback` in source `leonaid-poc112-tmp-qogvd1adap` and fresh
       repository policy gates passed. The committed tree remained unchanged.
       Existing Pydantic and Vite dependency warnings remain.
 
-              Implementation: `cutover-rollback` adds a CMS-only restore into a fresh
-              target, keeping the live source Core/Twenty and its newer orders. The
-              target receives CMS SQL/bootstrap and a separate copy of the RustFS
-              archive (not a bucket-only export); it never restores Core/Twenty SQL
-              or Twenty runtime storage. Activation remains isolated test logic,
-              not production approval or an operational cutover controller. - First live attempt on 2026-09-08 in
-              `leonaid-poc112-tmp-un3earqjlz` exited 1 before backup/cutover.
-              Import/edit/publish passed in all three browsers and isolated Twenty
-              became healthy. The pre-backup Firefox native mixed order displayed
-              the explicit Twenty timeout error, with inputs retained; the browser
-              subsequently timed out waiting for success. The synthetic screenshot
-              was inspected. This does not prove rollback or identify the underlying
-              CRM timeout cause. Only owned test containers/networks/volumes were
-              cleaned up. Added fixed-category failure diagnostics without printing
-              submitted data or response bodies; do not relax acceptance to count
-              a failed order as successful. - Two further attempts remain failed, not acceptance evidence:
-              `leonaid-poc112-tmp-wdbmwkfpdh` stopped at WebKit's media confirmation
-              wait before Twenty startup. Fixed-category media request/status/timing
-              diagnostics were added, without URLs, identifiers, bodies or credentials.
-              In `leonaid-poc112-tmp-x4yhixcmbd`, all three browsers' actual reserve,
-              upload and confirm calls returned 200 and publication passed without
-              raising timeouts. Real Twenty schema/permissions/setup then passed, but
-              the very first native Chromium order displayed the Core processing
-              deadline error (Astro response after 19093 ms). The test failed and its
-              owned resources were removed; backup/cutover remained unreached. These
-              observations do not establish resource contention as the root cause. - Focused preflight evidence: `tools/backup/restore_scope_test.py` runs
-              the real shell entrypoint in a netless container without a Docker socket
-              or operator credentials. Invalid scope, CMS with legacy topology and
-              missing explicit CMS image fail before Docker; default/full semantics
-              still proceed to normal configuration validation. Early configuration
-              failures now clean their temporary staging directory. This proves the
-              preflight boundary only, not CMS data restoration or order preservation. - Quality gate for preparation commit `d707f18`: full `./leonaid check`
-              exited 0 with 269 unit tests, public/CMS Astro checks on 25/49 files
-              without diagnostics, type generation, formatting and policy gates,
-              and an unchanged committed tree. This is source-quality evidence;
-              the end-to-end cutover/rollback checkbox remains open. - Follow-up `leonaid-poc112-tmp-nr3qrjwu3p` passed all native editor
-              journeys and actual Twenty provisioning. The first native order and
-              its replay passed. The second order's receipt passed, but its native
-              replay timed out awaiting the whole page `load` event after navigation
-              and `domcontentloaded` were observed. The run exited 1 before backup;
-              only its owned resources were removed. Replay now waits for the new
-              document's `domcontentloaded`, then explicitly requires visible success,
-              no visible order form, the same receipt reference/quantity and HTTP 200.
-              Separate image/rendering gates remain required; this change is not a
-              timeout increase or acceptance of failed orders. Also corrected cleanup
-              to locate the authority probe in its actual source/target project. - [x] Re-prove the full pre-backup order/replay matrix with the corrected
-              native navigation assertion: `leonaid-poc112-tmp-vyigv3hcdf` accepted
-              all 24 Chromium/Firefox/WebKit orders, native and JavaScript. Actual
-              Core SQL and Twenty verified all references, mixed-unit lines, totals,
-              consent/audit and completed receipts; twelve native replays produced
-              no duplicates. Backup then quiesced writers and created encrypted
-              snapshot `1ff67f4f`, with exact seven-file v2 inventory and a successful
-              full Restic data-integrity check. This is pre-cutover evidence only. - The same run exited 1 at `cutover_state.py`'s mandatory test-environment
-              guard, before any renderer selection. Its fixture inherited `local`
-              rather than `test`. The four cutover-state invocations now explicitly
-              set `LEONAID_ENV=test`, matching the existing internal-ingress proof;
-              the guard remains intact. All owned resources were cleaned. Cutover,
-              newer-order preservation and CMS-only restore still require the full
-              subsequent live run; do not mark the parent rollback item complete.
+                  Implementation: `cutover-rollback` adds a CMS-only restore into a fresh
+                  target, keeping the live source Core/Twenty and its newer orders. The
+                  target receives CMS SQL/bootstrap and a separate copy of the RustFS
+                  archive (not a bucket-only export); it never restores Core/Twenty SQL
+                  or Twenty runtime storage. Activation remains isolated test logic,
+                  not production approval or an operational cutover controller. - First live attempt on 2026-09-08 in
+                  `leonaid-poc112-tmp-un3earqjlz` exited 1 before backup/cutover.
+                  Import/edit/publish passed in all three browsers and isolated Twenty
+                  became healthy. The pre-backup Firefox native mixed order displayed
+                  the explicit Twenty timeout error, with inputs retained; the browser
+                  subsequently timed out waiting for success. The synthetic screenshot
+                  was inspected. This does not prove rollback or identify the underlying
+                  CRM timeout cause. Only owned test containers/networks/volumes were
+                  cleaned up. Added fixed-category failure diagnostics without printing
+                  submitted data or response bodies; do not relax acceptance to count
+                  a failed order as successful. - Two further attempts remain failed, not acceptance evidence:
+                  `leonaid-poc112-tmp-wdbmwkfpdh` stopped at WebKit's media confirmation
+                  wait before Twenty startup. Fixed-category media request/status/timing
+                  diagnostics were added, without URLs, identifiers, bodies or credentials.
+                  In `leonaid-poc112-tmp-x4yhixcmbd`, all three browsers' actual reserve,
+                  upload and confirm calls returned 200 and publication passed without
+                  raising timeouts. Real Twenty schema/permissions/setup then passed, but
+                  the very first native Chromium order displayed the Core processing
+                  deadline error (Astro response after 19093 ms). The test failed and its
+                  owned resources were removed; backup/cutover remained unreached. These
+                  observations do not establish resource contention as the root cause. - Focused preflight evidence: `tools/backup/restore_scope_test.py` runs
+                  the real shell entrypoint in a netless container without a Docker socket
+                  or operator credentials. Invalid scope, CMS with legacy topology and
+                  missing explicit CMS image fail before Docker; default/full semantics
+                  still proceed to normal configuration validation. Early configuration
+                  failures now clean their temporary staging directory. This proves the
+                  preflight boundary only, not CMS data restoration or order preservation. - Quality gate for preparation commit `d707f18`: full `./leonaid check`
+                  exited 0 with 269 unit tests, public/CMS Astro checks on 25/49 files
+                  without diagnostics, type generation, formatting and policy gates,
+                  and an unchanged committed tree. This is source-quality evidence;
+                  the end-to-end cutover/rollback checkbox remains open. - Follow-up `leonaid-poc112-tmp-nr3qrjwu3p` passed all native editor
+                  journeys and actual Twenty provisioning. The first native order and
+                  its replay passed. The second order's receipt passed, but its native
+                  replay timed out awaiting the whole page `load` event after navigation
+                  and `domcontentloaded` were observed. The run exited 1 before backup;
+                  only its owned resources were removed. Replay now waits for the new
+                  document's `domcontentloaded`, then explicitly requires visible success,
+                  no visible order form, the same receipt reference/quantity and HTTP 200.
+                  Separate image/rendering gates remain required; this change is not a
+                  timeout increase or acceptance of failed orders. Also corrected cleanup
+                  to locate the authority probe in its actual source/target project. - [x] Re-prove the full pre-backup order/replay matrix with the corrected
+                  native navigation assertion: `leonaid-poc112-tmp-vyigv3hcdf` accepted
+                  all 24 Chromium/Firefox/WebKit orders, native and JavaScript. Actual
+                  Core SQL and Twenty verified all references, mixed-unit lines, totals,
+                  consent/audit and completed receipts; twelve native replays produced
+                  no duplicates. Backup then quiesced writers and created encrypted
+                  snapshot `1ff67f4f`, with exact seven-file v2 inventory and a successful
+                  full Restic data-integrity check. This is pre-cutover evidence only. - The same run exited 1 at `cutover_state.py`'s mandatory test-environment
+                  guard, before any renderer selection. Its fixture inherited `local`
+                  rather than `test`. The four cutover-state invocations now explicitly
+                  set `LEONAID_ENV=test`, matching the existing internal-ingress proof;
+                  the guard remains intact. All owned resources were cleaned. Cutover,
+                  newer-order preservation and CMS-only restore still require the full
+                  subsequent live run; do not mark the parent rollback item complete.
 
-              Source quality for `3aa8776` was reverified after Docker recovered:
-              `./leonaid check` exited 0, with 269 unit tests, 273 Python source files
-              typechecked, 25 public and 49 CMS Astro files without diagnostics, and
-              all generated-type, formatting and policy gates passed. The committed
-              tree remained unchanged. The earlier interrupted check has no claimed
-              result; this completed rerun supplies the evidence instead.
+                  Source quality for `3aa8776` was reverified after Docker recovered:
+                  `./leonaid check` exited 0, with 269 unit tests, 273 Python source files
+                  typechecked, 25 public and 49 CMS Astro files without diagnostics, and
+                  all generated-type, formatting and policy gates passed. The committed
+                  tree remained unchanged. The earlier interrupted check has no claimed
+                  result; this completed rerun supplies the evidence instead.
 
-              Follow-up `leonaid-poc112-tmp-feorhypjjh` again passed all 24 actual
-              browser orders, twelve native replays and Core/Twenty verification.
-              Encrypted snapshot `36627002` passed the exact seven-file inventory and
-              full Restic integrity check. The run then exited 1 before cutover; a
-              read-only status snapshot showed the source API and RustFS containers
-              as `Dead`. All owned test resources were removed. The Docker lifecycle
-              cause is not established. Backup cleanup previously suppressed restart
-              failures and printed success before resumption; it now requires
-              `compose start --wait --wait-timeout 420`, propagates restart failure
-              while preserving an earlier failure, and emits final success only after
-              cleanup. Raw restart output stays private. Cutover now diagnoses missing
-              or stopped required source services explicitly. These changes do not
-              claim a successful cutover or rollback; the full live gate remains open.
-              The focused netless regression passed all six cleanup/restart cases,
-              including original-error preservation and private-output suppression.
-              Full `./leonaid check` at `1cd8708` exited 0: 269 unit tests, 274 Python
-              source files typechecked, public/CMS Astro checks on 25/49 files without
-              diagnostics, generated-type/format/policy gates and an unchanged tree.
+                  Follow-up `leonaid-poc112-tmp-feorhypjjh` again passed all 24 actual
+                  browser orders, twelve native replays and Core/Twenty verification.
+                  Encrypted snapshot `36627002` passed the exact seven-file inventory and
+                  full Restic integrity check. The run then exited 1 before cutover; a
+                  read-only status snapshot showed the source API and RustFS containers
+                  as `Dead`. All owned test resources were removed. The Docker lifecycle
+                  cause is not established. Backup cleanup previously suppressed restart
+                  failures and printed success before resumption; it now requires
+                  `compose start --wait --wait-timeout 420`, propagates restart failure
+                  while preserving an earlier failure, and emits final success only after
+                  cleanup. Raw restart output stays private. Cutover now diagnoses missing
+                  or stopped required source services explicitly. These changes do not
+                  claim a successful cutover or rollback; the full live gate remains open.
+                  The focused netless regression passed all six cleanup/restart cases,
+                  including original-error preservation and private-output suppression.
+                  Full `./leonaid check` at `1cd8708` exited 0: 269 unit tests, 274 Python
+                  source files typechecked, public/CMS Astro checks on 25/49 files without
+                  diagnostics, generated-type/format/policy gates and an unchanged tree.
 
-              Run `leonaid-poc112-tmp-ringlt1ymb` failed before browser orders/backup:
-              the importer comparison after logout detected only the independently
-              written `system:scheduler:last_completed_at` option. The pinned EmDash
-              scheduler source confirms this periodic health write. Import snapshots
-              now exclude exactly that heartbeat, retain every other option and add a
-              real-SQL negative control for unexpected option changes. Snapshot failure
-              messages no longer dump row values. This run exited 1 and cleaned its own
-              resources; it supplies no additional rollback acceptance evidence.
-              Follow-up `leonaid-poc112-tmp-uxljbebva2` passed the corrected full
-              importer proof, including the real-SQL unexpected-option control and
-              logout comparison, then all three actual native editor/publish journeys
-              and alias HTTP checks. It exited 1 during fresh Twenty startup, before
-              orders or backup: Compose reported the server unhealthy. A preceding
-              read-only state check showed it running with zero restarts and no OOM
-              flag; this does not establish the readiness failure's cause. Owned
-              resources were removed. The importer correction is live-proven; the
-              broader cutover/rollback gate remains open.
-              Full `./leonaid check` at `a3e8b28` exited 0 with 269 unit tests,
-              274 Python source files typechecked, 25 public and 49 CMS Astro files
-              without diagnostics, all generated-type/format/policy gates passed,
-              and the committed working tree unchanged.
+                  Run `leonaid-poc112-tmp-ringlt1ymb` failed before browser orders/backup:
+                  the importer comparison after logout detected only the independently
+                  written `system:scheduler:last_completed_at` option. The pinned EmDash
+                  scheduler source confirms this periodic health write. Import snapshots
+                  now exclude exactly that heartbeat, retain every other option and add a
+                  real-SQL negative control for unexpected option changes. Snapshot failure
+                  messages no longer dump row values. This run exited 1 and cleaned its own
+                  resources; it supplies no additional rollback acceptance evidence.
+                  Follow-up `leonaid-poc112-tmp-uxljbebva2` passed the corrected full
+                  importer proof, including the real-SQL unexpected-option control and
+                  logout comparison, then all three actual native editor/publish journeys
+                  and alias HTTP checks. It exited 1 during fresh Twenty startup, before
+                  orders or backup: Compose reported the server unhealthy. A preceding
+                  read-only state check showed it running with zero restarts and no OOM
+                  flag; this does not establish the readiness failure's cause. Owned
+                  resources were removed. The importer correction is live-proven; the
+                  broader cutover/rollback gate remains open.
+                  Full `./leonaid check` at `a3e8b28` exited 0 with 269 unit tests,
+                  274 Python source files typechecked, 25 public and 49 CMS Astro files
+                  without diagnostics, all generated-type/format/policy gates passed,
+                  and the committed working tree unchanged.
 
-              Isolated diagnostic `leonaid-poc112-crm-diagnostic-9md01p` subsequently
-              started the unchanged pinned Twenty server/worker with fresh PostgreSQL,
-              Redis and storage, explicit unused network ranges and no host ports.
-              The original migration and healthcheck policies were retained. All four
-              containers became healthy with zero restarts and no OOM flags; fixed
-              markers confirmed completed migrations and cron registration. Exit 0,
-              owned resources cleaned. This does not prove the earlier combined-start
-              failure's cause. Full recovery/order tests now follow the existing base
-              Compose dependency by starting healthy Twenty before Core/CMS, instead
-              of initializing CRM only after editor/browser workloads. Subsequent
-              order, backup, cutover and rollback gates still run the complete stack;
-              no timeout or functional acceptance criterion was relaxed.
+                  Isolated diagnostic `leonaid-poc112-crm-diagnostic-9md01p` subsequently
+                  started the unchanged pinned Twenty server/worker with fresh PostgreSQL,
+                  Redis and storage, explicit unused network ranges and no host ports.
+                  The original migration and healthcheck policies were retained. All four
+                  containers became healthy with zero restarts and no OOM flags; fixed
+                  markers confirmed completed migrations and cron registration. Exit 0,
+                  owned resources cleaned. This does not prove the earlier combined-start
+                  failure's cause. Full recovery/order tests now follow the existing base
+                  Compose dependency by starting healthy Twenty before Core/CMS, instead
+                  of initializing CRM only after editor/browser workloads. Subsequent
+                  order, backup, cutover and rollback gates still run the complete stack;
+                  no timeout or functional acceptance criterion was relaxed.
 
-              Follow-up `leonaid-poc112-tmp-dir2mum89b` passed the reordered fresh
-              Twenty startup, complete importer proof, all three native editor
-              journeys, 24 real browser orders and 12 duplicate-free native replays,
-              with Core/Twenty verification. Encrypted snapshot `2c6713c1` passed
-              full integrity verification and checked source-service resumption.
-              The real Core command then activated the primary campaign renderer and
-              its canonical redirect. The next browser phase exited 1 before editing:
-              the existing repository `hero.webp` fixture was absent from the browser
-              container's selective mounts. The overlay now mounts that one file
-              read-only, without exposing the repository or operator configuration.
-              Owned resources were cleaned. Post-cutover orders and CMS-only rollback
-              remain unproven by this run; no broader acceptance box is checked.
+                  Follow-up `leonaid-poc112-tmp-dir2mum89b` passed the reordered fresh
+                  Twenty startup, complete importer proof, all three native editor
+                  journeys, 24 real browser orders and 12 duplicate-free native replays,
+                  with Core/Twenty verification. Encrypted snapshot `2c6713c1` passed
+                  full integrity verification and checked source-service resumption.
+                  The real Core command then activated the primary campaign renderer and
+                  its canonical redirect. The next browser phase exited 1 before editing:
+                  the existing repository `hero.webp` fixture was absent from the browser
+                  container's selective mounts. The overlay now mounts that one file
+                  read-only, without exposing the repository or operator configuration.
+                  Owned resources were cleaned. Post-cutover orders and CMS-only rollback
+                  remain unproven by this run; no broader acceptance box is checked.
 
-              Run `leonaid-poc112-tmp-fndbydxbye` then repeated all 24 browser orders
-              and Core/Twenty verification, saved encrypted snapshot `edb89e9a`, read
-              every pack without errors, resumed source services with readiness checks,
-              and activated the primary alias through Core. The corrected selective
-              image mount worked: native post-backup upload, confirmation and publication
-              succeeded. The run exited 1 on an incorrect test comparison between public
-              normalized image bytes and the unprocessed input fixture. The production
-              upload deliberately re-encodes raster bytes to remove metadata and appended
-              content. The assertion now compares the exact hash of the normalized
-              fixture instead; the normalizer is mounted read-only into the probe.
-              This does not relax byte integrity or restore requirements. Owned resources
-              were cleaned; post-cutover orders and CMS-only rollback remain open.
-              A netless probe in the pinned browser image independently normalized the
-              source fixture and reproduced the exact hash of the LIVE public response.
-              Full `./leonaid check` at `fd6642c` exited 0: 269 unit tests,
-              274 Python source files typechecked, 25 public and 49 CMS Astro files
-              without diagnostics, generated-type/format/privacy/policy gates passed,
-              and the committed working tree unchanged. Existing upstream dependency
-              warnings remain; this quality gate is not the full rollback acceptance.
+                  Run `leonaid-poc112-tmp-fndbydxbye` then repeated all 24 browser orders
+                  and Core/Twenty verification, saved encrypted snapshot `edb89e9a`, read
+                  every pack without errors, resumed source services with readiness checks,
+                  and activated the primary alias through Core. The corrected selective
+                  image mount worked: native post-backup upload, confirmation and publication
+                  succeeded. The run exited 1 on an incorrect test comparison between public
+                  normalized image bytes and the unprocessed input fixture. The production
+                  upload deliberately re-encodes raster bytes to remove metadata and appended
+                  content. The assertion now compares the exact hash of the normalized
+                  fixture instead; the normalizer is mounted read-only into the probe.
+                  This does not relax byte integrity or restore requirements. Owned resources
+                  were cleaned; post-cutover orders and CMS-only rollback remain open.
+                  A netless probe in the pinned browser image independently normalized the
+                  source fixture and reproduced the exact hash of the LIVE public response.
+                  Full `./leonaid check` at `fd6642c` exited 0: 269 unit tests,
+                  274 Python source files typechecked, 25 public and 49 CMS Astro files
+                  without diagnostics, generated-type/format/privacy/policy gates passed,
+                  and the committed working tree unchanged. Existing upstream dependency
+                  warnings remain; this quality gate is not the full rollback acceptance.
 
-              Run `leonaid-poc112-tmp-rpvwfqufcr` repeated the complete importer,
-              three native editor journeys, aliases and 24 Core/Twenty-verified orders
-              with twelve duplicate-free replays. Snapshot `27579e75` passed full
-              encrypted integrity verification and checked source resumption. Primary
-              activation, post-backup publication and the corrected normalized-media
-              hash comparison passed. The subsequent private-draft edit timed out waiting
-              for its PUT response; exit 1 and owned resources cleaned. The pinned
-              editor invalidates/refetches content after publishing and resets form state
-              when that response arrives. The browser proof now waits for the actual
-              Unpublish control, published field value and cleared draft revision before
-              entering the next draft, instead of treating the POST alone as UI completion.
-              No delay, reload or timeout increase was introduced. A potential race with
-              very fast input during publication remains unproven; this adjustment is
-              not evidence that such input is preserved. Full rollback remains open.
+                  Run `leonaid-poc112-tmp-rpvwfqufcr` repeated the complete importer,
+                  three native editor journeys, aliases and 24 Core/Twenty-verified orders
+                  with twelve duplicate-free replays. Snapshot `27579e75` passed full
+                  encrypted integrity verification and checked source resumption. Primary
+                  activation, post-backup publication and the corrected normalized-media
+                  hash comparison passed. The subsequent private-draft edit timed out waiting
+                  for its PUT response; exit 1 and owned resources cleaned. The pinned
+                  editor invalidates/refetches content after publishing and resets form state
+                  when that response arrives. The browser proof now waits for the actual
+                  Unpublish control, published field value and cleared draft revision before
+                  entering the next draft, instead of treating the POST alone as UI completion.
+                  No delay, reload or timeout increase was introduced. A potential race with
+                  very fast input during publication remains unproven; this adjustment is
+                  not evidence that such input is preserved. Full rollback remains open.
 
 - [ ] Extend backup/restore verification to the final migrated demo and its
       aliases, then repeat the complete browser journey from fresh volumes.
