@@ -14,7 +14,9 @@ const path = legacyEntry ? "/krapfentaxi" : "/campaigns/krapfentaxi-2026/";
 const orders = [];
 const burst = process.argv.includes("--burst");
 const imported = process.argv.includes("--imported");
-const nativeDeadline = process.argv.includes("--native-deadline");
+const partialCrm = process.argv.includes("--partial-crm");
+assert.ok(!(partialCrm && process.argv.includes("--native-deadline")));
+const nativeDeadline = process.argv.includes("--native-deadline") || partialCrm;
 const beforeRecovery = process.argv.includes("--before-recovery");
 const afterRecovery = process.argv.includes("--after-recovery");
 const afterRollback = process.argv.includes("--after-rollback");
@@ -63,9 +65,9 @@ for (const [engineName, engine] of Object.entries({
   try {
     for (const javaScriptEnabled of nativeDeadline ? [false] : [false, true]) {
       for (const scenario of nativeDeadline
-        ? ["person"]
+        ? [partialCrm ? "new-company" : "person"]
         : ["new-company", "existing-company", "person", "mixed"]) {
-        const label = `${nativeDeadline ? "deadline-" : ""}${recoveryPrefix}${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        const label = `${partialCrm ? "partial-" : nativeDeadline ? "deadline-" : ""}${recoveryPrefix}${burst ? "burst-" : ""}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         if (!burst)
           await new Promise((resolve) =>
             setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
@@ -186,6 +188,7 @@ for (const [engineName, engine] of Object.entries({
           await form.evaluate((element) => element.checkValidity()),
           true,
         );
+        if (partialCrm) await deadlineSignal(label, "submitted", { commandId });
         if (nativeDeadline) await deadlineWait(label, "locked");
         const submitted = page.waitForResponse(
           (response) =>
@@ -221,16 +224,23 @@ for (const [engineName, engine] of Object.entries({
           if (nativeDeadline)
             assert.ok(
               await error.isVisible(),
-              "Real locked native order must reach the processing deadline",
+              "Real locked native order must show its bounded timeout",
             );
           if (await error.isVisible()) {
-            // The Core processing deadline, not Astro's transport timeout or
-            // an arbitrary validation failure, must be visible to the visitor.
+            // Require the exact expected deadline: Core processing for the
+            // party lock, or the existing CRM write transport timeout for a
+            // partially committed company/contact operation. Never accept an
+            // arbitrary validation error or extend either production budget.
             assert.match(
               await error.textContent(),
-              /Die Verarbeitung dauert gerade zu lange/,
+              partialCrm
+                ? /Twenty hat nicht innerhalb des konfigurierten Timeouts geantwortet\./
+                : /Die Verarbeitung dauert gerade zu lange/,
             );
-            assert.ok(responseElapsed >= 7500 && responseElapsed < 11000);
+            assert.ok(
+              responseElapsed >= (partialCrm ? 4500 : 7500) &&
+                responseElapsed < 11000,
+            );
             assert.equal(response.status(), javaScriptEnabled ? 503 : 200);
             await error.screenshot({
               path: `/visual-proof/timeout-${label}.png`,
@@ -250,7 +260,7 @@ for (const [engineName, engine] of Object.entries({
             );
             timedOutOrders += 1;
             console.log(
-              `campaign-orders: ${label}; bounded Core deadline observed, retrying the unchanged command after ${nativeDeadline ? "verified SQL lock release" : "CRM window recovery"}`,
+              `campaign-orders: ${label}; bounded ${partialCrm ? "CRM write" : "Core"} deadline observed, retrying the unchanged command after ${nativeDeadline ? "verified SQL lock release" : "CRM window recovery"}`,
             );
             if (nativeDeadline) {
               await deadlineSignal(label, "timeout");

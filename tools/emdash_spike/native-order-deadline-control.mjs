@@ -3,10 +3,14 @@ import { access, writeFile, rename } from "node:fs/promises";
 import { expect } from "@playwright/test";
 
 function path(label, stage) {
-  assert.match(label, /^deadline-(chromium|firefox|webkit)-native-person$/);
+  assert.match(
+    label,
+    /^(deadline-(chromium|firefox|webkit)-native-person|partial-(chromium|firefox|webkit)-native-new-company)$/,
+  );
   assert.ok(
     [
       "locked",
+      "submitted",
       "timeout",
       "released",
       "accepted",

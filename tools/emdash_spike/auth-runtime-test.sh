@@ -144,7 +144,7 @@ cleanup() {
     native_deadline_container=$(docker ps -aq \
       --filter "name=^/${native_deadline_name}$" \
       --filter "label=com.docker.compose.project=$project" \
-      --filter "label=com.docker.compose.service=api" \
+      --filter "label=com.docker.compose.service=${native_deadline_service:-api}" \
       --filter "label=com.docker.compose.oneoff=True")
     if [ -n "$native_deadline_container" ]; then docker stop "$native_deadline_container" >/dev/null || true; fi
     wait "$native_deadline_pid" || true
@@ -177,9 +177,11 @@ cleanup() {
   fi
   if [ -d "$proof/native-order-deadline" ]; then
     for engine in chromium firefox webkit; do
-      for stage in locked timeout released accepted replay-ready replayed verified; do
+      for stage in locked submitted timeout released accepted replay-ready replayed verified; do
         rm -f "$proof/native-order-deadline/deadline-$engine-native-person-$stage" \
           "$proof/native-order-deadline/deadline-$engine-native-person-$stage.tmp"
+        rm -f "$proof/native-order-deadline/partial-$engine-native-new-company-$stage" \
+          "$proof/native-order-deadline/partial-$engine-native-new-company-$stage.tmp"
       done
     done
     rm -f "$proof/native-order-deadline/orders-ui.json"
@@ -219,12 +221,22 @@ compose config --format json | docker run --rm -i --network none "$NODE_IMAGE" \
   }
   assert.deepEqual(Object.keys(services["admin-browser"].networks),["edge"]);
   assert.ok(!services["campaign-race-probe"].ports?.length);
-  for(const name of ["twenty-server","twenty-worker","twenty-postgres","twenty-redis","orders-operator"]) {
+  for(const name of ["twenty-server","twenty-worker","twenty-postgres","twenty-redis","orders-operator","partial-order-operator"]) {
     if(services[name]) assert.ok(!services[name].ports?.length);
   }
   if(services["orders-operator"]) {
     assert.deepEqual(Object.keys(services["orders-operator"].networks).sort(),["core-data","edge"]);
     assert.equal(services["orders-operator"].environment.TWENTY_BASE_URL,"http://twenty-server:3000");
+  }
+  const partialOperator=services["partial-order-operator"];
+  if(partialOperator) {
+    assert.deepEqual(Object.keys(partialOperator.networks).sort(),["core-data","crm-data","edge"]);
+    assert.equal(partialOperator.environment.LEONAID_ENV,"test");
+    assert.equal(new URL(partialOperator.environment.TWENTY_DATABASE_URL).hostname,"twenty-postgres");
+    assert.ok(partialOperator.volumes.every(volume=>volume.read_only===true));
+  }
+  for(const [name,service] of Object.entries(services)) {
+    if(service.environment?.TWENTY_DATABASE_URL) assert.equal(name,"partial-order-operator","test SQL credentials escaped operator boundary");
   }
   assert.deepEqual(Object.keys(services["campaign-race-probe"].networks).sort(),["cms-data","edge"]);
   const migrationOperator=services["cms-migration-operator"];
