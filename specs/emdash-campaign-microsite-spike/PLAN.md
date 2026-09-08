@@ -2702,6 +2702,12 @@ keyboard and 200% zoom checks.
         domains. This closes the measured body-ingress boundary, not remaining
         whole-response/cancellation, modest concurrent-use, pilot live or final
         whole-spike acceptance gates.
+        Quality evidence: full `./leonaid check` exited 0 on committed source
+        `8a7f4df5d67226c780dd4e352a0d200637b656a0`; 269 unit tests, typing of
+        277 Python sources, formatting of 322 Python files, public/CMS Astro
+        checks on 27/49 files without diagnostics, generated types, formatting,
+        privacy and repository policy gates passed. The committed tree remained
+        unchanged. Existing Pydantic and Vite dependency warnings remain.
   - Native-browser deadline proof was added to `krapfentaxi-orders` using
     a real PostgreSQL advisory-lock controller, a browser-visible native error,
     unchanged command/input retry and full Core/Twenty snapshots before timeout
