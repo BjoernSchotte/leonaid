@@ -15,6 +15,19 @@ compose run --rm --no-deps --volume "$proof/native-order-deadline:/proof" \
 wait "$native_deadline_pid"
 native_deadline_pid=
 echo "native-order-deadline: three native browsers passed actual Core timeout and unchanged-command recovery with independent Core/Twenty verification"
+native_deadline_name="${project}-script-order-deadline"
+compose run --rm --no-deps --name "$native_deadline_name" \
+  --volume "$root:/repo:ro" --volume "$proof/native-order-deadline:/proof" \
+  --user "$(id -u):$(id -g)" --env LEONAID_ENV=test \
+  --env PYTHONPATH=/repo:/workspace/src --entrypoint python api \
+  /repo/tools/emdash_spike/native_order_deadline.py --javascript &
+native_deadline_pid=$!
+compose run --rm --no-deps --volume "$proof/native-order-deadline:/proof" \
+  --volume "$visual_proof:/visual-proof" admin-browser \
+  node tools/emdash_spike/campaign-orders-browser-proof.mjs --imported --script-deadline
+wait "$native_deadline_pid"
+native_deadline_pid=
+echo "script-order-deadline: three enhanced browsers passed actual Core timeout, retained-input retry and exact RPC replay with independent Core/Twenty verification"
 native_deadline_name="${project}-partial-crm-order"
 native_deadline_service=partial-order-operator
 compose run --rm --no-deps --name "$native_deadline_name" \

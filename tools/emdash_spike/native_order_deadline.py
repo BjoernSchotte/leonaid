@@ -1,10 +1,11 @@
-"""Coordinate real PostgreSQL blocking with native browser retry acceptance."""
+"""Coordinate real PostgreSQL blocking with browser retry acceptance."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -33,6 +34,8 @@ def signal(name: str) -> None:
 
 async def main() -> None:
     assert os.environ["LEONAID_ENV"] == "test"
+    assert sys.argv[1:] in ([], ["--javascript"])
+    transport = "js" if sys.argv[1:] else "native"
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=5)
     try:
         async with httpx.AsyncClient(
@@ -43,9 +46,9 @@ async def main() -> None:
             },
         ) as twenty:
             for engine in ("chromium", "firefox", "webkit"):
-                label = f"deadline-{engine}-native-person"
+                label = f"deadline-{engine}-{transport}-person"
                 party_key = normalize_match_name(f"Synthetic {label}")
-                assert party_key == f"synthetic deadline {engine} native person"
+                assert party_key == f"synthetic deadline {engine} {transport} person"
                 lock_key = f"public.order.party:{ACTION}:person:{party_key}"
                 before = await snapshot(connection, twenty)
                 blocker = await connection.fetchval("SELECT pg_backend_pid()")
@@ -69,7 +72,7 @@ async def main() -> None:
                     await wait_file(f"{label}-timeout")
                     assert await connection.fetchval(blocked, blocker) == 0
                     assert await snapshot(connection, twenty) == before, (
-                        "Cancelled native order changed Core or Twenty"
+                        "Cancelled order changed Core or Twenty"
                     )
                 finally:
                     await connection.execute(
@@ -115,11 +118,11 @@ async def main() -> None:
                 signal(f"{label}-replay-ready")
                 await wait_file(f"{label}-replayed")
                 assert await snapshot(connection, twenty) == after, (
-                    "Native exact POST replay mutated Core or Twenty"
+                    "Exact POST replay mutated Core or Twenty"
                 )
                 signal(f"{label}-verified")
                 print(
-                    f"native-order-deadline: {engine} actual blocker, cancelled wait, "
+                    f"order-deadline: {engine}/{transport} actual blocker, cancelled wait, "
                     "unchanged timeout state, accepted same command, Core/Twenty person "
                     "and exact replay verified",
                     flush=True,

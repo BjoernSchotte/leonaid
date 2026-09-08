@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+// Decode real RPC receipts with the installed Astro implementation, not a
+// hand-written approximation of its devalue wire format.
+import { deserializeActionResult } from "../../node_modules/astro/dist/actions/runtime/client.js";
 import { readdir, writeFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 import {
@@ -39,8 +42,16 @@ const orders = [];
 assert.ok(!process.argv.includes("--burst"), "Stress mode is not supported");
 const imported = process.argv.includes("--imported");
 const partialCrm = process.argv.includes("--partial-crm");
-assert.ok(!(partialCrm && process.argv.includes("--native-deadline")));
-const nativeDeadline = process.argv.includes("--native-deadline") || partialCrm;
+const scriptDeadline = process.argv.includes("--script-deadline");
+assert.ok(
+  [
+    partialCrm,
+    scriptDeadline,
+    process.argv.includes("--native-deadline"),
+  ].filter(Boolean).length <= 1,
+);
+const controlledDeadline =
+  process.argv.includes("--native-deadline") || partialCrm || scriptDeadline;
 const beforeRecovery = process.argv.includes("--before-recovery");
 const afterRecovery = process.argv.includes("--after-recovery");
 const afterRollback = process.argv.includes("--after-rollback");
@@ -50,7 +61,7 @@ assert.ok(
 assert.ok(!postCutover || (imported && afterRecovery && primaryAlias));
 assert.ok(!legacyEntry || afterRollback);
 assert.ok(
-  !nativeDeadline ||
+  !controlledDeadline ||
     (imported &&
       !beforeRecovery &&
       !afterRecovery &&
@@ -85,11 +96,13 @@ for (const [engineName, engine] of Object.entries({
 })) {
   const browser = await engine.launch({ headless: true });
   try {
-    for (const javaScriptEnabled of nativeDeadline ? [false] : [false, true]) {
-      for (const scenario of nativeDeadline
+    for (const javaScriptEnabled of controlledDeadline
+      ? [scriptDeadline]
+      : [false, true]) {
+      for (const scenario of controlledDeadline
         ? [partialCrm ? "new-company" : "person"]
         : ["new-company", "existing-company", "person", "mixed"]) {
-        const label = `${partialCrm ? "partial-" : nativeDeadline ? "deadline-" : ""}${recoveryPrefix}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
+        const label = `${partialCrm ? "partial-" : controlledDeadline ? "deadline-" : ""}${recoveryPrefix}${engineName}-${javaScriptEnabled ? "js" : "native"}-${scenario}`;
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, nextOrderAt - Date.now())),
         );
@@ -191,7 +204,7 @@ for (const [engineName, engine] of Object.entries({
           true,
         );
         if (partialCrm) await deadlineSignal(label, "submitted", { commandId });
-        if (nativeDeadline) await deadlineWait(label, "locked");
+        if (controlledDeadline) await deadlineWait(label, "locked");
         const submitted = page.waitForResponse(
           (response) =>
             response.request().method() === "POST" &&
@@ -208,19 +221,20 @@ for (const [engineName, engine] of Object.entries({
         assert.equal(response.request().redirectedFrom(), null);
         assert.equal(
           response.status(),
-          200,
+          scriptDeadline ? 503 : 200,
           `Astro order response for ${label}`,
         );
+        let acceptedActionData;
         const success = page.locator("[data-order-success]:visible");
-        if (nativeDeadline) {
+        if (controlledDeadline) {
           const error = page.locator(
             '[data-form-message][data-state="error"]:visible',
           );
           await success.or(error).first().waitFor({ timeout: 15000 });
-          if (nativeDeadline)
+          if (controlledDeadline)
             assert.ok(
               await error.isVisible(),
-              "Real locked native order must show its bounded timeout",
+              "Real locked order must show its bounded timeout",
             );
           if (await error.isVisible()) {
             // Require the exact expected deadline: Core processing for the
@@ -268,7 +282,18 @@ for (const [engineName, engine] of Object.entries({
                   (javaScriptEnabled ? "/_actions/createPublicOrder/" : path),
             );
             await form.locator('[type="submit"]').click();
-            assert.equal((await retried).status(), 200);
+            const acceptedResponse = await retried;
+            assert.equal(acceptedResponse.status(), 200);
+            if (scriptDeadline) {
+              const decoded = deserializeActionResult({
+                type: "data",
+                status: 200,
+                body: await acceptedResponse.text(),
+              });
+              assert.equal(decoded.error, undefined);
+              acceptedActionData = decoded.data;
+              assert.equal(acceptedActionData.replayed, false);
+            }
           }
         }
         try {
@@ -326,7 +351,7 @@ for (const [engineName, engine] of Object.entries({
           0,
         );
         let nativeReplay = false;
-        if (nativeDeadline) {
+        if (controlledDeadline) {
           await deadlineSignal(label, "accepted", { commandId, reference });
           await deadlineWait(label, "replay-ready");
         }
@@ -373,7 +398,49 @@ for (const [engineName, engine] of Object.entries({
           );
           nativeReplay = true;
         }
-        if (nativeDeadline) {
+        if (scriptDeadline) {
+          // Repeat the real enhanced request through the browser fetch stack.
+          // Preserve its original multipart bytes/boundary and command ID; do
+          // not reconstruct a privileged Core call or inject a server result.
+          const body = response.request().postData();
+          const contentType = response.request().headers()["content-type"];
+          assert.ok(body && contentType);
+          assert.equal(acceptedActionData.publicReference, reference);
+          const replay = await page.evaluate(
+            async ({ url, body, contentType }) => {
+              const reply = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": contentType },
+                body,
+                redirect: "error",
+                signal: AbortSignal.timeout(11000),
+              });
+              return {
+                status: reply.status,
+                body: await reply.text(),
+                cacheControl: reply.headers.get("cache-control"),
+              };
+            },
+            { url: response.url(), body, contentType },
+          );
+          assert.equal(replay.status, 200);
+          assert.equal(replay.cacheControl, "no-store");
+          const decoded = deserializeActionResult({
+            type: "data",
+            status: replay.status,
+            body: replay.body,
+          });
+          assert.equal(decoded.error, undefined);
+          assert.equal(decoded.data.replayed, true);
+          assert.deepEqual(
+            { ...decoded.data, replayed: false },
+            acceptedActionData,
+          );
+          console.log(
+            `campaign-orders: ${label}; exact enhanced RPC replay passed`,
+          );
+        }
+        if (controlledDeadline) {
           await deadlineSignal(label, "replayed");
           await deadlineWait(label, "verified");
         }
@@ -410,5 +477,5 @@ for (const [engineName, engine] of Object.entries({
     await browser.close();
   }
 }
-if (nativeDeadline) assert.equal(timedOutOrders, 3);
+if (controlledDeadline) assert.equal(timedOutOrders, 3);
 await writeFile("/proof/orders-ui.json", JSON.stringify(orders));

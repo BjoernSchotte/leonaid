@@ -180,6 +180,8 @@ cleanup() {
       for stage in locked submitted timeout released accepted replay-ready replayed verified; do
         rm -f "$proof/native-order-deadline/deadline-$engine-native-person-$stage" \
           "$proof/native-order-deadline/deadline-$engine-native-person-$stage.tmp"
+        rm -f "$proof/native-order-deadline/deadline-$engine-js-person-$stage" \
+          "$proof/native-order-deadline/deadline-$engine-js-person-$stage.tmp"
         rm -f "$proof/native-order-deadline/partial-$engine-native-new-company-$stage" \
           "$proof/native-order-deadline/partial-$engine-native-new-company-$stage.tmp"
       done

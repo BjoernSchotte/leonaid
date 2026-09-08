@@ -5,7 +5,7 @@ import { expect } from "@playwright/test";
 function path(label, stage) {
   assert.match(
     label,
-    /^(deadline-(chromium|firefox|webkit)-native-person|partial-(chromium|firefox|webkit)-native-new-company)$/,
+    /^(deadline-(chromium|firefox|webkit)-(native|js)-person|partial-(chromium|firefox|webkit)-native-new-company)$/,
   );
   assert.ok(
     [

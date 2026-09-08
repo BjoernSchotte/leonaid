@@ -2668,12 +2668,30 @@ keyboard and 200% zoom checks.
         checks on 27/49 files without diagnostics, generated types, formatting,
         privacy and repository policy gates passed. The committed tree remained
         unchanged. Existing Pydantic and Vite dependency warnings remain.
-  - [ ] Preserve enhanced JavaScript timeout/retry coverage with a targeted
+  - [x] Preserve enhanced JavaScript timeout/retry coverage with a targeted
         real dependency fault, including the expected 503 response, retained
         command/input, successful retry and independent Core/Twenty duplicate
         checks. Historical burst evidence remains historical; removing the
         unpaced test mode does not remove this functional requirement. Native
         HTML deadline proofs alone do not prove the enhanced Action transport.
+        Live automated acceptance (2026-09-08): the complete
+        `./leonaid test-emdash-spike --case krapfentaxi-orders` exited 0 in
+        `leonaid-emdash-tmp-qlmhhhitrk` on `6726a2c` plus this test extension.
+        Chromium, Firefox and WebKit observed actual PostgreSQL-blocked Core
+        timeouts with 503 responses after 8116/8064/8062 ms. All retained
+        command IDs, fields and quantities, retried successfully through the
+        ordinary form and replayed the original multipart request through
+        browser fetch. Astro's installed decoder verified the complete replay
+        receipt; independent SQL and actual Twenty reads proved unchanged
+        timeout state, exactly one accepted order/person and unchanged replay
+        state. The same runner also passed native timeouts, partial CRM-write
+        recovery, 18 request-body boundary cases, 24 ordinary paced orders,
+        twelve native replays and all 84 public Core ingress denials, including
+        attempts with a valid service key. No unpaced workload, quota-reset
+        restart or production timeout increase was added. Runner cleanup
+        removed its own containers, networks and volumes; no host ports were
+        exposed. This is automated browser evidence, not yet a visible
+        In-App Browser demonstration of the timeout/retry interaction.
   - [x] Native-browser processing-timeout recovery (2026-09-08): the complete
         `./leonaid test-emdash-spike --case krapfentaxi-orders` exited 0 in
         `leonaid-emdash-tmp-dmj7gxlinq`. The real imported page was exercised
