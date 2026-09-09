@@ -185,7 +185,10 @@ def shared_checks(
     root: Path, selected: list[dict], manifest: dict, private: Path, iteration: int
 ):
     reuse = not os.environ.get("CI") and os.environ.get("LEONAID_TEST_FRESH") != "1"
-    if sum(shareable(check, manifest) for check in selected) < (1 if reuse else 2):
+    prepared = bool(os.environ.get("LEONAID_CI_FIXTURE"))
+    if sum(shareable(check, manifest) for check in selected) < (
+        1 if reuse or prepared else 2
+    ):
         yield None
         return
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))

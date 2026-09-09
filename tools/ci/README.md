@@ -1,13 +1,14 @@
 # CI runtime
 
-Normal PR/main-push CI runs six Integration shards: Compose cold start,
-seed/reset, Core, documents/storage, CRM and policy. Pilot import includes a
+Normal PR/main-push CI runs separate Integration shards for Compose cold start,
+seed cold/idempotency, seed mutation/reset, Core, schema, outbox, storage, documents,
+Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
-Survey acceptance keeps every one of the 39 checks in `tools/surveys/gate.json`.
-Its 17 shards are partitioned into 11 PR shards (26 checks) and six nightly
-shards (13 checks), with no overlap or missing checks. Nightly-only shards are:
+Survey acceptance keeps the original 39 checks and splits the two foundation diagnostics into separate checks in `tools/surveys/gate.json`.
+PR shards now assign individual functional checks independently; the six nightly
+shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
 
 - recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
 - exports-recovery, including its state/limit checks;
@@ -82,8 +83,8 @@ cost time, but build, initial database installation and CRM provisioning no
 longer repeat per feature. Twenty also skips repeated upgrade/cache-flush and
 cron-registration commands after the first initialization; the fixture already
 contains that schema and the registered Redis jobs. Test writers get a bounded
-five-second stop window before resetting their discarded state. The private fixture is never uploaded or cached
-between CI runs. This does not exercise the application's backup feature;
+five-second stop window before resetting their discarded state. Locally captured fixtures remain private. CI can import the explicitly generated
+synthetic-only template described below; no development/runtime snapshot is exported. This does not exercise the application's backup feature;
 backup/recovery acceptance remains nightly.
 
 ### Concurrent runs and exceptional tests
@@ -159,7 +160,7 @@ LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 `--group recovery` or an explicit nightly shard opt into recovery. Compatible
 local survey checks use the same locked fixture. CI always uses ephemeral
-job-local fixtures; no database state is cached across CI runs.
+job-local writable fixtures. Only their synthetic initialization template is cached.
 
 ## Persistent GitHub BuildKit cache
 
@@ -182,3 +183,42 @@ normal cache. Reports include builder preparation/import/build/export/load time
 and a subsequent project-renamed Compose build. The latter must cache every
 Dockerfile RUN step. Full-image cases also start the real Public Node image and
 verify its HTTP readiness. No database or test stack is needed for this benchmark.
+
+
+## Five-minute workflow budget
+
+The next optimization stage prepares a synthetic initialization template in
+`test-fixture.yml`. Its exact cache key covers schema, application initialization
+inputs, tool versions and fixture code. A miss rebuilds it in an isolated source
+copy without reading `.env.local`, `.local`, artifacts or existing Docker volumes.
+All credentials are deliberately synthetic and generated from `.env.example`.
+The template contains initialized stopped volumes, fixed PDF fixtures and its own
+synthetic CRM integration token. It never contains feature-test mutations.
+
+Each consumer verifies provenance, input key, file digests and archive paths;
+links and devices in archives are rejected. It then materializes a fresh set of
+project-owned volumes. No consumer mounts the cache writable. Existing leases and
+inventory guards still exclude concurrent reset/use. Local development continues
+to use its private checkout fixture; CI activation cannot overwrite a local
+worktree's environment.
+
+Functional E2E leaves and survey checks run independently on separate runners.
+Survey Runner browser coverage and its durable-operation verification now belong
+only to the runner check, not also to contracts. Passing/failing infrastructure
+browser diagnostics run in independent jobs and retain their teardown and secret
+scan assertions. The Survey profile starts admin/public frontends without the
+unused PWA; API readiness continues to check its real dependencies.
+
+Golden Journey compares the digest of normalized first-round results from a
+prepared environment (two functional rounds) and an independent fresh installation
+(one round). Session files and business reports do not cross jobs. Seed acceptance
+separates cold installation/idempotency from mutation/real operator reset: only
+the latter's starting state comes from the template; the tested reset still
+creates empty volumes through the unchanged operator CLI.
+
+The budget is 40s for images/tools, 50s for services/data, 150s for tests, 30s for
+cleanup/reporting and 30s reserve. It is a target, not a timeout that hides failures.
+A new template build and GitHub queue time are included when reporting complete
+workflow time, and must be measured separately from a warm template hit. Increasing
+parallel groups requires corresponding runner capacity. Cold installation and
+migration checks remain enabled; no coverage is moved out of PR CI to meet a number.

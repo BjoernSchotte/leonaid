@@ -1,7 +1,58 @@
 # Applied only after initial migration/provisioning. The reset restores the same
 # initialized databases and Redis jobs with the same pinned images.
 services:
+  api:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  proxy:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  worker:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  web:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  pwa:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  public:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  core-postgres:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  twenty-postgres:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  twenty-redis:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  mailpit:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  rustfs:
+    healthcheck:
+      interval: 1s
+      retries: 100
+  survey-validator:
+    healthcheck:
+      interval: 1s
+      retries: 100
   twenty-server:
+    healthcheck:
+      interval: 1s
+      retries: 300
     environment:
       DISABLE_DB_MIGRATIONS: "true"
       DISABLE_CRON_JOBS_REGISTRATION: "true"

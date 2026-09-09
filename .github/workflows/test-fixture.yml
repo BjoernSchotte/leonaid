@@ -1,0 +1,34 @@
+name: Prepare synthetic test fixture
+on:
+  workflow_call:
+    outputs:
+      key:
+        value: ${{ jobs.fixture.outputs.key }}
+permissions:
+  contents: read
+jobs:
+  fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      key: ${{ steps.key.outputs.value }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - id: key
+        run: echo "value=fixture-v1-$(python3 tools/testing/ci_fixture.py key)" >> "$GITHUB_OUTPUT"
+      - id: cached
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/leonaid-synthetic-fixture
+          key: ${{ steps.key.outputs.value }}
+          lookup-only: true
+      - if: steps.cached.outputs.cache-hit != 'true'
+        uses: ./.github/actions/build-cache
+      - if: steps.cached.outputs.cache-hit != 'true'
+        name: Build an isolated synthetic fixture from repository inputs
+        run: python3 tools/testing/ci_fixture.py build "$RUNNER_TEMP/leonaid-synthetic-fixture"
+      - if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/leonaid-synthetic-fixture
+          key: ${{ steps.key.outputs.value }}

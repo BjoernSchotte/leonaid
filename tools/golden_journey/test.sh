@@ -37,7 +37,7 @@ compose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "golden-journey: Diagnose der fehlgeschlagenen Services:" >&2
     compose ps --all >&2 || true
     compose logs --no-color --tail=400 \
@@ -62,6 +62,9 @@ cleanup() {
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
   if [ "$status" -eq 0 ]; then rm -rf "$browser_results"; fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -84,8 +87,21 @@ contract() {
 }
 
 start_golden() {
-  integration_key=""
   journey_generation=$((journey_generation + 1))
+  if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+    test "$journey_generation" -eq 1
+    # The parallel repeat job still proves a completely fresh installation.
+    # This job proves the same journey from a private initialized template.
+    compose run --rm --no-deps \
+      --env-from-file "$env_file" \
+      --volume "$root:/repo:ro" --volume "$proof/pdfs:/proof/pdfs:ro" \
+      --entrypoint python api /repo/tools/seed/golden.py seed \
+      /repo/tests/fixtures/golden/v1 /proof/pdfs
+    compose --profile dev-mail up --detach --wait --wait-timeout 420 \
+      worker public pwa web proxy
+    return
+  fi
+  integration_key=""
   token_filename="integration-$journey_generation.env"
   if [ "$journey_generation" -gt 1 ]; then
     # Reset only the stack acquired by this invocation, before reseeding it.
@@ -190,6 +206,11 @@ if [ ! -f "$env_file" ]; then
 fi
 
 # Refuse existing resources and unreadable inventories before Docker mutations.
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  test "${LEONAID_GOLDEN_PART:-}" = primary
+  shared_services="api twenty-worker mailpit"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
 existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$project")
@@ -198,11 +219,25 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 [ -z "$existing" ]
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
+fi
 mkdir -p "$browser_results"
 chmod 700 "$browser_results"
 
 start_golden
 run_round round-1 primary primary-round-1.json primary-round-1.normalized.json
+if [ -n "${LEONAID_GOLDEN_PART:-}" ]; then
+  case "$LEONAID_GOLDEN_PART" in
+    primary) run_round round-2 primary primary-round-2.json primary-round-2.normalized.json ;;
+    repeat) ;;
+    *) echo 'Unknown Golden Journey part' >&2; exit 64 ;;
+  esac
+  # Only a digest crosses jobs, never session files or business evidence.
+  test -n "${LEONAID_CI_ARTIFACT_DIR:-}"
+  mkdir -p "$LEONAID_CI_ARTIFACT_DIR"
+  sha256sum "$proof/primary-round-1.normalized.json" | cut -d ' ' -f 1 > "$LEONAID_CI_ARTIFACT_DIR/comparison.sha256"
+  echo "golden-journey: $LEONAID_GOLDEN_PART passed; fresh/template results compared by the parent workflow"
+  exit 0
+fi
 run_round round-2 primary primary-round-2.json primary-round-2.normalized.json
 
 start_golden

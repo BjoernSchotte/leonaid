@@ -1,0 +1,17 @@
+name: Import synthetic test fixture
+description: Restore a checked template; tests copy it into individually owned volumes
+inputs:
+  key:
+    description: Exact prepared fixture key; fallback keys are forbidden
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: ${{ runner.temp }}/leonaid-synthetic-fixture
+        key: ${{ inputs.key }}
+        fail-on-cache-miss: true
+    - name: Validate fixture and select its synthetic environment
+      shell: bash
+      run: python3 tools/testing/ci_fixture.py activate "$RUNNER_TEMP/leonaid-synthetic-fixture"

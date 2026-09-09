@@ -1,0 +1,11 @@
+# Surveys use the admin and public frontends. The PWA is covered by its own E2E
+# jobs. API readiness still checks its real database, storage and CRM dependencies.
+services:
+  proxy:
+    depends_on: !override
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      public:
+        condition: service_healthy

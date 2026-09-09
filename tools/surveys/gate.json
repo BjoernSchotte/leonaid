@@ -49,8 +49,13 @@
     {
       "id": "foundation-diagnostics",
       "group": "foundation",
-      "argv": ["python3", "tools/surveys/foundation_acceptance.py", "{root}"],
-      "infrastructureModes": ["infrastructure", "infrastructure-failure"]
+      "argv": [
+        "python3",
+        "tools/surveys/foundation_acceptance.py",
+        "{root}",
+        "infrastructure"
+      ],
+      "infrastructureModes": ["infrastructure"]
     },
     {
       "id": "aggregate-engine",
@@ -280,6 +285,17 @@
       "group": "e2e",
       "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "journeys"],
       "infrastructureModes": ["journeys"]
+    },
+    {
+      "id": "foundation-failure",
+      "group": "foundation",
+      "argv": [
+        "python3",
+        "tools/surveys/foundation_acceptance.py",
+        "{root}",
+        "infrastructure-failure"
+      ],
+      "infrastructureModes": ["infrastructure-failure"]
     }
   ],
   "manualReviewRequired": [
@@ -288,79 +304,41 @@
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
   ],
   "ciShards": {
-    "integration-engine": [
-      "aggregate-engine",
-      "aggregates",
-      "analysis"
-    ],
-    "integration-lifecycle": [
-      "lifecycle",
-      "lifecycle-concurrency"
-    ],
-    "integration-access": [
-      "contracts",
-      "invitations",
-      "permissions"
-    ],
-    "integration-limits": [
-      "request-limits",
-      "payload-limits"
-    ],
-    "editor-authoring": [
-      "editor"
-    ],
-    "editor-preview": [
-      "preview",
-      "branding"
-    ],
-    "exports-download": [
-      "exports",
-      "export-permissions"
-    ],
-    "exports-recovery": [
-      "export-states",
-      "export-recovery",
-      "export-limits"
-    ],
-    "recovery-deletion": [
-      "deletion",
-      "deletion-races",
-      "deletion-ui"
-    ],
-    "recovery-retention": [
-      "retention",
-      "recovery"
-    ],
-    "recovery-restic": [
-      "restic-manual",
-      "restic-archive",
-      "restic-durable"
-    ],
-    "recovery-pilot": [
-      "pilot-survey-recovery"
-    ],
+    "aggregate-engine": ["aggregate-engine"],
+    "aggregates": ["aggregates"],
+    "analysis": ["analysis"],
+    "lifecycle": ["lifecycle"],
+    "lifecycle-concurrency": ["lifecycle-concurrency"],
+    "contracts": ["contracts"],
+    "invitations": ["invitations"],
+    "permissions": ["permissions"],
+    "request-limits": ["request-limits"],
+    "payload-limits": ["payload-limits"],
+    "editor": ["editor"],
+    "preview": ["preview"],
+    "branding": ["branding"],
+    "exports": ["exports"],
+    "export-permissions": ["export-permissions"],
+    "exports-recovery": ["export-states", "export-recovery", "export-limits"],
+    "recovery-deletion": ["deletion", "deletion-races", "deletion-ui"],
+    "recovery-retention": ["retention", "recovery"],
+    "recovery-restic": ["restic-manual", "restic-archive", "restic-durable"],
+    "recovery-pilot": ["pilot-survey-recovery"],
     "foundation": [
       "gate-controller",
       "core",
       "validation-candidate",
       "dependencies",
       "standalone-resources",
-      "migrations",
-      "foundation-diagnostics"
+      "migrations"
     ],
-    "responses": [
-      "responses",
-      "runner"
-    ],
-    "package": [
-      "packed-consumer"
-    ],
-    "e2e": [
-      "journeys"
-    ],
-    "restore-receipts": [
-      "restore-receipts"
-    ]
+    "responses": ["responses"],
+    "runner": ["runner"],
+    "package": ["packed-consumer"],
+    "journeys": ["journeys"],
+    "restore-receipts": ["restore-receipts"],
+    "foundation-diagnostics": ["foundation-diagnostics"],
+    "foundation-failure": ["foundation-failure"]
   },
   "nightlyShards": [
     "recovery-deletion",

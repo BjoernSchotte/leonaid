@@ -5,11 +5,16 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 shard=${1:-}
 
 case "$shard" in
+  invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
+    python3 "$root/tools/testing/shared_stack.py" golden "tools/$shard/test.sh"
+    ;;
+  action-admin|public-actions|public-orders|activity-feed)
+    directory=$(printf '%s' "$shard" | tr '-' '_')
+    python3 "$root/tools/testing/shared_stack.py" golden "tools/$directory/test.sh"
+    ;;
   identity)
     python3 "$root/tools/testing/shared_stack.py" core \
-      tools/identity/test.sh \
-      tools/invitations/test.sh \
-      tools/sessions/test.sh
+      tools/identity/test.sh
     ;;
   acquisition)
     python3 "$root/tools/testing/shared_stack.py" golden \
@@ -20,19 +25,13 @@ case "$shard" in
     ;;
   actions)
     python3 "$root/tools/testing/shared_stack.py" golden \
-      tools/actions/test.sh \
-      tools/templates/test.sh \
-      tools/action_admin/test.sh \
-      tools/commitments/test.sh
+      tools/actions/test.sh
     ;;
   public)
     python3 "$root/tools/testing/shared_stack.py" golden \
       tools/public_actions/test.sh \
       tools/public_orders/test.sh \
       tools/activity_feed/test.sh
-    ;;
-  invoices)
-    /bin/sh "$root/tools/invoices/test.sh" "$root"
     ;;
   *)
     echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2

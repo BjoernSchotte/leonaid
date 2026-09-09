@@ -20,6 +20,8 @@ ALLOWED_PUBLIC_UPLOADS = (
 )
 ALLOWED_PUBLIC_UPLOAD_PREFIXES = (".artifacts/ci/",)
 UPLOAD_ACTION = "actions/upload-artifact@"
+CACHE_ACTIONS = ("actions/cache@", "actions/cache/save@", "actions/cache/restore@")
+SYNTHETIC_FIXTURE_CACHE = "${{ runner.temp }}/leonaid-synthetic-fixture"
 
 
 class BoundaryError(RuntimeError):
@@ -95,7 +97,8 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
             raise BoundaryError(
                 f"{workflow}: unbekannte Upload-Action ist nicht freigegeben: {action}"
             )
-        if not action.startswith(UPLOAD_ACTION):
+        is_cache = action.startswith(CACHE_ACTIONS)
+        if not action.startswith(UPLOAD_ACTION) and not is_cache:
             continue
         action_indent = len(line) - len(line.lstrip())
         path: str | None = None
@@ -126,7 +129,13 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
             raise BoundaryError(
                 f"{workflow}: Uploadpfad ist dynamisch oder nicht sicher: {path!r}"
             )
-        paths.append(path)
+        if is_cache:
+            if path != SYNTHETIC_FIXTURE_CACHE:
+                raise BoundaryError(
+                    f"{workflow}: nicht freigegebener Cachepfad: {path}"
+                )
+        else:
+            paths.append(path)
     return paths
 
 
@@ -136,6 +145,8 @@ def check_workflows(root: Path) -> None:
         (
             *workflow_root.glob("*.yml"),
             *workflow_root.glob("*.yaml"),
+            *(root / ".github" / "actions").rglob("action.yml"),
+            *(root / ".github" / "actions").rglob("action.yaml"),
         )
     )
     if not workflows:

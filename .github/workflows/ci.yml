@@ -27,6 +27,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fixture:
+    if: inputs.cold_run != true && inputs.artifact_probe != true && github.ref != 'refs/heads/ci-artifact-probe'
+    uses: ./.github/workflows/test-fixture.yml
+
   lint-types:
     if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
     name: Lint and types
@@ -80,14 +84,30 @@ jobs:
           retention-days: 14
 
   integration-shards:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    needs: fixture
+    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
     name: Integration / ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [compose, seed, core, documents, crm, policy]
+        shard:
+          [
+            compose,
+            seed-cold,
+            seed-reset,
+            core,
+            schema,
+            outbox,
+            storage,
+            documents,
+            typst,
+            twenty-install,
+            crm-gateway,
+            crm-import,
+            policy,
+          ]
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.shard }}
     steps:
@@ -101,6 +121,11 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data
+        if: inputs.cold_run != true
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Run real service integration suite
         run: bash tools/ci/run-job.sh integration-${{ matrix.shard }} bash tools/ci/integration.sh ${{ matrix.shard }}
       - name: Publish integration evidence
@@ -125,7 +150,8 @@ jobs:
         run: test "$RESULT" = success
 
   contract:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    needs: fixture
+    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
     name: Contract
     runs-on: ubuntu-24.04
     timeout-minutes: 75
@@ -142,6 +168,11 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data
+        if: inputs.cold_run != true
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Run OpenAPI and cross-system contracts
         run: bash tools/ci/run-job.sh contract bash tools/ci/contract.sh
       - name: Publish contract evidence
@@ -154,8 +185,9 @@ jobs:
           retention-days: 14
 
   e2e:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
-    name: E2E / ${{ matrix.shard }}
+    needs: fixture
+    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    name: E2E leaf / ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -163,9 +195,19 @@ jobs:
       matrix:
         shard:
           - identity
-          - acquisition
+          - invitations
+          - sessions
+          - matching
+          - assignments
+          - activities
+          - pwa
           - actions
-          - public
+          - templates
+          - action-admin
+          - commitments
+          - public-actions
+          - public-orders
+          - activity-feed
           - invoices
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/e2e-${{ matrix.shard }}
@@ -180,6 +222,11 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data
+        if: inputs.cold_run != true
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Run real browser shard
         run: >-
           bash tools/ci/run-job.sh
@@ -194,8 +241,23 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  e2e-summary:
+    name: E2E / ${{ matrix.group }}
+    needs: e2e
+    if: always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        group: [identity, acquisition, actions, public, invoices]
+    steps:
+      - name: Require every E2E leaf
+        env:
+          RESULT: ${{ needs.e2e.result }}
+        run: test "$RESULT" = success
+
   security:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    needs: fixture
+    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -214,6 +276,11 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data
+        if: inputs.cold_run != true
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Run policies, secret scan and critical vulnerability gates
         run: bash tools/ci/run-job.sh security bash tools/ci/security.sh
       - name: Publish security evidence
@@ -256,13 +323,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  golden-journey:
-    if: github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
-    name: Golden journey
+  golden-parts:
+    needs: fixture
+    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    name: Golden installation / ${{ matrix.part }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [primary, repeat]
     env:
-      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/golden-journey
+      LEONAID_GOLDEN_PART: ${{ matrix.part }}
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/golden-${{ matrix.part }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -274,19 +347,47 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data for the functional rounds
+        if: matrix.part == 'primary' && inputs.cold_run != true
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Run complete cross-browser Golden Journey
-        run: >-
-          bash tools/ci/run-job.sh
-          golden-journey
-          ./leonaid test-golden-journey
+        run: |
+          if [ "$LEONAID_GOLDEN_PART" = primary ] && [ -n "${LEONAID_CI_FIXTURE:-}" ]; then
+            bash tools/ci/run-job.sh golden-journey python3 tools/testing/shared_stack.py golden tools/golden_journey/test.sh
+          else
+            bash tools/ci/run-job.sh golden-journey ./leonaid test-golden-journey
+          fi
       - name: Publish Golden Journey evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ci-golden-journey
-          path: .artifacts/ci/golden-journey
+          name: ci-golden-${{ matrix.part }}
+          path: .artifacts/ci/golden-${{ matrix.part }}
           if-no-files-found: error
           retention-days: 14
+
+  golden-journey:
+    name: Golden journey
+    needs: golden-parts
+    if: always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require both independent installations
+        env:
+          RESULT: ${{ needs.golden-parts.result }}
+        run: test "$RESULT" = success
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ci-golden-*
+          path: comparison
+      - name: Compare deterministic first-round results
+        run: |
+          test "$(wc -c < comparison/ci-golden-primary/comparison.sha256)" -eq 65
+          test "$(wc -c < comparison/ci-golden-repeat/comparison.sha256)" -eq 65
+          cmp comparison/ci-golden-primary/comparison.sha256 comparison/ci-golden-repeat/comparison.sha256
 
   pilot-cold-rehearsal:
     if: inputs.cold_run == true && inputs.artifact_probe != true

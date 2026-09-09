@@ -5,6 +5,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 
 python3 "$root/tools/local_tests_test.py"
+python3 "$root/tools/testing/ci_fixture_test.py"
 
 docker run --rm \
   --volume "$root:/workspace:ro" \
@@ -94,6 +95,6 @@ done
 
 /bin/sh "$root/tools/proxy/scan-image.sh" "$root"
 
-/bin/sh "$root/tools/security/test.sh" "$root"
+python3 "$root/tools/testing/shared_stack.py" core tools/security/test.sh
 
 echo "ci-security: OK: Policies, Secrets und kritische Abhängigkeiten/Images"

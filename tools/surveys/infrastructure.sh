@@ -457,7 +457,7 @@ fi
 if [ "$mode" = editor ]; then
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
-if [ "$mode" = runner ] || [ "$mode" = contracts ]; then
+if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
@@ -475,7 +475,7 @@ if [ "$mode" = journeys ]; then
     --workdir /repo --entrypoint python api tools/surveys/journey_verify.py
   cp "$proof/journeys-proof.json" "$artifact/"
 fi
-if [ "$mode" = contracts ]; then
+if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
 fi

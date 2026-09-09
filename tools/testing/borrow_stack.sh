@@ -18,7 +18,8 @@ compose() {
     docker compose --project-name "$project" --env-file "$root/.env.local" \
       --file "$root/infra/compose/compose.yml" \
       --file "$LEONAID_TEST_STACK/compose.yml" \
-      --file "$root/tools/testing/shared-runtime.yml" --profile dev-mail "$@"
+      --file "$root/tools/testing/shared-runtime.yml" \
+      --file "$LEONAID_TEST_STACK/services.yml" --profile dev-mail "$@"
 }
 if [ -f "$LEONAID_TEST_STACK/integration.env" ]; then
   cp "$LEONAID_TEST_STACK/integration.env" "$proof/integration.env"

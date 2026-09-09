@@ -22,6 +22,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fixture:
+    uses: ./.github/workflows/test-fixture.yml
+
   inventory:
     runs-on: ubuntu-24.04
     outputs:
@@ -49,7 +52,7 @@ jobs:
 
   surveys:
     name: Survey shard / ${{ matrix.shard }}
-    needs: inventory
+    needs: [inventory, fixture]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -63,6 +66,10 @@ jobs:
         uses: ./.github/actions/build-cache
       - name: Bootstrap pinned Docker toolchains
         run: ./leonaid bootstrap
+      - name: Use prepared synthetic data
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
       - name: Execute each assigned check once with fresh owned service state
         env:
           SURVEY_GATE_SHARD: ${{ matrix.shard }}
@@ -70,7 +77,7 @@ jobs:
         # preserve container-root ownership; the controller must share that UID.
         run: |
           sudo git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          sudo --preserve-env=CI,BUILDX_BUILDER,DOCKER_CONFIG ./leonaid test-surveys --shard "$SURVEY_GATE_SHARD"
+          sudo --preserve-env=CI,BUILDX_BUILDER,DOCKER_CONFIG,LEONAID_CI_FIXTURE ./leonaid test-surveys --shard "$SURVEY_GATE_SHARD"
       - name: Collect bounded diagnostic metadata
         if: always()
         run: |

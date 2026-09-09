@@ -30,6 +30,12 @@ class SharedStack:
             tempfile.mkdtemp(prefix="leonaid-test-stack-")
         )
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        profile = self.directory / "services.yml"
+        profile.write_text(
+            (self.root / "tools/testing/survey-runtime.yml").read_text()
+            if kind == "survey"
+            else "services: {}\n"
+        )
         self.project = "leonaid-shared-" + secrets.token_hex(8)
         self.token = secrets.token_hex(32)
         self.owned = False
@@ -54,6 +60,8 @@ class SharedStack:
             str(self.root / "infra/compose/compose.yml"),
             "--file",
             str(self.directory / "compose.yml"),
+            "--file",
+            str(profile),
             "--profile",
             "dev-mail",
         ]
@@ -135,6 +143,17 @@ class SharedStack:
             stderr=self.output,
         )
         self.call([*self.compose, "build"])
+        fixture = self.env.get("LEONAID_CI_FIXTURE")
+        if fixture:
+            self.import_fixture(Path(fixture))
+            self.write_context()
+            self.ready = True
+            print(
+                f"shared-stack: prepared fixture {time.monotonic() - start:.1f}s; private volumes and networks ready",
+                flush=True,
+                file=self.output,
+            )
+            return
         self.call(
             [
                 *self.compose,
@@ -207,6 +226,15 @@ class SharedStack:
         if not self.volumes:
             raise RuntimeError("Missing shared fixture volumes")
         self.copy_volumes("save")
+        self.write_context()
+        self.ready = True
+        print(
+            f"shared-stack: setup {time.monotonic() - start:.1f}s; images and initialized volumes ready",
+            flush=True,
+            file=self.output,
+        )
+
+    def write_context(self):
         values = {
             "project": self.project,
             "integration_key": self.env["TWENTY_INTEGRATION_API_KEY"],
@@ -217,12 +245,45 @@ class SharedStack:
             "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
         )
         (self.directory / "context.env").chmod(0o600)
-        self.ready = True
-        print(
-            f"shared-stack: setup {time.monotonic() - start:.1f}s; images and initialized volumes ready",
-            flush=True,
-            file=self.output,
-        )
+
+    def import_fixture(self, directory):
+        if __package__:
+            from .ci_fixture import environment, validate
+        else:
+            from ci_fixture import environment, validate
+        if (self.root / ".env.local").read_text() != environment(self.root):
+            raise RuntimeError("Prepared CI fixture requires its synthetic environment")
+        metadata = validate(self.root, directory)
+        self.env["TWENTY_INTEGRATION_API_KEY"] = metadata["integrationKey"]
+        self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
+        # Volumes are cheap to create directly. Do not pull/start unused services
+        # just to materialize their storage (for example SeaweedFS in an E2E job).
+        # Compose receives its normal ownership labels and creates only the leaf's
+        # requested services later. The template itself is never mounted writable.
+        for name in metadata["volumes"]:
+            self.call(
+                [
+                    "docker",
+                    "volume",
+                    "create",
+                    "--label",
+                    f"com.docker.compose.project={self.project}",
+                    "--label",
+                    f"com.docker.compose.volume={name}",
+                    self.project + "_" + name,
+                ]
+            )
+        self.volumes = self.inventory("volumes")
+        expected = [self.project + "_" + name for name in metadata["volumes"]]
+        if self.volumes != expected:
+            raise RuntimeError(
+                "Prepared fixture volume inventory does not match Compose"
+            )
+        for name in metadata["files"]:
+            target = self.directory / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(directory / name, target)
+        self.copy_volumes("restore")
 
     def copy_volumes(self, mode):
         # No live process may hold a database, queue or storage file during copying.
@@ -236,9 +297,14 @@ class SharedStack:
             ],
             capture=True,
         )
-        if running.strip() or self.inventory("volumes") != self.volumes:
+        if running.strip():
             raise RuntimeError(
-                "Refusing fixture reset: running services or changed volume inventory"
+                f"Refusing fixture reset: active container IDs {running.split()}"
+            )
+        current = self.inventory("volumes")
+        if current != self.volumes:
+            raise RuntimeError(
+                f"Refusing fixture reset: volume inventory changed; expected {self.volumes}, actual {current}"
             )
         args = [
             "docker",

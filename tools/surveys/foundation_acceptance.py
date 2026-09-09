@@ -10,7 +10,11 @@ reports = root / ".artifacts/surveys-infrastructure/foundation"
 output = root / ".artifacts/foundation-acceptance"
 output.mkdir(parents=True, exist_ok=True)
 evidence = []
-for mode, expected in (("infrastructure", 0), ("infrastructure-failure", 1)):
+modes = (("infrastructure", 0), ("infrastructure-failure", 1))
+if len(sys.argv) > 2:
+    assert sys.argv[2] in {mode for mode, _ in modes}
+    modes = tuple(pair for pair in modes if pair[0] == sys.argv[2])
+for mode, expected in modes:
     before = set(reports.glob("*.json"))
     log = output / f"{mode}.log"
     print(f"Starting isolated {mode} browser run", flush=True)
@@ -64,5 +68,6 @@ for mode, expected in (("infrastructure", 0), ("infrastructure-failure", 1)):
         f"PASS: {mode}, expected exit {expected}, retained safe diagnostic and verified teardown",
         flush=True,
     )
-assert evidence[0]["project"] != evidence[1]["project"]
+if len(evidence) == 2:
+    assert evidence[0]["project"] != evidence[1]["project"]
 (output / "proof.json").write_text(json.dumps({"runs": evidence}, indent=2) + "\n")
