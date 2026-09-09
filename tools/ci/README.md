@@ -213,7 +213,8 @@ Survey Runner browser coverage and its durable-operation verification now belong
 only to the runner check, not also to contracts. Passing/failing infrastructure
 browser diagnostics run in independent jobs and retain their teardown and secret
 scan assertions. The Survey profile starts admin/public frontends without the
-unused PWA; API readiness continues to check its real dependencies.
+PWA except in Journey, whose member probe follows the /admin/ to /app/
+redirect; API readiness continues to check its real dependencies.
 
 Golden Journey compares the digest of normalized first-round results from a
 prepared environment (two functional rounds) and an independent fresh installation

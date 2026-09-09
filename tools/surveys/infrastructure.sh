@@ -80,6 +80,9 @@ trap cleanup EXIT HUP INT TERM
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   [ "$foundation" = false ] || { echo 'Foundation requires a fresh stack' >&2; exit 1; }
   shared_services="proxy worker mailpit"
+  # The foundation member probe redirects /admin/ to /app/ for non-admins.
+  # Only journeys exercises that route in a borrowed Survey stack.
+  if [ "$mode" = journeys ]; then shared_services="$shared_services pwa"; fi
   . "$root/tools/testing/borrow_stack.sh"
 else
 # Refuse to touch any project that already has resources, even on PID reuse.
