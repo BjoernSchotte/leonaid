@@ -12,6 +12,8 @@ PRIVATE_PREFIXES = (
     ".local/test-logins.md",
 )
 ALLOWED_PUBLIC_UPLOADS = (
+    # Fixed scalar-only build timing reports; no Docker logs or environment dumps.
+    ".artifacts/cache-measurement/*.json",
     ".artifacts/sbom/*.cdx.json",
     # Only bounded survey reports copied out of the private root-owned gate directory.
     "${{ runner.temp }}/surveys-ci-results/*.json",

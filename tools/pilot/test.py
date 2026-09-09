@@ -174,7 +174,16 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     )
     check_workflows(root)
 
+    ci.write_text(
+        workflow_with_upload(".artifacts/cache-measurement/*.json"),
+        encoding="utf-8",
+    )
+    check_workflows(root)
+
     for forbidden in (
+        ".artifacts/cache-measurement/*",
+        ".artifacts/cache-measurement/**/*.json",
+        ".artifacts/cache-measurement/*.log",
         "${{ runner.temp }}/surveys-ci-results/*",
         "${{ runner.temp }}/surveys-ci-results/**/*.json",
         "${{ runner.temp }}/surveys-ci-results/*.log",
