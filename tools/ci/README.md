@@ -175,7 +175,8 @@ normal Build job exports the production cache. Other image-consuming jobs import
 it without concurrent writes. Explicit `cold_run` jobs bypass this action.
 Survey sudo invocations preserve CI and the selected Docker builder/configuration.
 
-The opt-in/path-triggered Build cache benchmark uses fresh GitHub runners for
+The opt-in Build cache benchmark (manual dispatch or the
+`benchmark-build-cache` pull-request label) uses fresh GitHub runners for
 proxy-only and full-image scenarios, in three sequential rounds: cold without
 imports, unchanged with imports, and a comment-only Public source change with
 imports. Its cache namespace includes the workflow run ID and cannot alter the
@@ -202,7 +203,12 @@ inventory guards still exclude concurrent reset/use. Local development continues
 to use its private checkout fixture; CI activation cannot overwrite a local
 worktree's environment.
 
-Functional E2E leaves and survey checks run independently on separate runners.
+Functional E2E groups and survey checks run on independent runners. Short E2E
+pairs share initialization with a guarded reset between leaves: invitations and
+sessions, actions and templates, assignments and activities, public actions and
+activity feed. Schema/outbox share a runner; fast Survey package/aggregate checks
+join foundation. This avoids queuing dozens of one-leaf jobs. Optional Compose
+profiles are independent of the genuine cold-start/restart persistence check.
 Survey Runner browser coverage and its durable-operation verification now belong
 only to the runner check, not also to contracts. Passing/failing infrastructure
 browser diagnostics run in independent jobs and retain their teardown and secret

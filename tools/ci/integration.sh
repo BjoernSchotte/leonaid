@@ -6,12 +6,15 @@ shard=${1:-all}
 
 case "$shard" in
   all)
-    for part in compose seed core schema outbox storage documents typst crm policy; do
+    for part in compose profiles seed core schema outbox storage documents typst crm policy; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;
   compose)
-    /bin/sh "$root/tools/compose/test.sh" "$root"
+    LEONAID_COMPOSE_PART=base /bin/sh "$root/tools/compose/test.sh" "$root"
+    ;;
+  profiles)
+    python3 "$root/tools/testing/shared_stack.py" core tools/compose/profiles.sh
     ;;
   seed)
     /bin/sh "$root/tools/seed/test.sh" "$root"
@@ -28,6 +31,10 @@ case "$shard" in
     ;;
   core)
     /bin/sh "$root/tools/core/test.sh" "$root"
+    ;;
+  schema-outbox)
+    /bin/sh "$root/tools/schema/test.sh" "$root"
+    /bin/sh "$root/tools/outbox/test.sh" "$root"
     ;;
   schema)
     /bin/sh "$root/tools/schema/test.sh" "$root"

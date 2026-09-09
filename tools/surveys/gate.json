@@ -304,7 +304,6 @@
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
   ],
   "ciShards": {
-    "aggregate-engine": ["aggregate-engine"],
     "aggregates": ["aggregates"],
     "analysis": ["analysis"],
     "lifecycle": ["lifecycle"],
@@ -330,11 +329,12 @@
       "validation-candidate",
       "dependencies",
       "standalone-resources",
-      "migrations"
+      "migrations",
+      "aggregate-engine",
+      "packed-consumer"
     ],
     "responses": ["responses"],
     "runner": ["runner"],
-    "package": ["packed-consumer"],
     "journeys": ["journeys"],
     "restore-receipts": ["restore-receipts"],
     "foundation-diagnostics": ["foundation-diagnostics"],

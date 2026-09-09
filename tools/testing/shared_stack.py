@@ -163,12 +163,32 @@ class SharedStack:
                 "--wait",
                 "--wait-timeout",
                 "420",
-                "api",
+                *(
+                    ["core-postgres", "rustfs"]
+                    if self.env.get("LEONAID_FIXTURE_BUILD") == "1"
+                    else ["api"]
+                ),
                 "twenty-worker",
                 "mailpit",
                 *(["seaweedfs"] if self.kind == "documents" else []),
             ]
         )
+        if self.env.get("LEONAID_FIXTURE_BUILD") == "1":
+            # A template contains schema, not API startup side effects. Run the
+            # real migrations directly so unrelated request code is not an input.
+            self.call(
+                [
+                    *self.compose,
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "--entrypoint",
+                    "alembic",
+                    "api",
+                    "upgrade",
+                    "head",
+                ]
+            )
         if self.kind in {"golden", "documents"}:
             self.call(
                 [
@@ -225,6 +245,30 @@ class SharedStack:
         self.volumes = self.inventory("volumes")
         if not self.volumes:
             raise RuntimeError("Missing shared fixture volumes")
+        if self.env.get("LEONAID_FIXTURE_BUILD") == "1":
+            queue = self.project + "_twenty-redis-data"
+            if queue not in self.volumes:
+                raise RuntimeError("Missing owned fixture queue volume")
+            # Do not replay overdue cron jobs from the time the template was
+            # created. Functional leaves enqueue their own work; cold installation
+            # tests retain the normal scheduler registration and persisted queues.
+            self.call(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    "none",
+                    "--mount",
+                    f"type=volume,src={queue},dst=/queues",
+                    self.alpine,
+                    "find",
+                    "/queues",
+                    "-mindepth",
+                    "1",
+                    "-delete",
+                ]
+            )
         self.copy_volumes("save")
         self.write_context()
         self.ready = True

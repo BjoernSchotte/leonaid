@@ -5,6 +5,18 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 shard=${1:-}
 
 case "$shard" in
+  membership)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/invitations/test.sh tools/sessions/test.sh
+    ;;
+  action-templates)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/actions/test.sh tools/templates/test.sh
+    ;;
+  acquisition-management)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/assignments/test.sh tools/activities/test.sh
+    ;;
+  public-catalog)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    ;;
   invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
     python3 "$root/tools/testing/shared_stack.py" golden "tools/$shard/test.sh"
     ;;

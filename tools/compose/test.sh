@@ -184,6 +184,10 @@ if [ "$twenty_tables_after" != "$twenty_tables_before" ]; then
 fi
 
 echo "compose-test: startet und prüft optionale Profile"
+if [ "${LEONAID_COMPOSE_PART:-all}" = base ]; then
+  echo "compose-test: cold start, network boundaries and restart persistence passed"
+  exit 0
+fi
 compose_all_profiles up --detach --wait --wait-timeout 420
 for service in mailpit listmonk listmonk-postgres otel-collector; do
   container_id=$(compose ps --quiet "$service")

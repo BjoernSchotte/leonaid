@@ -234,7 +234,7 @@ if [ -n "${LEONAID_GOLDEN_PART:-}" ]; then
   # Only a digest crosses jobs, never session files or business evidence.
   test -n "${LEONAID_CI_ARTIFACT_DIR:-}"
   mkdir -p "$LEONAID_CI_ARTIFACT_DIR"
-  sha256sum "$proof/primary-round-1.normalized.json" | cut -d ' ' -f 1 > "$LEONAID_CI_ARTIFACT_DIR/comparison.sha256"
+  sha256sum "$proof/primary-round-1.normalized.json" | cut -d ' ' -f 1 > "$LEONAID_CI_ARTIFACT_DIR/comparison.txt"
   echo "golden-journey: $LEONAID_GOLDEN_PART passed; fresh/template results compared by the parent workflow"
   exit 0
 fi

@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -62,6 +63,21 @@ class FixtureBoundaryTests(unittest.TestCase):
             (directory / "manifest.json").write_text(json.dumps(metadata))
             with self.assertRaisesRegex(ValueError, "inputs changed"):
                 validate(ROOT, directory)
+
+    def test_schema_changes_invalidate_but_request_handlers_do_not(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            migration = root / "migrations/example.py"
+            handler = root / "src/leonaid/interfaces/api/example.py"
+            for path in (migration, handler):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("initial")
+            original = key(root)
+            handler.write_text("changed request handler")
+            self.assertEqual(key(root), original)
+            migration.write_text("changed schema")
+            self.assertNotEqual(key(root), original)
 
     def test_environment_is_deterministic_and_local(self):
         content = environment(ROOT)

@@ -22,7 +22,8 @@ def file_digest(path):
 
 
 def inputs(root):
-    # Include application code: initialization may execute more than migrations.
+    # Construction runs migrations, CRM provisioning and PDF rendering, never API
+    # request handlers. Ordinary feature changes must not rebuild initialized data.
     names = (
         subprocess.check_output(
             ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -38,7 +39,8 @@ def inputs(root):
         and (
             name.startswith(
                 (
-                    "src/",
+                    "src/leonaid/adapters/typst/",
+                    "src/leonaid/domain/",
                     "migrations/",
                     "infra/",
                     "tools/testing/",
@@ -48,7 +50,14 @@ def inputs(root):
                     "tests/fixtures/golden/",
                 )
             )
-            or name in {".env.example", "pyproject.toml", "uv.lock", "alembic.ini"}
+            or name
+            in {
+                ".env.example",
+                "pyproject.toml",
+                "uv.lock",
+                "alembic.ini",
+                "src/leonaid/application/invoice_documents.py",
+            }
         )
     )
 
@@ -148,6 +157,7 @@ def build(root, directory):
         (source / ".env.local").chmod(0o600)
         stack = SharedStack(source, "documents")
         stack.env.pop("LEONAID_CI_FIXTURE", None)
+        stack.env["LEONAID_FIXTURE_BUILD"] = "1"
         try:
             stack.initialize()
             directory.mkdir(mode=0o700, parents=True)
