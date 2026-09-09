@@ -38,7 +38,7 @@ diagnose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "twenty-gateway-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
   fi
@@ -57,11 +57,15 @@ cleanup() {
     done
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
+if [ -z "${LEONAID_TEST_STACK:-}" ]; then
 # Refuse existing resources and unreadable inventories before Docker mutations.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -72,6 +76,7 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
+fi
 
 run_python() {
   compose run --rm --no-deps \
@@ -100,9 +105,14 @@ provision() {
     --snapshot-output /proof/schema.json
 }
 
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services="twenty-server twenty-worker"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 compose build api
 compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision
+fi
 
 echo "twenty-gateway-test: führt CRUD, echte Batches und Cursor-Pagination aus"
 run_python tools/twenty/gateway_contract.py exercise --state /proof/state.json

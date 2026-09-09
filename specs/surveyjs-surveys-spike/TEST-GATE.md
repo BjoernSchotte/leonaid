@@ -23,8 +23,8 @@ Run from the repository root after `./leonaid bootstrap`:
 
 The default aggregate executes all 39 entries in
 [`tools/surveys/gate.json`](../../tools/surveys/gate.json), in manifest order.
-`--repeat 2` executes the whole selection twice; every service harness creates
-fresh owned resources each time. This is an explicit local option, not the CI
+`--repeat 2` executes the whole selection twice; each pass creates fresh owned
+resources, with a data reset between compatible checks within that pass. This is an explicit local option, not the CI
 default. `--shard` selects one complete CI partition and cannot be combined with
 `--group`. It does not rerun only failed cases. A nonzero
 child exit stops the aggregate immediately and preserves that exit code. Skipped
@@ -65,11 +65,14 @@ subnets. Survey infrastructure/consumer/migration tests publish no host ports;
 the pilot harness allocates free loopback ports for its actual TLS operator
 workflow. No global prune or shared-project reset is part of this gate.
 
-Infrastructure checks within one aggregate pass reuse the images built by its
-first infrastructure check. The image namespace belongs to that private run,
-and subsequent checks use `--no-build`. Containers, volumes and networks remain
-fresh for each check. Standalone calls and foundation cold-build checks retain
-their original build path. See [CI runtime](../../tools/ci/README.md).
+Compatible infrastructure checks within one aggregate pass share one initialized
+Compose environment. The owner restores its private stopped-volume fixture
+between checks; each check seeds its own data and starts fresh application
+processes. Images, containers and networks are reused. An exclusive fixture
+lease prevents a reset while a leaf is active. Independent runs never share
+projects, volumes or fixture snapshots. Standalone calls, foundation cold-build
+checks and nightly recovery harnesses retain their original path. See
+[CI runtime](../../tools/ci/README.md) for reset scope and exceptions.
 
 Raw child stdout/stderr is saved in owner-only logs beneath
 `.artifacts/surveys-gate/private-*/`. It is neither echoed by the controller nor

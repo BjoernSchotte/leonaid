@@ -6,30 +6,33 @@ shard=${1:-}
 
 case "$shard" in
   identity)
-    /bin/sh "$root/tools/identity/test.sh" "$root"
-    /bin/sh "$root/tools/invitations/test.sh" "$root"
-    /bin/sh "$root/tools/sessions/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" core \
+      tools/identity/test.sh \
+      tools/invitations/test.sh \
+      tools/sessions/test.sh
     ;;
   acquisition)
-    /bin/sh "$root/tools/matching/test.sh" "$root"
-    /bin/sh "$root/tools/assignments/test.sh" "$root"
-    /bin/sh "$root/tools/activities/test.sh" "$root"
-    /bin/sh "$root/tools/pwa/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/matching/test.sh \
+      tools/assignments/test.sh \
+      tools/activities/test.sh \
+      tools/pwa/test.sh
     ;;
   actions)
-    /bin/sh "$root/tools/actions/test.sh" "$root"
-    /bin/sh "$root/tools/templates/test.sh" "$root"
-    /bin/sh "$root/tools/action_admin/test.sh" "$root"
-    /bin/sh "$root/tools/commitments/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/actions/test.sh \
+      tools/templates/test.sh \
+      tools/action_admin/test.sh \
+      tools/commitments/test.sh
     ;;
   public)
-    /bin/sh "$root/tools/public_actions/test.sh" "$root"
-    /bin/sh "$root/tools/public_orders/test.sh" "$root"
-    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/public_actions/test.sh \
+      tools/public_orders/test.sh \
+      tools/activity_feed/test.sh
     ;;
   invoices)
     /bin/sh "$root/tools/invoices/test.sh" "$root"
-    /bin/sh "$root/tools/documents/test.sh" "$root"
     ;;
   *)
     echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2

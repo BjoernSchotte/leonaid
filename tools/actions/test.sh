@@ -30,7 +30,7 @@ compose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "action-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=120 core-postgres api web proxy >&2 || true
@@ -51,6 +51,9 @@ cleanup() {
       fi
     done
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
+  fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
   fi
   rm -rf "$proof"
   exit "$status"
@@ -75,6 +78,10 @@ run_python() {
     api "$@"
 }
 
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services="proxy"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 # Refuse existing resources and unreadable inventories before Docker mutations.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -86,6 +93,8 @@ python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
 compose up --build --detach --wait --wait-timeout 420 proxy
+
+fi
 
 run_python tools/seed/golden.py seed-core \
   /repo/tests/fixtures/golden/v1

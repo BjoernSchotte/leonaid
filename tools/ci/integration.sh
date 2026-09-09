@@ -22,14 +22,13 @@ case "$shard" in
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     ;;
   documents)
-    /bin/sh "$root/tools/storage/test.sh" "$root"
-    /bin/sh "$root/tools/documents/test.sh" "$root"
-    /bin/sh "$root/tools/typst/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" documents \
+      tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh
     ;;
   crm)
     /bin/sh "$root/tools/twenty/test.sh" "$root"
-    /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
-    /bin/sh "$root/tools/twenty/import_test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/twenty/gateway_test.sh tools/twenty/import_test.sh
     ;;
   policy)
     /bin/sh "$root/tools/policy/test.sh" "$root"

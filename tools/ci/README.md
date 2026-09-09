@@ -38,18 +38,86 @@ requested selection, independent of the CI schedule.
 ./leonaid test-surveys --group recovery
 ```
 
-Within a locked survey aggregate, infrastructure checks reuse images built
-from that checkout. Image names are scoped to the private run directory;
-later checks use `--no-build`. The cache contains only image-name overrides,
-not rendered Compose configuration, credentials or runtime data. Builds must
-succeed before the cache is marked ready. Missing images fail the check.
+## One environment per compatible group
 
-Every check still owns fresh containers, networks and volumes and verifies
-their teardown. Standalone infrastructure calls and foundation cold-build
-checks keep their full build path. A new aggregate (or explicit repeat pass)
-gets a new image namespace. Generated images remain local, like other test
-builds, and are discarded with the ephemeral GitHub runner. No global Docker
-pruning or shared database snapshots are introduced.
+`tools/testing/shared_stack.py` builds the Compose images once per group, using
+Docker's available layer cache. It starts the real services, migrates Core,
+provisions Twenty once for Golden-based groups, and renders the fixed PDF
+fixtures once. It records a **job-local, stopped-volume fixture** before any
+feature test seeds data. Each leaf then starts the services it needs and runs
+its original seed, API assertions and browser tests in sequence.
+
+Sharing applies to E2E identity, acquisition, actions and public; Integration
+storage/documents/Typst; CRM gateway/import; and compatible survey infrastructure
+and lifecycle-concurrency checks within one aggregate pass. Documents run only
+in Integration, including their browser coverage. The real OpenAPI contract
+runs only in the dedicated API contract workflow. Standalone leaf commands keep
+their original owned setup and teardown. Single-check survey selections do not
+pay for a snapshot.
+
+### Why seeding alone is insufficient
+
+Golden seeding upserts known Core/Twenty fixtures. It does not remove all new
+contacts, users, sessions, assignments, surveys or events from earlier tests.
+Storage seeding only cleans its prefix and does not remove old object versions
+or delete markers. Seed-core also does not empty Mailpit.
+
+Between leaves the owner stops the group's services, restores all its initialized
+volumes, then lets the next leaf seed its required data. This resets:
+
+| State | Reset boundary |
+|---|---|
+| Core and Twenty PostgreSQL | Entire stopped database volumes, including schemas, sequences and extra rows |
+| Redis / Twenty queues | Initial queue/cache volume; processes restart without stale in-memory work |
+| RustFS / SeaweedFS | Entire initialized object store, including versions and delete markers |
+| Mailpit | Initial empty mail database |
+| Twenty local files, maintenance state, survey erasure archive | Initial owned volume contents |
+| API / worker caches and in-flight transactions | Stop before copying, restart after reset |
+| Browser sessions, cookies and service workers | A new Playwright process/container and private proof directory per leaf |
+
+Images and networks are retained. Containers are reused; Compose may recreate
+an application container if a leaf explicitly changes its configuration (for
+example the short fresh-login interval). Health checks and process startup still
+cost time, but build, initial database installation and CRM provisioning no
+longer repeat per feature. Twenty also skips repeated upgrade/cache-flush and
+cron-registration commands after the first initialization; the fixture already
+contains that schema and the registered Redis jobs. Test writers get a bounded
+five-second stop window before resetting their discarded state. The private fixture is never uploaded or cached
+between CI runs. This does not exercise the application's backup feature;
+backup/recovery acceptance remains nightly.
+
+### Concurrent runs and exceptional tests
+
+Every invocation uses an unpredictable project name, a private directory/token,
+its own volumes and reserved non-overlapping networks, without published ports.
+All resource inventories must be empty before taking ownership. Copying refuses
+running services or a changed volume inventory. An atomic per-fixture lease
+excludes both another leaf and a reset while a leaf is active. Only the parent
+resets and tears down its own group; a borrowed leaf never deletes the stack.
+Independent jobs/worktrees can run concurrently without sharing data or resets.
+The survey gate additionally retains its checkout-wide lock for shared artifacts.
+
+Compose/Core cold-start, schema predecessor/empty database, seed/reset and
+Twenty first-provisioning/drift tests retain their independent environments.
+The small standalone aggregate engine and outbox worker-process tests also
+retain their focused harnesses. Nightly recovery harnesses remain independent.
+Explicit survey repeat passes create a new fixture and project each time.
+No global Docker pruning or reset is used.
+
+Validation commands:
+
+```sh
+python3 tools/testing/shared_stack_test.py
+python3 tools/testing/shared_stack_live.py
+sh tools/ci/e2e.sh acquisition
+./leonaid test-surveys --shard integration-limits
+```
+
+The live reset proof deliberately contaminates both databases, Redis, versioned
+storage and mail, rejects a reset while a leaf lease is held, and verifies the
+clean state with the same containers and volumes afterward. Group logs separate
+initial setup, data reset and each leaf's runtime. Compare new GitHub runtimes
+on the same runner class; local warm/cold-cache measurements are not CI forecasts.
 
 PR #4 baseline: Integration 37:52; Surveys / exports 34:35. The export group's
 second pass alone took 14:57. These are observed baseline times, not a promise

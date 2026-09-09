@@ -25,6 +25,13 @@ run_bun() {
 }
 
 run_python uv run --frozen --no-sync ruff check \
+  tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
+  tools/testing/shared_stack_live.py tools/surveys/gate.py tools/surveys/gate_test.py
+run_python uv run --frozen --no-sync ruff format --check \
+  tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
+  tools/testing/shared_stack_live.py tools/surveys/gate.py tools/surveys/gate_test.py
+
+run_python uv run --frozen --no-sync ruff check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
   tools/compose/persistence_probe.py tools/core tools/dashboard tools/dx \

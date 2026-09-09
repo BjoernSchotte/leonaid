@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from uuid import uuid4
@@ -105,13 +106,21 @@ def save_report(path: Path, report: dict) -> None:
 
 
 def execute(
-    argv: list[str], root: Path, log: Path, image_cache: Path | None = None
+    argv: list[str],
+    root: Path,
+    log: Path,
+    image_cache: Path | None = None,
+    stack_env: dict | None = None,
 ) -> int:
     env = {
         key: value
         for key, value in os.environ.items()
         if not key.startswith("LEONAID_CI_")
     }
+    env.pop("LEONAID_TEST_STACK", None)
+    env.pop("LEONAID_TEST_STACK_TOKEN", None)
+    if stack_env:
+        env.update(stack_env)
     env.pop("LEONAID_SURVEY_IMAGE_CACHE", None)
     if image_cache is not None:
         env["LEONAID_SURVEY_IMAGE_CACHE"] = str(image_cache)
@@ -154,6 +163,54 @@ def execute(
                 signal.signal(sig, handler)
 
 
+def shareable(check: dict, manifest: dict) -> bool:
+    nightly = {
+        name
+        for shard in manifest.get("nightlyShards", [])
+        for name in manifest["ciShards"][shard]
+    }
+    return (
+        check["argv"][:2]
+        in (
+            ["sh", "tools/surveys/infrastructure.sh"],
+            ["sh", "tools/surveys/lifecycle_concurrency.sh"],
+        )
+        and check["id"] not in nightly
+        and check["group"] != "foundation"
+    )
+
+
+@contextmanager
+def shared_checks(
+    root: Path, selected: list[dict], manifest: dict, private: Path, iteration: int
+):
+    if sum(shareable(check, manifest) for check in selected) < 2:
+        yield None
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from tools.testing.shared_stack import SharedStack
+
+    with (private / f"{iteration}-shared-stack.log").open("x") as log:
+        os.chmod(log.name, 0o600)
+        stack = SharedStack(root, "survey", log)
+
+        def interrupted(signum, frame):
+            raise KeyboardInterrupt
+
+        previous = {
+            sig: signal.signal(sig, interrupted)
+            for sig in (signal.SIGINT, signal.SIGTERM)
+        }
+        try:
+            yield stack
+        finally:
+            try:
+                stack.close()
+            finally:
+                for sig, handler in previous.items():
+                    signal.signal(sig, handler)
+
+
 def run(
     root: Path, manifest: dict, groups: list[str], repeat: int, shard: str | None = None
 ) -> int:
@@ -190,38 +247,52 @@ def run(
         }
         save_report(report_path, report)
         for iteration in range(1, repeat + 1):
-            for check in selected:
-                name = check["id"]
-                print(f"Survey gate pass {iteration}/{repeat}: {name}", flush=True)
-                start = time.monotonic()
-                code = execute(
-                    [part.replace("{root}", str(root)) for part in check["argv"]],
-                    root,
-                    private / f"{iteration}-{name}.log",
-                    private / f"images-{iteration}",
-                )
-                report["checks"].append(
-                    {
-                        "id": name,
-                        "group": check["group"],
-                        "pass": iteration,
-                        "exitCode": code,
-                        "seconds": round(time.monotonic() - start, 3),
-                    }
-                )
-                if code:
-                    report.update(
-                        status="interrupted" if code == 130 else "failed",
-                        finishedAt=datetime.now(timezone.utc).isoformat(),
+            with shared_checks(root, selected, manifest, private, iteration) as stack:
+                for check in selected:
+                    name = check["id"]
+                    print(f"Survey gate pass {iteration}/{repeat}: {name}", flush=True)
+                    start = time.monotonic()
+                    try:
+                        stack_env = (
+                            stack.prepare()
+                            if stack and shareable(check, manifest)
+                            else None
+                        )
+                        code = execute(
+                            [
+                                part.replace("{root}", str(root))
+                                for part in check["argv"]
+                            ],
+                            root,
+                            private / f"{iteration}-{name}.log",
+                            None if stack_env else private / f"images-{iteration}",
+                            stack_env,
+                        )
+                    except (OSError, RuntimeError, subprocess.CalledProcessError):
+                        code = 1
+
+                    report["checks"].append(
+                        {
+                            "id": name,
+                            "group": check["group"],
+                            "pass": iteration,
+                            "exitCode": code,
+                            "seconds": round(time.monotonic() - start, 3),
+                        }
                     )
+                    if code:
+                        report.update(
+                            status="interrupted" if code == 130 else "failed",
+                            finishedAt=datetime.now(timezone.utc).isoformat(),
+                        )
+                        save_report(report_path, report)
+                        print(
+                            f"FAIL: {name}, exit {code}. Child diagnostics remain in the private local run directory.",
+                            flush=True,
+                        )
+                        return code
                     save_report(report_path, report)
-                    print(
-                        f"FAIL: {name}, exit {code}. Child diagnostics remain in the private local run directory.",
-                        flush=True,
-                    )
-                    return code
-                save_report(report_path, report)
-                print(f"PASS: {name}", flush=True)
+                    print(f"PASS: {name}", flush=True)
         report.update(
             status="passed",
             automatedGatePassed=True,

@@ -4,7 +4,8 @@ root=${1:-$(pwd)}
 mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-# A fresh project per invocation; no published host ports and no shared volumes.
+# Standalone invocations own fresh resources; the gate can lend a reset fixture.
+# Neither path publishes host ports or shares volumes with another run.
 project="leonaid-surveys-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 proof=$(mktemp -d)
 artifact="$root/.artifacts/surveys-infrastructure"
@@ -41,7 +42,7 @@ compose() {
 }
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     compose ps >&2 || true
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
     mkdir -p "$artifact"
@@ -68,11 +69,19 @@ cleanup() {
     python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \
       "$proof" "$artifact/foundation" "$project" "$status" || status=1
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 [ -f "$root/.env.local" ] || { echo 'Run ./leonaid bootstrap first' >&2; exit 1; }
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  [ "$foundation" = false ] || { echo 'Foundation requires a fresh stack' >&2; exit 1; }
+  shared_services="proxy worker mailpit"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 # Refuse to touch any project that already has resources, even on PID reuse.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -94,6 +103,7 @@ else
 fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
+fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 if [ "$mode" = contracts ]; then
@@ -622,7 +632,11 @@ if [ "$mode" = runner ]; then
     --workdir /repo --entrypoint python api tools/surveys/restart.py recover
   cp "$proof/surveys-mid-page.png" "$artifact/"
 fi
+if [ "$owned" = true ]; then
 compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
-echo 'PASS: isolated survey foundation, real API/PostgreSQL/browser, no host ports, teardown verified'
+  echo 'PASS: isolated survey foundation, real API/PostgreSQL/browser, no host ports, teardown verified'
+else
+  echo 'PASS: real survey API/PostgreSQL/browser; shared fixture teardown belongs to gate'
+fi

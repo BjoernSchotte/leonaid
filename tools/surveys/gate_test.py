@@ -39,6 +39,24 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate.ci_shards(manifest, "unknown")
 
+    def test_only_compatible_functional_checks_borrow_a_stack(self):
+        manifest = gate.load_manifest(ROOT)
+        shared = {c["id"] for c in manifest["checks"] if gate.shareable(c, manifest)}
+        self.assertTrue(
+            {"contracts", "permissions", "lifecycle-concurrency", "request-limits"}
+            <= shared
+        )
+        self.assertFalse(
+            {
+                "foundation-diagnostics",
+                "migrations",
+                "recovery",
+                "export-recovery",
+                "restic-manual",
+            }
+            & shared
+        )
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

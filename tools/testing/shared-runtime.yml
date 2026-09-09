@@ -1,0 +1,7 @@
+# Applied only after initial migration/provisioning. The reset restores the same
+# initialized databases and Redis jobs with the same pinned images.
+services:
+  twenty-server:
+    environment:
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
