@@ -92,13 +92,12 @@ unchanged; a failed recovery case must be reported, not converted into a pass.
       use normal representative traffic, no stress or capacity certification.
       Existing successful Chromium/Firefox/WebKit evidence remains useful;
       additional exhaustive navigation/zoom/device permutations are Phase B,
-      except where needed to reproduce or verify an actual usability defect.
-      - [x] Repository quality: `./leonaid check` exited 0 on clean source
-            `1dac06fb50708828453b85a07a0fb78618752b26` on 2026-09-09, with 269
-            unit tests, current generated clients, frontend/Astro checks,
-            pinned authorization inventory and unchanged worktree. See
-            `RESULT.md`. The parent remains open for remaining functional
-            acceptance; this is not a full live-suite result.
+      except where needed to reproduce or verify an actual usability defect. - [x] Repository quality: `./leonaid check` exited 0 on clean source
+      `1dac06fb50708828453b85a07a0fb78618752b26` on 2026-09-09, with 269
+      unit tests, current generated clients, frontend/Astro checks,
+      pinned authorization inventory and unchanged worktree. See
+      `RESULT.md`. The parent remains open for remaining functional
+      acceptance; this is not a full live-suite result.
 - [x] Write `RESULT.md` with the exact source revision, commands, sanitized
       evidence, remaining limitations and an explicit `GO_LOCAL`,
       `SYSTEM_ADMIN_ONLY` or `NO_GO`. Commit and push each verified milestone to
@@ -4798,7 +4797,7 @@ Preparation of this configuration is not yet visible-browser acceptance.
 - [x] Re-run the isolated fresh-import/editor acceptance after the visible
       Live View and Core logout fixes. On `dcd4013` plus the narrowly scoped
       browser diagnostic change, `./leonaid test-emdash-spike --case
-  krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
+krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
       passed actual Charity login, native text/image changes, private drafts,
       publication and anonymous rendering. Core-managed redirect GET/HEAD,
       withdrawal/restoration and reassignment checks also passed. Importer

@@ -21,8 +21,6 @@ restore_scope=${LEONAID_RESTORE_SCOPE:-full}
 case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology" >&2; exit 1 ;; esac
 restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
 restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
-stage=$(mktemp -d)
-
 fail() {
   echo "restore: ERROR: $*" >&2
   exit 1
@@ -33,6 +31,14 @@ if [ "$restore_scope" = cms ]; then
   [ -n "${LEONAID_RESTORE_CMS_IMAGE:-}" ] || fail "CMS-only restore requires an explicit verified CMS image"
   [ "${LEONAID_RESTORE_RESUME:-false}" = false ] || fail "CMS-only restore cannot resume"
 fi
+stage=$(mktemp -d)
+cleanup() {
+  status=$?
+  rm -rf "$stage"
+  exit "$status"
+}
+trap cleanup EXIT HUP INT TERM
+
 . "$root/tools/backup/compose-overlays.sh"
 validate_recovery_overlays
 
@@ -63,13 +69,6 @@ if [ -n "$compose_overlay_secondary" ]; then
   [ -f "$compose_overlay_secondary" ] ||
     fail "Sekundäres Restore-Compose-Overlay fehlt"
 fi
-
-cleanup() {
-  status=$?
-  rm -rf "$stage"
-  exit "$status"
-}
-trap cleanup EXIT HUP INT TERM
 
 safety_arguments=""
 if [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = "true" ]; then
