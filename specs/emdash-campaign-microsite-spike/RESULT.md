@@ -1,6 +1,7 @@
 # EmDash local spike — acceptance record
 
-Status: **IN PROGRESS — no GO_LOCAL or production approval yet.**
+Status: **GO_LOCAL — local demo handoff under the user's amended closure scope;
+not full-plan completion or production approval.**
 
 Acceptance scope: Phase A of [PLAN.md](PLAN.md), explicitly approved on
 2026-09-09. Phase B remains an open production-readiness follow-up. This report
@@ -140,6 +141,37 @@ non-fatal. This command proves repository quality for the stated revision; it
 does not replace live recovery, authorization or normal concurrent-use proof.
 The subsequent change recording this result is documentation-only.
 
+## Local encrypted recovery and rollback — passed
+
+On 2026-09-09, `./leonaid test-emdash-spike --case cutover-rollback` completed
+with exit 0, including cleanup. The run started from `c2b4459`; subsequent Web
+navigation and documentation changes did not change the CMS/Core recovery
+implementation. This is a successful case command, not a claimed full-suite run.
+
+- Encrypted local snapshot `4ca920fe` passed inventory and full-pack integrity
+  checks, then restored CMS SQL, revisions, storage and closed bootstrap state
+  into fresh project `leonaid-restore-tmp-cde72ryn28`.
+- The target used isolated SQL/storage, verified CMS image identity and no host
+  ports. Only the recovered CMS joined the still-live source Core edge; Core
+  and Twenty data were not restored or replaced.
+- Chromium, Firefox and WebKit verified restored public rendering, exact media,
+  private drafts, real mailed-code Core login, editable drafts and logout denial.
+  Current Core membership expiry revoked access in existing browser sessions;
+  regrant restored authorized access. Cross-campaign content/revision/media
+  access and mutation were denied while authorized uploads remained functional.
+- All 24 pre-backup orders and 24 newer post-cutover orders remained intact.
+  Another 24 orders succeeded after rollback. Independent Core SQL and actual
+  Twenty checks verified all three groups, including lines, consent/audit and
+  idempotency receipts; native retries created no duplicates.
+- All 84 valid-payload public Core order requests were denied, including those
+  carrying a valid service key. Core tables and Twenty remained unchanged;
+  authorized internal submission succeeded. Source runtime identity remained
+  unchanged across the recovery.
+- The harness removed its two temporary projects' containers, networks and
+  volumes. Synthetic screenshots were retained locally. The persistent visible
+  demo was not a recovery target. This establishes a performed local recovery,
+  not an off-host backup service or ongoing backup schedule.
+
 ## Evidence consolidation and remaining closure
 
 - [ ] Close Phase A ordinary-use navigation gaps and consolidate the existing
@@ -152,18 +184,29 @@ The subsequent change recording this result is documentation-only.
       session lifecycle and internal order transport against the plan's
       mandatory security matrix. Historical detailed command results remain
       in PLAN.md; an unchecked parent requirement is not automatically proven.
-- [ ] Complete current local encrypted recovery verification, including
-      migrated content/media and preservation of newer Core orders.
-      `./leonaid test-emdash-spike --case cutover-rollback` has been started
-      against the source revision above; its result is pending. Its source
-      project is `leonaid-poc112-tmp-cde72ryn28`, with fresh restore target
-      `leonaid-restore-tmp-cde72ryn28`. It uses fresh,
-      uniquely named projects, isolated subnets and no host ports, not the
-      persistent visible demo or another worktree's resources.
+- [x] Complete current local encrypted recovery verification, including
+      migrated content/media and preservation of newer Core orders, as above.
 - [x] Record the successful repository quality command and exact tested revision.
-- [ ] Finish applicable functional regression evidence, patch maintenance
-      burden, limitations and explicit local outcome.
+- [x] Record the local outcome and disclose remaining verification and
+      maintenance limitations under the user's final closure amendment.
 
 Production runtime-origin/pilot activation, complete release/doctor/monitoring
 integration and successor-version upgrade rehearsal remain Phase B, as listed
 in PLAN.md. No production service has been activated by this acceptance work.
+
+### Explicit handoff limitations
+
+- The final cross-check of all historical authorization and navigation evidence
+  against the current implementation is not completed. Individual passing
+  cases prove their stated scope, not every unchecked parent requirement.
+- The proposed combined normal-use publishing/order test has not been run;
+  production concurrency and connection-headroom certification are also absent.
+  Sequential order acceptance is not evidence of concurrent-use capacity.
+- Backup evidence is local to this MacBook. It does not establish recovery
+  after loss of the MacBook or its disk.
+- EmDash remains pinned to the stated version with repository-maintained
+  patches. Success on that version is not successor-version compatibility or
+  upstream acceptance of those changes. Maintenance/upgrade work remains open.
+- The user requested these remaining checks be disclosed rather than extending
+  this closing test run. No corresponding requirement is marked passed, and
+  the complete original plan is not claimed implemented and live-proven.

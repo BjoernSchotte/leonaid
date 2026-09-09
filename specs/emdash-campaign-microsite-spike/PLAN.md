@@ -1,6 +1,6 @@
 # EmDash Campaign Microsite Spike — Implementation and Verification Plan
 
-Status: local spike closure in progress; production readiness is a separate follow-up
+Status: local spike handed off under amended scope; remaining verification and production readiness stay open
 
 Plan basis: LeonAid commit `5f5f52c`, 6 September 2026
 
@@ -77,12 +77,17 @@ unchanged; a failed recovery case must be reported, not converted into a pass.
       section 10 STOP conditions mandatory. Reuse applicable successful tests;
       rerun changed paths or fill missing proof, not the whole browser matrix
       after every unrelated documentation change.
-- [ ] Complete a current encrypted local backup and fresh-project restore
+- [x] Complete a current encrypted local backup and fresh-project restore
       proof for the migrated campaign, revisions, media and required key/
       bootstrap state. Verify restored application access, published content
       and media, closed setup and preservation of newer Core orders during a
       CMS-only recovery. Backup on the MacBook is sufficient; a snapshot alone
       is not. Retain the existing recovery tools and safety checks.
+      Completed on 2026-09-09: `./leonaid test-emdash-spike --case cutover-rollback`
+      exited 0 with encrypted snapshot `4ca920fe`, fresh CMS-only restore,
+      restored application/authority/isolation checks in three browsers, all
+      72 orders verified in Core/Twenty, public ingress denial and scoped
+      resource cleanup. See `RESULT.md` for exact scope and limitations.
 - [ ] Run the repository quality checks and relevant functional regressions;
       use normal representative traffic, no stress or capacity certification.
       Existing successful Chromium/Firefox/WebKit evidence remains useful;
@@ -94,7 +99,7 @@ unchanged; a failed recovery case must be reported, not converted into a pass.
             pinned authorization inventory and unchanged worktree. See
             `RESULT.md`. The parent remains open for remaining functional
             acceptance; this is not a full live-suite result.
-- [ ] Write `RESULT.md` with the exact source revision, commands, sanitized
+- [x] Write `RESULT.md` with the exact source revision, commands, sanitized
       evidence, remaining limitations and an explicit `GO_LOCAL`,
       `SYSTEM_ADMIN_ONLY` or `NO_GO`. Commit and push each verified milestone to
       the existing draft PR. `GO_LOCAL` must not imply production approval.
