@@ -6,6 +6,12 @@ Acceptance scope: Phase A of [PLAN.md](PLAN.md), explicitly approved on
 2026-09-09. Phase B remains an open production-readiness follow-up. This report
 does not turn historical partial checkpoints into completed acceptance gates.
 
+The user's subsequent closure instruction on the same day is to finish the
+running recovery case and proceed directly to documentation and push. No
+additional navigation/security test series or normal parallel-use test is to
+be started. Outstanding evidence below is therefore retained explicitly, not
+silently checked off. Local handoff is not proof of full-plan completion.
+
 ## Source and runtime identity
 
 - Source inspected for this record: LeonAid
@@ -118,6 +124,22 @@ One attempted additional anonymous curl check was refused by tool approval;
 it was not retried or counted as evidence. The actual signed-out browser
 journey above supplies the anonymous publication/order proof.
 
+## Repository quality check — passed
+
+On 2026-09-09, `./leonaid check` completed with exit 0 on clean committed
+source `1dac06fb50708828453b85a07a0fb78618752b26`. Its final assertion confirmed
+all gates green and the worktree unchanged. This includes 269 passing Python
+unit tests, mypy on 278 source files, Ruff lint/format checks, generated
+OpenAPI/client parity, frontend type checks, and Astro checks with zero errors,
+warnings or hints on 27 public-site and 49 CMS files. The 186-route pinned
+authorization inventory, dependency/patch integrity, backup contracts,
+traceability, privacy checks and repository formatting also passed.
+
+Existing Pydantic field-alias and Vite configuration deprecation warnings were
+non-fatal. This command proves repository quality for the stated revision; it
+does not replace live recovery, authorization or normal concurrent-use proof.
+The subsequent change recording this result is documentation-only.
+
 ## Evidence consolidation and remaining closure
 
 - [ ] Close Phase A ordinary-use navigation gaps and consolidate the existing
@@ -138,8 +160,9 @@ journey above supplies the anonymous publication/order proof.
       `leonaid-restore-tmp-cde72ryn28`. It uses fresh,
       uniquely named projects, isolated subnets and no host ports, not the
       persistent visible demo or another worktree's resources.
-- [ ] Record final repository quality checks, applicable regression commands,
-      patch maintenance burden, limitations and explicit local outcome.
+- [x] Record the successful repository quality command and exact tested revision.
+- [ ] Finish applicable functional regression evidence, patch maintenance
+      burden, limitations and explicit local outcome.
 
 Production runtime-origin/pilot activation, complete release/doctor/monitoring
 integration and successor-version upgrade rehearsal remain Phase B, as listed

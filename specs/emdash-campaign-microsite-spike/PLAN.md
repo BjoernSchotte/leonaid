@@ -36,6 +36,18 @@ stays intact; do not remove it merely because its completion is deferred.
 
 #### Phase A — finish now: local spike
 
+**Final closure amendment, explicitly requested on 2026-09-09:** finish the
+already-running `cutover-rollback` recovery case, then proceed directly to the
+acceptance report, plan update and commit/push. Do not start additional
+navigation/security evidence test series or the proposed normal parallel-use
+test. Their remaining evidence gaps stay unchecked and are disclosed in
+`RESULT.md`; this amendment does not assert that those requirements passed.
+The local handoff must distinguish demonstrated functionality from outstanding
+verification and must not claim full-plan completion or production approval.
+This instruction supersedes the earlier requirement to close those additional
+verification gaps before handing off the local spike. Existing safeguards stay
+unchanged; a failed recovery case must be reported, not converted into a pass.
+
 - [ ] Close navigation defects that obstruct ordinary campaign work: the
       selected campaign opens in its correct authorized editor, Core and CMS
       remain in the same tab/origin, Back works, and unsaved edits are protected.
@@ -76,6 +88,12 @@ stays intact; do not remove it merely because its completion is deferred.
       Existing successful Chromium/Firefox/WebKit evidence remains useful;
       additional exhaustive navigation/zoom/device permutations are Phase B,
       except where needed to reproduce or verify an actual usability defect.
+      - [x] Repository quality: `./leonaid check` exited 0 on clean source
+            `1dac06fb50708828453b85a07a0fb78618752b26` on 2026-09-09, with 269
+            unit tests, current generated clients, frontend/Astro checks,
+            pinned authorization inventory and unchanged worktree. See
+            `RESULT.md`. The parent remains open for remaining functional
+            acceptance; this is not a full live-suite result.
 - [ ] Write `RESULT.md` with the exact source revision, commands, sanitized
       evidence, remaining limitations and an explicit `GO_LOCAL`,
       `SYSTEM_ADMIN_ONLY` or `NO_GO`. Commit and push each verified milestone to
