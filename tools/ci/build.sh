@@ -20,4 +20,6 @@ docker compose \
   --file "$root/infra/compose/compose.yml" \
   config --images | sort >"$artifact_directory/compose-images.txt"
 
+/bin/sh "$root/tools/ci/public-runtime.sh" leonaid-ci-build-public
+
 echo "ci-build: OK: kanonische Compose-Anwendung gebaut"
