@@ -201,7 +201,7 @@ run_round() {
     --project=chromium-390 \
     --project=firefox-390 \
     --project=webkit-390 \
-    --workers="${LEONAID_GOLDEN_WORKERS:-3}" \
+    --workers="${LEONAID_GOLDEN_WORKERS:-1}" \
     --output="/browser-results/generation-$journey_generation-$round_name" \
     --trace=retain-on-failure \
     --reporter=line
