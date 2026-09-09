@@ -35,7 +35,7 @@ assert.equal(installed.version, "0.36.0");
 assert.equal(installed.license, "MIT");
 assert.equal(require("pg/package.json").version, "8.16.3");
 
-for (const name of ["public", "web", "pwa"]) {
+for (const name of ["public", "web", "pwa", "survey-validator", "campaign-site"]) {
   const dockerfile = await readFile(
     new URL(`infra/compose/Dockerfile.${name}`, root),
     "utf8",
@@ -44,7 +44,11 @@ for (const name of ["public", "web", "pwa"]) {
     .split(/^FROM /m)
     .filter((stage) => stage.includes("bun install --frozen-lockfile"));
   for (const stage of stages) {
-    assert.ok(stage.includes("COPY apps/campaign-site/package.json"));
+    const manifests = stage.includes("COPY --from=dependencies /workspace ./")
+      ? stages.find((candidate) => candidate.includes(" AS dependencies\n"))
+      : stage;
+    assert.ok(manifests?.includes("COPY apps/campaign-site/package.json"));
+    assert.ok(manifests?.includes("COPY packages/surveys/package.json"));
   }
 }
 console.log(
