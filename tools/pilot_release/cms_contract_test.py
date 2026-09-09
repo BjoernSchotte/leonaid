@@ -39,6 +39,19 @@ def main() -> int:
     )
     validate_manifest(manifest, root=root, expected_schema_version=2)
     validate_manifest(manifest)
+    revisions = {item["revision"] for item in manifest["migrations"]}
+    assert {"0027_surveys", "0027_campaign_alias_namespaces"} <= revisions
+    assert manifest["schemas"]["coreAlembicHead"] == "0035_merge_campaign_surveys"
+    truncated = deepcopy(manifest)
+    for item in truncated["migrations"]:
+        item["revision"] = item["revision"].split("_", 1)[0]
+    _must_reject(lambda: validate_manifest(truncated), "truncated migration identities")
+    wrong_revision = deepcopy(manifest)
+    wrong_revision["migrations"][0]["revision"] = "0001_wrong_identity"
+    _must_reject(
+        lambda: validate_manifest(wrong_revision, root=root),
+        "migration identity differs from source",
+    )
     compose = {
         "services": {service: {"image": image} for service, image in images.items()}
     }

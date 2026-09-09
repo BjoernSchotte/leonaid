@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import re
@@ -27,6 +28,7 @@ PINNED_IMAGE = re.compile(r"^[^@\s]+:[^@:\s]+@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 RELEASE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{2,79}$")
+MIGRATION_REVISION = re.compile(r"^[0-9]{4}_[a-z0-9_]+$")
 REQUIRED_IMAGES = {
     "api",
     "core-postgres",
@@ -134,12 +136,33 @@ def _migration_inventory(root: Path) -> list[dict[str, str]]:
     _require(bool(paths), "Alembic-Migrationen fehlen")
     return [
         {
-            "revision": path.name.split("_", maxsplit=1)[0],
+            "revision": _migration_revision(path),
             "path": path.relative_to(root).as_posix(),
             "sha256": _sha256(path),
         }
         for path in paths
     ]
+
+
+def _migration_revision(path: Path) -> str:
+    # Read the declared identity without importing/executing migration code.
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        targets = (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
+        if any(
+            isinstance(target, ast.Name) and target.id == "revision"
+            for target in targets
+        ):
+            assert isinstance(node, (ast.Assign, ast.AnnAssign))
+            value = ast.literal_eval(node.value) if node.value is not None else None
+            _require(isinstance(value, str), f"{path.name}: Revision fehlt")
+            return str(value)
+    raise InvalidManifest(f"{path.name}: Revision fehlt")
 
 
 def _artifact_inventory(root: Path) -> dict[str, dict[str, str]]:
@@ -270,7 +293,7 @@ def validate_manifest(
     )
     head = schemas.get("coreAlembicHead")
     _require(
-        isinstance(head, str) and re.fullmatch(r"[0-9]{4}", head) is not None,
+        isinstance(head, str) and MIGRATION_REVISION.fullmatch(head) is not None,
         "Core-Schemaziel ist ungültig",
     )
     _require(schemas.get("goldenData") == 1, "Golden-Datensatzversion fehlt")
@@ -288,7 +311,10 @@ def validate_manifest(
         revision = migration.get("revision")
         path = migration.get("path")
         digest = migration.get("sha256")
-        if not isinstance(revision, str) or re.fullmatch(r"[0-9]{4}", revision) is None:
+        if (
+            not isinstance(revision, str)
+            or MIGRATION_REVISION.fullmatch(revision) is None
+        ):
             raise InvalidManifest("Migrationsrevision ist ungültig")
         if (
             not isinstance(path, str)
@@ -302,6 +328,10 @@ def validate_manifest(
         if root is not None:
             actual_path = root / path
             _require(actual_path.is_file(), f"{revision}: Migration fehlt im Checkout")
+            _require(
+                _migration_revision(actual_path) == revision,
+                f"{revision}: Migrationsidentität weicht vom Checkout ab",
+            )
             _require(
                 _sha256(actual_path) == digest,
                 f"{revision}: Migration weicht vom Manifest ab",

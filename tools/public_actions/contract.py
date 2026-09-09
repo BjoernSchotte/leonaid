@@ -236,6 +236,7 @@ async def exercise(
             "routeValue": "winterpause",
             "routePath": "/winterpause",
             "canonicalPath": "/winterpause",
+            "redirectPath": None,
             "availability": "inactive",
             "submissionsAllowed": False,
             "action": None,

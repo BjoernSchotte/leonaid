@@ -93,7 +93,7 @@ owned=true
 
 profiles=$(compose config --profiles | sort)
 expected_profiles=$(printf '%s\n' \
-  dev-mail mail-contract mailing observability storage-contract | sort)
+  dev-mail emdash mail-contract mailing observability storage-contract | sort)
 if [ "$profiles" != "$expected_profiles" ]; then
   echo "compose-test: ERROR: unerwartete Profile: $profiles" >&2
   exit 1
