@@ -69,14 +69,15 @@ def render_directory(source: Path, output: Path) -> list[dict[str, object]]:
     return manifest
 
 
-def cached_manifest(
-    source: Path, output: Path, renderer_id: str
-) -> list[dict[str, object]]:
-    """Reuse only matching renderer/inputs and independently hashed output bytes."""
+def fixture_cache_key(source: Path, renderer_id: str) -> str:
     digest = hashlib.sha256(renderer_id.encode() + Path(__file__).read_bytes())
     for path in sorted(source.glob("KT26-*.json")):
         digest.update(path.name.encode() + b"\0" + path.read_bytes())
-    key = digest.hexdigest()
+    return digest.hexdigest()
+
+
+def read_cached_manifest(output: Path, key: str) -> list[dict[str, object]] | None:
+    """Validate immutable inputs and every output byte before reusing seed PDFs."""
     receipt = output / ".render-cache.json"
     try:
         cache = json.loads(receipt.read_text())
@@ -100,6 +101,17 @@ def cached_manifest(
             return list(manifest)
     except (OSError, ValueError, KeyError, TypeError):
         pass
+    return None
+
+
+def cached_manifest(
+    source: Path, output: Path, renderer_id: str
+) -> list[dict[str, object]]:
+    key = fixture_cache_key(source, renderer_id)
+    cached = read_cached_manifest(output, key)
+    if cached is not None:
+        return cached
+    receipt = output / ".render-cache.json"
     receipt.unlink(missing_ok=True)
     manifest = render_directory(source, output)
     receipt.write_text(
