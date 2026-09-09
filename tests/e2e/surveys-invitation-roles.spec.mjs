@@ -1,21 +1,38 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
+test.describe.configure({ mode: "parallel" });
 const base = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 
 for (const mobile of [false, true])
-  test(`invitation controls and recipient data are scoped on ${mobile ? "mobile" : "desktop"}`, async ({
-    browser,
-  }) => {
-    test.setTimeout(120000);
-    const fixture = JSON.parse(
-      readFileSync(`${proof}/invitation-roles-private.json`, "utf8"),
-    );
-    const personas = JSON.parse(
-      readFileSync(`${proof}/permission-browser-private.json`, "utf8"),
-    ).actors;
-    let pairs = 0;
-    for (const [name, actor] of Object.entries(personas)) {
+  for (const name of [
+    "admin",
+    "design",
+    "publish",
+    "archive",
+    "view_aggregates",
+    "read_responses",
+    "export_raw",
+    "export_reports",
+    "manage_invitations",
+    "delete",
+    "owner",
+    "manager",
+    "member",
+    "outsider",
+  ])
+    test(`${name} invitation controls and recipient data are scoped on ${mobile ? "mobile" : "desktop"}`, async ({
+      browser,
+    }) => {
+      test.setTimeout(120000);
+      const fixture = JSON.parse(
+        readFileSync(`${proof}/invitation-roles-private.json`, "utf8"),
+      );
+      const personas = JSON.parse(
+        readFileSync(`${proof}/permission-browser-private.json`, "utf8"),
+      ).actors;
+      let pairs = 0;
+      const actor = personas[name];
       const context = await browser.newContext({
         ignoreHTTPSErrors: true,
         viewport: mobile
@@ -84,13 +101,12 @@ for (const mobile of [false, true])
       } finally {
         await context.close();
       }
-    }
-    expect(pairs).toBe(28);
-    writeFileSync(
-      `${proof}/invitation-controls-${mobile}.json`,
-      JSON.stringify({ mobile, pairs, recipientDataScoped: true }),
-    );
-  });
+      expect(pairs).toBe(2);
+      writeFileSync(
+        `${proof}/invitation-controls-${name}-${mobile}.json`,
+        JSON.stringify({ name, mobile, pairs, recipientDataScoped: true }),
+      );
+    });
 
 for (const kind of ["standalone", "action"])
   for (const mobile of [false, true])

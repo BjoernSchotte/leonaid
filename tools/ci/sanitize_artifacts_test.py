@@ -150,6 +150,19 @@ def main() -> None:
                 f"{timestamp_result.stdout}{timestamp_result.stderr}"
             )
 
+        layer_artifacts = workspace / "layer-artifacts"
+        layer_artifacts.mkdir()
+        layer_log = layer_artifacts / "command.log"
+        layer_log.write_text(
+            "#121 loading layer 090230666164 25.52kB / 25.52kB 0.1s done\n",
+            encoding="utf-8",
+        )
+        layer_result = run_sanitizer(sanitizer, layer_artifacts, env_file, proof)
+        if layer_result.returncode != 0 or layer_log.read_text() != (
+            "#121 loading layer [DOCKER_LAYER_ID] 25.52kB / 25.52kB 0.1s done\n"
+        ):
+            raise AssertionError("Numerische Docker-Layer-ID wurde nicht redigiert")
+
         private_canary = b"PII_NAME_CANARY_Erika-Mustermann"
         cases = {
             "private.txt": private_canary,
@@ -165,6 +178,11 @@ def main() -> None:
                 "trace.trace",
                 b'{"email":"real.person@example.org"}',
             ),
+            "private-layer-suffix.log": (
+                b"#121 loading layer 090230666164 25.52kB / 25.52kB 0.1s done "
+                b"Kontakt: 089 12345678"
+            ),
+            "private-layer-like.txt": b"Kontakt: 090230666164",
             "private-phone-local.txt": b"Kontakt: 089 12345678",
             "private-phone-plus49.txt": b"Kontakt: +49 89 12345678",
             "private-phone-0049.txt": b"Kontakt: 0049 (89) 12345678",

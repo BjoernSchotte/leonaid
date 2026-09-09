@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+// Download, independently verify/revoke, then prove denial in the same run.
+test.describe.configure({ mode: "serial" });
 
 const baseURL = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
@@ -312,6 +315,13 @@ test("revoked report access blocks existing downloads and trash clears a stale d
   browser,
 }) => {
   test.setTimeout(120_000);
+  writeFileSync(`${proof}/export-revoke-request`, "ready");
+  await expect
+    .poll(() => existsSync(`${proof}/export-revoke-result`), {
+      timeout: 60_000,
+    })
+    .toBe(true);
+  expect(readFileSync(`${proof}/export-revoke-result`, "utf8")).toBe("passed");
   const previous = JSON.parse(
     readFileSync(`${proof}/export-populated-browser.json`, "utf8"),
   );

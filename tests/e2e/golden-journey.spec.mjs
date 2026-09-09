@@ -225,6 +225,9 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   const memberContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     ignoreHTTPSErrors: true,
+    // The journey verifies persistence; animated scrolling can move a Firefox
+    // mobile-viewport target between its actionability check and the click.
+    reducedMotion: "reduce",
     serviceWorkers: "block",
   });
   const memberPage = await memberContext.newPage();
@@ -293,7 +296,19 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   await memberPage
     .locator("#activity-note")
     .fill(`Golden Journey ${slug}: Bedarf besprochen.`);
+  expect(
+    await memberPage
+      .locator("#activity-form")
+      .evaluate((form) => form.checkValidity()),
+  ).toBe(true);
+  const activityResponse = memberPage.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/acquisition/activities"),
+    { timeout: 15_000 },
+  );
   await memberPage.getByTestId("activity-submit").click();
+  expect((await activityResponse).status()).toBe(201);
   await expect(memberPage.locator("#activity-status")).toContainText(
     "wurde gespeichert",
   );
@@ -355,7 +370,7 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   await adminPage.getByTestId("request-login").click();
   const freshCode = await waitForCode(
     adminContext.request,
-    "klara.kern@leonaid.invalid",
+    process.env[`KLARA_${browserKey(testInfo.project.name)}_EMAIL`],
     freshMailIds,
   );
   await adminPage.locator("#login-code").fill(freshCode);

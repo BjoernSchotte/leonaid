@@ -3,7 +3,10 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+seed_part=${LEONAID_SEED_PART:-all}
+case "$seed_part" in all|cold|reset) ;; *) exit 64 ;; esac
 . "$root/infra/locks/images.env"
+. "$root/tools/testing/phase.sh"
 
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=leonaid-poc012-test-$suffix
@@ -137,7 +140,28 @@ if compose config --format json |
 fi
 
 echo "seed-test: setzt alle vier Systeme aus leeren Volumes auf Golden Data v1"
-"$root/leonaid" reset
+if [ "$seed_part" = reset ]; then
+  # Only the starting state is prepared. The reset after the real mutation below
+  # still uses the unmodified operator CLI and creates new empty volumes.
+  cp "$compose_file" "$proof/cold-compose.json"
+  phase seed-fixture-import python3 "$checkout_root/tools/testing/seed_fixture.py" "$checkout_root" "$root" "$project"
+  compose build api
+  phase seed-starting-services compose --profile dev-mail up --no-build --detach \
+    --wait --wait-timeout 420 core-postgres rustfs mailpit twenty-server twenty-worker
+  phase seed-starting-data compose run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --env-from-file "$root/.local/twenty/integration.env" \
+    --volume "$root:/repo:ro" --entrypoint python api \
+    /repo/tools/seed/golden.py seed /repo/tests/fixtures/golden/v1 \
+    /repo/.artifacts/golden-v1/invoices
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --env LEONAID_ENV=local -v "$root:/workspace" "$PYTHON_IMAGE" \
+    python /workspace/tools/dx/generate_test_logins.py \
+    /workspace/tests/fixtures/golden/v1/dataset.json /workspace/.local/test-logins.md
+  cp "$proof/cold-compose.json" "$compose_file"
+else
+  "$root/leonaid" reset
+fi
 docker run --rm \
   --env LEONAID_ENV=local \
   -v "$root:/workspace:ro" \
@@ -169,12 +193,18 @@ docker run --rm \
   /repo/tests/fixtures/golden/v1
 
 echo "seed-test: führt einen zweiten idempotenten Seed aus"
+if [ "$seed_part" != reset ]; then
 "$root/leonaid" seed
 "$root/leonaid" snapshot poc012-second.json
 docker run --rm \
   -v "$root/.local:/local:ro" \
   "$ALPINE_IMAGE" \
   cmp /local/snapshots/poc012-first.json /local/snapshots/poc012-second.json
+fi
+if [ "$seed_part" = cold ]; then
+  echo "seed-test: cold installation and idempotent seed passed"
+  exit 0
+fi
 
 echo "seed-test: verändert PostgreSQL, Twenty, RustFS und Mailpit real"
 compose run --rm --no-deps \

@@ -3,6 +3,7 @@ set -eu
 
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
+. "$root/tools/testing/phase.sh"
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=${LEONAID_COMPOSE_TEST_PROJECT:-leonaid-poc010-test}-$suffix
 owned=false
@@ -99,7 +100,7 @@ if [ "$profiles" != "$expected_profiles" ]; then
 fi
 
 echo "compose-test: starte Standardstack aus leeren, projektspezifischen Volumes"
-compose up --build --detach --wait --wait-timeout 420
+phase compose-cold-start compose up --build --detach --wait --wait-timeout 420
 
 expected_services=$(printf '%s\n' \
   api core-postgres proxy public pwa rustfs survey-validator twenty-postgres twenty-redis \
@@ -112,36 +113,27 @@ if [ "$actual_services" != "$expected_services" ]; then
   exit 1
 fi
 
-for service in $expected_services; do
-  container_id=$(compose ps --quiet "$service")
-  health=$(docker inspect --format '{{.State.Health.Status}}' "$container_id")
-  if [ "$health" != "healthy" ]; then
-    echo "compose-test: ERROR: $service ist $health" >&2
-    exit 1
-  fi
-done
-
-published_services=""
-for service in $expected_services; do
-  container_id=$(compose ps --quiet "$service")
-  bindings=$(docker inspect --format \
-    '{{range $port, $items := .NetworkSettings.Ports}}{{range $items}}{{println .HostIp .HostPort}}{{end}}{{end}}' \
-    "$container_id")
-  if [ -n "$bindings" ]; then
-    prefixed_bindings=$(printf '%s\n' "$bindings" | sed "/^$/d; s/^/${service}:/")
-    published_services="${published_services}${prefixed_bindings}
-"
-  fi
-done
-actual_bindings=$(printf '%s' "$published_services" | sed '/^$/d' | sort)
-expected_bindings=$(printf '%s\n' \
-  "proxy:127.0.0.1 $https_port" \
-  "proxy:127.0.0.1 $port" | sort)
-if [ "$actual_bindings" != "$expected_bindings" ]; then
-  echo "compose-test: ERROR: nur der Proxy darf HTTP/HTTPS lokal veröffentlichen" >&2
-  printf '%s' "$published_services" >&2
-  exit 1
-fi
+# Inspect the same real health and port bindings in one Docker round trip.
+container_ids=$(compose ps --quiet)
+# shellcheck disable=SC2086
+docker inspect $container_ids > "$proof/containers.json"
+python3 - "$proof/containers.json" "$port" "$https_port" <<'PYRUNTIME'
+import json
+import sys
+from pathlib import Path
+bindings = []
+for container in json.loads(Path(sys.argv[1]).read_text()):
+    service = container["Config"]["Labels"]["com.docker.compose.service"]
+    assert container["State"]["Health"]["Status"] == "healthy", service
+    for ports in container["NetworkSettings"]["Ports"].values():
+        for port in ports or []:
+            bindings.append((service, port["HostIp"], port["HostPort"]))
+assert sorted(bindings) == sorted([
+    ("proxy", "127.0.0.1", sys.argv[2]),
+    ("proxy", "127.0.0.1", sys.argv[3]),
+]), "Only the proxy may publish the reserved loopback ports"
+print("compose-test: every service healthy; exact loopback bindings verified")
+PYRUNTIME
 
 base_url="http://127.0.0.1:$port"
 test "$(curl --fail --silent "$base_url/_health")" = "ready"
@@ -168,8 +160,9 @@ if [ "$twenty_tables_before" -le 0 ]; then
 fi
 
 echo "compose-test: startet alle Standardcontainer neu und wartet erneut auf Readiness"
-compose restart
-compose up --detach --wait --wait-timeout 420
+phase compose-restart compose restart
+phase compose-restart-ready compose up --detach --wait --wait-timeout 420
+python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
 
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
@@ -184,6 +177,10 @@ if [ "$twenty_tables_after" != "$twenty_tables_before" ]; then
 fi
 
 echo "compose-test: startet und prüft optionale Profile"
+if [ "${LEONAID_COMPOSE_PART:-all}" = base ]; then
+  echo "compose-test: cold start, network boundaries and restart persistence passed"
+  exit 0
+fi
 compose_all_profiles up --detach --wait --wait-timeout 420
 for service in mailpit listmonk listmonk-postgres otel-collector; do
   container_id=$(compose ps --quiet "$service")

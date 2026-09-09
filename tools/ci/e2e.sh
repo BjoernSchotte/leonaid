@@ -5,31 +5,45 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 shard=${1:-}
 
 case "$shard" in
+  membership)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/invitations/test.sh tools/sessions/test.sh
+    ;;
+  action-templates)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/actions/test.sh tools/templates/test.sh
+    ;;
+  acquisition-management)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/assignments/test.sh tools/activities/test.sh
+    ;;
+  public-catalog)
+    python3 "$root/tools/testing/shared_stack.py" golden tools/public_actions/test.sh tools/activity_feed/test.sh
+    ;;
+  invitations|sessions|matching|assignments|activities|pwa|templates|commitments|invoices)
+    python3 "$root/tools/testing/shared_stack.py" golden "tools/$shard/test.sh"
+    ;;
+  action-admin|public-actions|public-orders|activity-feed)
+    directory=$(printf '%s' "$shard" | tr '-' '_')
+    python3 "$root/tools/testing/shared_stack.py" golden "tools/$directory/test.sh"
+    ;;
   identity)
-    /bin/sh "$root/tools/identity/test.sh" "$root"
-    /bin/sh "$root/tools/invitations/test.sh" "$root"
-    /bin/sh "$root/tools/sessions/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" core \
+      tools/identity/test.sh
     ;;
   acquisition)
-    /bin/sh "$root/tools/matching/test.sh" "$root"
-    /bin/sh "$root/tools/assignments/test.sh" "$root"
-    /bin/sh "$root/tools/activities/test.sh" "$root"
-    /bin/sh "$root/tools/pwa/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/matching/test.sh \
+      tools/assignments/test.sh \
+      tools/activities/test.sh \
+      tools/pwa/test.sh
     ;;
   actions)
-    /bin/sh "$root/tools/actions/test.sh" "$root"
-    /bin/sh "$root/tools/templates/test.sh" "$root"
-    /bin/sh "$root/tools/action_admin/test.sh" "$root"
-    /bin/sh "$root/tools/commitments/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/actions/test.sh
     ;;
   public)
-    /bin/sh "$root/tools/public_actions/test.sh" "$root"
-    /bin/sh "$root/tools/public_orders/test.sh" "$root"
-    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
-    ;;
-  invoices)
-    /bin/sh "$root/tools/invoices/test.sh" "$root"
-    /bin/sh "$root/tools/documents/test.sh" "$root"
+    python3 "$root/tools/testing/shared_stack.py" golden \
+      tools/public_actions/test.sh \
+      tools/public_orders/test.sh \
+      tools/activity_feed/test.sh
     ;;
   *)
     echo "ci-e2e: ERROR: Shard identity|acquisition|actions|public|invoices erforderlich" >&2

@@ -49,13 +49,13 @@
     {
       "id": "foundation-diagnostics",
       "group": "foundation",
-      "argv": ["python3", "tools/surveys/foundation_acceptance.py", "{root}"],
-      "infrastructureModes": ["infrastructure", "infrastructure-failure"]
-    },
-    {
-      "id": "aggregate-engine",
-      "group": "integration",
-      "argv": ["sh", "tools/surveys/aggregate-engine.sh", "{root}"]
+      "argv": [
+        "python3",
+        "tools/surveys/foundation_acceptance.py",
+        "{root}",
+        "infrastructure"
+      ],
+      "infrastructureModes": ["infrastructure"]
     },
     {
       "id": "contracts",
@@ -99,8 +99,7 @@
     {
       "id": "aggregates",
       "group": "integration",
-      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "aggregates"],
-      "infrastructureModes": ["aggregates"]
+      "argv": ["sh", "tools/surveys/aggregate-engine.sh", "{root}"]
     },
     {
       "id": "analysis",
@@ -280,11 +279,61 @@
       "group": "e2e",
       "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "journeys"],
       "infrastructureModes": ["journeys"]
+    },
+    {
+      "id": "foundation-failure",
+      "group": "foundation",
+      "argv": [
+        "python3",
+        "tools/surveys/foundation_acceptance.py",
+        "{root}",
+        "infrastructure-failure"
+      ],
+      "infrastructureModes": ["infrastructure-failure"]
     }
   ],
   "manualReviewRequired": [
     "specs/surveyjs-surveys-spike/proofs/SURV-080.md#consolidated-render-acceptance",
     "specs/surveyjs-surveys-spike/CAPABILITIES.md",
     "specs/surveyjs-surveys-spike/IMPLEMENTATION-TASKS.md"
+  ],
+  "ciShards": {
+    "runner": ["runner"],
+    "journeys": ["journeys"],
+    "editor": ["editor"],
+    "permissions": ["permissions"],
+    "exports": ["exports"],
+    "foundation-diagnostics": ["foundation-diagnostics"],
+    "foundation-failure": ["foundation-failure"],
+    "analysis-exports": ["analysis", "export-permissions"],
+    "lifecycle-contracts": ["lifecycle", "contracts"],
+    "responses-limits": ["responses", "payload-limits"],
+    "authoring-preview": ["preview", "branding"],
+    "invitations": ["invitations"],
+    "foundation": [
+      "gate-controller",
+      "core",
+      "validation-candidate",
+      "dependencies",
+      "standalone-resources",
+      "migrations",
+      "packed-consumer",
+      "aggregates"
+    ],
+    "request-concurrency": ["lifecycle-concurrency", "request-limits"],
+    "recovery-deletion": ["deletion", "deletion-races", "deletion-ui"],
+    "recovery-retention": ["retention", "recovery"],
+    "recovery-restic": ["restic-manual", "restic-archive", "restic-durable"],
+    "recovery-pilot": ["pilot-survey-recovery"],
+    "exports-recovery": ["export-states", "export-recovery", "export-limits"],
+    "restore-receipts": ["restore-receipts"]
+  },
+  "nightlyShards": [
+    "recovery-deletion",
+    "recovery-retention",
+    "recovery-restic",
+    "recovery-pilot",
+    "exports-recovery",
+    "restore-receipts"
   ]
 }

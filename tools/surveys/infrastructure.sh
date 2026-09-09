@@ -4,7 +4,9 @@ root=${1:-$(pwd)}
 mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
-# A fresh project per invocation; no published host ports and no shared volumes.
+. "$root/tools/testing/phase.sh"
+# Standalone invocations own fresh resources; the gate can lend a reset fixture.
+# Neither path publishes host ports or shares volumes with another run.
 project="leonaid-surveys-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 proof=$(mktemp -d)
 artifact="$root/.artifacts/surveys-infrastructure"
@@ -13,20 +15,41 @@ foundation=false
 foundation_failure=0
 browser_trace=retain-on-failure
 browser_reporter=line
+export_verifier_pid=""
 if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
   foundation=true
   browser_trace=off
   browser_reporter=./tools/surveys/foundation-reporter.mjs
   if [ "$mode" = infrastructure-failure ]; then foundation_failure=1; fi
 fi
+# Only the locked aggregate supplies this run-local image cache. Standalone
+# and foundation cold-build checks retain the original build path.
+image_cache=${LEONAID_SURVEY_IMAGE_CACHE:-}
+if [ "$foundation" = true ]; then image_cache=""; fi
+if [ -n "$image_cache" ] && [ ! -f "$image_cache/images.json" ]; then
+  docker compose --env-file "$root/.env.local" \
+    --file "$root/infra/compose/compose.yml" --profile '*' config --format json | \
+    python3 "$root/tools/surveys/image_cache.py" "$image_cache"
+fi
 compose() {
+  if [ -n "$image_cache" ]; then
+    docker compose --project-name "$project" --env-file "$root/.env.local" \
+      --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
+      --file "$image_cache/images.json" --profile dev-mail "$@"
+    return
+  fi
   docker compose --project-name "$project" --env-file "$root/.env.local" \
     --file "$root/infra/compose/compose.yml" --file "$proof/compose.yml" \
     --profile dev-mail "$@"
 }
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ -n "$export_verifier_pid" ]; then
+    # The only background mutation belongs to this invocation's private project.
+    docker rm -f "${project}-export-verifier" >/dev/null 2>&1 || true
+    wait "$export_verifier_pid" || true
+  fi
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     compose ps >&2 || true
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
     mkdir -p "$artifact"
@@ -53,11 +76,23 @@ cleanup() {
     python3 "$root/tools/surveys/collect_foundation_diagnostics.py" \
       "$proof" "$artifact/foundation" "$project" "$status" || status=1
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 [ -f "$root/.env.local" ] || { echo 'Run ./leonaid bootstrap first' >&2; exit 1; }
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  [ "$foundation" = false ] || { echo 'Foundation requires a fresh stack' >&2; exit 1; }
+  shared_services="proxy worker mailpit"
+  if [ "$mode" = permissions ]; then shared_services="proxy mailpit"; fi
+  # The foundation member probe redirects /admin/ to /app/ for non-admins.
+  # Only journeys exercises that route in a borrowed Survey stack.
+  if [ "$mode" = journeys ]; then shared_services="$shared_services pwa"; fi
+  . "$root/tools/testing/borrow_stack.sh"
+else
 # Refuse to touch any project that already has resources, even on PID reuse.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -68,9 +103,18 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$proof/compose.yml"
 owned=true
 compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$proof/compose.yml"
-compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+if [ -n "$image_cache" ]; then
+  if [ ! -f "$image_cache/built" ]; then
+    compose build
+    touch "$image_cache/built"
+  fi
+  compose up --no-build --detach --wait --wait-timeout 420 proxy worker mailpit
+else
+  compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --workdir /repo \
   --entrypoint alembic api upgrade head
+fi
 compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 if [ "$mode" = contracts ]; then
@@ -98,8 +142,8 @@ if [ "$mode" = contracts ]; then
   cat "$proof/write-competing-revisions.log"
   cp "$proof/write-competing-revisions.json" "$artifact/"
 fi
-if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ] || [ "$mode" = contracts ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+if [ "$mode" = responses ]; then
+  phase survey-responses-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/responses.py
 fi
 if [ "$mode" = lifecycle ]; then
@@ -151,7 +195,7 @@ if [ "$mode" = invitations ]; then
 fi
 if [ "$mode" = permissions ]; then
   compose stop worker
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  phase survey-permissions-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/permissions_live.py
   compose up --detach --wait --wait-timeout 60 worker
 fi
@@ -162,8 +206,10 @@ if [ "$foundation" = true ]; then
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
+browser_workers=1
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = journeys ]; then
+  browser_workers=2
   compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
@@ -175,6 +221,7 @@ if [ "$mode" = branding ]; then
   browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs tests/e2e/surveys-completion-message.spec.mjs"
 fi
 if [ "$mode" = permissions ]; then
+  browser_workers=2
   browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
 fi
 state_worker_pid=""
@@ -214,8 +261,8 @@ result["apiWorkerValidatorLogsScanned"] = True
 print("PASS: captured API/worker/validator logs contain no seeded answer, resume or member session markers")
 PY
 fi
-if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+if [ "$mode" = request-limits ]; then
+  phase survey-request-limits-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/request_limits_live.py
 fi
 if [ "$mode" = preview ]; then
@@ -379,12 +426,20 @@ if [ "$mode" = export-recovery ]; then
 fi
 if [ "$mode" = exports ]; then
   mkdir -p "$root/.artifacts"
-  for renderer in pdf_render xlsx_render; do
-    compose run --rm --no-deps --volume "$root:/repo:ro" \
-      --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
-      --entrypoint python api "tools/surveys/$renderer.py"
-  done
-  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
+  render_exports() (
+    render_pids=""
+    for renderer in pdf_render xlsx_render; do
+      compose run --rm --no-deps --volume "$root:/repo:ro" \
+        --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
+        --entrypoint python api "tools/surveys/$renderer.py" &
+      render_pids="$render_pids $!"
+    done
+    render_status=0
+    for pid in $render_pids; do wait "$pid" || render_status=$?; done
+    exit "$render_status"
+  )
+  phase survey-export-renderers render_exports
+  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs tests/e2e/surveys-export-values.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py prepare
@@ -393,6 +448,13 @@ if [ "$mode" = exports ]; then
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py recover
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
+  # The browser requests verification only after every pre-revocation case.
+  # Keep one Playwright process; the real Python parser and SQL mutation remain.
+  compose run --rm --no-deps --name "${project}-export-verifier" \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke-when-ready \
+    > "$proof/export-verifier.log" 2>&1 &
+  export_verifier_pid=$!
 fi
 if [ "$mode" = analysis ]; then
   browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
@@ -405,16 +467,6 @@ if [ "$mode" = analysis ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/raw_responses_live.py
 fi
-if [ "$mode" = aggregates ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
-  compose stop survey-validator
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py unavailable
-  compose up --detach --wait --wait-timeout 60 survey-validator
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
-fi
 if [ "$mode" = invitations ]; then
   browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"
 fi
@@ -422,27 +474,29 @@ if [ "$mode" = lifecycle ]; then
   browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
 fi
 if [ "$mode" = editor ]; then
+  # Files create their own surveys; the parent retains the reset lease throughout.
+  browser_workers=2
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
-if [ "$mode" = runner ] || [ "$mode" = contracts ]; then
+if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
-docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+phase survey-browser docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test $browser_specs \
   --grep-invert 'trash and request|failed deletion' \
-  --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
+  --browser=chromium --workers="$browser_workers" --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
 if [ "$mode" = journeys ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/journey_verify.py
   cp "$proof/journeys-proof.json" "$artifact/"
 fi
-if [ "$mode" = contracts ]; then
+if [ "$mode" = runner ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/recovery_verify.py
 fi
@@ -479,7 +533,7 @@ fi
 if [ "$mode" = payload-limits ]; then
   cp "$proof/payload-limits-proof.json" "$artifact/"
 fi
-if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+if [ "$mode" = request-limits ]; then
   cp "$proof/request-limits-proof.json" "$artifact/"
 fi
 if [ "$mode" = preview ]; then
@@ -523,20 +577,11 @@ if [ "$mode" = export-recovery ]; then
   cp "$proof/export-recovery-proof.json" "$artifact/"
 fi
 if [ "$mode" = exports ]; then
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
-    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot|export-only members' \
-    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
-    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'revoked report' \
-    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  verifier_status=0
+  wait "$export_verifier_pid" || verifier_status=$?
+  export_verifier_pid=""
+  cat "$proof/export-verifier.log"
+  test "$verifier_status" -eq 0
   cp "$proof/export-only-proof.json" "$artifact/"
   cp "$proof/export-only-mobile.png" "$artifact/"
   cp "$proof/export-browser-values-proof.json" "$artifact/"
@@ -551,9 +596,6 @@ if [ "$mode" = analysis ]; then
   cp "$proof/raw-response-proof.json" "$artifact/"
   cp "$proof"/surveys-responses-*.png "$artifact/"
   cp "$proof"/surveys-analytics-*.png "$artifact/"
-fi
-if [ "$mode" = aggregates ]; then
-  cp "$proof/surveys-aggregates.json" "$artifact/"
 fi
 if [ "$mode" = invitations ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
@@ -599,7 +641,11 @@ if [ "$mode" = runner ]; then
     --workdir /repo --entrypoint python api tools/surveys/restart.py recover
   cp "$proof/surveys-mid-page.png" "$artifact/"
 fi
+if [ "$owned" = true ]; then
 compose down --volumes --remove-orphans
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
 [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
-echo 'PASS: isolated survey foundation, real API/PostgreSQL/browser, no host ports, teardown verified'
+  echo 'PASS: isolated survey foundation, real API/PostgreSQL/browser, no host ports, teardown verified'
+else
+  echo 'PASS: real survey API/PostgreSQL/browser; shared fixture teardown belongs to gate'
+fi

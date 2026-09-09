@@ -77,6 +77,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Reuse persistent proxy build layers
+        uses: ./.github/actions/build-cache
+        with:
+          targets: proxy
+
       - name: Generate CycloneDX artifacts
         run: /bin/sh tools/sbom/generate.sh "$PWD" "$PWD/.artifacts/sbom"
 

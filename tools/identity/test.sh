@@ -45,7 +45,7 @@ diagnose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "identity-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     diagnose
     /bin/sh "$root/tools/ci/capture-failure.sh" \
@@ -66,6 +66,9 @@ cleanup() {
     done
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof"
   exit "$status"
 }
@@ -84,6 +87,10 @@ run_python() {
     api "$@"
 }
 
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services="proxy worker mailpit"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 # Refuse existing resources; never clear a project selected by another worktree.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -94,6 +101,8 @@ existing=$(docker network ls -q --filter "label=com.docker.compose.project=$proj
 python3 "$root/tools/surveys/network_override.py" "$isolation_file"
 owned=true
 compose up --build --detach --wait --wait-timeout 420 proxy worker mailpit
+
+fi
 
 run_python tools/seed/golden.py seed-core "$fixture"
 run_python tools/identity/contract.py \

@@ -14,6 +14,7 @@ REQUIRED_JOBS = {
     "e2e",
     "golden-journey",
     "integration",
+    "integration-shards",
     "lint-types",
     "pilot-cold-rehearsal",
     "security",
@@ -38,9 +39,11 @@ def check(path: Path) -> list[str]:
     for job in sorted(REQUIRED_JOBS):
         if f"\n  {job}:\n" not in text:
             problems.append(f"Job fehlt: {job}")
-    if text.count("actions/upload-artifact@") < len(REQUIRED_JOBS):
+    # The Integration summary has no test output; its shards publish evidence.
+    evidence_jobs = len(REQUIRED_JOBS - {"integration"})
+    if text.count("actions/upload-artifact@") < evidence_jobs:
         problems.append("Nicht jeder Job veröffentlicht Beweisartefakte.")
-    if text.count("if: always()") < len(REQUIRED_JOBS):
+    if text.count("if: always()") < evidence_jobs:
         problems.append("Nicht jeder Artefakt-Upload läuft auch nach Fehlern.")
     if "tools/ci/run-job.sh" not in text:
         problems.append("Gemeinsame Log-/Sanitizing-Hülle fehlt.")
@@ -65,6 +68,15 @@ def check(path: Path) -> list[str]:
         problems.append(
             "Workflow darf keine von Compose abweichenden Services definieren."
         )
+    integration = job_block(text, "integration")
+    for required in (
+        "needs: integration-shards",
+        "if: ${{ !cancelled()",
+        "needs.integration-shards.result",
+        'test "$RESULT" = success',
+    ):
+        if required not in integration:
+            problems.append("Integration-Sammelcheck muss alle Shards verlangen.")
     return problems
 
 
@@ -76,7 +88,7 @@ def main() -> None:
             print(f"ci-workflow-contract: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "ci-workflow-contract: OK: zehn getrennte Jobs, Cold-Rehearsal "
+        "ci-workflow-contract: OK: Pflichtchecks, Integration-Shards, Cold-Rehearsal "
         "und Failure-Artefakte"
     )
 

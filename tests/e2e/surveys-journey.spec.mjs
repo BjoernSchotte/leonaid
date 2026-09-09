@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
+// Each case owns its survey, recipients and proof files; its stages stay ordered.
+test.describe.configure({ mode: "parallel" });
+
 const base = process.env.LEONAID_E2E_BASE_URL;
 const proof = process.env.LEONAID_E2E_ARTIFACT_DIR;
 

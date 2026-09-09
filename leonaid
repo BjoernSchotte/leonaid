@@ -2,6 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$root/tools/testing/phase.sh"
 . "$root/infra/locks/images.env"
 
 usage() {
@@ -113,9 +114,11 @@ Commands:
                     Alias for the PILOT-044 legal configuration proof
   backup            Create encrypted Core, Twenty and RustFS recovery point
   restore           Restore only into an explicitly confirmed fresh project
+  test-env-stop     Remove this checkout's cached test environment
+  test-recovery     Explicitly run all backup/recovery acceptance
   test-backup       Prove encrypted backup and full fresh-volume recovery
   test-upgrade      Prove pinned Twenty/RustFS upgrade and backup rollback
-  test-surveys [--group GROUP] [--repeat N] [--list]
+  test-surveys [--suite pr|nightly|all] [--group GROUP | --shard SHARD] [--repeat N] [--list]
                     Run the manifest-defined survey gates with private logs and safe summaries
   test-surveys-integration
   test-surveys-exports
@@ -138,8 +141,8 @@ Commands:
   test-surveys-dependencies
                     Verify the pinned survey dependency and asset license boundary
   test-unit         Run unit tests with Golden Data domain objects
-  test-integration  Rebuild and test real services from empty volumes
-  test-e2e          Run all currently implemented real browser journeys
+  test-integration  Infrastructure/contracts; reuse isolated feature fixture
+  test-e2e          Sequential feature/browser tests; no backup/recovery
   seed              Idempotently seed Golden Dataset v1 into real systems
   snapshot [NAME]   Write a deterministic real-system snapshot under .local/
   reset             Safely reset all local core systems to Golden Dataset v1
@@ -1669,11 +1672,15 @@ render_golden_pdfs() {
   output_directory="$root/.artifacts/golden-v1/invoices"
   api_image=$(compose images -q api)
   if [ -z "$api_image" ]; then
+    api_image=$(compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); print(c["services"]["api"].get("image", c["name"]+"-api"))')
+    api_image=$(docker image inspect --format '{{.Id}}' "$api_image")
+  fi
+  if [ -z "$api_image" ]; then
     echo "seed: ERROR: gebautes Core-Image für Typst fehlt" >&2
     exit 1
   fi
   /bin/sh "$root/tools/typst/render_golden.sh" \
-    "$root" "$output_directory" "$api_image"
+    "$root" "$output_directory" "$api_image" reuse
 }
 
 run_golden_tool() {
@@ -1801,14 +1808,28 @@ snapshot_systems() {
 reset_systems() {
   require_docker
   validate_reset_target
-  compose --profile dev-mail down --volumes --remove-orphans
+  phase reset-remove compose --profile dev-mail down --volumes --remove-orphans
   rm -f "$root/.local/twenty/integration.env"
-  compose --profile dev-mail up --build --detach --wait --wait-timeout 420
-  provision_twenty
-  compose --profile dev-mail up --detach --force-recreate \
-    --wait --wait-timeout 420 api worker
-  seed_systems
-  snapshot_systems golden-v1.json
+  phase reset-build compose build
+  # API and workers must first start with the newly provisioned integration key.
+  # Starting the whole stack before provisioning required a second API restart.
+  reset_prepare() (
+    phase reset-pdf-prepare render_golden_pdfs &
+    pdf_pid=$!
+    status=0
+    phase reset-data-services compose --profile dev-mail up --no-build \
+      --detach --wait --wait-timeout 420 \
+      core-postgres rustfs mailpit twenty-server twenty-worker survey-validator || status=$?
+    wait "$pdf_pid" || status=$?
+    if [ "$status" -eq 0 ]; then
+      python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
+    fi
+    exit "$status"
+  )
+  reset_prepare
+  phase reset-provision provision_twenty
+  phase reset-seed seed_systems
+  phase reset-snapshot snapshot_systems golden-v1.json
   echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"
 }
 
@@ -1932,6 +1953,15 @@ mail_domain_check() (
   fi
 )
 
+run_feature_tests() {
+  require_docker
+  if [ -n "${CI:-}" ] || [ "${LEONAID_TEST_FRESH:-0}" = 1 ]; then
+    python3 "$root/tools/testing/shared_stack.py" documents "$@"
+  else
+    python3 "$root/tools/testing/shared_stack.py" --reuse documents "$@"
+  fi
+}
+
 command=${1:-help}
 case "$command" in
   bootstrap) bootstrap ;;
@@ -1951,83 +1981,35 @@ case "$command" in
     /bin/sh "$root/tools/outbox/test.sh" "$root"
     /bin/sh "$root/tools/openapi/test.sh" "$root"
     /bin/sh "$root/tools/twenty/test.sh" "$root"
-    /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
-    /bin/sh "$root/tools/twenty/import_test.sh" "$root"
-    /bin/sh "$root/tools/identity/test.sh" "$root"
-    /bin/sh "$root/tools/invitations/test.sh" "$root"
-    /bin/sh "$root/tools/sessions/test.sh" "$root"
-    /bin/sh "$root/tools/policy/test.sh" "$root"
-    /bin/sh "$root/tools/matching/test.sh" "$root"
-    /bin/sh "$root/tools/assignments/test.sh" "$root"
-    /bin/sh "$root/tools/activities/test.sh" "$root"
-    /bin/sh "$root/tools/pwa/test.sh" "$root"
-    /bin/sh "$root/tools/actions/test.sh" "$root"
-    /bin/sh "$root/tools/templates/test.sh" "$root"
-    /bin/sh "$root/tools/action_admin/test.sh" "$root"
-    /bin/sh "$root/tools/public_actions/test.sh" "$root"
-    /bin/sh "$root/tools/commitments/test.sh" "$root"
-    /bin/sh "$root/tools/public_orders/test.sh" "$root"
-    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
-    /bin/sh "$root/tools/invoices/test.sh" "$root"
-    /bin/sh "$root/tools/typst/test.sh" "$root"
-    /bin/sh "$root/tools/storage/test.sh" "$root"
-    /bin/sh "$root/tools/documents/test.sh" "$root"
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
-    /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
-    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
-    /bin/sh "$root/tools/feature_flags/test.sh" "$root"
-    /bin/sh "$root/tools/operations/test.sh" "$root"
-    /bin/sh "$root/tools/golden_journey/test.sh" "$root"
-    /bin/sh "$root/tools/ui_system/test.sh" "$root"
-    /bin/sh "$root/tools/dashboard/test.sh" "$root"
-    /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
-    /bin/sh "$root/tools/security/test.sh" "$root"
-    /bin/sh "$root/tools/privacy/test.sh" "$root"
-    /bin/sh "$root/tools/backup/test.sh" "$root"
-    /bin/sh "$root/tools/upgrade/test.sh" "$root"
-    /bin/sh "$root/tools/testkit/test.sh" "$root"
+    run_feature_tests tools/twenty/gateway_test.sh tools/twenty/import_test.sh tools/policy/test.sh tools/templates/test.sh tools/storage/test.sh tools/documents/test.sh tools/typst/test.sh tools/testkit/test.sh
     ;;
   test-e2e)
-    /bin/sh "$root/tools/identity/test.sh" "$root"
-    /bin/sh "$root/tools/invitations/test.sh" "$root"
-    /bin/sh "$root/tools/sessions/test.sh" "$root"
-    /bin/sh "$root/tools/actions/test.sh" "$root"
-    /bin/sh "$root/tools/action_admin/test.sh" "$root"
-    /bin/sh "$root/tools/matching/test.sh" "$root"
-    /bin/sh "$root/tools/assignments/test.sh" "$root"
-    /bin/sh "$root/tools/activities/test.sh" "$root"
-    /bin/sh "$root/tools/pwa/test.sh" "$root"
-    /bin/sh "$root/tools/public_actions/test.sh" "$root"
-    /bin/sh "$root/tools/public_orders/test.sh" "$root"
-    /bin/sh "$root/tools/activity_feed/test.sh" "$root"
-    /bin/sh "$root/tools/invoices/test.sh" "$root"
-    /bin/sh "$root/tools/documents/test.sh" "$root"
-    /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
-    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
-    /bin/sh "$root/tools/feature_flags/test.sh" "$root"
-    /bin/sh "$root/tools/operations/test.sh" "$root"
+    run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh tools/actions/test.sh tools/action_admin/test.sh tools/matching/test.sh tools/assignments/test.sh tools/activities/test.sh tools/pwa/test.sh tools/public_actions/test.sh tools/commitments/test.sh tools/public_orders/test.sh tools/activity_feed/test.sh tools/invoices/test.sh tools/invoice_delivery/test.sh tools/invoice_settlements/test.sh tools/feature_flags/test.sh tools/operations/test.sh tools/ui_system/test.sh tools/dashboard/test.sh tools/ux_acceptance/test.sh tools/security/test.sh tools/privacy/test.sh
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
-    /bin/sh "$root/tools/ui_system/test.sh" "$root"
-    /bin/sh "$root/tools/dashboard/test.sh" "$root"
-    /bin/sh "$root/tools/ux_acceptance/test.sh" "$root"
-    /bin/sh "$root/tools/security/test.sh" "$root"
-    /bin/sh "$root/tools/privacy/test.sh" "$root"
+    ;;
+  test-env-stop) python3 "$root/tools/testing/shared_stack.py" --stop ;;
+  test-recovery)
     /bin/sh "$root/tools/backup/test.sh" "$root"
     /bin/sh "$root/tools/upgrade/test.sh" "$root"
-    /bin/sh "$root/tools/testkit/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_backup/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_import/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_release/test.sh" "$root"
+    python3 "$root/tools/surveys/gate.py" --root "$root" --suite nightly
     ;;
-  test-twenty-gateway) /bin/sh "$root/tools/twenty/gateway_test.sh" "$root" ;;
-  test-crm-import) /bin/sh "$root/tools/twenty/import_test.sh" "$root" ;;
+  test-twenty-gateway) run_feature_tests tools/twenty/gateway_test.sh ;;
+  test-crm-import) run_feature_tests tools/twenty/import_test.sh ;;
   test-surveys) shift; python3 "$root/tools/surveys/gate.py" --root "$root" "$@" ;;
-  test-surveys-integration) python3 "$root/tools/surveys/gate.py" --root "$root" --group integration --group recovery ;;
+  test-surveys-integration) python3 "$root/tools/surveys/gate.py" --root "$root" --group integration ;;
   test-surveys-exports) python3 "$root/tools/surveys/gate.py" --root "$root" --group exports ;;
   test-surveys-e2e) python3 "$root/tools/surveys/gate.py" --root "$root" --group e2e ;;
-  test-surveys-editor) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" editor ;;
+  test-surveys-editor) python3 "$root/tools/surveys/gate.py" --root "$root" --check editor ;;
   test-surveys-package) /bin/sh "$root/tools/surveys/package.sh" "$root" ;;
-  test-surveys-invitations) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" invitations ;;
-  test-surveys-aggregates) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" aggregates ;;
-  test-surveys-analysis) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" analysis ;;
-  test-surveys-lifecycle) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" lifecycle ;;
+  test-surveys-invitations) python3 "$root/tools/surveys/gate.py" --root "$root" --check invitations ;;
+  test-surveys-aggregates) python3 "$root/tools/surveys/gate.py" --root "$root" --check aggregates ;;
+  test-surveys-analysis) python3 "$root/tools/surveys/gate.py" --root "$root" --check analysis ;;
+  test-surveys-lifecycle) python3 "$root/tools/surveys/gate.py" --root "$root" --check lifecycle ;;
   test-surveys-migrations) /bin/sh "$root/tools/surveys/migrations.sh" "$root" ;;
   test-surveys-core)
     mkdir -p "$root/.artifacts/surveys"
@@ -2041,36 +2023,36 @@ case "$command" in
     run_bun bun tools/surveys/validation-candidate.mjs .artifacts/surveys/candidate-input.json .artifacts/surveys/candidate-output.json
     run_python uv run --frozen --no-sync python tools/surveys/validation_candidate.py verify
     ;;
-  test-surveys-runner) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" runner ;;
-  test-surveys-responses) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" responses ;;
+  test-surveys-runner) python3 "$root/tools/surveys/gate.py" --root "$root" --check runner ;;
+  test-surveys-responses) python3 "$root/tools/surveys/gate.py" --root "$root" --check responses ;;
   test-surveys-infrastructure) /bin/sh "$root/tools/surveys/infrastructure.sh" "$root" ;;
   test-surveys-dependencies)
     run_bun bun tools/surveys/dependencies.mjs
     run_python uv run --frozen --no-sync python tools/surveys/python_dependencies.py
     ;;
-  test-identity) /bin/sh "$root/tools/identity/test.sh" "$root" ;;
-  test-user-admin) /bin/sh "$root/tools/user_admin/test.sh" "$root" ;;
-  test-invitations) /bin/sh "$root/tools/invitations/test.sh" "$root" ;;
-  test-sessions) /bin/sh "$root/tools/sessions/test.sh" "$root" ;;
-  test-policy) /bin/sh "$root/tools/policy/test.sh" "$root" ;;
-  test-matching) /bin/sh "$root/tools/matching/test.sh" "$root" ;;
-  test-assignments) /bin/sh "$root/tools/assignments/test.sh" "$root" ;;
-  test-activities) /bin/sh "$root/tools/activities/test.sh" "$root" ;;
-  test-pwa) /bin/sh "$root/tools/pwa/test.sh" "$root" ;;
-  test-actions) /bin/sh "$root/tools/actions/test.sh" "$root" ;;
-  test-templates) /bin/sh "$root/tools/templates/test.sh" "$root" ;;
-  test-action-admin) /bin/sh "$root/tools/action_admin/test.sh" "$root" ;;
-  test-public-actions) /bin/sh "$root/tools/public_actions/test.sh" "$root" ;;
-  test-public-orders) /bin/sh "$root/tools/public_orders/test.sh" "$root" ;;
-  test-activity-feed) /bin/sh "$root/tools/activity_feed/test.sh" "$root" ;;
-  test-testkit) /bin/sh "$root/tools/testkit/test.sh" "$root" ;;
-  test-commitments) /bin/sh "$root/tools/commitments/test.sh" "$root" ;;
-  test-invoices) /bin/sh "$root/tools/invoices/test.sh" "$root" ;;
-  test-typst) /bin/sh "$root/tools/typst/test.sh" "$root" ;;
-  test-storage) /bin/sh "$root/tools/storage/test.sh" "$root" ;;
-  test-documents) /bin/sh "$root/tools/documents/test.sh" "$root" ;;
+  test-identity) run_feature_tests tools/identity/test.sh ;;
+  test-user-admin) run_feature_tests tools/identity/test.sh tools/invitations/test.sh tools/sessions/test.sh ;;
+  test-invitations) run_feature_tests tools/invitations/test.sh ;;
+  test-sessions) run_feature_tests tools/sessions/test.sh ;;
+  test-policy) run_feature_tests tools/policy/test.sh ;;
+  test-matching) run_feature_tests tools/matching/test.sh ;;
+  test-assignments) run_feature_tests tools/assignments/test.sh ;;
+  test-activities) run_feature_tests tools/activities/test.sh ;;
+  test-pwa) run_feature_tests tools/pwa/test.sh ;;
+  test-actions) run_feature_tests tools/actions/test.sh ;;
+  test-templates) run_feature_tests tools/templates/test.sh ;;
+  test-action-admin) run_feature_tests tools/action_admin/test.sh ;;
+  test-public-actions) run_feature_tests tools/public_actions/test.sh ;;
+  test-public-orders) run_feature_tests tools/public_orders/test.sh ;;
+  test-activity-feed) run_feature_tests tools/activity_feed/test.sh ;;
+  test-testkit) run_feature_tests tools/testkit/test.sh ;;
+  test-commitments) run_feature_tests tools/commitments/test.sh ;;
+  test-invoices) run_feature_tests tools/invoices/test.sh ;;
+  test-typst) run_feature_tests tools/typst/test.sh ;;
+  test-storage) run_feature_tests tools/storage/test.sh ;;
+  test-documents) run_feature_tests tools/documents/test.sh ;;
   test-invoice-delivery)
-    /bin/sh "$root/tools/invoice_delivery/test.sh" "$root"
+    run_feature_tests tools/invoice_delivery/test.sh
     ;;
   test-mail-relay)
     /bin/sh "$root/tools/mail_relay/test.sh" "$root"
@@ -2131,12 +2113,12 @@ case "$command" in
     mail_domain_check "$@"
     ;;
   test-invoice-settlements)
-    /bin/sh "$root/tools/invoice_settlements/test.sh" "$root"
+    run_feature_tests tools/invoice_settlements/test.sh
     ;;
   test-feature-flags)
-    /bin/sh "$root/tools/feature_flags/test.sh" "$root"
+    run_feature_tests tools/feature_flags/test.sh
     ;;
-  test-operations) /bin/sh "$root/tools/operations/test.sh" "$root" ;;
+  test-operations) run_feature_tests tools/operations/test.sh ;;
   test-golden-journey)
     /bin/sh "$root/tools/golden_journey/test.sh" "$root"
     ;;
@@ -2295,11 +2277,11 @@ case "$command" in
     shift
     pilot_restore "$@"
     ;;
-  test-ui-system) /bin/sh "$root/tools/ui_system/test.sh" "$root" ;;
-  test-dashboard) /bin/sh "$root/tools/dashboard/test.sh" "$root" ;;
-  test-ux-acceptance) /bin/sh "$root/tools/ux_acceptance/test.sh" "$root" ;;
-  test-security) /bin/sh "$root/tools/security/test.sh" "$root" ;;
-  test-privacy) /bin/sh "$root/tools/privacy/test.sh" "$root" ;;
+  test-ui-system) run_feature_tests tools/ui_system/test.sh ;;
+  test-dashboard) run_feature_tests tools/dashboard/test.sh ;;
+  test-ux-acceptance) run_feature_tests tools/ux_acceptance/test.sh ;;
+  test-security) run_feature_tests tools/security/test.sh ;;
+  test-privacy) run_feature_tests tools/privacy/test.sh ;;
   test-legal-configuration|test-pilot-legal-config)
     /bin/sh "$root/tools/legal_configuration/test.sh" "$root"
     ;;

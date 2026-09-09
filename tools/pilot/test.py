@@ -174,7 +174,41 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     )
     check_workflows(root)
 
+    ci.write_text(
+        workflow_with_upload(".artifacts/cache-measurement/*.json"),
+        encoding="utf-8",
+    )
+    check_workflows(root)
+
+    ci.write_text(
+        workflow_with_upload("${{ runner.temp }}/leonaid-synthetic-fixture").replace(
+            "actions/upload-artifact@", "actions/cache/save@"
+        ),
+        encoding="utf-8",
+    )
+    # Keep one ordinary upload because this checker also requires evidence.
+    other = ci.with_name("evidence.yml")
+    other.write_text(workflow_with_upload(".artifacts/ci/proof"), encoding="utf-8")
+    check_workflows(root)
+    for private_cache in (".env.local", ".local/test-stack", "${{ runner.temp }}/*"):
+        ci.write_text(
+            workflow_with_upload(private_cache).replace(
+                "actions/upload-artifact@", "actions/cache/save@"
+            ),
+            encoding="utf-8",
+        )
+        try:
+            check_workflows(root)
+        except BoundaryError:
+            pass
+        else:
+            raise AssertionError("Private or broad cache path was accepted")
+    other.unlink()
+
     for forbidden in (
+        ".artifacts/cache-measurement/*",
+        ".artifacts/cache-measurement/**/*.json",
+        ".artifacts/cache-measurement/*.log",
         "${{ runner.temp }}/surveys-ci-results/*",
         "${{ runner.temp }}/surveys-ci-results/**/*.json",
         "${{ runner.temp }}/surveys-ci-results/*.log",

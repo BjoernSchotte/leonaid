@@ -3,6 +3,7 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
+. "$root/tools/testing/phase.sh"
 project="surveys-engine-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 . "$root/tools/surveys/standalone_resources.sh"
 standalone_absent
@@ -23,21 +24,17 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
-# Separate from the full fresh-image infrastructure build; use pinned installed modules.
-docker run --rm --volume "$root:/workspace:ro" --volume "$proof:/proof" \
-  --workdir /workspace "$BUN_IMAGE" bun -e '
-    if (require("survey-core/package.json").version !== "3.0.3") throw new Error("unexpected SurveyJS version");
-    const result = await Bun.build({entrypoints:["infra/compose/survey-validator.mjs"],target:"bun",outdir:"/proof"});
-    if (!result.success) throw new Error("aggregate engine bundle failed");
-  '
+# Exercise the production image without provisioning unrelated application services.
+image=true
+phase survey-aggregate-build docker buildx build --load \
+  --file "$root/infra/compose/Dockerfile.survey-validator" --tag "$project" "$root"
 subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
 network=true
 docker network create --internal --subnet "$subnet" "$project" >/dev/null
 container=true
 docker run --detach --name "$project" --network "$project" --network-alias survey-validator \
   --user bun --cap-drop ALL --security-opt no-new-privileges:true \
-  --volume "$proof/survey-validator.js:/app/validator.mjs:ro" \
-  "$BUN_IMAGE" bun /app/validator.mjs >/dev/null
+  "$project" >/dev/null
 ready() {
   attempts=0
   until docker exec "$project" wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1; do
@@ -52,12 +49,12 @@ check() {
     "$UV_IMAGE" uv run --frozen --no-sync python tools/surveys/analysis_live.py "$1"
 }
 ready
-check verify
+phase survey-aggregate-verify check verify
 docker stop "$project" >/dev/null
-check unavailable
+phase survey-aggregate-unavailable check unavailable
 docker start "$project" >/dev/null
 ready
-check verify
+phase survey-aggregate-restarted check verify
 mkdir -p "$root/.artifacts/surveys-engine"
 cp "$proof/surveys-aggregates.json" "$root/.artifacts/surveys-engine/"
 docker rm -f "$project" >/dev/null

@@ -13,6 +13,7 @@ compose_file="$root/infra/compose/compose.yml"
 env_file="$root/.env.local"
 fixture="$root/tests/fixtures/golden/v1"
 proof_dir=$(mktemp -d)
+proof="$proof_dir"
 isolation_file="$proof_dir/compose-isolation.yml"
 integration_key=""
 
@@ -30,7 +31,7 @@ compose() {
 
 cleanup() {
   status=$?
-  if [ "$status" -ne 0 ] && [ "$owned" = true ]; then
+  if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     echo "policy-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=100 api core-postgres twenty-server >&2 || true
@@ -50,6 +51,9 @@ cleanup() {
     done
     if [ "$status" -eq 0 ]; then echo "test-isolation: $project passed and owned resources were removed"; fi
   fi
+  if [ "${shared_leaf_owned:-false}" = true ]; then
+    rmdir "$LEONAID_TEST_STACK/in-use" || status=1
+  fi
   rm -rf "$proof_dir"
   exit "$status"
 }
@@ -60,6 +64,10 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
+if [ -n "${LEONAID_TEST_STACK:-}" ]; then
+  shared_services="api"
+  . "$root/tools/testing/borrow_stack.sh"
+else
 # Refuse existing resources; never clear a project selected by another worktree.
 existing=$(docker ps -aq --filter "label=com.docker.compose.project=$project")
 [ -z "$existing" ]
@@ -95,6 +103,7 @@ compose up --detach --wait --wait-timeout 420 api
 
 /bin/sh "$root/tools/typst/render_golden.sh" \
   "$root" "$proof_dir/pdfs" "${project}-api"
+fi
 
 compose --profile dev-mail run --rm --no-deps \
   --env-from-file "$env_file" \

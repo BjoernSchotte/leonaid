@@ -4,52 +4,83 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 1 * * *"
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Test selection
+        type: choice
+        options: [all, pr, nightly]
+        default: all
 
 permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.ref }}
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  fixture:
+    uses: ./.github/workflows/test-fixture.yml
+
   inventory:
     runs-on: ubuntu-24.04
     outputs:
       groups: ${{ steps.manifest.outputs.groups }}
+      shards: ${{ steps.manifest.outputs.shards }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify run-local image isolation
+        run: python3 tools/surveys/image_cache_test.py
       - name: Read the same group inventory as the local aggregate
         id: manifest
+        env:
+          CI_SUITE: ${{ github.event_name == 'schedule' && 'nightly' || inputs.suite || 'pr' }}
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import pathlib
-          print('groups=' + json.dumps(json.loads(pathlib.Path('tools/surveys/gate.json').read_text())['groups']))
+          import tools.surveys.gate as gate
+          import os
+          manifest = gate.load_manifest(pathlib.Path('.'))
+          shards = gate.ci_shards(manifest, os.environ['CI_SUITE'])
+          print('groups=' + json.dumps(manifest['groups']))
+          print('shards=' + json.dumps(shards))
           PY
 
   surveys:
-    name: Surveys / ${{ matrix.group }}
-    needs: inventory
+    name: Survey shard / ${{ matrix.shard }}
+    needs: [inventory, fixture]
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 60
     strategy:
       fail-fast: false
+      # Leave capacity for main CI and the API/pin workflows.
+      max-parallel: 12
       matrix:
-        group: ${{ fromJSON(needs.inventory.outputs.groups) }}
+        shard: ${{ fromJSON(needs.inventory.outputs.shards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Bootstrap pinned Docker toolchains
-        run: ./leonaid bootstrap
-      - name: Execute the complete group twice with fresh owned service state
+      - name: Reuse persistent Docker build layers
+        uses: ./.github/actions/build-cache
+        with:
+          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || ((matrix.shard == 'journeys' || startsWith(matrix.shard, 'foundation-')) && 'default' || 'survey-runtime') }}
+          bootstrap: ${{ matrix.shard == 'foundation' && 'toolchains' || 'browser' }}
+      - name: Use prepared synthetic data
+        if: matrix.shard != 'foundation'
+        uses: ./.github/actions/test-fixture
+        with:
+          key: ${{ needs.fixture.outputs.key }}
+      - name: Execute each assigned check once with fresh owned service state
         env:
-          SURVEY_GATE_GROUP: ${{ matrix.group }}
+          SURVEY_GATE_SHARD: ${{ matrix.shard }}
         # Proofs contain credentials and remain mode 0600. Linux bind mounts
         # preserve container-root ownership; the controller must share that UID.
         run: |
           sudo git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          sudo ./leonaid test-surveys --group "$SURVEY_GATE_GROUP" --repeat 2
+          sudo --preserve-env=CI,BUILDX_BUILDER,DOCKER_CONFIG,LEONAID_CI_FIXTURE ./leonaid test-surveys --shard "$SURVEY_GATE_SHARD"
       - name: Collect bounded diagnostic metadata
         if: always()
         run: |
@@ -63,7 +94,58 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: surveys-${{ matrix.group }}
+          name: surveys-${{ matrix.shard }}
           path: ${{ runner.temp }}/surveys-ci-results/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  acceptance:
+    name: Surveys / ${{ matrix.group }}
+    needs: [inventory, surveys]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        group: ${{ fromJSON(needs.inventory.outputs.groups || '["foundation","integration","editor","responses","exports","recovery","package","e2e"]') }}
+    steps:
+      - name: Require every scheduled survey shard
+        # These are policy summaries. Nightly-only checks are not claimed as
+        # executed by a PR run; inventory validates the complete partition.
+        env:
+          RESULT: ${{ needs.surveys.result }}
+        run: test "$RESULT" = success
+
+  backup-recovery:
+    name: Nightly backup / ${{ matrix.command }}
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        command:
+          - test-backup
+          - test-upgrade
+          - test-pilot-backup
+          - test-pilot-deployment
+          - test-pilot-import
+          - test-pilot-release
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/${{ matrix.command }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Bootstrap pinned Docker toolchains
+        run: ./leonaid bootstrap
+      - name: Run isolated backup and recovery proof
+        env:
+          TEST_COMMAND: ${{ matrix.command }}
+        run: bash tools/ci/run-job.sh "$TEST_COMMAND" ./leonaid "$TEST_COMMAND"
+      - name: Publish sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: nightly-${{ matrix.command }}
+          path: .artifacts/ci/${{ matrix.command }}
           if-no-files-found: error
           retention-days: 14

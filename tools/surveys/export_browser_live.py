@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -23,6 +24,12 @@ PROOF = Path("/proof")
 
 
 async def main():
+    if sys.argv[1] == "verify-revoke-when-ready":
+        deadline = time.monotonic() + 180
+        while not (PROOF / "export-revoke-request").exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Browser did not request export verification")
+            await asyncio.sleep(0.1)
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     state_path = PROOF / "export-browser-access.json"
     if sys.argv[1] == "seed":
@@ -122,7 +129,7 @@ async def main():
         print(
             "PASS: five synthetic responses (four completed, one partial) and report-only persona seeded"
         )
-    elif sys.argv[1] == "verify-revoke":
+    elif sys.argv[1] in {"verify-revoke", "verify-revoke-when-ready"}:
         state = json.loads(state_path.read_text())
         observed = json.loads((PROOF / "export-populated-browser.json").read_text())
         snapshot = observed["snapshot"]
@@ -255,4 +262,18 @@ async def main():
     await conn.close()
 
 
-asyncio.run(main())
+if sys.argv[1] == "verify-revoke-when-ready":
+    try:
+        asyncio.run(main())
+    except BaseException:
+        result = "failed"
+        raise
+    else:
+        result = "passed"
+    finally:
+        # Atomic, content-free handshake; private SQL credentials stay in this container.
+        temporary = PROOF / "export-revoke-result.tmp"
+        temporary.write_text(result)
+        temporary.replace(PROOF / "export-revoke-result")
+else:
+    asyncio.run(main())

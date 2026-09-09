@@ -50,6 +50,23 @@ LOCATION = re.compile(
 )
 ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 
+PHASES = {
+    "survey-permissions-matrix",
+    "survey-permissions-api",
+    "survey-browser",
+    "survey-export-renderers",
+    "survey-responses-api",
+    "survey-request-limits-api",
+    "survey-aggregate-build",
+    "survey-aggregate-verify",
+    "survey-aggregate-unavailable",
+    "survey-aggregate-restarted",
+}
+PHASE = re.compile(
+    r"^test-phase: ([a-z-]+) seconds=([0-9]{1,5}(?:\.[0-9]{1,3})?) exit=([0-9]{1,3})$",
+    re.MULTILINE,
+)
+
 
 def classify(text: str, public_files: dict[str, int]) -> dict:
     # Playwright colors individual tokens, including the middle of expect(...).
@@ -62,7 +79,13 @@ def classify(text: str, public_files: dict[str, int]) -> dict:
     for path, line in LOCATION.findall(text):
         if path in public_files and 0 < int(line) <= public_files[path]:
             locations.add((path, int(line)))
+    timings = [
+        {"phase": label, "seconds": float(seconds), "exitCode": int(status)}
+        for label, seconds, status in PHASE.findall(text)
+        if label in PHASES and float(seconds) <= 86400 and int(status) <= 255
+    ][:30]
     return {
+        **({"phaseTimings": timings} if timings else {}),
         "observedMarkers": categories,
         "publicLocations": [
             {"file": path, "line": line} for path, line in sorted(locations)[:30]
@@ -116,7 +139,7 @@ def collect(root: Path) -> dict:
         )
     return {
         "schemaVersion": 1,
-        "scope": "fixed markers and public locations only; presence does not establish root cause",
+        "scope": "fixed markers, bounded phase timings and public locations only; presence does not establish root cause",
         "diagnostics": diagnostics,
     }
 

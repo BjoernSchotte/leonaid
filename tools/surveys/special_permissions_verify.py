@@ -155,17 +155,38 @@ async def main():
             assert not await conn.fetchval(
                 "SELECT EXISTS(SELECT 1 FROM survey WHERE id=$1)", sid
             )
+    # Every parallel case owns its output; aggregate only after all browser
+    # workers have joined. Require the complete role x viewport matrix.
+    invitation_controls = []
+    assert len(personas) == 14
+    for mobile in (False, True):
+        cases = []
+        for name in personas:
+            result = json.loads(
+                (
+                    proof / f"invitation-controls-{name}-{str(mobile).lower()}.json"
+                ).read_text()
+            )
+            assert result == {
+                "name": name,
+                "mobile": mobile,
+                "pairs": 2,
+                "recipientDataScoped": True,
+            }
+            cases.append(result)
+        invitation_controls.append(
+            {
+                "mobile": mobile,
+                "pairs": sum(case["pairs"] for case in cases),
+                "recipientDataScoped": True,
+            }
+        )
     await conn.close()
     (proof / "special-permissions-proof.json").write_text(
         json.dumps(
             {
                 "syntheticOnly": True,
-                "invitationControlMatrix": [
-                    json.loads(
-                        (proof / f"invitation-controls-{mobile}.json").read_text()
-                    )
-                    for mobile in ["false", "true"]
-                ],
+                "invitationControlMatrix": invitation_controls,
                 "invitationJourneys": journeys,
                 "invitationSqlAndOperationOwnershipVerified": True,
                 "deletion": deletion_counts,

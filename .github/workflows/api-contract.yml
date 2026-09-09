@@ -55,6 +55,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Reuse persistent Core build layers
+        uses: ./.github/actions/build-cache
+        with:
+          targets: api
+
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
 

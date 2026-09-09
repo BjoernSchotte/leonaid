@@ -8,5 +8,5 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 # No shared image tag: export the exact result of the runtime Dockerfile.
-docker build --iidfile "$tmp/image-id" "$root/infra/proxy/image"
+docker buildx build --load --iidfile "$tmp/image-id" "$root/infra/proxy/image"
 docker image save --output "$archive" "$(cat "$tmp/image-id")"

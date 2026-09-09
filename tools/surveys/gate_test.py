@@ -21,6 +21,54 @@ spec.loader.exec_module(gate)
 
 
 class GateTests(unittest.TestCase):
+    def test_ci_suites_partition_every_check_and_keep_recovery_nightly(self):
+        manifest = gate.load_manifest(ROOT)
+        pr = set(gate.ci_shards(manifest, "pr"))
+        nightly = set(gate.ci_shards(manifest, "nightly"))
+        self.assertFalse(pr & nightly)
+        self.assertEqual(pr | nightly, set(gate.ci_shards(manifest, "all")))
+        nightly_checks = {
+            check for name in nightly for check in manifest["ciShards"][name]
+        }
+        required = {c["id"] for c in manifest["checks"] if c["group"] == "recovery"} | {
+            "restore-receipts",
+            "export-recovery",
+        }
+        self.assertTrue(required <= nightly_checks)
+        self.assertEqual(len(nightly_checks), 13)
+        with self.assertRaises(ValueError):
+            gate.ci_shards(manifest, "unknown")
+
+    def test_only_compatible_functional_checks_borrow_a_stack(self):
+        manifest = gate.load_manifest(ROOT)
+        shared = {c["id"] for c in manifest["checks"] if gate.shareable(c, manifest)}
+        self.assertTrue(
+            {"contracts", "permissions", "lifecycle-concurrency", "request-limits"}
+            <= shared
+        )
+        self.assertFalse(
+            {
+                "foundation-diagnostics",
+                "migrations",
+                "aggregates",
+                "recovery",
+                "export-recovery",
+                "restic-manual",
+            }
+            & shared
+        )
+
+    def test_aggregate_adapter_has_one_entry_without_a_full_stack(self):
+        manifest = gate.load_manifest(ROOT)
+        adapters = [
+            check
+            for check in manifest["checks"]
+            if "tools/surveys/aggregate-engine.sh" in check["argv"]
+        ]
+        self.assertEqual([check["id"] for check in adapters], ["aggregates"])
+        self.assertIn("aggregates", manifest["ciShards"]["foundation"])
+        self.assertNotIn("infrastructureModes", adapters[0])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -109,6 +157,17 @@ class GateTests(unittest.TestCase):
             127,
         )
 
+    def test_shard_runs_only_assigned_checks_once(self):
+        source = "from pathlib import Path; p=Path('count'); p.write_text(str(int(p.read_text())+1) if p.exists() else '1')"
+        manifest = self.manifest([self.check("one", source), self.check("two", source)])
+        manifest["ciShards"] = {"first": ["one"], "second": ["two"]}
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(gate.run(self.root, manifest, ["fixture"], 1, "second"), 0)
+        self.assertEqual((self.root / "count").read_text(), "1")
+        report = self.report()
+        self.assertEqual(report["shard"], "second")
+        self.assertEqual([c["id"] for c in report["checks"]], ["two"])
+
     def test_checkout_lock_excludes_a_second_process_and_releases(self):
         directory = self.root / "lock"
         source = f"import runpy; m=runpy.run_path({str(HERE / 'gate.py')!r}); from pathlib import Path\nwith m['exclusive_run'](Path({str(directory)!r})): print('entered')"
@@ -172,17 +231,21 @@ class GateTests(unittest.TestCase):
             target = self.root / reference.split("#")[0]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.touch()
-        for change in ("missing", "recursive"):
+        for change in ("missing", "recursive", "unassigned", "duplicate"):
             with self.subTest(change=change):
                 manifest = json.loads(json.dumps(original))
                 if change == "missing":
                     manifest["checks"] = [
                         c for c in manifest["checks"] if c["id"] != "journeys"
                     ]
-                else:
+                elif change == "recursive":
                     next(c for c in manifest["checks"] if c["id"] == "core")["argv"][
                         1
                     ] = "test-surveys"
+                elif change == "unassigned":
+                    manifest["ciShards"].pop(next(iter(manifest["ciShards"])))
+                else:
+                    manifest["ciShards"]["duplicate"] = ["journeys"]
                 (self.root / "tools/surveys/gate.json").write_text(json.dumps(manifest))
                 with self.assertRaises(AssertionError):
                     gate.load_manifest(self.root)

@@ -1,0 +1,90 @@
+name: Warm Docker build cache
+description: Import persistent BuildKit layers into this job's builder without sharing runtime state
+inputs:
+  bootstrap:
+    description: Optional toolchains, seed or browser bootstrap overlapping cache import
+    default: ""
+  targets:
+    description: Bake target or group
+    default: default
+  namespace:
+    description: Cache namespace; target and architecture are appended
+    default: leonaid-build-v1
+  write:
+    description: Only the designated Build job exports the normal cache
+    default: "false"
+  read:
+    description: Disable imports for a measured cold run
+    default: "true"
+  load:
+    description: Also load warm-tag images for the explicit cache benchmark
+    default: "false"
+  measure:
+    description: Optional directory for bounded timing metadata
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Start measurement
+      shell: bash
+      run: echo "CACHE_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+    - name: Start independent toolchain and image preparation
+      id: bootstrap
+      if: inputs.bootstrap != ''
+      shell: bash
+      env:
+        BOOTSTRAP_PROFILE: ${{ inputs.bootstrap }}
+      run: |
+        directory=$(mktemp -d "$RUNNER_TEMP/leonaid-bootstrap.XXXXXX")
+        echo "directory=$directory" >> "$GITHUB_OUTPUT"
+        nohup sh -c '
+          status=0
+          sh tools/ci/bootstrap-prefetch.sh "$1" > "$2/log" 2>&1 || status=$?
+          printf "%s\n" "$status" > "$2/status"
+        ' bootstrap "$BOOTSTRAP_PROFILE" "$directory" </dev/null >/dev/null 2>&1 &
+    - id: builder
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+    - name: Select the same builder for subsequent Compose calls
+      shell: bash
+      env:
+        CACHE_BUILDER: ${{ steps.builder.outputs.name }}
+      run: |
+        echo "BUILDX_BUILDER=$CACHE_BUILDER" >> "$GITHUB_ENV"
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}" >> "$GITHUB_ENV"
+    - name: Import layers and build requested images
+      uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b
+      env:
+        CACHE_NAMESPACE: ${{ inputs.namespace }}
+        CACHE_WRITE: ${{ inputs.write }}
+        CACHE_READ: ${{ inputs.read }}
+        DOCKER_BUILD_RECORD_UPLOAD: "false"
+      with:
+        source: .
+        files: tools/ci/docker-bake.hcl
+        targets: ${{ inputs.targets }}
+        load: ${{ inputs.load == 'true' }}
+        # Materialize imported layers: cache-only warm-up showed cache misses
+        # in subsequent Compose builds in CI. Discard the OCI archive; only
+        # the actual harness loads runtime images into the Docker daemon.
+        set: ${{ inputs.load != 'true' && '*.output=type=oci,dest=/dev/null' || '' }}
+        no-cache: ${{ inputs.read == 'false' }}
+        github-token: ${{ github.token }}
+    - name: Record cache preparation time
+      if: inputs.measure != ''
+      shell: bash
+      env:
+        MEASUREMENT_DIRECTORY: ${{ inputs.measure }}
+        CACHE_TARGETS: ${{ inputs.targets }}
+      run: |
+        mkdir -p "$MEASUREMENT_DIRECTORY"
+        elapsed=$(( $(date +%s) - CACHE_STARTED_AT ))
+        printf '{"seconds":%s,"targets":"%s","commit":"%s"}\n' "$elapsed" "$CACHE_TARGETS" "$GITHUB_SHA" > "$MEASUREMENT_DIRECTORY/build.json"
+    - name: Require completed toolchain and image preparation
+      if: always() && steps.bootstrap.outputs.directory != ''
+      shell: bash
+      env:
+        BOOTSTRAP_DIRECTORY: ${{ steps.bootstrap.outputs.directory }}
+      run: |
+        timeout 600 sh -c 'until test -f "$1/status"; do sleep 1; done' wait "$BOOTSTRAP_DIRECTORY"
+        cat "$BOOTSTRAP_DIRECTORY/log"
+        test "$(cat "$BOOTSTRAP_DIRECTORY/status")" = 0
