@@ -92,17 +92,20 @@ remains unaccepted and requires checking its exact owned resources.
 
 ## CI and final acceptance
 
-[`surveys.yml`](../../.github/workflows/surveys.yml) reads the manifest's 16 CI
-shards into a matrix. Each shard uses a separate ephemeral runner and runs once
-after bootstrap. The historical two-pass spike acceptance above remains a record
-of that revision. The current CI requires all 39 checks once. Existing
-`Surveys / <group>` check names summarize the matrix and require every shard to
+[`surveys.yml`](../../.github/workflows/surveys.yml) partitions the manifest's 17 CI
+shards into 11 regular and six nightly shards. Each selected shard uses a separate
+ephemeral runner and runs once after bootstrap. The historical two-pass spike acceptance above remains a record
+of that revision. The PR selection covers 26 checks; the nightly selection covers the other 13
+(Recovery, export recovery and restore receipts). The night schedule is 01:17 UTC
+daily; manual dispatch can run either selection or all 39 checks. Existing
+`Surveys / <group>` check names summarize the selected matrix and require every selected shard to
 succeed, including when other shards fail or are cancelled.
 The controller and diagnostic collector share the container proof
 owner on Linux. Only `results/*.json` and the fixed
 `results/diagnostics/metadata.json` are copied into `$RUNNER_TEMP/surveys-ci-results/`
 for upload; private logs and general `.artifacts` contents remain excluded and
-owner-only. All matrix jobs must pass for the same revision. Local
+owner-only. All selected matrix jobs must pass for the same revision. A PR summary does not
+claim execution of nightly checks. Local
 proof does not substitute for observing the actual GitHub Actions run.
 
 This survey aggregate does not invoke the repository's 42-command

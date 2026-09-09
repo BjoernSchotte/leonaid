@@ -6,7 +6,7 @@ shard=${1:-all}
 
 case "$shard" in
   all)
-    for part in compose seed core documents crm pilot; do
+    for part in compose seed core documents crm policy pilot-import; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;
@@ -31,9 +31,11 @@ case "$shard" in
     /bin/sh "$root/tools/twenty/gateway_test.sh" "$root"
     /bin/sh "$root/tools/twenty/import_test.sh" "$root"
     ;;
-  pilot)
-    /bin/sh "$root/tools/pilot_import/test.sh" "$root"
+  policy)
     /bin/sh "$root/tools/policy/test.sh" "$root"
+    ;;
+  pilot-import)
+    /bin/sh "$root/tools/pilot_import/test.sh" "$root"
     ;;
   *)
     echo "ci-integration: ERROR: unknown shard: $shard" >&2

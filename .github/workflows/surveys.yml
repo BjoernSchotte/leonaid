@@ -4,13 +4,21 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 1 * * *"
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Test selection
+        type: choice
+        options: [all, pr, nightly]
+        default: all
 
 permissions:
   contents: read
 
 concurrency:
-  group: survey-acceptance-${{ github.ref }}
+  group: survey-acceptance-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,14 +33,18 @@ jobs:
         run: python3 tools/surveys/image_cache_test.py
       - name: Read the same group inventory as the local aggregate
         id: manifest
+        env:
+          CI_SUITE: ${{ github.event_name == 'schedule' && 'nightly' || inputs.suite || 'pr' }}
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import pathlib
           import tools.surveys.gate as gate
+          import os
           manifest = gate.load_manifest(pathlib.Path('.'))
+          shards = gate.ci_shards(manifest, os.environ['CI_SUITE'])
           print('groups=' + json.dumps(manifest['groups']))
-          print('shards=' + json.dumps(list(manifest['ciShards'])))
+          print('shards=' + json.dumps(shards))
           PY
 
   surveys:
@@ -84,7 +96,43 @@ jobs:
       matrix:
         group: ${{ fromJSON(needs.inventory.outputs.groups || '["foundation","integration","editor","responses","exports","recovery","package","e2e"]') }}
     steps:
-      - name: Require every survey shard
+      - name: Require every scheduled survey shard
+        # These are policy summaries. Nightly-only checks are not claimed as
+        # executed by a PR run; inventory validates the complete partition.
         env:
           RESULT: ${{ needs.surveys.result }}
         run: test "$RESULT" = success
+
+  backup-recovery:
+    name: Nightly backup / ${{ matrix.command }}
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite != 'pr')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        command:
+          - test-backup
+          - test-upgrade
+          - test-pilot-backup
+          - test-pilot-deployment
+          - test-pilot-import
+          - test-pilot-release
+    env:
+      LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/${{ matrix.command }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Bootstrap pinned Docker toolchains
+        run: ./leonaid bootstrap
+      - name: Run isolated backup and recovery proof
+        env:
+          TEST_COMMAND: ${{ matrix.command }}
+        run: bash tools/ci/run-job.sh "$TEST_COMMAND" ./leonaid "$TEST_COMMAND"
+      - name: Publish sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: nightly-${{ matrix.command }}
+          path: .artifacts/ci/${{ matrix.command }}
+          if-no-files-found: error
+          retention-days: 14

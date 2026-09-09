@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [compose, seed, core, documents, crm, pilot]
+        shard: [compose, seed, core, documents, crm, policy]
     env:
       LEONAID_CI_ARTIFACT_DIR: .artifacts/ci/integration-${{ matrix.shard }}
     steps:

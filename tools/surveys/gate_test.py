@@ -21,6 +21,24 @@ spec.loader.exec_module(gate)
 
 
 class GateTests(unittest.TestCase):
+    def test_ci_suites_partition_every_check_and_keep_recovery_nightly(self):
+        manifest = gate.load_manifest(ROOT)
+        pr = set(gate.ci_shards(manifest, "pr"))
+        nightly = set(gate.ci_shards(manifest, "nightly"))
+        self.assertFalse(pr & nightly)
+        self.assertEqual(pr | nightly, set(gate.ci_shards(manifest, "all")))
+        nightly_checks = {
+            check for name in nightly for check in manifest["ciShards"][name]
+        }
+        required = {c["id"] for c in manifest["checks"] if c["group"] == "recovery"} | {
+            "restore-receipts",
+            "export-recovery",
+        }
+        self.assertTrue(required <= nightly_checks)
+        self.assertEqual(len(nightly_checks), 13)
+        with self.assertRaises(ValueError):
+            gate.ci_shards(manifest, "unknown")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

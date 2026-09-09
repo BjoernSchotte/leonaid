@@ -27,6 +27,9 @@ def load_manifest(root: Path) -> dict:
     ids = [check["id"] for check in checks]
     assert len(ids) == len(set(ids))
     shards = manifest["ciShards"]
+    nightly = manifest["nightlyShards"]
+    assert nightly and len(nightly) == len(set(nightly))
+    assert set(nightly) < set(shards), "Nightly shards must be a proper subset"
     assigned = [name for names in shards.values() for name in names]
     assert set(assigned) == set(ids) and len(assigned) == len(ids), (
         "CI shards must contain every check exactly once"
@@ -68,6 +71,17 @@ def load_manifest(root: Path) -> dict:
     for reference in manifest["manualReviewRequired"]:
         assert (root / reference.split("#")[0]).is_file()
     return manifest
+
+
+def ci_shards(manifest: dict, suite: str) -> list[str]:
+    """Partition CI execution without dropping checks from the local aggregate."""
+    if suite not in {"pr", "nightly", "all"}:
+        raise ValueError(f"Unknown CI suite: {suite}")
+    return [
+        name
+        for name in manifest["ciShards"]
+        if suite == "all" or (name in manifest["nightlyShards"]) == (suite == "nightly")
+    ]
 
 
 @contextmanager

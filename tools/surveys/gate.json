@@ -341,7 +341,6 @@
     ],
     "foundation": [
       "gate-controller",
-      "restore-receipts",
       "core",
       "validation-candidate",
       "dependencies",
@@ -358,6 +357,17 @@
     ],
     "e2e": [
       "journeys"
+    ],
+    "restore-receipts": [
+      "restore-receipts"
     ]
-  }
+  },
+  "nightlyShards": [
+    "recovery-deletion",
+    "recovery-retention",
+    "recovery-restic",
+    "recovery-pilot",
+    "exports-recovery",
+    "restore-receipts"
+  ]
 }
