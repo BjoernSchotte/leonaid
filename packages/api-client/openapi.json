@@ -3894,6 +3894,13 @@
             "title": "Actionname",
             "type": "string"
           },
+          "beneficiaries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Beneficiaries",
+            "type": "array"
+          },
           "charityAdmin": {
             "anyOf": [
               {
@@ -3923,6 +3930,7 @@
         "required": [
           "actionId",
           "actionName",
+          "beneficiaries",
           "goal",
           "acquirer",
           "charityAdmin",

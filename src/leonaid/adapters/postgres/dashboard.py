@@ -72,6 +72,15 @@ class AsyncpgDashboardRepository(DashboardRepository):
                 if action is None:
                     return None
 
+                beneficiaries = await connection.fetch(
+                    """
+                    SELECT organization_name FROM beneficiary
+                    WHERE action_id = $1
+                    ORDER BY sort_order, id
+                    """,
+                    action_id,
+                )
+
                 acquirer: AcquirerDashboard | None = None
                 if include_acquirer:
                     personal_pipeline = await self._pipeline(
@@ -150,6 +159,7 @@ class AsyncpgDashboardRepository(DashboardRepository):
         return DashboardSnapshot(
             action_id=UUID(str(action["id"])),
             action_name=str(action["name"]),
+            beneficiaries=tuple(str(item["organization_name"]) for item in beneficiaries),
             goal=GoalProgress(
                 actual_value=actual_value,
                 target_value=target_value,

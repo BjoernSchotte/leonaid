@@ -163,18 +163,14 @@
 
 .pwa-system-banner {
   display: grid;
-  width: min(100%, 40rem);
+  width: 100%;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.7rem;
-  margin-block-end: 1rem;
-  margin-inline-start: auto;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  padding: 0.5rem clamp(1rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--border);
   color: var(--foreground);
   background: var(--surface);
-  box-shadow: var(--shadow-md);
 }
 
 .pwa-system-banner > div {
@@ -190,6 +186,32 @@
 
 .pwa-system-banner--offline {
   border-color: color-mix(in oklch, var(--warning) 45%, var(--border));
+}
+
+.pwa-system-banner--install {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  padding-block: 0.2rem;
+  background: var(--surface-muted);
+  font-size: var(--text-sm);
+}
+
+.pwa-system-banner--install > svg {
+  display: none;
+}
+
+.pwa-system-banner--install strong {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pwa-system-banner--install .ui-button {
+  grid-column: auto;
+  width: auto;
+  min-height: 2.75rem;
+  padding-inline: 0.65rem;
+  font-size: var(--text-sm);
 }
 
 @keyframes pwa-spin {
@@ -212,6 +234,15 @@
   .pwa-system-banner .ui-button {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .pwa-system-banner--install .ui-button {
+    grid-column: auto;
+    width: auto;
+  }
+
+  .pwa-system-banner--install {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 

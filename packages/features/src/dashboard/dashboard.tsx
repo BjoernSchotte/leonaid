@@ -86,7 +86,7 @@ function GoalProgress({
 }: {
   readonly dashboard: DashboardResponse;
 }) {
-  const { goal } = dashboard;
+  const { goal, beneficiaries } = dashboard;
   const actual = formatGoalValue(goal.actualValue, goal.unit, goal.currency);
   const target =
     goal.targetValue === null
@@ -151,9 +151,21 @@ function GoalProgress({
           {percentage} %
         </progress>
       )}
-      <p className="dashboard-goal__spoken" data-testid="goal-status">
+      <p className="sr-only" data-testid="goal-status">
         {spokenStatus}
       </p>
+      <div className="dashboard-goal__beneficiaries">
+        <span>Zugunsten von</span>
+        {beneficiaries.length === 0 ? (
+          <p>Noch keine Begünstigten hinterlegt.</p>
+        ) : (
+          <ul aria-label="Begünstigte">
+            {beneficiaries.map((name, index) => (
+              <li key={index}>{name}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

@@ -126,6 +126,7 @@ class DashboardSnapshot:
     acquirer: AcquirerDashboard | None
     charity_admin: CharityAdminDashboard | None
     generated_at: datetime
+    beneficiaries: tuple[str, ...] = ()
 
 
 class DashboardRepository(Protocol):

@@ -200,7 +200,7 @@ function PwaLifecycle() {
     return (
       <aside
         aria-live="polite"
-        className="pwa-system-banner"
+        className="pwa-system-banner pwa-system-banner--install"
         data-testid="pwa-install"
       >
         <HugeiconsIcon
@@ -211,9 +211,6 @@ function PwaLifecycle() {
         />
         <div>
           <strong>LeonAid griffbereit</strong>
-          <span>
-            Installiere den Arbeitsbereich wie eine App auf diesem Gerät.
-          </span>
         </div>
         <Button onClick={() => void install()} variant="secondary">
           Installieren
@@ -358,8 +355,8 @@ export function App({ client }: AppProps) {
           });
         }}
         surface="pwa"
+        systemBanner={<PwaLifecycle />}
       >
-        <PwaLifecycle />
         {route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
         ) : route === "commitment" ? (

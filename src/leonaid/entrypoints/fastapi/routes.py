@@ -965,6 +965,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
     return DashboardResponse(
         action_id=snapshot.action_id,
         action_name=snapshot.action_name,
+        beneficiaries=list(snapshot.beneficiaries),
         goal=DashboardGoalResponse(
             configured=snapshot.goal.configured,
             actual_value=decimal_text(snapshot.goal.actual_value),

@@ -29,6 +29,7 @@ import { ToastProvider } from "./toast";
 
 export interface AppShellProps {
   readonly children: ReactNode;
+  readonly systemBanner?: ReactNode;
   readonly currentActionName: string;
   readonly identity: CurrentIdentityResponse;
   readonly onLogout: () => void;
@@ -146,6 +147,7 @@ export function AppShell({
   identity,
   onLogout,
   surface = "web",
+  systemBanner,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem("leonaid.sidebar-collapsed") === "true",
@@ -219,6 +221,7 @@ export function AppShell({
         </aside>
 
         <div className="ui-shell__body">
+          {systemBanner}
           <header className="ui-topbar">
             <Dialog.Root
               onOpenChange={setMobileOpen}

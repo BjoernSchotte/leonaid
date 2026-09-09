@@ -1293,6 +1293,7 @@ class DashboardMetricDefinitionResponse(TransportModel):
 class DashboardResponse(TransportModel):
     action_id: UUID
     action_name: str
+    beneficiaries: list[str]
     goal: DashboardGoalResponse
     acquirer: AcquirerDashboardResponse | None
     charity_admin: CharityAdminDashboardResponse | None
