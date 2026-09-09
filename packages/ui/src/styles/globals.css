@@ -916,6 +916,26 @@ a {
     display: none;
   }
 
+  .ui-pwa-tabbar a[data-nav-key="commitment"] {
+    color: var(--primary-foreground);
+    background: var(--primary);
+    font-weight: 700;
+  }
+
+  .ui-pwa-tabbar a[data-nav-key="commitment"]:hover {
+    background: color-mix(in oklch, var(--primary) 90%, var(--foreground));
+  }
+
+  .ui-pwa-tabbar a[data-nav-key="commitment"][aria-current="page"] span {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .ui-pwa-tabbar .ui-nav__item:focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: -2px;
+  }
+
   .ui-pwa-tabbar .ui-nav__item--disabled {
     display: none;
   }

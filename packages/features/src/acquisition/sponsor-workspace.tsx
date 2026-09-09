@@ -1,11 +1,15 @@
 import {
   Add01Icon,
   ArrowRight02Icon,
+  CancelCircleIcon,
+  CheckmarkCircle02Icon,
+  Clock01Icon,
   Mail01Icon,
   PackageAdd01Icon,
   Search01Icon,
   TelephoneIcon,
   UserMultiple02Icon,
+  UserSwitchIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -296,14 +300,14 @@ function SponsorList({
       >
         {(
           [
-            ["all", "Alle"],
-            ["open", "Offen"],
-            ["contacted", "Kontaktiert"],
-            ["committed", "Zugesagt"],
-            ["declined", "Abgesagt"],
-            ["handed_over", "Übergeben"],
+            ["all", "Alle", UserMultiple02Icon],
+            ["open", "Offen", Clock01Icon],
+            ["contacted", "Kontaktiert", TelephoneIcon],
+            ["committed", "Zugesagt", CheckmarkCircle02Icon],
+            ["declined", "Abgesagt", CancelCircleIcon],
+            ["handed_over", "Übergeben", UserSwitchIcon],
           ] as const
-        ).map(([value, label]) => (
+        ).map(([value, label, icon]) => (
           <button
             aria-selected={status === value}
             data-testid={`sponsor-status-${value}`}
@@ -322,7 +326,13 @@ function SponsorList({
             role="tab"
             type="button"
           >
-            {label}
+            <HugeiconsIcon
+              aria-hidden="true"
+              icon={icon}
+              size={22}
+              strokeWidth={1.8}
+            />
+            <span>{label}</span>
           </button>
         ))}
       </div>

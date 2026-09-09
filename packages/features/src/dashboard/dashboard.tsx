@@ -86,7 +86,7 @@ function GoalProgress({
 }: {
   readonly dashboard: DashboardResponse;
 }) {
-  const { goal, beneficiaries } = dashboard;
+  const { goal, beneficiaries = [] } = dashboard;
   const actual = formatGoalValue(goal.actualValue, goal.unit, goal.currency);
   const target =
     goal.targetValue === null

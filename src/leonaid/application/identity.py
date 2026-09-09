@@ -365,15 +365,15 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
                     "pwa",
                 ),
                 NavigationItem(
-                    "activities",
-                    "Neues",
-                    "/app/activities",
-                    "pwa",
-                ),
-                NavigationItem(
                     "commitment",
                     "Bestellung erfassen",
                     "/app/commitments/new",
+                    "pwa",
+                ),
+                NavigationItem(
+                    "activities",
+                    "Neues",
+                    "/app/activities",
                     "pwa",
                 ),
             )
