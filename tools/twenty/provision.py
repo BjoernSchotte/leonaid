@@ -634,18 +634,22 @@ class Provisioner:
                 )
             time.sleep(0.5)
 
-    def wait_for_field(self, object_name: str, field_name: str) -> None:
+    def wait_for_field(self, object_id: str, field_name: str) -> dict[str, JsonObject]:
         deadline = time.monotonic() + 90
         while True:
-            actual_object = self.object_map().get(object_name)
-            if actual_object is not None:
-                fields = json_list(actual_object.get("fields"), object_name)
-                if any(field.get("name") == field_name for field in fields):
-                    return
+            # Validate the same GraphQL view we consume, not an independently
+            # refreshed REST metadata cache that can become visible first.
+            details = self.object_details(object_id)
+            fields = {
+                str(field["name"]): field
+                for field in json_list(details.get("fieldsList"), "fieldsList")
+            }
+            if field_name in fields:
+                return fields
             if time.monotonic() >= deadline:
                 raise TwentySchemaError(
                     "Twenty Metadata API veröffentlichte Field nicht: "
-                    f"{object_name}.{field_name}"
+                    f"{object_id}.{field_name}"
                 )
             time.sleep(0.5)
 
@@ -754,15 +758,8 @@ class Provisioner:
                     actual = fields.get(field_name)
                     if actual is None:
                         self.create_field(desired, object_id, objects)
-                        self.wait_for_field(object_name, field_name)
+                        fields = self.wait_for_field(object_id, field_name)
                         objects = self.object_map()
-                        details = self.object_details(object_id)
-                        fields = {
-                            str(field["name"]): field
-                            for field in json_list(
-                                details.get("fieldsList"), "fieldsList"
-                            )
-                        }
                         actual = fields.get(field_name)
                     if actual is None:
                         raise TwentySchemaError(

@@ -115,6 +115,8 @@ done
 python3 "$root/tools/surveys/network_override.py" "$source_isolation"
 source_owned=true
 source_compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$source_project" "$source_isolation"
+docker run --rm --network none --volume "$root:/workspace:ro" --workdir /workspace \
+  "$PYTHON_IMAGE" python tools/backup/resume_test.py
 docker run --rm \
   --env PYTHONPATH=/workspace \
   --volume "$root:/workspace:ro" \

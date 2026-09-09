@@ -1,0 +1,22 @@
+services:
+  api:
+    environment:
+      # Exercise real expiry without changing clocks or database timestamps.
+      LEONAID_FRESH_LOGIN_SECONDS: "5"
+  mailpit:
+    profiles: !override [emdash]
+    networks: !override [edge]
+    ports: !reset []
+  worker:
+    networks: !override [edge, core-data]
+    ports: !reset []
+    environment:
+      MAIL_SMTP_HOST: mailpit
+      MAIL_SMTP_PORT: "1025"
+      MAIL_SMTP_MODE: plain
+      MAIL_SMTP_USERNAME: ""
+      MAIL_SMTP_PASSWORD: ""
+      MAIL_SMTP_CA_FILE: ""
+      MAIL_FROM: LeonAid <noreply@leonaid.invalid>
+      MAIL_ENVELOPE_FROM: bounces@leonaid.invalid
+      MAIL_REPLY_TO: support@leonaid.invalid

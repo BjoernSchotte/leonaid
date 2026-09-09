@@ -1,3 +1,9 @@
+{
+	servers {
+		strict_sni_host on
+	}
+}
+
 (common_headers) {
 	header {
 		X-Content-Type-Options nosniff
@@ -11,6 +17,24 @@
 	header {
 		Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self' ws: wss:; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://www.google.com https://maps.google.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
 		X-Frame-Options DENY
+	}
+}
+
+(order_declared_body_limit) {
+	@oversized_order {
+		method POST
+		expression `(path('/_actions/createPublicOrder', '/_actions/createPublicOrder/') || query({'_action': 'createPublicOrder'})) && {http.request.header.Content-Length} != '' && int({http.request.header.Content-Length}) > 65536`
+	}
+	route @oversized_order {
+		# Reject before a proxy request-body reader is started. Bound the HTTP/1
+		# server's post-response drain as well as returning an immediate error.
+		request_body {
+			read_timeout 1s
+		}
+		header Cache-Control no-store
+		respond "Das Bestellformular ist zu groß. Diese Anfrage wurde nicht an die Bestellverarbeitung weitergeleitet." 413 {
+			close
+		}
 	}
 }
 
@@ -29,8 +53,36 @@
 
 	handle /api/* {
 		import leonaid_headers
-		reverse_proxy api:8000 {
+		# This Core mutation is internal-only; Astro remains the public transport.
+		route {
+			@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+			header @internal_orders Cache-Control no-store
+			respond @internal_orders "Not Found" 404
+			reverse_proxy api:8000 {
+				header_up X-Forwarded-For {remote_host}
+			}
+		}
+	}
+
+	# Preserve CMS paths. The service is optional and cannot block proxy startup.
+	@campaign_routes path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
+	handle @campaign_routes {
+		import leonaid_headers
+		import order_declared_body_limit
+		reverse_proxy campaign-site:3000 {
+			# Do not drain a stalled/rejected HTTP/1 body before returning its error.
+			# This affects only CMS body-limit responses, not other applications.
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+			# common_headers supplies one unambiguous nosniff value at the edge.
+			header_down -X-Content-Type-Options
+			header_up -Forwarded
 			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
 		}
 	}
 
@@ -61,7 +113,14 @@
 
 	handle {
 		import leonaid_headers
-		reverse_proxy public:3000
+		import order_declared_body_limit
+		reverse_proxy public:3000 {
+			@body_rejected status 408 413
+			handle_response @body_rejected {
+				header Connection close
+				copy_response
+			}
+		}
 	}
 }
 
@@ -72,6 +131,10 @@ http://crm.localhost:8080 {
 
 http://:8080 {
 	import common_headers
+	@cms_https path /_emdash /_emdash/* /campaigns /campaigns/* /_campaign-assets/*
+	handle @cms_https {
+		redir https://localhost:{$LEONAID_HTTPS_PORT:8443}{uri} 308
+	}
 	import leonaid_routes
 }
 

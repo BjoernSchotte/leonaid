@@ -116,6 +116,7 @@ class IdentityMembershipView:
 class CurrentIdentity:
     user_id: UUID
     display_name: str
+    email: str
     global_roles: tuple[GlobalRole, ...]
     action_memberships: tuple[IdentityMembershipView, ...]
     role_labels: tuple[str, ...]
@@ -380,6 +381,16 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if ActionRole.DRIVER in action_roles:
         items.append(NavigationItem("delivery", "Auslieferung", "/app/delivery", "pwa"))
 
+    if principal.is_system_admin or ActionRole.CHARITY_ADMIN in action_roles:
+        items.append(
+            NavigationItem(
+                "microsite",
+                "Microsite bearbeiten",
+                "/_emdash/admin/content/campaign_pages",
+                "web",
+            )
+        )
+
     seen: set[tuple[str, str]] = set()
     unique: list[NavigationItem] = []
     for item in items:
@@ -468,6 +479,7 @@ class IdentityQueryService:
         return CurrentIdentity(
             user_id=principal.account.id,
             display_name=principal.account.display_name,
+            email=principal.account.email,
             global_roles=tuple(sorted(principal.global_roles, key=str)),
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),

@@ -1,0 +1,31 @@
+services:
+  core-postgres:
+    image: docker.io/library/postgres:16.9-alpine3.21@sha256:36e8aabaa6fa6037537cff64011fa45a200fe2ba202141b9aca48cff3df7ad42
+    environment:
+      POSTGRES_DB: leonaid
+      POSTGRES_USER: leonaid
+      POSTGRES_PASSWORD: ${CORE_POSTGRES_PASSWORD:?}
+    networks: [proof]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U leonaid -d leonaid"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  proof:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.core
+    environment:
+      CORE_DATABASE_URL: postgresql://leonaid:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/leonaid
+      LEONAID_ENV: test
+      PYTHONPATH: /repo:/workspace/src
+    networks: [proof]
+    volumes: [../..:/repo:ro]
+    working_dir: /repo
+    entrypoint: [python, tools/emdash_spike/alias_namespaces_proof.py]
+networks:
+  proof:
+    internal: true
+volumes:
+  postgres-data:

@@ -19,6 +19,7 @@ import {
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
+import { CampaignAliasesSection } from "./campaign-aliases";
 import {
   AdministratorsSection,
   BeneficiariesSection,
@@ -222,6 +223,12 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         >
           {statusLabels[action.status]}
         </span>
+        <a
+          className="ui-button ui-button--secondary"
+          href={`/_emdash/admin/campaigns/${action.id}`}
+        >
+          Microsite bearbeiten
+        </a>
       </header>
 
       {archived ? (
@@ -308,6 +315,11 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
           role="tabpanel"
         >
           <PublicationSection {...shared} />
+          <CampaignAliasesSection
+            actionId={actionId}
+            client={client}
+            disabled={archived || action.status === "completed"}
+          />
         </div>
         <div
           aria-labelledby="tab-status"

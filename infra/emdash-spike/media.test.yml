@@ -1,0 +1,46 @@
+services:
+  core-postgres:
+    extends:
+      file: postgres.test.yml
+      service: core-postgres
+  rustfs:
+    extends:
+      file: rustfs.test.yml
+      service: rustfs
+  cms-db-operator:
+    extends:
+      file: service.test.yml
+      service: cms-db-operator
+  cms-storage-operator:
+    extends:
+      file: service.test.yml
+      service: cms-storage-operator
+  proof:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: emdash
+      PGUSER: emdash
+      PGPASSWORD: ${CMS_POSTGRES_PASSWORD:?bootstrap CMS secrets first}
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: emdash-media
+      S3_ACCESS_KEY_ID: leonaid-emdash
+      S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY:?bootstrap CMS secrets first}
+      S3_REGION: us-east-1
+    volumes:
+      - ../../node_modules:/workspace/node_modules:ro
+      - ../../apps/campaign-site/src/auth:/workspace/apps/campaign-site/src/auth:ro
+      - ../../tools/emdash_spike/campaign-media-upload-proof.mjs:/workspace/tools/emdash_spike/campaign-media-upload-proof.mjs:ro
+    working_dir: /workspace
+    networks: [cms-data, storage-data]
+    command: [node, tools/emdash_spike/campaign-media-upload-proof.mjs]
+networks:
+  core-data:
+    internal: true
+  cms-data:
+    internal: true
+  storage-data:
+    internal: true
+volumes:
+  postgres-data:
+  rustfs-data:

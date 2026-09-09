@@ -50,17 +50,25 @@ run() {
     --entrypoint "$entrypoint" "$project" "$@"
 }
 docker exec "$project" createdb -U postgres survey_empty
-run survey_empty alembic upgrade head
-run survey_empty alembic upgrade head
+# First retain the survey-only data-preservation proof at its exact boundary.
+# The merged application head additionally adds campaign fields to Core rows.
+survey_head=0034_survey_recovery_identity
+run survey_empty alembic upgrade "$survey_head"
+run survey_empty alembic upgrade "$survey_head"
 run survey_empty python /repo/tools/surveys/migrations.py empty
 docker exec "$project" createdb -U postgres survey_upgrade
 run survey_upgrade alembic upgrade 0011_public_orders
 docker exec -i "$project" psql -v ON_ERROR_STOP=1 -U postgres -d survey_upgrade < "$root/tests/fixtures/schema/v0.sql"
 run survey_upgrade alembic upgrade 0026_invoice_payment_snapshot
 run survey_upgrade python /repo/tools/surveys/migrations.py baseline
-run survey_upgrade alembic upgrade head
-run survey_upgrade alembic upgrade head
+run survey_upgrade alembic upgrade "$survey_head"
+run survey_upgrade alembic upgrade "$survey_head"
 run survey_upgrade python /repo/tools/surveys/migrations.py upgrade
+# Both empty and populated databases must also reach the shared application head.
+for database in survey_empty survey_upgrade; do
+  run "$database" alembic upgrade head
+  run "$database" alembic upgrade head
+done
 mkdir -p "$root/.artifacts/surveys-migrations"
 cp "$proof"/*.json "$root/.artifacts/surveys-migrations/"
 docker rm -f "$project" >/dev/null

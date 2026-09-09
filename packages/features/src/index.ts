@@ -16,6 +16,8 @@ export * from "./acquisition/acquisition-admin";
 export * from "./acquisition/sponsor-workspace";
 export * from "./activity-feed/activity-feed";
 export * from "./action-admin/action-list";
+export * from "./action-admin/action-location";
+export * from "./action-admin/campaign-editor-link";
 export * from "./action-admin/create-action";
 export * from "./action-admin/manage-action";
 export * from "./action-admin/member-administration";

@@ -1,0 +1,29 @@
+{
+  "name": "@leonaid/campaign-site",
+  "version": "0.0.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@leonaid/api-client": "workspace:*",
+    "@astrojs/node": "11.1.4",
+    "@astrojs/react": "5.0.7",
+    "@aws-sdk/client-s3": "3.1127.0",
+    "@aws-sdk/s3-request-presigner": "3.1127.0",
+    "astro": "7.2.8",
+    "emdash": "0.36.0",
+    "kysely": "0.29.5",
+    "pg": "8.16.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "0.35.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.16.0",
+    "@astrojs/check": "0.9.9"
+  }
+}

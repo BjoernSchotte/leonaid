@@ -6,6 +6,7 @@ import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { isKrapfentaxiAction } from "../lib/presentation";
 import taxiHero from "../assets/krapfentaxi/hero.webp";
+import { campaignRedirect } from "../lib/campaign-redirect";
 
 const rawPath = Astro.params.path ?? "";
 const publicOrderResult = Astro.getActionResult(actions.createPublicOrder);
@@ -42,6 +43,8 @@ if (segments.length > 0) {
     } else if (result.data.availability === "inactive") {
       state = "inactive";
     } else {
+      const redirect = campaignRedirect(result.data, Astro.request.method);
+      if (redirect) return redirect;
       state = "action";
       route = result.data;
     }
@@ -58,15 +61,17 @@ if (state === "not-found") {
 
 Astro.response.headers.set(
   "Cache-Control",
-  state === "action" && route?.submissionsAllowed
-    ? "private, no-store"
-    : state === "action" && route?.availability === "archive"
-      ? "public, max-age=300, stale-while-revalidate=3600"
-      : state === "action" || state === "inactive"
-        ? "public, max-age=15, stale-while-revalidate=30"
-        : state === "unavailable"
-          ? "no-store"
-          : "public, max-age=60",
+  segments.length === 1
+    ? "no-store"
+    : state === "action" && route?.submissionsAllowed
+      ? "private, no-store"
+      : state === "action" && route?.availability === "archive"
+        ? "public, max-age=300, stale-while-revalidate=3600"
+        : state === "action" || state === "inactive"
+          ? "public, max-age=15, stale-while-revalidate=30"
+          : state === "unavailable"
+            ? "no-store"
+            : "public, max-age=60",
 );
 Astro.response.headers.set(
   "X-LeonAid-Public-State",

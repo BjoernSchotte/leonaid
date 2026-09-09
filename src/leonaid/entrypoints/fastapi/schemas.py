@@ -68,6 +68,7 @@ class NavigationItemResponse(TransportModel):
 class CurrentIdentityResponse(TransportModel):
     user_id: UUID
     display_name: str
+    email: str
     global_roles: list[Literal["system_admin", "finance_reader", "finance_manager"]]
     action_memberships: list[IdentityMembershipResponse]
     role_labels: list[str]
@@ -716,6 +717,7 @@ class CreateCharityActionRequest(TransportModel):
 
 
 class CharityActionResponse(TransportModel):
+    is_published: bool
     id: UUID
     carrier_name: str
     name: str
@@ -783,6 +785,18 @@ class PublicActionRouteResponse(TransportModel):
     availability: Literal["published", "inactive", "archive"]
     submissions_allowed: bool
     action: PublicCharityActionResponse | None
+    redirect_path: str | None = None
+
+
+class PublicCampaignRouteResponse(TransportModel):
+    route_kind: Literal["campaign"] = "campaign"
+    route_value: str
+    route_path: str
+    canonical_path: str
+    availability: Literal["published", "inactive", "archive"]
+    submissions_allowed: bool
+    action: PublicCharityActionResponse | None
+    order_alias: str | None
 
 
 class PublicOrderPartyRequest(TransportModel):
@@ -830,6 +844,12 @@ class CreatePublicOrderRequest(TransportModel):
     website: str | None = Field(default=None, max_length=300)
 
 
+class PublicOrderQuantityResponse(TransportModel):
+    unit: Literal["box", "piece", "package", "sponsoring"]
+    quantity: int = Field(gt=0)
+    pieces_per_unit: int | None = Field(gt=0)
+
+
 class PublicOrderResultResponse(TransportModel):
     commitment_id: UUID
     public_reference: str
@@ -838,6 +858,7 @@ class PublicOrderResultResponse(TransportModel):
     currency: str
     total_boxes: int = Field(ge=0)
     total_pieces: int = Field(ge=0)
+    quantities: list[PublicOrderQuantityResponse] = Field(min_length=1)
     crm_outcome: Literal["created", "reused"]
     replayed: bool
 
@@ -1343,6 +1364,75 @@ class SetActionPublicationRequest(TransportModel):
         max_length=160,
         pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
     )
+
+
+class CreateCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    alias_id: UUID
+    alias: str = Field(
+        min_length=1, max_length=160, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    enabled: bool = Field(default=True, strict=True)
+
+
+class UpdateCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+    target_action_id: UUID
+    alias: str = Field(
+        min_length=1, max_length=160, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    )
+    enabled: bool = Field(strict=True)
+
+
+class RemoveCampaignAliasRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+
+
+class SelectCampaignRendererRequest(TransportModel):
+    command_id: UUID
+    revision: int = Field(ge=1, strict=True)
+    renderer: Literal["legacy", "campaign"]
+
+
+class CampaignRendererResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    revision: int
+    renderer: Literal["legacy", "campaign"]
+
+
+class CampaignAliasMutationResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    enabled: bool
+    revision: int
+    removed: bool
+
+
+class CampaignAliasItemResponse(TransportModel):
+    alias_id: UUID
+    action_id: UUID
+    alias: str
+    is_primary: bool
+    enabled: bool
+    revision: int
+
+
+class CampaignAliasTargetResponse(TransportModel):
+    action_id: UUID
+    name: str
+    canonical_path: str
+
+
+class CampaignAliasListResponse(TransportModel):
+    action_id: UUID
+    canonical_path: str
+    items: list[CampaignAliasItemResponse]
+    targets: list[CampaignAliasTargetResponse]
 
 
 class AdministratorOptionResponse(TransportModel):

@@ -18,6 +18,8 @@ import {
   PreviewNotice,
   RoleDashboardPage,
   UiSystemCatalogPage,
+  useCurrentActionId,
+  campaignEditorHref,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -73,6 +75,7 @@ function route() {
 }
 
 export function App({ client }: AppProps) {
+  const selectedActionId = useCurrentActionId();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -132,6 +135,18 @@ export function App({ client }: AppProps) {
   }
 
   const currentRoute = route();
+  const actionId =
+    currentRoute.kind === "manage"
+      ? currentRoute.actionId
+      : ["dashboard", "acquisition", "orders", "invoices"].includes(
+            currentRoute.kind,
+          )
+        ? selectedActionId
+        : "";
+  const selectedMembership = identity.data.actionMemberships.find(
+    (membership) => membership.actionId === actionId,
+  );
+  const editorHref = campaignEditorHref(identity.data, actionId);
   const currentAction =
     currentRoute.kind === "surveys"
       ? "Umfragen"
@@ -177,8 +192,15 @@ export function App({ client }: AppProps) {
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
       <AppShell
-        currentActionName={currentAction}
-        identity={identity.data}
+        currentActionName={selectedMembership?.actionName ?? currentAction}
+        identity={{
+          ...identity.data,
+          navigation: identity.data.navigation.map((item) =>
+            item.key === "microsite" && editorHref
+              ? { ...item, href: editorHref }
+              : item,
+          ),
+        }}
         onLogout={() => {
           void client.logout().finally(() => {
             window.location.assign("/login");

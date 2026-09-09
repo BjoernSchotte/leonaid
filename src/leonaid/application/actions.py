@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
@@ -90,6 +90,7 @@ class UpdateActionDetailsDraft:
 class PublicActionRouteKind(StrEnum):
     ALIAS = "alias"
     ARCHIVE = "archive"
+    CAMPAIGN = "campaign"
 
 
 class PublicActionAvailability(StrEnum):
@@ -109,6 +110,8 @@ class PublicActionRoute:
     action: CharityAction | None
     offerings: tuple[ConfiguredOffering, ...] = ()
     order_form: ConfiguredOrderForm | None = None
+    order_alias: str | None = None
+    redirect_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.availability is PublicActionAvailability.INACTIVE:
@@ -117,13 +120,24 @@ class PublicActionRoute:
                 or self.offerings
                 or self.order_form is not None
                 or self.submissions_allowed
+                or self.order_alias is not None
+                or self.redirect_path is not None
             ):
                 raise ValueError("Eine inaktive Route darf keine Aktion freigeben.")
             return
         if self.action is None:
             raise ValueError("Eine öffentliche Aktionsroute benötigt eine Aktion.")
-        if self.submissions_allowed and (
+        if self.redirect_path is not None and (
             self.route_kind is not PublicActionRouteKind.ALIAS
+            or self.availability is not PublicActionAvailability.PUBLISHED
+            or self.submissions_allowed
+            or self.redirect_path != f"/campaigns/{self.action.archive_slug}/"
+            or self.canonical_path != self.redirect_path
+        ):
+            raise ValueError("Ungültige öffentliche Kampagnenweiterleitung.")
+        if self.submissions_allowed and (
+            self.route_kind
+            not in {PublicActionRouteKind.ALIAS, PublicActionRouteKind.CAMPAIGN}
             or self.availability is not PublicActionAvailability.PUBLISHED
             or self.order_form is None
             or not self.offerings
@@ -131,6 +145,13 @@ class PublicActionRoute:
             raise ValueError("Der Schreibstatus der öffentlichen Route ist ungültig.")
         if self.order_form is not None and not self.submissions_allowed:
             raise ValueError("Ein öffentliches Formular muss beschreibbar sein.")
+        if (
+            self.route_kind is PublicActionRouteKind.CAMPAIGN
+            and self.submissions_allowed
+        ):
+            if self.order_alias is None:
+                raise ValueError("Eine Kampagnenbestellung benötigt den Core-Alias.")
+            PublicActionAlias(self.order_alias)
 
 
 class CharityActionRepository(Protocol):
@@ -173,6 +194,11 @@ class CharityActionRepository(Protocol):
         self,
         public_alias: PublicActionAlias,
     ) -> tuple[CharityAction, ActionConfiguration | None] | None: ...
+
+    async def get_by_alias_route(
+        self,
+        public_alias: PublicActionAlias,
+    ) -> tuple[CharityAction, ActionConfiguration | None, bool, bool] | None: ...
 
     async def get_by_archive_slug(
         self,
@@ -411,8 +437,19 @@ class CharityActionService:
         *,
         evaluated_at: datetime | None = None,
     ) -> PublicActionRoute:
+        return await self._resolve_alias(
+            public_alias, evaluated_at=evaluated_at, render_primary_redirect=True
+        )
+
+    async def _resolve_alias(
+        self,
+        public_alias: str,
+        *,
+        evaluated_at: datetime | None,
+        render_primary_redirect: bool,
+    ) -> PublicActionRoute:
         alias = PublicActionAlias(public_alias.strip())
-        snapshot = await self._repository.get_by_public_alias(alias)
+        snapshot = await self._repository.get_by_alias_route(alias)
         now = evaluated_at or datetime.now(timezone.utc)
         route_path = f"/{alias.value}"
         if snapshot is None or not snapshot[0].is_published_at(now):
@@ -425,7 +462,19 @@ class CharityActionService:
                 submissions_allowed=False,
                 action=None,
             )
-        action, configuration = snapshot
+        action, configuration, is_primary, campaign_redirect = snapshot
+        if not is_primary or (campaign_redirect and render_primary_redirect):
+            target = f"/campaigns/{action.archive_slug}/"
+            return PublicActionRoute(
+                route_kind=PublicActionRouteKind.ALIAS,
+                route_value=alias.value,
+                route_path=route_path,
+                canonical_path=target,
+                redirect_path=target,
+                availability=PublicActionAvailability.PUBLISHED,
+                submissions_allowed=False,
+                action=action,
+            )
         offerings = self._public_offerings(
             configuration,
             evaluated_at=now,
@@ -449,6 +498,72 @@ class CharityActionService:
             action=action,
             offerings=offerings,
             order_form=order_form,
+        )
+
+    async def resolve_public_campaign(
+        self,
+        archive_slug: str,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> PublicActionRoute:
+        """Resolve an active microsite without inheriting archive disclosure.
+
+        Existing order tokens and submissions remain bound to order_alias,
+        never the stable campaign URL slug.
+        Archive presentation is a separate policy and is not enabled here.
+        """
+        slug = archive_slug.strip()
+        snapshot = await self._repository.get_by_archive_slug(slug)
+        if snapshot is None:
+            raise ResourceNotFound(
+                "public_action_not_found",
+                "Diese öffentliche Aktionsseite wurde nicht gefunden.",
+            )
+        action, configuration = snapshot
+        now = evaluated_at or datetime.now(timezone.utc)
+        path = f"/campaigns/{action.archive_slug}/"
+        inactive = PublicActionRoute(
+            route_kind=PublicActionRouteKind.CAMPAIGN,
+            route_value=action.archive_slug,
+            route_path=path,
+            canonical_path=path,
+            availability=PublicActionAvailability.INACTIVE,
+            submissions_allowed=False,
+            action=None,
+        )
+        if not action.is_published_at(now):
+            return inactive
+        management = await self._repository.get_management(action.id)
+        if management is None or not management.action.is_published_at(now):
+            return inactive
+        published = replace(
+            inactive,
+            availability=PublicActionAvailability.PUBLISHED,
+            action=management.action,
+            offerings=self._public_offerings(
+                configuration, evaluated_at=now, require_current_availability=True
+            ),
+        )
+        if management.public_alias is None:
+            return published
+        # Re-resolve the current alias with a fresh publication check. A moved
+        # alias must never substitute another year's action at this stable URL.
+        current = await self._resolve_alias(
+            management.public_alias.value,
+            evaluated_at=now,
+            render_primary_redirect=False,
+        )
+        if current.action is None or current.action.id != action.id:
+            return inactive
+        return replace(
+            current,
+            route_kind=PublicActionRouteKind.CAMPAIGN,
+            route_value=action.archive_slug,
+            route_path=path,
+            canonical_path=path,
+            order_alias=management.public_alias.value
+            if current.submissions_allowed
+            else None,
         )
 
     async def resolve_public_archive(

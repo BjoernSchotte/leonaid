@@ -305,7 +305,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 ) AS ordering_enabled
             FROM charity_action AS action
             LEFT JOIN public_action_alias AS alias
-              ON alias.action_id = action.id
+              ON alias.action_id = action.id AND alias.is_primary AND alias.enabled
             LEFT JOIN order_form_configuration AS form
               ON form.action_id = action.id
             WHERE action.id = $1

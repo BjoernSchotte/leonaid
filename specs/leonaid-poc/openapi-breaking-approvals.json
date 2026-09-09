@@ -1,4 +1,15 @@
 {
   "schemaVersion": 1,
-  "approvals": []
+  "approvals": [
+    {
+      "oldSha256": "9d2b4daffca78d5e73b4294f22d4b3d4742b69f74ec4119d54826344de0aef53",
+      "newSha256": "1ce98dfd2037ce666bf30ce7f2fbc4bcd19069964ec911f88749e66801739034",
+      "changes": [
+        "property-newly-required:CharityActionResponse.isPublished",
+        "property-newly-required:CurrentIdentityResponse.email",
+        "property-newly-required:PublicOrderResultResponse.quantities"
+      ],
+      "rationale": "EmDash spike integration rebased onto main 771762e: these are additive response-only fields, not new caller requirements. Core supplies publication state for campaign editing, the authenticated user's email for the shared CMS identity, and authoritative order line quantities for the Astro confirmation. Existing response properties and request contracts remain intact. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approval is bound to these exact contract hashes and changes."
+    }
+  ]
 }

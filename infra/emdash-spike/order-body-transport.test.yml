@@ -1,0 +1,60 @@
+services:
+  public:
+    image: ${EMDASH_ORDER_BODY_IMAGE:?}
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.public
+      args:
+        BUN_IMAGE: ${BUN_IMAGE:?}
+        NODE_IMAGE: ${NODE_IMAGE:?}
+    networks: [proof]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/health/ready]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  proxy:
+    image: ${CADDY_IMAGE:?}
+    volumes:
+      - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [proof]
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          "test -f /data/caddy/pki/authorities/local/root.crt && wget -q -O /dev/null http://127.0.0.1:8080/_health",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  probe:
+    image: ${UV_IMAGE:?}
+    environment:
+      PYTHONPATH: /workspace/src:/workspace
+      UV_CACHE_DIR: /tmp/uv
+    volumes:
+      - ../..:/workspace:ro
+      - ${EMDASH_ORDER_BODY_PROOF:?}:/proof:ro
+    working_dir: /workspace
+    command:
+      [
+        uv,
+        run,
+        --frozen,
+        --no-sync,
+        python,
+        tools/emdash_spike/order_body_deadline.py,
+        --transport-only,
+      ]
+    networks: [proof]
+networks:
+  proof:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${EMDASH_ORDER_BODY_SUBNET:?}
+volumes:
+  caddy-data:
+  caddy-config:

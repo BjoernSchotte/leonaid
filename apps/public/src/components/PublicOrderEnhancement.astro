@@ -1,5 +1,6 @@
 <script>
   import { actions, isInputError } from "astro:actions";
+  import { orderQuantitySummary } from "../lib/order-presentation";
 
   const orderForms =
     document.querySelectorAll<HTMLFormElement>("[data-order-form]");
@@ -48,19 +49,16 @@
 
     const syncOrderPreview = () => {
       let totalMinor = 0;
-      let totalPieces = 0;
-      let totalBoxes = 0;
+      const lines = [];
       let currency = "EUR";
       for (const input of quantityInputs) {
-        const quantity = Math.max(0, Number.parseInt(input.value || "0", 10));
+        const quantity = Number(input.value || "0");
         const unitPrice = Number.parseInt(input.dataset.unitPrice || "0", 10);
-        const piecesPerUnit = Number.parseInt(
-          input.dataset.piecesPerUnit || "0",
-          10,
-        );
+        const piecesPerUnit = input.dataset.piecesPerUnit
+          ? Number(input.dataset.piecesPerUnit)
+          : null;
         totalMinor += quantity * unitPrice;
-        totalPieces += quantity * piecesPerUnit;
-        totalBoxes += input.dataset.unit === "box" ? quantity : 0;
+        lines.push({ unit: input.dataset.unit ?? "", piecesPerUnit, quantity });
         currency = input.dataset.currency || currency;
       }
       if (previewTotal) {
@@ -70,10 +68,7 @@
         }).format(totalMinor / 100);
       }
       if (previewQuantity) {
-        previewQuantity.textContent =
-          totalBoxes > 0
-            ? `${totalBoxes} ${totalBoxes === 1 ? "Box" : "Boxen"} · ${totalPieces} Stück`
-            : `${totalPieces} Stück`;
+        previewQuantity.textContent = orderQuantitySummary(lines);
       }
     };
 
@@ -200,10 +195,7 @@
           }).format(result.data.totalMinor / 100);
         }
         if (quantity) {
-          quantity.textContent =
-            result.data.totalBoxes > 0
-              ? `${result.data.totalBoxes} ${result.data.totalBoxes === 1 ? "Box" : "Boxen"} · ${result.data.totalPieces} Stück`
-              : `${result.data.totalPieces} Stück`;
+          quantity.textContent = orderQuantitySummary(result.data.quantities);
         }
         form.hidden = true;
         success.hidden = false;

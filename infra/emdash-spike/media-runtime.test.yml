@@ -1,0 +1,24 @@
+services:
+  # Proof-only topology: keep the existing three isolated networks. RustFS and
+  # the CMS share cms-data; the HTTP probe stays exclusively on Edge.
+  rustfs:
+    networks: !override [cms-data]
+  cms-storage-operator:
+    networks: !override [cms-data]
+  bootstrap-probe:
+    volumes:
+      - ../../node_modules:/workspace/node_modules:ro
+  cms-db-operator:
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: emdash-media
+      S3_ACCESS_KEY_ID: leonaid-emdash
+      S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY}
+      S3_REGION: us-east-1
+  campaign-race-probe:
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: emdash-media
+      S3_ACCESS_KEY_ID: leonaid-emdash
+      S3_SECRET_ACCESS_KEY: ${CMS_S3_SECRET_ACCESS_KEY}
+      S3_REGION: us-east-1

@@ -1,3 +1,6 @@
+import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+import { useActionInUrl } from "../action-admin/action-location";
+
 import {
   Calendar03Icon,
   Invoice03Icon,
@@ -370,6 +373,7 @@ export function CommitmentAdminPage({
       memberships[0]?.actionId ??
       "",
   );
+  useActionInUrl(actionId);
   const [filter, setFilter] = useState<CommitmentFilter>(
     ["draft", "review_ready", "confirmed", "invoiced", "cancelled"].includes(
       requestedStatus ?? "",
@@ -454,13 +458,6 @@ export function CommitmentAdminPage({
               setInvoiceSelection();
               setIssued(undefined);
               setIssueError(undefined);
-              const url = new URL(window.location.href);
-              url.searchParams.set("action", event.target.value);
-              window.history.replaceState(
-                {},
-                "",
-                `${url.pathname}${url.search}`,
-              );
             }}
             value={actionId}
           >
@@ -470,6 +467,7 @@ export function CommitmentAdminPage({
               </option>
             ))}
           </select>
+          <CampaignEditorLink actionId={actionId} identity={identity} />
         </div>
       </header>
 

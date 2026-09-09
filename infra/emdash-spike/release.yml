@@ -1,0 +1,7 @@
+# Explicit CMS release overlay. Operator supplies the reviewed registry tag and
+# digest; production manifest validation rejects floating tags/local image IDs.
+# This does not enable public CMS routing or run migrations.
+services:
+  campaign-site:
+    image: ${LEONAID_CAMPAIGN_SITE_IMAGE:?LEONAID_CAMPAIGN_SITE_IMAGE fehlt}
+    build: !reset null

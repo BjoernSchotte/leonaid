@@ -14,7 +14,9 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 shared_services=proxy
 . "$root/tools/testing/borrow_stack.sh"
-compose --profile '*' up --no-build --detach --wait --wait-timeout 420
+# EmDash has its own bootstrap/secret contract and dedicated acceptance harness.
+compose --profile mail-contract --profile mailing --profile observability \
+  --profile storage-contract up --no-build --detach --wait --wait-timeout 420
 for service in mailpit listmonk listmonk-postgres otel-collector; do
   container_id=$(compose ps --quiet "$service")
   test "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = healthy

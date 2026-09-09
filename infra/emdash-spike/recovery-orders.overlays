@@ -1,0 +1,11 @@
+infra/emdash-spike/identity.test.yml
+infra/emdash-spike/service.test.yml
+infra/emdash-spike/core-auth.test.yml
+infra/emdash-spike/auth-runtime.test.yml
+infra/emdash-spike/bootstrap.test.yml
+infra/emdash-spike/login.test.yml
+infra/emdash-spike/media-runtime.test.yml
+infra/emdash-spike/import-runtime.test.yml
+infra/emdash-spike/orders.test.yml
+infra/emdash-spike/recovery-app.test.yml
+infra/emdash-spike/recovery-orders.test.yml

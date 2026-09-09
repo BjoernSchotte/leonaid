@@ -1,0 +1,44 @@
+networks:
+  crm-data:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${EMDASH_ORDER_CRM_SUBNET:?}
+
+services:
+  partial-order-operator:
+    image: ${EMDASH_ORDER_API_IMAGE:?}
+    environment:
+      LEONAID_ENV: test
+      PYTHONPATH: /repo:/workspace/src
+      CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      TWENTY_DATABASE_URL: postgresql://${TWENTY_POSTGRES_USER:-twenty}:${TWENTY_POSTGRES_PASSWORD}@twenty-postgres:5432/${TWENTY_POSTGRES_DB:-default}
+      TWENTY_INTEGRATION_API_KEY: ${TWENTY_INTEGRATION_API_KEY:-}
+    volumes:
+      - ../..:/repo:ro
+    working_dir: /repo
+    entrypoint: [python, tools/emdash_spike/partial_crm_order.py]
+    networks: [edge, core-data, crm-data]
+    # Test operator only: neither Core runtime nor CMS receives these SQL credentials.
+  twenty-server:
+    environment:
+      SERVER_URL: http://twenty-server:3000
+  twenty-worker:
+    environment:
+      SERVER_URL: http://twenty-server:3000
+  orders-operator:
+    image: ${EMDASH_ORDER_API_IMAGE:?}
+    environment:
+      LEONAID_ENV: test
+      PYTHONPATH: /repo:/workspace/src
+      CORE_DATABASE_URL: postgresql://${CORE_POSTGRES_USER:-leonaid}:${CORE_POSTGRES_PASSWORD}@core-postgres:5432/${CORE_POSTGRES_DB:-leonaid}
+      TWENTY_BASE_URL: http://twenty-server:3000
+      TWENTY_ORIGIN: http://twenty-server:3000
+      TWENTY_BOOTSTRAP_EMAIL: ${TWENTY_BOOTSTRAP_EMAIL:?}
+      TWENTY_BOOTSTRAP_PASSWORD: ${TWENTY_BOOTSTRAP_PASSWORD:?}
+      TWENTY_INTEGRATION_API_KEY: ${TWENTY_INTEGRATION_API_KEY:-}
+    volumes:
+      - ../..:/repo:ro
+    working_dir: /repo
+    entrypoint: [python, tools/emdash_spike/orders_operator.py]
+    networks: [edge, core-data]

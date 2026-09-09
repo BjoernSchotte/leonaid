@@ -1,0 +1,7 @@
+# Test-only activation after a CMS-only restore. The recovered CMS resolves
+# Core on the source edge; its database and RustFS remain on the target network.
+# Never start a target Core API or Twenty service with this overlay.
+networks:
+  edge: !override
+    external: true
+    name: ${LEONAID_CUTOVER_SOURCE_EDGE:?source edge required}

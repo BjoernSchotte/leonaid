@@ -41,7 +41,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade packages/testkit
+  tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
@@ -52,7 +52,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade packages/testkit
+  tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
   tools/activity_feed tools/assignments tools/ci tools/commitments \
@@ -63,7 +63,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
-  tools/upgrade packages/testkit
+  tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check
 run_python uv run --frozen --no-sync \
@@ -74,7 +74,8 @@ docker run --rm \
   python /workspace/tools/handoff/check.py /workspace
 run_bun bun run typecheck
 run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-  .github apps/public apps/pwa apps/web packages/api-client packages/features \
+  .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features \
+  tools/emdash_spike/*.mjs \
   packages/ui tests/contract tests/e2e package.json playwright.config.mjs \
   .prettierrc.json
 

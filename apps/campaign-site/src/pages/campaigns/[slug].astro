@@ -1,0 +1,356 @@
+---
+import { actions } from "astro:actions";
+import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
+import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
+import PublicAction from "../../../../public/src/components/PublicAction.astro";
+import KrapfentaxiCampaignIntro from "../../components/KrapfentaxiCampaignIntro.astro";
+import { withEmDashRuntime } from "emdash/middleware";
+import PublicState from "../../../../public/src/components/PublicState.astro";
+import {
+  PublicCampaignError,
+  readPublicCoreCampaign,
+} from "../../public/core-campaign";
+import { readPublishedCampaign } from "../../public/published-campaign.mjs";
+import { editorialHtml } from "../../public/editorial-html.mjs";
+import { publicMediaPath } from "../../public/published-media.mjs";
+import type { CampaignPageFields } from "../../campaign-fields.generated";
+
+let state: "published" | "inactive" | "missing" | "unavailable" = "missing";
+let route = null;
+let content: CampaignPageFields | null = null;
+let body = "";
+const orderResult = Astro.getActionResult(actions.createPublicOrder);
+try {
+  route = await readPublicCoreCampaign(Astro.params.slug ?? "");
+  if (route.availability === "inactive") state = "inactive";
+  else if (route.action) {
+    const actionId = route.action.id;
+    const published = await withEmDashRuntime((runtime) =>
+      readPublishedCampaign(runtime.db, actionId),
+    );
+    if (published) {
+      content = published.data as CampaignPageFields;
+      body = editorialHtml(content);
+      state = "published";
+    }
+  }
+} catch (error) {
+  console.warn(
+    error instanceof PublicCampaignError
+      ? "public_campaign_core_unavailable"
+      : "public_campaign_content_unavailable",
+  );
+  content = null;
+  route = null;
+  state =
+    error instanceof PublicCampaignError && error.status === 404
+      ? "missing"
+      : "unavailable";
+}
+Astro.response.status =
+  state === "unavailable" ? 503 : state === "published" ? 200 : 404;
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("X-LeonAid-Campaign-State", state);
+if (
+  state === "published" &&
+  route &&
+  Astro.url.pathname !== route.canonicalPath
+)
+  return Astro.redirect(route.canonicalPath, 308);
+const action = state === "published" ? route?.action : null;
+const isKrapfentaxi = Boolean(action && content?.theme === "krapfentaxi");
+const orderForm =
+  action && route?.submissionsAllowed && route.orderAlias
+    ? action.orderForm
+    : null;
+const title =
+  content && action ? `${content.title} · LeonAid` : "Aktionsseite · LeonAid";
+const origin = new URL(process.env.EMDASH_SITE_URL!);
+const socialImage = content?.social_image ?? content?.hero_image;
+const canonicalUrl = new URL(route?.canonicalPath ?? Astro.url.pathname, origin)
+  .href;
+const money = (amount: number, currency: string) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(
+    amount / 100,
+  );
+const units = {
+  box: "je Box",
+  package: "je Paket",
+  piece: "je Stück",
+  sponsoring: "je Sponsoring",
+};
+---
+
+<PublicLayout
+  title={title}
+  description={content?.seo_description ??
+    content?.hero_summary ??
+    action?.purpose ??
+    "Gemeinsam helfen vor Ort."}
+  canonicalUrl={canonicalUrl}
+  imageUrl={new URL(
+    socialImage && action
+      ? publicMediaPath(action.archiveSlug, socialImage.id)
+      : "/community-routes.png",
+    origin,
+  ).href}
+  imageMetadata={socialImage
+    ? {
+        width: socialImage.width,
+        height: socialImage.height,
+        alt: socialImage.alt ?? "",
+      }
+    : undefined}
+  robots={state === "published" ? "index,follow" : "noindex,follow"}
+  canOrder={Boolean(orderForm)}
+  carrierName={action?.carrierName}
+  isKrapfentaxi={isKrapfentaxi}
+  campaignBrand={isKrapfentaxi && action
+    ? {
+        name: action.name,
+        logo: content?.brand_logo
+          ? {
+              src: publicMediaPath(action.archiveSlug, content.brand_logo.id),
+              alt: "",
+              width: content.brand_logo.width,
+              height: content.brand_logo.height,
+            }
+          : null,
+      }
+    : undefined}
+>
+  {
+    content && action && route && isKrapfentaxi ? (
+      <PublicAction route={route} orderResult={orderResult}>
+        <KrapfentaxiCampaignIntro
+          slot="intro"
+          route={route}
+          content={content}
+        />
+        {!!content.faq?.length && (
+          <section
+            slot="after-intro"
+            class="site-shell"
+            aria-labelledby="faq-heading"
+          >
+            <h2 id="faq-heading">Häufige Fragen</h2>
+            {content.faq.map((item) => (
+              <details>
+                <summary>{item.question}</summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </section>
+        )}
+      </PublicAction>
+    ) : content && action ? (
+      <article
+        class="site-shell campaign-story"
+        data-campaign-state="published"
+      >
+        <header id="start">
+          <p class="eyebrow">{action.carrierName}</p>
+          <h1>{content.hero_title || content.title}</h1>
+          {content.hero_summary && (
+            <p class="summary">{content.hero_summary}</p>
+          )}
+          {orderForm && (
+            <a class="primary-link" href="#bestellen">
+              Zur Bestellung
+            </a>
+          )}
+        </header>
+        {content.hero_image && (
+          <img
+            class="campaign-hero-image"
+            src={publicMediaPath(action.archiveSlug, content.hero_image.id)}
+            alt={content.hero_image.alt ?? ""}
+            width={content.hero_image.width}
+            height={content.hero_image.height}
+            fetchpriority="high"
+          />
+        )}
+        <section
+          aria-label="Über die Aktion"
+          class="editorial"
+          set:html={body}
+        />
+        <section id="wirkung" aria-labelledby="purpose-heading">
+          <>
+            <h2 id="purpose-heading">Wem wir helfen</h2>
+            <p>{action.purpose}</p>
+          </>
+        </section>
+        {action.offerings.length > 0 && (
+          <section id="angebote" aria-labelledby="offerings-heading">
+            <h2 id="offerings-heading">Unsere Angebote</h2>
+            <ul class="offers">
+              {action.offerings.map((offering) => (
+                <li>
+                  <h3>{offering.name}</h3>
+                  <p>
+                    {money(offering.unitPriceMinor, offering.currency)} ·{" "}
+                    {units[offering.unit]}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {!!content.faq?.length && (
+          <section aria-labelledby="faq-heading">
+            <h2 id="faq-heading">Häufige Fragen</h2>
+            {content.faq.map((item) => (
+              <details>
+                <summary>{item.question}</summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </section>
+        )}
+        {!!content.partners?.length && (
+          <section aria-labelledby="partners-heading">
+            <h2 id="partners-heading">Gemeinsam möglich gemacht</h2>
+            <ul class="partners">
+              {content.partners.map((partner) => (
+                <li>
+                  {partner.logo && (
+                    <img
+                      class="campaign-partner-logo"
+                      src={publicMediaPath(action.archiveSlug, partner.logo.id)}
+                      alt={partner.logo.alt ?? ""}
+                      width={partner.logo.width}
+                      height={partner.logo.height}
+                      loading="lazy"
+                    />
+                  )}
+                  <h3>
+                    {partner.website ? (
+                      <a href={partner.website} rel="noopener noreferrer">
+                        {partner.name}
+                      </a>
+                    ) : (
+                      partner.name
+                    )}
+                  </h3>
+                  {partner.description && <p>{partner.description}</p>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </article>
+    ) : (
+      <PublicState
+        state={state === "unavailable" ? "unavailable" : "not-found"}
+        eyebrow={
+          state === "unavailable"
+            ? "Kurze Unterbrechung"
+            : "Noch nicht öffentlich"
+        }
+        title={
+          state === "unavailable"
+            ? "Bitte versuche es gleich noch einmal."
+            : "Diese Aktionsseite ist derzeit nicht veröffentlicht."
+        }
+        message={
+          state === "unavailable"
+            ? "Die Aktionsseite ist gerade nicht erreichbar. Bitte lade sie in Kürze erneut."
+            : "Verwende den aktuellen Aktionslink deines Lions Clubs oder schau später wieder vorbei."
+        }
+        actionHref={state === "unavailable" ? Astro.url.pathname : "/"}
+        actionLabel={
+          state === "unavailable" ? "Erneut versuchen" : "Zur Startseite"
+        }
+      />
+    )
+  }
+  {
+    !isKrapfentaxi && action && orderForm && route?.orderAlias && (
+      <PublicOrder
+        action={action}
+        orderForm={orderForm}
+        publicAlias={route.orderAlias}
+        orderResult={orderResult}
+      />
+    )
+  }
+</PublicLayout>
+<style>
+  .campaign-hero-image {
+    width: 100%;
+    max-width: 48rem;
+    height: auto;
+    margin-block: 2rem;
+  }
+  .campaign-partner-logo {
+    width: 8rem;
+    height: 6rem;
+    object-fit: contain;
+    object-position: left center;
+  }
+  .campaign-story {
+    max-width: 64rem;
+    padding-block: clamp(2rem, 6vw, 5rem);
+  }
+  .campaign-story header {
+    max-width: 48rem;
+    margin-bottom: 3rem;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    line-height: 1.05;
+    margin-block: 1rem;
+  }
+  .summary {
+    font-size: clamp(1.125rem, 2vw, 1.5rem);
+    line-height: 1.6;
+  }
+  section {
+    margin-block: 3rem;
+  }
+  .editorial,
+  section > p {
+    max-width: 68ch;
+    line-height: 1.75;
+  }
+  .editorial :global(a) {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .offers,
+  .partners {
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 1.5rem;
+  }
+  .offers li,
+  .partners li {
+    border-top: 1px solid var(--rule);
+    padding-top: 1rem;
+  }
+  details {
+    border-top: 1px solid var(--rule);
+    padding-block: 0.5rem;
+  }
+  summary {
+    padding-block: 0.75rem;
+    min-height: 44px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  details p {
+    max-width: 68ch;
+    line-height: 1.7;
+    white-space: pre-line;
+  }
+  @media (min-width: 45rem) {
+    .offers,
+    .partners {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>

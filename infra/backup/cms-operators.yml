@@ -1,0 +1,14 @@
+services:
+  cms-recovery-operator:
+    profiles: [cms-recovery]
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    working_dir: /workspace
+    entrypoint: [node, tools/backup/cms-recovery.mjs]
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: ${CORE_POSTGRES_DB:-leonaid}
+      PGUSER: ${CORE_POSTGRES_USER:-leonaid}
+      PGPASSWORD: ${CORE_POSTGRES_PASSWORD:-}
+      CMS_POSTGRES_PASSWORD: ${CMS_POSTGRES_PASSWORD:-}
+    networks: [core-data, cms-data]
+    volumes: [../..:/workspace:ro]

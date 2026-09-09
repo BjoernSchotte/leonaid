@@ -1,0 +1,35 @@
+services:
+  proxy:
+    ports: !reset []
+    depends_on: !reset {}
+  public:
+    depends_on: !reset {}
+  admin-browser:
+    image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
+    working_dir: /workspace
+    networks: [edge]
+    volumes:
+      - ../../tools:/workspace/tools:ro
+      - ../../node_modules:/workspace/node_modules:ro
+  campaign-site:
+    environment:
+      EMDASH_SITE_URL: https://proxy:8443
+  bootstrap-probe:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    working_dir: /workspace
+    networks: [edge]
+    volumes:
+      - ../../tools:/workspace/tools:ro
+      - ../../apps/campaign-site/src/auth/campaign-manifest.mjs:/workspace/apps/campaign-site/src/auth/campaign-manifest.mjs:ro
+      - ../../apps/campaign-site/src/campaign-schema.mjs:/workspace/apps/campaign-site/src/campaign-schema.mjs:ro
+      - ../../specs/emdash-campaign-microsite-spike:/workspace/specs/emdash-campaign-microsite-spike:ro
+  bootstrap-operator:
+    image: docker.io/library/node:22.23.0-alpine3.23@sha256:35e2f96595091599e7c1fb0b61049e17d8478997b2aa13db51ad7995299fe55a
+    user: "1000:1000"
+    network_mode: none
+    working_dir: /workspace
+    volumes:
+      - ../../apps/campaign-site:/workspace/apps/campaign-site:ro
+      - ../../tools/emdash_spike:/workspace/tools/emdash_spike:ro
+      - cms-bootstrap-state:/app/bootstrap-state
+    entrypoint: [node, tools/emdash_spike/arm-bootstrap.mjs]

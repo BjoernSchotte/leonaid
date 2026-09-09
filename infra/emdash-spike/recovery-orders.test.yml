@@ -1,0 +1,9 @@
+networks:
+  crm-data:
+    ipam:
+      config: !override
+        - subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.32/28"
+services:
+  twenty-server:
+    environment:
+      DISABLE_DB_MIGRATIONS: ${EMDASH_RECOVERY_TWENTY_SKIP_MIGRATIONS:-false}

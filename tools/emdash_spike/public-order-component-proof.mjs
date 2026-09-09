@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { chromium, firefox, webkit } from "playwright";
+
+const campaign = process.argv.includes("--campaign");
+const mixed = process.argv.includes("--mixed");
+const pagePath = campaign ? "/campaigns/krapfentaxi-2026/" : "/krapfentaxi";
+
+// Real public Astro + Core. This fixture intentionally has no CRM credentials:
+// prove form rendering/validation and failure UX, never claim accepted orders.
+for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
+  const browser = await engine.launch({ headless: true });
+  try {
+    for (const javaScriptEnabled of [false, true]) {
+      const context = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        javaScriptEnabled,
+        viewport: { width: javaScriptEnabled ? 1280 : 390, height: 900 },
+      });
+      const page = await context.newPage();
+      const response = await page.goto(`https://proxy:8443${pagePath}`);
+      assert.equal(response.status(), 200);
+      assert.match(response.headers()["cache-control"], /no-store/);
+      const form = page.locator("[data-order-form]");
+      await form.waitFor();
+      assert.equal(
+        (
+          await form.locator("[data-order-preview-quantity]").textContent()
+        ).trim(),
+        "1 Box (24 Stück)",
+      );
+      const commandId = await form.locator('[name="commandId"]').inputValue();
+      assert.equal(await form.count(), 1);
+      assert.equal(
+        await form.locator('[name="publicAlias"]').inputValue(),
+        "krapfentaxi",
+      );
+      assert.ok(
+        (await form.locator('[name="accessToken"]').inputValue()).length >= 32,
+      );
+      assert.equal(await page.locator("h1").count(), 1);
+      await form.locator('[name="billingSameAsDelivery"]').uncheck();
+      const inputs = {
+        companyName:
+          '\" /><script id="redisplay-injection">window.redisplayInjected=true</script>',
+        givenName: "Synthetic",
+        familyName: "Order",
+        email: "form-proof@leonaid.invalid",
+        phone: "+49 821 123456",
+        deliveryRecipientName: "Synthetic Form Proof",
+        deliveryStreetLine1: "Testweg 1",
+        deliveryPostalCode: "86150",
+        deliveryCity: "Augsburg",
+        invoiceRecipientName: "Synthetic Invoice",
+        invoiceStreetLine1: "Rechnungsweg 2",
+        invoicePostalCode: "86150",
+        invoiceCity: "Augsburg",
+        invoiceEmail: "invoice-proof@leonaid.invalid",
+        message: "Synthetic delivery note",
+      };
+      for (const [field, value] of Object.entries(inputs))
+        await form.locator(`[name="${field}"]`).fill(value);
+      await form.locator('[name="quantity"]').first().fill("3");
+      if (mixed) {
+        assert.equal(await form.locator('[name="quantity"]').count(), 4);
+        for (const [unit, quantity] of [
+          ["package", "2"],
+          ["piece", "4"],
+          ["sponsoring", "1"],
+        ])
+          await form
+            .locator(`[data-quantity][data-unit="${unit}"]`)
+            .fill(quantity);
+      }
+      const expectedQuantity = mixed
+        ? "3 Boxen (72 Stück) · 2 Pakete · 4 Stück · 1 Sponsoring"
+        : "3 Boxen (72 Stück)";
+      const assertQuantity = async () => {
+        const summary = (
+          await form.locator("[data-order-preview-quantity]").textContent()
+        ).trim();
+        // Offering order belongs to Core; each unlike unit must remain explicit.
+        assert.deepEqual(
+          summary.split(" · ").sort(),
+          expectedQuantity.split(" · ").sort(),
+        );
+      };
+      if (javaScriptEnabled) await assertQuantity();
+      // Position independently of global smooth scrolling; retain a normal,
+      // hit-tested browser click rather than setting consent programmatically.
+      await form
+        .locator('[name="privacyAcknowledged"]')
+        .evaluate((element) =>
+          element.scrollIntoView({ behavior: "instant", block: "center" }),
+        );
+      await form.locator('[name="privacyAcknowledged"]').check();
+      await form.locator('[name="bindingOrderConfirmed"]').check();
+      assert.equal(
+        await form.evaluate((element) => element.checkValidity()),
+        true,
+      );
+      const submitted = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname ===
+            (javaScriptEnabled ? "/_actions/createPublicOrder/" : pagePath),
+      );
+      await form.locator('[type="submit"]').click();
+      const submission = await submitted;
+      assert.equal(submission.request().redirectedFrom(), null);
+      await page.locator('[data-form-message][data-state="error"]').waitFor();
+      assert.equal(
+        await page.locator("[data-form-message]").evaluate((element) =>
+          [...element.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join("")
+            .trim(),
+        ),
+        "Das Bestellformular ist vorübergehend nicht verfügbar.",
+      );
+      for (const [field, value] of Object.entries(inputs))
+        assert.equal(
+          await form.locator(`[name="${field}"]`).inputValue(),
+          value,
+        );
+      assert.equal(
+        await form.locator('[name="commandId"]').inputValue(),
+        commandId,
+      );
+      assert.equal(
+        await form.locator('[name="quantity"]').first().inputValue(),
+        "3",
+      );
+      assert.match(
+        await form.locator("[data-order-preview-total]").textContent(),
+        mixed ? /115,00/ : /108,00/,
+      );
+      await assertQuantity();
+      if (mixed) {
+        for (const [unit, quantity] of [
+          ["package", "2"],
+          ["piece", "4"],
+          ["sponsoring", "1"],
+        ])
+          assert.equal(
+            await form
+              .locator(`[data-quantity][data-unit="${unit}"]`)
+              .inputValue(),
+            quantity,
+          );
+      }
+      assert.equal(
+        await form.locator('[name="billingSameAsDelivery"]').isChecked(),
+        false,
+      );
+      assert.equal(await page.locator("script#redisplay-injection").count(), 0);
+      assert.equal(
+        await page.evaluate(() => window.redisplayInjected),
+        undefined,
+      );
+      if (!javaScriptEnabled) {
+        assert.equal(
+          await form.locator('[name="bindingOrderConfirmed"]').isChecked(),
+          false,
+        );
+        assert.equal(
+          await form.locator('[name="privacyAcknowledged"]').isChecked(),
+          false,
+        );
+      }
+      assert.equal(await page.locator("[data-order-form]").isVisible(), true);
+      assert.equal(
+        await page.locator("[data-order-success]:visible").count(),
+        0,
+      );
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+      assert.equal((await context.cookies()).length, 0);
+      assert.equal(new URL(page.url()).pathname, pagePath);
+      if (javaScriptEnabled) {
+        assert.equal(
+          await form.locator('[name="email"]').inputValue(),
+          "form-proof@leonaid.invalid",
+        );
+        await page.screenshot({
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}${mixed ? "-mixed" : ""}-desktop.png`,
+          fullPage: true,
+        });
+      } else
+        await page.screenshot({
+          path: `/visual-proof/${campaign ? "campaign-" : ""}order-${name}${mixed ? "-mixed" : ""}-mobile-nojs.png`,
+          fullPage: true,
+        });
+      await context.close();
+      console.log(
+        `public-order-component: campaign=${campaign} mixed=${mixed} ${name} JS=${javaScriptEnabled}; real POST/error, escaped retained fields, separate billing, unit-specific summaries and command ID, no false success or cookie passed`,
+      );
+    }
+  } finally {
+    await browser.close();
+  }
+}

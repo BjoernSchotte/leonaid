@@ -1,0 +1,16 @@
+services:
+  cms-migration-operator:
+    profiles: [emdash]
+    image: ${LEONAID_CMS_MIGRATION_IMAGE:?verified immutable CMS image required}
+    entrypoint: [node, /app/operator/cms-migration-operator.mjs]
+    command: [verify]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PGHOST: core-postgres
+      PGDATABASE: emdash
+      PGUSER: emdash
+      PGPASSWORD: ${CMS_POSTGRES_PASSWORD:?CMS database credential required}
+    networks: [cms-data]
+    volumes: [cms-bootstrap-state:/app/bootstrap-state]

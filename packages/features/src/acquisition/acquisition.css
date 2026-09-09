@@ -797,7 +797,7 @@
     align-items: start;
   }
 
-  .acq-page__header--with-action .ui-button {
+  .acq-page__header--with-action button.ui-button {
     display: none;
   }
 

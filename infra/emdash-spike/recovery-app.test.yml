@@ -1,0 +1,50 @@
+services:
+  api:
+    image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-api
+  campaign-site:
+    image: ${EMDASH_RECOVERY_VERIFIED_CMS_IMAGE:-${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-campaign-site}
+  public:
+    image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-public
+  worker:
+    image: ${EMDASH_RECOVERY_IMAGE_PREFIX:?source image identity required}-worker
+networks:
+  core-data:
+    ipam:
+      config:
+        [
+          {
+            subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.0/28",
+          },
+        ]
+  cms-data:
+    ipam:
+      config:
+        [
+          {
+            subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.16/28",
+          },
+        ]
+  crm-data:
+    ipam:
+      config:
+        [
+          {
+            subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.32/28",
+          },
+        ]
+  storage-data:
+    ipam:
+      config:
+        [
+          {
+            subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.48/28",
+          },
+        ]
+  edge:
+    ipam:
+      config:
+        [
+          {
+            subnet: "${LEONAID_RECOVERY_PREFIX:?isolated subnet required}.64/28",
+          },
+        ]

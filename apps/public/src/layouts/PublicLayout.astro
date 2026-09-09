@@ -12,23 +12,37 @@ interface Props {
   canonicalUrl: string;
   description: string;
   imageUrl: string;
+  imageMetadata?: { width?: number; height?: number; alt?: string };
   robots?: string;
   title: string;
   isKrapfentaxi?: boolean;
   canOrder?: boolean;
   carrierName?: string;
+  campaignBrand?: {
+    name: string;
+    logo: { src: string; alt: string; width?: number; height?: number } | null;
+  };
 }
 
 const {
   canonicalUrl,
   description,
   imageUrl,
+  imageMetadata,
   robots = "index,follow",
   title,
   isKrapfentaxi = false,
   canOrder = false,
   carrierName,
+  campaignBrand,
 } = Astro.props;
+const shareImage = imageMetadata ?? {
+  width: isKrapfentaxi ? 1568 : 1729,
+  height: isKrapfentaxi ? 1024 : 910,
+  alt: isKrapfentaxi
+    ? "Ein Löwe im Krapfentaxi vor der Würzburger Residenz."
+    : "Abstrakte Wege verbinden eine lokale Gemeinschaft.",
+};
 ---
 
 <!doctype html>
@@ -49,20 +63,24 @@ const {
     <meta property="og:type" content="website" />
     <meta
       property="og:site_name"
-      content={isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid"}
+      content={campaignBrand?.name ??
+        (isKrapfentaxi ? "Lions Krapfentaxi" : "LeonAid")}
     />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={imageUrl} />
-    <meta property="og:image:width" content={isKrapfentaxi ? "1568" : "1729"} />
-    <meta property="og:image:height" content={isKrapfentaxi ? "1024" : "910"} />
-    <meta
-      property="og:image:alt"
-      content={isKrapfentaxi
-        ? "Ein Löwe im Krapfentaxi vor der Würzburger Residenz."
-        : "Abstrakte Wege verbinden eine lokale Gemeinschaft."}
-    />
+    {
+      shareImage.width && (
+        <meta property="og:image:width" content={String(shareImage.width)} />
+      )
+    }
+    {
+      shareImage.height && (
+        <meta property="og:image:height" content={String(shareImage.height)} />
+      )
+    }
+    <meta property="og:image:alt" content={shareImage.alt} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
@@ -84,8 +102,12 @@ const {
             isKrapfentaxi ? (
               <>
                 <>
-                  <Image src={taxiLogo} width={64} alt="" />
-                  <span>Lions Krapfentaxi</span>
+                  {campaignBrand ? (
+                    campaignBrand.logo && <img {...campaignBrand.logo} />
+                  ) : (
+                    <Image src={taxiLogo} width={64} alt="" />
+                  )}
+                  <span>{campaignBrand?.name ?? "Lions Krapfentaxi"}</span>
                 </>
               </>
             ) : (

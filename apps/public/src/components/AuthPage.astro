@@ -90,6 +90,7 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
 </section>
 
 <script>
+  import { safeLocalReturnTo } from "../lib/return-to";
   import {
     ApiError,
     LeonAidApiClient,
@@ -116,12 +117,10 @@ const requestLabel = fresh ? "Code per E-Mail senden" : "Login-Code anfordern";
   const hasExplicitReturnTo = parameters.has("returnTo");
   const requestedReturnTo =
     parameters.get("returnTo") ?? (fresh ? "/admin/" : "/app/");
-  const returnTo =
-    requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
-      ? requestedReturnTo
-      : fresh
-        ? "/admin/"
-        : "/app/";
+  const returnTo = safeLocalReturnTo(
+    requestedReturnTo,
+    fresh ? "/admin/" : "/app/",
+  );
 
   function defaultDestination(identity: CurrentIdentityResponse): string {
     const actionRoles = new Set(

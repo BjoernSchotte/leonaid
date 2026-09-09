@@ -18,6 +18,20 @@
 	}
 }
 
+http://{$LEONAID_PUBLIC_DOMAIN} {
+	@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+	handle @internal_orders {
+		header Cache-Control no-store
+		respond "Not Found" 404
+	}
+	handle /_health {
+		respond "ready" 200
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}
+
 :80 {
 	handle /_health {
 		respond "ready" 200
@@ -43,7 +57,12 @@
 
 	handle /api/* {
 		import leonaid_headers
-		reverse_proxy api:8000
+		route {
+			@internal_orders path /api/v1/public/actions/*/orders /api/v1/public/actions/*/orders/*
+			header @internal_orders Cache-Control no-store
+			respond @internal_orders "Not Found" 404
+			reverse_proxy api:8000
+		}
 	}
 
 	handle_path /app/* {

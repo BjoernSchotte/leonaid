@@ -35,8 +35,14 @@ export async function submitPublicOrder(
     userAgent?: string;
   } = {},
 ): Promise<PublicOrderResultResponse> {
+  const orderKey = process.env.LEONAID_ORDER_SUBMISSION_KEY ?? "";
+  const coreUrl = process.env.CORE_API_URL?.trim() || "http://api:8000";
+  if (!/^[0-9a-f]{64}$/.test(orderKey) || coreUrl !== "http://api:8000") {
+    throw new Error("Order transport is unavailable");
+  }
   const headers: Record<string, string> = {
     "X-Request-ID": `public-order:${crypto.randomUUID()}`,
+    "X-LeonAid-Order-Key": orderKey,
   };
   if (requestHeaders.forwardedFor) {
     headers["X-Forwarded-For"] = requestHeaders.forwardedFor;

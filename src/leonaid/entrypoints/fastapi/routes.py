@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
@@ -47,6 +49,11 @@ from leonaid.application.documents import (
     GeneratedDocumentService,
 )
 from leonaid.application.email_changes import EmailChangeService
+from leonaid.application.campaign_aliases import (
+    CampaignAliasCommand,
+    CampaignAliasService,
+)
+from leonaid.application.campaign_renderer import CampaignRendererCommand
 from leonaid.application.dashboard import (
     DashboardService,
     DashboardSnapshot,
@@ -70,6 +77,7 @@ from leonaid.application.actions import (
     CreateActionDraft,
     CreateActionFromTemplateDraft,
     PublicActionRoute,
+    PublicActionRouteKind,
     UpdateActionDetailsDraft,
 )
 from leonaid.application.errors import (
@@ -164,6 +172,13 @@ from leonaid.domain.feature_flags import FeatureFlagKey, FeatureFlagSurface
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.entrypoints.fastapi.schemas import (
+    CampaignAliasListResponse,
+    CampaignAliasMutationResponse,
+    CreateCampaignAliasRequest,
+    UpdateCampaignAliasRequest,
+    RemoveCampaignAliasRequest,
+    SelectCampaignRendererRequest,
+    CampaignRendererResponse,
     AcceptInvitationRequest,
     ActivateLegalConfigurationRequest,
     ActionGoalRequest,
@@ -301,9 +316,11 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
+    PublicCampaignRouteResponse,
     PublicCharityActionResponse,
     PublicOfferingResponse,
     PublicOrderFormResponse,
+    PublicOrderQuantityResponse,
     PublicOrderResultResponse,
     ReadinessResponse,
     RecordAcquisitionActivityRequest,
@@ -337,6 +354,10 @@ from leonaid.entrypoints.fastapi.schemas import (
 )
 
 router = APIRouter()
+# Leave time for cancellation/transaction cleanup before Astro's 12-second
+# transport timeout. This includes pool/lock and CRM admission waits, not just
+# individual upstream HTTP requests. It is not a body-ingress timeout.
+PUBLIC_ORDER_PROCESSING_TIMEOUT_SECONDS = 8.0
 
 
 def platform_service(request: Request) -> PlatformApplicationService:
@@ -443,6 +464,10 @@ def dashboard_service(request: Request) -> DashboardService:
 
 def action_service(request: Request) -> CharityActionService:
     return cast(CharityActionService, request.app.state.action_service)
+
+
+def campaign_alias_service(request: Request) -> CampaignAliasService:
+    return cast(CampaignAliasService, request.app.state.campaign_alias_service)
 
 
 def commitment_service(request: Request) -> CommitmentService:
@@ -961,6 +986,7 @@ def dashboard_response(snapshot: DashboardSnapshot) -> DashboardResponse:
 
 def charity_action_response(action: CharityAction) -> CharityActionResponse:
     return CharityActionResponse(
+        is_published=action.is_published_at(datetime.now(timezone.utc)),
         id=action.id,
         carrier_name=action.carrier_name,
         name=action.name,
@@ -1039,13 +1065,18 @@ def public_action_route_response(
     access_token: str | None = None,
     legal_configuration: LegalConfigurationVersion | None = None,
 ) -> PublicActionRouteResponse:
+    if route.route_kind.value not in {"alias", "archive"}:
+        raise ValueError(
+            "Dieser öffentliche Routentyp benötigt einen eigenen Transportvertrag."
+        )
     action = route.action
     submissions_allowed = route.submissions_allowed and legal_configuration is not None
     return PublicActionRouteResponse(
-        route_kind=route.route_kind.value,
+        route_kind="alias" if route.route_kind.value == "alias" else "archive",
         route_value=route.route_value,
         route_path=route.route_path,
         canonical_path=route.canonical_path,
+        redirect_path=route.redirect_path,
         availability=route.availability.value,
         submissions_allowed=submissions_allowed,
         action=(
@@ -1705,6 +1736,46 @@ async def resolve_public_action_archive(
     return public_action_route_response(route)
 
 
+@router.get(
+    "/api/v1/public/actions/campaign/{archive_slug}",
+    operation_id="resolvePublicCampaign",
+    response_model=PublicCampaignRouteResponse,
+    responses=ERROR_RESPONSES,
+    tags=["public-actions"],
+)
+async def resolve_public_campaign(
+    archive_slug: str,
+    request: Request,
+    response: Response,
+) -> PublicCampaignRouteResponse:
+    route = await action_service(request).resolve_public_campaign(archive_slug)
+    legal = (
+        await legal_configuration_service(request).active_configuration()
+        if route.submissions_allowed
+        else None
+    )
+    response.headers["Cache-Control"] = "no-store"
+    token = (
+        public_order_tokens(request).issue(route.action.id, route.order_alias)
+        if legal is not None
+        and route.action is not None
+        and route.order_alias is not None
+        else None
+    )
+    # Reuse only the established field/legal serialization, not alias lookup
+    # or its cache policy. The dedicated transport keeps slug and order alias
+    # separate so the stable URL cannot silently retarget an order to a new year.
+    payload = public_action_route_response(
+        replace(route, route_kind=PublicActionRouteKind.ALIAS),
+        access_token=token,
+        legal_configuration=legal,
+    )
+    return PublicCampaignRouteResponse(
+        **payload.model_dump(exclude={"route_kind", "redirect_path"}),
+        order_alias=route.order_alias if payload.submissions_allowed else None,
+    )
+
+
 def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
     return PublicOrderDraft(
         party=PublicOrderPartyDraft(
@@ -1760,6 +1831,21 @@ def public_order_result_response(
         currency=result.commitment.total.currency,
         total_boxes=result.commitment.total_boxes,
         total_pieces=result.commitment.total_pieces,
+        quantities=[
+            PublicOrderQuantityResponse(
+                unit=line.unit_snapshot.value,
+                quantity=line.quantity,
+                pieces_per_unit=line.pieces_per_unit_snapshot,
+            )
+            for line in sorted(
+                result.commitment.lines,
+                key=lambda line: (
+                    line.unit_snapshot.value,
+                    line.pieces_per_unit_snapshot or 0,
+                    str(line.offering_id),
+                ),
+            )
+        ],
         crm_outcome=result.crm_outcome.value,
         replayed=result.replayed,
     )
@@ -1794,19 +1880,31 @@ async def create_public_order(
     response: Response,
 ) -> PublicOrderResultResponse:
     secret = cast(str, request.app.state.public_order_fingerprint_secret)
-    result = await public_order_service(request).submit(
-        public_alias,
-        access_token=body.access_token,
-        command_id=body.command_id,
-        draft=public_order_draft(body),
-        fingerprint_hash=public_order_fingerprint(
-            secret,
-            forwarded_for=request.headers.get("x-forwarded-for"),
-            client_host=request.client.host if request.client is not None else None,
-            user_agent=request.headers.get("user-agent"),
-        ),
-        request_id=request_id(request),
-    )
+    try:
+        async with asyncio.timeout(PUBLIC_ORDER_PROCESSING_TIMEOUT_SECONDS):
+            result = await public_order_service(request).submit(
+                public_alias,
+                access_token=body.access_token,
+                command_id=body.command_id,
+                draft=public_order_draft(body),
+                fingerprint_hash=public_order_fingerprint(
+                    secret,
+                    forwarded_for=request.headers.get("x-forwarded-for"),
+                    client_host=request.client.host
+                    if request.client is not None
+                    else None,
+                    user_agent=request.headers.get("user-agent"),
+                ),
+                request_id=request_id(request),
+            )
+    except TimeoutError:
+        # CRM writes may already have completed. Do not claim that nothing was
+        # saved: keep the same command identity for deterministic recovery.
+        raise DependencyUnavailable(
+            "public_order_processing_timeout",
+            "Die Verarbeitung dauert gerade zu lange. Bitte versuche dieselbe "
+            "Bestellung erneut, ohne die Seite neu zu laden.",
+        ) from None
     response.headers["Cache-Control"] = "no-store"
     if result.replayed:
         response.status_code = status.HTTP_200_OK
@@ -2934,6 +3032,144 @@ async def set_charity_action_details(
     )
     response.headers["Cache-Control"] = "no-store"
     return charity_action_response(action)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/redirect-aliases",
+    operation_id="listCampaignAliases",
+    response_model=CampaignAliasListResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def list_campaign_aliases(
+    action_id: UUID, request: Request, response: Response
+) -> CampaignAliasListResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    result = await campaign_alias_service(request).list_for_action(actor, action_id)
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasListResponse.model_validate(result)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/redirect-aliases",
+    operation_id="createCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def create_campaign_alias(
+    action_id: UUID,
+    request: Request,
+    body: CreateCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            body.alias_id,
+            action_id,
+            action_id,
+            "create",
+            0,
+            body.alias,
+            body.enabled,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}",
+    operation_id="updateCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def update_campaign_alias(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: UpdateCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            alias_id,
+            action_id,
+            body.target_action_id,
+            "update",
+            body.revision,
+            body.alias,
+            body.enabled,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.delete(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}",
+    operation_id="removeCampaignAlias",
+    response_model=CampaignAliasMutationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def remove_campaign_alias(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: RemoveCampaignAliasRequest,
+    response: Response,
+) -> CampaignAliasMutationResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).mutate(
+        actor,
+        CampaignAliasCommand(
+            body.command_id,
+            alias_id,
+            action_id,
+            action_id,
+            "remove",
+            body.revision,
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignAliasMutationResponse.model_validate(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/redirect-aliases/{alias_id}/renderer",
+    operation_id="selectCampaignRenderer",
+    response_model=CampaignRendererResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def select_campaign_renderer(
+    action_id: UUID,
+    alias_id: UUID,
+    request: Request,
+    body: SelectCampaignRendererRequest,
+    response: Response,
+) -> CampaignRendererResponse:
+    actor = await identity_service(request).authenticate_fresh(session_token(request))
+    result = await campaign_alias_service(request).select_renderer(
+        actor,
+        CampaignRendererCommand(
+            body.command_id, alias_id, action_id, body.revision, body.renderer
+        ),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return CampaignRendererResponse.model_validate(result)
 
 
 @router.put(

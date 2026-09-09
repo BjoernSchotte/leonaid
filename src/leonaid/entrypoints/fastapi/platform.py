@@ -27,6 +27,7 @@ from leonaid.adapters.postgres.acquisition import (
 )
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
+from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepository
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
@@ -70,6 +71,7 @@ from leonaid.application.activity_feed import ActivityFeedService
 from leonaid.application.activities import AcquisitionActivityService
 from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
+from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.commitments import CommitmentService
 from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.dashboard import DashboardService
@@ -112,6 +114,7 @@ from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.platform import PlatformIdentity
 from leonaid.entrypoints.fastapi.routes import router
 from leonaid.entrypoints.fastapi.maintenance import writes_are_blocked
+from leonaid.entrypoints.fastapi.order_proxy import order_proxy_denied
 from leonaid.entrypoints.fastapi.security import (
     csrf_violation,
     rate_limit_violation,
@@ -138,6 +141,14 @@ def error_response(
     request.state.error_code = code
     return JSONResponse(
         status_code=status_code,
+        headers={"Cache-Control": "no-store"}
+        if status_code in {401, 403}
+        or request.url.path.startswith("/api/v1/public/actions/")
+        or (
+            request.url.path.startswith("/api/v1/actions/")
+            and request.url.path.split("/")[5:6] == ["redirect-aliases"]
+        )
+        else None,
         content={
             "error": {
                 "code": code,
@@ -148,7 +159,9 @@ def error_response(
     )
 
 
-def build_service(settings: Settings) -> PlatformApplicationService:
+def build_service(
+    settings: Settings, postgres_probe: PostgresReadinessProbe
+) -> PlatformApplicationService:
     identity = PlatformIdentity(
         service=settings.service_name,
         release=settings.service_version,
@@ -157,9 +170,7 @@ def build_service(settings: Settings) -> PlatformApplicationService:
     return PlatformApplicationService(
         identity=identity,
         probes=(
-            PostgresReadinessProbe(
-                settings.core_database_url.get_secret_value(),
-            ),
+            postgres_probe,
             HttpReadinessProbe("twenty", str(settings.twenty_health_url)),
             HttpReadinessProbe("rustfs", str(settings.rustfs_health_url)),
         ),
@@ -171,7 +182,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         settings = configured_settings or load_settings()
         application.state.settings_summary = settings.safe_summary()
-        application.state.platform_service = build_service(settings)
+        application.state.order_submission_key = (
+            settings.order_submission_key.get_secret_value()
+            if settings.order_submission_key is not None
+            else None
+        )
         pool = await create_pool(settings.core_database_url.get_secret_value())
         checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
             pool,
@@ -187,6 +202,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
                 public_base_url=str(settings.public_base_url),
                 checkpoint_publisher=checkpoint_publisher,
             )
+        )
+        application.state.platform_service = build_service(
+            settings, PostgresReadinessProbe(pool)
         )
         api_metrics = ApiMetrics()
         application.state.operations_service = OperationsService(
@@ -233,6 +251,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.action_service = CharityActionService(
             AsyncpgCharityActionRepository(pool)
+        )
+        application.state.campaign_alias_service = CampaignAliasService(
+            AsyncpgCampaignAliasRepository(pool)
         )
         application.state.activity_feed_service = ActivityFeedService(
             AsyncpgActivityFeedRepository(pool)
@@ -383,6 +404,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             supplied if REQUEST_ID.fullmatch(supplied) else str(uuid4())
         )
+        if order_proxy_denied(request, key=request.app.state.order_submission_key):
+            denied = error_response(
+                request,
+                status_code=404,
+                code="order_proxy_denied",
+                message="Dieser Bestellzugang ist nicht verfügbar.",
+            )
+            denied.headers["Cache-Control"] = "no-store"
+            return denied
         allowed_origins = tuple(request.app.state.allowed_origins)
         origin = request.headers.get("origin")
         if (

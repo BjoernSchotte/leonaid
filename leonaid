@@ -40,6 +40,49 @@ Commands:
                     Prove public alias switching and immutable archive routes
   test-public-orders
                     Prove public form, real Twenty reuse/create and ActivityEvents
+  test-emdash-spike --case <dependencies|closed-runtime|postgres|rustfs|service-runtime|proxy-routing|identity-profile|identity-map|core-auth|auth-runtime|bootstrap-runtime|admin-browser>
+  test-emdash-spike --case <authorization-inventory|authorization-surface>
+  test-emdash-spike --case <campaign-content|campaign-runtime>
+  test-emdash-spike --case schema-runtime
+  test-emdash-spike --case schema-migration
+  test-emdash-spike --case migration-operator
+  test-emdash-spike --case twenty-startup
+  test-emdash-spike --case campaign-auth-race
+  test-emdash-spike --case campaign-editorial-isolation
+  test-emdash-spike --case campaign-media-binding
+  test-emdash-spike --case campaign-media-upload
+  test-emdash-spike --case campaign-media-http
+  test-emdash-spike --case campaign-editor-pointer
+  test-emdash-spike --case campaign-core-public
+  test-emdash-spike --case campaign-public-content
+  test-emdash-spike --case campaign-public-http
+  test-emdash-spike --case campaign-public-media
+  test-emdash-spike --case postgres-pool
+  test-emdash-spike --case core-readiness-pool
+  test-emdash-spike --case public-order-component
+  test-emdash-spike --case order-ingress-pilot
+  test-emdash-spike --case campaign-orders
+  test-emdash-spike --case krapfentaxi-source
+  test-emdash-spike --case krapfentaxi-migration
+  test-emdash-spike --case krapfentaxi-orders
+  test-emdash-spike --case alias-namespaces
+  test-emdash-spike --case alias-persistence
+  test-emdash-spike --case alias-commands
+  test-emdash-spike --case alias-renderer
+  test-emdash-spike --case alias-http
+  test-emdash-spike --case redirect-aliases
+  test-emdash-spike --case recovery-sql
+  test-emdash-spike --case recovery-local
+  test-emdash-spike --case recovery-app
+  test-emdash-spike --case recovery-orders
+  test-emdash-spike --case cutover-rollback
+  test-emdash-spike --case recovery-import
+  test-emdash-spike --case release-legacy-boundary
+  test-emdash-spike --case release-manifest-compatibility
+  test-emdash-spike --case release-image-identity
+  export-campaign-schema      Exportiert nur das versionierte CMS-Schema als JSON
+  export-campaign-types       Exportiert TypeScript-Feldtypen aus dem CMS-Schema
+                    Prove implemented CMS checkpoints; full spike remains gated
   test-activity-feed
                     Prove recipient feed, read state and role-scoped browser UX
   test-testkit      Prove shared clients against all real PoC dependencies
@@ -330,6 +373,18 @@ check_all() {
   require_docker
   check_clean_tree
   before=$(git -C "$root" status --porcelain --untracked-files=all)
+  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case krapfentaxi-source
+  # Linked worktrees use an absolute .git pointer outside the mounted checkout.
+  # Readiness must inspect the real repository, not a synthetic replacement.
+  check_git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+
+  docker run --rm \
+    -v "$root:/workspace:ro" \
+    -w /workspace \
+    "$NODE_IMAGE" \
+    node tools/emdash_spike/dependencies.mjs
+
+  /bin/sh "$root/tools/emdash_spike/test.sh" "$root" --case authorization-inventory
 
   docker run --rm \
     -v "$root:/workspace:ro" \
@@ -342,6 +397,7 @@ check_all() {
   docker run --rm \
     -e PYTHONPATH=/workspace \
     -v "$root:/workspace:ro" \
+    -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/pilot_readiness/test.py /workspace
   docker run --rm \
@@ -377,8 +433,12 @@ check_all() {
     -v "$root:/workspace:ro" \
     "$PYTHON_IMAGE" \
     python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/backup/compose_overlays_test.py
   docker run --rm \
     -v "$root:/workspace:ro" \
+    -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/pilot/boundary.py /workspace
   run_python uv run --frozen --no-sync ruff check \
@@ -389,7 +449,7 @@ check_all() {
     tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade packages/testkit
+    tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
@@ -398,7 +458,7 @@ check_all() {
     tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade packages/testkit
+    tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
@@ -407,8 +467,10 @@ check_all() {
     tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release \
     tools/pilot_readiness \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
-    tools/upgrade packages/testkit
+    tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
+  run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/cms_contract_test.py
+  run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/contract_test.py
   run_python uv run --frozen --no-sync \
     python tools/openapi/generate.py --root /workspace --check
   run_python uv run --frozen --no-sync \
@@ -418,8 +480,13 @@ check_all() {
     "$PYTHON_IMAGE" \
     python /workspace/tools/handoff/check.py /workspace
   run_bun bun run typecheck
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs --check
+  docker run --rm --network none -v "$root:/workspace:ro" -w /workspace \
+    "$NODE_IMAGE" node tools/emdash_spike/campaign-types-proof.mjs
   run_bun bun node_modules/prettier/bin/prettier.cjs --check \
-    .github apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
+    .github apps/campaign-site apps/public apps/pwa apps/web packages/api-client packages/features packages/ui \
+    tools/emdash_spike/*.mjs tools/emdash_spike/*.ts \
     tests/contract tests/e2e package.json playwright.config.mjs .prettierrc.json
 
   after=$(git -C "$root" status --porcelain --untracked-files=all)
@@ -1967,6 +2034,23 @@ case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
   check) check_all ;;
+  export-campaign-schema)
+    require_docker
+    docker_retry docker run --rm --network none \
+      --volume "$root/apps/campaign-site/src/campaign-schema.mjs:/workspace/apps/campaign-site/src/campaign-schema.mjs:ro" \
+      --volume "$root/tools/emdash_spike/export-schema.mjs:/workspace/tools/emdash_spike/export-schema.mjs:ro" \
+      --workdir /workspace "$NODE_IMAGE" node tools/emdash_spike/export-schema.mjs
+    ;;
+  export-campaign-types)
+    require_docker
+    docker_retry docker run --rm --network none \
+      --volume "$root:/workspace:ro" --workdir /workspace \
+      "$NODE_IMAGE" node tools/emdash_spike/export-types.mjs
+    ;;
+  test-emdash-spike)
+    shift
+    /bin/sh "$root/tools/emdash_spike/test.sh" "$root" "$@"
+    ;;
   test-unit)
     require_docker
     run_python uv run --frozen --no-sync pytest tests/unit
