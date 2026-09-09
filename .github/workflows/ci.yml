@@ -85,7 +85,7 @@ jobs:
 
   integration-shards:
     needs: fixture
-    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Integration / ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -140,7 +140,7 @@ jobs:
   integration:
     name: Integration
     needs: integration-shards
-    if: always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -151,7 +151,7 @@ jobs:
 
   contract:
     needs: fixture
-    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Contract
     runs-on: ubuntu-24.04
     timeout-minutes: 75
@@ -186,7 +186,7 @@ jobs:
 
   e2e:
     needs: fixture
-    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: E2E leaf / ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -240,7 +240,7 @@ jobs:
   e2e-summary:
     name: E2E / ${{ matrix.group }}
     needs: e2e
-    if: always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -253,7 +253,7 @@ jobs:
 
   security:
     needs: fixture
-    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Security
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -321,7 +321,7 @@ jobs:
 
   golden-parts:
     needs: fixture
-    if: always() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && (needs.fixture.result == 'success' || inputs.cold_run == true) && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     name: Golden installation / ${{ matrix.part }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -367,7 +367,7 @@ jobs:
   golden-journey:
     name: Golden journey
     needs: golden-parts
-    if: always() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true
+    if: ${{ !cancelled() && github.ref != 'refs/heads/ci-artifact-probe' && inputs.artifact_probe != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

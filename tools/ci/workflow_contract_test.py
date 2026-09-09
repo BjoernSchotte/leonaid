@@ -33,6 +33,11 @@ def main() -> None:
             raise AssertionError("Fehlender Artefakt-Upload wurde nicht abgewiesen.")
         mutations = (
             (
+                "needs: integration-shards\n    if: ${{ !cancelled()",
+                "needs: integration-shards\n    if: ${{ always()",
+                "Sammelcheck",
+            ),
+            (
                 "needs: integration-shards",
                 "needs: unit",
                 "Sammelcheck",

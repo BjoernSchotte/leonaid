@@ -71,7 +71,7 @@ def check(path: Path) -> list[str]:
     integration = job_block(text, "integration")
     for required in (
         "needs: integration-shards",
-        "if: always()",
+        "if: ${{ !cancelled()",
         "needs.integration-shards.result",
         'test "$RESULT" = success',
     ):
