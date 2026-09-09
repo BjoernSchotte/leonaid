@@ -35,7 +35,7 @@ full backup/restore rehearsals. Explicit local commands still run the full
 requested selection, independent of the CI schedule.
 
 ```sh
-./leonaid test-surveys --shard integration-limits
+./leonaid test-surveys --shard request-limits
 ./leonaid test-surveys --group recovery
 ```
 
@@ -111,7 +111,7 @@ Validation commands:
 python3 tools/testing/shared_stack_test.py
 python3 tools/testing/shared_stack_live.py
 sh tools/ci/e2e.sh acquisition
-./leonaid test-surveys --shard integration-limits
+./leonaid test-surveys --shard request-limits
 ```
 
 The live reset proof deliberately contaminates both databases, Redis, versioned
@@ -157,7 +157,7 @@ LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 ./leonaid test-surveys --suite nightly
 ```
 
-Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
+Survey defaults select the 27 PR checks; `--suite all`, `--suite nightly`,
 `--group recovery` or an explicit nightly shard opt into recovery. Compatible
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
