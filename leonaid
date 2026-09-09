@@ -2,6 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$root/tools/testing/phase.sh"
 . "$root/infra/locks/images.env"
 
 usage() {
@@ -1803,14 +1804,17 @@ snapshot_systems() {
 reset_systems() {
   require_docker
   validate_reset_target
-  compose --profile dev-mail down --volumes --remove-orphans
+  phase reset-remove compose --profile dev-mail down --volumes --remove-orphans
   rm -f "$root/.local/twenty/integration.env"
-  compose --profile dev-mail up --build --detach --wait --wait-timeout 420
-  provision_twenty
-  compose --profile dev-mail up --detach --force-recreate \
-    --wait --wait-timeout 420 api worker
-  seed_systems
-  snapshot_systems golden-v1.json
+  phase reset-build compose build
+  # API and workers must first start with the newly provisioned integration key.
+  # Starting the whole stack before provisioning required a second API restart.
+  phase reset-data-services compose --profile dev-mail up --no-build \
+    --detach --wait --wait-timeout 420 \
+    core-postgres rustfs mailpit twenty-server twenty-worker survey-validator
+  phase reset-provision provision_twenty
+  phase reset-seed seed_systems
+  phase reset-snapshot snapshot_systems golden-v1.json
   echo "reset: OK: Core-PostgreSQL, Twenty, RustFS und Mailpit entsprechen Golden Data v1"
 }
 

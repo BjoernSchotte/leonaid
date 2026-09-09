@@ -6,6 +6,7 @@ root=$(cd "$root" && pwd)
 seed_part=${LEONAID_SEED_PART:-all}
 case "$seed_part" in all|cold|reset) ;; *) exit 64 ;; esac
 . "$root/infra/locks/images.env"
+. "$root/tools/testing/phase.sh"
 
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=leonaid-poc012-test-$suffix
@@ -143,8 +144,19 @@ if [ "$seed_part" = reset ]; then
   # Only the starting state is prepared. The reset after the real mutation below
   # still uses the unmodified operator CLI and creates new empty volumes.
   cp "$compose_file" "$proof/cold-compose.json"
-  python3 "$checkout_root/tools/testing/seed_fixture.py" "$checkout_root" "$root" "$project"
-  "$root/leonaid" seed
+  phase seed-fixture-import python3 "$checkout_root/tools/testing/seed_fixture.py" "$checkout_root" "$root" "$project"
+  compose build api
+  phase seed-starting-services compose --profile dev-mail up --no-build --detach \
+    --wait --wait-timeout 420 core-postgres rustfs mailpit twenty-server twenty-worker
+  phase seed-starting-data compose run --rm --no-deps \
+    --env-from-file "$env_file" \
+    --env-from-file "$root/.local/twenty/integration.env" \
+    --volume "$root:/repo:ro" --entrypoint python api \
+    /repo/tools/seed/golden.py seed /repo/tests/fixtures/golden/v1 \
+    /repo/.artifacts/golden-v1/invoices
+  docker run --rm --env LEONAID_ENV=local -v "$root:/workspace" "$PYTHON_IMAGE" \
+    python /workspace/tools/dx/generate_test_logins.py \
+    /workspace/tests/fixtures/golden/v1/dataset.json /workspace/.local/test-logins.md
   cp "$proof/cold-compose.json" "$compose_file"
 else
   "$root/leonaid" reset

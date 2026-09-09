@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -242,189 +243,224 @@ async def main():
                         )
                         own_jobs[(name, resource["kind"], product)] = job["id"]
         before = await fingerprint()
-        for name in actors:
-            expected_ids = {
-                str(r["id"]) for r in resources if expected_caps(name, r["kind"])
-            }
-            for suffix in ["", "&status=active", "&offset=1"]:
-                listing = await call(
-                    "GET",
-                    "/api/v1/surveys?search=Permission%20matrix" + suffix,
-                    actor=name,
-                )
-                assert listing["total"] == len(expected_ids)
-                actual = {item["id"] for item in listing["items"]}
-                assert actual <= expected_ids
-                assert len(actual) == max(
-                    0, len(expected_ids) - (1 if "offset" in suffix else 0)
-                )
-                if "offset" not in suffix:
-                    assert actual == expected_ids
-            allowed_actions = (
-                set(map(str, actions))
-                if name == "admin"
-                else ({str(actions[0])} if name == "manager" else set())
-            )
-            assert {item["id"] for item in listing["actions"]} == allowed_actions
-            for resource in resources:
-                counts["personaResourcePairs"] += 1
-                caps = expected_caps(name, resource["kind"])
-                path, snap = resource["path"], resource["snapshot"]
-                summary = await call(
-                    "GET", path, actor=name, expected=200 if caps else 404
-                )
-                if caps:
-                    assert set(summary["capabilities"]) == caps
-                reads = [
-                    ("/draft", {"design"}),
-                    ("/publication", {"publish"}),
-                    ("/analysis/versions", {"view_aggregates"}),
-                    ("/analysis/" + snap, {"view_aggregates"}),
-                    ("/response-selections/versions", {"read_responses"}),
-                    ("/response-selections/" + snap, {"read_responses"}),
-                    ("/response-selections/" + snap + "/responses", {"read_responses"}),
-                    (
-                        "/response-selections/" + snap + "/free-text/answer",
-                        {"read_responses"},
-                    ),
-                    ("/export-selections/versions", {"export_raw", "export_reports"}),
-                    ("/invitations", {"manage_invitations"}),
-                    (
-                        "/response-selections/"
-                        + snap
-                        + "/responses/"
-                        + resource["participation"],
-                        {"read_responses"},
-                    ),
-                    (
-                        "/exports/" + resource["jobs"]["responses_csv"]["id"],
-                        {"export_raw"} if name == "admin" else set(),
-                    ),
-                    (
-                        "/exports/" + resource["jobs"]["analysis_xlsx"]["id"],
-                        {"export_reports"} if name == "admin" else set(),
-                    ),
-                ]
-                for suffix, required in reads:
-                    allowed = bool(caps & required)
-                    await call(
-                        "GET",
-                        path + suffix,
-                        actor=name,
-                        expected=200 if allowed else 404,
-                    )
-                    counts["positiveReads" if allowed else "deniedReads"] += 1
-                for product in ["responses_csv", "analysis_xlsx"]:
-                    jid = own_jobs.get((name, resource["kind"], product))
-                    if jid:
-                        await call("GET", path + "/exports/" + jid, actor=name)
-                        counts["positiveReads"] += 1
-                mutation = {"operationId": "matrix-denied", "expectedRevision": 1}
-                selection = {
-                    "operationId": "matrix-denied",
-                    "filter": {"versionId": resource["version"]},
+        parallelism = int(os.environ.get("LEONAID_PERMISSION_CONCURRENCY", "4"))
+        if not 1 <= parallelism <= 8:
+            raise ValueError("Permission concurrency must be between 1 and 8")
+        semaphore = asyncio.Semaphore(parallelism)
+        matrix_started = time.monotonic()
+
+        async def verify_actor(name):
+            async with semaphore:
+                expected_ids = {
+                    str(r["id"]) for r in resources if expected_caps(name, r["kind"])
                 }
-                writes = [
-                    (
-                        "PUT",
-                        "/draft",
-                        {**mutation, "definition": DEFINITION},
-                        {"design"},
-                    ),
-                    ("POST", "/draft/validate", {"expectedRevision": 1}, {"design"}),
-                    (
-                        "PUT",
-                        "/settings",
-                        {**mutation, "inactivityTimeoutSeconds": 90},
-                        {"design"},
-                    ),
-                    (
-                        "POST",
-                        "/duplicate",
-                        {
-                            **mutation,
-                            "targetSurveyId": str(uuid4()),
-                            "title": "Denied duplicate",
-                        },
-                        {"design"},
-                    ),
-                    ("POST", "/publish", mutation, {"publish"}),
-                    ("PUT", "/schedule", {**mutation, "endsAt": None}, {"publish"}),
-                    (
-                        "PUT",
-                        "/access",
-                        {**mutation, "accessMode": "invitation"},
-                        {"publish"},
-                    ),
-                    *[
-                        ("POST", "/transition", {**mutation, "action": action}, {cap})
-                        for action, cap in [
-                            ("end", "publish"),
-                            ("archive", "archive"),
-                            ("unarchive", "archive"),
-                            ("trash", "delete"),
-                            ("restore", "delete"),
-                        ]
-                    ],
-                    ("POST", "/delete-permanently", mutation, {"delete"}),
-                    ("POST", "/analysis", selection, {"view_aggregates"}),
-                    ("POST", "/response-selections", selection, {"read_responses"}),
-                    (
-                        "POST",
-                        "/export-selections",
-                        selection,
-                        {"export_raw", "export_reports"},
-                    ),
-                    (
-                        "POST",
-                        "/invitations",
-                        {
-                            **mutation,
-                            "recipientEmail": "matrix@example.com",
-                            "expiresInDays": 30,
-                        },
-                        {"manage_invitations"},
-                    ),
-                    *[
+                for suffix in ["", "&status=active", "&offset=1"]:
+                    listing = await call(
+                        "GET",
+                        "/api/v1/surveys?search=Permission%20matrix" + suffix,
+                        actor=name,
+                    )
+                    assert listing["total"] == len(expected_ids)
+                    actual = {item["id"] for item in listing["items"]}
+                    assert actual <= expected_ids
+                    assert len(actual) == max(
+                        0, len(expected_ids) - (1 if "offset" in suffix else 0)
+                    )
+                    if "offset" not in suffix:
+                        assert actual == expected_ids
+                allowed_actions = (
+                    set(map(str, actions))
+                    if name == "admin"
+                    else ({str(actions[0])} if name == "manager" else set())
+                )
+                assert {item["id"] for item in listing["actions"]} == allowed_actions
+                for resource in resources:
+                    counts["personaResourcePairs"] += 1
+                    caps = expected_caps(name, resource["kind"])
+                    path, snap = resource["path"], resource["snapshot"]
+                    summary = await call(
+                        "GET", path, actor=name, expected=200 if caps else 404
+                    )
+                    if caps:
+                        assert set(summary["capabilities"]) == caps
+                    reads = [
+                        ("/draft", {"design"}),
+                        ("/publication", {"publish"}),
+                        ("/analysis/versions", {"view_aggregates"}),
+                        ("/analysis/" + snap, {"view_aggregates"}),
+                        ("/response-selections/versions", {"read_responses"}),
+                        ("/response-selections/" + snap, {"read_responses"}),
                         (
-                            "POST",
-                            "/exports",
-                            {
-                                "operationId": "matrix-denied",
-                                "snapshotId": snap,
-                                "product": product,
-                            },
-                            {cap},
-                        )
-                        for product, cap in [
-                            ("responses_csv", "export_raw"),
-                            ("analysis_xlsx", "export_reports"),
-                        ]
-                    ],
-                ]
-                for method, suffix, body, required in writes:
-                    if caps & required:
-                        continue  # Authorized mutations have separate lifecycle/export/invitation proofs.
-                    await call(method, path + suffix, body, actor=name, expected=404)
-                    counts["deniedWrites"] += 1
-                for product, cap in [
-                    ("responses_csv", "export_raw"),
-                    ("analysis_xlsx", "export_reports"),
-                ]:
-                    if name != "admin" or cap not in caps:
+                            "/response-selections/" + snap + "/responses",
+                            {"read_responses"},
+                        ),
+                        (
+                            "/response-selections/" + snap + "/free-text/answer",
+                            {"read_responses"},
+                        ),
+                        (
+                            "/export-selections/versions",
+                            {"export_raw", "export_reports"},
+                        ),
+                        ("/invitations", {"manage_invitations"}),
+                        (
+                            "/response-selections/"
+                            + snap
+                            + "/responses/"
+                            + resource["participation"],
+                            {"read_responses"},
+                        ),
+                        (
+                            "/exports/" + resource["jobs"]["responses_csv"]["id"],
+                            {"export_raw"} if name == "admin" else set(),
+                        ),
+                        (
+                            "/exports/" + resource["jobs"]["analysis_xlsx"]["id"],
+                            {"export_reports"} if name == "admin" else set(),
+                        ),
+                    ]
+                    for suffix, required in reads:
+                        allowed = bool(caps & required)
                         await call(
                             "GET",
-                            path
-                            + "/exports/"
-                            + resource["jobs"][product]["id"]
-                            + "/download",
+                            path + suffix,
                             actor=name,
-                            expected=404,
+                            expected=200 if allowed else 404,
                         )
-                        counts["deniedReads"] += 1
+                        counts["positiveReads" if allowed else "deniedReads"] += 1
+                    for product in ["responses_csv", "analysis_xlsx"]:
+                        jid = own_jobs.get((name, resource["kind"], product))
+                        if jid:
+                            await call("GET", path + "/exports/" + jid, actor=name)
+                            counts["positiveReads"] += 1
+                    mutation = {"operationId": "matrix-denied", "expectedRevision": 1}
+                    selection = {
+                        "operationId": "matrix-denied",
+                        "filter": {"versionId": resource["version"]},
+                    }
+                    writes = [
+                        (
+                            "PUT",
+                            "/draft",
+                            {**mutation, "definition": DEFINITION},
+                            {"design"},
+                        ),
+                        (
+                            "POST",
+                            "/draft/validate",
+                            {"expectedRevision": 1},
+                            {"design"},
+                        ),
+                        (
+                            "PUT",
+                            "/settings",
+                            {**mutation, "inactivityTimeoutSeconds": 90},
+                            {"design"},
+                        ),
+                        (
+                            "POST",
+                            "/duplicate",
+                            {
+                                **mutation,
+                                "targetSurveyId": str(uuid4()),
+                                "title": "Denied duplicate",
+                            },
+                            {"design"},
+                        ),
+                        ("POST", "/publish", mutation, {"publish"}),
+                        ("PUT", "/schedule", {**mutation, "endsAt": None}, {"publish"}),
+                        (
+                            "PUT",
+                            "/access",
+                            {**mutation, "accessMode": "invitation"},
+                            {"publish"},
+                        ),
+                        *[
+                            (
+                                "POST",
+                                "/transition",
+                                {**mutation, "action": action},
+                                {cap},
+                            )
+                            for action, cap in [
+                                ("end", "publish"),
+                                ("archive", "archive"),
+                                ("unarchive", "archive"),
+                                ("trash", "delete"),
+                                ("restore", "delete"),
+                            ]
+                        ],
+                        ("POST", "/delete-permanently", mutation, {"delete"}),
+                        ("POST", "/analysis", selection, {"view_aggregates"}),
+                        ("POST", "/response-selections", selection, {"read_responses"}),
+                        (
+                            "POST",
+                            "/export-selections",
+                            selection,
+                            {"export_raw", "export_reports"},
+                        ),
+                        (
+                            "POST",
+                            "/invitations",
+                            {
+                                **mutation,
+                                "recipientEmail": "matrix@example.com",
+                                "expiresInDays": 30,
+                            },
+                            {"manage_invitations"},
+                        ),
+                        *[
+                            (
+                                "POST",
+                                "/exports",
+                                {
+                                    "operationId": "matrix-denied",
+                                    "snapshotId": snap,
+                                    "product": product,
+                                },
+                                {cap},
+                            )
+                            for product, cap in [
+                                ("responses_csv", "export_raw"),
+                                ("analysis_xlsx", "export_reports"),
+                            ]
+                        ],
+                    ]
+                    for method, suffix, body, required in writes:
+                        if caps & required:
+                            continue  # Authorized mutations have separate lifecycle/export/invitation proofs.
+                        await call(
+                            method, path + suffix, body, actor=name, expected=404
+                        )
+                        counts["deniedWrites"] += 1
+                    for product, cap in [
+                        ("responses_csv", "export_raw"),
+                        ("analysis_xlsx", "export_reports"),
+                    ]:
+                        if name != "admin" or cap not in caps:
+                            await call(
+                                "GET",
+                                path
+                                + "/exports/"
+                                + resource["jobs"][product]["id"]
+                                + "/download",
+                                actor=name,
+                                expected=404,
+                            )
+                            counts["deniedReads"] += 1
+
+        async with asyncio.TaskGroup() as tasks:
+            for name in actors:
+                tasks.create_task(verify_actor(name))
         assert await fingerprint() == before, (
             "Matrix requests changed persisted author state"
         )
+        print(
+            f"test-phase: survey-permissions-matrix seconds={time.monotonic() - matrix_started:.3f} exit=0",
+            flush=True,
+        )
+        # No matrix/browser request runs while these phases revoke roles or
+        # suspend their shared actors. All tasks above have joined first.
         await verify_boundaries(
             conn, call, actors, resources, actions, own_jobs, fingerprint
         )

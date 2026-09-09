@@ -355,7 +355,7 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   await adminPage.getByTestId("request-login").click();
   const freshCode = await waitForCode(
     adminContext.request,
-    "klara.kern@leonaid.invalid",
+    process.env[`KLARA_${browserKey(testInfo.project.name)}_EMAIL`],
     freshMailIds,
   );
   await adminPage.locator("#login-code").fill(freshCode);

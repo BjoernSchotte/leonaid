@@ -120,7 +120,13 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
-        run: ./leonaid bootstrap
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: |
+          case "$TEST_SHARD" in
+            seed-cold|seed-reset) sh tools/ci/bootstrap-prefetch.sh seed ;;
+            *) ./leonaid bootstrap ;;
+          esac
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
         uses: ./.github/actions/test-fixture
@@ -342,7 +348,7 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
-        run: ./leonaid bootstrap
+        run: sh tools/ci/bootstrap-prefetch.sh browser
       - name: Use prepared synthetic data for the functional rounds
         if: matrix.part == 'primary' && inputs.cold_run != true
         uses: ./.github/actions/test-fixture

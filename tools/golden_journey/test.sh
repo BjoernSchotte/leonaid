@@ -4,6 +4,7 @@ set -eu
 root=${1:-$(pwd)}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
+. "$root/tools/testing/phase.sh"
 
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=${LEONAID_GOLDEN_JOURNEY_PROJECT:-leonaid-poc122-test}-$suffix
@@ -171,7 +172,7 @@ run_round() {
     exit 1
   fi
 
-  docker run --rm \
+  phase golden-browser docker run --rm \
     --network "${project}_edge" \
     --env CI=1 \
     --env HOME=/tmp \
@@ -192,6 +193,7 @@ run_round() {
     --project=chromium-390 \
     --project=firefox-390 \
     --project=webkit-390 \
+    --workers="${LEONAID_GOLDEN_WORKERS:-2}" \
     --output="/browser-results/generation-$journey_generation-$round_name" \
     --trace=retain-on-failure \
     --reporter=line

@@ -65,7 +65,14 @@ jobs:
         if: matrix.shard != 'package'
         uses: ./.github/actions/build-cache
       - name: Bootstrap pinned Docker toolchains
-        run: ./leonaid bootstrap
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: |
+          if [ "$TEST_SHARD" = permissions ]; then
+            sh tools/ci/bootstrap-prefetch.sh browser
+          else
+            ./leonaid bootstrap
+          fi
       - name: Use prepared synthetic data
         uses: ./.github/actions/test-fixture
         with:

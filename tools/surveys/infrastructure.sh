@@ -4,6 +4,7 @@ root=${1:-$(pwd)}
 mode=${2:-infrastructure}
 root=$(cd "$root" && pwd)
 . "$root/infra/locks/images.env"
+. "$root/tools/testing/phase.sh"
 # Standalone invocations own fresh resources; the gate can lend a reset fixture.
 # Neither path publishes host ports or shares volumes with another run.
 project="leonaid-surveys-$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
@@ -80,6 +81,7 @@ trap cleanup EXIT HUP INT TERM
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
   [ "$foundation" = false ] || { echo 'Foundation requires a fresh stack' >&2; exit 1; }
   shared_services="proxy worker mailpit"
+  if [ "$mode" = permissions ]; then shared_services="proxy mailpit"; fi
   # The foundation member probe redirects /admin/ to /app/ for non-admins.
   # Only journeys exercises that route in a borrowed Survey stack.
   if [ "$mode" = journeys ]; then shared_services="$shared_services pwa"; fi
@@ -187,7 +189,7 @@ if [ "$mode" = invitations ]; then
 fi
 if [ "$mode" = permissions ]; then
   compose stop worker
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+  phase survey-permissions-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/permissions_live.py
   compose up --detach --wait --wait-timeout 60 worker
 fi
@@ -198,6 +200,7 @@ if [ "$foundation" = true ]; then
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
 fi
+browser_workers=1
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = journeys ]; then
   compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
@@ -211,6 +214,7 @@ if [ "$mode" = branding ]; then
   browser_specs="$browser_specs tests/e2e/surveys-branding.spec.mjs tests/e2e/surveys-completion-message.spec.mjs"
 fi
 if [ "$mode" = permissions ]; then
+  browser_workers=2
   browser_specs="$browser_specs tests/e2e/surveys-publisher.spec.mjs tests/e2e/surveys-permissions.spec.mjs tests/e2e/surveys-role-lifecycle.spec.mjs tests/e2e/surveys-invitation-roles.spec.mjs"
 fi
 state_worker_pid=""
@@ -465,13 +469,13 @@ if [ "$mode" = runner ]; then
     --workdir /repo --entrypoint python api tools/surveys/browser_seed.py
   browser_specs="$browser_specs tests/e2e/surveys-runner.spec.mjs"
 fi
-docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
+phase survey-browser docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
   --env HOME=/tmp --env CI=1 --env SURVEY_FOUNDATION_FORCE_FAILURE="$foundation_failure" --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
   --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
   node_modules/.bin/playwright test $browser_specs \
   --grep-invert 'trash and request|failed deletion' \
-  --browser=chromium --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
+  --browser=chromium --workers="$browser_workers" --output=/proof/test-results --trace="$browser_trace" --reporter="$browser_reporter"
 mkdir -p "$artifact"
 if [ "$mode" = journeys ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

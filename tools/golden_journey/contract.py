@@ -58,6 +58,42 @@ async def prepare_sessions(
     )
     lines: list[str] = []
     for engine in ENGINES:
+        # Fresh-login challenges and mailbox polling must never share an admin
+        # identity between simultaneously running browser engines.
+        admin_id = uuid5(SESSION_NAMESPACE, f"admin:{engine}")
+        email = f"golden-admin-{engine}@leonaid.invalid"
+        await connection.execute(
+            """INSERT INTO user_account(id,email,display_name,status,email_verified_at)
+            SELECT $1,$2,display_name,status,email_verified_at FROM user_account WHERE id=$3
+            ON CONFLICT(id) DO NOTHING""",
+            admin_id,
+            email,
+            KLARA_ID,
+        )
+        await connection.execute(
+            """INSERT INTO user_global_role(user_id,role)
+            SELECT $1,role FROM user_global_role WHERE user_id=$2 ON CONFLICT DO NOTHING""",
+            admin_id,
+            KLARA_ID,
+        )
+        for membership in await connection.fetch(
+            "SELECT action_id,role,active_from,active_until FROM action_membership WHERE user_id=$1",
+            KLARA_ID,
+        ):
+            await connection.execute(
+                """INSERT INTO action_membership(id,action_id,user_id,role,active_from,active_until)
+                VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(action_id,user_id,role) DO NOTHING""",
+                uuid5(
+                    SESSION_NAMESPACE,
+                    f"admin:{engine}:{membership['action_id']}:{membership['role']}",
+                ),
+                membership["action_id"],
+                admin_id,
+                membership["role"],
+                membership["active_from"],
+                membership["active_until"],
+            )
+        lines.append(f"KLARA_{engine.upper()}_EMAIL={email}\n")
         for freshness, fresh_login_at in (
             ("fresh", now),
             ("stale", now - timedelta(hours=1)),
@@ -77,7 +113,7 @@ async def prepare_sessions(
                     SESSION_NAMESPACE,
                     f"{round_name}:{engine}:{freshness}",
                 ),
-                KLARA_ID,
+                admin_id,
                 session_token_digest(token),
                 now + SESSION_LIFETIME - timedelta(hours=2),
                 now,
@@ -164,6 +200,13 @@ async def verify_round(
     emails = [f"journey-{round_name}-{engine}@leonaid.invalid" for engine in ENGINES]
     commitment_ids = [UUID(str(item["commitmentId"])) for item in artifacts]
     invoice_ids = [UUID(str(item["invoiceId"])) for item in artifacts]
+    if (
+        len(set(invoice_ids)) != 3
+        or len({item["invoiceNumber"] for item in artifacts}) != 3
+    ):
+        raise ContractFailure(
+            "Parallel journeys must issue distinct invoices and numbers"
+        )
     public_references = [str(item["publicReference"]) for item in artifacts]
 
     row = await connection.fetchrow(
@@ -293,6 +336,7 @@ async def verify_round(
     if len(document_rows) != 3:
         raise ContractFailure("Nicht alle Journey-PDFs sind verfügbar")
     pdf_evidence: dict[str, dict[str, object]] = {}
+    normalized_pdfs: dict[str, dict[str, object]] = {}
     async with httpx.AsyncClient(
         base_url=require_env("MAIL_TEST_API_URL").rstrip("/"),
         timeout=20,
@@ -345,6 +389,15 @@ async def verify_round(
                 "sha256": digest,
                 "sizeBytes": len(retrieved.content),
             }
+            # Number allocation can interleave across engines. Compare the full
+            # extracted business content by engine, keeping number/byte-identity
+            # assertions against the database, storage and mail in each run.
+            normalized_text = text.replace(
+                str(artifact["invoiceNumber"]), "<invoice-number>"
+            )
+            normalized_pdfs[str(artifact["browser"])] = {
+                "textSha256": hashlib.sha256(normalized_text.encode()).hexdigest(),
+            }
 
     summary = {
         "businessCounts": values,
@@ -361,10 +414,7 @@ async def verify_round(
         "businessCounts": values,
         "companies": sorted(companies),
         "datasetVersion": "1.0.0",
-        "pdfs": {
-            number: {"sizeBytes": evidence["sizeBytes"]}
-            for number, evidence in pdf_evidence.items()
-        },
+        "pdfs": normalized_pdfs,
         "round": round_name,
     }
     normalized_output.write_text(

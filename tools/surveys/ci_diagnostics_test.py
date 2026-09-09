@@ -16,6 +16,26 @@ spec.loader.exec_module(module)
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_timings_accept_only_fixed_labels_and_bounded_numbers(self):
+        raw = """test-phase: survey-browser seconds=12.345 exit=0
+test-phase: survey-permissions-api seconds=32 exit=1
+test-phase: private-client seconds=3 exit=0
+test-phase: survey-browser seconds=99999 exit=0
+test-phase: survey-browser seconds=3 exit=999
+test-phase: survey-browser seconds=3 exit=0 PRIVATE_CANARY
+test-phase: survey-browser seconds=NaN exit=0
+"""
+        report = module.classify(raw, {})
+        self.assertEqual(
+            report["phaseTimings"],
+            [
+                {"phase": "survey-browser", "seconds": 12.345, "exitCode": 0},
+                {"phase": "survey-permissions-api", "seconds": 32.0, "exitCode": 1},
+            ],
+        )
+        self.assertNotIn("private", json.dumps(report))
+        self.assertNotIn("CANARY", json.dumps(report))
+
     def test_colored_playwright_assertions_keep_only_fixed_categories(self):
         raw = (
             "Error: \x1b[2mexpect(\x1b[22m\x1b[31mreceived\x1b[39m)\n"
