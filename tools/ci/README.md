@@ -6,7 +6,7 @@ Typst, Twenty installation, CRM gateway, CRM import and policy. Pilot import inc
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
-Survey acceptance keeps the original 39 checks and splits the two foundation diagnostics into separate checks in `tools/surveys/gate.json`.
+Survey acceptance defines 39 checks in `tools/surveys/gate.json`: the two foundation diagnostics are separate entries, and the duplicate aggregate adapter run is consolidated.
 PR shards now assign individual functional checks independently; the six nightly
 shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
 
@@ -157,7 +157,7 @@ LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
 ./leonaid test-surveys --suite nightly
 ```
 
-Survey defaults select the 27 PR checks; `--suite all`, `--suite nightly`,
+Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 `--group recovery` or an explicit nightly shard opt into recovery. Compatible
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local writable fixtures. Only their synthetic initialization template is cached.
@@ -166,7 +166,9 @@ job-local writable fixtures. Only their synthetic initialization template is cac
 
 The local composite action `.github/actions/build-cache` prepares a job-local
 Buildx builder from GitHub cache v2, then selects that same builder for subsequent
-Compose builds. Project-specific image names remain independent; initialized
+Compose builds. Normal jobs use the cache-only exporter and load images once,
+when the test harness builds its own runtime tags. Only the explicit cache
+benchmark enables `load: "true"` to retain its warm-tag runtime probe. Project-specific image names remain independent; initialized
 volumes, secrets and runtime state are never exported.
 
 Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
@@ -206,8 +208,10 @@ worktree's environment.
 Functional E2E groups and survey checks run on independent runners. Short E2E
 pairs share initialization with a guarded reset between leaves: invitations and
 sessions, actions and templates, assignments and activities, public actions and
-activity feed. Schema/outbox share a runner; fast Survey package/aggregate checks
-join foundation. This avoids queuing dozens of one-leaf jobs. Optional Compose
+activity feed. Schema/outbox share a runner; the Survey package check joins foundation.
+The aggregate adapter runs once in its own shard against the production
+validator image, including real stop/start failure handling; it needs no
+database, prepared fixture, frontend or browser. This avoids queuing dozens of one-leaf jobs. Optional Compose
 profiles are independent of the genuine cold-start/restart persistence check.
 Survey Runner browser coverage and its durable-operation verification now belong
 only to the runner check, not also to contracts. Passing/failing infrastructure
@@ -215,6 +219,11 @@ browser diagnostics run in independent jobs and retain their teardown and secret
 scan assertions. The Survey profile starts admin/public frontends without the
 PWA except in Journey, whose member probe follows the /admin/ to /app/
 redirect; API readiness continues to check its real dependencies.
+The four Journey cases run with two browser workers, each owning its survey,
+recipients and proof files. Authoring, responses, exports and deletion stay
+sequential within a case. No reset happens between concurrent cases; the owner
+holds its fixture lease until all cases and final SQL/object checks finish.
+Journey and permissions prefetch Twenty and Playwright while bootstrap runs.
 
 Golden Journey compares the digest of normalized first-round results from a
 prepared environment (two functional rounds) and an independent fresh installation

@@ -50,7 +50,15 @@ LOCATION = re.compile(
 )
 ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 
-PHASES = {"survey-permissions-matrix", "survey-permissions-api", "survey-browser"}
+PHASES = {
+    "survey-permissions-matrix",
+    "survey-permissions-api",
+    "survey-browser",
+    "survey-aggregate-build",
+    "survey-aggregate-verify",
+    "survey-aggregate-unavailable",
+    "survey-aggregate-restarted",
+}
 PHASE = re.compile(
     r"^test-phase: ([a-z-]+) seconds=([0-9]{1,5}(?:\.[0-9]{1,3})?) exit=([0-9]{1,3})$",
     re.MULTILINE,

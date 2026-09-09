@@ -203,6 +203,7 @@ fi
 browser_workers=1
 browser_specs="tests/e2e/surveys-infrastructure.spec.mjs"
 if [ "$mode" = journeys ]; then
+  browser_workers=2
   compose run --rm --no-deps --env SURVEY_FOUNDATION_MEMBER=1 \
     --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/infrastructure.py
@@ -445,16 +446,6 @@ if [ "$mode" = analysis ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/raw_responses_live.py
 fi
-if [ "$mode" = aggregates ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
-  compose stop survey-validator
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py unavailable
-  compose up --detach --wait --wait-timeout 60 survey-validator
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/analysis_live.py verify
-fi
 if [ "$mode" = invitations ]; then
   browser_specs="$browser_specs tests/e2e/surveys-invitations.spec.mjs"
 fi
@@ -591,9 +582,6 @@ if [ "$mode" = analysis ]; then
   cp "$proof/raw-response-proof.json" "$artifact/"
   cp "$proof"/surveys-responses-*.png "$artifact/"
   cp "$proof"/surveys-analytics-*.png "$artifact/"
-fi
-if [ "$mode" = aggregates ]; then
-  cp "$proof/surveys-aggregates.json" "$artifact/"
 fi
 if [ "$mode" = invitations ]; then
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \

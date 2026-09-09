@@ -62,18 +62,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Reuse persistent Docker build layers
-        if: matrix.shard != 'package'
         uses: ./.github/actions/build-cache
+        with:
+          targets: ${{ matrix.shard == 'aggregates' && 'survey-validator' || 'default' }}
       - name: Bootstrap pinned Docker toolchains
         env:
           TEST_SHARD: ${{ matrix.shard }}
         run: |
-          if [ "$TEST_SHARD" = permissions ]; then
-            sh tools/ci/bootstrap-prefetch.sh browser
-          else
-            ./leonaid bootstrap
-          fi
+          case "$TEST_SHARD" in
+            permissions|journeys) sh tools/ci/bootstrap-prefetch.sh browser ;;
+            *) ./leonaid bootstrap ;;
+          esac
       - name: Use prepared synthetic data
+        if: matrix.shard != 'aggregates'
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}

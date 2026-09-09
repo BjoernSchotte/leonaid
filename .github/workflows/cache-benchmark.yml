@@ -30,6 +30,7 @@ jobs:
           targets: ${{ matrix.targets }}
           namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
           measure: .artifacts/cache-measurement
+          load: "true"
           read: "false"
           write: "true"
       - name: Verify subsequent Compose builds use the imported builder cache
@@ -61,6 +62,7 @@ jobs:
           targets: ${{ matrix.targets }}
           namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
           measure: .artifacts/cache-measurement
+          load: "true"
           read: "true"
           write: "false"
       - name: Verify subsequent Compose builds use the imported builder cache
@@ -94,6 +96,7 @@ jobs:
           targets: ${{ matrix.targets }}
           namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
           measure: .artifacts/cache-measurement
+          load: "true"
           read: "true"
           write: "false"
       - name: Verify subsequent Compose builds use the imported builder cache

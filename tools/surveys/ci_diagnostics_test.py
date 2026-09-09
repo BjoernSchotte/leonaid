@@ -19,6 +19,7 @@ class DiagnosticsTests(unittest.TestCase):
     def test_timings_accept_only_fixed_labels_and_bounded_numbers(self):
         raw = """test-phase: survey-browser seconds=12.345 exit=0
 test-phase: survey-permissions-api seconds=32 exit=1
+test-phase: survey-aggregate-build seconds=4 exit=0
 test-phase: private-client seconds=3 exit=0
 test-phase: survey-browser seconds=99999 exit=0
 test-phase: survey-browser seconds=3 exit=999
@@ -31,6 +32,7 @@ test-phase: survey-browser seconds=NaN exit=0
             [
                 {"phase": "survey-browser", "seconds": 12.345, "exitCode": 0},
                 {"phase": "survey-permissions-api", "seconds": 32.0, "exitCode": 1},
+                {"phase": "survey-aggregate-build", "seconds": 4.0, "exitCode": 0},
             ],
         )
         self.assertNotIn("private", json.dumps(report))

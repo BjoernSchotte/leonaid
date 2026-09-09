@@ -58,11 +58,6 @@
       "infrastructureModes": ["infrastructure"]
     },
     {
-      "id": "aggregate-engine",
-      "group": "integration",
-      "argv": ["sh", "tools/surveys/aggregate-engine.sh", "{root}"]
-    },
-    {
       "id": "contracts",
       "group": "integration",
       "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "contracts"],
@@ -104,8 +99,7 @@
     {
       "id": "aggregates",
       "group": "integration",
-      "argv": ["sh", "tools/surveys/infrastructure.sh", "{root}", "aggregates"],
-      "infrastructureModes": ["aggregates"]
+      "argv": ["sh", "tools/surveys/aggregate-engine.sh", "{root}"]
     },
     {
       "id": "analysis",
@@ -330,7 +324,6 @@
       "dependencies",
       "standalone-resources",
       "migrations",
-      "aggregate-engine",
       "packed-consumer"
     ],
     "responses": ["responses"],

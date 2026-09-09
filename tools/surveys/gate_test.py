@@ -50,12 +50,24 @@ class GateTests(unittest.TestCase):
             {
                 "foundation-diagnostics",
                 "migrations",
+                "aggregates",
                 "recovery",
                 "export-recovery",
                 "restic-manual",
             }
             & shared
         )
+
+    def test_aggregate_adapter_has_one_entry_without_a_full_stack(self):
+        manifest = gate.load_manifest(ROOT)
+        adapters = [
+            check
+            for check in manifest["checks"]
+            if "tools/surveys/aggregate-engine.sh" in check["argv"]
+        ]
+        self.assertEqual([check["id"] for check in adapters], ["aggregates"])
+        self.assertEqual(manifest["ciShards"]["aggregates"], ["aggregates"])
+        self.assertNotIn("infrastructureModes", adapters[0])
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

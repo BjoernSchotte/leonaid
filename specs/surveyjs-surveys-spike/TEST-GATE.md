@@ -37,14 +37,20 @@ part of the full aggregate. Existing individual leaf commands remain available.
 
 | Group | Checks | Scope |
 |---|---:|---|
-| foundation | 8 | Controller process behavior, standalone resource safety, restore receipts, all survey unit tests, validation comparison, dependency inventory, empty/existing-data migrations and deliberate browser failure diagnostics |
-| integration | 10 | Real aggregate engine outage/restart, all write contracts, lifecycle and observed competing lock orders, invitations, permissions, aggregates/analysis and public/payload limits |
+| foundation | 9 | Controller process behavior, standalone resource safety, restore receipts, all survey unit tests, validation comparison, dependency inventory, empty/existing-data migrations and deliberate browser failure diagnostics |
+| integration | 9 | Real aggregate engine outage/restart, all write contracts, lifecycle and observed competing lock orders, invitations, permissions, analysis and public/payload limits |
 | editor | 3 | Full editor/authoring/accessibility suite, preview isolation and host branding/completion/progress |
 | responses | 2 | Response API and complete autosave, validation-adapter, resume/restart/browser suite |
 | exports | 5 | Actual worker products, PDF/XLSX render fixtures, permissions, terminal states, recovery and admission limits |
 | recovery | 9 | Deletion/races/UI, retention, recovery, all three Restic modes and nonempty pilot restore/resume |
 | package | 1 | Packed independent consumer and real persistence across backend restart |
 | e2e | 1 | Both complete sample journeys on desktop/mobile, actual invitation/downloads and independent file/SQL/object erasure verification |
+
+The aggregate adapter check runs once against the production validator image,
+including an actual outage and restart, without a full application stack.
+The four Journey cases use two workers with separate surveys, recipients and
+proof files. Stages within a case remain ordered, and final erasure verification
+runs only after all cases finish.
 
 The loader rejects a new infrastructure mode until the manifest covers it,
 duplicate mode coverage and recursive aggregate leaf commands. The
@@ -96,8 +102,8 @@ remains unaccepted and requires checking its exact owned resources.
 
 ## CI and final acceptance
 
-[`surveys.yml`](../../.github/workflows/surveys.yml) partitions the manifest's 17 CI
-shards into 11 regular and six nightly shards. Each selected shard uses a separate
+[`surveys.yml`](../../.github/workflows/surveys.yml) partitions the manifest's 26 CI
+shards into 20 regular and six nightly shards. Each selected shard uses a separate
 ephemeral runner and runs once after bootstrap. The historical two-pass spike acceptance above remains a record
 of that revision. The PR selection covers 26 checks; the nightly selection covers the other 13
 (Recovery, export recovery and restore receipts). The night schedule is 01:17 UTC

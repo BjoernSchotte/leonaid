@@ -13,6 +13,9 @@ inputs:
   read:
     description: Disable imports for a measured cold run
     default: "true"
+  load:
+    description: Also load warm-tag images for the explicit cache benchmark
+    default: "false"
   measure:
     description: Optional directory for bounded timing metadata
     default: ""
@@ -42,7 +45,8 @@ runs:
         source: .
         files: tools/ci/docker-bake.hcl
         targets: ${{ inputs.targets }}
-        load: true
+        load: ${{ inputs.load == 'true' }}
+        set: ${{ inputs.load != 'true' && '*.output=type=cacheonly' || '' }}
         no-cache: ${{ inputs.read == 'false' }}
         github-token: ${{ github.token }}
     - name: Record cache preparation time
