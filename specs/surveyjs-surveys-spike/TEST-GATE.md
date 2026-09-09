@@ -15,7 +15,7 @@ Run from the repository root after `./leonaid bootstrap`:
 ./leonaid test-surveys
 ./leonaid test-surveys --repeat 2
 ./leonaid test-surveys --group exports
-./leonaid test-surveys --shard exports-download
+./leonaid test-surveys --shard analysis-exports
 ./leonaid test-surveys-integration
 ./leonaid test-surveys-exports
 ./leonaid test-surveys-e2e
@@ -102,8 +102,8 @@ remains unaccepted and requires checking its exact owned resources.
 
 ## CI and final acceptance
 
-[`surveys.yml`](../../.github/workflows/surveys.yml) partitions the manifest's 26 CI
-shards into 20 regular and six nightly shards. Each selected shard uses a separate
+[`surveys.yml`](../../.github/workflows/surveys.yml) partitions the manifest's 20 CI
+shards into 14 regular and six nightly shards. Each selected shard uses a separate
 ephemeral runner and runs once after bootstrap. The historical two-pass spike acceptance above remains a record
 of that revision. The PR selection covers 26 checks; the nightly selection covers the other 13
 (Recovery, export recovery and restore receipts). The night schedule is 01:17 UTC

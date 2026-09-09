@@ -7,7 +7,7 @@ real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
 also excludes pilot import by default; that shard remains explicitly selectable.
 
 Survey acceptance defines 39 checks in `tools/surveys/gate.json`: the two foundation diagnostics are separate entries, and the duplicate aggregate adapter run is consolidated.
-PR shards now assign individual functional checks independently; the six nightly
+PR checks occupy 14 shards, with short compatible pairs sharing one stack; the six nightly
 shards still contain 13 checks, with no overlap or missing checks. Nightly-only shards are:
 
 - recovery-deletion, recovery-retention, recovery-restic and recovery-pilot;
@@ -35,7 +35,7 @@ full backup/restore rehearsals. Explicit local commands still run the full
 requested selection, independent of the CI schedule.
 
 ```sh
-./leonaid test-surveys --shard request-limits
+./leonaid test-surveys --shard request-concurrency
 ./leonaid test-surveys --group recovery
 ```
 
@@ -111,7 +111,7 @@ Validation commands:
 python3 tools/testing/shared_stack_test.py
 python3 tools/testing/shared_stack_live.py
 sh tools/ci/e2e.sh acquisition
-./leonaid test-surveys --shard request-limits
+./leonaid test-surveys --shard request-concurrency
 ```
 
 The live reset proof deliberately contaminates both databases, Redis, versioned
@@ -166,8 +166,10 @@ job-local writable fixtures. Only their synthetic initialization template is cac
 
 The local composite action `.github/actions/build-cache` prepares a job-local
 Buildx builder from GitHub cache v2, then selects that same builder for subsequent
-Compose builds. Normal jobs use the cache-only exporter and load images once,
-when the test harness builds its own runtime tags. Only the explicit cache
+Compose builds. Normal jobs materialize imported layers through an OCI export discarded at
+`/dev/null`, then load images once when the test harness builds its runtime tags.
+A cache-only export leaves lazy imported records that the subsequent Compose
+build did not reuse in our GitHub measurement; it must not replace this export. Only the explicit cache
 benchmark enables `load: "true"` to retain its warm-tag runtime probe. Project-specific image names remain independent; initialized
 volumes, secrets and runtime state are never exported.
 
@@ -205,12 +207,23 @@ inventory guards still exclude concurrent reset/use. Local development continues
 to use its private checkout fixture; CI activation cannot overwrite a local
 worktree's environment.
 
-Functional E2E groups and survey checks run on independent runners. Short E2E
+Functional E2E groups and survey checks run on independent runners.
+Integration permits eight matrix jobs, E2E seven, and Survey twelve. Together
+with two Golden installations and the five other main jobs, plus API and pins,
+this requests at most 38 concurrent execution jobs after fixture preparation.
+Summary jobs run after their prerequisites release slots. Other repositories
+still share the account allowance. Long jobs appear first in each matrix;
+GitHub creates jobs in matrix order but does not guarantee start order.
+Survey pairs are lifecycle/contracts, request-limits/concurrency,
+responses/payload-limits, preview/branding, and analysis/export-permissions.
+The single aggregate adapter joins the independent foundation harnesses.
+Each paired service check finishes and releases its lease before its owner
+resets the private fixture and starts the next check. No reset overlaps tests. Short E2E
 pairs share initialization with a guarded reset between leaves: invitations and
 sessions, actions and templates, assignments and activities, public actions and
 activity feed. Schema/outbox share a runner; the Survey package check joins foundation.
-The aggregate adapter runs once in its own shard against the production
-validator image, including real stop/start failure handling; it needs no
+The aggregate adapter runs once alongside the standalone foundation checks
+against the production validator image, including real stop/start failure handling; it needs no
 database, prepared fixture, frontend or browser. This avoids queuing dozens of one-leaf jobs. Optional Compose
 profiles are independent of the genuine cold-start/restart persistence check.
 Survey Runner browser coverage and its durable-operation verification now belong

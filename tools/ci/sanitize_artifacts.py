@@ -54,6 +54,13 @@ PHONE_PATTERN = re.compile(
     rb"(?<![\w.])(?:\+49|0049|0)[ \t()/.-]*[1-9][0-9]{1,4}"
     rb"(?:[ \t()/.-]*[0-9]){6,12}(?!\w)"
 )
+# BuildKit's 12-character hexadecimal layer ID can happen to be all digits.
+# Redact only that token in the exact progress format, preserving the rest of
+# the line for the unchanged private-signature checks.
+DOCKER_LAYER_PATTERN = re.compile(
+    rb"(?m)^(#[0-9]+ loading layer )[0-9a-f]{12}"
+    rb"(?= [0-9]+(?:\.[0-9]+)?(?:B|kB|MB|GB) / )"
+)
 PRIVATE_CANARY_PATTERN = re.compile(
     rb"(?:PII|PRIVATE|INVOICE|DOCUMENT|SECRET|TOKEN)"
     rb"_[A-Z0-9_]*CANARY_[A-Za-z0-9_-]+"
@@ -161,6 +168,7 @@ def sanitize_text(
             f"Textartefakt ist nicht valides UTF-8: {label}"
         ) from error
     sanitized, replacements = redact_known_secrets(data, secrets)
+    sanitized = DOCKER_LAYER_PATTERN.sub(rb"\1[DOCKER_LAYER_ID]", sanitized)
     reject_private_signatures(sanitized, label)
     if suffix == ".json":
         try:

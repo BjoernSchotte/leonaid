@@ -46,7 +46,10 @@ runs:
         files: tools/ci/docker-bake.hcl
         targets: ${{ inputs.targets }}
         load: ${{ inputs.load == 'true' }}
-        set: ${{ inputs.load != 'true' && '*.output=type=cacheonly' || '' }}
+        # Materialize imported layers: cache-only warm-up showed cache misses
+        # in subsequent Compose builds in CI. Discard the OCI archive; only
+        # the actual harness loads runtime images into the Docker daemon.
+        set: ${{ inputs.load != 'true' && '*.output=type=oci,dest=/dev/null' || '' }}
         no-cache: ${{ inputs.read == 'false' }}
         github-token: ${{ github.token }}
     - name: Record cache preparation time

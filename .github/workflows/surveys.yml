@@ -57,6 +57,8 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # Leave capacity for main CI and the API/pin workflows.
+      max-parallel: 12
       matrix:
         shard: ${{ fromJSON(needs.inventory.outputs.shards) }}
     steps:
@@ -64,7 +66,7 @@ jobs:
       - name: Reuse persistent Docker build layers
         uses: ./.github/actions/build-cache
         with:
-          targets: ${{ matrix.shard == 'aggregates' && 'survey-validator' || 'default' }}
+          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || 'default' }}
       - name: Bootstrap pinned Docker toolchains
         env:
           TEST_SHARD: ${{ matrix.shard }}
@@ -74,7 +76,7 @@ jobs:
             *) ./leonaid bootstrap ;;
           esac
       - name: Use prepared synthetic data
-        if: matrix.shard != 'aggregates'
+        if: matrix.shard != 'foundation'
         uses: ./.github/actions/test-fixture
         with:
           key: ${{ needs.fixture.outputs.key }}

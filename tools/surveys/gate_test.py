@@ -66,7 +66,7 @@ class GateTests(unittest.TestCase):
             if "tools/surveys/aggregate-engine.sh" in check["argv"]
         ]
         self.assertEqual([check["id"] for check in adapters], ["aggregates"])
-        self.assertEqual(manifest["ciShards"]["aggregates"], ["aggregates"])
+        self.assertIn("aggregates", manifest["ciShards"]["foundation"])
         self.assertNotIn("infrastructureModes", adapters[0])
 
     def setUp(self):
