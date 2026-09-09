@@ -30,7 +30,7 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 image=true
-docker build --file "$root/apps/surveys-demo/Dockerfile" --tag "$project" "$root"
+docker buildx build --load --file "$root/apps/surveys-demo/Dockerfile" --tag "$project" "$root"
 subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
 network=true
 docker network create --internal --subnet "$subnet" "$project" >/dev/null
