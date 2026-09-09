@@ -154,7 +154,8 @@ if [ "$seed_part" = reset ]; then
     --volume "$root:/repo:ro" --entrypoint python api \
     /repo/tools/seed/golden.py seed /repo/tests/fixtures/golden/v1 \
     /repo/.artifacts/golden-v1/invoices
-  docker run --rm --env LEONAID_ENV=local -v "$root:/workspace" "$PYTHON_IMAGE" \
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --env LEONAID_ENV=local -v "$root:/workspace" "$PYTHON_IMAGE" \
     python /workspace/tools/dx/generate_test_logins.py \
     /workspace/tests/fixtures/golden/v1/dataset.json /workspace/.local/test-logins.md
   cp "$proof/cold-compose.json" "$compose_file"

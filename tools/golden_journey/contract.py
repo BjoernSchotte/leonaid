@@ -326,10 +326,11 @@ async def verify_round(
     )
     document_rows = await connection.fetch(
         """
-        SELECT invoice_id, object_key, storage_version_id, sha256, size_bytes
-        FROM generated_document
-        WHERE invoice_id = ANY($1::uuid[]) AND status = 'available'
-        ORDER BY invoice_id
+        SELECT document.invoice_id, object_key, storage_version_id, sha256, size_bytes,
+               invoice.issued_at, invoice.service_on, invoice.due_on
+        FROM generated_document AS document JOIN invoice ON invoice.id=document.invoice_id
+        WHERE document.invoice_id = ANY($1::uuid[]) AND document.status = 'available'
+        ORDER BY document.invoice_id
         """,
         invoice_ids,
     )
@@ -395,8 +396,20 @@ async def verify_round(
             normalized_text = text.replace(
                 str(artifact["invoiceNumber"]), "<invoice-number>"
             )
+            # Parallel installations may straddle midnight. Verify the real
+            # calendar values first, then compare the stable payment terms and
+            # service date instead of the wall-clock-dependent issue/due dates.
+            issued_on = document["issued_at"].date()
+            for value in (issued_on, document["service_on"], document["due_on"]):
+                if value.strftime("%d.%m.%Y") not in text:
+                    raise ContractFailure(f"PDF calendar date missing: {invoice_id}")
+                normalized_text = normalized_text.replace(
+                    value.strftime("%d.%m.%Y"), "<calendar-date>"
+                )
             normalized_pdfs[str(artifact["browser"])] = {
                 "textSha256": hashlib.sha256(normalized_text.encode()).hexdigest(),
+                "serviceOn": document["service_on"].isoformat(),
+                "paymentTermsDays": (document["due_on"] - issued_on).days,
             }
 
     summary = {
