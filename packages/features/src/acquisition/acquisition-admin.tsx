@@ -16,6 +16,7 @@ import type {
 import { Button, EmptyState, StatusMessage } from "@leonaid/ui";
 
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+import { useActionInUrl } from "../action-admin/action-location";
 
 type AssignmentFilter =
   | "all"
@@ -71,6 +72,7 @@ export function AcquisitionAdminPage({
       memberships[0]?.actionId ??
       "",
   );
+  useActionInUrl(actionId);
   const [filter, setFilter] = useState<AssignmentFilter>(
     ["open", "contacted", "committed", "declined", "handed_over"].includes(
       requestedStatus ?? "",
@@ -135,13 +137,6 @@ export function AcquisitionAdminPage({
             id="acquisition-admin-action"
             onChange={(event) => {
               setActionId(event.target.value);
-              const url = new URL(window.location.href);
-              url.searchParams.set("action", event.target.value);
-              window.history.replaceState(
-                {},
-                "",
-                `${url.pathname}${url.search}`,
-              );
             }}
             value={actionId}
           >

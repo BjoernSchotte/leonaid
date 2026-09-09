@@ -1,4 +1,5 @@
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+import { useActionInUrl } from "../action-admin/action-location";
 
 import {
   Activity01Icon,
@@ -71,12 +72,6 @@ function selectedActionFromUrl(
     memberships[0]?.actionId ??
     ""
   );
-}
-
-function setActionInUrl(actionId: string) {
-  const url = new URL(window.location.href);
-  url.searchParams.set("action", actionId);
-  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
 }
 
 function definition(
@@ -467,6 +462,7 @@ export function RoleDashboardPage({
   const [actionId, setActionId] = useState(() =>
     selectedActionFromUrl(memberships),
   );
+  useActionInUrl(actionId);
   const dashboard = useQuery({
     enabled: Boolean(actionId),
     queryFn: () => client.getActionDashboard(actionId),
@@ -513,7 +509,6 @@ export function RoleDashboardPage({
             data-testid="dashboard-action"
             onChange={(event) => {
               setActionId(event.target.value);
-              setActionInUrl(event.target.value);
             }}
             value={actionId}
           >

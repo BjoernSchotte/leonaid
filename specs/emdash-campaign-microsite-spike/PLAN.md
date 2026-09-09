@@ -2643,6 +2643,19 @@ Dependencies: EMS-030, EMS-050
       exercised. Contextual operational entry points are covered below; the
       global sidebar's selected-action behaviour and remaining administrative
       surfaces still need the full shell-navigation audit.
+- [x] Fix stale shell context after an in-page campaign selection change.
+      One shared URL-selection hook now replaces duplicated URL writes in
+      dashboard, acquisition, orders and invoices; it notifies the shell on
+      initial selection and subsequent changes without adding browser-history
+      entries. Shell and contextual editor links share campaign-specific
+      authorization. Web typing, the production build and three focused tests
+      passed. Visible In-App Browser acceptance reproduced the old dashboard
+      mismatch, then verified 2025 → 2026 updates the shell without reloading;
+      the mobile drawer opens the exact selected editor with the retained Core
+      login. Only the isolated demo's Web container was updated. Details and
+      actual image identity are in `RESULT.md`; no content/order data changed.
+      This closes the reproduced stale-context defect, not the entire parent
+      navigation requirement or the final coherent edit/publish/order journey.
 - [x] Add selected-action editing links to acquisition, order administration
       and invoices, reusing the dashboard link as a shared component. Check
       authorization for the selected action, not merely a Charity Admin role

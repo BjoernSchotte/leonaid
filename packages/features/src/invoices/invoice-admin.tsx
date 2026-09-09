@@ -29,6 +29,7 @@ import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "../action-admin/errors";
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
+import { useActionInUrl } from "../action-admin/action-location";
 
 interface InvoiceAdminPageProps {
   readonly client: LeonAidApiClient;
@@ -1099,6 +1100,7 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
       actions[0]?.actionId ??
       "",
   );
+  useActionInUrl(actionId);
   const [filter, setFilter] = useState<InvoiceFilter>(
     ["open", "paid", "cancelled"].includes(requestedStatus ?? "")
       ? (requestedStatus as InvoiceFilter)
@@ -1196,13 +1198,6 @@ export function InvoiceAdminPage({ client, identity }: InvoiceAdminPageProps) {
             id="invoice-action"
             onChange={(event) => {
               setActionId(event.target.value);
-              const url = new URL(window.location.href);
-              url.searchParams.set("action", event.target.value);
-              window.history.replaceState(
-                {},
-                "",
-                `${url.pathname}${url.search}`,
-              );
             }}
             value={actionId}
           >

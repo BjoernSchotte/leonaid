@@ -1,17 +1,18 @@
 import type { CurrentIdentityResponse } from "@leonaid/api-client";
 
-export function CampaignEditorLink({
-  actionId,
-  identity,
-}: {
-  readonly actionId: string;
-  readonly identity: Pick<
-    CurrentIdentityResponse,
-    "globalRoles" | "actionMemberships"
-  >;
-}) {
+type CampaignIdentity = Pick<
+  CurrentIdentityResponse,
+  "globalRoles" | "actionMemberships"
+>;
+
+export function campaignEditorHref(
+  identity: CampaignIdentity,
+  actionId: string,
+) {
   if (
-    !actionId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      actionId,
+    ) ||
     (!identity.globalRoles.includes("system_admin") &&
       !identity.actionMemberships.some(
         (membership) =>
@@ -19,13 +20,22 @@ export function CampaignEditorLink({
           membership.role === "charity_admin",
       ))
   )
-    return null;
+    return undefined;
+  return `/_emdash/admin/campaigns/${actionId}`;
+}
+
+export function CampaignEditorLink({
+  actionId,
+  identity,
+}: {
+  readonly actionId: string;
+  readonly identity: CampaignIdentity;
+}) {
+  const href = campaignEditorHref(identity, actionId);
+  if (!href) return null;
 
   return (
-    <a
-      className="ui-button ui-button--secondary"
-      href={`/_emdash/admin/campaigns/${encodeURIComponent(actionId)}`}
-    >
+    <a className="ui-button ui-button--secondary" href={href}>
       Microsite bearbeiten
     </a>
   );
