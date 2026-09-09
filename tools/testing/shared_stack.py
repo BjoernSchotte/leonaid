@@ -20,11 +20,16 @@ import time
 
 
 class SharedStack:
-    def __init__(self, root: Path, kind: str, output=None):
+    def __init__(
+        self, root: Path, kind: str, output=None, directory: Path | None = None
+    ):
         self.root = root.resolve()
         self.kind = kind
         self.output = output
-        self.directory = Path(tempfile.mkdtemp(prefix="leonaid-test-stack-"))
+        self.directory = directory or Path(
+            tempfile.mkdtemp(prefix="leonaid-test-stack-")
+        )
+        self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.project = "leonaid-shared-" + secrets.token_hex(8)
         self.token = secrets.token_hex(32)
         self.owned = False
@@ -311,11 +316,37 @@ class SharedStack:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("kind", choices=["core", "golden", "documents"])
-    parser.add_argument("scripts", nargs="+")
+    parser.add_argument(
+        "--reuse", action="store_true", help="Reuse a private checkout-local fixture"
+    )
+    parser.add_argument(
+        "--stop",
+        action="store_true",
+        help="Remove only the cached local test environment",
+    )
+    parser.add_argument(
+        "kind", nargs="?", default="documents", choices=["core", "golden", "documents"]
+    )
+    parser.add_argument("scripts", nargs="*")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
-    stack = SharedStack(root, args.kind)
+    cache = None
+    if args.reuse or args.stop:
+        from local_stack import LocalStack
+
+        cache = LocalStack(root, stop=args.stop)
+        if args.stop:
+            cache.close()
+            return 0
+        stack = cache.stack
+    else:
+        stack = SharedStack(root, args.kind)
+    if not args.scripts:
+        if cache:
+            cache.close()
+        else:
+            stack.close()
+        parser.error("At least one test script is required")
     # The child receives the same terminal/process-group signal; wait for its trap
     # before removing the shared environment. During setup, finally handles cleanup.
     child = None
@@ -348,7 +379,10 @@ def main():
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
-        stack.close()
+        if cache:
+            cache.close()
+        else:
+            stack.close()
 
 
 if __name__ == "__main__":

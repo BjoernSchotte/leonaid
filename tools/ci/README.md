@@ -3,7 +3,7 @@
 Normal PR/main-push CI runs six Integration shards: Compose cold start,
 seed/reset, Core, documents/storage, CRM and policy. Pilot import includes a
 real backup/restore and runs nightly instead. `bash tools/ci/integration.sh`
-still executes all 13 original scripts locally, including pilot import.
+also excludes pilot import by default; that shard remains explicitly selectable.
 
 Survey acceptance keeps every one of the 39 checks in `tools/surveys/gate.json`.
 Its 17 shards are partitioned into 11 PR shards (26 checks) and six nightly
@@ -51,9 +51,9 @@ Sharing applies to E2E identity, acquisition, actions and public; Integration
 storage/documents/Typst; CRM gateway/import; and compatible survey infrastructure
 and lifecycle-concurrency checks within one aggregate pass. Documents run only
 in Integration, including their browser coverage. The real OpenAPI contract
-runs only in the dedicated API contract workflow. Standalone leaf commands keep
-their original owned setup and teardown. Single-check survey selections do not
-pay for a snapshot.
+runs only in the dedicated API contract workflow. Direct shell-script invocations keep their original owned setup and teardown.
+In CI, single-check survey selections do not pay for a snapshot. Local CLI
+commands use the persistent fixture described below.
 
 ### Why seeding alone is insufficient
 
@@ -101,7 +101,7 @@ Compose/Core cold-start, schema predecessor/empty database, seed/reset and
 Twenty first-provisioning/drift tests retain their independent environments.
 The small standalone aggregate engine and outbox worker-process tests also
 retain their focused harnesses. Nightly recovery harnesses remain independent.
-Explicit survey repeat passes create a new fixture and project each time.
+In CI, explicit survey repeat passes create a new fixture and project each time.
 No global Docker pruning or reset is used.
 
 Validation commands:
@@ -124,3 +124,39 @@ second pass alone took 14:57. These are observed baseline times, not a promise
 of the new workflow's duration. Compare wall time and total runner minutes
 after running the new workflow; additional runners trade parallel capacity
 for shorter feedback time.
+
+## Local development
+
+Normal `./leonaid test-integration` and `./leonaid test-e2e` have disjoint
+script inventories and never invoke backup/upgrade acceptance. Integration owns
+cold infrastructure/schema checks, CRM contracts, policy, templates, storage,
+documents/Typst and testkit. E2E owns the remaining feature/browser groups and the
+standalone Golden Journey. The latter deliberately proves fresh installations.
+Mail relay and cold infrastructure tests also retain their specialized setup.
+
+Compatible individual commands (for example `./leonaid test-actions`) and
+aggregates automatically reuse a private fixture under `.local/test-stack`.
+The first call installs it; later calls reset its data and seed the next test.
+Application input changes rebuild images with Docker's layer cache. Changes to
+migrations, Compose, environment, pinned images or fixture/provisioning inputs
+invalidate and initialize the data fixture again. This is synthetic test data,
+not an application backup/restore test.
+
+The existing development stack is never adopted or reset. The test fixture uses
+its own project, volumes and networks without host ports. One process holds the
+checkout lock for the whole invocation; another local test refuses immediately
+instead of resetting running tests. Different worktrees remain independent.
+
+```sh
+./leonaid test-actions             # cache-backed targeted feature test
+./leonaid test-e2e                 # sequential features, reset between each
+./leonaid test-env-stop            # remove only this checkout's test fixture
+LEONAID_TEST_FRESH=1 ./leonaid test-actions  # isolated fresh setup and teardown
+./leonaid test-recovery            # explicitly run backup/recovery acceptance
+./leonaid test-surveys --suite nightly
+```
+
+Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
+`--group recovery` or an explicit nightly shard opt into recovery. Compatible
+local survey checks use the same locked fixture. CI always uses ephemeral
+job-local fixtures; no database state is cached across CI runs.

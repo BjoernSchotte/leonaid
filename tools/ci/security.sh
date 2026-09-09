@@ -4,6 +4,8 @@ set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 
+python3 "$root/tools/local_tests_test.py"
+
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \

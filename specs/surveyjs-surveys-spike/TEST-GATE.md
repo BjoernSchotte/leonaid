@@ -21,17 +21,18 @@ Run from the repository root after `./leonaid bootstrap`:
 ./leonaid test-surveys-e2e
 ```
 
-The default aggregate executes all 39 entries in
+The default aggregate executes the 26 PR entries from the 39 entries in
 [`tools/surveys/gate.json`](../../tools/surveys/gate.json), in manifest order.
-`--repeat 2` executes the whole selection twice; each pass creates fresh owned
-resources, with a data reset between compatible checks within that pass. This is an explicit local option, not the CI
+`--repeat 2` executes the whole selection twice; each pass resets data between compatible checks. Local runs reuse a private
+checkout fixture; CI creates fresh owned resources per pass. This is an explicit local option, not the CI
 default. `--shard` selects one complete CI partition and cannot be combined with
 `--group`. It does not rerun only failed cases. A nonzero
 child exit stops the aggregate immediately and preserves that exit code. Skipped
 later checks and missing second-pass checks do not count as passed.
 
-The integration alias selects `integration` and `recovery`; exports selects
-`exports`, and E2E selects `e2e`. The foundation and packed-consumer groups remain
+The integration alias selects only `integration`; exports selects
+`exports` without nightly checks, and E2E selects `e2e`.
+Use `--suite nightly` or `--suite all` to explicitly include backup/recovery. The foundation and packed-consumer groups remain
 part of the full aggregate. Existing individual leaf commands remain available.
 
 | Group | Checks | Scope |

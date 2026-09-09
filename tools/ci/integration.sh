@@ -6,7 +6,7 @@ shard=${1:-all}
 
 case "$shard" in
   all)
-    for part in compose seed core documents crm policy pilot-import; do
+    for part in compose seed core documents crm policy; do
       /bin/sh "$root/tools/ci/integration.sh" "$part"
     done
     ;;

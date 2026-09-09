@@ -184,7 +184,8 @@ def shareable(check: dict, manifest: dict) -> bool:
 def shared_checks(
     root: Path, selected: list[dict], manifest: dict, private: Path, iteration: int
 ):
-    if sum(shareable(check, manifest) for check in selected) < 2:
+    reuse = not os.environ.get("CI") and os.environ.get("LEONAID_TEST_FRESH") != "1"
+    if sum(shareable(check, manifest) for check in selected) < (1 if reuse else 2):
         yield None
         return
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -192,7 +193,14 @@ def shared_checks(
 
     with (private / f"{iteration}-shared-stack.log").open("x") as log:
         os.chmod(log.name, 0o600)
-        stack = SharedStack(root, "survey", log)
+        cache = None
+        if reuse:
+            from tools.testing.local_stack import LocalStack
+
+            cache = LocalStack(root, output=log)
+            stack = cache.stack
+        else:
+            stack = SharedStack(root, "survey", log)
 
         def interrupted(signum, frame):
             raise KeyboardInterrupt
@@ -205,20 +213,41 @@ def shared_checks(
             yield stack
         finally:
             try:
-                stack.close()
+                if cache:
+                    cache.close()
+                else:
+                    stack.close()
             finally:
                 for sig, handler in previous.items():
                     signal.signal(sig, handler)
 
 
 def run(
-    root: Path, manifest: dict, groups: list[str], repeat: int, shard: str | None = None
+    root: Path,
+    manifest: dict,
+    groups: list[str],
+    repeat: int,
+    shard: str | None = None,
+    suite: str = "all",
+    check_id: str | None = None,
 ) -> int:
     directory = root / ".artifacts/surveys-gate"
     selected = [check for check in manifest["checks"] if check["group"] in groups]
     if shard is not None:
         selected = [c for c in selected if c["id"] in manifest["ciShards"][shard]]
         groups = list(dict.fromkeys(c["group"] for c in selected))
+    allowed = (
+        {
+            name
+            for part in ci_shards(manifest, suite)
+            for name in manifest["ciShards"][part]
+        }
+        if suite != "all"
+        else {c["id"] for c in selected}
+    )
+    selected = [c for c in selected if c["id"] in allowed]
+    if check_id is not None:
+        selected = [c for c in selected if c["id"] == check_id]
     assert selected
     with exclusive_run(directory):
         private = Path(tempfile.mkdtemp(prefix="private-", dir=directory))
@@ -311,8 +340,14 @@ def main() -> int:
     parser.add_argument(
         "--root", type=Path, default=Path(__file__).resolve().parents[2]
     )
+    parser.add_argument("--check", help="Run one explicitly selected manifest check")
     parser.add_argument("--group", action="append", default=[])
     parser.add_argument("--shard", help="Run one complete CI shard from the manifest")
+    parser.add_argument(
+        "--suite",
+        choices=["pr", "nightly", "all"],
+        help="Defaults to pr; recovery requires explicit selection",
+    )
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
@@ -324,17 +359,32 @@ def main() -> int:
         parser.error("Unknown group; use --list for the manifest")
     if args.shard and (args.shard not in manifest["ciShards"] or args.group):
         parser.error("Use a known --shard without --group")
+    if args.check and (
+        args.group
+        or args.shard
+        or args.check not in {c["id"] for c in manifest["checks"]}
+    ):
+        parser.error("Use a known --check without --group or --shard")
     groups = list(dict.fromkeys(args.group or manifest["groups"]))
+    suite = args.suite or (
+        "all" if args.check or args.shard or "recovery" in args.group else "pr"
+    )
     if args.list:
         print(
             json.dumps(
-                {**manifest, "selectedGroups": groups, "selectedShard": args.shard},
+                {
+                    **manifest,
+                    "selectedGroups": groups,
+                    "selectedShard": args.shard,
+                    "selectedSuite": suite,
+                    "selectedCheck": args.check,
+                },
                 indent=2,
             )
         )
         return 0
     try:
-        return run(root, manifest, groups, args.repeat, args.shard)
+        return run(root, manifest, groups, args.repeat, args.shard, suite, args.check)
     except RuntimeError:
         print(
             "Survey gate refused: another aggregate holds this checkout lock.",
