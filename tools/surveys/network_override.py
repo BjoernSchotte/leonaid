@@ -62,4 +62,6 @@ with open(sys.argv[1], "w") as output:
         output.write(
             f"  {name}:\n    ipam:\n      config:\n        - subnet: {subnet}\n"
         )
-print(f"Selected {len(names)} currently unused explicit test subnets; host ports disabled")
+print(
+    f"Selected {len(names)} currently unused explicit test subnets; host ports disabled"
+)

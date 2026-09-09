@@ -5,6 +5,12 @@ import { createRequire } from "node:module";
 const root = new URL("../../", import.meta.url);
 const app = new URL("apps/campaign-site/package.json", root);
 const manifest = JSON.parse(await readFile(app, "utf8"));
+const publicManifest = JSON.parse(
+  await readFile(new URL("apps/public/package.json", root), "utf8"),
+);
+for (const name of ["astro", "@astrojs/node"]) {
+  assert.equal(manifest.dependencies[name], publicManifest.dependencies[name]);
+}
 const require = createRequire(app);
 const lock = await readFile(new URL("bun.lock", root), "utf8");
 const integrity =
@@ -35,7 +41,13 @@ assert.equal(installed.version, "0.36.0");
 assert.equal(installed.license, "MIT");
 assert.equal(require("pg/package.json").version, "8.16.3");
 
-for (const name of ["public", "web", "pwa", "survey-validator", "campaign-site"]) {
+for (const name of [
+  "public",
+  "web",
+  "pwa",
+  "survey-validator",
+  "campaign-site",
+]) {
   const dockerfile = await readFile(
     new URL(`infra/compose/Dockerfile.${name}`, root),
     "utf8",
