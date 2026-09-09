@@ -41,13 +41,24 @@ stays intact; do not remove it merely because its completion is deferred.
       remain in the same tab/origin, Back works, and unsaved edits are protected.
       Reuse the existing links and native browser behaviour; no additional
       shell redesign or cosmetic polish is required.
-- [ ] Complete one coherent, visible In-App Browser acceptance journey on the
+- [x] Complete one coherent, visible In-App Browser acceptance journey on the
       isolated demo: existing Core login → authorized Krapfentaxi editor →
       change and publish → anonymous `/campaigns/krapfentaxi-2026/` reflects
       the change without rebuilding → ordinary synthetic order succeeds.
       Independently verify the order in Core and its linked Twenty records.
       Record how temporary editorial changes/test orders are handled; do not
       silently delete order/audit history.
+      Completed on 2026-09-09 in the persistent isolated demo after the shell
+      fix `d44577d`. The original live/draft payloads were equal before testing.
+      A saved hero-text change remained private until native Publish; after
+      actual Core logout it appeared on the anonymous canonical Astro page.
+      One ordinary browser order returned a EUR 36.00 reference. Independent
+      Core SQL and the actual Twenty API verified one order/line, consent/audit
+      and one linked CRM person. A fresh mailed-code Core login reopened the
+      same CMS editor; the original text was republished and all published
+      fields matched a prior original revision. No pending draft remains;
+      synthetic order and revision/audit history are retained. No CMS rebuild,
+      session injection or cross-project changes were used. See `RESULT.md`.
 - [ ] Consolidate the existing authorization, draft isolation, alias,
       bootstrap/TLS and internal-order-transport evidence against current code.
       Keep the section 7 matrix, section 8 security/privacy boundaries and
@@ -4764,7 +4775,7 @@ Preparation of this configuration is not yet visible-browser acceptance.
 - [x] Re-run the isolated fresh-import/editor acceptance after the visible
       Live View and Core logout fixes. On `dcd4013` plus the narrowly scoped
       browser diagnostic change, `./leonaid test-emdash-spike --case
-    krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
+  krapfentaxi-migration` exited 0 on 2026-09-08. Chromium, Firefox and WebKit
       passed actual Charity login, native text/image changes, private drafts,
       publication and anonymous rendering. Core-managed redirect GET/HEAD,
       withdrawal/restoration and reassignment checks also passed. Importer

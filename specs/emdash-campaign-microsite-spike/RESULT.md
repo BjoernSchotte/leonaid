@@ -79,17 +79,53 @@ certificate verification confirmed:
   This is a current ingress smoke check, not a substitute for the existing
   valid-payload ingress-denial and actual order-persistence tests.
 
-The existing pending editorial draft remains untouched. The final coherent
-edit/publish/order journey must first account for that draft rather than
-silently publishing unrelated pending changes.
+## Coherent visible edit, publish and anonymous order — passed
+
+Completed on 2026-09-09 after navigation commit `d44577d`, in the persistent
+isolated demo and visible In-App Browser:
+
+1. A read-only CMS SQL comparison found no differing fields between the
+   existing live and pending draft revision payloads. The test therefore did
+   not publish unrelated pending editorial work.
+2. Using the retained Charity Admin Core login, the selected-campaign link
+   opened the Krapfentaxi editor. The hero heading was changed to
+   `Krapfen teilen. Gemeinsam helfen. Lokaler Abschlusstest.` Native autosave
+   completed; the public page still displayed the original heading.
+3. Native **Publish** confirmed that content was live. Actual **Abmelden** in
+   Core returned to the login form. Reloading the canonical campaign in the
+   now-signed-out browser displayed the changed heading and usable order form.
+   No CMS build, restart, direct database write or injected session was used.
+4. One synthetic private-person order for one box / 24 pieces returned
+   `LA-5CF2CD93F64A4C3CA92A86F52BC9A702`, EUR 36.00, in the visible confirmation.
+   A separate read-only assertion in the demo Core container verified exactly
+   one matching `commitment`, the correct action, `review_ready`/`public_form`,
+   EUR 3600 minor units, one matching line, privacy text version and both
+   consent/audit flags. The actual Twenty REST API returned exactly one matching
+   synthetic person whose ID equals the order's `twenty_person_id`.
+5. A new normal mailed-code Core login succeeded, and the campaign link reopened
+   CMS without a separate CMS login. The original hero heading was saved and
+   republished. The public page and screenshot showed the original wording and
+   hero assets. A final read-only CMS comparison confirmed **all** published
+   fields match an earlier original revision and no pending draft remains.
+
+The synthetic order carries an explicit no-real-delivery test note and remains
+in the demo along with its consent, audit, CRM and editorial revision history.
+Nothing was silently deleted to restore counters. The only published content
+change was the temporary marker, which is now removed. Login codes/tokens are
+not retained in this report; the local mail tab was closed.
+
+One attempted additional anonymous curl check was refused by tool approval;
+it was not retried or counted as evidence. The actual signed-out browser
+journey above supplies the anonymous publication/order proof.
 
 ## Evidence consolidation and remaining closure
 
 - [ ] Close Phase A ordinary-use navigation gaps and consolidate the existing
       keyboard, mobile and unsaved-change evidence. The observations above do
       not prove all navigation paths.
-- [ ] Complete the coherent visible edit → publish → anonymous view → order
-      journey and independently verify Core/Twenty persistence.
+- [x] Complete the coherent visible edit → publish → anonymous view → order
+      journey and independently verify Core/Twenty persistence, as recorded
+      above. This does not close the independent security/recovery gates.
 - [ ] Audit current authorization, draft/media isolation, aliases, bootstrap,
       session lifecycle and internal order transport against the plan's
       mandatory security matrix. Historical detailed command results remain
