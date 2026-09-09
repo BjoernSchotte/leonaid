@@ -1,0 +1,113 @@
+name: Build cache benchmark
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/build-cache/**"
+      - ".github/workflows/cache-benchmark.yml"
+      - "tools/ci/docker-bake.hcl"
+      - "tools/ci/measure-cache.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cold:
+    name: Cache cold / ${{ matrix.targets }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: [proxy, default]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare measured build cache
+        uses: ./.github/actions/build-cache
+        with:
+          targets: ${{ matrix.targets }}
+          namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
+          measure: .artifacts/cache-measurement
+          read: "false"
+          write: "true"
+      - name: Verify subsequent Compose builds use the imported builder cache
+        env:
+          CACHE_TARGETS: ${{ matrix.targets }}
+        run: sh tools/ci/measure-cache.sh
+      - name: Publish bounded timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cache-cold-${{ matrix.targets }}
+          path: .artifacts/cache-measurement/*.json
+          retention-days: 7
+          if-no-files-found: error
+  warm:
+    name: Cache warm / ${{ matrix.targets }}
+    needs: cold
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: [proxy, default]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare measured build cache
+        uses: ./.github/actions/build-cache
+        with:
+          targets: ${{ matrix.targets }}
+          namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
+          measure: .artifacts/cache-measurement
+          read: "true"
+          write: "false"
+      - name: Verify subsequent Compose builds use the imported builder cache
+        env:
+          CACHE_TARGETS: ${{ matrix.targets }}
+        run: sh tools/ci/measure-cache.sh
+      - name: Publish bounded timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cache-warm-${{ matrix.targets }}
+          path: .artifacts/cache-measurement/*.json
+          retention-days: 7
+          if-no-files-found: error
+  changed:
+    name: Cache changed / ${{ matrix.targets }}
+    needs: warm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: [proxy, default]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Change one application source input on this runner only
+        run: printf '\n// Cache benchmark changes source while preserving behavior.\n' >> apps/public/src/pages/health/ready.ts
+      - name: Prepare measured build cache
+        uses: ./.github/actions/build-cache
+        with:
+          targets: ${{ matrix.targets }}
+          namespace: bench-v1-${{ github.run_id }}-${{ matrix.targets }}
+          measure: .artifacts/cache-measurement
+          read: "true"
+          write: "false"
+      - name: Verify subsequent Compose builds use the imported builder cache
+        env:
+          CACHE_TARGETS: ${{ matrix.targets }}
+        run: sh tools/ci/measure-cache.sh
+      - name: Publish bounded timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cache-changed-${{ matrix.targets }}
+          path: .artifacts/cache-measurement/*.json
+          retention-days: 7
+          if-no-files-found: error

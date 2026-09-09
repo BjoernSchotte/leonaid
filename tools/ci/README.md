@@ -160,3 +160,25 @@ Survey defaults select the 26 PR checks; `--suite all`, `--suite nightly`,
 `--group recovery` or an explicit nightly shard opt into recovery. Compatible
 local survey checks use the same locked fixture. CI always uses ephemeral
 job-local fixtures; no database state is cached across CI runs.
+
+## Persistent GitHub BuildKit cache
+
+The local composite action `.github/actions/build-cache` prepares a job-local
+Buildx builder from GitHub cache v2, then selects that same builder for subsequent
+Compose builds. Project-specific image names remain independent; initialized
+volumes, secrets and runtime state are never exported.
+
+Scopes are stable per image family and `linux/amd64`; BuildKit invalidates layers
+from Dockerfile and source inputs. API and worker share the Core cache. Only the
+normal Build job exports the production cache. Other image-consuming jobs import
+it without concurrent writes. Explicit `cold_run` jobs bypass this action.
+Survey sudo invocations preserve CI and the selected Docker builder/configuration.
+
+The opt-in/path-triggered Build cache benchmark uses fresh GitHub runners for
+proxy-only and full-image scenarios, in three sequential rounds: cold without
+imports, unchanged with imports, and a comment-only Public source change with
+imports. Its cache namespace includes the workflow run ID and cannot alter the
+normal cache. Reports include builder preparation/import/build/export/load time
+and a subsequent project-renamed Compose build. The latter must cache every
+Dockerfile RUN step. Full-image cases also start the real Public Node image and
+verify its HTTP readiness. No database or test stack is needed for this benchmark.

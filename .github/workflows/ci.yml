@@ -96,6 +96,9 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run real service integration suite
@@ -134,6 +137,9 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run OpenAPI and cross-system contracts
@@ -169,6 +175,9 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run real browser shard
@@ -200,6 +209,9 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run policies, secret scan and critical vulnerability gates
@@ -226,6 +238,11 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
+        with:
+          write: "true"
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Build the canonical Compose application
@@ -252,6 +269,9 @@ jobs:
       - name: Prepare empty-cache runner
         if: inputs.cold_run == true
         run: docker builder prune --all --force
+      - name: Reuse persistent Docker build layers
+        if: inputs.cold_run != true
+        uses: ./.github/actions/build-cache
       - name: Bootstrap locked Docker toolchains
         run: ./leonaid bootstrap
       - name: Run complete cross-browser Golden Journey
