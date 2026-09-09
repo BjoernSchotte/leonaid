@@ -111,8 +111,18 @@ start_golden() {
   fi
   compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$project" "$isolation_file"
   compose build api worker public pwa web
-  compose --profile dev-mail up --detach --wait --wait-timeout 420 \
-    core-postgres rustfs mailpit twenty-server twenty-worker
+  prepare_installation() (
+    phase golden-pdf-prepare /bin/sh "$root/tools/typst/render_golden.sh" \
+      "$root" "$proof/pdfs" "${project}-api" &
+    pdf_pid=$!
+    status=0
+    phase golden-data-services compose --profile dev-mail up --detach --wait --wait-timeout 420 \
+      core-postgres rustfs mailpit twenty-server twenty-worker || status=$?
+    wait "$pdf_pid" || status=$?
+    exit "$status"
+  )
+  prepare_installation
+  python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
 
   compose run --rm --no-deps \
     --user "$(id -u):$(id -g)" \
@@ -144,8 +154,6 @@ start_golden() {
     --token-file "/proof/$token_filename"
 
   compose up --detach --force-recreate --wait --wait-timeout 420 api
-  /bin/sh "$root/tools/typst/render_golden.sh" \
-    "$root" "$proof/pdfs" "${project}-api"
   compose run --rm --no-deps \
     --env-from-file "$env_file" \
     --volume "$root:/repo:ro" \

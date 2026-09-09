@@ -142,7 +142,13 @@ class SharedStack:
             stdout=self.output,
             stderr=self.output,
         )
-        self.call([*self.compose, "build"])
+        # Ordinary Survey leaves never start the PWA; journeys explicitly needs it.
+        targets = (
+            ["api", "worker", "proxy", "web", "public", "survey-validator"]
+            if self.kind == "survey"
+            else []
+        )
+        self.call([*self.compose, "build", *targets])
         fixture = self.env.get("LEONAID_CI_FIXTURE")
         if fixture:
             self.import_fixture(Path(fixture))

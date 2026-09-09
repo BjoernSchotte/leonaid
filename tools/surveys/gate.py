@@ -203,7 +203,10 @@ def shared_checks(
             cache = LocalStack(root, output=log)
             stack = cache.stack
         else:
-            stack = SharedStack(root, "survey", log)
+            kind = (
+                "golden" if any(c["id"] == "journeys" for c in selected) else "survey"
+            )
+            stack = SharedStack(root, kind, log)
 
         def interrupted(signum, frame):
             raise KeyboardInterrupt

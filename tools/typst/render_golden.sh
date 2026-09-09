@@ -4,6 +4,13 @@ set -eu
 root=${1:?Repository-Pfad fehlt}
 output=${2:?Ausgabepfad fehlt}
 image=${3:?Core-Image fehlt}
+# Acceptance rendering remains unconditional unless a seed explicitly opts in.
+reuse=${4:-}
+set --
+if [ "$reuse" = reuse ]; then
+  image=$(docker image inspect --format '{{.Id}}' "$image")
+  set -- --renderer-id "$image"
+fi
 
 root=$(cd "$root" && pwd)
 mkdir -p "$output"
@@ -24,4 +31,4 @@ docker run --rm \
   "$image" \
   /repo/tools/typst/render_fixtures.py \
   /repo/tests/fixtures/golden/v1/documents \
-  /output
+  /output "$@"

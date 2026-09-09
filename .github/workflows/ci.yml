@@ -121,7 +121,10 @@ jobs:
       - name: Reuse persistent Docker build layers
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
+        with:
+          bootstrap: ${{ contains(fromJSON('["seed-cold","seed-reset","compose","twenty-install"]'), matrix.shard) && 'seed' || 'toolchains' }}
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         env:
           TEST_SHARD: ${{ matrix.shard }}
         run: |
@@ -174,7 +177,10 @@ jobs:
       - name: Reuse persistent Docker build layers
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
+        with:
+          bootstrap: toolchains
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         run: ./leonaid bootstrap
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
@@ -225,7 +231,10 @@ jobs:
       - name: Reuse persistent Docker build layers
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
+        with:
+          bootstrap: browser
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         run: ./leonaid bootstrap
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
@@ -279,7 +288,10 @@ jobs:
       - name: Reuse persistent Docker build layers
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
+        with:
+          bootstrap: toolchains
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         run: ./leonaid bootstrap
       - name: Use prepared synthetic data
         if: inputs.cold_run != true
@@ -314,8 +326,10 @@ jobs:
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
         with:
+          bootstrap: toolchains
           write: "true"
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         run: ./leonaid bootstrap
       - name: Build the canonical Compose application
         run: bash tools/ci/run-job.sh build bash tools/ci/build.sh
@@ -350,7 +364,10 @@ jobs:
       - name: Reuse persistent Docker build layers
         if: inputs.cold_run != true
         uses: ./.github/actions/build-cache
+        with:
+          bootstrap: browser
       - name: Bootstrap locked Docker toolchains
+        if: inputs.cold_run == true
         run: sh tools/ci/bootstrap-prefetch.sh browser
       - name: Use prepared synthetic data for the functional rounds
         if: matrix.part == 'primary' && inputs.cold_run != true

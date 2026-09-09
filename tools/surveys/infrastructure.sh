@@ -15,6 +15,7 @@ foundation=false
 foundation_failure=0
 browser_trace=retain-on-failure
 browser_reporter=line
+export_verifier_pid=""
 if [ "$mode" = infrastructure ] || [ "$mode" = infrastructure-failure ]; then
   foundation=true
   browser_trace=off
@@ -43,6 +44,11 @@ compose() {
 }
 cleanup() {
   status=$?
+  if [ -n "$export_verifier_pid" ]; then
+    # The only background mutation belongs to this invocation's private project.
+    docker rm -f "${project}-export-verifier" >/dev/null 2>&1 || true
+    wait "$export_verifier_pid" || true
+  fi
   if [ "$status" -ne 0 ] && { [ "$owned" = true ] || [ -n "${LEONAID_TEST_STACK:-}" ]; }; then
     compose ps >&2 || true
     # Keep raw traces local; never copy credentials or unrestricted logs into proofs.
@@ -136,8 +142,8 @@ if [ "$mode" = contracts ]; then
   cat "$proof/write-competing-revisions.log"
   cp "$proof/write-competing-revisions.json" "$artifact/"
 fi
-if [ "$mode" = responses ] || [ "$mode" = runner ] || [ "$mode" = lifecycle ] || [ "$mode" = contracts ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+if [ "$mode" = responses ]; then
+  phase survey-responses-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/responses.py
 fi
 if [ "$mode" = lifecycle ]; then
@@ -255,8 +261,8 @@ result["apiWorkerValidatorLogsScanned"] = True
 print("PASS: captured API/worker/validator logs contain no seeded answer, resume or member session markers")
 PY
 fi
-if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
+if [ "$mode" = request-limits ]; then
+  phase survey-request-limits-api compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/request_limits_live.py
 fi
 if [ "$mode" = preview ]; then
@@ -420,12 +426,20 @@ if [ "$mode" = export-recovery ]; then
 fi
 if [ "$mode" = exports ]; then
   mkdir -p "$root/.artifacts"
-  for renderer in pdf_render xlsx_render; do
-    compose run --rm --no-deps --volume "$root:/repo:ro" \
-      --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
-      --entrypoint python api "tools/surveys/$renderer.py"
-  done
-  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs"
+  render_exports() (
+    render_pids=""
+    for renderer in pdf_render xlsx_render; do
+      compose run --rm --no-deps --volume "$root:/repo:ro" \
+        --volume "$root/.artifacts:/repo/.artifacts" --workdir /repo \
+        --entrypoint python api "tools/surveys/$renderer.py" &
+      render_pids="$render_pids $!"
+    done
+    render_status=0
+    for pid in $render_pids; do wait "$pid" || render_status=$?; done
+    exit "$render_status"
+  )
+  phase survey-export-renderers render_exports
+  browser_specs="$browser_specs tests/e2e/surveys-exports.spec.mjs tests/e2e/surveys-export-values.spec.mjs"
   compose stop worker
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py prepare
@@ -434,6 +448,13 @@ if [ "$mode" = exports ]; then
     --workdir /repo --entrypoint python api tools/surveys/exports_live.py recover
   compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
     --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py seed
+  # The browser requests verification only after every pre-revocation case.
+  # Keep one Playwright process; the real Python parser and SQL mutation remain.
+  compose run --rm --no-deps --name "${project}-export-verifier" \
+    --volume "$root:/repo:ro" --volume "$proof:/proof" \
+    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke-when-ready \
+    > "$proof/export-verifier.log" 2>&1 &
+  export_verifier_pid=$!
 fi
 if [ "$mode" = analysis ]; then
   browser_specs="$browser_specs tests/e2e/surveys-analytics.spec.mjs tests/e2e/surveys-responses.spec.mjs"
@@ -453,6 +474,8 @@ if [ "$mode" = lifecycle ]; then
   browser_specs="$browser_specs tests/e2e/surveys-module.spec.mjs"
 fi
 if [ "$mode" = editor ]; then
+  # Files create their own surveys; the parent retains the reset lease throughout.
+  browser_workers=2
   browser_specs="$browser_specs tests/e2e/surveys-editor.spec.mjs tests/e2e/surveys-templates.spec.mjs tests/e2e/surveys-authoring.spec.mjs tests/e2e/surveys-import-recovery.spec.mjs tests/e2e/surveys-accessibility.spec.mjs"
 fi
 if [ "$mode" = runner ]; then
@@ -510,7 +533,7 @@ fi
 if [ "$mode" = payload-limits ]; then
   cp "$proof/payload-limits-proof.json" "$artifact/"
 fi
-if [ "$mode" = request-limits ] || [ "$mode" = runner ]; then
+if [ "$mode" = request-limits ]; then
   cp "$proof/request-limits-proof.json" "$artifact/"
 fi
 if [ "$mode" = preview ]; then
@@ -554,20 +577,11 @@ if [ "$mode" = export-recovery ]; then
   cp "$proof/export-recovery-proof.json" "$artifact/"
 fi
 if [ "$mode" = exports ]; then
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
-    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'populated snapshot|export-only members' \
-    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
-  compose run --rm --no-deps --volume "$root:/repo:ro" --volume "$proof:/proof" \
-    --workdir /repo --entrypoint python api tools/surveys/export_browser_live.py verify-revoke
-  docker run --rm --network "${project}_edge" --env-file "$proof/session.env" \
-    --env HOME=/tmp --env CI=1 --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
-    --env LEONAID_E2E_ARTIFACT_DIR=/proof --volume "$root:/workspace:ro" \
-    --volume "$proof:/proof" --workdir /workspace "$PLAYWRIGHT_IMAGE" \
-    node_modules/.bin/playwright test tests/e2e/surveys-export-values.spec.mjs --grep 'revoked report' \
-    --browser=chromium --output=/proof/test-results --trace=retain-on-failure --reporter=line
+  verifier_status=0
+  wait "$export_verifier_pid" || verifier_status=$?
+  export_verifier_pid=""
+  cat "$proof/export-verifier.log"
+  test "$verifier_status" -eq 0
   cp "$proof/export-only-proof.json" "$artifact/"
   cp "$proof/export-only-mobile.png" "$artifact/"
   cp "$proof/export-browser-values-proof.json" "$artifact/"

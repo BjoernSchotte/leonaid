@@ -3,6 +3,7 @@ variable "CACHE_NAMESPACE" { default = "leonaid-build-v1" }
 variable "CACHE_WRITE" { default = "false" }
 variable "CACHE_READ" { default = "true" }
 group "default" { targets = ["api", "worker", "proxy", "web", "pwa", "public", "survey-validator"] }
+group "survey-runtime" { targets = ["api", "worker", "proxy", "web", "public", "survey-validator"] }
 group "survey-foundation" { targets = ["api", "survey-validator"] }
 target "api" {
   context = "."

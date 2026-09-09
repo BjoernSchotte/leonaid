@@ -1672,11 +1672,15 @@ render_golden_pdfs() {
   output_directory="$root/.artifacts/golden-v1/invoices"
   api_image=$(compose images -q api)
   if [ -z "$api_image" ]; then
+    api_image=$(compose config --format json | python3 -c 'import json,sys; c=json.load(sys.stdin); print(c["services"]["api"].get("image", c["name"]+"-api"))')
+    api_image=$(docker image inspect --format '{{.Id}}' "$api_image")
+  fi
+  if [ -z "$api_image" ]; then
     echo "seed: ERROR: gebautes Core-Image für Typst fehlt" >&2
     exit 1
   fi
   /bin/sh "$root/tools/typst/render_golden.sh" \
-    "$root" "$output_directory" "$api_image"
+    "$root" "$output_directory" "$api_image" reuse
 }
 
 run_golden_tool() {
@@ -1809,9 +1813,20 @@ reset_systems() {
   phase reset-build compose build
   # API and workers must first start with the newly provisioned integration key.
   # Starting the whole stack before provisioning required a second API restart.
-  phase reset-data-services compose --profile dev-mail up --no-build \
-    --detach --wait --wait-timeout 420 \
-    core-postgres rustfs mailpit twenty-server twenty-worker survey-validator
+  reset_prepare() (
+    phase reset-pdf-prepare render_golden_pdfs &
+    pdf_pid=$!
+    status=0
+    phase reset-data-services compose --profile dev-mail up --no-build \
+      --detach --wait --wait-timeout 420 \
+      core-postgres rustfs mailpit twenty-server twenty-worker survey-validator || status=$?
+    wait "$pdf_pid" || status=$?
+    if [ "$status" -eq 0 ]; then
+      python3 "$root/tools/twenty/startup_timings.py" "$(compose ps --quiet twenty-server)"
+    fi
+    exit "$status"
+  )
+  reset_prepare
   phase reset-provision provision_twenty
   phase reset-seed seed_systems
   phase reset-snapshot snapshot_systems golden-v1.json

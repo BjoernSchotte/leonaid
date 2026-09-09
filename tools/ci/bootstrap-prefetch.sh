@@ -4,9 +4,10 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/infra/locks/images.env"
 . "$root/tools/testing/phase.sh"
 case ${1:-} in
+  toolchains) images="" ;;
   seed) images="$TWENTY_IMAGE" ;;
   browser) images="$TWENTY_IMAGE $PLAYWRIGHT_IMAGE" ;;
-  *) echo 'Expected seed or browser prefetch profile' >&2; exit 64 ;;
+  *) echo 'Expected toolchains, seed or browser prefetch profile' >&2; exit 64 ;;
 esac
 proof=$(mktemp -d)
 pids=""

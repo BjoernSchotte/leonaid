@@ -66,15 +66,8 @@ jobs:
       - name: Reuse persistent Docker build layers
         uses: ./.github/actions/build-cache
         with:
-          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || 'default' }}
-      - name: Bootstrap pinned Docker toolchains
-        env:
-          TEST_SHARD: ${{ matrix.shard }}
-        run: |
-          case "$TEST_SHARD" in
-            permissions|journeys) sh tools/ci/bootstrap-prefetch.sh browser ;;
-            *) ./leonaid bootstrap ;;
-          esac
+          targets: ${{ matrix.shard == 'foundation' && 'survey-foundation' || ((matrix.shard == 'journeys' || startsWith(matrix.shard, 'foundation-')) && 'default' || 'survey-runtime') }}
+          bootstrap: ${{ matrix.shard == 'foundation' && 'toolchains' || 'browser' }}
       - name: Use prepared synthetic data
         if: matrix.shard != 'foundation'
         uses: ./.github/actions/test-fixture
