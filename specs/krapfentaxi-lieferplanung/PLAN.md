@@ -164,7 +164,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 - [x] KLF-030 – Bestellung, Speicherung und API-Client; beide Speicherpfade, HTTP, Alt-Replay, Datenschutz und konkurrierende Stilllegung nachgewiesen.
 - [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
 - [x] KLF-050 – Annas Kundenbestellungen; CRM-Auswahl, Lieferdaten, Entwurfsabschluss und Verwaltungsanzeige nachgewiesen.
-- [ ] KLF-060 – Öffentliche Website und EmDash.
+- [x] KLF-060 – Öffentliche Website und EmDash; beide Renderer und Alias mit/ohne JavaScript, Eingabeerhalt, Replay und Alias-Bindung nachgewiesen.
 - [ ] KLF-070 – Gesamtnachweis und Demo-Konfiguration.
 
 ### KLF-010 – Ausgangsstand abgleichen und Verträge festlegen

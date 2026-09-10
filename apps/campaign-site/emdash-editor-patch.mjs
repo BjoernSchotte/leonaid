@@ -189,7 +189,12 @@ export default function editorRevisionPatch() {
                 transform(source, id) {
                   if (id.split("?")[0] !== entry) return;
                   transformed = true;
-                  return { code: patchEditorSource(source), map: null };
+                  return {
+                    code:
+                      'import "/src/scrollbars.css";\n' +
+                      patchEditorSource(source),
+                    map: null,
+                  };
                 },
               },
             ],
