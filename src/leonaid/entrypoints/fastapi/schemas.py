@@ -1106,6 +1106,25 @@ class CommitmentCaptureContextResponse(TransportModel):
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]
+    self_buyer: CommitmentBuyerResponse | None = None
+    self_buyer_unavailable_reason: (
+        Literal["not_linked", "not_assigned", "crm_unavailable", "person_missing"]
+        | None
+    ) = None
+
+
+class MemberBuyerLinkRequest(TransportModel):
+    expected_revision: int = Field(ge=0)
+    twenty_person_id: UUID | None
+
+
+class MemberBuyerLinkResponse(TransportModel):
+    user_id: UUID
+    twenty_person_id: UUID | None
+    revision: int
+    verified_by_user_id: UUID | None
+    verified_at: datetime | None
+    buyer: CommitmentBuyerResponse | None
 
 
 class CommitmentRecordResponse(TransportModel):

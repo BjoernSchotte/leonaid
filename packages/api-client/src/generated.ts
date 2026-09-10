@@ -52,7 +52,7 @@ export type CharityActionResponse = { readonly archiveSlug: string; readonly ben
 export type CharityAdminDashboardResponse = { readonly commitments: DashboardCommitmentResponse; readonly invoices: DashboardInvoiceResponse; readonly pipeline: DashboardPipelineResponse; };
 export type CommitmentBuyerRequest = { readonly displayName: string; readonly email?: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentBuyerResponse = { readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
-export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; };
+export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; readonly selfBuyer?: CommitmentBuyerResponse | null; readonly selfBuyerUnavailableReason?: "not_linked" | "not_assigned" | "crm_unavailable" | "person_missing" | null; };
 export type CommitmentCurrencyTotalResponse = { readonly currency: string; readonly totalMinor: number; };
 export type CommitmentInvoiceRecipientRequest = { readonly city: string; readonly countryCode?: string; readonly email?: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
 export type CommitmentInvoiceRecipientResponse = { readonly city: string; readonly countryCode: string; readonly email: string | null; readonly postalCode: string; readonly recipientName: string; readonly streetLine1: string; };
@@ -147,6 +147,8 @@ export type LegalRetentionResponse = { readonly auditDays: number; readonly comm
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
 export type MatrixRowAggregate = { readonly answered: number; readonly counts: Array<AggregateCount>; readonly invalid: number; readonly label: string; readonly rowId: string; readonly unanswered: number; };
+export type MemberBuyerLinkRequest = { readonly expectedRevision: number; readonly twentyPersonId: string | null; };
+export type MemberBuyerLinkResponse = { readonly buyer: CommitmentBuyerResponse | null; readonly revision: number; readonly twentyPersonId: string | null; readonly userId: string; readonly verifiedAt: string | null; readonly verifiedByUserId: string | null; };
 export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; readonly availableRoles: Array<"charity_admin" | "acquirer" | "finance_reader" | "driver">; };
 export type MemberDirectoryMemberResponse = { readonly actionMemberships: Array<MemberDirectoryMembershipResponse>; readonly activeSessionCount: number; readonly displayName: string; readonly email: string; readonly globalRoleLabels: Array<string>; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly lastLoginAt: string | null; readonly revision: number; readonly status: "invited" | "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
 export type MemberDirectoryMembershipResponse = { readonly actionId: string; readonly actionName: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; readonly roleLabel: string; };
@@ -1304,6 +1306,33 @@ export class LeonAidApiClient {
       `/api/v1/admin/members/${encodeURIComponent(String(userId))}/actions/${encodeURIComponent(String(actionId))}/roles/${encodeURIComponent(String(role))}`,
       {
         method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getMemberBuyerLink(
+    userId: string,
+    options: RequestOptions = {},
+  ): Promise<MemberBuyerLinkResponse> {
+    return this.request<MemberBuyerLinkResponse>(
+      `/api/v1/admin/members/${encodeURIComponent(String(userId))}/buyer-link`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setMemberBuyerLink(
+    userId: string,
+    body: MemberBuyerLinkRequest,
+    options: RequestOptions = {},
+  ): Promise<MemberBuyerLinkResponse> {
+    return this.request<MemberBuyerLinkResponse>(
+      `/api/v1/admin/members/${encodeURIComponent(String(userId))}/buyer-link`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

@@ -269,6 +269,9 @@ async def prove() -> None:
         from tools.delivery.completion import prove_completion
 
         await prove_completion(pool, action.id, admin_id)
+        from tools.delivery.member_buyers import prove_member_buyers
+
+        await prove_member_buyers(pool, action.id, admin_id)
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)
@@ -345,7 +348,7 @@ def main() -> None:
             (historical_action,),
         ).fetchone() == (False,)
         assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [
-            ("0036_delivery_windows",)
+            ("0037_member_buyer_link",)
         ]
     asyncio.run(prove())
 

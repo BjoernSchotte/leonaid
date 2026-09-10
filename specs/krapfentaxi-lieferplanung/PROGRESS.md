@@ -86,4 +86,17 @@ KLF-040 ist für die Aktionsverwaltung abgeschlossen. Anna und die öffentlichen
 
 ## Sichtprüfung des Ausgangsstands
 
+## KLF-050a: verifizierter eigener Käufer im Core
+
+- [x] Additive Migration `0037_member_buyer_link`: eindeutige eigene Twenty-Person pro Mitglied, Revision sowie bestätigender Admin und Zeitpunkt; keine automatische Zuordnung aus E-Mail-Adressen.
+- [x] System-Admin-GET/PUT an `/admin/members/{user_id}/buyer-link`, Änderung mit frischer Anmeldung. Vor Bestätigung muss die Person in Twenty existieren und dem aktiven Mitglied bereits über eine aktive Akquise-Mitgliedschaft zugeordnet sein. Entfernen und konkurrierende Änderungen sind explizit behandelt.
+- [x] Erfassungskontext liefert `selfBuyer` ausschließlich aus dieser eigenen Referenz und einer Kundenzuordnung derselben Aktion. Fehlende Referenz, fehlende Aktionszuordnung, gelöschte CRM-Person und CRM-Ausfall werden unterscheidbar zurückgegeben. Es entstehen keine CRM-Schreibzugriffe.
+- [x] Interner Erstellungs-Replay prüft erneut Bestelleigentümer und bestehende Kundenzuordnung. Ein anderer Akquisiteur erhält auch mit identischem Bestellkommando keinen Zugriff auf die gespeicherten Lieferdaten. Alte Admin-Replays bleiben kompatibel.
+- [x] Vollständiger isolierter Liefernachweis einschließlich neuer HTTP-/PostgreSQL-Fälle bestanden: Admin-/Anmeldegrenzen, Revision bei gleichzeitiger Bestätigung, eindeutige Person, Entfernen, entzogene Kundenzuordnung, Fehlerzustände und Eigenbestellungsentwurf. Identität und externe CRM-Antworten sind für diesen gezielten Nachweis synthetisch.
+- [x] 373 Unit-Tests, Mypy über 140 Core-Dateien, Ruff und Client-Generierung bestanden.
+
+KLF-050 bleibt für die sichtbare Mitgliedszuordnung, Anna-Erfassung und den Nachweis mit echter Twenty-Anbindung offen. Scrollleisten werden auf ausdrücklichen Nutzerwunsch unsichtbar gehalten, bei weiterhin funktionierender Scrollbedienung.
+
+### Vorhandene öffentliche Microsite
+
 Die bestehende synthetische Microsite `/campaigns/krapfentaxi-2026/` wurde am 10.09.2026 im In-App-Browser geöffnet und der Lieferadressblock visuell geprüft. Sie enthält noch keine Fensterwahl und keinen separaten Lieferkontakt. Angezeigter Aktionszeitraum: 01.09.–15.11.2026. Die Demo-Einrichtung für Dezember muss deshalb das Aktionsende passend erweitern. Diese Sichtprüfung ist Ausgangsevidenz, kein Nachweis für den neuen Code; die bestehende Instanz wurde nicht verändert.

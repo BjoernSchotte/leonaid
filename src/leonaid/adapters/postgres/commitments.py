@@ -465,6 +465,14 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             request_hash=request_hash,
         )
         if replayed is not None:
+            await self._authorize_order(
+                connection,
+                action_id=action_id,
+                commitment_id=replayed,
+                actor_user_id=actor_user_id,
+                as_manager=source is CommitmentSource.ADMIN,
+                for_update=False,
+            )
             return await self._get(
                 connection,
                 replayed,
