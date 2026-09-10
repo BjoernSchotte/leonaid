@@ -1,6 +1,6 @@
 # Krapfentaxi: Lieferadresse, Lieferfenster und Lieferkontakt
 
-Stand: 10.09.2026. Status: Architektur- und Implementierungsplan, keine Umsetzung.
+Stand: 10.09.2026. Status: Umsetzung begonnen; Abnahme siehe [PROGRESS.md](PROGRESS.md).
 Untersuchter Checkout: `80a6/leonaid`, HEAD `adfb9af`.
 
 ## 1. Ziel und fachliche Entscheidungen
@@ -157,6 +157,14 @@ Kontakt-Snapshots erscheinen nur in berechtigten Bestellansichten. Bestehende Da
 Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzeiten passend. Größere Konfigurationen bleiben nach Tag gegliedert und ohne festes Sechs-Fenster-Layout bedienbar. Keine automatische Vorauswahl des ersten Fensters. Ladefehler bieten Wiederholen; ohne verfügbare Fenster wird die Bestellung verständlich gesperrt. Beschriftungen, Tastaturbedienung, mobile Touch-Ziele und 200-Prozent-Textvergrößerung werden geprüft. Das öffentliche Formular funktioniert weiterhin ohne JavaScript und erhält Eingaben bei Validierungsfehlern.
 
 ## 5. Implementierungsschritte und Abnahme
+
+- [ ] KLF-010 – Ausgangsstand und Verträge; technischer Abgleich erfolgt, Demo-Eingaben ausstehend.
+- [ ] KLF-020 – Core-Konfiguration und Migration.
+- [ ] KLF-030 – Bestellung, Speicherung und API-Client.
+- [ ] KLF-040 – Charity-Admin.
+- [ ] KLF-050 – Anna und Eigenbestellung.
+- [ ] KLF-060 – Öffentliche Website und EmDash.
+- [ ] KLF-070 – Gesamtnachweis und Demo-Konfiguration.
 
 ### KLF-010 – Ausgangsstand abgleichen und Verträge festlegen
 
