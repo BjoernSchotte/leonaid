@@ -159,7 +159,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 
 ## 5. Implementierungsschritte und Abnahme
 
-- [ ] KLF-010 – Ausgangsstand und Verträge; technischer Abgleich und Demo-Termine festgelegt, Demo-Zielabgleich ausstehend.
+- [x] KLF-010 – Ausgangsstand, Verträge und Demo-Ziel abgeglichen; Kundenablauf und Dezember-Termine festgelegt.
 - [x] KLF-020 – Core-Konfiguration und Migration; Datenbanknachweis in `PROGRESS.md`.
 - [x] KLF-030 – Bestellung, Speicherung und API-Client; beide Speicherpfade, HTTP, Alt-Replay, Datenschutz und konkurrierende Stilllegung nachgewiesen.
 - [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
@@ -223,10 +223,8 @@ Reihenfolge: additive Datenbankänderung und kompatibles Backend, danach aktuali
 
 Rückweg: Bei Problemen neue Bestellungen für die betroffene Aktion pausieren. Schema und bereits gespeicherte Snapshots beibehalten. Ein alter Server, der neue Lieferdaten nicht kennt, ist nach Annahme solcher Bestellungen kein sicherer normaler Rollback-Zielstand. Wiederaufnahme erst mit kompatiblem Backend und geprüftem Formular; keine destruktive Down-Migration zur Reparatur.
 
-Vor einer Demo-Umstellung werden noch benötigt:
+Die lokale Vorführinstanz ist `https://localhost:28443`, Aktion „Krapfentaxi 2026“ mit ID `20000000-0000-4000-8000-000000000001`. Die bestehende Website liegt unter `/krapfentaxi`, die veröffentlichte EmDash-Kampagne unter `/campaigns/krapfentaxi-2026/`. Beide verwenden das gemeinsame Formular und dieselbe Core-Aktion. Der zusätzliche Alias `/lieferpruefung` führt zur EmDash-Kampagne.
 
-1. Bestätigung „drei Fenster pro Tag an zwei Tagen“ sowie konkrete Tage, Anfangs- und Endzeiten.
-2. Eindeutige Demo-Aktions-ID/URL und aktuell eingesetzter Renderer/Deployment-Stand.
-3. Annas verifizierte eigene Demo-Person beziehungsweise Einrichtung dieser Zuordnung.
+Gemäß Nutzervorgabe „zwei Tage im Dezember nehmen“ wurden der 04. und 05.12.2026 mit jeweils 08–10, 10–12 und 12–14 Uhr in Europe/Berlin gewählt. Die lokale Aktionslaufzeit endet am 31.12.2026. Anna wählt bestehende, ihr zugeordnete CRM-Kunden; eine eigene Käufer-Person oder Eigenbestellungsoption ist nicht erforderlich.
 
-Diese Angaben verhindern die Architekturplanung nicht. Die Online-Demo wurde für diesen Plan weder untersucht noch verändert. Es wurden keine Produktfunktionen implementiert und keine Laufzeitprüfungen ausgeführt.
+Die Umsetzung und Laufzeitnachweise werden in `PROGRESS.md` fortgeschrieben. Diese Demo läuft im isolierten Compose-Projekt `leonaid-delivery-80a6-visible`. Die frühere Instanz auf Port 19443 sowie externe Deployments werden dadurch nicht geändert.

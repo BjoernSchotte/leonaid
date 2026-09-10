@@ -8,7 +8,7 @@
 - [x] Vertrag bleibt wie PLAN.md: Manager-Ressource `/delivery-configuration`, UTC-Zeitpunkte in PostgreSQL, lokale Datum-/Uhrzeiteingabe mit IANA-Zeitzone, separate Kontakt-Snapshots, neue UUIDs vom Server. Neue Migration folgt auf `0035_merge_campaign_surveys`.
 - [x] Identity-/Acquisition-Code untersucht. Nach fachlicher Klarstellung vom 10.09.2026 verwendet KLF-050 ausschließlich bestehende CRM-Kunden und deren Akquise-Zuordnung; eine Mitglied-zu-CRM-Person-Verknüpfung ist nicht erforderlich.
 - [x] Demo-Vorgabe vom Nutzer: Aktion „Krapfentaxi 2026“, zwei Tage im Dezember. Festgelegte synthetische Konfiguration: 04. und 05.12.2026, jeweils 08–10, 10–12 und 12–14 Uhr, Europe/Berlin.
-- [ ] Online-Demo eindeutig anhand Aktion und URL bestimmen; keine bestehende Instanz wird aus einer Containerliste als Ziel geraten.
+- [x] Lokales Demo-Ziel abgeglichen: `https://localhost:28443`, Krapfentaxi 2026 (`20000000-0000-4000-8000-000000000001`), bestehende Website und veröffentlichte EmDash-Kampagne auf derselben Core-Aktion. Die frühere Instanz auf 19443 bleibt unverändert. Gewählte Dezember-Termine und Kundenablauf in den abschließenden Planstellen nachgezogen.
 
 Die weiteren Aufgaben werden unten einzeln nachgewiesen. Alte Tests aus PR #3 gelten nicht als Nachweis für diesen Branch.
 
