@@ -92,6 +92,19 @@ Der Schutz beim Wiederholen einer Kundenbestellung bleibt erhalten: Bestelleigen
 
 Nach der Korrektur erneut bestanden: vollständiger isolierter Liefernachweis (Konfiguration, interne/öffentliche Speicherung, Abschluss, Wiederholungen einschließlich entzogener Kundenzuordnung, Alt-Hashes und Datenschutz), Ruff, Client-Generierung und Features-Typecheck. Die aktualisierten API-, Web- und PWA-Dienste sind lokal gesund. Im In-App-Browser ist bestätigt, dass Annas Mitgliederansicht keine Eigenbestellungs-Einrichtung mehr enthält.
 
+## KLF-050 abgeschlossen: Kundenbestellung und Entwurfsabschluss
+
+- [x] Anna wählt ausdrücklich einen ihr zugeordneten bestehenden CRM-Kunden. Keine Eigenbestellungsoption und keine automatische Auswahl des ersten Kunden. Kunden- und Aktionswechsel setzen die zugehörigen Eingaben zurück; der PWA-Kopf zeigt die tatsächlich ausgewählte Aktion.
+- [x] Separate Lieferadresse mit ausdrücklicher Übernahme der Rechnungsadresse; nach Tagen gruppierte Fenster ohne Vorauswahl; Lieferkontakt und Telefonnummer unabhängig optional. Unvollständige Lieferdaten sind als Entwurf möglich, eine teilweise Adresse wird nicht stillschweigend verworfen.
+- [x] Echte Stilllegung zwischen Auswahl und Absenden: Fensterliste aktualisiert, ungültige Auswahl entfernt, übrige Eingaben erhalten. Anschließend erfolgreiche Bestellung mit neuem Fenster.
+- [x] Gespeicherte Bestellung über ihre URL erneut geladen. Anna und berechtigte Manager schließen Entwürfe über den vorhandenen Abschluss-Endpunkt ab; Besteller, Rechnung, bepreiste Positionen und Betrag bleiben erhalten. Historische Lieferdaten werden aus der Bestellung angezeigt.
+- [x] `tools/delivery/orders-browser.mjs` vollständig bestanden gegen die eigene lokale Instanz mit echtem Core, Mailpit und Twenty. Nachgewiesen sind Kundenwechsel, getrennte Adressen, Stilllegung, gespeicherte Kontakte, Entwurfsabschluss durch Anna und Manager sowie mobile Darstellung und Tastaturscrolling ohne sichtbare Scrollleisten. Die Testaktion nutzt ausschließlich synthetische Termine 2037.
+- [x] Bestehender `tools/commitments/test.sh`-Lauf erfolgreich: 11 Browserfälle bestanden, 16 gemäß bestehender Projektmatrix übersprungen; neun Browser-/Viewport-Kombinationen geprüft. API, PostgreSQL und Browser stimmen bei Golden-Bestellsummen überein. Eigene isolierte Testressourcen anschließend entfernt.
+- [x] In-App-Browser: Kundenbestellung erfasst, gespeichert und erneut geladen; Lieferadresse, Fenster und gesonderter Name mit Telefonnummer sichtbar bestätigt. Dieselben Angaben auch in der mobilen Admin-Bestellliste kontrolliert.
+- [x] Desktop, Mobil, Nutzerbreite 499 Pixel und 200 Prozent Text geprüft. Mobile Listenbreite korrigiert; Statusfilter bleibt intern scrollbar. Unabhängige Abschlussprüfungen für Anna und Manager jeweils `ship`, Dokumentationsabgleich erhält die bestehende Gestaltung.
+
+KLF-050 ist abgeschlossen. Öffentliche Formulare und gemeinsame Demo-Abnahme bleiben KLF-060/070.
+
 ## Sichtprüfung des Ausgangsstands
 
 ### Vorhandene öffentliche Microsite

@@ -1,5 +1,6 @@
 .commitment-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(1.1rem, 2.4vw, 1.8rem);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -494,6 +495,7 @@
 
 .commitment-ledger-toolbar {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -507,6 +509,8 @@
 
 .commitment-filter {
   display: inline-grid;
+  min-width: 0;
+  max-width: 100%;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   gap: 0.2rem;
@@ -948,4 +952,98 @@
   .commitment-loading span {
     animation: none;
   }
+}
+.commitment-delivery-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.commitment-delivery-options label {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.commitment-delivery-options label:has(:checked) {
+  border-color: var(--primary);
+  background: var(--accent);
+}
+
+.commitment-delivery-options input {
+  flex: 0 0 auto;
+  accent-color: var(--primary);
+}
+
+.commitment-window-choice {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.commitment-window-choice p {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.commitment-delivery-day h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.92rem;
+}
+
+.commitment-delivery-summary,
+.commitment-draft-completion {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  gap: 0.75rem;
+  padding-block: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.commitment-delivery-summary address {
+  font-style: normal;
+  line-height: 1.6;
+}
+
+.commitment-delivery-summary p,
+.commitment-delivery-summary h3,
+.commitment-draft-completion h2,
+.commitment-draft-completion p {
+  margin: 0;
+}
+
+.commitment-draft-completion form {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.commitment-delivery .ui-button,
+.commitment-draft-completion .ui-button {
+  white-space: normal;
+}
+
+.commitment-order-details {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.commitment-order-details summary {
+  width: fit-content;
+  min-height: 2.75rem;
+  padding-block: 0.65rem;
+  color: var(--primary);
+  font-weight: 650;
+  cursor: pointer;
 }

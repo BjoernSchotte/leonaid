@@ -18,6 +18,7 @@ import {
   CommitmentCapturePage,
   RoleDashboardPage,
   SponsorWorkspace,
+  useCurrentActionId,
 } from "@leonaid/features";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
@@ -283,6 +284,7 @@ function ActivityHub({
 }
 
 export function App({ client }: AppProps) {
+  const currentActionId = useCurrentActionId();
   const identity = useQuery({
     queryFn: () => client.getCurrentIdentity(),
     queryKey: ["identity"],
@@ -342,7 +344,10 @@ export function App({ client }: AppProps) {
     (membership) => membership.role === "acquirer",
   );
   const currentAction =
-    memberships[0]?.actionName ?? "Keine aktive Akquise-Aktion";
+    memberships.find((membership) => membership.actionId === currentActionId)
+      ?.actionName ??
+    memberships[0]?.actionName ??
+    "Keine aktive Akquise-Aktion";
 
   return (
     <>
