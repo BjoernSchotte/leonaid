@@ -55,11 +55,6 @@ from leonaid.application.commitments import (
     CommitmentRecord,
     CommitmentService,
 )
-from leonaid.application.member_buyers import MemberBuyerDetails, MemberBuyerService
-from leonaid.entrypoints.fastapi.schemas import (
-    MemberBuyerLinkRequest,
-    MemberBuyerLinkResponse,
-)
 from leonaid.application.documents import (
     GeneratedDocumentList,
     GeneratedDocumentRecord,
@@ -493,16 +488,6 @@ def campaign_alias_service(request: Request) -> CampaignAliasService:
 
 def commitment_service(request: Request) -> CommitmentService:
     return cast(CommitmentService, request.app.state.commitment_service)
-
-
-def member_buyer_service(request: Request) -> MemberBuyerService:
-    service = request.app.state.member_buyer_service
-    if not isinstance(service, MemberBuyerService):
-        raise DependencyUnavailable(
-            "crm_integration_not_configured",
-            "Die geschützte CRM-Anbindung ist noch nicht konfiguriert.",
-        )
-    return service
 
 
 def invoice_service(request: Request) -> InvoiceService:
@@ -1349,10 +1334,6 @@ def commitment_capture_context_response(
     context: CommitmentCaptureContext,
 ) -> CommitmentCaptureContextResponse:
     return CommitmentCaptureContextResponse(
-        self_buyer=CommitmentBuyerResponse.model_validate(context.self_buyer)
-        if context.self_buyer
-        else None,
-        self_buyer_unavailable_reason=context.self_buyer_unavailable_reason,
         delivery_configuration=delivery_configuration_response(
             context.delivery_configuration, available_only=True
         )
@@ -2063,59 +2044,6 @@ async def get_member(
     member = await identity_service(request).get_member(actor, user_id)
     response.headers["Cache-Control"] = "no-store"
     return MemberDirectoryMemberResponse.model_validate(member)
-
-
-def member_buyer_response(details: MemberBuyerDetails) -> MemberBuyerLinkResponse:
-    return MemberBuyerLinkResponse(
-        user_id=details.link.user_id,
-        twenty_person_id=details.link.twenty_person_id,
-        revision=details.link.revision,
-        verified_by_user_id=details.link.verified_by_user_id,
-        verified_at=details.link.verified_at,
-        buyer=CommitmentBuyerResponse.model_validate(details.buyer)
-        if details.buyer
-        else None,
-    )
-
-
-@router.get(
-    "/api/v1/admin/members/{user_id}/buyer-link",
-    operation_id="getMemberBuyerLink",
-    response_model=MemberBuyerLinkResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
-    tags=["identity"],
-)
-async def get_member_buyer_link(
-    user_id: UUID, request: Request, response: Response
-) -> MemberBuyerLinkResponse:
-    actor = await identity_service(request).authenticate(session_token(request))
-    details = await member_buyer_service(request).get(
-        actor, user_id, request_id=request_id(request)
-    )
-    response.headers["Cache-Control"] = "no-store"
-    return member_buyer_response(details)
-
-
-@router.put(
-    "/api/v1/admin/members/{user_id}/buyer-link",
-    operation_id="setMemberBuyerLink",
-    response_model=MemberBuyerLinkResponse,
-    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
-    tags=["identity"],
-)
-async def set_member_buyer_link(
-    user_id: UUID, body: MemberBuyerLinkRequest, request: Request, response: Response
-) -> MemberBuyerLinkResponse:
-    actor = await identity_service(request).authenticate_fresh(session_token(request))
-    details = await member_buyer_service(request).save(
-        actor,
-        user_id,
-        body.twenty_person_id,
-        expected_revision=body.expected_revision,
-        request_id=request_id(request),
-    )
-    response.headers["Cache-Control"] = "no-store"
-    return member_buyer_response(details)
 
 
 @router.patch(
@@ -3415,9 +3343,7 @@ async def get_commitment_capture_context(
     response: Response,
 ) -> CommitmentCaptureContextResponse:
     actor = await identity_service(request).authenticate(session_token(request))
-    context = await commitment_service(request).capture_context(
-        actor, action_id, request_id=request_id(request)
-    )
+    context = await commitment_service(request).capture_context(actor, action_id)
     response.headers["Cache-Control"] = "no-store"
     return commitment_capture_context_response(context)
 

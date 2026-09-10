@@ -75,8 +75,6 @@ from leonaid.application.assignments import AssignmentManagementService
 from leonaid.application.actions import CharityActionService
 from leonaid.application.campaign_aliases import CampaignAliasService
 from leonaid.application.commitments import CommitmentService
-from leonaid.application.member_buyers import MemberBuyerService
-from leonaid.adapters.postgres.member_buyers import AsyncpgMemberBuyerRepository
 from leonaid.application.documents import GeneratedDocumentService
 from leonaid.application.dashboard import DashboardService
 from leonaid.application.email_changes import EmailChangeService
@@ -268,6 +266,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.delivery_service = DeliveryService(
             AsyncpgDeliveryRepository(pool)
         )
+        application.state.commitment_service = CommitmentService(
+            AsyncpgCommitmentRepository(pool)
+        )
         application.state.invoice_service = InvoiceService(
             AsyncpgInvoiceRepository(pool)
         )
@@ -382,15 +383,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.assignment_management_service = None
             application.state.activity_management_service = None
             application.state.public_order_service = None
-        member_buyers = (
-            MemberBuyerService(AsyncpgMemberBuyerRepository(pool), crm_gateway)
-            if crm_gateway is not None
-            else None
-        )
-        application.state.member_buyer_service = member_buyers
-        application.state.commitment_service = CommitmentService(
-            AsyncpgCommitmentRepository(pool), member_buyers
-        )
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()

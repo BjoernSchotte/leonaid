@@ -5,7 +5,7 @@ Untersuchter Checkout: `80a6/leonaid`, HEAD `adfb9af`.
 
 ## 1. Ziel und fachliche Entscheidungen
 
-Bei einer Krapfentaxi-Bestellung sollen Lieferadresse, ein vordefiniertes Lieferzeitfenster und ein gegebenenfalls abweichender Ansprechpartner für die Übergabe erfasst werden. Dessen Telefonnummer ist optional. Dieselben Regeln gelten für die öffentliche Microsite und für Anna in der Akquise-App, sowohl bei Kundenbestellungen als auch bei einer Eigenbestellung.
+Bei einer Krapfentaxi-Bestellung sollen Lieferadresse, ein vordefiniertes Lieferzeitfenster und ein gegebenenfalls abweichender Ansprechpartner für die Übergabe erfasst werden. Dessen Telefonnummer ist optional. Dieselben Regeln gelten für die öffentliche Microsite und für Anna in der Akquise-App. Fachliche Klarstellung vom 10.09.2026: Anna bestellt ausschließlich für Kunden und kann bestehende Kunden aus dem CRM auswählen. Eine Eigenbestellung durch Anna gehört nicht zum Umfang.
 
 Der Charity-Admin definiert die Fenster pro Aktion. Es gibt keine fest codierte Anzahl von Tagen oder Fenstern. Die Konfiguration gehört zur Krapfentaxi-Aktion, nicht zu allgemeinen Charity-Stammdaten und nicht zum CMS. Golfaktionen und andere Vorlagen bekommen dadurch keine Lieferpflichten.
 
@@ -30,8 +30,8 @@ Die folgende Tabelle beschreibt gelesenen Quellcode, keine Prüfung der laufende
 | Aktionsvorlagen | `src/leonaid/domain/action_templates.py:17` definiert `blank` und `krapfentaxi`; `OrderFormConfiguration` ab Zeile 111 enthält `require_delivery_address`. | Keine typisierten Lieferfenster. Golf ist im untersuchten Enum keine eigene Vorlage; daher keine bereits vorhandene Golfimplementierung unterstellen. |
 | Bestellmodell | `src/leonaid/domain/commitments.py:203`: `DeliveryRecipientSnapshot` mit Name, Straße, PLZ, Ort, Land. `Commitment` ab Zeile 404 trägt die Lieferadresse. | Fenster und separater Lieferkontakt fehlen. Adresse erweitern, keine konkurrierende zweite Adressstruktur einführen. |
 | Interner API-Eingang | `src/leonaid/entrypoints/fastapi/schemas.py:984`: `CreateCommitmentRequest` enthält Käufer, Rechnungsempfänger und Positionen. | Lieferadresse ist trotz Unterstützung in der Anwendung noch nicht im internen Request verfügbar. Die gesamte Transportkette muss ergänzt werden. |
-| Anna | `packages/features/src/commitments/commitment-capture.tsx:227`: Erstellung aus ausgewähltem Sponsor und Rechnungsempfänger. | Keine Lieferfelder; keine eigene Auswahl „Für mich selbst“. |
-| Berechtigung | `src/leonaid/adapters/postgres/commitments.py:368`: `_require_assignment` prüft die Zuordnung des Käufers zum Akquisiteur. | Eigenbestellung ist kein bloßes zusätzliches Formularfeld. Fremdkundenrechte dürfen dabei nicht erweitert werden. |
+| Anna | `packages/features/src/commitments/commitment-capture.tsx:227`: Erstellung aus ausgewähltem Sponsor und Rechnungsempfänger. | Lieferfelder ergänzen; bestehende CRM-Kundenauswahl erhalten. |
+| Berechtigung | `src/leonaid/adapters/postgres/commitments.py:368`: `_require_assignment` prüft die Zuordnung des Käufers zum Akquisiteur. | Die vorhandene Kundenzuordnung bleibt auch bei Bestellung und Wiederholung wirksam. |
 | Öffentliches Formular | `apps/public/src/components/PublicOrder.astro:408`: Lieferanschrift; Rechnung kann aus dieser übernommen werden. Allgemeiner Bestellkontakt und Telefon existieren bereits. | Neuer Lieferkontakt darf den Bestellkontakt nicht ersetzen. Fensterwahl ergänzen. |
 | Öffentliche Übertragung | `apps/public/src/actions/index.ts:78`, `src/leonaid/application/public_orders.py:177`: Formularschema, Request-Mapping, Validierung und Request-Hash. | Neue Felder müssen alle Schichten inklusive Fehler-Wiederanzeige und Idempotenz erreichen. |
 | EmDash | `apps/campaign-site/src/pages/campaigns/[slug].astro:4` importiert das gemeinsame `PublicOrder`; `apps/campaign-site/src/actions/index.ts` verwendet die öffentliche Action. | Gemeinsame Erweiterung ist möglich. Kanonische Kampagnenroute und Alias benötigen dennoch eigene Integrationsnachweise. |
@@ -47,7 +47,7 @@ flowchart TD
   Admin[Charity-Admin: Krapfentaxi konfigurieren] --> Config[Core: Lieferkonfiguration je Aktion]
   Config --> Internal[Core: interner Erfassungskontext]
   Config --> Public[Core: öffentliche Aktionsdaten]
-  Internal --> Anna[Anna: Kunden- oder Eigenbestellung]
+  Internal --> Anna[Anna: Kunden aus dem CRM auswählen]
   Public --> Form[Gemeinsames Astro-Bestellformular]
   Form --> Legacy[Bestehende öffentliche Website]
   Form --> CMS[EmDash-Microsite]
@@ -126,15 +126,13 @@ Vorgeschlagene fachliche Fehler: `delivery_required`, `delivery_window_unavailab
 
 Namensfeld: trimmen, maximal 200 Zeichen, keine Zeilenumbrüche. Telefon: trimmen, maximal 40 Zeichen, internationale Präfixe und übliche Trennzeichen zulassen; keine deutsche Mobilfunknummer erzwingen. Bestehende Adressvalidierung weiterverwenden. API und Formulargrenzen abstimmen, einschließlich Body-Limits und erlaubter Formularfelder.
 
-### 3.4 Anna: Kunden- und Eigenbestellung
+### 3.4 Anna: Bestellung für bestehende CRM-Kunden
 
 Kundenbestellungen behalten die bestehende Zuordnungsprüfung. Der Bestellkontakt und die Rechnung bleiben getrennt von Lieferadresse und Lieferkontakt. „Lieferadresse wie Rechnungsadresse“ übernimmt die Werte ausdrücklich; bei abweichender Lieferadresse wird ein eigener Snapshot erstellt. Ein Wechsel des Kunden oder der Aktion setzt betroffene Auswahlwerte zurück und verhindert die Übernahme eines fremden Fensters.
 
-Eigenbestellung ist heute nicht implementiert. Für diesen Umfang wird der vorhandene Käufervertrag mit Twenty-Person beibehalten: „Für mich selbst“ verwendet ausschließlich eine serverseitig verifizierte Zuordnung des angemeldeten Mitglieds zu seiner eigenen CRM-Person und eine eigene Aktionszuordnung. Keine vom Browser behauptete Käuferidentität und kein automatisches Zusammenführen allein anhand gleicher E-Mail-Adressen.
+Anna wählt einen bestehenden, ihr zugeordneten CRM-Kunden als Käufer. Weitere bestehende CRM-Kunden können über die vorhandene Sponsorensuche und den vorhandenen Zuordnungsprozess übernommen werden. Eine Übernahme erzeugt keinen doppelten CRM-Kunden. Die Auswahl unterstützt Firmen und Personen entsprechend dem bestehenden Käufervertrag; eine nicht vorhandene Zuordnung berechtigt nicht zum direkten Bestellaufruf.
 
-Vor Umsetzung prüfen, ob eine verlässliche Mitglied-zu-CRM-Person-Verknüpfung bereits an anderer Stelle existiert. Falls nicht, minimal eine eindeutige Referenz pro Mitglied ergänzen, die ein berechtigter Admin über den bestehenden Personen-/Zuordnungsprozess herstellt. Die API liefert `selfBuyer` nur für die verifizierte eigene, für diese Aktion zugeordnete Person. Anna wählt „Für mich selbst“, der Client verwendet diesen Eintrag; `_require_assignment` bleibt auch für Eigenbestellungen wirksam. Ohne Zuordnung erscheint „Eigenbestellung noch nicht eingerichtet“ mit erklärtem nächsten Schritt, kein stiller Wechsel zum ersten Sponsor.
-
-Für die Demo muss Annas eigene synthetische Person vorab zugeordnet werden. Ein vollständig automatisches CRM-Onboarding jedes Mitglieds ist ein möglicher Folgeumfang, keine Voraussetzung für die Lieferfenster. Die Eigenbestellung selbst gehört zur Abnahme dieses Plans und darf nicht als erledigt gelten, solange sie nur über die öffentliche Website funktioniert.
+Es gibt keine Auswahl „Für mich selbst“, keinen `selfBuyer` und keine zusätzliche Mitglied-zu-CRM-Person-Verknüpfung. Der gesonderte Ansprechpartner bei der Lieferung bleibt ein Kontakt-Snapshot an der Kundenbestellung.
 
 ### 3.5 Bestandsdaten, CRM und Datenschutz
 
@@ -152,7 +150,7 @@ Kontakt-Snapshots erscheinen nur in berechtigten Bestellansichten. Bestehende Da
 | --- | --- |
 | Aktion erstellen | Bei Krapfentaxi Schritt „Lieferung“: Datum, Beginn, Ende; „Zeitfenster hinzufügen“ und „Weiteren Tag hinzufügen“. Ein Entwurf darf ohne fertige Termine gespeichert werden. |
 | Aktion verwalten | Dieselbe Konfiguration bearbeiten; Datum und Fenster chronologisch, Zeitzone sichtbar, Stilllegung erklären, Konflikt mit erneutem Laden behandelbar. Andere Vorlagen zeigen diesen Bereich nicht. |
-| Anna/PWA | Käuferwahl für zugeordneten Kunden oder eigene Person; separater Lieferblock; Rechnung übernehmen oder abweichende Adresse; Fenster nach Tagen gruppiert; optionaler Kontakt und Telefon. |
+| Anna/PWA | Bestehenden CRM-Kunden auswählen; separater Lieferblock; Rechnung übernehmen oder abweichende Adresse; Fenster nach Tagen gruppiert; optionaler Kontakt und Telefon. |
 | Bestehende Astro-Seite | Gemeinsames `PublicOrder` erweitern, vorhandene Lieferadresse beibehalten, Fenster und Kontakt ergänzen. |
 | EmDash-Microsite | Dasselbe Formular und dieselbe Core-Konfiguration unter `/campaigns/[slug]` und den vorgesehenen Aliaswegen; keine CMS-Doppelerfassung. |
 | Bestellansicht | Lieferadresse, historisches Zeitfenster und optionalen Kontakt anzeigen, damit die Angaben operativ nutzbar sind; keine neue Tourenplanungsoberfläche. |
@@ -165,13 +163,13 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 - [x] KLF-020 – Core-Konfiguration und Migration; Datenbanknachweis in `PROGRESS.md`.
 - [x] KLF-030 – Bestellung, Speicherung und API-Client; beide Speicherpfade, HTTP, Alt-Replay, Datenschutz und konkurrierende Stilllegung nachgewiesen.
 - [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
-- [ ] KLF-050 – Anna und Eigenbestellung.
+- [ ] KLF-050 – Annas Kundenbestellungen.
 - [ ] KLF-060 – Öffentliche Website und EmDash.
 - [ ] KLF-070 – Gesamtnachweis und Demo-Konfiguration.
 
 ### KLF-010 – Ausgangsstand abgleichen und Verträge festlegen
 
-Vorhandene Lieferfenster-Arbeit in anderen Branches/PRs read-only vergleichen; erst danach über Wiederverwendung entscheiden. Keine pauschale Übernahme fremder Worktrees. Demo-Aktion und deren tatsächlich eingesetzten Renderer bestimmen. Mitglied-/CRM-Verknüpfung für Eigenbestellungen prüfen. Diese Punkte dürfen parallel zur Vorbereitung der Datenverträge geklärt werden.
+Vorhandene Lieferfenster-Arbeit in anderen Branches/PRs read-only vergleichen; erst danach über Wiederverwendung entscheiden. Keine pauschale Übernahme fremder Worktrees. Demo-Aktion und deren tatsächlich eingesetzten Renderer bestimmen. Bestehende CRM-Kundenauswahl und Zuordnungsgrenzen prüfen. Diese Punkte dürfen parallel zur Vorbereitung der Datenverträge geklärt werden.
 
 Ergebnis: kurze dokumentierte Übernahmeentscheidung, finaler API-Vertrag und bestätigte Demo-Eingaben. Abhängigkeit: keine.
 
@@ -193,11 +191,11 @@ Abnahme: interner und öffentlicher Auftrag speichern dieselben Lieferdaten; Fre
 
 Abnahme: Admin erstellt sechs Fenster, ergänzt einen weiteren Tag, legt ein Fenster still und behandelt einen parallelen Bearbeitungskonflikt. Nicht berechtigte Mitglieder können nichts ändern; andere Vorlagen bleiben ohne Liefereditor. Abhängigkeit: KLF-020/030.
 
-### KLF-050 – Anna und Eigenbestellung
+### KLF-050 – Annas Kundenbestellungen
 
-`packages/features/src/commitments/commitment-capture.tsx` und Bestellanzeige erweitern; verifizierten eigenen Käufer bereitstellen beziehungsweise dessen minimale Zuordnung ergänzen. Dieselben Felder für Eigen- und Kundenbestellung nutzen. Vorhandene Integration in `apps/pwa` und gegebenenfalls Admin-Einstiege prüfen.
+`packages/features/src/commitments/commitment-capture.tsx` und Bestellanzeige um die Lieferfelder erweitern. Bestehende CRM-Kundenauswahl und Sponsorenzuordnung verwenden. Vorhandene Integration in `apps/pwa` und gegebenenfalls Admin-Einstiege prüfen.
 
-Abnahme: Anna bestellt für einen zugeordneten Kunden und für sich selbst, jeweils mit eigenem Lieferkontakt und unterschiedlichen Fenstern. Fremder Kunde bleibt verboten. Kunde-/Aktionswechsel, Adressübernahme, Entwurf und Abschluss funktionieren. Fehlende Eigenzuordnung wird verständlich behandelt. Abhängigkeit: KLF-030.
+Abnahme: Anna wählt bestehende CRM-Kunden und erfasst Kundenbestellungen mit abweichendem Lieferkontakt und unterschiedlichen Fenstern. Keine Eigenbestellungsoption. Direktbestellung für einen nicht zugeordneten Kunden bleibt verboten. Kunde-/Aktionswechsel, Adressübernahme, Entwurf und Abschluss funktionieren. Abhängigkeit: KLF-030.
 
 ### KLF-060 – Öffentliche Website und EmDash
 
@@ -207,15 +205,15 @@ Abnahme: Bestellung auf bestehender öffentlicher Seite sowie EmDash-Kampagnen- 
 
 ### KLF-070 – Gesamtnachweis und Demo-Konfiguration
 
-Alle Oberflächen gegen dieselbe isolierte Testaktion prüfen; angenommene sechs Demo-Fenster erst mit bestätigten Tagen/Uhrzeiten über den normalen Konfigurationsweg anlegen. Seed beziehungsweise Konfigurationsskript idempotent nach Aktions-ID ausführen; vorhandene UUIDs nicht bei jedem Lauf ersetzen. Annas Eigenzuordnung und synthetische Lieferkontakte vorbereiten.
+Alle Oberflächen gegen dieselbe isolierte Testaktion prüfen; angenommene sechs Demo-Fenster erst mit bestätigten Tagen/Uhrzeiten über den normalen Konfigurationsweg anlegen. Seed beziehungsweise Konfigurationsskript idempotent nach Aktions-ID ausführen; vorhandene UUIDs nicht bei jedem Lauf ersetzen. Bestehende synthetische CRM-Kunden und Lieferkontakte verwenden.
 
-Abnahme: Admin-Konfiguration ist unmittelbar in Anna und beiden öffentlichen Renderern sichtbar; vier Bestellwege (Anna Kunde, Anna selbst, bestehende öffentliche Website, EmDash) persistieren jeweils nachweisbar identische Felder. Nach Neustart bleiben Daten und historische Fenster erhalten. Abhängigkeit: KLF-040/050/060.
+Abnahme: Admin-Konfiguration ist unmittelbar in Anna und beiden öffentlichen Renderern sichtbar; drei Bestellwege (Anna für CRM-Kunden, bestehende öffentliche Website, EmDash) persistieren jeweils nachweisbar identische Felder. Nach Neustart bleiben Daten und historische Fenster erhalten. Abhängigkeit: KLF-040/050/060.
 
 ## 6. Prüfstrategie
 
 Vorhandene Einstiegspunkte nutzen und um passende Fälle ergänzen: `./leonaid test-unit`, `test-templates`, `test-action-admin`, `test-commitments`, `test-pwa`, `test-public-orders`, `test-invoices` sowie die passenden `test-emdash-spike`-Fälle für Kampagnenbestellungen. Client mit `./leonaid generate-api-client` erzeugen und bestehende OpenAPI-Konsistenzprüfung verwenden. Die exakten EmDash-Fälle bei Umsetzung anhand des dann vorhandenen Runners auswählen.
 
-Zusätzlich gezielte PostgreSQL-Integrationstests für Migration, Composite-FK, Revisionskonflikt und konkurrierende Fensterstilllegung. Browsernachweise decken beide Anna-Varianten, beide öffentlichen Renderer, fehlendes JavaScript, Eingabeerhalt und mobile Darstellung ab. Eine reine Build- oder Unit-Test-Freigabe reicht nicht.
+Zusätzlich gezielte PostgreSQL-Integrationstests für Migration, Composite-FK, Revisionskonflikt und konkurrierende Fensterstilllegung. Browsernachweise decken Annas CRM-Kundenauswahl, beide öffentlichen Renderer, fehlendes JavaScript, Eingabeerhalt und mobile Darstellung ab. Eine reine Build- oder Unit-Test-Freigabe reicht nicht.
 
 Regressionsfälle: `blank` ohne Lieferpflicht, bisherige öffentliche Bestellungen, Rechnungsadresse unabhängig von Lieferung, unveränderte Rechnungssnapshots, CRM-Wiederverwendung, keine zusätzliche CRM-Kontaktänderung, historische Idempotenz, Datenschutz-Ausgabe und fremde Aktionsrechte. Testsysteme verwenden eigene Compose-Projekte, Ports und Netze; keine Bereinigung paralleler Worktrees oder Container.
 

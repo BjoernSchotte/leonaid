@@ -5,16 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
 from leonaid.application.errors import PermissionDenied
-from leonaid.application.member_buyers import (
-    MemberBuyerService,
-    SelfBuyerUnavailableReason,
-)
 from leonaid.application.policies import require_action_manager
 from leonaid.domain.action_templates import OfferingUnit
 from leonaid.domain.commitments import (
@@ -139,8 +135,6 @@ class CommitmentCaptureContext:
     action_name: str
     offerings: tuple[Offering, ...]
     delivery_configuration: DeliveryConfiguration | None = None
-    self_buyer: BuyerSnapshot | None = None
-    self_buyer_unavailable_reason: SelfBuyerUnavailableReason | None = "not_linked"
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,13 +247,8 @@ class CommitmentRepository(Protocol):
 
 
 class CommitmentService:
-    def __init__(
-        self,
-        repository: CommitmentRepository,
-        member_buyers: MemberBuyerService | None = None,
-    ) -> None:
+    def __init__(self, repository: CommitmentRepository) -> None:
         self._repository = repository
-        self._member_buyers = member_buyers
 
     @staticmethod
     def _require_capture(actor: IdentityPrincipal, action_id: UUID) -> None:
@@ -322,19 +311,12 @@ class CommitmentService:
         action_id: UUID,
         *,
         evaluated_at: datetime | None = None,
-        request_id: str = "commitment-capture",
     ) -> CommitmentCaptureContext:
         self._require_capture(actor, action_id)
-        context = await self._repository.capture_context(
+        return await self._repository.capture_context(
             action_id=action_id,
             evaluated_at=evaluated_at or datetime.now(timezone.utc),
         )
-        if self._member_buyers is None:
-            return replace(context, self_buyer_unavailable_reason="crm_unavailable")
-        buyer, reason = await self._member_buyers.self_buyer(
-            actor, action_id, request_id=request_id
-        )
-        return replace(context, self_buyer=buyer, self_buyer_unavailable_reason=reason)
 
     async def list_for_action(
         self,

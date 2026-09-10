@@ -117,9 +117,12 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
         direct = response.json()
         assert direct["deliveryContact"]["name"] == "Reception"
         assert direct["totalMinor"] > 2  # Ignore the client quote.
-        response = await client.post(path, json=body, headers=headers())
+        draft_headers = headers()
+        response = await client.post(path, json=body, headers=draft_headers)
         assert response.status_code == 201, response.text
         draft = response.json()
+        replay = await client.post(path, json=body, headers=draft_headers)
+        assert replay.status_code == 201 and replay.json()["replayed"], replay.text
         order_path = f"{path}/{draft['id']}"
         complete_path = f"{order_path}/complete"
         response = await client.get(order_path)
@@ -129,6 +132,9 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
         )
         # Another assigned acquirer still cannot retrieve/complete Anna's order.
         identity.current = actor(colleague_id, ActionRole.ACQUIRER)
+        assert (
+            await client.post(path, json=body, headers=draft_headers)
+        ).status_code == 403
         assert (await client.get(order_path)).status_code == 403
         assert (
             await client.post(complete_path, json=delivery, headers=headers())
@@ -162,6 +168,12 @@ async def prove_completion(pool: asyncpg.Pool, action_id: UUID, admin_id: UUID) 
             action_id,
             anna_id,
         )
+        assert (
+            await client.post(path, json=body, headers=draft_headers)
+        ).status_code == 403
+        assert (
+            await client.post(path, json=body, headers=headers())
+        ).status_code == 403
         assert (await client.get(order_path)).status_code == 403
         assert (
             await client.post(complete_path, json=delivery, headers=headers())

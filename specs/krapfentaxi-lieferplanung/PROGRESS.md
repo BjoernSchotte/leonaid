@@ -6,7 +6,7 @@
 - [x] Wiederverwendbar: DST-Prüfung und Überlappungsregeln aus `77618b3`, Grundmuster für Repository/Berechtigungen aus `d3c9379`, später gezielt Bestellintegration und Browserfälle.
 - [x] Übernahmeentscheidung: keine vollständige Zusammenführung. Der alte Branch enthält zusätzliche Begünstigtenansichten und historische Rechnungssperren; diese gehören nicht zu diesem Plan. Fenster dürfen im neuen Vertrag auch ungebucht nicht umterminiert, gelöscht oder reaktiviert werden. Krapfentaxi- und Ordering-Prüfung müssen ergänzt werden.
 - [x] Vertrag bleibt wie PLAN.md: Manager-Ressource `/delivery-configuration`, UTC-Zeitpunkte in PostgreSQL, lokale Datum-/Uhrzeiteingabe mit IANA-Zeitzone, separate Kontakt-Snapshots, neue UUIDs vom Server. Neue Migration folgt auf `0035_merge_campaign_surveys`.
-- [x] Identity-/Acquisition-Code untersucht: keine bestehende verifizierte Mitglied-zu-CRM-Person-Verknüpfung gefunden. KLF-050 ergänzt diese ausdrücklich und behält die Kunden-Zuordnungsprüfung bei.
+- [x] Identity-/Acquisition-Code untersucht. Nach fachlicher Klarstellung vom 10.09.2026 verwendet KLF-050 ausschließlich bestehende CRM-Kunden und deren Akquise-Zuordnung; eine Mitglied-zu-CRM-Person-Verknüpfung ist nicht erforderlich.
 - [x] Demo-Vorgabe vom Nutzer: Aktion „Krapfentaxi 2026“, zwei Tage im Dezember. Festgelegte synthetische Konfiguration: 04. und 05.12.2026, jeweils 08–10, 10–12 und 12–14 Uhr, Europe/Berlin.
 - [ ] Online-Demo eindeutig anhand Aktion und URL bestimmen; keine bestehende Instanz wird aus einer Containerliste als Ziel geraten.
 
@@ -69,7 +69,7 @@ KLF-030 bleibt für weitere öffentliche Service-/HTTP-Regressionsfälle und den
 - [x] Bestehende Firmenwiederverwendung und Firmenanlage aus der Lieferadresse durch den öffentlichen Service geprüft. Der separate Lieferkontakt wird weder zum CRM-Besteller noch zum Firmenkontakt und erscheint nicht im Audit-Event.
 - [x] Vollständiger isolierter Liefernachweis einschließlich Migration, Speicherung, Abschluss, Datenschutz, Alt-Replay und öffentlichem HTTP bestanden. Ruff bestanden. Die externe CRM-Schnittstelle ist in diesen gezielten Serviceprüfungen ein protokollierender Testadapter; echter Twenty-Transport und sichtbare öffentliche Formulare bleiben Teil der späteren Gesamtabnahme.
 
-KLF-030 ist abgeschlossen. Diese Nachweise erklären noch nicht Anna, Eigenbestellung, Astro-/EmDash-Formulare oder die Demo für fertig.
+KLF-030 ist abgeschlossen. Diese Nachweise erklären noch nicht Annas Kundenbestellungen, Astro-/EmDash-Formulare oder die Demo für fertig.
 
 ## KLF-040a: Liefereditor in der Aktionsverwaltung
 
@@ -84,18 +84,15 @@ KLF-030 ist abgeschlossen. Diese Nachweise erklären noch nicht Anna, Eigenbeste
 
 KLF-040 ist für die Aktionsverwaltung abgeschlossen. Anna und die öffentlichen Bestellformulare sind weiterhin nicht als umgesetzt oder abgenommen markiert.
 
+## KLF-050: Annas Kundenbestellungen in Arbeit
+
+Fachliche Klarstellung vom 10.09.2026: Anna bestellt nie für sich selbst; sie wählt bestehende Kunden aus dem CRM. Die zuvor ergänzte Eigenbestellungs-Erweiterung wird vollständig entfernt, einschließlich eigener Mitgliederverwaltung, API-Vertrag und Migration `0037_member_buyer_link`. In der isolierten lokalen Testinstanz wurde diese ausschließlich synthetische Zuordnung mit dem vorgesehenen Downgrade entfernt; die Lieferplanung in Migration `0036_delivery_windows` bleibt erhalten.
+
+Der Schutz beim Wiederholen einer Kundenbestellung bleibt erhalten: Bestelleigentümer und bestehende Kundenzuordnung werden erneut geprüft. Die entsprechenden Fälle sind in den Liefer-/Abschlusstest übernommen. Erfassung, Lieferanzeige und Entwurfsabschluss befinden sich in Umsetzung; KLF-050 ist noch nicht abgenommen. Scrollleisten werden auf ausdrücklichen Nutzerwunsch unsichtbar gehalten, bei weiterhin funktionierender Scrollbedienung.
+
+Nach der Korrektur erneut bestanden: vollständiger isolierter Liefernachweis (Konfiguration, interne/öffentliche Speicherung, Abschluss, Wiederholungen einschließlich entzogener Kundenzuordnung, Alt-Hashes und Datenschutz), Ruff, Client-Generierung und Features-Typecheck. Die aktualisierten API-, Web- und PWA-Dienste sind lokal gesund. Im In-App-Browser ist bestätigt, dass Annas Mitgliederansicht keine Eigenbestellungs-Einrichtung mehr enthält.
+
 ## Sichtprüfung des Ausgangsstands
-
-## KLF-050a: verifizierter eigener Käufer im Core
-
-- [x] Additive Migration `0037_member_buyer_link`: eindeutige eigene Twenty-Person pro Mitglied, Revision sowie bestätigender Admin und Zeitpunkt; keine automatische Zuordnung aus E-Mail-Adressen.
-- [x] System-Admin-GET/PUT an `/admin/members/{user_id}/buyer-link`, Änderung mit frischer Anmeldung. Vor Bestätigung muss die Person in Twenty existieren und dem aktiven Mitglied bereits über eine aktive Akquise-Mitgliedschaft zugeordnet sein. Entfernen und konkurrierende Änderungen sind explizit behandelt.
-- [x] Erfassungskontext liefert `selfBuyer` ausschließlich aus dieser eigenen Referenz und einer Kundenzuordnung derselben Aktion. Fehlende Referenz, fehlende Aktionszuordnung, gelöschte CRM-Person und CRM-Ausfall werden unterscheidbar zurückgegeben. Es entstehen keine CRM-Schreibzugriffe.
-- [x] Interner Erstellungs-Replay prüft erneut Bestelleigentümer und bestehende Kundenzuordnung. Ein anderer Akquisiteur erhält auch mit identischem Bestellkommando keinen Zugriff auf die gespeicherten Lieferdaten. Alte Admin-Replays bleiben kompatibel.
-- [x] Vollständiger isolierter Liefernachweis einschließlich neuer HTTP-/PostgreSQL-Fälle bestanden: Admin-/Anmeldegrenzen, Revision bei gleichzeitiger Bestätigung, eindeutige Person, Entfernen, entzogene Kundenzuordnung, Fehlerzustände und Eigenbestellungsentwurf. Identität und externe CRM-Antworten sind für diesen gezielten Nachweis synthetisch.
-- [x] 373 Unit-Tests, Mypy über 140 Core-Dateien, Ruff und Client-Generierung bestanden.
-
-KLF-050 bleibt für die sichtbare Mitgliedszuordnung, Anna-Erfassung und den Nachweis mit echter Twenty-Anbindung offen. Scrollleisten werden auf ausdrücklichen Nutzerwunsch unsichtbar gehalten, bei weiterhin funktionierender Scrollbedienung.
 
 ### Vorhandene öffentliche Microsite
 
