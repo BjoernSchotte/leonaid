@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
 import asyncpg
+from leonaid.adapters.postgres.delivery import (
+    read_configuration,
+    lock_configuration,
+    decode_window_snapshot,
+    decode_contact_snapshot,
+    write_order_delivery,
+)
 
 from leonaid.application.commitments import (
     CommitmentCaptureContext,
@@ -104,6 +111,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 action_id=action_id,
                 action_name=str(action["name"]),
                 offerings=offerings,
+                delivery_configuration=await read_configuration(connection, action_id),
             )
 
     async def list_for_action(
@@ -122,6 +130,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                     commitment.customer_snapshot,
                     commitment.invoice_recipient_snapshot,
                     commitment.delivery_recipient_snapshot,
+                    commitment.delivery_window_id, commitment.delivery_window_snapshot, commitment.delivery_contact_snapshot,
                     commitment.message_snapshot,
                     commitment.public_reference,
                     commitment.currency,
@@ -277,6 +286,14 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 buyer=draft.buyer,
             )
 
+        delivery = await lock_configuration(connection, action_id)
+        window_snapshot = delivery.validate_order(
+            window_id=draft.delivery_window_id,
+            has_address=draft.delivery_recipient is not None,
+            contact=draft.delivery_contact,
+            complete=status is not CommitmentStatus.DRAFT,
+            now=datetime.now(timezone.utc),
+        )
         offerings = await self._offerings(
             connection,
             action_id=action_id,
@@ -304,6 +321,9 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             lines=priced_lines,
             total=total,
             delivery_recipient=draft.delivery_recipient,
+            delivery_window_id=draft.delivery_window_id,
+            delivery_window_snapshot=window_snapshot,
+            delivery_contact=draft.delivery_contact,
             message=draft.message,
             idempotency_key=idempotency_key,
         )
@@ -498,6 +518,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 for row in lines
             ),
             total=Money(int(header["total_minor"]), currency),
+            delivery_window_id=header["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                header["delivery_window_snapshot"]
+            ),
+            delivery_contact=decode_contact_snapshot(
+                header["delivery_contact_snapshot"]
+            ),
             delivery_recipient=(
                 DeliveryRecipientSnapshot.from_payload(
                     _json_object(
@@ -591,6 +618,13 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             commitment.idempotency_key,
             occurred_at,
         )
+        await write_order_delivery(
+            connection,
+            commitment_id=commitment.id,
+            window_id=commitment.delivery_window_id,
+            window_snapshot=commitment.delivery_window_snapshot,
+            contact=commitment.delivery_contact,
+        )
         await connection.executemany(
             """
             INSERT INTO commitment_line (
@@ -679,7 +713,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             SELECT
                 id, action_id, source, status,
                 customer_snapshot, invoice_recipient_snapshot,
-                delivery_recipient_snapshot, message_snapshot, public_reference,
+                delivery_recipient_snapshot, delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot, message_snapshot, public_reference,
                 currency, total_minor, idempotency_key
             FROM commitment
             WHERE id = $1
@@ -736,6 +770,11 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
                 for item in line_rows
             ),
             total=Money(int(row["total_minor"]), currency),
+            delivery_window_id=row["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                row["delivery_window_snapshot"]
+            ),
+            delivery_contact=decode_contact_snapshot(row["delivery_contact_snapshot"]),
             delivery_recipient=(
                 DeliveryRecipientSnapshot.from_payload(
                     _json_object(

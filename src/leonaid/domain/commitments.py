@@ -10,6 +10,7 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from leonaid.domain.action_templates import OfferingStatus, OfferingUnit
+from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.errors import DomainInvariantError
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -410,6 +411,9 @@ class Commitment:
     invoice_recipient: InvoiceRecipientSnapshot | None
     lines: tuple[CommitmentLine, ...]
     total: Money
+    delivery_window_id: UUID | None = None
+    delivery_window_snapshot: dict[str, str] | None = None
+    delivery_contact: DeliveryContactSnapshot | None = None
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     message: str | None = None
     public_reference: str | None = None
@@ -417,6 +421,22 @@ class Commitment:
     replayed: bool = False
 
     def __post_init__(self) -> None:
+        if (self.delivery_window_id is None) != (self.delivery_window_snapshot is None):
+            raise DomainInvariantError(
+                "delivery_snapshot_required",
+                "Eine Lieferauswahl benötigt ihren historischen Zeitraum.",
+            )
+        if (
+            self.delivery_window_snapshot is not None
+            and self.delivery_window_snapshot.get("windowId")
+            != str(self.delivery_window_id)
+        ):
+            raise DomainInvariantError(
+                "delivery_snapshot_mismatch",
+                "Lieferfenster und Zeitraum stimmen nicht überein.",
+            )
+        if self.delivery_contact is not None and self.delivery_contact.empty:
+            object.__setattr__(self, "delivery_contact", None)
         if not self.lines:
             raise DomainInvariantError(
                 "commitment_lines_required",

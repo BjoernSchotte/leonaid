@@ -3,11 +3,62 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from datetime import date, datetime, time, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from leonaid.domain.errors import DomainInvariantError
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryContactSnapshot:
+    name: str | None = None
+    phone: str | None = None
+
+    def __post_init__(self) -> None:
+        for field, limit in (("name", 200), ("phone", 40)):
+            value = getattr(self, field)
+            if value is None:
+                continue
+            if any(character in value for character in "\r\n"):
+                raise DomainInvariantError(
+                    "delivery_contact_invalid",
+                    "Bitte den Lieferkontakt einzeilig angeben.",
+                )
+            value = value.strip()
+            if len(value) > limit:
+                raise DomainInvariantError(
+                    "delivery_contact_too_long",
+                    f"Das Lieferkontaktfeld darf höchstens {limit} Zeichen enthalten.",
+                )
+            if (
+                field == "phone"
+                and value
+                and (
+                    not re.fullmatch(r"[+0-9 ()/.\-]+", value)
+                    or not any(c.isdigit() for c in value)
+                )
+            ):
+                raise DomainInvariantError(
+                    "delivery_contact_phone_invalid",
+                    "Bitte eine gültige Telefonnummer für die Lieferung angeben.",
+                )
+            object.__setattr__(self, field, value or None)
+
+    @property
+    def empty(self) -> bool:
+        return self.name is None and self.phone is None
+
+    def payload(self) -> dict[str, str | None]:
+        return {"name": self.name, "phone": self.phone}
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, object]) -> DeliveryContactSnapshot:
+        return cls(
+            name=str(payload["name"]) if payload.get("name") is not None else None,
+            phone=str(payload["phone"]) if payload.get("phone") is not None else None,
+        )
 
 
 def local_instant(day: date, clock: time, zone_name: str) -> datetime:
@@ -143,4 +194,28 @@ class DeliveryConfiguration:
         raise DomainInvariantError(
             "delivery_window_unavailable",
             "Dieses Lieferfenster ist nicht mehr verfügbar. Bitte erneut auswählen.",
+        )
+
+    def validate_order(
+        self,
+        *,
+        window_id: UUID | None,
+        has_address: bool,
+        contact: DeliveryContactSnapshot | None,
+        complete: bool,
+        now: datetime,
+    ) -> dict[str, str] | None:
+        if not self.enabled and (window_id is not None or contact is not None):
+            raise DomainInvariantError(
+                "delivery_not_supported",
+                "Für diese Aktion ist keine Lieferplanung aktiviert.",
+            )
+        if self.enabled and complete and (not has_address or window_id is None):
+            raise DomainInvariantError(
+                "delivery_required", "Bitte Lieferadresse und Lieferfenster ergänzen."
+            )
+        return (
+            self.select(window_id, now=now).snapshot(self.timezone)
+            if window_id is not None
+            else None
         )

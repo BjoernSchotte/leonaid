@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -11,7 +12,11 @@ from zoneinfo import ZoneInfo
 import asyncpg
 
 from leonaid.application.errors import Conflict, ResourceNotFound
-from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
+from leonaid.domain.delivery import (
+    DeliveryConfiguration,
+    DeliveryWindow,
+    DeliveryContactSnapshot,
+)
 from leonaid.domain.errors import DomainInvariantError
 
 
@@ -178,3 +183,41 @@ class AsyncpgDeliveryRepository:
                             end,
                         )
                 return replace(configuration, revision=current.revision + 1)
+
+
+def decode_window_snapshot(value: object) -> dict[str, str] | None:
+    if value is None:
+        return None
+    payload = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid delivery window snapshot")
+    return {str(key): str(item) for key, item in payload.items()}
+
+
+def decode_contact_snapshot(value: object) -> DeliveryContactSnapshot | None:
+    if value is None:
+        return None
+    payload = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid delivery contact snapshot")
+    return DeliveryContactSnapshot.from_payload(payload)
+
+
+async def write_order_delivery(
+    connection: asyncpg.Connection[Any],
+    *,
+    commitment_id: UUID,
+    window_id: UUID | None,
+    window_snapshot: dict[str, str] | None,
+    contact: DeliveryContactSnapshot | None,
+) -> None:
+    # Caller owns the order transaction. This update never commits independently.
+    await connection.execute(
+        """UPDATE commitment SET delivery_window_id=$2,
+        delivery_window_snapshot=$3::jsonb, delivery_contact_snapshot=$4::jsonb
+        WHERE id=$1""",
+        commitment_id,
+        window_id,
+        json.dumps(window_snapshot) if window_snapshot is not None else None,
+        json.dumps(contact.payload()) if contact is not None else None,
+    )

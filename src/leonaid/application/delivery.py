@@ -20,6 +20,10 @@ class DeliveryService:
     def __init__(self, repository: DeliveryRepository) -> None:
         self._repository = repository
 
+    async def for_published_order_form(self, action_id: UUID) -> DeliveryConfiguration:
+        """Only called after the existing public publication/alias gate."""
+        return await self._repository.get(action_id)
+
     async def get(
         self, actor: IdentityPrincipal, action_id: UUID
     ) -> DeliveryConfiguration:

@@ -411,6 +411,7 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                             WHEN delivery_recipient_snapshot IS NULL THEN NULL
                             ELSE delivery_recipient_snapshot || $3::jsonb
                         END,
+                        delivery_contact_snapshot = NULL,
                         message_snapshot = NULL,
                         updated_at = $4
                     WHERE id = ANY($1::uuid[])

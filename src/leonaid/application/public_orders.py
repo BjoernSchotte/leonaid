@@ -40,6 +40,7 @@ from leonaid.domain.commitments import (
     DeliveryRecipientSnapshot,
     InvoiceRecipientSnapshot,
 )
+from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.legal_configuration import LegalConfigurationVersion
 
@@ -185,7 +186,12 @@ class PublicOrderDraft:
     privacy_notice_version: str
     website: str | None = None
 
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactSnapshot | None = None
+
     def __post_init__(self) -> None:
+        if self.delivery_contact is not None and self.delivery_contact.empty:
+            object.__setattr__(self, "delivery_contact", None)
         if not self.lines:
             raise DomainInvariantError(
                 "public_order_lines_required",
@@ -236,7 +242,7 @@ class PublicOrderDraft:
             )
 
     def request_hash(self, *, action_id: UUID, public_alias: str) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "actionId": str(action_id),
             "publicAlias": public_alias,
             "party": self.party.payload(),
@@ -257,6 +263,11 @@ class PublicOrderDraft:
             "privacyNoticeVersion": self.privacy_notice_version,
             "website": self.website,
         }
+        # Omit absent new fields to retain the exact pre-upgrade request hash.
+        if self.delivery_window_id is not None:
+            payload["deliveryWindowId"] = str(self.delivery_window_id)
+        if self.delivery_contact is not None:
+            payload["deliveryContact"] = self.delivery_contact.payload()
         canonical = json.dumps(
             payload,
             ensure_ascii=False,
@@ -420,6 +431,7 @@ class PublicOrderContext:
     action_id: UUID
     action_name: str
     order_form: OrderFormConfiguration
+    delivery_configuration: DeliveryConfiguration | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -579,6 +591,14 @@ class PublicOrderService:
                     "Die Bestellung konnte nicht verarbeitet werden. Lade die Seite neu.",
                 )
             self._require_form_fields(context.order_form, draft)
+            if context.delivery_configuration is not None:
+                context.delivery_configuration.validate_order(
+                    window_id=draft.delivery_window_id,
+                    has_address=True,
+                    contact=draft.delivery_contact,
+                    complete=True,
+                    now=datetime.now(timezone.utc),
+                )
             party = await self._resolve_party(
                 draft.party,
                 delivery=draft.delivery_recipient,

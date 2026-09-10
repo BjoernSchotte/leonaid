@@ -25,3 +25,20 @@ Zusätzliche Abnahmevorgabe des Nutzers: jede geänderte Oberfläche sichtbar im
 - [x] `sh tools/delivery/test-foundation.sh`: vollständige Migration und Wiederholung, Bestandsaktion, neue/blank/kopierte Aktionen, sechs UTC-Fenster, konkurrierende Revisionen, Fremd-ID-Rollback, Managerrechte, Aktivierung, Zeitraum-Rollback, Stilllegung und Abbruch einer veralteten SERIALIZABLE-Buchungstransaktion bestanden. Testcontainer ohne Hostports, eigenes Netzwerk-Namespace und vollständige Entfernung danach.
 
 Die HTTP-Browserabnahme der neuen Konfiguration folgt mit KLF-040; es gibt in diesem Slice noch keinen neuen sichtbaren Editor. KLF-030 bindet die neuen Auftragsspalten in die Schreib-/Lesepfade ein.
+
+## KLF-030a: Lieferdaten in beiden Bestellpfaden
+
+- [x] Separater normalisierter Lieferkontakt (Name 200, Telefon 40 Zeichen), beide Felder unabhängig optional. Neue Angaben sind Bestandteil des Request-Hashes; leere neue Felder ändern alte Hashes nicht.
+- [x] Interner Request unterstützt jetzt die schon bestehende Lieferadresse. Interner und öffentlicher Auftrag speichern identische, serverseitig erzeugte UTC-Fenster-Snapshots und separate Kontakt-Snapshots.
+- [x] Pflicht-/Verfügbarkeitsprüfung im geschützten Schreibpfad; öffentlicher Service prüft zusätzlich vor der bestehenden CRM-Auflösung. Keine neuen CRM-Schreibpfade.
+- [x] Beide Replay-Pfade und die berechtigte Bestellliste lesen die neuen Angaben. Die bestehende Anonymisierung entfernt den separaten Lieferkontakt.
+- [x] Core-Erfassungskontext und öffentliche Alias-/Kampagnenantwort enthalten verfügbare Fenster aus derselben Konfiguration; generierter API-Client aktualisiert.
+- [x] 373 Unit-Tests bestanden; Mypy über alle 138 Core-Quelldateien und Ruff bestanden; OpenAPI-Konsistenzprüfung bestanden.
+- [x] Isolierter PostgreSQL-Nachweis: physisch gleiche Snapshots für interne/öffentliche Bestellung, getrennte Rechnungs-/Lieferadresse und Kontakt, unvollständiger Entwurf, Pflichtfelder, fremde/unverfügbare IDs, Lesen/Liste, Replay nach Stilllegung und Konflikt bei geänderten Angaben bestanden.
+- [x] Ergänzter ASGI-Nachweis für Konfiguration: realer Datenbankadapter, camelCase-Transport, serverseitige UUIDs, no-store, Revisionskonflikte und 401/403/422. Die Identität ist dort synthetisch vorgegeben; echte Anmeldung folgt in den Browsergates.
+
+KLF-030 ist insgesamt noch offen: ein expliziter Abschluss vorhandener Entwürfe fehlt bislang auch im Ausgangscode und wird ergänzt; historische Aufträge, Datenschutz und vollständige HTTP-Bestellungen erhalten weitere Integrationsfälle. Es wurde noch keine geänderte Bestelloberfläche abgenommen.
+
+## Sichtprüfung des Ausgangsstands
+
+Die bestehende synthetische Microsite `/campaigns/krapfentaxi-2026/` wurde am 10.09.2026 im In-App-Browser geöffnet und der Lieferadressblock visuell geprüft. Sie enthält noch keine Fensterwahl und keinen separaten Lieferkontakt. Angezeigter Aktionszeitraum: 01.09.–15.11.2026. Die Demo-Einrichtung für Dezember muss deshalb das Aktionsende passend erweitern. Diese Sichtprüfung ist Ausgangsevidenz, kein Nachweis für den neuen Code; die bestehende Instanz wurde nicht verändert.

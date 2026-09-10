@@ -5,11 +5,17 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import asyncpg
+from leonaid.adapters.postgres.delivery import (
+    lock_configuration,
+    decode_window_snapshot,
+    decode_contact_snapshot,
+    write_order_delivery,
+)
 
 from leonaid.application.errors import Conflict, RateLimited, ResourceNotFound
 from leonaid.application.public_orders import (
@@ -346,6 +352,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         return PublicOrderContext(
             action_id=row["id"],
             action_name=str(row["name"]),
+            delivery_configuration=await lock_configuration(connection, action_id),
             order_form=OrderFormConfiguration(
                 form_key=str(row["form_key"]),
                 title=str(row["title"]),
@@ -373,11 +380,19 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
         request_id: str,
         occurred_at: datetime,
     ) -> PublicOrderResult:
-        await self._context(
+        context = await self._context(
             connection,
             action_id=action_id,
             public_alias=public_alias,
             evaluated_at=occurred_at,
+        )
+        assert context.delivery_configuration is not None
+        window_snapshot = context.delivery_configuration.validate_order(
+            window_id=draft.delivery_window_id,
+            has_address=True,
+            contact=draft.delivery_contact,
+            complete=True,
+            now=datetime.now(timezone.utc),
         )
         offerings = await self._offerings(
             connection,
@@ -412,6 +427,9 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             buyer=party.buyer,
             invoice_recipient=draft.invoice_recipient,
             delivery_recipient=draft.delivery_recipient,
+            delivery_window_id=draft.delivery_window_id,
+            delivery_window_snapshot=window_snapshot,
+            delivery_contact=draft.delivery_contact,
             message=draft.message,
             public_reference=f"LA-{commitment_id.hex.upper()}",
             lines=tuple(priced_lines),
@@ -642,6 +660,13 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             commitment.idempotency_key,
             occurred_at,
         )
+        await write_order_delivery(
+            connection,
+            commitment_id=commitment.id,
+            window_id=commitment.delivery_window_id,
+            window_snapshot=commitment.delivery_window_snapshot,
+            contact=commitment.delivery_contact,
+        )
         await connection.executemany(
             """
             INSERT INTO commitment_line (
@@ -768,7 +793,7 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
             """
             SELECT
                 id, action_id, source, status, customer_snapshot,
-                invoice_recipient_snapshot, delivery_recipient_snapshot,
+                invoice_recipient_snapshot, delivery_recipient_snapshot, delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot,
                 message_snapshot, public_reference, currency, total_minor,
                 idempotency_key
             FROM commitment
@@ -808,6 +833,11 @@ class AsyncpgPublicOrderRepository(PublicOrderRepository):
                 if invoice is not None
                 else None
             ),
+            delivery_window_id=row["delivery_window_id"],
+            delivery_window_snapshot=decode_window_snapshot(
+                row["delivery_window_snapshot"]
+            ),
+            delivery_contact=decode_contact_snapshot(row["delivery_contact_snapshot"]),
             delivery_recipient=(
                 DeliveryRecipientSnapshot.from_payload(
                     _json_object(delivery, label="Lieferempfänger-Snapshot")

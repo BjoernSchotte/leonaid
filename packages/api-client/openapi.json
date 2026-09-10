@@ -2228,6 +2228,16 @@
             "title": "Actionname",
             "type": "string"
           },
+          "deliveryConfiguration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConfigurationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "offerings": {
             "items": {
               "$ref": "#/components/schemas/ConfiguredOfferingResponse"
@@ -2583,6 +2593,52 @@
           "currency": {
             "title": "Currency",
             "type": "string"
+          },
+          "deliveryContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContactRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
+          "deliveryWindowSnapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowsnapshot"
           },
           "id": {
             "format": "uuid",
@@ -3252,6 +3308,38 @@
           "buyer": {
             "$ref": "#/components/schemas/CommitmentBuyerRequest"
           },
+          "deliveryContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContactRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryRecipient": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
           "invoiceRecipient": {
             "anyOf": [
               {
@@ -3367,8 +3455,30 @@
             "title": "Commandid",
             "type": "string"
           },
+          "deliveryContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContactRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "deliveryRecipient": {
             "$ref": "#/components/schemas/PublicOrderDeliveryRecipientRequest"
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
           },
           "invoiceRecipient": {
             "$ref": "#/components/schemas/PublicOrderInvoiceRecipientRequest"
@@ -4012,6 +4122,37 @@
           "windows"
         ],
         "title": "DeliveryConfigurationResponse",
+        "type": "object"
+      },
+      "DeliveryContactRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "title": "DeliveryContactRequest",
         "type": "object"
       },
       "DeliveryWindowRequest": {
@@ -8516,6 +8657,16 @@
           "allowMessage": {
             "title": "Allowmessage",
             "type": "boolean"
+          },
+          "deliveryConfiguration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConfigurationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "formKey": {
             "title": "Formkey",

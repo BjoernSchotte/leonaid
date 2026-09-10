@@ -16,11 +16,17 @@ from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
 from leonaid.application.delivery import DeliveryService
-from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
+from leonaid.domain.delivery import (
+    DeliveryConfiguration,
+    DeliveryWindow,
+    DeliveryContactSnapshot,
+)
 from leonaid.entrypoints.fastapi.schemas import (
     DeliveryConfigurationRequest,
     DeliveryConfigurationResponse,
     DeliveryWindowResponse,
+    DeliveryContactRequest,
+    PublicOrderDeliveryRecipientRequest,
 )
 from leonaid.application.acquisition import (
     AcquisitionParty,
@@ -1072,6 +1078,7 @@ def public_action_route_response(
     *,
     access_token: str | None = None,
     legal_configuration: LegalConfigurationVersion | None = None,
+    delivery: DeliveryConfiguration | None = None,
 ) -> PublicActionRouteResponse:
     if route.route_kind.value not in {"alias", "archive"}:
         raise ValueError(
@@ -1129,6 +1136,11 @@ def public_action_route_response(
                 ],
                 order_form=(
                     PublicOrderFormResponse(
+                        delivery_configuration=delivery_configuration_response(
+                            delivery, available_only=True
+                        )
+                        if delivery
+                        else None,
                         form_key=route.order_form.configuration.form_key,
                         title=route.order_form.configuration.title,
                         introduction=route.order_form.configuration.introduction,
@@ -1253,6 +1265,18 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        delivery_recipient=PublicOrderDeliveryRecipientRequest.model_validate(
+            commitment.delivery_recipient
+        )
+        if commitment.delivery_recipient
+        else None,
+        delivery_window_id=commitment.delivery_window_id,
+        delivery_window_snapshot=commitment.delivery_window_snapshot,
+        delivery_contact=DeliveryContactRequest.model_validate(
+            commitment.delivery_contact
+        )
+        if commitment.delivery_contact
+        else None,
         id=commitment.id,
         action_id=commitment.action_id,
         source=commitment.source.value,
@@ -1303,6 +1327,11 @@ def commitment_capture_context_response(
     context: CommitmentCaptureContext,
 ) -> CommitmentCaptureContextResponse:
     return CommitmentCaptureContextResponse(
+        delivery_configuration=delivery_configuration_response(
+            context.delivery_configuration, available_only=True
+        )
+        if context.delivery_configuration
+        else None,
         action_id=context.action_id,
         action_name=context.action_name,
         offerings=[
@@ -1600,6 +1629,15 @@ def generated_document_list_response(
 def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     recipient = body.invoice_recipient
     return CommitmentDraft(
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
+        if body.delivery_contact
+        else None,
+        delivery_recipient=DeliveryRecipientSnapshot(
+            **body.delivery_recipient.model_dump()
+        )
+        if body.delivery_recipient
+        else None,
         buyer=BuyerSnapshot(
             party_kind=CommitmentPartyKind(body.buyer.party_kind),
             twenty_id=body.buyer.twenty_id,
@@ -1722,6 +1760,11 @@ async def resolve_public_action_alias(
         route,
         access_token=access_token,
         legal_configuration=legal_configuration,
+        delivery=await cast(
+            DeliveryService, request.app.state.delivery_service
+        ).for_published_order_form(route.action.id)
+        if submissions_allowed and route.action is not None
+        else None,
     )
 
 
@@ -1777,6 +1820,11 @@ async def resolve_public_campaign(
         replace(route, route_kind=PublicActionRouteKind.ALIAS),
         access_token=token,
         legal_configuration=legal,
+        delivery=await cast(
+            DeliveryService, request.app.state.delivery_service
+        ).for_published_order_form(route.action.id)
+        if token is not None and route.action is not None
+        else None,
     )
     return PublicCampaignRouteResponse(
         **payload.model_dump(exclude={"route_kind", "redirect_path"}),
@@ -1786,6 +1834,10 @@ async def resolve_public_campaign(
 
 def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
     return PublicOrderDraft(
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
+        if body.delivery_contact
+        else None,
         party=PublicOrderPartyDraft(
             company_name=body.party.company_name,
             given_name=body.party.given_name,
@@ -4532,6 +4584,8 @@ async def confirm_email_change(
 
 def delivery_configuration_response(
     configuration: DeliveryConfiguration,
+    *,
+    available_only: bool = False,
 ) -> DeliveryConfigurationResponse:
     return DeliveryConfigurationResponse(
         action_id=configuration.action_id,
@@ -4541,6 +4595,13 @@ def delivery_configuration_response(
         windows=[
             DeliveryWindowResponse.model_validate(window)
             for window in configuration.windows
+            if not available_only
+            or (
+                configuration.enabled
+                and not window.retired
+                and window.bounds(configuration.timezone)[0]
+                > datetime.now(timezone.utc)
+            )
         ],
     )
 

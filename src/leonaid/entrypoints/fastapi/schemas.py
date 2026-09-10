@@ -776,6 +776,7 @@ class PublicOfferingResponse(TransportModel):
 
 
 class PublicOrderFormResponse(TransportModel):
+    delivery_configuration: DeliveryConfigurationResponse | None = None
     form_key: str
     title: str
     introduction: str
@@ -857,9 +858,16 @@ class PublicOrderLineRequest(TransportModel):
     quoted_unit_price_minor: int = Field(ge=0)
 
 
+class DeliveryContactRequest(TransportModel):
+    name: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=40)
+
+
 class CreatePublicOrderRequest(TransportModel):
     access_token: str = Field(min_length=40, max_length=2_000)
     command_id: UUID
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     party: PublicOrderPartyRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest
     invoice_recipient: PublicOrderInvoiceRecipientRequest
@@ -1015,6 +1023,9 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     buyer: CommitmentBuyerRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
@@ -1061,6 +1072,10 @@ class CommitmentResponse(TransportModel):
         "invoiced",
         "cancelled",
     ]
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_window_snapshot: dict[str, str] | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     buyer: CommitmentBuyerResponse
     invoice_recipient: CommitmentInvoiceRecipientResponse | None
     lines: list[CommitmentLineResponse]
@@ -1072,6 +1087,7 @@ class CommitmentResponse(TransportModel):
 
 
 class CommitmentCaptureContextResponse(TransportModel):
+    delivery_configuration: DeliveryConfigurationResponse | None = None
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]

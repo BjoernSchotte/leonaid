@@ -23,6 +23,7 @@ from leonaid.domain.commitments import (
     Money,
     Offering,
 )
+from leonaid.domain.delivery import DeliveryContactSnapshot, DeliveryConfiguration
 from leonaid.domain.errors import DomainInvariantError
 from leonaid.domain.identity import ActionRole, IdentityPrincipal
 from leonaid.domain.policies import may_manage_action
@@ -61,7 +62,12 @@ class CommitmentDraft:
     delivery_recipient: DeliveryRecipientSnapshot | None = None
     message: str | None = None
 
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactSnapshot | None = None
+
     def __post_init__(self) -> None:
+        if self.delivery_contact is not None and self.delivery_contact.empty:
+            object.__setattr__(self, "delivery_contact", None)
         if not self.lines:
             raise DomainInvariantError(
                 "commitment_lines_required",
@@ -81,7 +87,7 @@ class CommitmentDraft:
         source: CommitmentSource,
         status: CommitmentStatus,
     ) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "actionId": str(action_id),
             "source": source.value,
             "status": status.value,
@@ -109,6 +115,11 @@ class CommitmentDraft:
                 for line in self.lines
             ],
         }
+        # Omit absent new fields to retain the exact pre-upgrade request hash.
+        if self.delivery_window_id is not None:
+            payload["deliveryWindowId"] = str(self.delivery_window_id)
+        if self.delivery_contact is not None:
+            payload["deliveryContact"] = self.delivery_contact.payload()
         canonical = json.dumps(
             payload,
             ensure_ascii=False,
@@ -123,6 +134,7 @@ class CommitmentCaptureContext:
     action_id: UUID
     action_name: str
     offerings: tuple[Offering, ...]
+    delivery_configuration: DeliveryConfiguration | None = None
 
 
 @dataclass(frozen=True, slots=True)

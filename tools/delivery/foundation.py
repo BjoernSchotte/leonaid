@@ -208,6 +208,10 @@ async def prove() -> None:
                     else:
                         raise AssertionError("Unauthorized configuration access")
 
+        from tools.delivery.http_configuration import prove_http_configuration
+
+        await prove_http_configuration(service, other.id, admin_id)
+
         # A waiting SERIALIZABLE booking must not continue with a stale schedule.
         async with pool.acquire() as booking, pool.acquire() as editing:
             async with editing.transaction():
@@ -242,6 +246,9 @@ async def prove() -> None:
             finally:
                 await transaction.rollback()
 
+        from tools.delivery.orders import prove_orders
+
+        await prove_orders(pool, action.id, admin_id)
         saved = await repo.get(action.id)
         retired = await repo.save(
             replace(saved, windows=tuple(replace(w, retired=True) for w in windows))
