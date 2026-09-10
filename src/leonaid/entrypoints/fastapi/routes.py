@@ -10,11 +10,18 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
+from leonaid.application.delivery import DeliveryService
+from leonaid.domain.delivery import DeliveryConfiguration, DeliveryWindow
+from leonaid.entrypoints.fastapi.schemas import (
+    DeliveryConfigurationRequest,
+    DeliveryConfigurationResponse,
+    DeliveryWindowResponse,
+)
 from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
@@ -4521,3 +4528,82 @@ async def confirm_email_change(
         )
     response.headers["Cache-Control"] = "no-store"
     return EmailChangeConfirmationResponse.model_validate(confirmed)
+
+
+def delivery_configuration_response(
+    configuration: DeliveryConfiguration,
+) -> DeliveryConfigurationResponse:
+    return DeliveryConfigurationResponse(
+        action_id=configuration.action_id,
+        enabled=configuration.enabled,
+        timezone=configuration.timezone,
+        revision=configuration.revision,
+        windows=[
+            DeliveryWindowResponse.model_validate(window)
+            for window in configuration.windows
+        ],
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery-configuration",
+    operation_id="getDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_delivery_configuration(
+    action_id: UUID, request: Request, response: Response
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    result = await service.get(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-configuration",
+    operation_id="saveDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def save_delivery_configuration(
+    action_id: UUID,
+    body: DeliveryConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    current = await service.get(actor, action_id)
+    current_ids = {window.id for window in current.windows}
+    if any(
+        window.id is not None and window.id not in current_ids
+        for window in body.windows
+    ):
+        raise DomainInvariantError(
+            "delivery_window_action_mismatch",
+            "Bitte nur bestehende Fenster dieser Aktion auswählen. Neue Fenster erhalten ihre ID beim Speichern.",
+        )
+    configuration = DeliveryConfiguration(
+        action_id=action_id,
+        enabled=body.enabled,
+        timezone=body.timezone,
+        revision=body.expected_revision,
+        windows=tuple(
+            DeliveryWindow(
+                id=window.id or uuid4(),
+                action_id=action_id,
+                delivery_on=window.delivery_on,
+                starts_at=window.starts_at,
+                ends_at=window.ends_at,
+                retired=window.retired,
+            )
+            for window in body.windows
+        ),
+    )
+    result = await service.save(actor, configuration)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)

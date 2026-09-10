@@ -87,6 +87,10 @@ export type DashboardMetricDefinitionResponse = { readonly description: string; 
 export type DashboardPipelineResponse = { readonly committed: number; readonly contacted: number; readonly declined: number; readonly handedOver: number; readonly open: number; readonly total: number; };
 export type DashboardReminderResponse = { readonly overdue: number; readonly today: number; readonly total: number; readonly unscheduled: number; readonly upcoming: number; };
 export type DashboardResponse = { readonly acquirer: AcquirerDashboardResponse | null; readonly actionId: string; readonly actionName: string; readonly beneficiaries: Array<string>; readonly charityAdmin: CharityAdminDashboardResponse | null; readonly generatedAt: string; readonly goal: DashboardGoalResponse; readonly metricDefinitions: Array<DashboardMetricDefinitionResponse>; };
+export type DeliveryConfigurationRequest = { readonly enabled: boolean; readonly expectedRevision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowRequest>; };
+export type DeliveryConfigurationResponse = { readonly actionId: string; readonly enabled: boolean; readonly revision: number; readonly timezone: string; readonly windows: Array<DeliveryWindowResponse>; };
+export type DeliveryWindowRequest = { readonly deliveryOn: string; readonly endsAt: string; readonly id?: string | null; readonly retired?: boolean; readonly startsAt: string; };
+export type DeliveryWindowResponse = { readonly deliveryOn: string; readonly endsAt: string; readonly id: string; readonly retired: boolean; readonly startsAt: string; };
 export type DependencyStatusResponse = { readonly details: Record<string, string | number | boolean>; readonly status: "ready" | "not-ready"; };
 export type DraftSave = { readonly definition: Record<string, unknown>; readonly expectedRevision: number; readonly operationId: string; };
 export type DraftValidation = { readonly expectedRevision: number; };
@@ -772,6 +776,33 @@ export class LeonAidApiClient {
     return this.request<DashboardResponse>(
       `/api/v1/actions/${encodeURIComponent(String(actionId))}/dashboard`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async getDeliveryConfiguration(
+    actionId: string,
+    options: RequestOptions = {},
+  ): Promise<DeliveryConfigurationResponse> {
+    return this.request<DeliveryConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-configuration`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async saveDeliveryConfiguration(
+    actionId: string,
+    body: DeliveryConfigurationRequest,
+    options: RequestOptions = {},
+  ): Promise<DeliveryConfigurationResponse> {
+    return this.request<DeliveryConfigurationResponse>(
+      `/api/v1/actions/${encodeURIComponent(String(actionId))}/delivery-configuration`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

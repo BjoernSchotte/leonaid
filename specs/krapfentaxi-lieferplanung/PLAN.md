@@ -159,7 +159,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 ## 5. Implementierungsschritte und Abnahme
 
 - [ ] KLF-010 – Ausgangsstand und Verträge; technischer Abgleich erfolgt, Demo-Eingaben ausstehend.
-- [ ] KLF-020 – Core-Konfiguration und Migration.
+- [x] KLF-020 – Core-Konfiguration und Migration; Datenbanknachweis in `PROGRESS.md`.
 - [ ] KLF-030 – Bestellung, Speicherung und API-Client.
 - [ ] KLF-040 – Charity-Admin.
 - [ ] KLF-050 – Anna und Eigenbestellung.
