@@ -10,7 +10,7 @@
 - [x] Demo-Vorgabe vom Nutzer: Aktion „Krapfentaxi 2026“, zwei Tage im Dezember. Festgelegte synthetische Konfiguration: 04. und 05.12.2026, jeweils 08–10, 10–12 und 12–14 Uhr, Europe/Berlin.
 - [ ] Online-Demo eindeutig anhand Aktion und URL bestimmen; keine bestehende Instanz wird aus einer Containerliste als Ziel geraten.
 
-Alle weiteren Aufgaben sind offen. Alte Tests aus PR #3 gelten nicht als Nachweis für diesen Branch. Synthetische Tests können ohne Demo-Angaben umgesetzt werden.
+Die weiteren Aufgaben werden unten einzeln nachgewiesen. Alte Tests aus PR #3 gelten nicht als Nachweis für diesen Branch.
 
 Zusätzliche Abnahmevorgabe des Nutzers: jede geänderte Oberfläche sichtbar im In-App-Browser prüfen. Automatische Browserprüfungen ergänzen diese Kontrolle.
 
@@ -37,7 +37,7 @@ Die HTTP-Browserabnahme der neuen Konfiguration folgt mit KLF-040; es gibt in di
 - [x] Isolierter PostgreSQL-Nachweis: physisch gleiche Snapshots für interne/öffentliche Bestellung, getrennte Rechnungs-/Lieferadresse und Kontakt, unvollständiger Entwurf, Pflichtfelder, fremde/unverfügbare IDs, Lesen/Liste, Replay nach Stilllegung und Konflikt bei geänderten Angaben bestanden.
 - [x] Ergänzter ASGI-Nachweis für Konfiguration: realer Datenbankadapter, camelCase-Transport, serverseitige UUIDs, no-store, Revisionskonflikte und 401/403/422. Die Identität ist dort synthetisch vorgegeben; echte Anmeldung folgt in den Browsergates.
 
-KLF-030 ist insgesamt noch offen: ein expliziter Abschluss vorhandener Entwürfe fehlt bislang auch im Ausgangscode und wird ergänzt; historische Aufträge, Datenschutz und vollständige HTTP-Bestellungen erhalten weitere Integrationsfälle. Es wurde noch keine geänderte Bestelloberfläche abgenommen.
+KLF-030 ist insgesamt noch offen: der im Ausgangscode fehlende explizite Entwurfsabschluss folgt im nächsten Slice; historische Aufträge, Datenschutz und vollständige HTTP-Bestellungen erhalten weitere Integrationsfälle. Es wurde noch keine geänderte Bestelloberfläche abgenommen.
 
 ## KLF-030b: geschützter Entwurfsabschluss
 
@@ -49,6 +49,19 @@ KLF-030 ist insgesamt noch offen: ein expliziter Abschluss vorhandener Entwürfe
 - [x] 373 Unit-Tests, Mypy über alle 138 Core-Dateien, Ruff und Client-Generierung bestanden. Vollständiger isolierter Konfigurations-/Speichernachweis weiterhin bestanden.
 
 KLF-030 bleibt für historische Aufträge, Datenschutz-Auskunft und öffentliche Service-/HTTP-Regressionsfälle offen. Die sichtbare Erfassungs- und Abschlussoberfläche folgt in KLF-050.
+
+## KLF-040a: Liefereditor in der Aktionsverwaltung
+
+- [x] Krapfentaxi-Vorlage bei der Aktionserstellung auswählbar. Nach Erstellung des Entwurfs folgt direkt derselbe Liefereditor wie in der Verwaltung. Ein leerer Entwurf darf bestehen bleiben.
+- [x] Nur Krapfentaxi zeigt den Verwaltungsreiter „Lieferung“. Variable Tage und Zeitfenster, sichtbare Zeitzone, lokale Datum-/Uhrzeitfelder und chronologische Darstellung.
+- [x] Gespeicherte Termine sind unveränderlich; Stilllegung ist ausdrücklich beschriftet, reaktivierte oder entfernte Altfenster werden nicht angeboten. Archivierte Aktionen sind schreibgeschützt.
+- [x] Revisionskonflikt erhält Eingaben. Der Abgleich übernimmt serverseitige Ergänzungen und lokale neue Fenster beziehungsweise Stilllegungen; eine abweichende Zeitzone wird nicht stillschweigend auf neue Termine angewendet.
+- [x] `tools/delivery/admin-browser.mjs` gegen eigene sichtbare Docker-Instanz: echte Anmeldung über Core und lokales Mailpit, Aktionserstellung, sechs Fenster an zwei Tagen, weitere Tage/Fenster, gespeicherte Zeiten, echter paralleler HTTP-Konflikt, Abgleich und Stilllegung bestanden. Synthetische Termine im Jahr 2037; keine bestehende Demo geändert.
+- [x] TypeScript-Prüfungen für Features und Web bestanden. Sichtprüfung der automatischen Aufnahmen bei 1440, 390 und 562 Pixeln sowie 200 Prozent Text bei 780 Pixeln; Überlauf korrigiert und Nachprüfung bestanden. Unabhängige Abschlussprüfung: keine offenen Fehler im geprüften Verwaltungsbereich; bestehendes Design beibehalten.
+- [ ] Bestehende Verwaltungsregression abschließen.
+- [x] In-App-Browser: Nach ausdrücklich freigegebenem CA-Import echte Anmeldung, Vorlagenwahl, vollständige Krapfentaxi-Erstellung und direkter Übergang in den leeren Liefereditor sichtbar geprüft. In einer synthetischen Testaktion neues Fenster 16–18 Uhr gespeichert, stillgelegt und nach Neuladen als stillgelegt bestätigt. Zeitzone, Tagesgruppen und Eingabefelder visuell kontrolliert.
+
+KLF-040 bleibt bis zu diesen Prüfungen offen. Anna und die öffentlichen Bestellformulare sind weiterhin nicht als umgesetzt oder abgenommen markiert.
 
 ## Sichtprüfung des Ausgangsstands
 

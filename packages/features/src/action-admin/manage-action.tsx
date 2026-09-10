@@ -20,6 +20,7 @@ import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
 import { CampaignAliasesSection } from "./campaign-aliases";
+import { DeliverySection } from "./delivery-section";
 import {
   AdministratorsSection,
   BeneficiariesSection,
@@ -68,6 +69,13 @@ const panels = [
     legacyHashes: ["publication"],
   },
   {
+    description: "Tage und Zeitfenster für Krapfentaxi",
+    icon: Calendar03Icon,
+    id: "delivery",
+    label: "Lieferung",
+    legacyHashes: ["delivery"],
+  },
+  {
     description: "Aktion planen, starten und abschließen",
     icon: Calendar03Icon,
     id: "status",
@@ -104,6 +112,17 @@ export interface ManageActionPageProps {
 
 export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
   const [activePanel, setActivePanel] = useState<PanelId>(initialPanel);
+  const configuration = useQuery({
+    queryKey: ["charity-action-configuration", actionId],
+    queryFn: () => client.getCharityActionConfiguration(actionId),
+    retry: false,
+  });
+  const hasDelivery = configuration.data?.template.key === "krapfentaxi";
+  const visiblePanels = panels.filter(
+    (panel) => panel.id !== "delivery" || hasDelivery,
+  );
+  const selectedPanel =
+    activePanel === "delivery" && !hasDelivery ? "basics" : activePanel;
   const tabRefs = useRef(new Map<PanelId, HTMLButtonElement>());
   const queryClient = useQueryClient();
   const queryKey = ["action-management", actionId] as const;
@@ -137,6 +156,27 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     return () => window.removeEventListener("hashchange", useLocationHash);
   }, []);
 
+  useEffect(() => {
+    function keepSelectedTabVisible() {
+      const tab = tabRefs.current.get(selectedPanel);
+      const strip = tab?.parentElement;
+      if (tab && strip && strip.scrollWidth > strip.clientWidth) {
+        strip.scrollTo({
+          left: Math.max(
+            0,
+            tab.offsetLeft -
+              strip.offsetLeft -
+              (strip.clientWidth - tab.offsetWidth) / 2,
+          ),
+          behavior: "instant",
+        });
+      }
+    }
+    keepSelectedTabVisible();
+    window.addEventListener("resize", keepSelectedTabVisible);
+    return () => window.removeEventListener("resize", keepSelectedTabVisible);
+  }, [selectedPanel, query.data?.action.id]);
+
   function selectPanel(panelId: PanelId, focus = false) {
     setActivePanel(panelId);
     window.history.replaceState(null, "", `#${panelId}`);
@@ -147,17 +187,17 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
     event: React.KeyboardEvent<HTMLButtonElement>,
     panelId: PanelId,
   ) {
-    const current = panels.findIndex((panel) => panel.id === panelId);
+    const current = visiblePanels.findIndex((panel) => panel.id === panelId);
     let next = current;
-    if (event.key === "ArrowRight") next = (current + 1) % panels.length;
+    if (event.key === "ArrowRight") next = (current + 1) % visiblePanels.length;
     if (event.key === "ArrowLeft") {
-      next = (current - 1 + panels.length) % panels.length;
+      next = (current - 1 + visiblePanels.length) % visiblePanels.length;
     }
     if (event.key === "Home") next = 0;
-    if (event.key === "End") next = panels.length - 1;
+    if (event.key === "End") next = visiblePanels.length - 1;
     if (next === current) return;
     event.preventDefault();
-    selectPanel(panels[next].id, true);
+    selectPanel(visiblePanels[next].id, true);
   }
 
   if (query.isPending) {
@@ -238,16 +278,28 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         </StatusMessage>
       ) : null}
 
+      {configuration.isError && (
+        <StatusMessage tone="error">
+          Die Aktionsvorlage konnte nicht geladen werden.
+          <Button
+            variant="secondary"
+            onClick={() => void configuration.refetch()}
+          >
+            Erneut versuchen
+          </Button>
+        </StatusMessage>
+      )}
+
       <div className="action-workspace-nav">
         <div
           aria-label="Bereich der Aktion wählen"
           className="action-workspace-tabs"
           role="tablist"
         >
-          {panels.map((panel) => (
+          {visiblePanels.map((panel) => (
             <button
               aria-controls={`panel-${panel.id}`}
-              aria-selected={activePanel === panel.id}
+              aria-selected={selectedPanel === panel.id}
               className="action-workspace-tab"
               data-testid={`management-tab-${panel.id}`}
               id={`tab-${panel.id}`}
@@ -259,7 +311,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
                 else tabRefs.current.delete(panel.id);
               }}
               role="tab"
-              tabIndex={activePanel === panel.id ? 0 : -1}
+              tabIndex={selectedPanel === panel.id ? 0 : -1}
               type="button"
             >
               <HugeiconsIcon
@@ -281,7 +333,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         <div
           aria-labelledby="tab-basics"
           className="action-edit-panel"
-          hidden={activePanel !== "basics"}
+          hidden={selectedPanel !== "basics"}
           id="panel-basics"
           role="tabpanel"
         >
@@ -291,7 +343,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         <div
           aria-labelledby="tab-beneficiaries"
           className="action-edit-panel"
-          hidden={activePanel !== "beneficiaries"}
+          hidden={selectedPanel !== "beneficiaries"}
           id="panel-beneficiaries"
           role="tabpanel"
         >
@@ -300,7 +352,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         <div
           aria-labelledby="tab-team"
           className="action-edit-panel"
-          hidden={activePanel !== "team"}
+          hidden={selectedPanel !== "team"}
           id="panel-team"
           role="tabpanel"
         >
@@ -310,7 +362,7 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         <div
           aria-labelledby="tab-public"
           className="action-edit-panel"
-          hidden={activePanel !== "public"}
+          hidden={selectedPanel !== "public"}
           id="panel-public"
           role="tabpanel"
         >
@@ -324,12 +376,29 @@ export function ManageActionPage({ actionId, client }: ManageActionPageProps) {
         <div
           aria-labelledby="tab-status"
           className="action-edit-panel"
-          hidden={activePanel !== "status"}
+          hidden={selectedPanel !== "status"}
           id="panel-status"
           role="tabpanel"
         >
           <LifecycleSection {...shared} />
         </div>
+        {hasDelivery && (
+          <div
+            aria-labelledby="tab-delivery"
+            className="action-edit-panel"
+            hidden={selectedPanel !== "delivery"}
+            id="panel-delivery"
+            role="tabpanel"
+          >
+            <DeliverySection
+              client={client}
+              actionId={actionId}
+              startsOn={action.startsOn}
+              endsOn={action.endsOn}
+              disabled={archived || !action.capabilities.includes("ordering")}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
