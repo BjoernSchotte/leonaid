@@ -50,6 +50,16 @@ KLF-030 ist insgesamt noch offen: der im Ausgangscode fehlende explizite Entwurf
 
 KLF-030 bleibt für historische Aufträge, Datenschutz-Auskunft und öffentliche Service-/HTTP-Regressionsfälle offen. Die sichtbare Erfassungs- und Abschlussoberfläche folgt in KLF-050.
 
+## KLF-030c: Altbestellungen und Datenschutz-Auskunft
+
+- [x] Datenschutz-Auskunft und Export enthalten pro zugehöriger Bestellung die neue Fenster-ID, den gespeicherten Zeitraum und den separaten Lieferkontakt. Die bestehende System-Admin-Berechtigung, E-Mail-Zuordnung und Fresh-Login-Pflicht für den Export bleiben bestehen. Keine zusätzliche Suche oder CRM-Verknüpfung über den Lieferkontakt.
+- [x] Vorgänger-Schema `0011_public_orders` mit bestehendem versioniertem Altbestellungs-/Rechnungsfixture geladen, bis `0035` und anschließend über die neue Migration gebracht. Vorher-/Nachher-Vergleich: sämtliche bisherigen Bestellfelder und die Rechnung unverändert; neue Lieferfelder bleiben null. Die Altbestellung bleibt als fakturierte Bestellung mit Positionen und Betrag lesbar.
+- [x] Isolierter PostgreSQL-/ASGI-Nachweis für die neue Auskunft: camelCase, no-store, ausschließlich zugehörige Bestellungen, historische null-Werte und 401/403. Der Export-Service liefert dieselben Lieferdaten; dessen bestehender Fresh-Login-HTTP-Schutz wurde nicht verändert.
+- [x] Anonymisierung entfernt den Lieferkontakt und anonymisiert die vorhandene Adresse. Historischer Fenster-Snapshot bleibt unverändert. Zusätzliche Anonymisierung des Altbestellers behält die ausgestellte Rechnung vollständig unverändert.
+- [x] Vollständiger Liefer-Konfigurations-/Bestell-/Abschlussnachweis weiter bestanden; 373 Unit-Tests, Mypy über 138 Core-Dateien, Ruff und Client-Generierung bestanden.
+
+KLF-030 bleibt für weitere öffentliche Service-/HTTP-Regressionsfälle und den expliziten Replay eines vor der Erweiterung gespeicherten Requests offen. Die neuen Lieferkontakte erhalten keine eigenen Aufbewahrungsfristen; der Nachweis verwendet die bereits vorhandene synthetische Rechtskonfiguration.
+
 ## KLF-040a: Liefereditor in der Aktionsverwaltung
 
 - [x] Krapfentaxi-Vorlage bei der Aktionserstellung auswählbar. Nach Erstellung des Entwurfs folgt direkt derselbe Liefereditor wie in der Verwaltung. Ein leerer Entwurf darf bestehen bleiben.

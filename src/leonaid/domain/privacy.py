@@ -11,6 +11,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from leonaid.domain.errors import DomainInvariantError
+from leonaid.domain.delivery import DeliveryContactSnapshot
 from leonaid.domain.identity import require_aware
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+$")
@@ -153,6 +154,15 @@ class PrivacyRetentionPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class PrivacyOrderDelivery:
+    commitment_id: UUID
+    action_id: UUID
+    delivery_window_id: UUID | None
+    delivery_window_snapshot: dict[str, str] | None
+    delivery_contact: DeliveryContactSnapshot | None
+
+
+@dataclass(frozen=True, slots=True)
 class PrivacySubjectReport:
     normalized_recipient: str
     retention: PrivacyRetentionPolicy
@@ -165,6 +175,7 @@ class PrivacySubjectReport:
     documents: tuple[PrivacyReference, ...]
     assignments: tuple[PrivacyReference, ...]
     activities: tuple[PrivacyReference, ...]
+    order_deliveries: tuple[PrivacyOrderDelivery, ...] = ()
 
     @property
     def found(self) -> bool:

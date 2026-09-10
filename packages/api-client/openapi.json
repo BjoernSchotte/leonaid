@@ -8137,6 +8137,66 @@
         "title": "PrivacyErasureResponse",
         "type": "object"
       },
+      "PrivacyOrderDeliveryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "format": "uuid",
+            "title": "Actionid",
+            "type": "string"
+          },
+          "commitmentId": {
+            "format": "uuid",
+            "title": "Commitmentid",
+            "type": "string"
+          },
+          "deliveryContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContactRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryWindowId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowid"
+          },
+          "deliveryWindowSnapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverywindowsnapshot"
+          }
+        },
+        "required": [
+          "commitmentId",
+          "actionId",
+          "deliveryWindowId",
+          "deliveryWindowSnapshot",
+          "deliveryContact"
+        ],
+        "title": "PrivacyOrderDeliveryResponse",
+        "type": "object"
+      },
       "PrivacyReferenceResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8270,6 +8330,13 @@
             "title": "Openlegaldecisions",
             "type": "array"
           },
+          "orderDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyOrderDeliveryResponse"
+            },
+            "title": "Orderdeliveries",
+            "type": "array"
+          },
           "references": {
             "items": {
               "$ref": "#/components/schemas/PrivacyReferenceResponse"
@@ -8300,6 +8367,7 @@
           "consents",
           "suppressions",
           "references",
+          "orderDeliveries",
           "openLegalDecisions",
           "generatedAt"
         ],

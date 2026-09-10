@@ -286,6 +286,14 @@ class PrivacyRetentionResponse(TransportModel):
     audit_days: int
 
 
+class PrivacyOrderDeliveryResponse(TransportModel):
+    commitment_id: UUID
+    action_id: UUID
+    delivery_window_id: UUID | None
+    delivery_window_snapshot: dict[str, str] | None
+    delivery_contact: DeliveryContactRequest | None
+
+
 class PrivacySubjectReportResponse(TransportModel):
     found: bool
     subject_email: str
@@ -294,6 +302,7 @@ class PrivacySubjectReportResponse(TransportModel):
     consents: list[PrivacyConsentResponse]
     suppressions: list[PrivacySuppressionResponse]
     references: list[PrivacyReferenceResponse]
+    order_deliveries: list[PrivacyOrderDeliveryResponse]
     open_legal_decisions: list[str]
     generated_at: datetime
 

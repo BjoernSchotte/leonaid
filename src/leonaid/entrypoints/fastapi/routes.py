@@ -328,6 +328,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacyReferenceResponse,
     PrivacyRetentionResponse,
     PrivacySubjectReportResponse,
+    PrivacyOrderDeliveryResponse,
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
@@ -734,6 +735,10 @@ def privacy_report_response(
         ],
         references=[
             PrivacyReferenceResponse.model_validate(item) for item in references
+        ],
+        order_deliveries=[
+            PrivacyOrderDeliveryResponse.model_validate(item)
+            for item in report.order_deliveries
         ],
         open_legal_decisions=list(OPEN_LEGAL_DECISIONS),
         generated_at=datetime.now(timezone.utc),

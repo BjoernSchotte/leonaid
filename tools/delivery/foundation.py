@@ -2,9 +2,10 @@
 
 import asyncio
 import os
+from pathlib import Path
 from dataclasses import replace
 from datetime import date, datetime, time, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 from decimal import Decimal
 
 import asyncpg
@@ -45,6 +46,18 @@ async def prove() -> None:
     try:
         actions = AsyncpgCharityActionRepository(pool)
         repo = AsyncpgDeliveryRepository(pool)
+        from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
+
+        legacy = await AsyncpgCommitmentRepository(pool).list_for_action(
+            action_id=UUID("20000000-0000-4000-8000-000000000001")
+        )
+        assert len(legacy) == 1
+        historical_order = legacy[0].commitment
+        assert historical_order.status.value == "invoiced"
+        assert historical_order.total.amount_minor == 7200
+        assert historical_order.delivery_window_id is None
+        assert historical_order.delivery_window_snapshot is None
+        assert historical_order.delivery_contact is None
         admin_id = uuid4()
         now = datetime.now(timezone.utc)
         await pool.execute(
@@ -252,6 +265,9 @@ async def prove() -> None:
         from tools.delivery.completion import prove_completion
 
         await prove_completion(pool, action.id, admin_id)
+        from tools.delivery.privacy import prove_privacy
+
+        await prove_privacy(pool, admin_id)
         saved = await repo.get(action.id)
         retired = await repo.save(
             replace(saved, windows=tuple(replace(w, retired=True) for w in windows))
@@ -282,6 +298,9 @@ async def prove() -> None:
 
 def main() -> None:
     config = Config("alembic.ini")
+    command.upgrade(config, "0011_public_orders")
+    with psycopg.connect(os.environ["CORE_DATABASE_URL"], autocommit=True) as db:
+        db.execute(Path("tests/fixtures/schema/v0.sql").read_text())
     command.upgrade(config, "0035_merge_campaign_surveys")
     historical_action = uuid4()
     with psycopg.connect(os.environ["CORE_DATABASE_URL"], autocommit=True) as db:
@@ -289,9 +308,25 @@ def main() -> None:
             "INSERT INTO charity_action(id,carrier_name,name,purpose,status,starts_on,ends_on,archive_slug) VALUES (%s,'Test','Historical','Test','draft','2037-12-01','2037-12-31',%s)",
             (historical_action, f"historical-{historical_action}"),
         )
+        baseline_order = db.execute(
+            "SELECT to_jsonb(commitment) FROM commitment"
+        ).fetchone()
+        baseline_invoice = db.execute(
+            "SELECT to_jsonb(invoice) FROM invoice"
+        ).fetchone()
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
+        assert (
+            db.execute(
+                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' FROM commitment"
+            ).fetchone()
+            == baseline_order
+        )
+        assert (
+            db.execute("SELECT to_jsonb(invoice) FROM invoice").fetchone()
+            == baseline_invoice
+        )
         assert db.execute(
             "SELECT enabled FROM action_delivery_configuration WHERE action_id=%s",
             (historical_action,),
