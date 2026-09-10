@@ -1,6 +1,6 @@
 # Krapfentaxi: Lieferadresse, Lieferfenster und Lieferkontakt
 
-Stand: 10.09.2026. Status: Umsetzung begonnen; Abnahme siehe [PROGRESS.md](PROGRESS.md).
+Stand: 10.09.2026. Status: vollständig umgesetzt und lokal abgenommen; Nachweise siehe [PROGRESS.md](PROGRESS.md).
 Untersuchter Checkout: `80a6/leonaid`, HEAD `adfb9af`.
 
 ## 1. Ziel und fachliche Entscheidungen
@@ -21,9 +21,9 @@ Planungsentscheidungen, vorbehaltlich fachlicher Anpassung:
 
 **Demo-Konfiguration:** Der Nutzer hat die Aktion „Krapfentaxi 2026“ und zwei frei gewählte Tage im Dezember vorgegeben. Für die synthetische Demo sind deshalb der 04. und 05.12.2026 mit jeweils 08–10, 10–12 und 12–14 Uhr in Europe/Berlin vorgesehen. Diese sechs Fenster sind Beispieldaten, keine technische Begrenzung.
 
-## 2. Befund im aktuellen Code
+## 2. Befund zum Planungsbeginn
 
-Die folgende Tabelle beschreibt gelesenen Quellcode, keine Prüfung der laufenden Online-Demo.
+Die folgende Tabelle hält den gelesenen Ausgangscode vor der Umsetzung fest. Den inzwischen erreichten Implementierungsstand dokumentieren die abgehakten Schritte und `PROGRESS.md`.
 
 | Bereich | Vorhanden | Fehlend beziehungsweise Konsequenz |
 | --- | --- | --- |
@@ -165,7 +165,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 - [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
 - [x] KLF-050 – Annas Kundenbestellungen; CRM-Auswahl, Lieferdaten, Entwurfsabschluss und Verwaltungsanzeige nachgewiesen.
 - [x] KLF-060 – Öffentliche Website und EmDash; beide Renderer und Alias mit/ohne JavaScript, Eingabeerhalt, Replay und Alias-Bindung nachgewiesen.
-- [ ] KLF-070 – Gesamtnachweis und Demo-Konfiguration.
+- [x] KLF-070 – Gesamtnachweis und Demo-Konfiguration; sieben Bestellungen, sechs aktive Dezember-Fenster und historische Lieferung vor/nach Neustart identisch geprüft.
 
 ### KLF-010 – Ausgangsstand abgleichen und Verträge festlegen
 

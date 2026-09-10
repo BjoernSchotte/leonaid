@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash, X509Certificate, randomUUID } from "node:crypto";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { setTimeout as delay } from "node:timers/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { expect } from "@playwright/test";
 import { browserLogin } from "../emdash_spike/browser-login.mjs";
-import { configureDeliveryDemo } from "./demo-configuration.mjs";
 import { lookup } from "node:dns/promises";
 
 const origin = "https://proxy:8443";
