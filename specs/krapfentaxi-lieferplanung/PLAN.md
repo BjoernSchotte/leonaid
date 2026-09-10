@@ -162,7 +162,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 - [ ] KLF-010 – Ausgangsstand und Verträge; technischer Abgleich und Demo-Termine festgelegt, Demo-Zielabgleich ausstehend.
 - [x] KLF-020 – Core-Konfiguration und Migration; Datenbanknachweis in `PROGRESS.md`.
 - [ ] KLF-030 – Bestellung, Speicherung und API-Client.
-- [ ] KLF-040 – Charity-Admin.
+- [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
 - [ ] KLF-050 – Anna und Eigenbestellung.
 - [ ] KLF-060 – Öffentliche Website und EmDash.
 - [ ] KLF-070 – Gesamtnachweis und Demo-Konfiguration.

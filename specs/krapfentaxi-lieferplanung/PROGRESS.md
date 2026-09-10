@@ -58,10 +58,10 @@ KLF-030 bleibt für historische Aufträge, Datenschutz-Auskunft und öffentliche
 - [x] Revisionskonflikt erhält Eingaben. Der Abgleich übernimmt serverseitige Ergänzungen und lokale neue Fenster beziehungsweise Stilllegungen; eine abweichende Zeitzone wird nicht stillschweigend auf neue Termine angewendet.
 - [x] `tools/delivery/admin-browser.mjs` gegen eigene sichtbare Docker-Instanz: echte Anmeldung über Core und lokales Mailpit, Aktionserstellung, sechs Fenster an zwei Tagen, weitere Tage/Fenster, gespeicherte Zeiten, echter paralleler HTTP-Konflikt, Abgleich und Stilllegung bestanden. Synthetische Termine im Jahr 2037; keine bestehende Demo geändert.
 - [x] TypeScript-Prüfungen für Features und Web bestanden. Sichtprüfung der automatischen Aufnahmen bei 1440, 390 und 562 Pixeln sowie 200 Prozent Text bei 780 Pixeln; Überlauf korrigiert und Nachprüfung bestanden. Unabhängige Abschlussprüfung: keine offenen Fehler im geprüften Verwaltungsbereich; bestehendes Design beibehalten.
-- [ ] Bestehende Verwaltungsregression abschließen.
+- [x] Bestehende Verwaltungsregression bestanden: API-Vertrag, vier React-Komponententests und vollständiger Browser-Lebenszyklus einschließlich Barrierefreiheit, Dark Mode und mobiler Darstellung. Der Selektor für den nach der Erstellung neu positionierten Verwaltungslink wurde angepasst; individuelle Aktionen werden ausdrücklich ohne Liefereditor geprüft.
 - [x] In-App-Browser: Nach ausdrücklich freigegebenem CA-Import echte Anmeldung, Vorlagenwahl, vollständige Krapfentaxi-Erstellung und direkter Übergang in den leeren Liefereditor sichtbar geprüft. In einer synthetischen Testaktion neues Fenster 16–18 Uhr gespeichert, stillgelegt und nach Neuladen als stillgelegt bestätigt. Zeitzone, Tagesgruppen und Eingabefelder visuell kontrolliert.
 
-KLF-040 bleibt bis zu diesen Prüfungen offen. Anna und die öffentlichen Bestellformulare sind weiterhin nicht als umgesetzt oder abgenommen markiert.
+KLF-040 ist für die Aktionsverwaltung abgeschlossen. Anna und die öffentlichen Bestellformulare sind weiterhin nicht als umgesetzt oder abgenommen markiert.
 
 ## Sichtprüfung des Ausgangsstands
 
