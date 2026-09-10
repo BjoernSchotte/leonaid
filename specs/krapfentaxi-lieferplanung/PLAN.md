@@ -19,7 +19,7 @@ Planungsentscheidungen, vorbehaltlich fachlicher Anpassung:
 - Eine Bestellung umfasst eine Lieferadresse und ein Fenster. Aufteilung auf mehrere Lieferorte oder Termine ist nicht Teil dieser Erweiterung.
 - Kapazitäten, Tourenoptimierung, Fahrerzuordnung, SMS und eine neue Lieferlogistik-Anwendung sind nicht Bestandteil dieses Plans.
 
-**Demo-Annahme:** drei Fenster je Tag an zwei Tagen, insgesamt sechs auswählbare Fenster. „3 × 2“ wird vor der Demo-Konfiguration bestätigt. Falls damit zweistündige Fenster gemeint sind, wird deren Dauer entsprechend konfiguriert; aus dem Feedback wird keine feste Dauer abgeleitet. Konkrete Kalendertage und Uhrzeiten wurden nicht genannt.
+**Demo-Konfiguration:** Der Nutzer hat die Aktion „Krapfentaxi 2026“ und zwei frei gewählte Tage im Dezember vorgegeben. Für die synthetische Demo sind deshalb der 04. und 05.12.2026 mit jeweils 08–10, 10–12 und 12–14 Uhr in Europe/Berlin vorgesehen. Diese sechs Fenster sind Beispieldaten, keine technische Begrenzung.
 
 ## 2. Befund im aktuellen Code
 
@@ -95,6 +95,7 @@ Vorgeschlagene neue Ressource:
 - `GET /api/v1/actions/{action_id}/delivery-configuration`: vollständige Konfiguration für berechtigte Aktionsmanager.
 - `PUT /api/v1/actions/{action_id}/delivery-configuration`: atomare Änderung mit `expectedRevision` und Fensterliste. Bestehende UUIDs dürfen nur unverändert bleiben oder stillgelegt werden; neue Termine erhalten serverseitige UUIDs.
 - Bestehende öffentliche Aktionsantwort und internen `CommitmentCaptureContext` um `deliveryConfiguration` mit Aktivierung, Revision, Zeitzone und aktuell auswählbaren Fenstern ergänzen. Öffentlichkeit sieht keine Kunden- oder Buchungsdaten.
+- `GET /api/v1/actions/{action_id}/commitments/{commitment_id}` liest eine berechtigte Bestellung; `POST .../{commitment_id}/complete` übernimmt die vollständigen Lieferangaben und schließt einen internen Entwurf verbindlich ab. Manager dürfen interne Entwürfe der Aktion abschließen, Akquisiteure nur selbst erfasste Akquise-Entwürfe mit weiterhin bestehender Kundenzuordnung. Käufer, Rechnung und bepreiste Positionen bleiben aus dem gespeicherten Entwurf erhalten. Der einmalige Übergang aus `draft` wird unter Zeilensperre ausgeführt; konkurrierende andere Kommandos erhalten `409`. Es gibt keinen zusätzlichen allgemeinen Entwurfseditor. Wiederholungen verwenden einen eigenen Befehlstyp und einen Hash einschließlich Aktion, Bestellung und Akteur.
 
 Bestellrequests werden um folgende Angaben erweitert:
 

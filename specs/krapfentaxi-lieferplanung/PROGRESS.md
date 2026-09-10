@@ -39,6 +39,17 @@ Die HTTP-Browserabnahme der neuen Konfiguration folgt mit KLF-040; es gibt in di
 
 KLF-030 ist insgesamt noch offen: ein expliziter Abschluss vorhandener Entwürfe fehlt bislang auch im Ausgangscode und wird ergänzt; historische Aufträge, Datenschutz und vollständige HTTP-Bestellungen erhalten weitere Integrationsfälle. Es wurde noch keine geänderte Bestelloberfläche abgenommen.
 
+## KLF-030b: geschützter Entwurfsabschluss
+
+- [x] Berechtigtes Lesen einer Bestellung und expliziter HTTP-Abschluss von `draft` nach `review_ready`; neue Operationen im generierten Client.
+- [x] Aktionsmanager dürfen interne Entwürfe abschließen. Akquisiteure benötigen ihre eigene Erfassung und eine weiterhin bestehende Kundenzuordnung. Kundenidentität, Rechnung und serverseitig gespeicherte Positionen/Preise werden beim Abschluss nicht vom Client ersetzt.
+- [x] Erneute Pflicht-/Verfügbarkeitsprüfung unter denselben Aktions-/Konfigurationssperren wie die Erstellung. Der einmalige Statusübergang und das inhaltsfreie Audit-Event werden atomar gespeichert.
+- [x] Eigener idempotenter Abschlussbefehl: Hash umfasst Aktion, Bestellung, Akteur und normalisierte Lieferangaben. Replay nach Fensterstilllegung funktioniert; andere Daten mit demselben Schlüssel ergeben einen Konflikt.
+- [x] Isolierter PostgreSQL-/ASGI-Nachweis: direkte vollständige/unvollständige HTTP-Erstellung, eigenes Lesen, fremder Akquisiteur trotz Kundenzuordnung, fremde Aktionsrolle, Fahrer, ausgeloggter Zugriff, entzogene Kundenzuordnung, fremde Fenster-ID, nicht erlaubte Request-Felder, zwei konkurrierende Abschlussversuche, genau ein Audit-Event, Preis-/Positionsstabilität, Replay und Managerabschluss bestanden. Die Identität ist synthetisch vorgegeben; echte Browseranmeldung bleibt offen.
+- [x] 373 Unit-Tests, Mypy über alle 138 Core-Dateien, Ruff und Client-Generierung bestanden. Vollständiger isolierter Konfigurations-/Speichernachweis weiterhin bestanden.
+
+KLF-030 bleibt für historische Aufträge, Datenschutz-Auskunft und öffentliche Service-/HTTP-Regressionsfälle offen. Die sichtbare Erfassungs- und Abschlussoberfläche folgt in KLF-050.
+
 ## Sichtprüfung des Ausgangsstands
 
 Die bestehende synthetische Microsite `/campaigns/krapfentaxi-2026/` wurde am 10.09.2026 im In-App-Browser geöffnet und der Lieferadressblock visuell geprüft. Sie enthält noch keine Fensterwahl und keinen separaten Lieferkontakt. Angezeigter Aktionszeitraum: 01.09.–15.11.2026. Die Demo-Einrichtung für Dezember muss deshalb das Aktionsende passend erweitern. Diese Sichtprüfung ist Ausgangsevidenz, kein Nachweis für den neuen Code; die bestehende Instanz wurde nicht verändert.

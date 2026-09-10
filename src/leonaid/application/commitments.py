@@ -138,6 +138,41 @@ class CommitmentCaptureContext:
 
 
 @dataclass(frozen=True, slots=True)
+class CommitmentCompletion:
+    """Delivery details for the single, irreversible draft-to-review transition."""
+
+    delivery_recipient: DeliveryRecipientSnapshot | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactSnapshot | None = None
+
+    def __post_init__(self) -> None:
+        if self.delivery_contact is not None and self.delivery_contact.empty:
+            object.__setattr__(self, "delivery_contact", None)
+
+    def fingerprint(
+        self, *, action_id: UUID, commitment_id: UUID, actor_user_id: UUID
+    ) -> str:
+        payload = {
+            "actionId": str(action_id),
+            "commitmentId": str(commitment_id),
+            "actorUserId": str(actor_user_id),
+            "deliveryRecipient": (
+                self.delivery_recipient.payload() if self.delivery_recipient else None
+            ),
+            "deliveryWindowId": str(self.delivery_window_id)
+            if self.delivery_window_id
+            else None,
+            "deliveryContact": self.delivery_contact.payload()
+            if self.delivery_contact
+            else None,
+        }
+        canonical = json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
 class CommitmentRecord:
     commitment: Commitment
     created_at: datetime
@@ -160,6 +195,29 @@ class CommitmentList:
 
 
 class CommitmentRepository(Protocol):
+    async def get_internal(
+        self,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+    ) -> Commitment: ...
+
+    async def complete_draft(
+        self,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+        completion: CommitmentCompletion,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> Commitment: ...
+
     async def capture_context(
         self,
         *,
@@ -192,13 +250,8 @@ class CommitmentService:
     def __init__(self, repository: CommitmentRepository) -> None:
         self._repository = repository
 
-    async def capture_context(
-        self,
-        actor: IdentityPrincipal,
-        action_id: UUID,
-        *,
-        evaluated_at: datetime | None = None,
-    ) -> CommitmentCaptureContext:
+    @staticmethod
+    def _require_capture(actor: IdentityPrincipal, action_id: UUID) -> None:
         if not actor.account.can_authenticate or (
             ActionRole.ACQUIRER not in actor.roles_for(action_id)
             and not may_manage_action(actor, action_id)
@@ -207,6 +260,59 @@ class CommitmentService:
                 "commitment_capture_required",
                 "Für diese Aktion darfst du keine Bestellung erfassen.",
             )
+
+    async def get_internal(
+        self, actor: IdentityPrincipal, action_id: UUID, commitment_id: UUID
+    ) -> Commitment:
+        self._require_capture(actor, action_id)
+        return await self._repository.get_internal(
+            action_id=action_id,
+            commitment_id=commitment_id,
+            actor_user_id=actor.account.id,
+            as_manager=may_manage_action(actor, action_id),
+        )
+
+    async def complete_draft(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        commitment_id: UUID,
+        *,
+        completion: CommitmentCompletion,
+        idempotency_key: str,
+        request_id: str,
+        occurred_at: datetime | None = None,
+    ) -> Commitment:
+        self._require_capture(actor, action_id)
+        if not IDEMPOTENCY_KEY.fullmatch(idempotency_key):
+            raise DomainInvariantError(
+                "commitment_idempotency_key_invalid",
+                "Die Vorgangs-ID besitzt ein ungültiges Format.",
+            )
+        return await self._repository.complete_draft(
+            action_id=action_id,
+            commitment_id=commitment_id,
+            actor_user_id=actor.account.id,
+            as_manager=may_manage_action(actor, action_id),
+            completion=completion,
+            idempotency_key=idempotency_key,
+            request_hash=completion.fingerprint(
+                action_id=action_id,
+                commitment_id=commitment_id,
+                actor_user_id=actor.account.id,
+            ),
+            request_id=request_id,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+        )
+
+    async def capture_context(
+        self,
+        actor: IdentityPrincipal,
+        action_id: UUID,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> CommitmentCaptureContext:
+        self._require_capture(actor, action_id)
         return await self._repository.capture_context(
             action_id=action_id,
             evaluated_at=evaluated_at or datetime.now(timezone.utc),

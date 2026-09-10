@@ -25,34 +25,26 @@ from leonaid.domain.identity import (
 from leonaid.entrypoints.fastapi.routes import router
 
 
-async def prove_http_configuration(
-    service: DeliveryService, action_id: UUID, user_id: UUID
-) -> None:
-    now = datetime.now(timezone.utc)
-    user = UserAccount(user_id, "admin@example.invalid", "Test", AccountStatus.ACTIVE)
-    actor = IdentityPrincipal(
-        user,
-        frozenset(),
-        (
-            ActionMembership(
-                uuid4(), action_id, "Test", user.id, ActionRole.CHARITY_ADMIN, now
-            ),
-        ),
-    )
+class FixtureIdentity:
+    def __init__(self, actor: IdentityPrincipal) -> None:
+        self.current: IdentityPrincipal | None = actor
 
-    class FixtureIdentity:
-        current: IdentityPrincipal | None = actor
+    async def authenticate(self, token: str | None) -> IdentityPrincipal:
+        if self.current is None:
+            raise AuthenticationRequired("login_required", "Bitte anmelden.")
+        return self.current
 
-        async def authenticate(self, token: str | None) -> IdentityPrincipal:
-            if self.current is None:
-                raise AuthenticationRequired("login_required", "Bitte anmelden.")
-            return self.current
 
+def http_app(actor: IdentityPrincipal) -> tuple[FastAPI, FixtureIdentity]:
     app = FastAPI()
-    identity = FixtureIdentity()
+    identity = FixtureIdentity(actor)
     app.state.identity_service = identity
-    app.state.delivery_service = service
     app.include_router(router)
+
+    @app.middleware("http")
+    async def request_context(request, call_next):
+        request.state.request_id = "delivery-http-proof"
+        return await call_next(request)
 
     @app.exception_handler(ApplicationError)
     async def application_error(
@@ -74,6 +66,26 @@ async def prove_http_configuration(
         request: Request, error: DomainInvariantError
     ) -> JSONResponse:
         return JSONResponse({"code": error.code}, status_code=422)
+
+    return app, identity
+
+
+async def prove_http_configuration(
+    service: DeliveryService, action_id: UUID, user_id: UUID
+) -> None:
+    now = datetime.now(timezone.utc)
+    user = UserAccount(user_id, "admin@example.invalid", "Test", AccountStatus.ACTIVE)
+    actor = IdentityPrincipal(
+        user,
+        frozenset(),
+        (
+            ActionMembership(
+                uuid4(), action_id, "Test", user.id, ActionRole.CHARITY_ADMIN, now
+            ),
+        ),
+    )
+    app, identity = http_app(actor)
+    app.state.delivery_service = service
 
     path = f"/api/v1/actions/{action_id}/delivery-configuration"
     async with httpx.AsyncClient(

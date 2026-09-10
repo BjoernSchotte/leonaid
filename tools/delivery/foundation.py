@@ -249,6 +249,9 @@ async def prove() -> None:
         from tools.delivery.orders import prove_orders
 
         await prove_orders(pool, action.id, admin_id)
+        from tools.delivery.completion import prove_completion
+
+        await prove_completion(pool, action.id, admin_id)
         saved = await repo.get(action.id)
         retired = await repo.save(
             replace(saved, windows=tuple(replace(w, retired=True) for w in windows))

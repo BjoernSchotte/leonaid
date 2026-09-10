@@ -18,6 +18,7 @@ from leonaid.adapters.postgres.delivery import (
 
 from leonaid.application.commitments import (
     CommitmentCaptureContext,
+    CommitmentCompletion,
     CommitmentDraft,
     CommitmentRecord,
     CommitmentRepository,
@@ -37,6 +38,7 @@ from leonaid.domain.commitments import (
 )
 
 COMMAND_TYPE = "create_commitment_v1"
+COMPLETE_COMMAND_TYPE = "complete_commitment_v1"
 
 
 def _json_object(value: object, *, label: str) -> dict[str, object]:
@@ -50,6 +52,228 @@ def _json_object(value: object, *, label: str) -> dict[str, object]:
 class AsyncpgCommitmentRepository(CommitmentRepository):
     def __init__(self, pool: asyncpg.Pool[Any]) -> None:
         self._pool = pool
+
+    async def get_internal(
+        self,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+    ) -> Commitment:
+        async with self._pool.acquire() as connection:
+            async with connection.transaction(isolation="repeatable_read"):
+                await self._authorize_order(
+                    connection,
+                    action_id=action_id,
+                    commitment_id=commitment_id,
+                    actor_user_id=actor_user_id,
+                    as_manager=as_manager,
+                    for_update=False,
+                )
+                return await self._get(connection, commitment_id, replayed=False)
+
+    async def complete_draft(
+        self,
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+        completion: CommitmentCompletion,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> Commitment:
+        async with self._pool.acquire() as connection:
+            for attempt in range(3):
+                try:
+                    async with connection.transaction(isolation="serializable"):
+                        return await self._complete_once(
+                            connection,
+                            action_id=action_id,
+                            commitment_id=commitment_id,
+                            actor_user_id=actor_user_id,
+                            as_manager=as_manager,
+                            completion=completion,
+                            idempotency_key=idempotency_key,
+                            request_hash=request_hash,
+                            request_id=request_id,
+                            occurred_at=occurred_at,
+                        )
+                except asyncpg.SerializationError:
+                    if attempt == 2:
+                        raise Conflict(
+                            "commitment_concurrent_retry",
+                            "Die Bestellung wurde gleichzeitig verarbeitet. Bitte versuche denselben Vorgang erneut.",
+                        ) from None
+        raise RuntimeError("Der Entwurfsabschluss wurde nicht ausgeführt.")
+
+    @staticmethod
+    async def _authorize_order(
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+        for_update: bool = True,
+    ) -> asyncpg.Record:
+        row = await connection.fetchrow(
+            """
+            SELECT commitment.status, commitment.source, commitment.customer_snapshot,
+                EXISTS (
+                    SELECT 1 FROM audit_event
+                    WHERE entity_type = 'commitment' AND entity_id = commitment.id
+                        AND event_type = 'commitment_created' AND actor_user_id = $3
+                ) AS own_order
+            FROM commitment WHERE id = $1 AND action_id = $2
+            """
+            + (" FOR UPDATE OF commitment" if for_update else ""),
+            commitment_id,
+            action_id,
+            actor_user_id,
+        )
+        if row is None:
+            raise ResourceNotFound(
+                "commitment_not_found", "Die Bestellung wurde nicht gefunden."
+            )
+        if not as_manager:
+            if (
+                row["source"] != CommitmentSource.ACQUISITION.value
+                or not row["own_order"]
+            ):
+                raise PermissionDenied(
+                    "commitment_owner_required",
+                    "Du kannst nur deine eigenen Akquise-Bestellungen aufrufen.",
+                )
+            buyer = BuyerSnapshot.from_payload(
+                _json_object(row["customer_snapshot"], label="Besteller-Snapshot")
+            )
+            await AsyncpgCommitmentRepository._require_assignment(
+                connection,
+                action_id=action_id,
+                actor_user_id=actor_user_id,
+                buyer=buyer,
+            )
+        return row
+
+    async def _complete_once(
+        self,
+        connection: asyncpg.Connection[Any],
+        *,
+        action_id: UUID,
+        commitment_id: UUID,
+        actor_user_id: UUID,
+        as_manager: bool,
+        completion: CommitmentCompletion,
+        idempotency_key: str,
+        request_hash: str,
+        request_id: str,
+        occurred_at: datetime,
+    ) -> Commitment:
+        await connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            idempotency_key,
+        )
+        action = await connection.fetchrow(
+            """
+            SELECT status, EXISTS (
+                SELECT 1 FROM charity_action_capability
+                WHERE action_id = charity_action.id AND capability = 'ordering'
+            ) AS ordering_enabled
+            FROM charity_action WHERE id = $1 FOR SHARE
+            """,
+            action_id,
+        )
+        if action is None:
+            raise ResourceNotFound(
+                "commitment_action_not_found",
+                "Die Charity-Aktion wurde nicht gefunden.",
+            )
+        delivery = await lock_configuration(connection, action_id)
+        row = await self._authorize_order(
+            connection,
+            action_id=action_id,
+            commitment_id=commitment_id,
+            actor_user_id=actor_user_id,
+            as_manager=as_manager,
+        )
+        replayed = await self._existing_command(
+            connection,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            command_type=COMPLETE_COMMAND_TYPE,
+        )
+        if replayed is not None:
+            return await self._get(connection, replayed, replayed=True)
+        if row["status"] != "draft" or row["source"] == "public_form":
+            raise Conflict(
+                "commitment_not_draft",
+                "Nur ein interner Entwurf kann verbindlich abgeschlossen werden.",
+            )
+        if not action["ordering_enabled"] or action["status"] not in {
+            "draft",
+            "scheduled",
+            "active",
+        }:
+            raise Conflict(
+                "commitment_action_closed",
+                "Für diese Aktion können keine Bestellungen mehr abgeschlossen werden.",
+            )
+        snapshot = delivery.validate_order(
+            window_id=completion.delivery_window_id,
+            has_address=completion.delivery_recipient is not None,
+            contact=completion.delivery_contact,
+            complete=True,
+            now=datetime.now(timezone.utc),
+        )
+        # Buyer, prices, lines and invoice recipient remain the stored draft values.
+        await connection.execute(
+            """
+            UPDATE commitment SET status = 'review_ready',
+                delivery_recipient_snapshot = $2::jsonb, updated_at = $3
+            WHERE id = $1
+            """,
+            commitment_id,
+            json.dumps(completion.delivery_recipient.payload())
+            if completion.delivery_recipient
+            else None,
+            occurred_at,
+        )
+        await write_order_delivery(
+            connection,
+            commitment_id=commitment_id,
+            window_id=completion.delivery_window_id,
+            window_snapshot=snapshot,
+            contact=completion.delivery_contact,
+        )
+        await connection.execute(
+            """
+            INSERT INTO audit_event (
+                id, action_id, actor_user_id, event_type, entity_type, entity_id,
+                request_id, payload, occurred_at
+            ) VALUES ($1,$2,$3,'commitment_completed','commitment',$4,$5,
+                '{"previousStatus":"draft","status":"review_ready"}'::jsonb,$6)
+            """,
+            uuid4(),
+            action_id,
+            actor_user_id,
+            commitment_id,
+            request_id,
+            occurred_at,
+        )
+        await connection.execute(
+            """
+            UPDATE command_receipt SET result = $2::jsonb, completed_at = $3
+            WHERE idempotency_key = $1
+            """,
+            idempotency_key,
+            json.dumps({"commitmentId": str(commitment_id)}),
+            occurred_at,
+        )
+        return await self._get(connection, commitment_id, replayed=False)
 
     async def capture_context(
         self,
@@ -343,6 +567,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         *,
         idempotency_key: str,
         request_hash: str,
+        command_type: str = COMMAND_TYPE,
     ) -> UUID | None:
         inserted = await connection.fetchval(
             """
@@ -354,7 +579,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
             RETURNING true
             """,
             idempotency_key,
-            COMMAND_TYPE,
+            command_type,
             request_hash,
         )
         if inserted:
@@ -371,7 +596,7 @@ class AsyncpgCommitmentRepository(CommitmentRepository):
         if row is None:
             raise RuntimeError("Der Commitment-Befehlsnachweis ist verschwunden.")
         if (
-            str(row["command_type"]) != COMMAND_TYPE
+            str(row["command_type"]) != command_type
             or str(row["request_hash"]) != request_hash
         ):
             raise Conflict(

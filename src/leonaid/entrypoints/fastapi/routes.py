@@ -49,6 +49,7 @@ from leonaid.application.assignments import (
 from leonaid.application.commitments import (
     CommitmentCaptureContext,
     CommitmentDraft,
+    CommitmentCompletion,
     CommitmentList,
     CommitmentLineDraft,
     CommitmentRecord,
@@ -242,6 +243,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CorrectInvitationAddressRequest,
     CreateEmailChangeRequest,
     CreateCommitmentRequest,
+    CompleteCommitmentRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
@@ -3387,6 +3389,71 @@ async def create_commitment(
     response.headers["Location"] = (
         f"/api/v1/actions/{action_id}/commitments/{commitment.id}"
     )
+    return commitment_response(commitment)
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}",
+    operation_id="getCommitment",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def get_commitment(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    commitment = await commitment_service(request).get_internal(
+        actor, action_id, commitment_id
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return commitment_response(commitment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/complete",
+    operation_id="completeCommitment",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def complete_commitment(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: CompleteCommitmentRequest,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    address = body.delivery_recipient
+    contact = body.delivery_contact
+    completion = CommitmentCompletion(
+        delivery_recipient=DeliveryRecipientSnapshot(
+            address.recipient_name,
+            address.street_line_1,
+            address.postal_code,
+            address.city,
+            address.country_code,
+        )
+        if address is not None
+        else None,
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        if contact is not None
+        else None,
+    )
+    commitment = await commitment_service(request).complete_draft(
+        actor,
+        action_id,
+        commitment_id,
+        completion=completion,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
     return commitment_response(commitment)
 
 

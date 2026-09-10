@@ -1031,6 +1031,12 @@ class CreateCommitmentRequest(TransportModel):
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
 
 
+class CompleteCommitmentRequest(TransportModel):
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
+
+
 class CommitmentBuyerResponse(TransportModel):
     party_kind: Literal["company", "person"]
     twenty_id: UUID
