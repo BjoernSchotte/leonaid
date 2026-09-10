@@ -1,0 +1,76 @@
+{
+  "hashSourceCommit": "f12a035",
+  "actionId": "20000000-0000-4000-8000-000000000001",
+  "internal": {
+    "commitmentId": "80000000-0000-4000-8000-000000000001",
+    "idempotencyKey": "legacy:commitment:0001",
+    "requestHash": "357a03392b8d634c794eea01657f0f3fb688bd7fcf6fcd025d765df604c07f5c",
+    "body": {
+      "source": "admin",
+      "readyForReview": true,
+      "buyer": {
+        "partyKind": "company",
+        "twentyId": "40000000-0000-4000-8000-000000000001",
+        "displayName": "Legacy Sponsor GmbH",
+        "email": "legacy@leonaid.invalid"
+      },
+      "invoiceRecipient": {
+        "recipientName": "Legacy Sponsor GmbH",
+        "streetLine1": "Altweg 7",
+        "postalCode": "86150",
+        "city": "Augsburg",
+        "countryCode": "DE",
+        "email": "legacy@leonaid.invalid"
+      },
+      "lines": [
+        {
+          "offeringId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 2,
+          "unit": "box",
+          "quotedUnitPriceMinor": 3600
+        }
+      ]
+    }
+  },
+  "public": {
+    "commitmentId": "80000000-0000-4000-8000-000000000099",
+    "publicAlias": "legacy-krapfentaxi",
+    "requestHash": "55a5eee4f3b5320165665250219c16a0fb3e9fcbd5438edc217f9d4deb950d0c",
+    "body": {
+      "commandId": "80000000-0000-4000-8000-000000000098",
+      "party": {
+        "companyName": "Legacy Sponsor GmbH",
+        "givenName": "Legacy",
+        "familyName": "Customer",
+        "email": "legacy@leonaid.invalid",
+        "phone": null
+      },
+      "invoiceRecipient": {
+        "recipientName": "Legacy Sponsor GmbH",
+        "streetLine1": "Altweg 7",
+        "postalCode": "86150",
+        "city": "Augsburg",
+        "countryCode": "DE",
+        "email": "legacy@leonaid.invalid"
+      },
+      "deliveryRecipient": {
+        "recipientName": "Legacy Sponsor GmbH",
+        "streetLine1": "Altweg 7",
+        "postalCode": "86150",
+        "city": "Augsburg",
+        "countryCode": "DE"
+      },
+      "lines": [
+        {
+          "offeringId": "70000000-0000-4000-8000-000000000001",
+          "quantity": 2,
+          "unit": "box",
+          "quotedUnitPriceMinor": 3600
+        }
+      ],
+      "privacyAcknowledged": true,
+      "bindingOrderConfirmed": true,
+      "privacyNoticeVersion": "krapfentaxi-privacy-v1"
+    }
+  }
+}

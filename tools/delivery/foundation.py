@@ -51,8 +51,12 @@ async def prove() -> None:
         legacy = await AsyncpgCommitmentRepository(pool).list_for_action(
             action_id=UUID("20000000-0000-4000-8000-000000000001")
         )
-        assert len(legacy) == 1
-        historical_order = legacy[0].commitment
+        assert len(legacy) == 2
+        historical_order = next(
+            item.commitment
+            for item in legacy
+            if str(item.commitment.id) == "80000000-0000-4000-8000-000000000001"
+        )
         assert historical_order.status.value == "invoiced"
         assert historical_order.total.amount_minor == 7200
         assert historical_order.delivery_window_id is None
@@ -268,6 +272,12 @@ async def prove() -> None:
         from tools.delivery.privacy import prove_privacy
 
         await prove_privacy(pool, admin_id)
+        from tools.delivery.legacy_replay import prove_legacy_replay
+
+        await prove_legacy_replay(pool, admin_id)
+        from tools.delivery.public_http import prove_public_http
+
+        await prove_public_http(pool, action.id, admin_id)
         saved = await repo.get(action.id)
         retired = await repo.save(
             replace(saved, windows=tuple(replace(w, retired=True) for w in windows))
@@ -304,13 +314,16 @@ def main() -> None:
     command.upgrade(config, "0035_merge_campaign_surveys")
     historical_action = uuid4()
     with psycopg.connect(os.environ["CORE_DATABASE_URL"], autocommit=True) as db:
+        from tools.delivery.legacy_replay import seed_receipts
+
+        seed_receipts(db)
         db.execute(
             "INSERT INTO charity_action(id,carrier_name,name,purpose,status,starts_on,ends_on,archive_slug) VALUES (%s,'Test','Historical','Test','draft','2037-12-01','2037-12-31',%s)",
             (historical_action, f"historical-{historical_action}"),
         )
         baseline_order = db.execute(
-            "SELECT to_jsonb(commitment) FROM commitment"
-        ).fetchone()
+            "SELECT to_jsonb(commitment) FROM commitment ORDER BY id"
+        ).fetchall()
         baseline_invoice = db.execute(
             "SELECT to_jsonb(invoice) FROM invoice"
         ).fetchone()
@@ -319,8 +332,8 @@ def main() -> None:
     with psycopg.connect(os.environ["CORE_DATABASE_URL"]) as db:
         assert (
             db.execute(
-                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' FROM commitment"
-            ).fetchone()
+                "SELECT to_jsonb(commitment) - 'delivery_window_id' - 'delivery_window_snapshot' - 'delivery_contact_snapshot' FROM commitment ORDER BY id"
+            ).fetchall()
             == baseline_order
         )
         assert (

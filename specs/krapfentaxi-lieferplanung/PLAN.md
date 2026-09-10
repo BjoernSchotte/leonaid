@@ -88,6 +88,8 @@ Buchbar sind ausschließlich aktive Fenster derselben Aktion, deren Beginn noch 
 
 Fensterstilllegung und neue Bestellung müssen dieselbe Konfigurationszeile in konsistenter Reihenfolge sperren. Nach Erlangen der Sperre wird die aktuelle Buchbarkeit anhand der Serverzeit geprüft, dann werden Bestellung und Snapshot in derselben Datenbanktransaktion gespeichert. So darf keine Bestellung auf Basis einer inzwischen stillgelegten Auswahl durchrutschen. Die öffentliche Pipeline prüft vor CRM-Nebenwirkungen und nochmals verbindlich im geschützten Schreibpfad; bestehende CRM-Recovery-Mechanismen bleiben erhalten.
 
+Implementierungsnachweis: Die bestehende öffentliche Transaktion hält die Aktionssperre bereits während der CRM-Auflösung. Beginnt die Bestellung zuerst, wartet eine parallele Stilllegung bis zu ihrem Abschluss; spätere Bestellungen werden abgewiesen. Die Liefererweiterung behält diese Reihenfolge bei. Ein kürzerer Transaktionsumfang über die externe CRM-Auflösung hinweg wäre eine gesonderte Änderung des vorhandenen Bestellprotokolls.
+
 ### 3.3 API-Vertrag
 
 Vorgeschlagene neue Ressource:
@@ -161,7 +163,7 @@ Bei sechs Fenstern sind nach Datum gruppierte Radiobuttons mit sichtbaren Uhrzei
 
 - [ ] KLF-010 – Ausgangsstand und Verträge; technischer Abgleich und Demo-Termine festgelegt, Demo-Zielabgleich ausstehend.
 - [x] KLF-020 – Core-Konfiguration und Migration; Datenbanknachweis in `PROGRESS.md`.
-- [ ] KLF-030 – Bestellung, Speicherung und API-Client.
+- [x] KLF-030 – Bestellung, Speicherung und API-Client; beide Speicherpfade, HTTP, Alt-Replay, Datenschutz und konkurrierende Stilllegung nachgewiesen.
 - [x] KLF-040 – Charity-Admin; Erstellung, Liefereditor, Konflikt und Stilllegung in Tests und In-App-Browser nachgewiesen.
 - [ ] KLF-050 – Anna und Eigenbestellung.
 - [ ] KLF-060 – Öffentliche Website und EmDash.

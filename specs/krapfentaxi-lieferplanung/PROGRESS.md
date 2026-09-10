@@ -60,6 +60,17 @@ KLF-030 bleibt für historische Aufträge, Datenschutz-Auskunft und öffentliche
 
 KLF-030 bleibt für weitere öffentliche Service-/HTTP-Regressionsfälle und den expliziten Replay eines vor der Erweiterung gespeicherten Requests offen. Die neuen Lieferkontakte erhalten keine eigenen Aufbewahrungsfristen; der Nachweis verwendet die bereits vorhandene synthetische Rechtskonfiguration.
 
+## KLF-030d: öffentliche HTTP-Bestellung und Alt-Request-Replay
+
+- [x] `tools/delivery/legacy-replay.json`: synthetische Request-Hashes mit Anwendungscode aus `f12a035`, vor der Liefererweiterung, erzeugt. Zugehörige interne und öffentliche Befehlsnachweise werden vor Migration `0036` gespeichert. Beide aktuellen HTTP-Eingänge liefern nach dem Upgrade dieselbe Bestellung ohne CRM-Zugriff oder weitere Bestellung; neue Kontaktangaben mit demselben Schlüssel erzeugen einen Konflikt.
+- [x] Öffentlicher HTTP-Eingang gegen PostgreSQL: fehlendes/fremdes Fenster, unvollständige Adresse, ungültiger Kontakt und vom Client behaupteter Zeitraum vor jedem CRM-Zugriff abgewiesen. Vollständige Bestellung speichert Fenster und Kontakt; öffentliche Bestätigung enthält keine Kontaktwerte.
+- [x] Replay nach Stilllegung erhält die ursprüngliche Bestellung, ohne CRM erneut aufzurufen. Neue Bestellung mit stillgelegtem Fenster wird abgewiesen.
+- [x] Echte konkurrierende Datenbankänderung während der CRM-Auflösung: wartende Aktionssperre nachgewiesen, laufende Bestellung wird zuerst abgeschlossen, danach Stilllegung gespeichert; die nächste Bestellung wird abgewiesen. Der Test wartet auf PostgreSQLs Lock-Zustand, nicht auf eine angenommene Verzögerung.
+- [x] Bestehende Firmenwiederverwendung und Firmenanlage aus der Lieferadresse durch den öffentlichen Service geprüft. Der separate Lieferkontakt wird weder zum CRM-Besteller noch zum Firmenkontakt und erscheint nicht im Audit-Event.
+- [x] Vollständiger isolierter Liefernachweis einschließlich Migration, Speicherung, Abschluss, Datenschutz, Alt-Replay und öffentlichem HTTP bestanden. Ruff bestanden. Die externe CRM-Schnittstelle ist in diesen gezielten Serviceprüfungen ein protokollierender Testadapter; echter Twenty-Transport und sichtbare öffentliche Formulare bleiben Teil der späteren Gesamtabnahme.
+
+KLF-030 ist abgeschlossen. Diese Nachweise erklären noch nicht Anna, Eigenbestellung, Astro-/EmDash-Formulare oder die Demo für fertig.
+
 ## KLF-040a: Liefereditor in der Aktionsverwaltung
 
 - [x] Krapfentaxi-Vorlage bei der Aktionserstellung auswählbar. Nach Erstellung des Entwurfs folgt direkt derselbe Liefereditor wie in der Verwaltung. Ein leerer Entwurf darf bestehen bleiben.
