@@ -159,7 +159,9 @@ class AsyncpgDashboardRepository(DashboardRepository):
         return DashboardSnapshot(
             action_id=UUID(str(action["id"])),
             action_name=str(action["name"]),
-            beneficiaries=tuple(str(item["organization_name"]) for item in beneficiaries),
+            beneficiaries=tuple(
+                str(item["organization_name"]) for item in beneficiaries
+            ),
             goal=GoalProgress(
                 actual_value=actual_value,
                 target_value=target_value,

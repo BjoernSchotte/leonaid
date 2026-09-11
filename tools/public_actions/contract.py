@@ -304,6 +304,30 @@ async def exercise(
         if updated != "UPDATE 1":
             raise ContractFailure("Golden-Folgejahr besitzt kein aktivierbares Angebot")
 
+        delivery_configuration = await client.get(
+            f"/api/v1/actions/{follow_up_id}/delivery-configuration",
+            cookies=cookies,
+        )
+        delivery_configuration.raise_for_status()
+        delivery = await client.put(
+            f"/api/v1/actions/{follow_up_id}/delivery-configuration",
+            cookies=cookies,
+            headers=request_headers("follow-up-delivery"),
+            json={
+                "expectedRevision": delivery_configuration.json()["revision"],
+                "enabled": True,
+                "timezone": "Europe/Berlin",
+                "windows": [
+                    {
+                        "deliveryOn": "2027-11-10",
+                        "startsAt": "08:00",
+                        "endsAt": "10:00",
+                    }
+                ],
+            },
+        )
+        delivery.raise_for_status()
+
         for target_status in ("scheduled", "active"):
             transition = await client.post(
                 f"/api/v1/actions/{follow_up_id}/transitions",

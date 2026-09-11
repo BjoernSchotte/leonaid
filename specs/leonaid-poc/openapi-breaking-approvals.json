@@ -10,6 +10,14 @@
         "property-newly-required:PublicOrderResultResponse.quantities"
       ],
       "rationale": "EmDash spike integration rebased onto main 771762e: these are additive response-only fields, not new caller requirements. Core supplies publication state for campaign editing, the authenticated user's email for the shared CMS identity, and authoritative order line quantities for the Astro confirmation. Existing response properties and request contracts remain intact. The generated client ships with the matching Core release; this does not promise compatibility with an older Core server. Approval is bound to these exact contract hashes and changes."
+    },
+    {
+      "oldSha256": "672be4e775bb9fc11a6673eb69c0d124a2df60840c48aa9b279ba70ac84b4777",
+      "newSha256": "ce0b8d9fdc79de9e8b2ff780b6fe36bb6b7b1f90d9103bfe2718a183788f64cf",
+      "changes": [
+        "property-newly-required:PrivacySubjectReportResponse.orderDeliveries"
+      ],
+      "rationale": "Delivery planning adds an output-only list to the authenticated privacy subject report. Core always serializes orderDeliveries, including an empty list when no deliveries exist. Existing response fields and all existing request requirements remain unchanged. The generated client ships with the matching Core release. This exact-hash approval covers the additive response field only, not compatibility with an older Core server."
     }
   ]
 }
