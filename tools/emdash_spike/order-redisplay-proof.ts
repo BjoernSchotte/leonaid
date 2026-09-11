@@ -11,6 +11,9 @@ const body = new URLSearchParams({
   quotedUnitPriceMinor: "1",
   offeringId: id,
   quantity: "3",
+  deliveryWindowId: id,
+  deliveryContactName: "Synthetic reception",
+  deliveryContactPhone: "+49 123 / 456",
 });
 const request = (input: URLSearchParams | string) =>
   new Request("https://localhost/", {
@@ -24,6 +27,9 @@ assert.equal(result?.fields.companyName, "<script>synthetic</script>");
 assert.equal(result?.commandId, id);
 assert.equal(result?.quantities[id], 3);
 assert.equal(result?.billingSameAsDelivery, false);
+assert.equal(result?.fields.deliveryWindowId, id);
+assert.equal(result?.fields.deliveryContactName, "Synthetic reception");
+assert.equal(result?.fields.deliveryContactPhone, "+49 123 / 456");
 assert.ok(!JSON.stringify(result).includes("not-retained"));
 assert.ok(!JSON.stringify(result).includes("quotedUnitPriceMinor"));
 assert.equal(await readOrderRedisplay(request(body), "foreign"), null);
@@ -35,11 +41,17 @@ body.append("givenName", "Duplicate");
 body.set("quantity", "5001");
 body.set("phone", "x".repeat(41));
 body.set("commandId", "invalid");
+body.append("deliveryWindowId", id);
+body.set("deliveryContactName", "x".repeat(201));
+body.set("deliveryContactPhone", "x".repeat(41));
 const rejected = await readOrderRedisplay(request(body), "krapfentaxi");
 assert.equal(rejected?.fields.givenName, undefined);
 assert.equal(rejected?.fields.phone, undefined);
 assert.equal(rejected?.commandId, undefined);
 assert.equal(rejected?.quantities[id], undefined);
+assert.equal(rejected?.fields.deliveryWindowId, undefined);
+assert.equal(rejected?.fields.deliveryContactName, undefined);
+assert.equal(rejected?.fields.deliveryContactPhone, undefined);
 assert.equal(
   await readOrderRedisplay(request("x".repeat(65537)), "krapfentaxi"),
   null,

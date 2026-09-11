@@ -48,6 +48,66 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+.order-delivery-details {
+  display: grid;
+  gap: var(--space-lg);
+  padding-top: var(--space-xl);
+}
+[data-delivery-refresh-status]:empty {
+  display: none;
+}
+.delivery-windows {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.delivery-windows > legend {
+  font-weight: 600;
+}
+.delivery-windows > legend small {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+.delivery-windows > p {
+  color: var(--ink-muted);
+}
+.delivery-day h3 {
+  margin-block: var(--space-lg) var(--space-sm);
+}
+.delivery-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.delivery-options .check-row {
+  margin: 0;
+  min-height: 2.75rem;
+  align-items: center;
+}
+.delivery-options > .check-row + .check-row {
+  margin-top: 0;
+}
+.delivery-refresh {
+  justify-self: start;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.privacy-section dl {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 html {

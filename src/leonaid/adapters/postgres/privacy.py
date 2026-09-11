@@ -9,6 +9,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.adapters.postgres.delivery import (
+    decode_contact_snapshot,
+    decode_window_snapshot,
+)
 from leonaid.application.errors import Conflict
 from leonaid.application.privacy import PrivacyRepository
 from leonaid.domain.privacy import (
@@ -18,6 +22,7 @@ from leonaid.domain.privacy import (
     ErasureStatus,
     LegalBasisStatus,
     PrivacyErasureResult,
+    PrivacyOrderDelivery,
     PrivacyPurpose,
     PrivacyReference,
     PrivacyRetentionPolicy,
@@ -111,7 +116,8 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
             SELECT
                 id, action_id, status,
                 COALESCE(public_reference, id::text) AS label,
-                twenty_company_id, twenty_person_id
+                twenty_company_id, twenty_person_id,
+                delivery_window_id, delivery_window_snapshot, delivery_contact_snapshot
             FROM commitment
             WHERE lower(COALESCE(customer_snapshot ->> 'email', '')) = $1
                OR lower(COALESCE(invoice_recipient_snapshot ->> 'email', '')) = $1
@@ -193,6 +199,20 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
             suppressions=tuple(_suppression(row) for row in suppressions),
             commitments=tuple(
                 _reference(row, reference_type="commitment", label_column="label")
+                for row in commitments
+            ),
+            order_deliveries=tuple(
+                PrivacyOrderDelivery(
+                    commitment_id=row["id"],
+                    action_id=row["action_id"],
+                    delivery_window_id=row["delivery_window_id"],
+                    delivery_window_snapshot=decode_window_snapshot(
+                        row["delivery_window_snapshot"]
+                    ),
+                    delivery_contact=decode_contact_snapshot(
+                        row["delivery_contact_snapshot"]
+                    ),
+                )
                 for row in commitments
             ),
             invoices=tuple(
@@ -411,6 +431,7 @@ class AsyncpgPrivacyRepository(PrivacyRepository):
                             WHEN delivery_recipient_snapshot IS NULL THEN NULL
                             ELSE delivery_recipient_snapshot || $3::jsonb
                         END,
+                        delivery_contact_snapshot = NULL,
                         message_snapshot = NULL,
                         updated_at = $4
                     WHERE id = ANY($1::uuid[])

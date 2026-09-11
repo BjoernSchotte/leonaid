@@ -147,9 +147,10 @@ test("Charity-Admin führt eine Golden-Aktion barrierearm durch den vollständig
     await expect(createdStatus).toHaveAttribute("data-state", "success");
     const actionId = await createdStatus.getAttribute("data-action-id");
     expect(actionId).toMatch(/^[0-9a-f-]{36}$/);
-    await createdStatus
-      .getByRole("link", { name: "Aktion jetzt verwalten" })
-      .click();
+    await expect(
+      page.getByRole("heading", { name: "Lieferung planen" }),
+    ).toHaveCount(0);
+    await page.getByRole("link", { name: "Aktion jetzt verwalten" }).click();
 
     await expect(page.getByTestId("management-title")).toHaveText(
       "Krapfentaxi Golden UI 2028",

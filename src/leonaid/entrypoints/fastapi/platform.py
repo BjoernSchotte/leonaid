@@ -28,6 +28,8 @@ from leonaid.adapters.postgres.acquisition import (
 from leonaid.adapters.postgres.activity_feed import AsyncpgActivityFeedRepository
 from leonaid.adapters.postgres.actions import AsyncpgCharityActionRepository
 from leonaid.adapters.postgres.campaign_aliases import AsyncpgCampaignAliasRepository
+from leonaid.adapters.postgres.delivery import AsyncpgDeliveryRepository
+from leonaid.application.delivery import DeliveryService
 from leonaid.adapters.postgres.commitments import AsyncpgCommitmentRepository
 from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
 from leonaid.adapters.postgres.dashboard import AsyncpgDashboardRepository
@@ -260,6 +262,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
         application.state.dashboard_service = DashboardService(
             AsyncpgDashboardRepository(pool)
+        )
+        application.state.delivery_service = DeliveryService(
+            AsyncpgDeliveryRepository(pool)
         )
         application.state.commitment_service = CommitmentService(
             AsyncpgCommitmentRepository(pool)

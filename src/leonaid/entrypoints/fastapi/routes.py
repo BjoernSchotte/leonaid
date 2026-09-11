@@ -10,11 +10,24 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
+from leonaid.application.delivery import DeliveryService
+from leonaid.domain.delivery import (
+    DeliveryConfiguration,
+    DeliveryWindow,
+    DeliveryContactSnapshot,
+)
+from leonaid.entrypoints.fastapi.schemas import (
+    DeliveryConfigurationRequest,
+    DeliveryConfigurationResponse,
+    DeliveryWindowResponse,
+    DeliveryContactRequest,
+    PublicOrderDeliveryRecipientRequest,
+)
 from leonaid.application.acquisition import (
     AcquisitionParty,
     AcquisitionPolicyService,
@@ -36,6 +49,7 @@ from leonaid.application.assignments import (
 from leonaid.application.commitments import (
     CommitmentCaptureContext,
     CommitmentDraft,
+    CommitmentCompletion,
     CommitmentList,
     CommitmentLineDraft,
     CommitmentRecord,
@@ -229,6 +243,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     CorrectInvitationAddressRequest,
     CreateEmailChangeRequest,
     CreateCommitmentRequest,
+    CompleteCommitmentRequest,
     CreatePublicOrderRequest,
     CreateAcquisitionAssignmentRequest,
     CreateActionFromTemplateRequest,
@@ -313,6 +328,7 @@ from leonaid.entrypoints.fastapi.schemas import (
     PrivacyReferenceResponse,
     PrivacyRetentionResponse,
     PrivacySubjectReportResponse,
+    PrivacyOrderDeliveryResponse,
     PrivacySubjectRequest,
     PrivacySuppressionResponse,
     PublicActionRouteResponse,
@@ -720,6 +736,10 @@ def privacy_report_response(
         references=[
             PrivacyReferenceResponse.model_validate(item) for item in references
         ],
+        order_deliveries=[
+            PrivacyOrderDeliveryResponse.model_validate(item)
+            for item in report.order_deliveries
+        ],
         open_legal_decisions=list(OPEN_LEGAL_DECISIONS),
         generated_at=datetime.now(timezone.utc),
     )
@@ -1065,6 +1085,7 @@ def public_action_route_response(
     *,
     access_token: str | None = None,
     legal_configuration: LegalConfigurationVersion | None = None,
+    delivery: DeliveryConfiguration | None = None,
 ) -> PublicActionRouteResponse:
     if route.route_kind.value not in {"alias", "archive"}:
         raise ValueError(
@@ -1122,6 +1143,11 @@ def public_action_route_response(
                 ],
                 order_form=(
                     PublicOrderFormResponse(
+                        delivery_configuration=delivery_configuration_response(
+                            delivery, available_only=True
+                        )
+                        if delivery
+                        else None,
                         form_key=route.order_form.configuration.form_key,
                         title=route.order_form.configuration.title,
                         introduction=route.order_form.configuration.introduction,
@@ -1246,6 +1272,18 @@ def charity_action_configuration_response(
 def commitment_response(commitment: Commitment) -> CommitmentResponse:
     recipient = commitment.invoice_recipient
     return CommitmentResponse(
+        delivery_recipient=PublicOrderDeliveryRecipientRequest.model_validate(
+            commitment.delivery_recipient
+        )
+        if commitment.delivery_recipient
+        else None,
+        delivery_window_id=commitment.delivery_window_id,
+        delivery_window_snapshot=commitment.delivery_window_snapshot,
+        delivery_contact=DeliveryContactRequest.model_validate(
+            commitment.delivery_contact
+        )
+        if commitment.delivery_contact
+        else None,
         id=commitment.id,
         action_id=commitment.action_id,
         source=commitment.source.value,
@@ -1296,6 +1334,11 @@ def commitment_capture_context_response(
     context: CommitmentCaptureContext,
 ) -> CommitmentCaptureContextResponse:
     return CommitmentCaptureContextResponse(
+        delivery_configuration=delivery_configuration_response(
+            context.delivery_configuration, available_only=True
+        )
+        if context.delivery_configuration
+        else None,
         action_id=context.action_id,
         action_name=context.action_name,
         offerings=[
@@ -1593,6 +1636,15 @@ def generated_document_list_response(
 def commitment_draft(body: CreateCommitmentRequest) -> CommitmentDraft:
     recipient = body.invoice_recipient
     return CommitmentDraft(
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
+        if body.delivery_contact
+        else None,
+        delivery_recipient=DeliveryRecipientSnapshot(
+            **body.delivery_recipient.model_dump()
+        )
+        if body.delivery_recipient
+        else None,
         buyer=BuyerSnapshot(
             party_kind=CommitmentPartyKind(body.buyer.party_kind),
             twenty_id=body.buyer.twenty_id,
@@ -1715,6 +1767,11 @@ async def resolve_public_action_alias(
         route,
         access_token=access_token,
         legal_configuration=legal_configuration,
+        delivery=await cast(
+            DeliveryService, request.app.state.delivery_service
+        ).for_published_order_form(route.action.id)
+        if submissions_allowed and route.action is not None
+        else None,
     )
 
 
@@ -1770,6 +1827,11 @@ async def resolve_public_campaign(
         replace(route, route_kind=PublicActionRouteKind.ALIAS),
         access_token=token,
         legal_configuration=legal,
+        delivery=await cast(
+            DeliveryService, request.app.state.delivery_service
+        ).for_published_order_form(route.action.id)
+        if token is not None and route.action is not None
+        else None,
     )
     return PublicCampaignRouteResponse(
         **payload.model_dump(exclude={"route_kind", "redirect_path"}),
@@ -1779,6 +1841,10 @@ async def resolve_public_campaign(
 
 def public_order_draft(body: CreatePublicOrderRequest) -> PublicOrderDraft:
     return PublicOrderDraft(
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(**body.delivery_contact.model_dump())
+        if body.delivery_contact
+        else None,
         party=PublicOrderPartyDraft(
             company_name=body.party.company_name,
             given_name=body.party.given_name,
@@ -3332,6 +3398,71 @@ async def create_commitment(
 
 
 @router.get(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}",
+    operation_id="getCommitment",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def get_commitment(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    commitment = await commitment_service(request).get_internal(
+        actor, action_id, commitment_id
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return commitment_response(commitment)
+
+
+@router.post(
+    "/api/v1/actions/{action_id}/commitments/{commitment_id}/complete",
+    operation_id="completeCommitment",
+    response_model=CommitmentResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["commitments"],
+)
+async def complete_commitment(
+    action_id: UUID,
+    commitment_id: UUID,
+    request: Request,
+    body: CompleteCommitmentRequest,
+    response: Response,
+) -> CommitmentResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    address = body.delivery_recipient
+    contact = body.delivery_contact
+    completion = CommitmentCompletion(
+        delivery_recipient=DeliveryRecipientSnapshot(
+            address.recipient_name,
+            address.street_line_1,
+            address.postal_code,
+            address.city,
+            address.country_code,
+        )
+        if address is not None
+        else None,
+        delivery_window_id=body.delivery_window_id,
+        delivery_contact=DeliveryContactSnapshot(contact.name, contact.phone)
+        if contact is not None
+        else None,
+    )
+    commitment = await commitment_service(request).complete_draft(
+        actor,
+        action_id,
+        commitment_id,
+        completion=completion,
+        idempotency_key=request.headers.get("Idempotency-Key", ""),
+        request_id=request_id(request),
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return commitment_response(commitment)
+
+
+@router.get(
     "/api/v1/actions/{action_id}/invoice-context",
     operation_id="getInvoiceContext",
     response_model=InvoiceContextResponse,
@@ -4521,3 +4652,91 @@ async def confirm_email_change(
         )
     response.headers["Cache-Control"] = "no-store"
     return EmailChangeConfirmationResponse.model_validate(confirmed)
+
+
+def delivery_configuration_response(
+    configuration: DeliveryConfiguration,
+    *,
+    available_only: bool = False,
+) -> DeliveryConfigurationResponse:
+    return DeliveryConfigurationResponse(
+        action_id=configuration.action_id,
+        enabled=configuration.enabled,
+        timezone=configuration.timezone,
+        revision=configuration.revision,
+        windows=[
+            DeliveryWindowResponse.model_validate(window)
+            for window in configuration.windows
+            if not available_only
+            or (
+                configuration.enabled
+                and not window.retired
+                and window.bounds(configuration.timezone)[0]
+                > datetime.now(timezone.utc)
+            )
+        ],
+    )
+
+
+@router.get(
+    "/api/v1/actions/{action_id}/delivery-configuration",
+    operation_id="getDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def get_delivery_configuration(
+    action_id: UUID, request: Request, response: Response
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    result = await service.get(actor, action_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)
+
+
+@router.put(
+    "/api/v1/actions/{action_id}/delivery-configuration",
+    operation_id="saveDeliveryConfiguration",
+    response_model=DeliveryConfigurationResponse,
+    responses=AUTHENTICATED_CONFLICT_ERROR_RESPONSES,
+    tags=["actions"],
+)
+async def save_delivery_configuration(
+    action_id: UUID,
+    body: DeliveryConfigurationRequest,
+    request: Request,
+    response: Response,
+) -> DeliveryConfigurationResponse:
+    actor = await identity_service(request).authenticate(session_token(request))
+    service = cast(DeliveryService, request.app.state.delivery_service)
+    current = await service.get(actor, action_id)
+    current_ids = {window.id for window in current.windows}
+    if any(
+        window.id is not None and window.id not in current_ids
+        for window in body.windows
+    ):
+        raise DomainInvariantError(
+            "delivery_window_action_mismatch",
+            "Bitte nur bestehende Fenster dieser Aktion auswählen. Neue Fenster erhalten ihre ID beim Speichern.",
+        )
+    configuration = DeliveryConfiguration(
+        action_id=action_id,
+        enabled=body.enabled,
+        timezone=body.timezone,
+        revision=body.expected_revision,
+        windows=tuple(
+            DeliveryWindow(
+                id=window.id or uuid4(),
+                action_id=action_id,
+                delivery_on=window.delivery_on,
+                starts_at=window.starts_at,
+                ends_at=window.ends_at,
+                retired=window.retired,
+            )
+            for window in body.windows
+        ),
+    )
+    result = await service.save(actor, configuration)
+    response.headers["Cache-Control"] = "private, no-store"
+    return delivery_configuration_response(result)

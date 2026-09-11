@@ -5,6 +5,7 @@ import type {
   PublicOrderResultResponse,
 } from "@leonaid/api-client";
 import PublicOrderEnhancement from "./PublicOrderEnhancement.astro";
+import PublicDeliveryWindows from "./PublicDeliveryWindows.astro";
 import {
   money,
   offeringPrice,
@@ -31,6 +32,11 @@ const redisplay = serverError
   ? await readOrderRedisplay(Astro.request, publicAlias)
   : null;
 const commandId = redisplay?.commandId ?? crypto.randomUUID();
+const deliveryConfiguration = orderForm.deliveryConfiguration;
+const deliveryEnabled = Boolean(deliveryConfiguration?.enabled);
+const deliveryUnavailable =
+  deliveryEnabled &&
+  !deliveryConfiguration?.windows.some((window) => !window.retired);
 const quantityFor = (id: string, index: number) =>
   redisplay?.quantities[id] ?? (index === 0 ? 1 : 0);
 const totalMinor = action.offerings.reduce(
@@ -162,6 +168,7 @@ const quantitySummary = orderQuantitySummary(
               method="POST"
               class="order-form"
               data-order-form
+              data-action-id={action.id}
             >
               <input type="hidden" name="publicAlias" value={publicAlias} />
               <input
@@ -492,6 +499,67 @@ const quantitySummary = orderQuantitySummary(
                     />
                   </div>
                 </div>
+                {deliveryEnabled && deliveryConfiguration && (
+                  <div class="order-delivery-details">
+                    <PublicDeliveryWindows
+                      configuration={deliveryConfiguration}
+                      selectedId={redisplay?.fields.deliveryWindowId}
+                    />
+                    <button
+                      type="button"
+                      class="delivery-refresh"
+                      data-delivery-refresh
+                      hidden
+                    >
+                      Lieferfenster aktualisieren
+                    </button>
+                    <p data-delivery-refresh-status role="status" />
+                    <div class="form-grid">
+                      <div class="form-field form-field--wide">
+                        <label for="deliveryContactName">
+                          Ansprechpartner bei der Lieferung (optional)
+                        </label>
+                        <input
+                          id="deliveryContactName"
+                          name="deliveryContactName"
+                          maxlength="200"
+                          autocomplete="section-delivery-contact name"
+                          value={redisplay?.fields.deliveryContactName ?? ""}
+                          aria-describedby="deliveryContact-help deliveryContactName-error"
+                        />
+                        <span
+                          id="deliveryContactName-error"
+                          class="field-error"
+                          data-error-for="deliveryContactName"
+                        />
+                      </div>
+                      <div class="form-field form-field--wide">
+                        <label for="deliveryContactPhone">
+                          Telefonnummer für die Lieferung (optional)
+                        </label>
+                        <input
+                          id="deliveryContactPhone"
+                          name="deliveryContactPhone"
+                          type="tel"
+                          maxlength="40"
+                          autocomplete="section-delivery-contact tel"
+                          value={redisplay?.fields.deliveryContactPhone ?? ""}
+                          aria-describedby="deliveryContact-help deliveryContactPhone-error"
+                        />
+                        <span
+                          id="deliveryContactPhone-error"
+                          class="field-error"
+                          data-error-for="deliveryContactPhone"
+                        />
+                        <small id="deliveryContact-help">
+                          Beide Angaben sind unabhängig optional. Ohne
+                          Lieferkontakt bleibt der Bestellkontakt für Rückfragen
+                          erhalten.
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </fieldset>
 
               <fieldset class="order-step">
@@ -731,7 +799,12 @@ const quantitySummary = orderQuantitySummary(
                     />
                   </span>
                 </label>
-                <button type="submit" class="order-submit" data-order-submit>
+                <button
+                  type="submit"
+                  class="order-submit"
+                  data-order-submit
+                  disabled={deliveryUnavailable}
+                >
                   <span data-submit-label>{orderForm.submitLabel}</span>
                   <span aria-hidden="true">→</span>
                 </button>

@@ -1,0 +1,64 @@
+---
+import type { DeliveryConfigurationResponse } from "@leonaid/api-client";
+
+interface Props {
+  configuration: DeliveryConfigurationResponse;
+  selectedId?: string;
+}
+const { configuration, selectedId } = Astro.props;
+const windows = configuration.windows.filter((window) => !window.retired);
+const days = [...new Set(windows.map((window) => window.deliveryOn))].sort();
+const dayLabel = (day: string) =>
+  new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "full",
+    timeZone: "UTC",
+  }).format(new Date(`${day}T12:00:00Z`));
+---
+
+<fieldset class="delivery-windows" data-delivery-window-selection>
+  <legend>Lieferzeitfenster <small>Pflichtfeld</small></legend>
+  <p>
+    Alle Uhrzeiten gelten in {configuration.timezone}. Bitte ein Fenster
+    auswählen.
+  </p>
+  {
+    days.map((day) => (
+      <div class="delivery-day">
+        <h3>{dayLabel(day)}</h3>
+        <div class="delivery-options">
+          {windows
+            .filter((window) => window.deliveryOn === day)
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+            .map((window) => (
+              <label class="check-row">
+                <input
+                  type="radio"
+                  name="deliveryWindowId"
+                  value={window.id}
+                  checked={selectedId === window.id}
+                  required
+                  aria-describedby="deliveryWindowId-error"
+                />
+                <span>
+                  {window.startsAt.slice(0, 5)}–{window.endsAt.slice(0, 5)} Uhr
+                  <span class="sr-only"> am {dayLabel(day)}</span>
+                </span>
+              </label>
+            ))}
+        </div>
+      </div>
+    ))
+  }
+  {
+    !windows.length && (
+      <p role="status">
+        Zurzeit ist kein Lieferfenster verfügbar. Sobald der Club neue Termine
+        freigibt, kannst du hier bestellen.
+      </p>
+    )
+  }
+  <span
+    id="deliveryWindowId-error"
+    class="field-error"
+    data-error-for="deliveryWindowId"></span>
+</fieldset>

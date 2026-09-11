@@ -11,11 +11,13 @@ import {
   type ActionGoalRequest,
   type BeneficiaryDraftRequest,
   type CreateCharityActionRequest,
+  type CharityActionResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
 import { actionErrorMessage } from "./errors";
+import { DeliverySection } from "./delivery-section";
 
 type Capability = CreateCharityActionRequest["capabilities"][number];
 
@@ -58,13 +60,24 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryDraft[]>([
     { key: 0, organizationName: "", publicDescription: "" },
   ]);
-  const [created, setCreated] = useState<{ id: string; name: string }>();
+  const [template, setTemplate] = useState<"blank" | "krapfentaxi">("blank");
+  const [created, setCreated] = useState<CharityActionResponse>();
   const [error, setError] = useState<string>();
   const mutation = useMutation({
-    mutationFn: (draft: CreateCharityActionRequest) =>
-      client.createCharityAction(draft),
+    mutationFn: async (draft: CreateCharityActionRequest) => {
+      if (template === "krapfentaxi") {
+        const { capabilities: _capabilities, ...details } = draft;
+        return (
+          await client.createCharityActionFromTemplate({
+            ...details,
+            templateKey: template,
+          })
+        ).action;
+      }
+      return client.createCharityAction(draft);
+    },
     onSuccess(action) {
-      setCreated({ id: action.id, name: action.name });
+      setCreated(action);
       setError(undefined);
     },
     onError(cause) {
@@ -115,6 +128,45 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
     });
   }
 
+  if (created)
+    return (
+      <div className="action-page action-page--form">
+        <header className="action-page__header">
+          <h1>{created.name}</h1>
+        </header>
+        <StatusMessage tone="success">
+          <span
+            data-action-id={created.id}
+            data-state="success"
+            id="action-status"
+          >
+            {created.name} wurde als Entwurf angelegt.
+          </span>
+        </StatusMessage>
+        {template === "krapfentaxi" && (
+          <>
+            <p>
+              Ergänze jetzt die Liefertermine. Du kannst den Entwurf auch
+              verlassen und die Planung später vervollständigen.
+            </p>
+            <DeliverySection
+              client={client}
+              actionId={created.id}
+              startsOn={created.startsOn}
+              endsOn={created.endsOn}
+            />
+          </>
+        )}
+        <a
+          className="ui-button ui-button--secondary"
+          href={`/admin/actions/${created.id}${template === "krapfentaxi" ? "#delivery" : ""}`}
+        >
+          Aktion jetzt verwalten
+        </a>
+        <a href="/admin/actions">Alle Aktionen</a>
+      </div>
+    );
+
   return (
     <div className="action-page action-page--form">
       <a className="action-back" href="/admin/actions">
@@ -147,6 +199,11 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         <li>
           <span>3</span> Begünstigte
         </li>
+        {template === "krapfentaxi" && (
+          <li>
+            <span>4</span> Lieferung
+          </li>
+        )}
       </ol>
 
       <form className="action-form-stack" id="action-form" onSubmit={submit}>
@@ -161,6 +218,24 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
             </div>
           </legend>
           <div className="action-form-grid">
+            <label className="action-field action-field--wide">
+              <span>Aktionsvorlage</span>
+              <select
+                value={template}
+                disabled={mutation.isPending}
+                onChange={(event) =>
+                  setTemplate(event.target.value as "blank" | "krapfentaxi")
+                }
+              >
+                <option value="blank">Individuelle Charity-Aktion</option>
+                <option value="krapfentaxi">Krapfentaxi</option>
+              </select>
+              <small>
+                {template === "krapfentaxi"
+                  ? "Angebote und Bestellformular werden aus der Krapfentaxi-Vorlage übernommen. Die Liefertermine legst du nach dem Speichern des Entwurfs fest."
+                  : "Wähle die benötigten Funktionen selbst. Für diese Vorlage gibt es keine Lieferplanung."}
+              </small>
+            </label>
             <label className="action-field action-field--wide">
               <span>Name der Aktion</span>
               <small id="action-name-help">
@@ -257,21 +332,28 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
               <small>Aktiviere nur, was diese Aktion wirklich benötigt.</small>
             </div>
           </legend>
-          <div className="action-choice-grid">
-            {capabilities.map((capability) => (
-              <label className="action-choice" key={capability.value}>
-                <input
-                  name="capability"
-                  type="checkbox"
-                  value={capability.value}
-                />
-                <span>
-                  <strong>{capability.label}</strong>
-                  <small>{capability.description}</small>
-                </span>
-              </label>
-            ))}
-          </div>
+          {template === "krapfentaxi" ? (
+            <p>
+              Akquise, Angebote, Bestellungen und Rechnungen werden aus der
+              Krapfentaxi-Vorlage übernommen.
+            </p>
+          ) : (
+            <div className="action-choice-grid">
+              {capabilities.map((capability) => (
+                <label className="action-choice" key={capability.value}>
+                  <input
+                    name="capability"
+                    type="checkbox"
+                    value={capability.value}
+                  />
+                  <span>
+                    <strong>{capability.label}</strong>
+                    <small>{capability.description}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
           <div className="action-form-grid action-form-grid--spaced">
             <label className="action-field">
               <span>Ziel</span>
@@ -431,20 +513,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
         </fieldset>
 
         {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-        {created ? (
-          <StatusMessage tone="success">
-            <span
-              data-action-id={created.id}
-              data-state="success"
-              id="action-status"
-            >
-              {created.name} wurde als Entwurf angelegt.{" "}
-              <a href={`/admin/actions/${created.id}`}>
-                Aktion jetzt verwalten
-              </a>
-            </span>
-          </StatusMessage>
-        ) : (
+        {
           <span
             aria-live="polite"
             data-state={error ? "error" : ""}
@@ -452,7 +521,7 @@ export function CreateActionPage({ client }: CreateActionPageProps) {
           >
             {error}
           </span>
-        )}
+        }
 
         <div className="action-form-actions">
           <Button

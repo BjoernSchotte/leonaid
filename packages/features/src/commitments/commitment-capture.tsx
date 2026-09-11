@@ -13,11 +13,22 @@ import {
   ApiError,
   type AcquisitionActivityWorkItemResponse,
   type CommitmentResponse,
+  type CommitmentBuyerResponse,
   type ConfiguredOfferingResponse,
   type CurrentIdentityResponse,
   type LeonAidApiClient,
 } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+import { CompleteDraft } from "./complete-draft";
+import { useActionInUrl } from "../action-admin/action-location";
+import {
+  DeliveryFields,
+  DeliverySummary,
+  deliveryDraft,
+  deliveryPayload,
+  hasDeliveryAddress,
+  hasPartialDeliveryAddress,
+} from "./delivery-fields";
 
 interface CommitmentCapturePageProps {
   readonly client: LeonAidApiClient;
@@ -52,6 +63,7 @@ function quantityLabel(quantity: number, unit: keyof typeof unitLabels) {
 
 function captureError(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.detail.code.startsWith("delivery_")) return error.detail.message;
     if (error.detail.code === "idempotency_incomplete") {
       return "Die erste Übermittlung wird noch verarbeitet. Warte kurz und versuche dieselbe Bestellung erneut.";
     }
@@ -83,11 +95,22 @@ function recipientFor(
 function CaptureSuccess({
   commitment,
   onContinue,
+  client,
+  onCompleted,
+  showDelivery,
 }: {
   readonly commitment: CommitmentResponse;
   readonly onContinue: () => void;
+  readonly client: LeonAidApiClient;
+  readonly onCompleted: (order: CommitmentResponse) => void;
+  readonly showDelivery: boolean;
 }) {
   const ready = commitment.status === "review_ready";
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    heading.current?.focus({ preventScroll: true });
+  }, [commitment.id, commitment.status]);
   return (
     <section
       aria-labelledby="commitment-success-heading"
@@ -103,7 +126,7 @@ function CaptureSuccess({
         />
       </span>
       <p className="commitment-eyebrow">Bestellung gespeichert</p>
-      <h1 id="commitment-success-heading">
+      <h1 id="commitment-success-heading" ref={heading} tabIndex={-1}>
         {ready ? "Bereit für die Prüfung" : "Als Entwurf gesichert"}
       </h1>
       <p>
@@ -129,6 +152,15 @@ function CaptureSuccess({
           <dd>{formatMoney(commitment.totalMinor, commitment.currency)}</dd>
         </div>
       </dl>
+      {showDelivery ? <DeliverySummary order={commitment} /> : null}
+      {!ready && commitment.status === "draft" ? (
+        <CompleteDraft
+          key={commitment.id}
+          client={client}
+          order={commitment}
+          onCompleted={onCompleted}
+        />
+      ) : null}
       <div className="commitment-success__actions">
         <a className="ui-button ui-button--secondary" href="/app/sponsors">
           Zurück zu meinen Sponsoren
@@ -163,11 +195,17 @@ export function CommitmentCapturePage({
     ? requestedActionId
     : (memberships[0]?.actionId ?? "");
   const [actionId, setActionId] = useState(initialActionId);
+  useActionInUrl(actionId);
   const [assignmentId, setAssignmentId] = useState(
     initialParameters.get("assignment") ?? "",
   );
   const [offeringId, setOfferingId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [delivery, setDelivery] = useState(() => deliveryDraft());
+  const [savedOrder, setSavedOrder] = useState<CommitmentResponse | null>(null);
+  const existingId = initialParameters.get("commitment") ?? "";
+  const [resuming, setResuming] = useState(Boolean(existingId));
+  const appliedBuyer = useRef("");
   const [recipient, setRecipient] = useState<RecipientDraft>(() =>
     recipientFor(undefined),
   );
@@ -177,6 +215,12 @@ export function CommitmentCapturePage({
     enabled: Boolean(actionId),
     queryFn: () => client.getCommitmentCaptureContext(actionId),
     queryKey: ["commitment-capture-context", actionId],
+    refetchOnWindowFocus: false,
+  });
+  const existing = useQuery({
+    enabled: resuming && Boolean(actionId && existingId),
+    queryKey: ["commitment", actionId, existingId],
+    queryFn: () => client.getCommitment(actionId, existingId),
   });
   const sponsors = useQuery({
     enabled: Boolean(actionId),
@@ -189,6 +233,29 @@ export function CommitmentCapturePage({
   const selectedOffering = context.data?.offerings.find(
     (offering) => offering.id === offeringId,
   );
+  const selectedBuyer: CommitmentBuyerResponse | undefined = selectedSponsor
+    ? {
+        displayName: selectedSponsor.partyDisplayName,
+        email: selectedSponsor.email,
+        partyKind: selectedSponsor.partyKind,
+        twentyId: selectedSponsor.partyId,
+      }
+    : undefined;
+  const buyerKey = selectedBuyer ? `${actionId}:${selectedBuyer.twentyId}` : "";
+  const configuration = context.data?.deliveryConfiguration;
+  const completeDelivery =
+    !configuration?.enabled ||
+    (hasDeliveryAddress(delivery) &&
+      configuration.windows.some(
+        (item) => item.id === delivery.windowId && !item.retired,
+      ));
+
+  function clearBuyerFields() {
+    appliedBuyer.current = "";
+    setRecipient(recipientFor(undefined));
+    setDelivery(deliveryDraft());
+    commandId.current = crypto.randomUUID();
+  }
 
   useEffect(() => {
     if (
@@ -197,7 +264,7 @@ export function CommitmentCapturePage({
         (item) => item.assignmentId === assignmentId,
       )
     ) {
-      setAssignmentId(sponsors.data.workItems[0]?.assignmentId ?? "");
+      setAssignmentId("");
     }
   }, [assignmentId, sponsors.data]);
 
@@ -211,28 +278,28 @@ export function CommitmentCapturePage({
   }, [context.data, offeringId]);
 
   useEffect(() => {
+    if (!buyerKey || appliedBuyer.current === buyerKey) return;
+    appliedBuyer.current = buyerKey;
     setRecipient(recipientFor(selectedSponsor));
-  }, [selectedSponsor?.assignmentId]);
+    setDelivery(deliveryDraft());
+    commandId.current = crypto.randomUUID();
+  }, [buyerKey]);
 
   const create = useMutation({
     mutationFn: ({
       readyForReview,
-      sponsor,
+      buyer,
       offering,
     }: {
       readonly readyForReview: boolean;
-      readonly sponsor: AcquisitionActivityWorkItemResponse;
+      readonly buyer: CommitmentBuyerResponse;
       readonly offering: ConfiguredOfferingResponse;
     }) =>
       client.createCommitment(
         actionId,
         {
-          buyer: {
-            displayName: sponsor.partyDisplayName,
-            email: sponsor.email,
-            partyKind: sponsor.partyKind,
-            twentyId: sponsor.partyId,
-          },
+          buyer,
+          ...(configuration?.enabled ? deliveryPayload(delivery) : {}),
           invoiceRecipient: {
             city: recipient.city.trim(),
             countryCode: "DE",
@@ -258,28 +325,78 @@ export function CommitmentCapturePage({
           },
         },
       ),
+    onSuccess: (order) => {
+      setSavedOrder(order);
+      const url = new URL(window.location.href);
+      url.searchParams.set("action", order.actionId);
+      url.searchParams.set("commitment", order.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    },
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        error.detail.code.startsWith("delivery_")
+      )
+        void context.refetch();
+    },
   });
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent)
       .submitter as HTMLButtonElement | null;
-    if (!selectedSponsor || !selectedOffering || !submitter) return;
+    if (!selectedBuyer || !selectedOffering || !submitter) return;
+    if (submitter.value === "review_ready" && !completeDelivery) return;
     create.mutate({
       offering: selectedOffering,
       readyForReview: submitter.value === "review_ready",
-      sponsor: selectedSponsor,
+      buyer: selectedBuyer,
     });
   }
 
   function reset() {
     commandId.current = crypto.randomUUID();
     setQuantity(1);
+    setSavedOrder(null);
+    setResuming(false);
+    setDelivery(deliveryDraft());
+    const url = new URL(window.location.href);
+    url.searchParams.delete("commitment");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
     create.reset();
   }
 
-  if (create.data) {
-    return <CaptureSuccess commitment={create.data} onContinue={reset} />;
+  const result = savedOrder ?? (resuming ? existing.data : undefined);
+  if (result) {
+    return (
+      <CaptureSuccess
+        client={client}
+        commitment={result}
+        onCompleted={setSavedOrder}
+        onContinue={reset}
+        showDelivery={Boolean(
+          configuration?.enabled ||
+            result.deliveryRecipient ||
+            result.deliveryWindowSnapshot ||
+            result.deliveryContact,
+        )}
+      />
+    );
+  }
+  if (resuming) {
+    return existing.isError ? (
+      <StatusMessage tone="error">
+        <p>
+          Diese Bestellung konnte nicht geöffnet werden. Du benötigst deine
+          ursprüngliche Erfassung und eine weiterhin bestehende Kundenzuordnung.
+        </p>
+        <Button onClick={() => void existing.refetch()}>
+          Erneut versuchen
+        </Button>
+      </StatusMessage>
+    ) : (
+      <p role="status">Bestellung wird geladen …</p>
+    );
   }
 
   const pending = context.isPending || sponsors.isPending;
@@ -315,6 +432,15 @@ export function CommitmentCapturePage({
               Verbindung und lade die Seite erneut.
             </p>
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void context.refetch();
+              void sponsors.refetch();
+            }}
+          >
+            Erneut versuchen
+          </Button>
         </StatusMessage>
       ) : pending ? (
         <div
@@ -338,9 +464,11 @@ export function CommitmentCapturePage({
                 <select
                   aria-describedby="commitment-action-help"
                   id="commitment-action"
+                  disabled={create.isPending}
                   onChange={(event) => {
                     setActionId(event.target.value);
                     setAssignmentId("");
+                    clearBuyerFields();
                     create.reset();
                   }}
                   value={actionId}
@@ -357,7 +485,7 @@ export function CommitmentCapturePage({
               </div>
             ) : null}
 
-            <fieldset className="commitment-step">
+            <fieldset className="commitment-step" disabled={create.isPending}>
               <legend>
                 <span>1</span>
                 Besteller
@@ -372,7 +500,12 @@ export function CommitmentCapturePage({
                   aria-describedby="commitment-sponsor-help"
                   data-testid="commitment-sponsor"
                   id="commitment-sponsor"
-                  onChange={(event) => setAssignmentId(event.target.value)}
+                  onChange={(event) => {
+                    if (event.target.value === assignmentId) return;
+                    clearBuyerFields();
+                    setAssignmentId(event.target.value);
+                    create.reset();
+                  }}
                   required
                   value={assignmentId}
                 >
@@ -410,7 +543,7 @@ export function CommitmentCapturePage({
               ) : null}
             </fieldset>
 
-            <fieldset className="commitment-step">
+            <fieldset className="commitment-step" disabled={create.isPending}>
               <legend>
                 <span>2</span>
                 Angebot und Menge
@@ -482,7 +615,7 @@ export function CommitmentCapturePage({
               )}
             </fieldset>
 
-            <fieldset className="commitment-step">
+            <fieldset className="commitment-step" disabled={create.isPending}>
               <legend>
                 <span>3</span>
                 Rechnungsempfänger
@@ -576,6 +709,31 @@ export function CommitmentCapturePage({
                 </div>
               </div>
             </fieldset>
+            {configuration?.enabled ? (
+              <DeliveryFields
+                configuration={configuration}
+                value={delivery}
+                onChange={(next) => {
+                  setDelivery(next);
+                  if (
+                    next.windowId &&
+                    next.windowId !== delivery.windowId &&
+                    create.isError
+                  )
+                    create.reset();
+                }}
+                disabled={create.isPending}
+                invoiceAddress={{
+                  recipientName: recipient.recipientName,
+                  streetLine1: recipient.streetLine1,
+                  postalCode: recipient.postalCode,
+                  city: recipient.city,
+                  countryCode: "DE",
+                }}
+                refresh={() => void context.refetch()}
+                refreshing={context.isFetching}
+              />
+            ) : null}
           </div>
 
           <aside
@@ -598,7 +756,7 @@ export function CommitmentCapturePage({
             <dl className="commitment-summary__facts">
               <div>
                 <dt>Besteller</dt>
-                <dd>{selectedSponsor?.partyDisplayName ?? "Noch auswählen"}</dd>
+                <dd>{selectedBuyer?.displayName ?? "Noch auswählen"}</dd>
               </div>
               <div>
                 <dt>Angebot</dt>
@@ -640,7 +798,11 @@ export function CommitmentCapturePage({
                 <Button
                   data-testid="commitment-save-draft"
                   disabled={
-                    create.isPending || !selectedSponsor || !selectedOffering
+                    create.isPending ||
+                    !selectedBuyer ||
+                    !selectedOffering ||
+                    (Boolean(configuration?.enabled) &&
+                      hasPartialDeliveryAddress(delivery))
                   }
                   name="readiness"
                   type="submit"
@@ -657,7 +819,11 @@ export function CommitmentCapturePage({
                 <Button
                   data-testid="commitment-save-ready"
                   disabled={
-                    create.isPending || !selectedSponsor || !selectedOffering
+                    create.isPending ||
+                    !selectedBuyer ||
+                    !selectedOffering ||
+                    !completeDelivery ||
+                    context.isFetching
                   }
                   name="readiness"
                   type="submit"

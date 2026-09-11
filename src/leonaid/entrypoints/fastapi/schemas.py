@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
@@ -32,6 +32,37 @@ class TransportModel(BaseModel):
 class PlatformStatusResponse(TransportModel):
     service: str = Field(examples=["leonaid-api"])
     status: Literal["live"] = Field(examples=["live"])
+
+
+class DeliveryWindowRequest(TransportModel):
+    id: UUID | None = None
+    delivery_on: date
+    starts_at: time
+    ends_at: time
+    retired: bool = False
+
+
+class DeliveryWindowResponse(TransportModel):
+    id: UUID
+    delivery_on: date
+    starts_at: time
+    ends_at: time
+    retired: bool
+
+
+class DeliveryConfigurationRequest(TransportModel):
+    expected_revision: int = Field(ge=1)
+    enabled: bool
+    timezone: str = Field(min_length=1, max_length=100)
+    windows: list[DeliveryWindowRequest] = Field(max_length=1000)
+
+
+class DeliveryConfigurationResponse(TransportModel):
+    action_id: UUID
+    enabled: bool
+    timezone: str
+    revision: int
+    windows: list[DeliveryWindowResponse]
 
 
 class PlatformInformationResponse(TransportModel):
@@ -255,6 +286,14 @@ class PrivacyRetentionResponse(TransportModel):
     audit_days: int
 
 
+class PrivacyOrderDeliveryResponse(TransportModel):
+    commitment_id: UUID
+    action_id: UUID
+    delivery_window_id: UUID | None
+    delivery_window_snapshot: dict[str, str] | None
+    delivery_contact: DeliveryContactRequest | None
+
+
 class PrivacySubjectReportResponse(TransportModel):
     found: bool
     subject_email: str
@@ -263,6 +302,7 @@ class PrivacySubjectReportResponse(TransportModel):
     consents: list[PrivacyConsentResponse]
     suppressions: list[PrivacySuppressionResponse]
     references: list[PrivacyReferenceResponse]
+    order_deliveries: list[PrivacyOrderDeliveryResponse]
     open_legal_decisions: list[str]
     generated_at: datetime
 
@@ -745,6 +785,7 @@ class PublicOfferingResponse(TransportModel):
 
 
 class PublicOrderFormResponse(TransportModel):
+    delivery_configuration: DeliveryConfigurationResponse | None = None
     form_key: str
     title: str
     introduction: str
@@ -826,9 +867,16 @@ class PublicOrderLineRequest(TransportModel):
     quoted_unit_price_minor: int = Field(ge=0)
 
 
+class DeliveryContactRequest(TransportModel):
+    name: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=40)
+
+
 class CreatePublicOrderRequest(TransportModel):
     access_token: str = Field(min_length=40, max_length=2_000)
     command_id: UUID
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     party: PublicOrderPartyRequest
     delivery_recipient: PublicOrderDeliveryRecipientRequest
     invoice_recipient: PublicOrderInvoiceRecipientRequest
@@ -984,9 +1032,18 @@ class CommitmentLineRequest(TransportModel):
 class CreateCommitmentRequest(TransportModel):
     source: Literal["acquisition", "admin"]
     ready_for_review: bool = False
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     buyer: CommitmentBuyerRequest
     invoice_recipient: CommitmentInvoiceRecipientRequest | None = None
     lines: list[CommitmentLineRequest] = Field(min_length=1, max_length=100)
+
+
+class CompleteCommitmentRequest(TransportModel):
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_contact: DeliveryContactRequest | None = None
 
 
 class CommitmentBuyerResponse(TransportModel):
@@ -1030,6 +1087,10 @@ class CommitmentResponse(TransportModel):
         "invoiced",
         "cancelled",
     ]
+    delivery_recipient: PublicOrderDeliveryRecipientRequest | None = None
+    delivery_window_id: UUID | None = None
+    delivery_window_snapshot: dict[str, str] | None = None
+    delivery_contact: DeliveryContactRequest | None = None
     buyer: CommitmentBuyerResponse
     invoice_recipient: CommitmentInvoiceRecipientResponse | None
     lines: list[CommitmentLineResponse]
@@ -1041,6 +1102,7 @@ class CommitmentResponse(TransportModel):
 
 
 class CommitmentCaptureContextResponse(TransportModel):
+    delivery_configuration: DeliveryConfigurationResponse | None = None
     action_id: UUID
     action_name: str
     offerings: list[ConfiguredOfferingResponse]

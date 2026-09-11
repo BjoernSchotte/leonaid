@@ -80,6 +80,9 @@ export const server = {
       deliveryStreetLine1: requiredText(300),
       deliveryPostalCode: requiredText(24),
       deliveryCity: requiredText(200),
+      deliveryWindowId: z.uuid().optional(),
+      deliveryContactName: optionalText(200),
+      deliveryContactPhone: optionalText(40),
       billingSameAsDelivery: z.boolean(),
       invoiceRecipientName: optionalText(300),
       invoiceStreetLine1: optionalText(300),
@@ -166,6 +169,17 @@ export const server = {
               city: input.deliveryCity,
               countryCode: "DE",
             },
+            ...(input.deliveryWindowId
+              ? { deliveryWindowId: input.deliveryWindowId }
+              : {}),
+            ...(input.deliveryContactName || input.deliveryContactPhone
+              ? {
+                  deliveryContact: {
+                    name: input.deliveryContactName || null,
+                    phone: input.deliveryContactPhone || null,
+                  },
+                }
+              : {}),
             invoiceRecipient,
             lines,
             message: input.message || null,

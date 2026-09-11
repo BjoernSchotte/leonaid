@@ -1,5 +1,7 @@
 import { CampaignEditorLink } from "../action-admin/campaign-editor-link";
 import { useActionInUrl } from "../action-admin/action-location";
+import { DeliverySummary } from "./delivery-fields";
+import { CompleteDraft } from "./complete-draft";
 
 import {
   Calendar03Icon,
@@ -268,6 +270,9 @@ function InvoiceReview({
 }
 
 function CommitmentRow({
+  client,
+  deliveryEnabled,
+  onCompleted,
   context,
   error,
   issuing,
@@ -276,6 +281,9 @@ function CommitmentRow({
   record,
   reviewOpen,
 }: {
+  readonly client: LeonAidApiClient;
+  readonly deliveryEnabled: boolean;
+  readonly onCompleted: (order: CommitmentResponse) => void;
   readonly context?: InvoiceContextResponse;
   readonly error?: string;
   readonly issuing: boolean;
@@ -285,6 +293,13 @@ function CommitmentRow({
   readonly reviewOpen: boolean;
 }) {
   const { commitment } = record;
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const showDelivery = Boolean(
+    deliveryEnabled ||
+      commitment.deliveryRecipient ||
+      commitment.deliveryWindowSnapshot ||
+      commitment.deliveryContact,
+  );
   return (
     <article
       className="commitment-ledger-row"
@@ -340,6 +355,32 @@ function CommitmentRow({
           <a href="/admin/invoices">Rechnung ansehen</a>
         ) : null}
       </div>
+      {showDelivery || commitment.status === "draft" ? (
+        <details
+          className="commitment-order-details"
+          open={detailsOpen}
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+        >
+          <summary>
+            {showDelivery
+              ? "Lieferdaten und Bestellkontakt"
+              : "Entwurf abschließen"}
+          </summary>
+          {detailsOpen ? (
+            <>
+              {showDelivery ? <DeliverySummary order={commitment} /> : null}
+              {commitment.status === "draft" ? (
+                <CompleteDraft
+                  key={commitment.id}
+                  client={client}
+                  order={commitment}
+                  onCompleted={onCompleted}
+                />
+              ) : null}
+            </>
+          ) : null}
+        </details>
+      ) : null}
       {reviewOpen && context ? (
         <InvoiceReview
           context={context}
@@ -390,6 +431,11 @@ export function CommitmentAdminPage({
     enabled: Boolean(actionId),
     queryFn: () => client.listCommitments(actionId),
     queryKey: ["commitments", actionId],
+  });
+  const deliveryConfiguration = useQuery({
+    enabled: Boolean(actionId),
+    queryFn: () => client.getDeliveryConfiguration(actionId),
+    queryKey: ["delivery-configuration", actionId],
   });
   const invoiceContext = useQuery({
     enabled: Boolean(actionId),
@@ -606,6 +652,9 @@ export function CommitmentAdminPage({
             <section aria-label="Bestellliste" className="commitment-ledger">
               {visible.map((record) => (
                 <CommitmentRow
+                  client={client}
+                  deliveryEnabled={Boolean(deliveryConfiguration.data?.enabled)}
+                  onCompleted={() => void commitments.refetch()}
                   context={invoiceContext.data}
                   error={
                     selectedCommitmentId === record.commitment.id

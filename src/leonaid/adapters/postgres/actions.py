@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -35,6 +35,9 @@ from leonaid.domain.actions import (
     PublicationWindow,
     PublicActionAlias,
 )
+
+
+from leonaid.adapters.postgres.delivery import lock_configuration
 
 
 class AsyncpgCharityActionRepository(CharityActionRepository):
@@ -109,6 +112,13 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                             configuration,
                             occurred_at,
                         )
+                    await connection.execute(
+                        "INSERT INTO action_delivery_configuration(action_id, enabled) VALUES ($1, $2)",
+                        action.id,
+                        configuration is not None
+                        and configuration.snapshot.template_key
+                        is ActionTemplateKey.KRAPFENTAXI,
+                    )
                     await connection.execute(
                         """
                         INSERT INTO action_membership (
@@ -303,6 +313,8 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     action.ends_on,
                     occurred_at=occurred_at,
                 )
+                delivery = await lock_configuration(connection, action.id)
+                delivery.validate_period(action.starts_on, action.ends_on)
                 await self._audit(
                     connection,
                     action=changed,
@@ -688,6 +700,20 @@ class AsyncpgCharityActionRepository(CharityActionRepository):
                     action.status.value,
                     occurred_at=occurred_at,
                 )
+                delivery = await lock_configuration(connection, action.id)
+                if delivery.enabled and action.status in {
+                    CharityActionStatus.SCHEDULED,
+                    CharityActionStatus.ACTIVE,
+                }:
+                    moment = datetime.now(timezone.utc)
+                    if not any(
+                        not w.retired and w.bounds(delivery.timezone)[0] > moment
+                        for w in delivery.windows
+                    ):
+                        raise Conflict(
+                            "delivery_windows_required",
+                            "Bitte vor der Aktivierung mindestens ein zukünftiges Lieferfenster anlegen.",
+                        )
                 released_alias: str | None = None
                 released_redirects: list[str] = []
                 if action.status in {
