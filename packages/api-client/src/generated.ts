@@ -51,6 +51,8 @@ export type CampaignAliasMutationResponse = { readonly actionId: string; readonl
 export type CampaignAliasTargetResponse = { readonly actionId: string; readonly canonicalPath: string; readonly name: string; };
 export type CampaignRendererResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
 export type CancelInvoiceRequest = { readonly reason: string; };
+export type Case = { readonly actionId: string | null; readonly assigneeUserId: string | null; readonly closedAt: string | null; readonly closureNote: string | null; readonly contactErrorCode: string | null; readonly contactRevision: number; readonly contactStatus: "pending" | "linked" | "needs_review" | "failed"; readonly email: string | null; readonly familyName: string; readonly givenName: string; readonly id: string; readonly message: string; readonly phone: string | null; readonly publicReference: string; readonly receivedAt: string; readonly revision: number; readonly status: "new" | "in_progress" | "closed"; readonly subject: string; readonly twentyPersonId: string | null; readonly updatedAt: string; };
+export type Cases = { readonly items: Array<Case>; readonly nextOffset: number | null; };
 export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
@@ -290,6 +292,7 @@ export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | nul
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
 export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
 export type UpdateCampaignAliasRequest = { readonly alias: string; readonly commandId: string; readonly enabled: boolean; readonly revision: number; readonly targetActionId: string; };
+export type UpdateCase = { readonly assigneeUserId: string | null; readonly closureNote?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "new" | "in_progress" | "closed"; };
 export type UpdateEpic = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type UpdatePage = { readonly content: Record<string, unknown>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
@@ -1647,6 +1650,65 @@ export class LeonAidApiClient {
       `/api/v1/identity/members/${encodeURIComponent(String(userId))}/email-change`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listInboxCases(
+    queryParameters: { readonly search?: string; readonly actionId?: string | null; readonly status?: "new" | "in_progress" | "closed" | null; readonly forMe?: boolean; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<Cases> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("actionId", String(queryParameters.actionId));
+    }
+    if (queryParameters.status !== undefined && queryParameters.status !== null) {
+      searchParameters.set("status", String(queryParameters.status));
+    }
+    if (queryParameters.forMe !== undefined && queryParameters.forMe !== null) {
+      searchParameters.set("forMe", String(queryParameters.forMe));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/inbox-cases" + (queryString ? `?${queryString}` : "");
+    return this.request<Cases>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async getInboxCase(
+    caseId: string,
+    options: RequestOptions = {},
+  ): Promise<Case> {
+    return this.request<Case>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateInboxCase(
+    caseId: string,
+    body: UpdateCase,
+    options: RequestOptions = {},
+  ): Promise<Case> {
+    return this.request<Case>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

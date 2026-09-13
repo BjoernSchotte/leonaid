@@ -54,6 +54,7 @@ from leonaid.bootstrap.api import (
     build_survey_services,
     build_task_service,
     build_material_service,
+    build_inbox_service,
     build_knowledge_service,
 )
 from leonaid.platform.http_body import RequestBodyLimitMiddleware
@@ -306,6 +307,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.material_service = build_material_service(
             pool, object_storage
         )
+        application.state.inbox_service = build_inbox_service(pool)
         application.state.task_service = build_task_service(pool)
         application.state.knowledge_service = build_knowledge_service(
             pool, object_storage
