@@ -282,6 +282,7 @@ export function AppShell({
               <strong data-testid="display-name">{identity.displayName}</strong>
             </div>
             <div
+              role="group"
               aria-label="Aktueller Arbeitskontext"
               className="ui-topbar__context"
               data-testid="mobile-work-context"
@@ -292,6 +293,7 @@ export function AppShell({
             <div className="ui-topbar__actions">
               <ThemeSwitcher />
               <div
+                role="group"
                 aria-label="Rollen"
                 className="ui-role-list"
                 data-testid="roles"

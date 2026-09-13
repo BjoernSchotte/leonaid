@@ -10,6 +10,7 @@ from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.tasks.api import (
     Assignees,
     SetListMember,
+    SetListMemberByEmail,
     ListMembers,
     CreateEpic,
     UpdateEpic,
@@ -221,4 +222,19 @@ async def list_assignees(
         await actor(request, response),
         list_id,
         SearchPage(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.put(
+    "/task-lists/{list_id}/members/by-email",
+    operation_id="setTaskListMemberByEmail",
+    response_model=TaskList,
+)
+async def set_member_by_email(
+    request: Request, response: Response, list_id: UUID, command: SetListMemberByEmail
+) -> TaskList:
+    return await service(request).set_list_member_by_email(
+        await actor(request, response),
+        list_id,
+        command,
     )

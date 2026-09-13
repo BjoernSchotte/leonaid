@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import (
     field_validator,
+    EmailStr,
     AwareDatetime,
     ConfigDict,
     Field,
@@ -159,6 +160,13 @@ class SetListMember(TaskModel):
     access: Literal["viewer", "editor"] | None
 
 
+class SetListMemberByEmail(TaskModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    email: EmailStr
+    access: Literal["viewer", "editor"]
+
+
 class ListMember(TaskModel):
     user_id: UUID
     display_name: str
@@ -184,6 +192,10 @@ class Assignees(TaskModel):
 
 
 class TaskRepository(Protocol):
+    async def set_list_member_by_email(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMemberByEmail
+    ) -> TaskList: ...
+
     async def list_assignees(
         self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
     ) -> Assignees: ...
@@ -229,6 +241,13 @@ class TaskService:
     ) -> Assignees:
         return await self._repository.list_assignees(
             actor, list_id, SearchPage.model_validate(query)
+        )
+
+    async def set_list_member_by_email(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMemberByEmail
+    ) -> TaskList:
+        return await self._repository.set_list_member_by_email(
+            actor, list_id, SetListMemberByEmail.model_validate(command)
         )
 
     async def set_list_member(
@@ -310,6 +329,7 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
 
 
 __all__ = [
+    "SetListMemberByEmail",
     "Assignee",
     "Assignees",
     "navigation",

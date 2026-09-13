@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
+import { ListMembersPanel } from "./list-members";
 import { TaskEditor, type Task } from "./task-editor";
 import "./tasks.css";
 
@@ -159,6 +160,13 @@ export function TasksPage({
           </form>
         </aside>
         <div>
+          {selected.data && (
+            <ListMembersPanel
+              client={client}
+              listId={selected.data.id}
+              actionScoped={!!selected.data.actionId}
+            />
+          )}
           {listId && !editing && (
             <Button
               onClick={(event) => {

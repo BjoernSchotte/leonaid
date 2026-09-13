@@ -227,6 +227,7 @@ export type SetActionCapabilitiesRequest = { readonly capabilities: Array<"acqui
 export type SetActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly revision: number; readonly unit?: string | null; };
 export type SetActionPublicationRequest = { readonly publicAlias?: string | null; readonly publicationEndsAt?: string | null; readonly publicationStartsAt?: string | null; readonly revision: number; };
 export type SetListMember = { readonly access: "viewer" | "editor" | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly userId: string; };
+export type SetListMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
 export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
 export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
@@ -2536,6 +2537,22 @@ export class LeonAidApiClient {
   ): Promise<TaskList> {
     return this.request<TaskList>(
       `/api/v1/task-lists/${encodeURIComponent(String(listId))}/members`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setTaskListMemberByEmail(
+    listId: string,
+    body: SetListMemberByEmail,
+    options: RequestOptions = {},
+  ): Promise<TaskList> {
+    return this.request<TaskList>(
+      `/api/v1/task-lists/${encodeURIComponent(String(listId))}/members/by-email`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

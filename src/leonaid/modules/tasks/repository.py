@@ -22,6 +22,7 @@ from leonaid.modules.tasks.api import (
     Assignee,
     Assignees,
     SetListMember,
+    SetListMemberByEmail,
     ListMember,
     ListMembers,
     CreateEpic,
@@ -215,7 +216,8 @@ class AsyncpgTaskRepository:
         | UpdateTask
         | CreateEpic
         | UpdateEpic
-        | SetListMember,
+        | SetListMember
+        | SetListMemberByEmail,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -538,6 +540,19 @@ class AsyncpgTaskRepository:
     async def set_list_member(
         self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
     ) -> TaskList:
+        return await self._set_list_member(actor, list_id, command)
+
+    async def set_list_member_by_email(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMemberByEmail
+    ) -> TaskList:
+        return await self._set_list_member(actor, list_id, command)
+
+    async def _set_list_member(
+        self,
+        actor: IdentityPrincipal,
+        list_id: UUID,
+        command: SetListMember | SetListMemberByEmail,
+    ) -> TaskList:
         async with self.pool.acquire() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             # Lock before the read-policy check to avoid upgrading concurrent shared locks.
@@ -554,7 +569,19 @@ class AsyncpgTaskRepository:
                 raise Conflict(
                     "revision_conflict", "Listenrechte wurden inzwischen geändert."
                 )
-            if command.user_id == listing.owner_user_id:
+            if isinstance(command, SetListMemberByEmail):
+                user_id = await conn.fetchval(
+                    "SELECT id FROM user_account WHERE lower(email)=lower($1) AND status='active'",
+                    str(command.email),
+                )
+                if user_id is None:
+                    raise Conflict(
+                        "list_member_invalid",
+                        "Dieses Konto kann nicht hinzugefügt werden.",
+                    )
+            else:
+                user_id = command.user_id
+            if user_id == listing.owner_user_id:
                 raise Conflict(
                     "list_owner_protected",
                     "Der Eigentümer behält den Zugriff auf die Liste.",
@@ -562,13 +589,13 @@ class AsyncpgTaskRepository:
             if command.access is not None:
                 if not await conn.fetchval(
                     "SELECT EXISTS (SELECT 1 FROM user_account WHERE id=$1 AND status='active')",
-                    command.user_id,
+                    user_id,
                 ):
                     raise Conflict(
                         "list_member_invalid", "Dieses Konto ist nicht verfügbar."
                     )
                 if listing.action_id is not None and not await self._action_access(
-                    conn, command.user_id, listing.action_id, write=False
+                    conn, user_id, listing.action_id, write=False
                 ):
                     raise Conflict(
                         "list_member_invalid", "Aktionszugriff erforderlich."
@@ -576,14 +603,14 @@ class AsyncpgTaskRepository:
                 await conn.execute(
                     "INSERT INTO task_list_member (list_id,user_id,access) VALUES ($1,$2,$3) ON CONFLICT (list_id,user_id) DO UPDATE SET access=EXCLUDED.access",
                     list_id,
-                    command.user_id,
+                    user_id,
                     command.access,
                 )
             else:
                 await conn.execute(
                     "DELETE FROM task_list_member WHERE list_id=$1 AND user_id=$2",
                     list_id,
-                    command.user_id,
+                    user_id,
                 )
             row = await conn.fetchrow(
                 "UPDATE task_list SET revision=revision+1,updated_at=now() WHERE id=$1 RETURNING id,title,action_id,owner_user_id,revision",
@@ -599,7 +626,7 @@ class AsyncpgTaskRepository:
                 action_id=listing.action_id,
                 result=result,
                 details={
-                    "userId": str(command.user_id),
+                    "userId": str(user_id),
                     "access": command.access or "removed",
                 },
             )

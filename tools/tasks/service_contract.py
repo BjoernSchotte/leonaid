@@ -19,6 +19,7 @@ from leonaid.application.errors import (
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.modules.tasks.api import (
     SetListMember,
+    SetListMemberByEmail,
     SearchPage,
     ListQuery,
     TaskQuery,
@@ -40,7 +41,7 @@ async def main() -> None:
         IdentityPrincipal(
             UserAccount(
                 user_id,
-                f"{user_id}@leonaid.invalid",
+                f"{user_id}@example.org",
                 "Task proof",
                 AccountStatus.ACTIVE,
             ),
@@ -175,15 +176,35 @@ async def main() -> None:
             assert error.code == "list_owner_protected"
         else:
             raise AssertionError("Owner access could be removed")
-        grant = SetListMember(
-            idempotency_key=uuid4(),
-            expected_revision=1,
-            user_id=reader_id,
-            access="viewer",
+        grant = SetListMemberByEmail.model_validate(
+            dict(
+                idempotency_key=uuid4(),
+                expected_revision=1,
+                email=reader.account.email.upper(),
+                access="viewer",
+            )
         )
+        for invalid_email in ("missing@example.org", owner.account.email):
+            try:
+                await service.set_list_member_by_email(
+                    owner,
+                    first.id,
+                    SetListMemberByEmail.model_validate(
+                        dict(
+                            idempotency_key=uuid4(),
+                            expected_revision=1,
+                            email=invalid_email,
+                            access="viewer",
+                        )
+                    ),
+                )
+            except Conflict as error:
+                assert error.code in ("list_member_invalid", "list_owner_protected")
+            else:
+                raise AssertionError("Invalid email membership accepted")
         granted, replayed_grant = await asyncio.gather(
-            service.set_list_member(owner, first.id, grant),
-            service.set_list_member(owner, first.id, grant),
+            service.set_list_member_by_email(owner, first.id, grant),
+            service.set_list_member_by_email(owner, first.id, grant),
         )
         assert granted == replayed_grant and granted.revision == 2
         assert (await service.get_list(reader, first.id)).id == first.id
