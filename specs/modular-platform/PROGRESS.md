@@ -730,3 +730,14 @@ Der erweiterte Twenty-Vertrag `leonaid-poc031-test-2137972478-95891` endete mit 
 Eine tatsächliche Twenty-Änderung nach der Vorschau invalidiert den Fingerprint. Ein über die vorhandene Queue erneut gestarteter und beanspruchter Auftrag verhindert manuelles Überholen. Der übrige reale Nachweis umfasst Audit-Constraint-Rollback, Rechteentzug, CRUD/Pagination, Ausfall/Wiederanlauf, verlorene Create-Antwort und Claim-Fencing.
 
 Der erste HTTP-Lauf `leonaid-poc031-test-2137972478-93527` scheiterte beim Produktions-Lifespan am geerbten Recovery-Archiv vor Aufruf der Inbox-Route. Der Vertrag verwendet nun ein eigenes temporäres beschreibbares Archiv und führt dessen echte Veröffentlichung weiterhin aus; die Schutzprüfung wurde nicht deaktiviert. Mypy/Ruff bestanden. Die neue Inbox-Oberfläche und der laufende Browserstack sind nicht Bestandteil dieses Nachweises.
+
+
+## Integration — Modul-Direktlinks im Produktions-Webserver
+
+Der tatsächliche Compose-/Chrome-Lauf zeigte einen bisher durch die temporären Browser-Harnesses nicht erfassten Fehler: `static-server.mjs` lieferte für neue Modulrouten seine alte Ersatzoberfläche. Die SPA-Registrierung wurde dadurch gar nicht erreicht. Web und PWA liefern jetzt für Anwendungsrouten den gebauten SPA-Einstieg; Asset- und Offline-Behandlung bleiben ausdrücklich erhalten. Neue Module benötigen keine zweite Routenliste im Transport.
+
+Beide Docker-Produktionsbuilds und `tools/testing/spa_routes.mjs https://localhost:18843` bestanden im eigenen Projekt `leonaid-shared-32c62f415463ad67`: Tasks/Wissen/Materialien/Inbox mit Listen- und Detailpfaden, unbekannter Pfad zum clientseitigen Routing, tatsächliche JS-/CSS-Antworten, no-store HTML und PWA-Offline-Dokument. Ein erster Aufruf während des noch laufenden Containerstarts lieferte 502; nach bestätigtem Healthy-Zustand bestand der vollständige Vertrag.
+
+Chrome öffnete nach dem vom Nutzer ausdrücklich angeforderten macOS-Import der lokalen Caddy-Root-CA die HTTPS-Seite ohne Zertifikatswarnung. Mit einer echten synthetischen Sitzung zeigte Web die gespeicherte Aufgabenliste und die mobile PWA dieselbe Liste samt Aufgabe bei 390 px ohne horizontalen Seitenüberlauf. Screenshots: `/tmp/leonaid-module-routing-desktop.png` und `/tmp/leonaid-module-routing-mobile.png`. Die Testanmeldung setzte die zuvor tatsächlich in PostgreSQL angelegte Sitzung als Cookie; keine HTTP-Antworten oder Inhalte wurden ersetzt. Der Browser lief mit dem aktuellen Arbeitsbaum einschließlich noch nicht abgenommener Inbox-Navigation. Diese Bilder belegen die Produktions-Routenauslieferung, nicht die vollständige Inbox-Bedienabnahme.
+
+Die Inbox-Oberfläche, öffentliche Formulare und übrigen offenen Gesamtgates bleiben offen. Zertifikat, Schlüssel, Sitzungen und Testdaten werden nicht committed.
