@@ -254,6 +254,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [ ] Surveys über Modulbeiträge registrieren: Backend-Router, Web-Einstieg und bestehender Zugang aus der PWA.
 - [ ] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
+  - [x] Lebenszyklus, Liste und Grundeinstellungen: gemeinsame Eingabe-/Ergebnismodelle, benannte typisierte Methoden und Nutzung durch HTTP; Direktaufruf-Validierung einschließlich nachträglich veränderter Eingaben geprüft. Analyse, Antwortauswahl, Teilnahme und vollständiger LIVE-Rechtenachweis bleiben offen.
 - [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
   - [x] Implementierung: Handler-Konstruktion und vorhandenen Sweep in `modules/surveys/jobs.py` bündeln, über Bootstrap registrieren und doppelte Sweep-Namen beim Start ablehnen. LIVE-Regressionsabnahme bleibt für den übergeordneten Task offen.
 - [ ] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.

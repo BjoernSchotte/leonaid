@@ -126,3 +126,15 @@ Status: Implementierungsslice abgeschlossen am 13.09.2026; LIVE-Regressionsabnah
 Prüfung: 395 Python-Unit-Tests bestanden (neun bestehende Pydantic-Warnungen), Mypy für sechs betroffene Quelldateien, Ruff inklusive Formatprüfung, No-test-doubles-Prüfung und unveränderter OpenAPI-/Client-Vertrag erfolgreich. Neue Registry-Tests verwenden den tatsächlichen Survey-Sweep als Beitrag; sie führen keine Datenbankarbeit aus und ersetzen keinen LIVE-Nachweis.
 
 Der zuvor gestartete Survey-Journey-Prozess ist weiterhin aktiv. Sein Stand ist nicht der aktuelle Commit; M1-Abnahme und Job-/Recovery-Laufzeitnachweise bleiben ausdrücklich offen.
+
+## M1.2 — Typisierte Lebenszyklus-Operationen
+
+Status: Implementierungsslice abgeschlossen am 13.09.2026; vollständiger M1-Direktaufruf-/LIVE-Nachweis offen.
+
+Survey-Eingaben und -Ergebnisse liegen nun in `modules/surveys/models.py`, ohne FastAPI-Abhängigkeit. `SurveyService` bietet benannte, typisierte Methoden für Erstellen, Lesen, Entwurf, Validierung, Veröffentlichung, Zustandswechsel, Kopieren, Fristen, Zugangsmodus, Einladungserstellung und endgültige Löschung. Liste sowie Lesen/Ändern der Grundeinstellungen sind ebenfalls typisiert. Die HTTP-Routen verwenden diese Methoden tatsächlich. Jede mutierende Methode validiert das übergebene Modell erneut; nach Konstruktion veränderte Eingaben können so die bisherigen HTTP-Grenzen nicht umgehen. Die bestehenden Repository-Transaktionen und ihre Rechteprüfungen bleiben der einzige Fachpfad.
+
+Grundeinstellungen behalten die Unterscheidung zwischen ausgelassenem Retention-Feld und explizitem `null`; dies ist für partielle Änderung und Wiederholung relevant. Ergebnisobjekte werden auch für direkte Verbraucher validiert. Die Modelle sind über die verwendeten Imports der öffentlichen `api.py` verfügbar.
+
+Prüfung: 397 Unit-Tests bestanden, Mypy für fünf Moduldateien, Ruff, No-test-doubles sowie OpenAPI-/TypeScript-Vertragsvergleich erfolgreich. Der neue Direktaufruf-Test verwendet den echten Repository-Adapter mit nicht gestartetem PostgreSQL-Pool: ungültiger Titel, zu große Definition und Datum ohne Zeitzone scheitern vor I/O; ein unberechtigter Aufruf der Grundeinstellungen scheitert an der bestehenden Repository-Rechteprüfung. Das belegt nicht die noch offene aktions-/surveybezogene LIVE-Berechtigungsmatrix.
+
+Der vorherige Survey-Journey-Lauf `be5b01315e1a4c38a193f5efbdd29dc0` ist erfolgreich abgeschlossen (`PASS: journeys`, ein vollständiger Durchlauf). Er wurde vor diesem Slice gestartet und ist daher nur Regressionsevidenz für den vorherigen Umbau, kein Nachweis dieser API-Änderungen. Die verbliebenen generischen Analyse-/Antwort-/Teilnahme-Aufrufe werden im nächsten Schnitt ersetzt; die übergeordnete M1-Checkbox bleibt offen.
