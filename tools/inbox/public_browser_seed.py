@@ -13,6 +13,12 @@ async def main(output: Path):
     c = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     result = {}
     async with c.transaction():
+        admin_id = uuid4()
+        await c.execute(
+            "INSERT INTO user_account(id,email,display_name,status) VALUES($1,$2,'Public Inbox Testverwaltung','active')",
+            admin_id,
+            f"public-inbox-{admin_id.hex}@example.invalid",
+        )
         for kind in ["active", "inactive"]:
             aid = uuid4()
             alias = f"inbox-{kind}-{aid.hex[:8]}"
@@ -27,6 +33,12 @@ async def main(output: Path):
                 "INSERT INTO beneficiary(id,action_id,organization_name,public_description,sort_order) VALUES($1,$2,'Synthetischer Mittagstisch','Gemeinsame Mahlzeiten vor Ort.',0)",
                 uuid4(),
                 aid,
+            )
+            await c.execute(
+                "INSERT INTO action_membership(id,action_id,user_id,role,active_from) VALUES($1,$2,$3,'charity_admin',now()-interval '1 day')",
+                uuid4(),
+                aid,
+                admin_id,
             )
             if kind == "inactive":
                 await c.execute(

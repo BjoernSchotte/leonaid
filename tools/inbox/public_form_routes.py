@@ -24,6 +24,11 @@ def main() -> None:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--ca", type=Path, required=True)
     parser.add_argument("--fixture", type=Path, required=True)
+    parser.add_argument(
+        "--campaign",
+        action="store_true",
+        help="Require published CMS content for the active fixture",
+    )
     args = parser.parse_args()
     fixture = json.loads(args.fixture.read_text())
     active, inactive = fixture["active"], fixture["inactive"]
@@ -39,12 +44,23 @@ def main() -> None:
         assert current["action"]["id"] == active["id"]
         assert current["submissionsAllowed"] is False
         assert current["action"]["orderForm"] is None
-        for path, expected in (
+        campaign = client.get(f"/api/v1/public/actions/campaign/{active['slug']}")
+        campaign.raise_for_status()
+        assert campaign.json()["action"]["id"] == active["id"]
+        assert campaign.json()["submissionsAllowed"] is False
+        paths = [
             ("/", [None]),
             (f"/{active['alias']}", [active["id"]]),
             (f"/archive/{active['slug']}", []),
             (f"/{inactive['alias']}", []),
-        ):
+        ]
+        if args.campaign:
+            canonical = f"/campaigns/{active['slug']}/"
+            redirect = client.get(canonical.rstrip("/"))
+            assert redirect.status_code == 308
+            assert redirect.headers["location"] == canonical
+            paths.append((canonical, [active["id"]]))
+        for path, expected in paths:
             response = client.get(path)
             response.raise_for_status()
             forms = InboxForms()
