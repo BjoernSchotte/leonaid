@@ -14,6 +14,7 @@ import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "./knowledge.css";
+import { AccessMembersPanel } from "../shared/access-members";
 
 type Page = Awaited<ReturnType<LeonAidApiClient["getKnowledgePage"]>>;
 
@@ -119,6 +120,7 @@ export function KnowledgeEditorPage({
           client={client}
           page={page.data}
           canEdit={rights.data.canEdit && !page.error && !rights.error}
+          canManage={rights.data.canManage && !page.error && !rights.error}
           basePath={basePath}
           reload={reload}
         />
@@ -135,12 +137,14 @@ function PageEditor({
   client,
   page,
   canEdit,
+  canManage,
   basePath,
   reload,
 }: {
   client: LeonAidApiClient;
   page: Page;
   canEdit: boolean;
+  canManage: boolean;
   basePath: string;
   reload: () => Promise<void>;
 }) {
@@ -234,6 +238,14 @@ function PageEditor({
           {!canEdit ? " · Nur lesen" : ""}
         </p>
       </header>
+      {canManage && (
+        <AccessMembersPanel
+          client={client}
+          objectId={page.id}
+          kind="knowledge-page"
+          actionScoped={!!page.actionId}
+        />
+      )}
       {canEdit && (
         <label>
           Seitentitel

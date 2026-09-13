@@ -477,3 +477,16 @@ LIVE Chrome mit Produktionsbuilds, echtem FastAPI und PostgreSQL: Web speichern 
 Desktop/Mobilaufnahmen geprüft, mobile Axe ohne serious/critical und ohne horizontale Überbreite. Nach anfänglicher Prüfanforderung wegen überlagernder fixer Navigation bestätigt eine Aufnahme am Seitenende plus echte elementFromPoint-Prüfung beide unteren Schaltflächen als frei erreichbar. Unabhängiger Reviewer: `ship` für diesen Editor-Slice; Dokumentationsprüfung bestätigt unverändertes UI-System. Detektor ohne Treffer. Features-/Web-/PWA-Typprüfung, beide Builds, neun Registrierungstests sowie 436 Unit-Tests bestanden (neun bekannte Warnungen). Ruff/Mypy, no-test-doubles und Diffprüfung erfolgreich. Vorhandene Build-Chunkwarnungen bleiben sichtbar.
 
 Freigabeoberfläche, Aktionsauswahl, Task-Anlage über Editor, Materialfunktionen, dauerhafte vollständige Browser-Gates und übrige M2-/M3-Abnahme bleiben offen.
+
+
+## M2 — Gemeinsame Freigabeoberfläche für Seiten und Aufgabenlisten
+
+`AccessMembersPanel` wird von beiden tatsächlichen Nutzern, Tasks und Wissen, wiederverwendet. Die gemeinsame Darstellung verwaltet begrenzte Mitgliedersuche, vorhandenes Konto per E-Mail, Lesen/Bearbeiten und Entfernen. Die jeweiligen typisierten API-Aufrufe und Zähler bleiben getrennt (`revision` für Task-Listen, `accessRevision` für Wissensfreigaben). Stabile Wiederholungsschlüssel, Konflikt-/Fehleranzeige und Neuladen bleiben erhalten. Der bisherige Task-Wrapper ist klein; nicht mehr verwendete Task-Mitglieder-CSS-Regeln wurden entfernt.
+
+Wissensfreigaben erscheinen unter der Seitenüberschrift ausschließlich bei serverseitigem Verwaltungsrecht. Eine Freigabeänderung aktualisiert Rechte-/Mitgliederabfragen, ohne den lokalen Inhaltsentwurf oder dessen Revision neu zu initialisieren. Bestehende Aktionsrollen werden in der Oberfläche ausdrücklich erklärt; Entfernen eines zusätzlichen Zugriffs entzieht keine Aktionsmitgliedschaft.
+
+LIVE Chrome/HTTPS mit zwei echten Sitzungen und PostgreSQL: Eigentümer gewährt Lesen → Kollegin sieht nur lesbaren Editor ohne Freigabebedienung → Eigentümer erlaubt Bearbeiten → Kollegin speichert in PWA → Eigentümer sieht denselben Inhalt → Entfernen ergibt für die Kollegin tatsächlich HTTP 404. Desktop-/Mobilaufnahmen und mobile Axe ohne serious/critical oder Überbreite. Bestehender vollständiger Task-Mitglieder-Browserlauf erneut bestanden: Lesen/Bearbeiten, Zuweisung, Kollegin erledigt, Herabstufen und Entfernen mit anschließendem 404.
+
+Features-/Web-/PWA-Typprüfungen, beide Produktionsbuilds, neun Registrierungstests, no-test-doubles und Diffprüfung bestanden. Bestehende Chunkwarnungen bleiben unverändert. Detektor ohne Treffer. Unabhängige UI-Prüfung: `ship` unter der inzwischen erfüllten Task-Regressionsbedingung; keine erforderlichen Korrekturen oder dauerhaften Designänderungen. Minor limitation: Während Rechteänderungen sind die Controls gesperrt, ohne separate Speichern-Statusansage. Mobile Tastatur-/Screenreader-Nutzung ist damit nicht vollständig abgenommen.
+
+Aktionsauswahl, Task-Anlage aus dem Editor, Materialien, vollständige Browser-Gates und übrige M2-/M3-Arbeit bleiben offen.

@@ -153,19 +153,3 @@
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
-
-.task-members {
-  margin-bottom: 1.5rem;
-}
-.task-members fieldset {
-  border: 0;
-  padding: 0;
-  min-width: 0;
-}
-.task-members h2 {
-  margin-top: 1rem;
-}
-.task-members label {
-  display: grid;
-  gap: 0.5rem;
-}
