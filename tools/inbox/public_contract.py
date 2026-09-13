@@ -20,8 +20,8 @@ async def main() -> None:
         {
             "LEONAID_ENV": "test",
             "CORE_DATABASE_URL": os.environ["CORE_DATABASE_URL"],
-            "LEONAID_SECRET_KEY": f"synthetic-public-proof-{uuid4()}",
-            "LEONAID_SESSION_ENCRYPTION_KEY": f"synthetic-public-proof-{uuid4()}",
+            "LEONAID_SECRET_KEY": "synthetic-http-proof-secret-only-32-characters",
+            "LEONAID_SESSION_ENCRYPTION_KEY": "synthetic-http-proof-encryption-32-characters",
             "LEONAID_PUBLIC_BASE_URL": "https://inbox.leonaid.invalid",
             "LEONAID_ALLOWED_ORIGINS": "https://inbox.leonaid.invalid",
             "TWENTY_BASE_URL": "http://127.0.0.1:9",
