@@ -19,13 +19,15 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 shared_services="api web pwa public proxy"
 . "$root/tools/testing/borrow_stack.sh"
-compose run --rm --no-deps \
+compose run --rm --no-deps --user "$(id -u):$(id -g)" \
   --volume "$root:/repo:ro" --volume "$proof:/proof" \
   --entrypoint python api /repo/tools/materials/browser_seed.py
-results=${LEONAID_CI_ARTIFACT_DIR:-$root/.artifacts/modular-browser}
+# Browser images/traces stay separate from the sanitized public CI log bundle.
+results=${LEONAID_MODULE_BROWSER_ARTIFACT_DIR:-$root/.artifacts/modular-browser}
 mkdir -p "$results"
 results=$(cd "$results" && pwd)
 docker run --rm --network "${project}_edge" \
+  --user "$(id -u):$(id -g)" \
   --env CI=1 --env HOME=/tmp --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
   --env LEONAID_MODULE_FIXTURE=/proof/material-browser-fixture.json \
   --volume "$root:/workspace:ro" --volume "$proof:/proof" \
