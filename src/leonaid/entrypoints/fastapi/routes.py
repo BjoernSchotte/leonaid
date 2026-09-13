@@ -2313,6 +2313,8 @@ async def operations_overview(
     )
     response.headers["Cache-Control"] = "no-store"
     return OperationsOverviewResponse(
+        next_pending_attempt_at=snapshot.next_pending_attempt_at,
+        oldest_due_pending_age_seconds=snapshot.oldest_due_pending_age_seconds,
         generated_at=snapshot.generated_at,
         request_id=snapshot.request_id,
         api=OperationalApiMetricsResponse.model_validate(snapshot.api),

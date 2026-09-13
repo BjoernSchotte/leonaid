@@ -28,6 +28,22 @@ from leonaid.application.operations import (
 )
 
 
+async def pending_queue_timing(
+    connection: asyncpg.Connection[Any],
+) -> tuple[datetime | None, float | None]:
+    """Measure pending work at database time; active leases are not pending work."""
+    row = await connection.fetchrow("""
+        SELECT min(available_at) AS next_attempt,
+               extract(epoch FROM now() - min(available_at)
+                   FILTER (WHERE available_at <= now())) AS oldest_due_age
+        FROM outbox_event WHERE status = 'pending'
+    """)
+    assert row is not None
+    return row["next_attempt"], (
+        float(row["oldest_due_age"]) if row["oldest_due_age"] is not None else None
+    )
+
+
 class ApiMetrics:
     """Process-local request counters; durable business metrics stay in SQL."""
 
@@ -149,6 +165,7 @@ class OperationsService:
             self._monitoring_snapshot(),
         )
         async with self._pool.acquire() as connection:
+            next_attempt, oldest_due_age = await pending_queue_timing(connection)
             outbox_rows = await connection.fetch(
                 "SELECT status, count(*) AS count "
                 "FROM outbox_event GROUP BY status ORDER BY status"
@@ -201,6 +218,8 @@ class OperationsService:
             api=self._api_metrics.snapshot(),
             dependencies=tuple(dependency_result),
             outbox=self._status_counts(outbox_rows),
+            next_pending_attempt_at=next_attempt,
+            oldest_due_pending_age_seconds=oldest_due_age,
             mail=self._status_counts(mail_rows),
             login={
                 "challengesLast24h": int(login_row["challenges"] if login_row else 0),

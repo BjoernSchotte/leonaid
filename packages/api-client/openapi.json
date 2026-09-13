@@ -7521,6 +7521,30 @@
           "monitoring": {
             "$ref": "#/components/schemas/OperationalMonitoringResponse"
           },
+          "nextPendingAttemptAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextpendingattemptat"
+          },
+          "oldestDuePendingAgeSeconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldestduependingageseconds"
+          },
           "outbox": {
             "$ref": "#/components/schemas/OperationalStatusCountsResponse"
           },

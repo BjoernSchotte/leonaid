@@ -70,6 +70,8 @@ class OperationsSnapshot:
     login: dict[str, int]
     failed_jobs: tuple[FailedJob, ...]
     monitoring: MonitoringSnapshot
+    next_pending_attempt_at: datetime | None = None
+    oldest_due_pending_age_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

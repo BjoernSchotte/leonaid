@@ -1953,6 +1953,8 @@ class OperationalMonitoringResponse(TransportModel):
 
 
 class OperationsOverviewResponse(TransportModel):
+    next_pending_attempt_at: datetime | None = None
+    oldest_due_pending_age_seconds: float | None = Field(default=None, ge=0)
     generated_at: datetime
     request_id: str
     api: OperationalApiMetricsResponse

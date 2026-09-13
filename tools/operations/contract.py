@@ -16,6 +16,8 @@ from uuid import UUID, uuid5
 import asyncpg
 import httpx
 
+from tools.operations.queue_timing import main as verify_queue_timing
+
 from leonaid.domain.sessions import (
     SESSION_COOKIE_NAME,
     SESSION_LIFETIME,
@@ -444,6 +446,7 @@ async def execute(arguments: argparse.Namespace) -> None:
     connection = await asyncpg.connect(require_env("CORE_DATABASE_URL"))
     try:
         if arguments.command == "prepare":
+            await verify_queue_timing()
             await prepare(connection, arguments.sessions)
         elif arguments.command == "expect-dependency":
             await expect_dependency(arguments.dependency)
