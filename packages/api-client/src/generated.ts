@@ -17,6 +17,8 @@ export type AcquisitionPartyCountResponse = { readonly total: number; };
 export type AcquisitionPartyExportResponse = { readonly actionId: string; readonly items: Array<AcquisitionPartyResponse>; };
 export type AcquisitionPartyListResponse = { readonly items: Array<AcquisitionPartyResponse>; readonly limit: number; readonly offset: number; readonly total: number; };
 export type AcquisitionPartyResponse = { readonly assignedAcquirerIds: Array<string>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
+export type ActionContext = { readonly actionId: string; readonly canCreateLists: boolean; readonly name: string; };
+export type ActionContexts = { readonly items: Array<ActionContext>; readonly nextOffset: number | null; };
 export type ActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly unit?: string | null; };
 export type ActionGoalResponse = { readonly actualValue: string; readonly currency: string | null; readonly goalValue: string | null; readonly unit: string | null; };
 export type ActionManagementResponse = { readonly action: CharityActionResponse; readonly administratorOptions: Array<AdministratorOptionResponse>; readonly allowedTransitions: Array<"draft" | "scheduled" | "active" | "completed" | "archived">; readonly publicAlias: string | null; };
@@ -2370,6 +2372,29 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async listTaskActionContexts(
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<ActionContexts> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/task-action-contexts" + (queryString ? `?${queryString}` : "");
+    return this.request<ActionContexts>(
+      requestPath,
+      { method: "GET" },
       options,
     );
   }

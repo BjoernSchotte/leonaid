@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.tasks.api import (
+    ActionContexts,
     Assignees,
     SetListMember,
     SetListMemberByEmail,
@@ -237,4 +238,22 @@ async def set_member_by_email(
         await actor(request, response),
         list_id,
         command,
+    )
+
+
+@router.get(
+    "/task-action-contexts",
+    operation_id="listTaskActionContexts",
+    response_model=ActionContexts,
+)
+async def list_action_contexts(
+    request: Request,
+    response: Response,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> ActionContexts:
+    return await service(request).list_action_contexts(
+        await actor(request, response),
+        SearchPage(search=search, offset=offset, limit=limit),
     )

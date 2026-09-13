@@ -125,6 +125,35 @@ async def main() -> None:
                 actors["global"].account.id,
             )
         owner = actors["owner"]
+        for name in ("owner", "manager", "acquirer", "finance_reader", "driver"):
+            contexts = await service.list_action_contexts(actors[name], SearchPage())
+            assert (
+                len(contexts.items) == 1 and contexts.items[0].action_id == actions[0]
+            )
+            assert contexts.items[0].can_create_lists == (name in ("owner", "manager"))
+        for name in ("expired", "future", "outsider"):
+            assert not (
+                await service.list_action_contexts(actors[name], SearchPage())
+            ).items
+        first_context = await service.list_action_contexts(
+            actors["global"], SearchPage(limit=1)
+        )
+        assert len(first_context.items) == 1 and first_context.next_offset == 1
+        second_context = await service.list_action_contexts(
+            actors["global"], SearchPage(limit=1, offset=1)
+        )
+        assert second_context.next_offset is None
+        assert {
+            first_context.items[0].action_id,
+            second_context.items[0].action_id,
+        } == set(actions)
+        assert all(
+            context.can_create_lists
+            for context in [*first_context.items, *second_context.items]
+        )
+        assert not (
+            await service.list_action_contexts(actors["global"], SearchPage(search="%"))
+        ).items
         listing = await service.create_list(
             owner,
             CreateList(
@@ -336,6 +365,9 @@ async def main() -> None:
             actors[name].account.id for name in ("manager", "finance_reader", "driver")
         }
         for name in ("owner", "acquirer", "global"):
+            assert not (
+                await service.list_action_contexts(actors[name], SearchPage())
+            ).items
             await rejected(service.get_task(actors[name], task.id), "not_found")
             assert not (
                 await service.list_tasks(actors[name], TaskQuery(for_me=True))

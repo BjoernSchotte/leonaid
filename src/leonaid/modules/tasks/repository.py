@@ -19,6 +19,8 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.tasks.api import (
+    ActionContext,
+    ActionContexts,
     Assignee,
     Assignees,
     SetListMember,
@@ -119,6 +121,41 @@ class AsyncpgTaskRepository:
         if not allowed:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
         return TaskList.model_validate(dict(row))
+
+    async def list_action_contexts(
+        self, actor: IdentityPrincipal, query: SearchPage
+    ) -> ActionContexts:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            rows = await conn.fetch(
+                """
+                WITH current_membership AS (
+                    SELECT action_id,bool_or(role='charity_admin') AS can_write
+                    FROM action_membership WHERE user_id=$1 AND active_from<=now()
+                        AND (active_until IS NULL OR active_until>now()) GROUP BY action_id
+                ), global_access AS (
+                    SELECT EXISTS (SELECT 1 FROM user_global_role WHERE user_id=$1 AND role='system_admin') AS allowed
+                )
+                SELECT a.id AS action_id,a.name,(g.allowed OR coalesce(m.can_write,false)) AS can_create_lists
+                FROM charity_action a CROSS JOIN global_access g
+                LEFT JOIN current_membership m ON m.action_id=a.id
+                WHERE (g.allowed OR m.action_id IS NOT NULL) AND strpos(lower(a.name),lower($2))>0
+                ORDER BY lower(a.name),a.id LIMIT $3 OFFSET $4
+                """,
+                actor.account.id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return ActionContexts(
+                items=[
+                    ActionContext.model_validate(dict(row))
+                    for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
 
     async def list_assignees(
         self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage

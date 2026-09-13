@@ -191,7 +191,22 @@ class Assignees(TaskModel):
     next_offset: int | None
 
 
+class ActionContext(TaskModel):
+    action_id: UUID
+    name: str
+    can_create_lists: bool
+
+
+class ActionContexts(TaskModel):
+    items: list[ActionContext]
+    next_offset: int | None
+
+
 class TaskRepository(Protocol):
+    async def list_action_contexts(
+        self, actor: IdentityPrincipal, query: SearchPage
+    ) -> ActionContexts: ...
+
     async def set_list_member_by_email(
         self, actor: IdentityPrincipal, list_id: UUID, command: SetListMemberByEmail
     ) -> TaskList: ...
@@ -241,6 +256,13 @@ class TaskService:
     ) -> Assignees:
         return await self._repository.list_assignees(
             actor, list_id, SearchPage.model_validate(query)
+        )
+
+    async def list_action_contexts(
+        self, actor: IdentityPrincipal, query: SearchPage
+    ) -> ActionContexts:
+        return await self._repository.list_action_contexts(
+            actor, SearchPage.model_validate(query)
         )
 
     async def set_list_member_by_email(
@@ -329,6 +351,8 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
 
 
 __all__ = [
+    "ActionContext",
+    "ActionContexts",
     "SetListMemberByEmail",
     "Assignee",
     "Assignees",

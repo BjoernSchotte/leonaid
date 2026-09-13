@@ -368,3 +368,14 @@ Die gemeinsame Oberfläche bietet bei der Listenerstellung neben „Eigenständi
 LIVE: frisches PostgreSQL mit vollständigen Migrationen, echte HTTPS-FastAPI, synthetische Aktion mit Charity-Admin und Acquirer. Browser erstellt eine Liste im Aktionskontext, bestätigt die persistierte actionId und den Listenfilter, weist dem berechtigten Aktionsmitglied einen Task zu; dieses erledigt in PWA „Für mich“, der Admin sieht den gemeinsamen Status im Web. Mobile Axe ohne critical/serious und kein horizontaler Overflow. Desktop-Screenshot `/tmp/leonaid-tasks-desktop.png` geprüft; temporärer Nachweis `/tmp/leonaid-context-browser.cjs`. Der erste Lauf begann vor abgeschlossener Datenbankinitialisierung und scheiterte beim Verbindungsaufbau; derselbe Container wurde nach bestätigter Bereitschaft erfolgreich verwendet.
 
 Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden; Impeccable-Detektor ohne Treffer. Bekannte Grenze: Die Auswahl stammt derzeit aus eigenen aktuellen Aktionsmitgliedschaften. System-Admins ohne solche Mitgliedschaft benötigen noch eine berechtigte globale Aktionsauswahl; dieser Fall und die übergeordnete M2-Abnahme bleiben offen.
+
+
+## M2 — Globale und autorisierte Aktionsauswahl
+
+`list_action_contexts` liefert begrenzt durchsuchbare Aktionen und die aktuelle Berechtigung zum Erstellen von Listen. Aktive normale Konten sehen ausschließlich Aktionen ihrer aktuellen Mitgliedschaften; aktive System-Admins können Aktionen ohne eigene Mitgliedschaft wählen. Die Abfrage liest aktuelle Rollen aus PostgreSQL und vertraut keinen mitgebrachten Rollenbehauptungen. Erstellung prüft die Rechte weiterhin erneut.
+
+Die gemeinsame Oberfläche verwendet diesen Vertrag statt der eigenen Mitgliedschaftsliste für Kontextwahl und Listenfilter. Die Suche besitzt Pagination; Auswahl außerhalb der aktuellen Ergebnisse bleibt erhalten. Damit ist die im vorherigen Abschnitt beschriebene System-Admin-Lücke geschlossen.
+
+LIVE PostgreSQL: alle vier Aktionsrollen, globale Berechtigung ohne Mitgliedschaft, fremde/abgelaufene/zukünftige Mitgliedschaften, gefälschte Principal-Rolle, Rollen-/Mitgliedschaftsentzug und begrenzte Pagination bestanden. LIVE HTTPS/Chrome: System-Admin ohne Aktionsmitgliedschaft sucht Aktion, erstellt und filtert zugeordnete Liste, weist Aktionsmitglied eine Aufgabe zu; PWA-Mitglied erledigt und Admin sieht denselben Status. Wiederholung mit geöffneter Desktop-Aktionssuche und Desktop-/Mobile-Axe ohne critical/serious erfolgreich; Screenshot `/tmp/leonaid-action-search.png` geprüft. Temporärer Nachweis `/tmp/leonaid-global-context-browser.cjs`.
+
+406 Unit-Tests (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features-/Web-/PWA-Typprüfungen und beide Produktionsbuilds bestanden. Bestehende OpenAPI-Pfade/-Schemas strukturell unverändert. Wissens-/Materialkontexte und übergeordnete M2-Abnahmen bleiben offen.
