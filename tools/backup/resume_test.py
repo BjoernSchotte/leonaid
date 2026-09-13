@@ -27,7 +27,7 @@ def main() -> None:
                     """
 set -eu
 compose() {
-  [ "$*" = 'start --wait --wait-timeout 420 api rustfs' ] || return 99
+  [ "$*" = 'up --no-deps --no-recreate --no-build --wait --wait-timeout 420 api rustfs' ] || return 99
   printf '%s' invoked > "$marker"
   echo 'private-output-must-not-escape' >&2
   return "$resume"

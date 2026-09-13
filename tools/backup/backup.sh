@@ -108,7 +108,7 @@ cleanup() {
   status=$?
   if [ "$writers_stopped" = "true" ] && [ -n "$restart_services" ]; then
     echo "backup: resuming previously running services; waiting for readiness"
-    if ! compose start --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
+    if ! compose up --no-deps --no-recreate --no-build --wait --wait-timeout 420 $restart_services >/dev/null 2>&1; then
       echo "backup: ERROR: source services failed to resume; inspect service health before continuing" >&2
       if [ "$status" -eq 0 ]; then status=1; fi
     fi
