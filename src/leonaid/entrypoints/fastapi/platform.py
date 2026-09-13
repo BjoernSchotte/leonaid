@@ -307,7 +307,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             pool, object_storage
         )
         application.state.task_service = build_task_service(pool)
-        application.state.knowledge_service = build_knowledge_service(pool)
+        application.state.knowledge_service = build_knowledge_service(
+            pool, object_storage
+        )
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )

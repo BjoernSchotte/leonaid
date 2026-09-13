@@ -107,6 +107,57 @@ async def main() -> None:
                         files={"file": ("Ablauf ü.txt", b"different", "text/plain")},
                     )
                 ).status_code == 409
+                page_content = {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "materialReference",
+                            "attrs": {"materialId": material["id"], "version": 1},
+                        }
+                    ],
+                }
+                page_response = await client.post(
+                    "/api/v1/knowledge-pages",
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "title": "HTTP material reference",
+                        "content": page_content,
+                    },
+                )
+                assert page_response.status_code == 200, page_response.text
+                page = page_response.json()
+                assert page["content"] == page_content
+                assert (
+                    await client.get(
+                        "/api/v1/knowledge-pages/" + page["id"], headers=headers
+                    )
+                ).json()["content"] == page_content
+                missing_content = {
+                    "type": "doc",
+                    "content": [
+                        {
+                            "type": "materialReference",
+                            "attrs": {"materialId": material["id"], "version": 999},
+                        }
+                    ],
+                }
+                missing = await client.put(
+                    "/api/v1/knowledge-pages/" + page["id"],
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedRevision": 1,
+                        "title": "Missing version",
+                        "content": missing_content,
+                    },
+                )
+                assert missing.status_code == 404, missing.text
+                assert (
+                    await client.get(
+                        "/api/v1/knowledge-pages/" + page["id"], headers=headers
+                    )
+                ).json() == page
                 path = root + "/" + material["id"]
                 assert (await client.get(path, headers=headers)).json() == material
                 assert (

@@ -12,6 +12,7 @@ from leonaid.modules.knowledge.document import (
     MAX_DOCUMENT_DEPTH,
     MAX_DOCUMENT_NODES,
     task_references,
+    material_references,
     validate_document,
 )
 
@@ -238,3 +239,65 @@ def test_tiptap_link_title_is_bounded() -> None:
                 }
             )
         )
+
+
+def test_exact_material_references_are_deduplicated_without_metadata() -> None:
+    material_id = uuid4()
+    node = {
+        "type": "materialReference",
+        "attrs": {"materialId": str(material_id), "version": 1},
+    }
+    newer = {
+        "type": "materialReference",
+        "attrs": {"materialId": str(material_id), "version": 2},
+    }
+    validated = validate_document(
+        document(node, {"type": "blockquote", "content": [node, newer]})
+    )
+    assert material_references(validated) == {(material_id, 1), (material_id, 2)}
+    assert task_references(validated) == set()
+
+
+@pytest.mark.parametrize("version", [None, True, 0, -1, "1", 1.5, 2147483648])
+def test_material_reference_requires_exact_positive_integer_version(
+    version: object,
+) -> None:
+    with pytest.raises(ValueError):
+        validate_document(
+            document(
+                {
+                    "type": "materialReference",
+                    "attrs": {"materialId": str(uuid4()), "version": version},
+                }
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "extra", [{"filename": "private.txt"}, {"url": "https://example.org/file"}]
+)
+def test_material_reference_does_not_cache_protected_metadata(
+    extra: dict[str, str],
+) -> None:
+    with pytest.raises(ValueError):
+        validate_document(
+            document(
+                {
+                    "type": "materialReference",
+                    "attrs": {"materialId": str(uuid4()), "version": 1, **extra},
+                }
+            )
+        )
+
+
+def test_material_reference_rejects_bad_id_and_children() -> None:
+    for node in (
+        {"type": "materialReference", "attrs": {"materialId": "invalid", "version": 1}},
+        {
+            "type": "materialReference",
+            "attrs": {"materialId": str(uuid4()), "version": 1},
+            "content": [{"type": "paragraph"}],
+        },
+    ):
+        with pytest.raises(ValueError):
+            validate_document(document(node))

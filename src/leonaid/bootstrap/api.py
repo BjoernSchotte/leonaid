@@ -94,12 +94,17 @@ def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
     return TaskService(AsyncpgTaskRepository(pool))
 
 
-def build_knowledge_service(pool: asyncpg.Pool[Any]) -> KnowledgeService:
+def build_knowledge_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> KnowledgeService:
     return KnowledgeService(
         AsyncpgKnowledgeRepository(
             pool,
             lambda connection: TaskService(
                 AsyncpgTaskRepository(pool, connection=connection)
+            ),
+            lambda connection: MaterialService(
+                AsyncpgMaterialRepository(pool, storage, connection=connection)
             ),
         )
     )

@@ -38,7 +38,8 @@ from leonaid.modules.knowledge.api import (
     PageSummary,
     PageQuery,
 )
-from leonaid.modules.knowledge.document import task_references
+from leonaid.modules.knowledge.document import task_references, material_references
+from leonaid.modules.materials.api import MaterialService
 
 _READ_ACCESS = """
     ((p.action_id IS NULL AND (p.owner_user_id=$1 OR EXISTS (
@@ -55,9 +56,11 @@ class AsyncpgKnowledgeRepository:
         self,
         pool: asyncpg.Pool[Any],
         tasks: Callable[[asyncpg.Connection[Any]], TaskService],
+        materials: Callable[[asyncpg.Connection[Any]], MaterialService],
     ) -> None:
         self.pool = pool
         self.tasks = tasks
+        self.materials = materials
 
     async def _active(
         self, conn: asyncpg.Connection[Any], actor: IdentityPrincipal
@@ -165,6 +168,9 @@ class AsyncpgKnowledgeRepository:
         self, conn: asyncpg.Connection[Any], actor: IdentityPrincipal, page: Page
     ) -> None:
         references = task_references(page.content)
+        files = material_references(page.content)
+        for material_id, version in sorted(files):
+            await self.materials(conn).get_version(actor, material_id, version)
         # Read-only public module operations: linking never creates or modifies a task.
         for task_id in sorted(references):
             await self.tasks(conn).get_task(actor, task_id)
@@ -182,6 +188,15 @@ class AsyncpgKnowledgeRepository:
                 page.id,
                 page.revision,
                 task_id,
+            )
+
+        for material_id, version in sorted(files):
+            await conn.execute(
+                "INSERT INTO knowledge_page_material(page_id,revision,material_id,material_version) VALUES ($1,$2,$3,$4)",
+                page.id,
+                page.revision,
+                material_id,
+                version,
             )
 
     async def _finish(

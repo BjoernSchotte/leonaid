@@ -17,6 +17,7 @@ BLOCKS = {
     "codeBlock",
     "horizontalRule",
     "taskReference",
+    "materialReference",
 }
 INLINE = {"text", "hardBreak"}
 
@@ -74,6 +75,17 @@ def validate_document(value: object) -> dict[str, Any]:
             if set(attrs) != {"taskId"} or not isinstance(attrs["taskId"], str):
                 raise ValueError("Eine stabile Task-ID ist erforderlich.")
             UUID(attrs["taskId"])
+        elif kind == "materialReference":
+            if (
+                set(attrs) != {"materialId", "version"}
+                or not isinstance(attrs["materialId"], str)
+                or type(attrs["version"]) is not int
+                or not 1 <= attrs["version"] <= 2147483647
+            ):
+                raise ValueError(
+                    "Eine Material-ID und konkrete Dateiversion sind erforderlich."
+                )
+            UUID(attrs["materialId"])
         elif attrs:
             raise ValueError("Dieser Knoten unterstützt keine Attribute.")
         marks = node.get("marks", [])
@@ -95,7 +107,12 @@ def validate_document(value: object) -> dict[str, Any]:
         children = node.get("content", [])
         if not isinstance(children, list):
             raise ValueError("content muss eine Liste sein.")
-        if kind in {"hardBreak", "horizontalRule", "taskReference"}:
+        if kind in {
+            "hardBreak",
+            "horizontalRule",
+            "taskReference",
+            "materialReference",
+        }:
             if children:
                 raise ValueError("Dieser Knoten besitzt keinen Inhalt.")
             continue
@@ -182,5 +199,17 @@ def task_references(document: dict[str, Any]) -> set[UUID]:
         node = stack.pop()
         if node["type"] == "taskReference":
             result.add(UUID(node["attrs"]["taskId"]))
+        stack.extend(node.get("content", []))
+    return result
+
+
+def material_references(document: dict[str, Any]) -> set[tuple[UUID, int]]:
+    """Extract exact versions; a reference never grants material access."""
+    result: set[tuple[UUID, int]] = set()
+    stack = [document]
+    while stack:
+        node = stack.pop()
+        if node["type"] == "materialReference":
+            result.add((UUID(node["attrs"]["materialId"]), node["attrs"]["version"]))
         stack.extend(node.get("content", []))
     return result

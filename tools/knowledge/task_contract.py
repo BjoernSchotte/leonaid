@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import asyncpg
 
+from leonaid.adapters.storage.s3 import S3ObjectStorage
+
 from leonaid.application.errors import (
     Conflict,
     ResourceNotFound,
@@ -24,6 +26,12 @@ async def main() -> None:
         os.environ["CORE_DATABASE_URL"], min_size=1, max_size=1, command_timeout=10
     )
     assert pool is not None
+    storage = S3ObjectStorage(
+        endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
+        access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
+        secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
+        bucket=os.environ["OBJECT_STORAGE_BUCKET"],
+    )
     owner_id, reader_id = uuid4(), uuid4()
     actors = [
         IdentityPrincipal(
@@ -39,7 +47,7 @@ async def main() -> None:
         for user_id in (owner_id, reader_id)
     ]
     owner, reader = actors
-    knowledge = build_knowledge_service(pool)
+    knowledge = build_knowledge_service(pool, storage)
     tasks = build_task_service(pool)
     try:
         async with pool.acquire() as conn:
@@ -154,7 +162,7 @@ async def main() -> None:
         )
         assert concurrent_pool is not None
         try:
-            concurrent = build_knowledge_service(concurrent_pool)
+            concurrent = build_knowledge_service(concurrent_pool, storage)
             results = await asyncio.gather(
                 *[
                     concurrent.create_task_from_page(

@@ -11,6 +11,8 @@ from uuid import uuid4
 
 import asyncpg
 
+from leonaid.adapters.storage.s3 import S3ObjectStorage
+
 from leonaid.application.errors import ApplicationError
 from leonaid.domain.identity import (
     AccountStatus,
@@ -42,6 +44,12 @@ async def main() -> None:
         os.environ["CORE_DATABASE_URL"], min_size=1, max_size=4
     )
     assert pool is not None
+    storage = S3ObjectStorage(
+        endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
+        access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
+        secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
+        bucket=os.environ["OBJECT_STORAGE_BUCKET"],
+    )
     names = (
         "owner",
         "manager",
@@ -71,7 +79,7 @@ async def main() -> None:
     )
     users = [actor.account.id for actor in actors.values()]
     actions = [uuid4(), uuid4()]
-    service = build_knowledge_service(pool)
+    service = build_knowledge_service(pool, storage)
     try:
         async with pool.acquire() as conn:
             for actor in actors.values():
