@@ -147,6 +147,9 @@ def error_response(
         status_code=status_code,
         headers={"Cache-Control": "no-store"}
         if status_code in {401, 403}
+        or request.url.path.startswith(
+            ("/api/v1/inbox-cases", "/api/v1/public/inbox-cases")
+        )
         or request.url.path.startswith("/api/v1/public/actions/")
         or (
             request.url.path.startswith("/api/v1/actions/")
@@ -307,7 +310,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         application.state.material_service = build_material_service(
             pool, object_storage
         )
-        application.state.inbox_service = build_inbox_service(pool)
         application.state.task_service = build_task_service(pool)
         application.state.knowledge_service = build_knowledge_service(
             pool, object_storage
@@ -383,6 +385,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.assignment_management_service = None
             application.state.activity_management_service = None
             application.state.public_order_service = None
+        application.state.inbox_service = build_inbox_service(pool, crm_gateway)
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()

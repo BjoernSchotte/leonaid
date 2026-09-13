@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 import hashlib
 import json
 from typing import Any
@@ -20,6 +20,7 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
+    ConfirmContact,
     SetMaterialReference,
     MaterialReference,
     MaterialReferences,
@@ -72,10 +73,12 @@ class AsyncpgInboxRepository:
         pool: asyncpg.Pool[Any],
         tasks: Callable[[asyncpg.Connection[Any]], TaskService],
         materials: Callable[[asyncpg.Connection[Any]], MaterialService],
+        resolve_job: Callable[[asyncpg.Connection[Any], UUID], Awaitable[None]],
     ) -> None:
         self.pool = pool
         self.tasks = tasks
         self.materials = materials
+        self.resolve_job = resolve_job
 
     async def submit(self, command: SubmitCase) -> Submission:
         key = f"inbox.submit:{command.idempotency_key}"
@@ -204,6 +207,98 @@ class AsyncpgInboxRepository:
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
             )
+
+    async def _manage(
+        self, conn: asyncpg.Connection[Any], user_id: UUID, case_id: UUID
+    ) -> None:
+        if not await conn.fetchval(
+            f"SELECT {_MANAGE} FROM inbox_case c WHERE c.id=$2", user_id, case_id
+        ):
+            raise PermissionDenied(
+                "permission_denied", "Nur die Fallverwaltung kann Kontakte zuordnen."
+            )
+
+    async def get_managed_case(self, actor: IdentityPrincipal, case_id: UUID) -> Case:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            current = await self._case(conn, actor.account.id, case_id)
+            await self._manage(conn, actor.account.id, case_id)
+            return current
+
+    async def confirm_contact(
+        self, actor: IdentityPrincipal, case_id: UUID, command: ConfirmContact
+    ) -> Case:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            # Worker ordering is queue row then case row. Never reverse it here.
+            job = await conn.fetchrow(
+                """SELECT o.id,o.status FROM outbox_event o JOIN inbox_case c ON c.contact_job_id=o.id
+                    WHERE c.id=$1 AND o.aggregate_id=c.id AND o.event_type='inbox.contact_link.v1'
+                    AND o.aggregate_type='inbox_case' FOR UPDATE OF o""",
+                case_id,
+            )
+            current = await self._case(conn, actor.account.id, case_id)
+            await self._manage(conn, actor.account.id, case_id)
+            key = f"inbox.confirm-contact:{actor.account.id}:{case_id}:{command.idempotency_key}"
+            receipts = AsyncpgCommandReceiptRepository(conn)
+            try:
+                replay = await receipts.reserve(
+                    idempotency_key=key,
+                    command_type="inbox.contact_confirmed",
+                    request_hash=hashlib.sha256(
+                        command.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+            except ApplicationError as error:
+                if error.code == "idempotency_conflict":
+                    raise Conflict(error.code, error.message) from error
+                raise
+            if replay is not None:
+                return current
+            if current.contact_revision != command.expected_contact_revision:
+                raise Conflict(
+                    "contact_revision_conflict",
+                    "Die Kontaktzuordnung wurde inzwischen geändert.",
+                )
+            if current.contact_status not in ("needs_review", "failed"):
+                raise Conflict(
+                    "contact_not_unresolved",
+                    "Die Kontaktzuordnung benötigt keine manuelle Klärung.",
+                )
+            if job is None or job["status"] not in ("pending", "dead_letter"):
+                raise Conflict(
+                    "contact_job_active",
+                    "Der Kontaktauftrag ist nicht zur Klärung verfügbar.",
+                )
+            await conn.execute(
+                """UPDATE inbox_case SET contact_status='linked',contact_error_code=NULL,twenty_person_id=$2,
+                    contact_linked_at=now(),contact_revision=contact_revision+1 WHERE id=$1""",
+                case_id,
+                command.person_id,
+            )
+            await self.resolve_job(conn, job["id"])
+            await conn.execute(
+                """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
+                    VALUES($1,$2,$3,'inbox.contact_confirmed','inbox_case',$4,$5,$6::jsonb)""",
+                uuid4(),
+                current.action_id,
+                actor.account.id,
+                case_id,
+                key,
+                json.dumps(
+                    {
+                        "personId": str(command.person_id),
+                        "fingerprint": command.fingerprint,
+                        "note": command.note,
+                        "previousStatus": current.contact_status,
+                        "jobId": str(job["id"]),
+                    }
+                ),
+            )
+            await receipts.complete(
+                idempotency_key=key, result={"caseId": str(case_id)}
+            )
+            return await self._case(conn, actor.account.id, case_id)
 
     async def list_task_references(
         self, actor: IdentityPrincipal, case_id: UUID

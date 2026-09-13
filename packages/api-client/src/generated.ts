@@ -76,7 +76,10 @@ export type CompleteCommitmentRequest = { readonly deliveryContact?: DeliveryCon
 export type CompleteFreshLoginRequest = { readonly code?: string | null; readonly magicToken?: string | null; };
 export type CompleteLoginRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
 export type ConfiguredOfferingResponse = { readonly allowedQuantityUnits: Array<"box" | "piece" | "package" | "sponsoring">; readonly availableFrom: string | null; readonly availableUntil: string | null; readonly code: string; readonly currency: string; readonly id: string; readonly name: string; readonly piecesPerUnit: number | null; readonly status: "draft" | "active" | "inactive"; readonly unit: "box" | "piece" | "package" | "sponsoring"; readonly unitPriceMinor: number; };
+export type ConfirmContact = { readonly expectedContactRevision: number; readonly fingerprint: string; readonly idempotencyKey: string; readonly note: string; readonly personId: string; };
 export type ConfirmEmailChangeRequest = { readonly code?: string | null; readonly email?: string | null; readonly magicToken?: string | null; };
+export type ContactCandidate = { readonly email: string | null; readonly familyName: string; readonly fingerprint: string; readonly givenName: string; readonly personId: string; readonly phone: string | null; };
+export type ContactCandidates = { readonly items: Array<ContactCandidate>; readonly truncated: boolean; };
 export type CopyCharityActionRequest = { readonly archiveSlug: string; readonly endsOn: string; readonly name: string; readonly startsOn: string; };
 export type CorrectInvitationAddressRequest = { readonly email: string; };
 export type Create = { readonly actionId?: string | null; readonly definition: Record<string, unknown>; readonly inactivityTimeoutSeconds?: number | null; readonly operationId: string; readonly title: string; };
@@ -1779,6 +1782,43 @@ export class LeonAidApiClient {
   ): Promise<Comment> {
     return this.request<Comment>(
       `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/comments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listInboxContactCandidates(
+    caseId: string,
+    queryParameters: { readonly givenName?: string | null; readonly familyName?: string | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<ContactCandidates> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.givenName !== undefined && queryParameters.givenName !== null) {
+      searchParameters.set("givenName", String(queryParameters.givenName));
+    }
+    if (queryParameters.familyName !== undefined && queryParameters.familyName !== null) {
+      searchParameters.set("familyName", String(queryParameters.familyName));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/contact-candidates` + (queryString ? `?${queryString}` : "");
+    return this.request<ContactCandidates>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async confirmInboxContact(
+    caseId: string,
+    body: ConfirmContact,
+    options: RequestOptions = {},
+  ): Promise<Case> {
+    return this.request<Case>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/contact-confirmation`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -6,6 +6,8 @@ from typing import Any
 import asyncpg
 from fastapi import FastAPI
 from leonaid.configuration import Settings
+from leonaid.application.crm import CrmGateway
+from leonaid.adapters.postgres.outbox import complete_resolved_event
 from leonaid.application.object_storage import ObjectStorage
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
@@ -121,7 +123,9 @@ def build_material_service(
     return MaterialService(AsyncpgMaterialRepository(pool, storage))
 
 
-def build_inbox_service(pool: asyncpg.Pool[Any]) -> InboxService:
+def build_inbox_service(
+    pool: asyncpg.Pool[Any], crm: CrmGateway | None = None
+) -> InboxService:
     return InboxService(
         AsyncpgInboxRepository(
             pool,
@@ -131,5 +135,7 @@ def build_inbox_service(pool: asyncpg.Pool[Any]) -> InboxService:
             lambda connection: MaterialService(
                 AsyncpgMaterialRepository(pool, connection=connection)
             ),
-        )
+            complete_resolved_event,
+        ),
+        crm,
     )

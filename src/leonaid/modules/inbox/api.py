@@ -1,6 +1,9 @@
 """Typed Inbox operations, independent of HTTP and CRM availability."""
 
 from datetime import datetime
+from dataclasses import asdict
+import hashlib
+import json
 from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
@@ -15,7 +18,8 @@ from pydantic import (
 
 from leonaid.platform.http import TransportModel
 from leonaid.domain.identity import IdentityPrincipal
-from leonaid.application.crm import PersonData
+from leonaid.application.crm import CrmGateway, CrmGatewayError, PersonData, PersonRecord
+from leonaid.application.errors import Conflict, DependencyUnavailable, ResourceNotFound
 from leonaid.modules.tasks.api import Task
 from leonaid.modules.materials.api import MaterialVersion
 
@@ -37,6 +41,7 @@ class InboxModel(TransportModel):
         "material_id",
         "author_user_id",
         "twenty_person_id",
+        "person_id",
         mode="before",
         check_fields=False,
     )
@@ -158,6 +163,69 @@ class Assignees(InboxModel):
     next_offset: int | None
 
 
+class ContactQuery(InboxModel):
+    given_name: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+        | None
+    ) = None
+    family_name: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+        | None
+    ) = None
+
+
+class ContactCandidate(InboxModel):
+    person_id: UUID
+    given_name: str
+    family_name: str
+    email: str | None
+    phone: str | None
+    fingerprint: str
+
+
+class ContactCandidates(InboxModel):
+    items: list[ContactCandidate]
+    truncated: bool
+
+
+class ConfirmContact(InboxModel):
+    idempotency_key: UUID
+    expected_contact_revision: int = Field(ge=1)
+    person_id: UUID
+    fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    note: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+    ]
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str) -> str:
+        return SubmitCase.reject_controls(value)
+
+
+def contact_candidate(person: PersonRecord) -> ContactCandidate:
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"id": str(person.twenty_id), "data": asdict(person.data)},
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+    return ContactCandidate(
+        person_id=person.twenty_id,
+        given_name=person.data.given_name,
+        family_name=person.data.family_name,
+        email=person.data.email,
+        phone=person.data.phone,
+        fingerprint=fingerprint,
+    )
+
+
 class SetTaskReference(InboxModel):
     idempotency_key: UUID
     expected_revision: int = Field(ge=1)
@@ -245,6 +313,13 @@ class UpdateCase(InboxModel):
 
 
 class InboxRepository(Protocol):
+    async def get_managed_case(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> Case: ...
+    async def confirm_contact(
+        self, actor: IdentityPrincipal, case_id: UUID, command: ConfirmContact
+    ) -> Case: ...
+
     async def set_material_reference(
         self, actor: IdentityPrincipal, case_id: UUID, command: SetMaterialReference
     ) -> Case: ...
@@ -279,8 +354,63 @@ class InboxRepository(Protocol):
 
 
 class InboxService:
-    def __init__(self, repository: InboxRepository) -> None:
+    def __init__(
+        self, repository: InboxRepository, crm: CrmGateway | None = None
+    ) -> None:
         self._repository = repository
+        self._crm = crm
+
+    def _contact_gateway(self) -> CrmGateway:
+        if self._crm is None:
+            raise DependencyUnavailable(
+                "inbox_crm_not_configured",
+                "Kontaktklärung ist derzeit nicht verfügbar.",
+            )
+        return self._crm
+
+    async def list_contact_candidates(
+        self, actor: IdentityPrincipal, case_id: UUID, query: ContactQuery
+    ) -> ContactCandidates:
+        query = ContactQuery.model_validate(query)
+        current = await self._repository.get_managed_case(actor, case_id)
+        try:
+            people = await self._contact_gateway().search_people(
+                given_name=query.given_name or current.given_name,
+                family_name=query.family_name or current.family_name,
+                correlation_id=f"inbox.contact-preview:{case_id}",
+            )
+        except CrmGatewayError as error:
+            raise DependencyUnavailable(
+                "inbox_crm_unavailable", "Kontaktklärung ist derzeit nicht verfügbar."
+            ) from error
+        # Permissions may have changed while Twenty was answering.
+        await self._repository.get_managed_case(actor, case_id)
+        return ContactCandidates(
+            items=[contact_candidate(person) for person in people[:50]],
+            truncated=len(people) > 50,
+        )
+
+    async def confirm_contact(
+        self, actor: IdentityPrincipal, case_id: UUID, command: ConfirmContact
+    ) -> Case:
+        command = ConfirmContact.model_validate(command)
+        await self._repository.get_managed_case(actor, case_id)
+        try:
+            person = await self._contact_gateway().get_person(
+                command.person_id, correlation_id=f"inbox.contact-confirm:{case_id}"
+            )
+        except CrmGatewayError as error:
+            raise DependencyUnavailable(
+                "inbox_crm_unavailable", "Kontaktklärung ist derzeit nicht verfügbar."
+            ) from error
+        if person is None:
+            raise ResourceNotFound("not_found", "Kontakt nicht gefunden.")
+        if contact_candidate(person).fingerprint != command.fingerprint:
+            raise Conflict(
+                "contact_changed",
+                "Der Kontakt wurde inzwischen geändert. Bitte erneut prüfen.",
+            )
+        return await self._repository.confirm_contact(actor, case_id, command)
 
     async def set_material_reference(
         self, actor: IdentityPrincipal, case_id: UUID, command: SetMaterialReference
@@ -355,6 +485,10 @@ __all__ = [
     "AssigneeQuery",
     "Assignee",
     "Assignees",
+    "ContactQuery",
+    "ContactCandidate",
+    "ContactCandidates",
+    "ConfirmContact",
     "SetMaterialReference",
     "MaterialReference",
     "MaterialReferences",

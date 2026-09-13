@@ -8,6 +8,9 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
+    ConfirmContact,
+    ContactCandidates,
+    ContactQuery,
     SetMaterialReference,
     MaterialReferences,
     SetTaskReference,
@@ -157,6 +160,42 @@ async def list_material_references(
 ) -> MaterialReferences:
     return await service(request).list_material_references(
         await actor(request, response), case_id
+    )
+
+
+@router.get(
+    "/inbox-cases/{case_id}/contact-candidates",
+    operation_id="listInboxContactCandidates",
+    response_model=ContactCandidates,
+)
+async def list_contact_candidates(
+    request: Request,
+    response: Response,
+    case_id: UUID,
+    given_name: str | None = Query(
+        default=None, alias="givenName", min_length=1, max_length=200, pattern=r"\S"
+    ),
+    family_name: str | None = Query(
+        default=None, alias="familyName", min_length=1, max_length=200, pattern=r"\S"
+    ),
+) -> ContactCandidates:
+    return await service(request).list_contact_candidates(
+        await actor(request, response),
+        case_id,
+        ContactQuery(given_name=given_name, family_name=family_name),
+    )
+
+
+@router.post(
+    "/inbox-cases/{case_id}/contact-confirmation",
+    operation_id="confirmInboxContact",
+    response_model=Case,
+)
+async def confirm_contact(
+    request: Request, response: Response, case_id: UUID, body: ConfirmContact
+) -> Case:
+    return await service(request).confirm_contact(
+        await actor(request, response), case_id, body
     )
 
 

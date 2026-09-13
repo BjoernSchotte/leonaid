@@ -29,6 +29,7 @@ async def main() -> None:
             "LEONAID_PUBLIC_BASE_URL": "https://inbox.leonaid.invalid",
             "LEONAID_ALLOWED_ORIGINS": "https://inbox.leonaid.invalid",
             "TWENTY_BASE_URL": "http://127.0.0.1:9",
+            "TWENTY_INTEGRATION_API_KEY": "synthetic-unreachable-proof",
             "TWENTY_HEALTH_URL": "http://127.0.0.1:9/health",
             "RUSTFS_HEALTH_URL": "http://127.0.0.1:9/health",
             "OBJECT_STORAGE_ENDPOINT_URL": "http://127.0.0.1:9",
@@ -89,6 +90,56 @@ async def main() -> None:
                 assert (await client.get(root)).status_code == 401
                 assert (await client.get(path, headers=outsider)).status_code == 404
                 assert (await client.get(root, headers=outsider)).json()["items"] == []
+                contact_path = path + "/contact-candidates"
+                confirm_path = path + "/contact-confirmation"
+                confirmation = {
+                    "idempotencyKey": str(uuid4()),
+                    "expectedContactRevision": 1,
+                    "personId": str(uuid4()),
+                    "fingerprint": "0" * 64,
+                    "note": "Manuelle Kontaktklärung",
+                }
+                assert (await client.get(contact_path)).status_code == 401
+                assert (
+                    await client.get(contact_path, headers=outsider)
+                ).status_code == 404
+                assert (
+                    await client.post(confirm_path, json=confirmation)
+                ).status_code == 401
+                assert (
+                    await client.post(confirm_path, headers=outsider, json=confirmation)
+                ).status_code == 404
+                assert (
+                    await client.post(
+                        confirm_path,
+                        headers={"Cookie": headers["Cookie"], "Sec-Fetch-Mode": "cors"},
+                        json=confirmation,
+                    )
+                ).status_code == 403
+                for field in ("givenName", "familyName"):
+                    for invalid_name in ("", "   ", "x" * 201):
+                        invalid_query = await client.get(
+                            contact_path, headers=headers, params={field: invalid_name}
+                        )
+                        assert invalid_query.status_code == 422, invalid_query.text
+                unavailable = await client.get(contact_path, headers=headers)
+                assert unavailable.status_code == 503, unavailable.text
+                assert unavailable.headers["cache-control"] == "no-store"
+                assert (
+                    await client.post(confirm_path, headers=headers, json=confirmation)
+                ).status_code == 503
+                for invalid_confirmation in (
+                    {"fingerprint": "bad"},
+                    {"note": " "},
+                    {"expectedContactRevision": 0},
+                ):
+                    assert (
+                        await client.post(
+                            confirm_path,
+                            headers=headers,
+                            json={**confirmation, **invalid_confirmation},
+                        )
+                    ).status_code == 422
                 candidates_path = path + "/assignees"
                 assert (await client.get(candidates_path)).status_code == 401
                 assert (

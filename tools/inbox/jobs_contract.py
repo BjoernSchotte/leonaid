@@ -20,13 +20,139 @@ from pydantic import SecretStr
 
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.application.crm import PersonData
+from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.application.outbox import OutboxWorker
 from leonaid.domain.outbox import RetryPolicy
 from leonaid.bootstrap.api import build_inbox_service
 from leonaid.bootstrap.worker import build_worker
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
-from leonaid.modules.inbox.api import InboxService, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import (
+    InboxService,
+    SubmitCase,
+    UpdateCase,
+    ContactQuery,
+    ConfirmContact,
+)
 from leonaid.modules.inbox.jobs import InboxContactError, InboxContactHandler
+
+
+async def confirm_existing_contact(
+    pool: asyncpg.Pool[Any], crm: TwentyCrmGateway, user_id: UUID, case_id: UUID
+) -> None:
+    service = build_inbox_service(pool, crm)
+    actor = IdentityPrincipal(
+        UserAccount(
+            user_id,
+            f"{user_id}@example.org",
+            "Inbox worker proof",
+            AccountStatus.ACTIVE,
+        ),
+        frozenset(),
+        (),
+    )
+    before = await service.get_case(actor, case_id)
+    candidates = await service.list_contact_candidates(
+        actor, case_id, ContactQuery(given_name="Different")
+    )
+    assert len(candidates.items) == 1 and not candidates.truncated
+    candidate = candidates.items[0]
+    command = ConfirmContact(
+        idempotency_key=uuid4(),
+        expected_contact_revision=before.contact_revision,
+        person_id=candidate.person_id,
+        fingerprint=candidate.fingerprint,
+        note="Kontakt nach manueller Prüfung bestätigt.",
+    )
+    for invalid, code in (
+        (command.model_copy(update={"fingerprint": "0" * 64}), "contact_changed"),
+        (
+            command.model_copy(
+                update={"expected_contact_revision": before.contact_revision + 1}
+            ),
+            "contact_revision_conflict",
+        ),
+    ):
+        try:
+            await service.confirm_contact(actor, case_id, invalid)
+        except Conflict as error:
+            assert error.code == code
+        else:
+            raise AssertionError("Stale contact confirmation succeeded")
+    # A real database constraint failure must roll back the local link AND queue.
+    constraint = f"inbox_contact_proof_{uuid4().hex}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            f"ALTER TABLE audit_event ADD CONSTRAINT {constraint} CHECK (event_type <> 'inbox.contact_confirmed' OR entity_id <> '{case_id}') NOT VALID"
+        )
+    try:
+        try:
+            await service.confirm_contact(actor, case_id, command)
+        except asyncpg.CheckViolationError:
+            pass
+        else:
+            raise AssertionError("Audit failure committed contact confirmation")
+        assert await service.get_case(actor, case_id) == before
+        async with pool.acquire() as conn:
+            assert (
+                await conn.fetchval(
+                    "SELECT o.status FROM outbox_event o JOIN inbox_case c ON c.contact_job_id=o.id WHERE c.id=$1",
+                    case_id,
+                )
+                == "dead_letter"
+            )
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute(f"ALTER TABLE audit_event DROP CONSTRAINT {constraint}")
+    first, replay = await asyncio.gather(
+        service.confirm_contact(actor, case_id, command),
+        service.confirm_contact(actor, case_id, command),
+    )
+    assert first == replay and first.contact_status == "linked"
+    assert first.contact_revision == before.contact_revision + 1
+    assert first.revision == before.revision
+    actual = await crm.get_person(
+        candidate.person_id, correlation_id="inbox-confirm-no-overwrite"
+    )
+    assert actual is not None and actual.data.given_name == "Different"
+    async with pool.acquire() as conn:
+        assert (
+            await conn.fetchval(
+                "SELECT o.status FROM outbox_event o JOIN inbox_case c ON c.contact_job_id=o.id WHERE c.id=$1",
+                case_id,
+            )
+            == "completed"
+        )
+        assert (
+            await conn.fetchval(
+                "SELECT count(*) FROM audit_event WHERE entity_id=$1 AND event_type='inbox.contact_confirmed'",
+                case_id,
+            )
+            == 1
+        )
+        await conn.execute(
+            "DELETE FROM user_global_role WHERE user_id=$1 AND role='system_admin'",
+            user_id,
+        )
+    try:
+        for operation in (
+            service.list_contact_candidates(actor, case_id, ContactQuery()),
+            service.confirm_contact(actor, case_id, command),
+        ):
+            try:
+                await operation
+            except (PermissionDenied, ResourceNotFound):
+                pass
+            else:
+                raise AssertionError("Revoked manager accessed contact confirmation")
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO user_global_role(user_id,role) VALUES($1,'system_admin')",
+                user_id,
+            )
+    print(
+        "PASS inbox manual contact: actual Twenty selection, stale preview/revision, atomic audit rollback, concurrent replay, completed queue and revoked manager"
+    )
 
 
 async def timeout_after_real_create(
@@ -417,6 +543,10 @@ async def main(mode: str, state_path: Path) -> None:
                         else actual is not None
                         and actual.data.given_name == "Different"
                     )
+                    if scenario == "mismatch":
+                        await confirm_existing_contact(
+                            pool, crm, UUID(state["userId"]), row["id"]
+                        )
                 else:
                     await handler.handle(event)
                     await handler.handle(event)
