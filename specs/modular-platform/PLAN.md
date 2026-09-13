@@ -290,6 +290,8 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 
 ### M2 — Tasks, Wissen und Materialien als Wiederverwendungsnachweis
 
+- [x] Bestehende Akquise-Weiterleitung trotz allgemein verfügbarer Module erhalten: Modulnavigation zählt nicht als Verwaltungszugang. Vollständiger Dokumentengate mit echten Rollen, Browserdownloads und Speicherfehler bestanden.
+
 - [x] Gemeinsamen Modul-Browser-Gate mit sieben Fällen bestehen und Artefaktablage an CI anpassen: Host-UID/GID für Seed und Browser, Bilder/Traces getrennt vom öffentlichen bereinigten Logpaket. Frischer Stack vollständig bereinigt.
 
 - [x] Dauerhaften Aufgaben-Browsertest für Web/PWA ergänzen: persönliche Zuständigkeit, Zurückstellung, Einblenden und Erledigen bei unveränderter Fälligkeit; beide echten Browserabläufe bestanden. Remote-Gesamt-CI bleibt separat offen.

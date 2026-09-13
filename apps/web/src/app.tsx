@@ -128,7 +128,9 @@ export function App({ client }: AppProps) {
   if (
     route().kind !== "module" &&
     !identity.data.navigation.some(
-      (item) => item.surface === "web" && item.key !== "surveys",
+      (item) =>
+        item.surface === "web" &&
+        !registeredModules.some((module) => module.id === item.key),
     )
   ) {
     return <RedirectToOperationalApp />;
