@@ -264,6 +264,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
   - [x] Optionalen timezone-aware Ausführungszeitpunkt in allen Pending-Event-Persistenzen ergänzen; mit echtem ActionProgress-Handler Rollback, Fälligkeitsgrenze, Lease-Übernahme und Fencing im isolierten PostgreSQL-Runner nachweisen. Bestehende SMTP-Retry-/Recovery-Prüfungen bestanden.
   - [x] Diagnostik: rohe Exception-Texte aus gespeicherten Fehlerdetails entfernen; sichere Codes und monotone Laufzeitmessung im Job-Log ergänzen. Unit-/Typprüfung bestanden; PostgreSQL-/Runtime-Abnahme bleibt offen.
   - [x] Produktionsrenderer im API-Image mit 5.000 synthetischen Antworten messen und Ergebnisse dokumentieren. Vollständige Jobmessung einschließlich Datenbank/Storage und Laufzeitbegrenzung bleiben offen.
+  - [x] Explizite Handler-Laufzeitgrenzen unterstützen und Survey-Export auf maximal 240 Sekunden bzw. 80 % der konfigurierten Lease begrenzen. Reale PostgreSQL-Blockade, Abbruch, sicherer Timeout-Code und erfolgreicher Retry mit bestehendem Aktivitäts-Handler nachgewiesen; vollständige Export-Jobmessung bleibt offen.
 - [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
   - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.
 

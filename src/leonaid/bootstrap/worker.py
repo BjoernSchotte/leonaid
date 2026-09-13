@@ -162,6 +162,11 @@ async def build_worker(
             maximum_delay=timedelta(minutes=15),
         ),
         observer=observe_job,
+        # Export rendering is repeatable; keep time for cancellation and queue update.
+        # Legacy mail handlers retain their transport/recovery semantics.
+        handler_timeouts={
+            "survey.export.render.v1": min(240.0, claim_lease_seconds * 0.8),
+        },
     )
     return pool, queue, worker
 

@@ -202,3 +202,9 @@ Der Lauf enthält die unveränderten Implementierungsdateien des Delayed-Enqueue
 | 5.000 Antworten als XLSX | 7,1703 s | 7,0186 / 7,1703 / 7,2747 | 625.775 Bytes |
 
 Dies misst Rendering, keine vollständige Joblaufzeit mit PostgreSQL/S3 und keinen Worst Case jeder zulässigen Umfrage. Die serielle Verarbeitung und 300-Sekunden-Standard-Lease bleiben bestehen; aus diesen Messungen folgt noch keine Notwendigkeit für Parallelität oder Lease-Verlängerung. Der erste Messversuch scheiterte korrekt an inkonsistenter Antwortanzahl; nach Skalierung und erneuter Modellvalidierung bestand der vollständige Lauf. Das Tool enthält keine zusätzlichen Produktjobs oder Abhängigkeiten.
+
+### Begrenzte Handler-Laufzeit
+
+Implementierung und gezielter LIVE-Slice abgeschlossen: `OutboxWorker` akzeptiert explizite Laufzeitgrenzen für registrierte Handler, lehnt unbekannte Handler sowie nicht-positive/unendliche Werte ab und behandelt einen Ablauf als wiederholbaren `job_timeout`. Bootstrap begrenzt den Survey-Export auf `min(240 Sekunden, 80 % der Lease)`. Der bestehende Typst-Subprozess behält seinen eigenen 30-Sekunden-Timeout. Andere bestehende Handler bleiben bei ihrer bisherigen Semantik; insbesondere wurde keine pauschale Mail-Cancellation ohne Berücksichtigung unklarer externer Wirkungen eingeführt.
+
+`sh tools/outbox/test.sh . handler-timeout` bestand im eigenen Stack `leonaid-poc022-test-2137972478-16277`: echte Tabellenblockade vor dem Aktivitäts-Insert, Abbruch nach 0,2217 Sekunden bei einer Fünf-Sekunden-Lease, keine halbe Projektion, Queue wieder pending mit sicherem Fehlercode/-detail, anschließend erfolgreiche Verarbeitung mit genau einer Projektion. Eigene Testressourcen wurden entfernt. Das prüft die Worker-Mechanik mit einem echten vorhandenen Handler, noch nicht die Gesamtlaufzeit des Exportpfads inklusive Storage. Unit-Suite: 401 bestanden; Mypy, Ruff und No-test-doubles erfolgreich.

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import asyncio
+import math
 from time import perf_counter
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
@@ -58,11 +60,18 @@ class OutboxWorker:
         retry_policy: RetryPolicy,
         clock: Callable[[], datetime] | None = None,
         observer: OutboxObserver | None = None,
+        handler_timeouts: Mapping[str, float] | None = None,
     ) -> None:
         if not worker_id.strip():
             raise ValueError("worker_id darf nicht leer sein.")
         if not handlers:
             raise ValueError("Mindestens ein Outbox-Handler ist erforderlich.")
+        self._handler_timeouts = dict(handler_timeouts or {})
+        for event_type, seconds in self._handler_timeouts.items():
+            if event_type not in handlers or not math.isfinite(seconds) or seconds <= 0:
+                raise ValueError(
+                    "Handler timeout requires a registered handler and finite positive seconds."
+                )
         self._worker_id = worker_id
         self._queue = queue
         self._handlers = dict(handlers)
@@ -88,12 +97,14 @@ class OutboxWorker:
                 started=started,
             )
             return True
+        deadline = asyncio.timeout(self._handler_timeouts.get(event.event_type))
         try:
-            await handler.handle(event)
+            async with deadline:
+                await handler.handle(event)
         except Exception as error:
             await self._record_failure(
                 event,
-                code=self.error_code(error),
+                code="job_timeout" if deadline.expired() else self.error_code(error),
                 started=started,
                 retryable=getattr(error, "retryable", True) is not False,
             )

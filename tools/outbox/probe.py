@@ -10,6 +10,9 @@ import os
 from decimal import Decimal
 from dataclasses import replace
 from datetime import timedelta
+from time import perf_counter
+from leonaid.application.outbox import OutboxWorker
+from leonaid.domain.outbox import RetryPolicy
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.postgres.activity_projection import ActionProgressActivityHandler
 from typing import Any
@@ -644,8 +647,68 @@ async def verify_delayed_fencing() -> None:
     )
 
 
+async def verify_handler_timeout() -> None:
+    pool = await create_pool(database_url(), maximum_size=3)
+    try:
+        event = progress_command(
+            uuid5(COMMAND_NAMESPACE, "timeout"), Decimal("1200")
+        ).outbox_event()
+        async with pool.acquire() as conn, conn.transaction():
+            await AsyncpgTransactionalOutboxRepository(conn).append(event)
+        queue = AsyncpgOutboxQueue(pool, claim_lease=timedelta(seconds=5))
+        worker = OutboxWorker(
+            worker_id="bounded-progress",
+            queue=queue,
+            handlers={event.event_type: ActionProgressActivityHandler(pool)},
+            retry_policy=RetryPolicy(base_delay=timedelta(0)),
+            handler_timeouts={event.event_type: 0.2},
+        )
+        async with pool.acquire() as blocker, blocker.transaction():
+            await blocker.execute("LOCK TABLE activity_event IN ACCESS EXCLUSIVE MODE")
+            started = perf_counter()
+            assert await worker.run_once()
+            elapsed = perf_counter() - started
+            assert elapsed < 5, "Handler exceeded its lease while blocked in PostgreSQL"
+            state = await queue.state(event.id)
+            assert (
+                state is not None and state.status == "pending" and state.attempts == 1
+            )
+            assert state.last_error_code == state.last_error_detail == "job_timeout"
+            assert (
+                await blocker.fetchval(
+                    "SELECT count(*) FROM activity_event WHERE source_outbox_event_id=$1",
+                    event.id,
+                )
+                == 0
+            )
+        assert await worker.run_once()
+        state = await queue.state(event.id)
+        assert state is not None and state.status == "completed" and state.attempts == 2
+        async with pool.acquire() as conn:
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM activity_event WHERE source_outbox_event_id=$1",
+                    event.id,
+                )
+                == 1
+            )
+        print(
+            json.dumps(
+                {
+                    "proof": "real handler cancelled under database lock and retried once",
+                    "blockedAttemptSeconds": round(elapsed, 4),
+                    "leaseSeconds": 5,
+                }
+            )
+        )
+    finally:
+        await pool.close()
+
+
 async def run(arguments: argparse.Namespace) -> None:
-    if arguments.command == "delayed-fencing":
+    if arguments.command == "handler-timeout":
+        await verify_handler_timeout()
+    elif arguments.command == "delayed-fencing":
         await verify_delayed_fencing()
     elif arguments.command == "prepare":
         await prepare()
@@ -675,6 +738,7 @@ def parser() -> argparse.ArgumentParser:
     for name in (
         "prepare",
         "delayed-fencing",
+        "handler-timeout",
         "produce-crash",
         "verify-crash",
         "verify-recovery",

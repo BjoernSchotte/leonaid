@@ -2,6 +2,8 @@
 set -eu
 
 root=${1:-$(pwd)}
+mode=${2:-all}
+case "$mode" in all|handler-timeout) ;; *) echo "Unknown outbox test mode" >&2; exit 2 ;; esac
 root=$(CDPATH= cd -- "$root" && pwd)
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 project=leonaid-poc022-test-$suffix
@@ -71,6 +73,10 @@ compose build api worker
 compose up --detach --wait --wait-timeout 120 core-postgres mailpit
 compose run --rm --no-deps api alembic upgrade head
 api_probe prepare
+if [ "$mode" = handler-timeout ]; then
+  api_probe handler-timeout
+  exit 0
+fi
 
 echo "poc022-test: beendet den Producer nach Commit und vor Dispatch"
 if api_probe produce-crash; then
@@ -120,5 +126,6 @@ outbox_cli \
   run-until-idle
 api_probe replay-and-verify-mail
 api_probe delayed-fencing
+api_probe handler-timeout
 
 echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter und Idempotenz bewiesen"
