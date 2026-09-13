@@ -151,7 +151,7 @@ async def main() -> None:
                     assert (
                         await client.get(root + query, headers=headers)
                     ).status_code == 422
-                # Public ingress is deliberately not exposed before its guards and worker.
+                # Public submissions use a separate guarded route.
                 assert (
                     await client.post(
                         root, headers=headers, json=command.model_dump(mode="json")

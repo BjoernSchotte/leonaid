@@ -93,7 +93,7 @@ compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/inbox/schema_contract.py
-for inbox_contract in submission case http; do
+for inbox_contract in submission case http public; do
   compose run --rm --no-deps \
     --volume "$root:/repo:ro" \
     --entrypoint python \

@@ -261,6 +261,8 @@ export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<
 export type SponsorMatchResponse = { readonly candidates: Array<SponsorMatchCandidateResponse>; readonly input: SponsorDraftResponse; readonly normalizedKey: string; readonly partyKind: "company" | "person"; readonly status: "no_match" | "single_match" | "ambiguous_match"; };
 export type SponsorResolutionResponse = { readonly assignmentCreated: boolean; readonly assignmentId: string; readonly contactTwentyId: string | null; readonly displayName: string; readonly normalizedKey: string; readonly outcome: "created" | "reused"; readonly partyKind: "company" | "person"; readonly priorAssignees: Array<AssignedAcquirerResponse>; readonly replayed: boolean; readonly twentyId: string; };
 export type Start = { readonly operationId: string; readonly resumeSecret: string; };
+export type Submission = { readonly reference: string; };
+export type SubmitCase = { readonly actionId?: string | null; readonly email?: string | null; readonly familyName: string; readonly givenName: string; readonly idempotencyKey: string; readonly message: string; readonly phone?: string | null; readonly subject: string; };
 export type SupportRequestDiagnosticResponse = { readonly errorCode: string | null; readonly impact: string; readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; readonly nextStep: string; readonly occurredAt: string; readonly outcome: "successful" | "rejected" | "failed"; readonly release: string; readonly route: string; readonly statusCode: number; readonly supportCode: string; };
 export type SurveyAccess = { readonly accessMode: "anonymous" | "invitation"; readonly expectedRevision: number; readonly operationId: string; };
 export type SurveyActionOption = { readonly id: string; readonly name: string; };
@@ -2178,6 +2180,21 @@ export class LeonAidApiClient {
   ): Promise<PublicOrderResultResponse> {
     return this.request<PublicOrderResultResponse>(
       `/api/v1/public/actions/${encodeURIComponent(String(publicAlias))}/orders`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async submitInboxCase(
+    body: SubmitCase,
+    options: RequestOptions = {},
+  ): Promise<Submission> {
+    return this.request<Submission>(
+      "/api/v1/public/inbox-cases",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -7,11 +7,19 @@ from fastapi import APIRouter, Query, Request, Response
 
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
-from leonaid.modules.inbox.api import Case, CaseQuery, Cases, InboxService, UpdateCase
+from leonaid.modules.inbox.api import (
+    Case,
+    CaseQuery,
+    Cases,
+    InboxService,
+    UpdateCase,
+    SubmitCase,
+    Submission,
+)
 from leonaid.platform.http import ApiErrorResponse
 
 router = APIRouter(
-    prefix="/api/v1/inbox-cases",
+    prefix="/api/v1",
     tags=["inbox"],
     responses={
         code: {"model": ApiErrorResponse}
@@ -34,7 +42,7 @@ def service(request: Request) -> InboxService:
     return cast(InboxService, request.app.state.inbox_service)
 
 
-@router.get("", operation_id="listInboxCases", response_model=Cases)
+@router.get("/inbox-cases", operation_id="listInboxCases", response_model=Cases)
 async def list_cases(
     request: Request,
     response: Response,
@@ -58,15 +66,36 @@ async def list_cases(
     )
 
 
-@router.get("/{case_id}", operation_id="getInboxCase", response_model=Case)
+@router.get("/inbox-cases/{case_id}", operation_id="getInboxCase", response_model=Case)
 async def get_case(request: Request, response: Response, case_id: UUID) -> Case:
     return await service(request).get_case(await actor(request, response), case_id)
 
 
-@router.put("/{case_id}", operation_id="updateInboxCase", response_model=Case)
+@router.put(
+    "/inbox-cases/{case_id}", operation_id="updateInboxCase", response_model=Case
+)
 async def update_case(
     request: Request, response: Response, case_id: UUID, body: UpdateCase
 ) -> Case:
     return await service(request).update_case(
         await actor(request, response), case_id, body
     )
+
+
+@router.post(
+    "/public/inbox-cases/",
+    response_model=Submission,
+    status_code=201,
+    include_in_schema=False,
+)
+@router.post(
+    "/public/inbox-cases",
+    operation_id="submitInboxCase",
+    response_model=Submission,
+    status_code=201,
+)
+async def submit_case(
+    request: Request, response: Response, body: SubmitCase
+) -> Submission:
+    response.headers["Cache-Control"] = "no-store"
+    return await service(request).submit(body)

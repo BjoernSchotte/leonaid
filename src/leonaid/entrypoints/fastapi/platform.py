@@ -401,6 +401,8 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
     application.add_middleware(
         RequestBodyLimitMiddleware,
         limits=(
+            ("/api/v1/public/inbox-cases", 64 * 1024),
+            ("/api/v1/inbox-cases", 64 * 1024),
             ("/api/v1/surveys", 1_048_576),
             ("/api/v1/public/surveys", 1_048_576),
             ("/api/v1/survey-settings", 1_048_576),
