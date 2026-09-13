@@ -13,8 +13,8 @@ from leonaid.application.object_storage import (
     ObjectLocation,
     ObjectStorage,
 )
-from leonaid.application.surveys.export_rendering import export_filename
-from leonaid.application.surveys.recovery import ErasureCheckpointPublisher
+from leonaid.modules.surveys.application.export_rendering import export_filename
+from leonaid.modules.surveys.application.recovery import ErasureCheckpointPublisher
 from leonaid.domain.outbox import ClaimedOutboxEvent
 
 

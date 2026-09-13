@@ -9,14 +9,22 @@ from typing import Any
 import asyncpg
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.mail.survey_smtp import SurveyInvitationSmtpHandler
+from leonaid.modules.surveys.adapters.mail.survey_smtp import (
+    SurveyInvitationSmtpHandler,
+)
 from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_retention import sweep_retention
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_retention import sweep_retention
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
+    configured_publisher,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
+    AsyncpgSurveyDeletion,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
 from leonaid.application.outbox import OutboxEventHandler
 from leonaid.application.object_storage import ObjectStorage
 

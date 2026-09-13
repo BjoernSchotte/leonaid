@@ -78,7 +78,7 @@ def module_boundary_violations(root: Path) -> list[str]:
             package = ".".join(("leonaid", *parts[:-1]))
             imports = imported_modules(path, package)
             is_logic = area != "bootstrap" and (
-                path.stem in {"api", "service", "domain"}
+                path.stem in {"api", "service", "domain", "models", "contracts"}
                 or "domain" in parts
                 or "application" in parts
             )
@@ -108,6 +108,15 @@ def module_boundary_violations(root: Path) -> list[str]:
                     if len(target_parts) < 4 or target_parts[3] != "api":
                         violations.append(f"{relative}: private module import {target}")
                 if is_logic and destination == "adapters":
+                    violations.append(f"{relative}: concrete adapter {target}")
+                if (
+                    is_logic
+                    and destination in {"modules", "platform"}
+                    and any(
+                        part in {"adapters", "repository", "routes", "jobs"}
+                        for part in target_parts[2:]
+                    )
+                ):
                     violations.append(f"{relative}: concrete adapter {target}")
 
     visited: set[str] = set()
@@ -145,6 +154,22 @@ def test_modular_platform_boundaries() -> None:
         ("modules/tasks/api.py", "from ..inbox.repository import Inbox", "private"),
         ("modules/tasks/api.py", "from .. import inbox", "private"),
         ("modules/tasks/domain/rules.py", "import asyncpg", "infrastructure"),
+        ("modules/tasks/models.py", "import asyncpg", "infrastructure"),
+        (
+            "modules/tasks/domain/rules.py",
+            "from ..adapters.postgres import TaskRepository",
+            "adapter",
+        ),
+        (
+            "modules/tasks/service.py",
+            "from .repository import Tasks",
+            "adapter",
+        ),
+        (
+            "platform/application/jobs.py",
+            "from ..adapters.queue import Queue",
+            "adapter",
+        ),
         (
             "modules/tasks/service.py",
             "from leonaid.adapters import postgres",
@@ -202,6 +227,7 @@ def test_twenty_wire_fields_stay_inside_the_twenty_adapter() -> None:
     roots = (
         ROOT / "src/leonaid/domain",
         ROOT / "src/leonaid/application",
+        ROOT / "src/leonaid/modules",
         ROOT / "apps",
         ROOT / "packages/features",
         ROOT / "packages/ui",

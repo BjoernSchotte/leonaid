@@ -268,6 +268,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
   - [x] Explizite Handler-Laufzeitgrenzen unterstützen und Survey-Export auf maximal 240 Sekunden bzw. 80 % der konfigurierten Lease begrenzen. Reale PostgreSQL-Blockade, Abbruch, sicherer Timeout-Code und erfolgreicher Retry mit bestehendem Aktivitäts-Handler nachgewiesen; vollständige Export-Jobmessung bleibt offen.
 - [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
   - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.
+  - [x] Survey-Domain, Application und fachliche Adapter samt Typst-Template nach `modules/surveys/` verschieben; alte Implementierungspfade entfernen, Importgrenzen und Fixture-Fingerprints nachziehen. Unit-Suite und Renderer im frisch gebauten Image bestanden; vollständige LIVE-Abnahme bleibt offen.
 
 Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnahme, Kopieren, Export, Fristschluss und berechtigte Zugriffe funktionieren weiterhin. Bestehende HTTP-Verträge, URLs und gespeicherte Jobs bleiben kompatibel. Web, PWA-Zugang und öffentliche Teilnahme jeweils separat nachweisen.
 

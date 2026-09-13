@@ -1,17 +1,17 @@
 """Survey use cases expose a persistence port, independent of HTTP."""
 
-from leonaid.application.surveys.analysis_snapshot import (
+from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisVersions,
     AnalysisSnapshot,
     CreateAnalysisSnapshot,
 )
-from leonaid.application.surveys.response_selection import (
+from leonaid.modules.surveys.application.response_selection import (
     ResponseSelection,
     ResponseItems,
     IndividualResponse,
     FreeTextItems,
 )
-from leonaid.application.surveys.exports import (
+from leonaid.modules.surveys.application.exports import (
     SurveyExportSelection,
     SurveyExports,
     CreateSurveyExport,
@@ -33,7 +33,7 @@ from leonaid.modules.surveys.models import (
     SurveyParticipationResponse,
     SurveyResponseSnapshot,
 )
-from leonaid.application.surveys.export_rendering import SurveyExportArtifact
+from leonaid.modules.surveys.application.export_rendering import SurveyExportArtifact
 from typing import Any, Protocol
 from uuid import UUID
 

@@ -6,9 +6,14 @@ from typing import Any
 
 import asyncpg
 
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
+    AsyncpgSurveyDeletion,
+)
 from leonaid.application.object_storage import ObjectStorage
-from leonaid.application.surveys.recovery import ErasureCheckpoint, ErasureRecord
+from leonaid.modules.surveys.application.recovery import (
+    ErasureCheckpoint,
+    ErasureRecord,
+)
 
 RECORD_COLUMNS = (
     "survey_id,requested_by,operation_hash,expected_revision,event_id,requested_at"

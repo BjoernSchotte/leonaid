@@ -33,6 +33,7 @@ def fingerprints(root: Path) -> tuple[str, str]:
                 "tools/testing/",
                 "tests/fixtures/golden/",
                 "src/leonaid/adapters/typst/",
+                "src/leonaid/modules/surveys/adapters/typst/",
             )
         ) or name in {
             ".env.local",

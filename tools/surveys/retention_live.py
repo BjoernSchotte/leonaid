@@ -13,8 +13,8 @@ import asyncpg
 import httpx
 
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_retention import sweep_retention
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_retention import sweep_retention
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
 
 PROOF = Path("/proof")

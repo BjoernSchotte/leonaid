@@ -16,8 +16,8 @@ from typing import Any
 from pypdf import PdfReader
 from pypdf.generic import ByteStringObject, ContentStream, TextStringObject
 
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportArtifact,
     SurveyExportRenderError,
     SurveyExportSource,

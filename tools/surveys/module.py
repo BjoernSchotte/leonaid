@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 import asyncpg
 import httpx
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_exports import current_principal
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import current_principal
 from leonaid.application.errors import ResourceNotFound
 from leonaid.modules.surveys.api import Mutation, SurveyListQuery, SurveyService
 

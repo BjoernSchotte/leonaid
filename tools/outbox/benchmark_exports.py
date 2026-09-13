@@ -7,14 +7,14 @@ from time import perf_counter
 from uuid import NAMESPACE_URL, uuid5
 from typing import Any
 
-from leonaid.adapters.survey_tabular_exports import render_tabular
-from leonaid.adapters.typst.survey_renderer import TypstSurveyRenderer
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.adapters.survey_tabular_exports import render_tabular
+from leonaid.modules.surveys.adapters.typst.survey_renderer import TypstSurveyRenderer
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportSource,
     ExportProduct,
 )
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 
 
 def main() -> None:

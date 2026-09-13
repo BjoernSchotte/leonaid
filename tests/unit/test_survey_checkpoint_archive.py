@@ -8,8 +8,14 @@ from uuid import uuid4
 
 import pytest
 
-from leonaid.adapters.storage.survey_checkpoint_archive import FileCheckpointArchive
-from leonaid.application.surveys.recovery import ErasureCheckpoint, ErasureRecord, seal
+from leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive import (
+    FileCheckpointArchive,
+)
+from leonaid.modules.surveys.application.recovery import (
+    ErasureCheckpoint,
+    ErasureRecord,
+    seal,
+)
 
 SECRET = "synthetic-checkpoint-archive-key-not-for-real-use"
 
@@ -77,8 +83,8 @@ def test_killed_publisher_fails_closed_and_can_resume(tmp_path, stage):
     script = """
 import json, os, sys
 from pathlib import Path
-import leonaid.adapters.storage.survey_checkpoint_archive as module
-from leonaid.application.surveys.recovery import ErasureCheckpoint
+import leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive as module
+from leonaid.modules.surveys.application.recovery import ErasureCheckpoint
 root, stage, secret = Path(sys.argv[1]), sys.argv[2], os.environ["ARCHIVE_TEST_SECRET"]
 candidate = ErasureCheckpoint.model_validate(json.loads((root / "candidate").read_bytes())["checkpoint"])
 original = module.atomic_write

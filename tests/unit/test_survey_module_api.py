@@ -6,8 +6,10 @@ import asyncpg
 import pytest
 from pydantic import ValidationError
 
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.application.errors import PermissionDenied

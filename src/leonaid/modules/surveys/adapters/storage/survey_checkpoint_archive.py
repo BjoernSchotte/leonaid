@@ -15,7 +15,7 @@ from pathlib import Path
 import tempfile
 from uuid import UUID
 
-from leonaid.application.surveys.recovery import (
+from leonaid.modules.surveys.application.recovery import (
     MAX_DOCUMENT_BYTES,
     ErasureCheckpoint,
     seal,

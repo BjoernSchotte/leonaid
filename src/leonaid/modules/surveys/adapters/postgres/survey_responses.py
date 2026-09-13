@@ -4,9 +4,9 @@ import json
 from typing import Any
 from uuid import UUID
 
-from leonaid.adapters.postgres.survey_analysis import read_snapshot
+from leonaid.modules.surveys.adapters.postgres.survey_analysis import read_snapshot
 from leonaid.application.errors import ResourceNotFound
-from leonaid.application.surveys.response_selection import (
+from leonaid.modules.surveys.application.response_selection import (
     FreeTextItems,
     IndividualResponse,
     ResponseItem,

@@ -11,7 +11,7 @@ from pydantic import (
     field_validator,
     EmailStr,
 )
-from leonaid.domain.surveys.validation import json_size
+from leonaid.modules.surveys.domain.validation import json_size
 
 
 class SurveyInput(BaseModel):

@@ -42,17 +42,17 @@ from leonaid.modules.surveys.models import (
     SurveyResponseSnapshot,
     SurveyParticipationResponse,
 )
-from leonaid.application.surveys.exports import (
+from leonaid.modules.surveys.application.exports import (
     CreateSurveyExport,
     SurveyExportJob,
     SurveyExportSelection,
 )
-from leonaid.application.surveys.analysis_snapshot import (
+from leonaid.modules.surveys.application.analysis_snapshot import (
     AnalysisSnapshot,
     AnalysisVersions,
     CreateAnalysisSnapshot,
 )
-from leonaid.application.surveys.response_selection import (
+from leonaid.modules.surveys.application.response_selection import (
     ResponseSelection,
     ResponseItems,
     IndividualResponse,

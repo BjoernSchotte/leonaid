@@ -10,8 +10,12 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
+    AsyncpgSurveyDeletion,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
 from leonaid.adapters.storage.s3 import S3ObjectStorage
 from leonaid.application.object_storage import ObjectLocation
 from leonaid.domain.outbox import ClaimedOutboxEvent

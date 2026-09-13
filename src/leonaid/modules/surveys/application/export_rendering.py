@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 
 ExportProduct = Literal[
     "responses_csv", "responses_xlsx", "analysis_xlsx", "analysis_pdf"

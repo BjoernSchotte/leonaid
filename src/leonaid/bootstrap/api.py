@@ -8,9 +8,11 @@ from fastapi import FastAPI
 from leonaid.configuration import Settings
 from leonaid.application.object_storage import ObjectStorage
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.adapters.postgres.survey_checkpoint_publisher import (
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
 )
 from leonaid.modules.surveys.api import SurveyService, SurveyExportService

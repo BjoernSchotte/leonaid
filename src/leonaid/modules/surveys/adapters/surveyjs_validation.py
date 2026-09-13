@@ -5,9 +5,16 @@ from typing import Any
 import httpx
 
 from leonaid.application.errors import DependencyUnavailable
-from leonaid.application.surveys.analysis import AggregateBatch, QuestionAggregate
+from leonaid.modules.surveys.application.analysis import (
+    AggregateBatch,
+    QuestionAggregate,
+)
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import PROFILE, json_size, validate_definition
+from leonaid.modules.surveys.domain.validation import (
+    PROFILE,
+    json_size,
+    validate_definition,
+)
 
 
 async def validate_answers(

@@ -5,9 +5,9 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
-from leonaid.application.surveys.analysis import AggregateModel
-from leonaid.application.surveys.analysis_snapshot import ResolvedAnalysisFilter
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.application.analysis import AggregateModel
+from leonaid.modules.surveys.application.analysis_snapshot import ResolvedAnalysisFilter
+from leonaid.modules.surveys.application.export_rendering import (
     ExportProduct,
     SurveyExportArtifact,
 )

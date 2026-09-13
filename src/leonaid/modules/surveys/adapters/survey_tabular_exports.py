@@ -18,9 +18,9 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.page import PageMargins
 
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.analysis import AggregateCount
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.analysis import AggregateCount
+from leonaid.modules.surveys.application.export_rendering import (
     ExportProduct,
     SurveyExportArtifact,
     SurveyExportRenderError,
