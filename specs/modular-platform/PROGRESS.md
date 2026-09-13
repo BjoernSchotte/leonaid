@@ -417,3 +417,12 @@ Die Produktions-App erstellt den Knowledge-Service im Lifespan und registriert d
 `tools/knowledge/http_contract.py` startet die tatsächliche Produktions-App gegen frisch migriertes PostgreSQL und ist ins Schema-Gate eingebunden. Bestanden: fehlende Sitzung, CSRF, camelCase, idempotentes Replay und abweichender Wiederholungsinhalt, Such-/UUID-Grenzen, unbekannte Seite, unerlaubte Dokumentknoten/Links, strikte Revision, Änderung und Revisionskonflikt sowie Kontosperre einschließlich Replay. Der erste Migrationsversuch traf den noch startenden Testcontainer; nach bestätigter Bereitschaft war das vollständige Upgrade erfolgreich. Keine externen Dienste oder Browserabläufe als geprüft behauptet.
 
 429 Unit-Tests bestanden (neun bekannte Pydantic-Warnungen), Ruff/Mypy, API-Client-Typprüfung, Frontend-Transportgrenze und no-test-doubles ebenfalls erfolgreich. Wissensnavigation, Editor, Mitgliederverwaltung, Aktionsrechtematrix, Materialien und M2-Gesamtabnahme bleiben offen.
+
+
+## M2 — Wissens-Aktionsrechte mit PostgreSQL
+
+`tools/knowledge/action_contract.py` prüft zehn echte Konten über den Produktions-Bootstrap und zwei Aktionen. Aktuelle Mitglieder aller vier Aktionsrollen sowie der aktuelle System-Admin können die Aktionsseite lesen und finden. Schreiben ist auf Eigentümer/Aktionsadministration/System-Admin und explizite aktuelle Editoren begrenzt. Abgelaufene, zukünftige und fremde Mitgliedschaften sowie eine nur im Principal behauptete Systemrolle gewähren keine Rechte. Ein expliziter Editor-Eintrag für einen Außenstehenden umgeht die Aktionsgrenze nicht.
+
+Nach Entzug der Mitgliedschaft verlieren auch Seiteneigentümer und expliziter Editor Lesen, Suche und Wiederholung alter Schreibbefehle. Nach Entzug der globalen Rolle verliert der System-Admin den Aktionszugriff. Private Seiten bleiben auch vor diesem Entzug für ihn unsichtbar; der Eigentümer behält seine private Seite unabhängig von seiner Aktionsmitgliedschaft. Der verbleibende Charity-Admin kann die Aktionsseite weiterhin lesen.
+
+LIVE auf frisch bis 0038 migriertem PostgreSQL bestanden. Ruff/Mypy, no-test-doubles und Diffprüfung bestanden. Der Vertrag ist im Schema-Gate eingebunden. Die expliziten Editor-Zuordnungen sind reale SQL-Fixtures; damit ist keine Mitglieder-API oder Browser-Rechteprüfung behauptet. Diese sowie die übrigen offenen M2-/M3-Aufgaben bleiben erforderlich.

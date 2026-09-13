@@ -96,6 +96,10 @@ compose run --rm --no-deps \
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
+  api /repo/tools/knowledge/action_contract.py
+compose run --rm --no-deps \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
   api /repo/tools/tasks/service_contract.py
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
