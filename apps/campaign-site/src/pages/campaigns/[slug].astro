@@ -277,12 +277,9 @@ const units = {
     )
   }
   {
-    !isKrapfentaxi &&
-      action &&
-      route?.submissionsAllowed &&
-      route.availability !== "archive" && (
-        <PublicInbox actionId={action.id} actionName={action.name} />
-      )
+    !isKrapfentaxi && action && route?.availability === "published" && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
+    )
   }
 </PublicLayout>
 <style>

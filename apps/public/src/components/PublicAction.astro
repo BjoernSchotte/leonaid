@@ -285,7 +285,7 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
   }
 
   {
-    route.submissionsAllowed && !isArchive && (
+    route.availability === "published" && (
       <PublicInbox actionId={action.id} actionName={action.name} />
     )
   }
