@@ -299,10 +299,12 @@ def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access(
         "tasks",
         "knowledge",
         "materials",
+        "inbox",
     }
     assert {(item.surface, item.key) for item in navigation} >= {
         ("pwa", "overview-pwa"),
         ("pwa", "tasks"),
+        ("pwa", "inbox"),
         ("pwa", "sponsors"),
         ("pwa", "activities"),
         ("pwa", "commitment"),

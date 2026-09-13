@@ -27,7 +27,7 @@ from leonaid.domain.identity import (
     GlobalRole,
 )
 
-WORK_MODULES = {"tasks", "knowledge", "materials"}
+WORK_MODULES = {"tasks", "knowledge", "materials", "inbox"}
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")

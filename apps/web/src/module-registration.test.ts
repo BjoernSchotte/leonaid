@@ -93,6 +93,23 @@ describe("explicit UI modules", () => {
     ).toBeNull();
   });
 
+  it("resolves Inbox lists and cases in both shells", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    for (const suffix of ["", `/${id}`]) {
+      expect(
+        resolveModuleRoute(registeredModules, "web", `/admin/inbox${suffix}`)
+          ?.moduleId,
+      ).toBe("inbox");
+      expect(
+        resolveModuleRoute(registeredPwaModules, "pwa", `/app/inbox${suffix}`)
+          ?.moduleId,
+      ).toBe("inbox");
+    }
+    expect(
+      resolveModuleRoute(registeredModules, "web", "/admin/inbox/invalid"),
+    ).toBeNull();
+  });
+
   it("rejects duplicate IDs and overlapping routes", () => {
     const surveys = registeredModules[0];
     expect(() => validateUiModules([surveys, surveys])).toThrow("duplicate");

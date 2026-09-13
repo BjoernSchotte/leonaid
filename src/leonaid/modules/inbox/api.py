@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from leonaid.platform.http import TransportModel
+from leonaid.platform.navigation import NavigationItem
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.application.crm import (
     CrmGateway,
@@ -519,3 +520,12 @@ __all__ = [
     "CommentQuery",
     "Comments",
 ]
+
+
+def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    if not actor.account.can_authenticate:
+        return ()
+    return (
+        NavigationItem("inbox", "Eingänge", "/admin/inbox", "web"),
+        NavigationItem("inbox", "Eingänge", "/app/inbox", "pwa"),
+    )

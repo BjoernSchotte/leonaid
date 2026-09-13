@@ -14,7 +14,8 @@ import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "./knowledge.css";
-import { materialReference, MaterialPicker } from "./material-reference";
+import { materialReference } from "./material-reference";
+import { MaterialPicker } from "../materials/picker";
 import { TaskFromPage } from "./task-from-page";
 import { AccessMembersPanel } from "../shared/access-members";
 

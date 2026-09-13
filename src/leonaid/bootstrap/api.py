@@ -26,7 +26,7 @@ from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.platform.navigation import NavigationItem
 
 from leonaid.modules.inbox.routes import router as inbox_router
-from leonaid.modules.inbox.api import InboxService
+from leonaid.modules.inbox.api import InboxService, navigation as inbox_navigation
 from leonaid.modules.inbox.repository import AsyncpgInboxRepository
 
 from leonaid.modules.knowledge.routes import router as knowledge_router
@@ -47,7 +47,7 @@ from leonaid.modules.materials.repository import AsyncpgMaterialRepository
 from leonaid.modules.materials.routes import router as materials_router
 
 MODULES = (
-    ModuleRegistration("inbox", router=inbox_router),
+    ModuleRegistration("inbox", router=inbox_router, navigation=inbox_navigation),
     ModuleRegistration(
         "materials", router=materials_router, navigation=material_navigation
     ),
