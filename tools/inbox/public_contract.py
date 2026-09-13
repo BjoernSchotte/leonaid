@@ -15,7 +15,7 @@ from leonaid.entrypoints.fastapi.platform import create_app
 from leonaid.entrypoints.fastapi.security import request_fingerprint
 
 
-async def main() -> None:
+async def main(*, trust_proxy_headers: bool = False) -> None:
     settings = Settings.model_validate(
         {
             "LEONAID_ENV": "test",
@@ -24,6 +24,7 @@ async def main() -> None:
             "LEONAID_SESSION_ENCRYPTION_KEY": "synthetic-http-proof-encryption-32-characters",
             "LEONAID_PUBLIC_BASE_URL": "https://inbox.leonaid.invalid",
             "LEONAID_ALLOWED_ORIGINS": "https://inbox.leonaid.invalid",
+            "LEONAID_TRUST_PROXY_HEADERS": trust_proxy_headers,
             "TWENTY_BASE_URL": "http://127.0.0.1:9",
             "TWENTY_HEALTH_URL": "http://127.0.0.1:9/health",
             "RUSTFS_HEALTH_URL": "http://127.0.0.1:9/health",
@@ -57,7 +58,7 @@ async def main() -> None:
                             {"type": "http", "headers": [], "client": (address, 1234)}
                         ),
                         secret=app.state.security_secret,
-                        trust_proxy_headers=False,
+                        trust_proxy_headers=trust_proxy_headers,
                         address_only=True,
                     )
                 )
@@ -95,8 +96,9 @@ async def main() -> None:
                         },
                     )
                 ).status_code == 201
-                # Four attempts consumed. Session/agent/forwarded-address changes
-                # and the optional trailing slash must share the final slot.
+                # Direct clients cannot set the trusted address. Behind the
+                # configured proxy, its appended final hop remains authoritative.
+                # Both modes share the final slot across cookies/agents/slashes.
                 responses = await asyncio.gather(
                     *(
                         client.post(
@@ -105,7 +107,9 @@ async def main() -> None:
                                 **headers,
                                 "User-Agent": str(uuid4()),
                                 "Cookie": f"__Host-leonaid_session={uuid4()}",
-                                "X-Forwarded-For": str(uuid4()),
+                                "X-Forwarded-For": f"{uuid4()}, 192.0.2.10"
+                                if trust_proxy_headers
+                                else str(uuid4()),
                             },
                             json={**body, "idempotencyKey": str(key)},
                             follow_redirects=True,
@@ -180,7 +184,7 @@ async def main() -> None:
                     await client.post(root, headers=headers, json=body)
                 ).status_code == 429
         print(
-            "PASS public Inbox: receipt-only confirmation, replay, validation, real concurrent/address quota, restart persistence, origin rejection, hidden cases and streamed body limit"
+            f"PASS public Inbox (trusted proxy={trust_proxy_headers}): receipt-only confirmation, replay, validation, real concurrent/address quota, restart persistence, origin rejection, hidden cases and streamed body limit"
         )
     finally:
         async with conn.transaction():
@@ -209,4 +213,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    for trusted_proxy in (False, True):
+        asyncio.run(main(trust_proxy_headers=trusted_proxy))
