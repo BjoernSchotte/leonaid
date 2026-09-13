@@ -757,7 +757,15 @@ class Provisioner:
                     field_name = str(desired["name"])
                     actual = fields.get(field_name)
                     if actual is None:
-                        self.create_field(desired, object_id, objects)
+                        try:
+                            self.create_field(desired, object_id, objects)
+                        except SeedError as error:
+                            if not str(error).startswith(
+                                "Twenty GraphQL: Could not find flat entity with universal identifier "
+                            ):
+                                raise
+                            # Twenty can commit the field before its response-cache
+                            # lookup fails. Read it back; never replay the mutation.
                         fields = self.wait_for_field(object_id, field_name)
                         objects = self.object_map()
                         actual = fields.get(field_name)
