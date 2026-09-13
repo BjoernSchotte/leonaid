@@ -19,7 +19,13 @@ from leonaid.domain.identity import (
     UserAccount,
 )
 from leonaid.bootstrap.api import build_knowledge_service
-from leonaid.modules.knowledge.api import CreatePage, UpdatePage, PageQuery
+from leonaid.modules.knowledge.api import (
+    CreatePage,
+    UpdatePage,
+    PageQuery,
+    SetPageMember,
+    MemberQuery,
+)
 
 
 async def rejected(operation: Awaitable[Any], code: str) -> None:
@@ -184,6 +190,46 @@ async def main() -> None:
                     content=page.content,
                 ),
             )
+        await rejected(
+            service.set_page_member(
+                actors["manager"],
+                page.id,
+                SetPageMember(
+                    idempotency_key=uuid4(),
+                    expected_access_revision=1,
+                    user_id=actors["other"].account.id,
+                    access="viewer",
+                ),
+            ),
+            "page_member_invalid",
+        )
+        await rejected(
+            service.set_page_member(
+                actors["acquirer"],
+                page.id,
+                SetPageMember(
+                    idempotency_key=uuid4(),
+                    expected_access_revision=1,
+                    user_id=actors["driver"].account.id,
+                    access="viewer",
+                ),
+            ),
+            "not_found",
+        )
+        access = await service.set_page_member(
+            actors["manager"],
+            page.id,
+            SetPageMember(
+                idempotency_key=uuid4(),
+                expected_access_revision=1,
+                user_id=actors["driver"].account.id,
+                access="viewer",
+            ),
+        )
+        assert access.access_revision == 2
+        assert (
+            await service.list_members(actors["global"], page.id, MemberQuery())
+        ).items[0].user_id == actors["driver"].account.id
         async with pool.acquire() as conn:
             # Direct database fixtures exercise read/write enforcement; no membership API is claimed.
             for name in ("acquirer", "outsider"):

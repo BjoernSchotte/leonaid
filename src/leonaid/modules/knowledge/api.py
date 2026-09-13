@@ -1,10 +1,11 @@
 """Typed knowledge operations shared by transport adapters and direct callers."""
 
-from typing import Annotated, Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic import (
     BeforeValidator,
+    EmailStr,
     ConfigDict,
     Field,
     StringConstraints,
@@ -29,6 +30,7 @@ class PageModel(TransportModel):
 
     @field_validator(
         "id",
+        "user_id",
         "idempotency_key",
         "action_id",
         "owner_user_id",
@@ -90,7 +92,54 @@ class Pages(PageModel):
     next_offset: int | None
 
 
+class MemberQuery(PageModel):
+    search: str = Field(default="", max_length=200)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class SetPageMember(PageModel):
+    idempotency_key: UUID
+    expected_access_revision: int = Field(ge=1)
+    user_id: UUID
+    access: Literal["viewer", "editor"] | None
+
+
+class SetPageMemberByEmail(PageModel):
+    idempotency_key: UUID
+    expected_access_revision: int = Field(ge=1)
+    email: EmailStr
+    access: Literal["viewer", "editor"]
+
+
+class PageAccess(PageModel):
+    owner_user_id: UUID
+    access_revision: int
+
+
+class PageMember(PageModel):
+    user_id: UUID
+    display_name: str
+    access: Literal["viewer", "editor"]
+    active: bool
+
+
+class PageMembers(PageAccess):
+    items: list[PageMember]
+    next_offset: int | None
+
+
 class KnowledgeRepository(Protocol):
+    async def set_page_member(
+        self,
+        actor: IdentityPrincipal,
+        page_id: UUID,
+        command: SetPageMember | SetPageMemberByEmail,
+    ) -> PageAccess: ...
+    async def list_members(
+        self, actor: IdentityPrincipal, page_id: UUID, query: MemberQuery
+    ) -> PageMembers: ...
+
     async def create_task_from_page(
         self, actor: IdentityPrincipal, page_id: UUID, command: CreateTaskFromPage
     ) -> TaskFromPage: ...
@@ -108,6 +157,27 @@ class KnowledgeRepository(Protocol):
 class KnowledgeService:
     def __init__(self, repository: KnowledgeRepository) -> None:
         self._repository = repository
+
+    async def set_page_member(
+        self, actor: IdentityPrincipal, page_id: UUID, command: SetPageMember
+    ) -> PageAccess:
+        return await self._repository.set_page_member(
+            actor, page_id, SetPageMember.model_validate(command)
+        )
+
+    async def set_page_member_by_email(
+        self, actor: IdentityPrincipal, page_id: UUID, command: SetPageMemberByEmail
+    ) -> PageAccess:
+        return await self._repository.set_page_member(
+            actor, page_id, SetPageMemberByEmail.model_validate(command)
+        )
+
+    async def list_members(
+        self, actor: IdentityPrincipal, page_id: UUID, query: MemberQuery
+    ) -> PageMembers:
+        return await self._repository.list_members(
+            actor, page_id, MemberQuery.model_validate(query)
+        )
 
     async def create_task_from_page(
         self, actor: IdentityPrincipal, page_id: UUID, command: CreateTaskFromPage
@@ -136,6 +206,12 @@ class KnowledgeService:
 
 
 __all__ = [
+    "MemberQuery",
+    "SetPageMember",
+    "SetPageMemberByEmail",
+    "PageAccess",
+    "PageMember",
+    "PageMembers",
     "CreateTaskFromPage",
     "TaskFromPage",
     "CreatePage",

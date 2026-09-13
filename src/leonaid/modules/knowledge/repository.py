@@ -22,6 +22,12 @@ from leonaid.application.errors import (
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.tasks.api import TaskService, CreateTask
 from leonaid.modules.knowledge.api import (
+    MemberQuery,
+    SetPageMember,
+    SetPageMemberByEmail,
+    PageAccess,
+    PageMember,
+    PageMembers,
     CreatePage,
     CreateTaskFromPage,
     TaskFromPage,
@@ -136,7 +142,11 @@ class AsyncpgKnowledgeRepository:
         actor: IdentityPrincipal,
         context: UUID,
         operation: str,
-        command: CreatePage | UpdatePage | CreateTaskFromPage,
+        command: CreatePage
+        | UpdatePage
+        | CreateTaskFromPage
+        | SetPageMember
+        | SetPageMemberByEmail,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"knowledge:{actor.account.id}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -352,6 +362,132 @@ class AsyncpgKnowledgeRepository:
             return Pages(
                 items=[
                     PageSummary.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def _manage_page(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        page_id: UUID,
+        *,
+        write: bool,
+    ) -> Page:
+        page = await self._page(conn, actor, page_id, write=write)
+        if page.owner_user_id != actor.account.id and not (
+            page.action_id is not None
+            and await self._action_write(conn, actor.account.id, page.action_id)
+        ):
+            raise ResourceNotFound("not_found", "Seitenverwaltung nicht verfügbar.")
+        return page
+
+    async def set_page_member(
+        self,
+        actor: IdentityPrincipal,
+        page_id: UUID,
+        command: SetPageMember | SetPageMemberByEmail,
+    ) -> PageAccess:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor)
+            page = await self._manage_page(conn, actor, page_id, write=True)
+            operation = "knowledge.page.member_changed"
+            key, replay = await self._receipt(conn, actor, page_id, operation, command)
+            if replay:
+                return PageAccess.model_validate_json(replay["document"])
+            revision = await conn.fetchval(
+                "SELECT access_revision FROM knowledge_page WHERE id=$1", page_id
+            )
+            if revision != command.expected_access_revision:
+                raise Conflict(
+                    "revision_conflict", "Die Seitenrechte wurden inzwischen geändert."
+                )
+            if isinstance(command, SetPageMemberByEmail):
+                user_id = await conn.fetchval(
+                    "SELECT id FROM user_account WHERE lower(email)=lower($1) AND status='active'",
+                    str(command.email),
+                )
+                if user_id is None:
+                    raise Conflict(
+                        "page_member_invalid",
+                        "Dieses Konto kann nicht hinzugefügt werden.",
+                    )
+            else:
+                user_id = command.user_id
+            if user_id == page.owner_user_id:
+                raise Conflict(
+                    "page_owner_protected",
+                    "Der Eigentümer kann nicht entfernt oder herabgestuft werden.",
+                )
+            if command.access is not None:
+                if not await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM user_account WHERE id=$1 AND status='active')",
+                    user_id,
+                ):
+                    raise Conflict(
+                        "page_member_invalid",
+                        "Dieses Konto kann nicht hinzugefügt werden.",
+                    )
+                if page.action_id is not None and not await conn.fetchval(
+                    f"SELECT EXISTS (SELECT 1 FROM knowledge_page p WHERE p.id=$2 AND {_READ_ACCESS})",
+                    user_id,
+                    page_id,
+                ):
+                    raise Conflict(
+                        "page_member_invalid", "Aktionszugriff erforderlich."
+                    )
+                await conn.execute(
+                    "INSERT INTO knowledge_page_member(page_id,user_id,access) VALUES ($1,$2,$3) ON CONFLICT(page_id,user_id) DO UPDATE SET access=EXCLUDED.access",
+                    page_id,
+                    user_id,
+                    command.access,
+                )
+            else:
+                await conn.execute(
+                    "DELETE FROM knowledge_page_member WHERE page_id=$1 AND user_id=$2",
+                    page_id,
+                    user_id,
+                )
+            revision = await conn.fetchval(
+                "UPDATE knowledge_page SET access_revision=access_revision+1 WHERE id=$1 RETURNING access_revision",
+                page_id,
+            )
+            result = PageAccess(
+                owner_user_id=page.owner_user_id, access_revision=revision
+            )
+            await self._finish(
+                conn,
+                actor,
+                page,
+                key,
+                operation,
+                result={"document": result.model_dump_json()},
+            )
+            return result
+
+    async def list_members(
+        self, actor: IdentityPrincipal, page_id: UUID, query: MemberQuery
+    ) -> PageMembers:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor)
+            page = await self._manage_page(conn, actor, page_id, write=False)
+            revision = await conn.fetchval(
+                "SELECT access_revision FROM knowledge_page WHERE id=$1", page_id
+            )
+            rows = await conn.fetch(
+                "SELECT m.user_id,u.display_name,m.access,(u.status='active') AS active FROM knowledge_page_member m JOIN user_account u ON u.id=m.user_id WHERE m.page_id=$1 AND strpos(lower(u.display_name),lower($2))>0 ORDER BY m.user_id LIMIT $3 OFFSET $4",
+                page_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return PageMembers(
+                owner_user_id=page.owner_user_id,
+                access_revision=revision,
+                items=[
+                    PageMember.model_validate(dict(row)) for row in rows[: query.limit]
                 ],
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000

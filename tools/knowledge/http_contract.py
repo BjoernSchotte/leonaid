@@ -166,6 +166,43 @@ async def main() -> None:
                         json={**update, "idempotencyKey": str(uuid4())},
                     )
                 ).status_code == 409
+                members_path = path + "/members"
+                members = await client.get(members_path, headers=headers)
+                assert (
+                    members.status_code == 200 and members.json()["accessRevision"] == 1
+                )
+                assert members.json()["items"] == []
+                protect = await client.put(
+                    members_path,
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedAccessRevision": 1,
+                        "userId": str(user_id),
+                        "access": None,
+                    },
+                )
+                assert (
+                    protect.status_code == 409
+                    and protect.json()["error"]["code"] == "page_owner_protected"
+                )
+                unknown = await client.put(
+                    members_path + "/by-email",
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedAccessRevision": 1,
+                        "email": f"{uuid4()}@example.org",
+                        "access": "viewer",
+                    },
+                )
+                assert (
+                    unknown.status_code == 409
+                    and unknown.json()["error"]["code"] == "page_member_invalid"
+                )
+                assert (
+                    await client.get(members_path + "?limit=101", headers=headers)
+                ).status_code == 422
                 task_list = await client.post(
                     "/api/v1/task-lists",
                     headers=headers,

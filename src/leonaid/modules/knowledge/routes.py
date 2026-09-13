@@ -8,6 +8,11 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.knowledge.api import (
+    MemberQuery,
+    SetPageMember,
+    SetPageMemberByEmail,
+    PageAccess,
+    PageMembers,
     CreatePage,
     CreateTaskFromPage,
     TaskFromPage,
@@ -87,4 +92,50 @@ async def create_task_from_page(
 ) -> TaskFromPage:
     return await service(request).create_task_from_page(
         await actor(request, response), page_id, body
+    )
+
+
+@router.put(
+    "/{page_id}/members",
+    operation_id="setKnowledgePageMember",
+    response_model=PageAccess,
+)
+async def set_page_member(
+    request: Request, response: Response, page_id: UUID, body: SetPageMember
+) -> PageAccess:
+    return await service(request).set_page_member(
+        await actor(request, response), page_id, body
+    )
+
+
+@router.put(
+    "/{page_id}/members/by-email",
+    operation_id="setKnowledgePageMemberByEmail",
+    response_model=PageAccess,
+)
+async def set_page_member_by_email(
+    request: Request, response: Response, page_id: UUID, body: SetPageMemberByEmail
+) -> PageAccess:
+    return await service(request).set_page_member_by_email(
+        await actor(request, response), page_id, body
+    )
+
+
+@router.get(
+    "/{page_id}/members",
+    operation_id="listKnowledgePageMembers",
+    response_model=PageMembers,
+)
+async def list_members(
+    request: Request,
+    response: Response,
+    page_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> PageMembers:
+    return await service(request).list_members(
+        await actor(request, response),
+        page_id,
+        MemberQuery(search=search, offset=offset, limit=limit),
     )
