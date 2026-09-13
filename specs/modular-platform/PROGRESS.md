@@ -834,3 +834,21 @@ Die separate Browserabnahme fand eine reale Registrierungslücke: Der Survey-Bei
 40 Python-Identitäts-/Registrierungstests und 12 Frontend-Registrierungstests bestanden. Die Regression prüft beide Surface-Links und ausdrücklich das Fehlen einer zweiten PWA-Editorroute. PWA-Typprüfung, Ruff/Prettier sowie neue API-/PWA-Produktionsimages bestanden. Nach dem Deployment im eigenen Browserstack erschienen „Umfragen“ in der PWA und nach echtem Klick die vorhandene Survey-Webübersicht mit Suche und Neuanlage. Screenshots beider Zustände am Draft-PR.
 
 Der parallel gestartete Survey-Integrations-/Exportlauf (Session 55844, Bericht `.artifacts/surveys-gate/results/d87d297714f74746998b0c3dae32a8c1.json`) bezieht sich auf den Ausgangsstand vor dieser Navigationskorrektur und ist noch nicht abgeschlossen. Seine Ergebnisse ersetzen weder die aktuelle Browserabnahme noch spätere Gesamt- und Recovery-Gates.
+
+
+### Vollständige Survey-Exportjobmessung mit 5.000 Antworten
+
+`tools/outbox/benchmark_export_jobs.py` erstellt eine synthetische Umfrage über die laufende Produktions-API, publiziert sie, hinterlegt 5.000 Antworten aus der vorhandenen Golden-Fixture und fordert die vier vorhandenen Exportprodukte an. Die normalen dauerhaften Worker führen die Jobs aus; der Runner wartet auf echte Verfügbarkeit und lädt die Dateien über die autorisierte Download-API. Er prüft Größe/Dateisignatur bzw. CSV-Zeilen und widerruft abschließend seine eigene Testsitzung. Kein synchroner Ersatzrenderer oder künstlicher Jobtyp.
+
+Im eigenen Browserstack `leonaid-shared-32c62f415463ad67` gemessen (Sekunden ab Exportanforderung bis Verfügbarkeit / einschließlich Download):
+
+| Produkt | Verfügbar | Heruntergeladen | Bytes |
+| --- | ---: | ---: | ---: |
+| Analyse-PDF | 0,270 | 0,280 | 34571 |
+| Analyse-XLSX | 0,264 | 0,285 | 17793 |
+| Antworten-CSV | 0,451 | 0,481 | 5431472 |
+| Antworten-XLSX | 11,992 | 12,006 | 624023 |
+
+Der laufende Worker bestätigt eine Lease von 300 Sekunden; die vorhandene Export-Handlergrenze beträgt damit 240 Sekunden. Dies sind lokale Einzelmessungen mit synthetischer Last, kein allgemeiner Durchsatzbenchmark. Alle vier Jobs wurden zusätzlich in PostgreSQL als `available` bestätigt. Der vorherige reine Renderer-Benchmark bleibt als engerer Vergleich erhalten.
+
+Der größere Survey-Gate hat inzwischen `contracts` bestanden und arbeitet an `lifecycle`; weitere Integration-/Exportgruppen sind weiterhin offen.
