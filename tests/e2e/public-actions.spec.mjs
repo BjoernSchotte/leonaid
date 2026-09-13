@@ -99,7 +99,13 @@ test("aktive, inaktive und archivierte Public-Seite bleiben in jeder Browser-Eng
     );
   expect(unloadedImages).toEqual([]);
   await expect(page.locator('img[src*="lions-krapfentaxi.de"]')).toHaveCount(0);
-  await expect(page.locator("script")).toHaveCount(0);
+  await expect(page.locator("leonaid-inbox-form")).toBeVisible();
+  await expect(page.locator("script")).toHaveCount(1);
+  await expect(page.locator("script")).toHaveAttribute(
+    "src",
+    /\/_astro\/PublicInbox\./,
+  );
+  await expect(page.locator("[data-order-form]")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await expectTouchTargets(page);
 

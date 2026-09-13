@@ -133,11 +133,21 @@ async def assert_astro_matches(
     source = response.text
     has_client_script = "<script" in source.casefold()
     submissions_allowed = direct.get("submissionsAllowed") is True
-    if submissions_allowed and not has_client_script:
+    inbox_allowed = expected_state == "published"
+    has_inbox = "<leonaid-inbox-form" in source
+    if has_inbox != inbox_allowed:
+        raise ContractFailure(
+            f"Astro-Route {path} zeigt das Anfrageformular nicht passend zum Veröffentlichungsstatus"
+        )
+    if not submissions_allowed and "data-order-form" in source:
+        raise ContractFailure(
+            f"Astro-Route {path} zeigt trotz gesperrter Bestellungen ein Bestellformular"
+        )
+    if (submissions_allowed or inbox_allowed) and not has_client_script:
         raise ContractFailure(
             f"Astro-Route {path} verbessert das aktive Formular nicht im Browser"
         )
-    if not submissions_allowed and has_client_script:
+    if not (submissions_allowed or inbox_allowed) and has_client_script:
         raise ContractFailure(
             f"Astro-Route {path} liefert ohne Formular unnötiges Client-JavaScript aus"
         )
