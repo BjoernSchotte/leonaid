@@ -1,18 +1,21 @@
 """Typed Inbox operations, independent of HTTP and CRM availability."""
 
-from typing import Annotated, Protocol
+from datetime import datetime
+from typing import Annotated, Literal, Protocol
 from uuid import UUID
 import re
 
 from pydantic import (
     ConfigDict,
     EmailStr,
+    Field,
     StringConstraints,
     field_validator,
     model_validator,
 )
 
 from leonaid.platform.http import TransportModel
+from leonaid.domain.identity import IdentityPrincipal
 
 
 class InboxModel(TransportModel):
@@ -21,7 +24,14 @@ class InboxModel(TransportModel):
     )
 
     @field_validator(
-        "idempotency_key", "action_id", "reference", mode="before", check_fields=False
+        "idempotency_key",
+        "action_id",
+        "reference",
+        "id",
+        "assignee_user_id",
+        "twenty_person_id",
+        mode="before",
+        check_fields=False,
     )
     @classmethod
     def parse_identifier(cls, value: object) -> object:
@@ -90,8 +100,71 @@ class Submission(InboxModel):
     reference: UUID
 
 
+class Case(InboxModel):
+    id: UUID
+    public_reference: UUID
+    action_id: UUID | None
+    subject: str
+    message: str
+    given_name: str
+    family_name: str
+    email: str | None
+    phone: str | None
+    received_at: datetime
+    status: Literal["new", "in_progress", "closed"]
+    assignee_user_id: UUID | None
+    revision: int
+    closure_note: str | None
+    closed_at: datetime | None
+    updated_at: datetime
+    contact_status: Literal["pending", "linked", "needs_review", "failed"]
+    contact_revision: int
+    contact_error_code: str | None
+    twenty_person_id: UUID | None
+
+
+class CaseQuery(InboxModel):
+    search: str = Field(default="", max_length=200)
+    action_id: UUID | None = None
+    status: Literal["new", "in_progress", "closed"] | None = None
+    for_me: bool = False
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class Cases(InboxModel):
+    items: list[Case]
+    next_offset: int | None
+
+
+class UpdateCase(InboxModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    status: Literal["new", "in_progress", "closed"]
+    assignee_user_id: UUID | None
+    closure_note: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+        ]
+        | None
+    ) = None
+
+    @model_validator(mode="after")
+    def closure_matches_status(self) -> "UpdateCase":
+        if (self.status == "closed") != (self.closure_note is not None):
+            raise ValueError("Abschlussnotiz nur bei geschlossenem Fall erforderlich.")
+        if self.closure_note is not None:
+            SubmitCase.reject_controls(self.closure_note)
+        return self
+
+
 class InboxRepository(Protocol):
     async def submit(self, command: SubmitCase) -> Submission: ...
+    async def get_case(self, actor: IdentityPrincipal, case_id: UUID) -> Case: ...
+    async def list_cases(self, actor: IdentityPrincipal, query: CaseQuery) -> Cases: ...
+    async def update_case(
+        self, actor: IdentityPrincipal, case_id: UUID, command: UpdateCase
+    ) -> Case: ...
 
 
 class InboxService:
@@ -101,5 +174,26 @@ class InboxService:
     async def submit(self, command: SubmitCase) -> Submission:
         return await self._repository.submit(SubmitCase.model_validate(command))
 
+    async def get_case(self, actor: IdentityPrincipal, case_id: UUID) -> Case:
+        return await self._repository.get_case(actor, case_id)
 
-__all__ = ["InboxService", "SubmitCase", "Submission"]
+    async def list_cases(self, actor: IdentityPrincipal, query: CaseQuery) -> Cases:
+        return await self._repository.list_cases(actor, CaseQuery.model_validate(query))
+
+    async def update_case(
+        self, actor: IdentityPrincipal, case_id: UUID, command: UpdateCase
+    ) -> Case:
+        return await self._repository.update_case(
+            actor, case_id, UpdateCase.model_validate(command)
+        )
+
+
+__all__ = [
+    "InboxService",
+    "SubmitCase",
+    "Submission",
+    "Case",
+    "CaseQuery",
+    "Cases",
+    "UpdateCase",
+]

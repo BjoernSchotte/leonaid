@@ -330,7 +330,7 @@ Diese Etappe ist ein nutzbarer technischer Schnitt, keine vollständige Wissensp
 ### M3 — Inbox und Twenty-Ausfall als Integrationsnachweis
 
 - [x] Additives Inbox-Schema mit Fallstatus, Abschluss/Wiederöffnung, unabhängiger Kontaktzuordnung, verpflichtender Outbox-Referenz sowie internen Kommentaren und exakten Task-/Materialreferenzen. Echter PostgreSQL-Vertrag prüft 23 ungültige Schreibvorgänge; Service, Autorisierung, atomarer öffentlicher Eingang und CRM-Verarbeitung folgen separat.
-- [ ] Ein Fallmodell für Kontakt-/Hilfsanfragen: Eingang, optionale Aktionsreferenz, zuständige Person, neu/in Bearbeitung/geschlossen, Abschlussnotiz und Wiederöffnung.
+- [x] Ein Fallmodell für Kontakt-/Hilfsanfragen: Eingang, optionale Aktionsreferenz, zuständige Person, neu/in Bearbeitung/geschlossen, Abschlussnotiz und Wiederöffnung.
 - [ ] Öffentliche Eingabe begrenzen und validieren; bestehende Schutzmechanismen gegen missbräuchliche öffentliche Requests passend wiederverwenden.
 - [x] Direkte Inbox-Eingangsoperation mit strikten Eingaben, gemeinsamem Commit von Fall/Outbox/Audit/Receipt und referenzbasierter Bestätigung. Paralleles Replay und tatsächlicher Datenbankfehler nach Fall-/Job-Schreibvorgängen mit Rollback und Wiederholung geprüft. HTTP-Schutz und CRM-Handler noch nicht freigeschaltet.
 - [ ] Eingangssnapshot, Fall und Kontaktzuordnungsauftrag gemeinsam speichern. Erst danach Bestätigung mit Referenz. Keine E-Mail durch Formularübermittlung.
