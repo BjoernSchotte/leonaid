@@ -789,3 +789,10 @@ Die vorbereitete Einbindung verwendete irrtümlich `submissionsAllowed`, das bes
 Chrome öffnete den aktiven Alias ohne Bestellformular, sendete eine Anfrage und erhielt eine Referenz. PostgreSQL bestätigt genau einen Fall mit der richtigen Aktions-ID und einen Kontaktauftrag. Archiv und inaktiver Alias wurden separat im Browser geöffnet und enthalten jeweils null Inbox-Formulare. Screenshots: `/tmp/leonaid-inbox-action-form.png`, `/tmp/leonaid-inbox-action-success.png`, `/tmp/leonaid-inbox-action-inactive.png`.
 
 Public-Docker-Produktionsbuild, Public-/Campaign-Astro-Typprüfung, Ruff und Formatierung bestanden. Campaign-/Weiterleitungs-Browserprüfung, öffentlicher Twenty-Ausfall-/Recovery-Ablauf und vollständige Retry-Prüfung bleiben offen. Dieser Slice ändert die Sichtbarkeitsbedingung; die zuvor geprüfte Formulargestaltung bleibt unverändert.
+
+
+### CMS-Operator für die Campaign-Browserabnahme portabel ausführen
+
+Der bestehende Storage-Operator scheiterte im lokalen macOS-Worktree am schreibgeschützt eingebundenen Host-`.venv`. Ein temporäres Linux-Venv mit `uv sync` war ebenfalls ungeeignet: `storage-data` ist absichtlich intern und erlaubt keinen Download von Python-Paketen. Der Operator baut deshalb dasselbe vorhandene Core-Dockerfile und verwendet dessen gesperrte Linux-Abhängigkeiten. Nur `tools/` wird schreibgeschützt eingebunden; kein Host-Venv überdeckt die Image-Abhängigkeiten. Die Netztrennung und dedizierten CMS-Zugangsdaten bleiben erhalten.
+
+Im bestehenden isolierten Browserprojekt `leonaid-shared-32c62f415463ad67` bestanden Image-Build und echte RustFS-Provisionierung (`private bucket and scoped IAM user provisioned`). Das CMS wurde über seine echte Setup-Oberfläche durch den vorgesehenen synthetischen Core-Administrator eingerichtet; die bestehenden Campaign-Schema-/Binding-/Media-Installer liefen bei gestopptem CMS erfolgreich, anschließend wurde der CMS-Dienst wieder healthy. Öffentliche Campaign-Einreichung und Alias-Weiterleitung sind damit noch nicht abgenommen.
