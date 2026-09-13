@@ -20,6 +20,9 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
+    SetMaterialReference,
+    MaterialReference,
+    MaterialReferences,
     SetTaskReference,
     TaskReference,
     TaskReferences,
@@ -39,6 +42,7 @@ from leonaid.modules.inbox.api import (
 )
 
 from leonaid.modules.tasks.api import TaskService
+from leonaid.modules.materials.api import MaterialService
 
 _CASE_COLUMNS = ",".join(f"c.{name}" for name in Case.model_fields)
 _MANAGE = """
@@ -67,9 +71,11 @@ class AsyncpgInboxRepository:
         self,
         pool: asyncpg.Pool[Any],
         tasks: Callable[[asyncpg.Connection[Any]], TaskService],
+        materials: Callable[[asyncpg.Connection[Any]], MaterialService],
     ) -> None:
         self.pool = pool
         self.tasks = tasks
+        self.materials = materials
 
     async def submit(self, command: SubmitCase) -> Submission:
         key = f"inbox.submit:{command.idempotency_key}"
@@ -289,6 +295,116 @@ class AsyncpgInboxRepository:
                     case_id,
                     key,
                     str(command.task_id),
+                    command.present,
+                )
+            await receipts.complete(
+                idempotency_key=key, result={"caseId": str(case_id)}
+            )
+            return await self._case(conn, actor.account.id, case_id)
+
+    async def list_material_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> MaterialReferences:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._case(conn, actor.account.id, case_id)
+            rows = await conn.fetch(
+                "SELECT material_id,material_version FROM inbox_case_material WHERE case_id=$1 ORDER BY material_id,material_version LIMIT 100",
+                case_id,
+            )
+            items = []
+            materials = self.materials(conn)
+            for row in rows:
+                try:
+                    file = await materials.get_version(
+                        actor, row["material_id"], row["material_version"]
+                    )
+                except ResourceNotFound:
+                    file = None
+                items.append(
+                    MaterialReference(
+                        material_id=row["material_id"],
+                        material_version=row["material_version"],
+                        file=file,
+                    )
+                )
+            return MaterialReferences(items=items)
+
+    async def set_material_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetMaterialReference
+    ) -> Case:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            current = await self._case(conn, actor.account.id, case_id)
+            if command.present:
+                await self.materials(conn).get_version(
+                    actor, command.material_id, command.material_version
+                )
+            key = f"inbox.material-reference:{actor.account.id}:{case_id}:{command.idempotency_key}"
+            receipts = AsyncpgCommandReceiptRepository(conn)
+            try:
+                replay = await receipts.reserve(
+                    idempotency_key=key,
+                    command_type="inbox.material_reference_changed",
+                    request_hash=hashlib.sha256(
+                        command.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+            except ApplicationError as error:
+                if error.code == "idempotency_conflict":
+                    raise Conflict(error.code, error.message) from error
+                raise
+            if replay is not None:
+                return current
+            if current.revision != command.expected_revision:
+                raise Conflict(
+                    "revision_conflict", "Der Fall wurde inzwischen geändert."
+                )
+            exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM inbox_case_material WHERE case_id=$1 AND material_id=$2 AND material_version=$3)",
+                case_id,
+                command.material_id,
+                command.material_version,
+            )
+            if exists != command.present:
+                if command.present:
+                    count = await conn.fetchval(
+                        "SELECT count(*) FROM inbox_case_material WHERE case_id=$1",
+                        case_id,
+                    )
+                    if count >= 100:
+                        raise Conflict(
+                            "reference_limit",
+                            "Höchstens 100 Dateiverweise pro Fall möglich.",
+                        )
+                    await conn.execute(
+                        "INSERT INTO inbox_case_material(case_id,material_id,material_version) VALUES($1,$2,$3)",
+                        case_id,
+                        command.material_id,
+                        command.material_version,
+                    )
+                else:
+                    await conn.execute(
+                        "DELETE FROM inbox_case_material WHERE case_id=$1 AND material_id=$2 AND material_version=$3",
+                        case_id,
+                        command.material_id,
+                        command.material_version,
+                    )
+                await conn.execute(
+                    "UPDATE inbox_case SET revision=revision+1,updated_at=now() WHERE id=$1",
+                    case_id,
+                )
+                await conn.execute(
+                    """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
+                        VALUES($1,$2,$3,'inbox.material_reference_changed','inbox_case',$4,$5,
+                            jsonb_build_object('materialId',$6::text,'version',$7::bigint,'present',$8::boolean))""",
+                    uuid4(),
+                    current.action_id,
+                    actor.account.id,
+                    case_id,
+                    key,
+                    str(command.material_id),
+                    command.material_version,
                     command.present,
                 )
             await receipts.complete(

@@ -63,13 +63,22 @@ class AsyncpgMaterialRepository:
     def __init__(
         self,
         pool: asyncpg.Pool[Any],
-        storage: ObjectStorage,
+        storage: ObjectStorage | None = None,
         *,
         connection: asyncpg.Connection[Any] | None = None,
     ) -> None:
         self.pool = pool
-        self.storage = storage
+        self._storage = storage
         self.connection = connection
+
+    @property
+    def storage(self) -> ObjectStorage:
+        # Metadata-only module calls do not need object-storage credentials.
+        if self._storage is None:
+            raise DependencyUnavailable(
+                "material_storage_unavailable", "Dateispeicher ist nicht konfiguriert."
+            )
+        return self._storage
 
     @asynccontextmanager
     async def _connection(self) -> AsyncIterator[asyncpg.Connection[Any]]:

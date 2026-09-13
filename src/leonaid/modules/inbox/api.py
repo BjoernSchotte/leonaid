@@ -17,6 +17,7 @@ from leonaid.platform.http import TransportModel
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.application.crm import PersonData
 from leonaid.modules.tasks.api import Task
+from leonaid.modules.materials.api import MaterialVersion
 
 
 class InboxModel(TransportModel):
@@ -33,6 +34,7 @@ class InboxModel(TransportModel):
         "user_id",
         "case_id",
         "task_id",
+        "material_id",
         "author_user_id",
         "twenty_person_id",
         mode="before",
@@ -173,6 +175,24 @@ class TaskReferences(InboxModel):
     items: list[TaskReference]
 
 
+class SetMaterialReference(InboxModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    material_id: UUID
+    material_version: int = Field(ge=1, le=9223372036854775807)
+    present: bool
+
+
+class MaterialReference(InboxModel):
+    material_id: UUID
+    material_version: int
+    file: MaterialVersion | None
+
+
+class MaterialReferences(InboxModel):
+    items: list[MaterialReference]
+
+
 class AddComment(InboxModel):
     idempotency_key: UUID
     body: Annotated[
@@ -225,6 +245,13 @@ class UpdateCase(InboxModel):
 
 
 class InboxRepository(Protocol):
+    async def set_material_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetMaterialReference
+    ) -> Case: ...
+    async def list_material_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> MaterialReferences: ...
+
     async def set_task_reference(
         self, actor: IdentityPrincipal, case_id: UUID, command: SetTaskReference
     ) -> Case: ...
@@ -254,6 +281,18 @@ class InboxRepository(Protocol):
 class InboxService:
     def __init__(self, repository: InboxRepository) -> None:
         self._repository = repository
+
+    async def set_material_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetMaterialReference
+    ) -> Case:
+        return await self._repository.set_material_reference(
+            actor, case_id, SetMaterialReference.model_validate(command)
+        )
+
+    async def list_material_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> MaterialReferences:
+        return await self._repository.list_material_references(actor, case_id)
 
     async def set_task_reference(
         self, actor: IdentityPrincipal, case_id: UUID, command: SetTaskReference
@@ -316,6 +355,9 @@ __all__ = [
     "AssigneeQuery",
     "Assignee",
     "Assignees",
+    "SetMaterialReference",
+    "MaterialReference",
+    "MaterialReferences",
     "SetTaskReference",
     "TaskReference",
     "TaskReferences",

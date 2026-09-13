@@ -171,6 +171,8 @@ export type MaterialAccess = { readonly accessRevision: number; readonly ownerUs
 export type MaterialMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
 export type MaterialMembers = { readonly accessRevision: number; readonly items: Array<MaterialMember>; readonly nextOffset: number | null; readonly ownerUserId: string; };
 export type MaterialPermissions = { readonly canEdit: boolean; readonly canManage: boolean; };
+export type MaterialReference = { readonly file: MaterialVersion | null; readonly materialId: string; readonly materialVersion: number; };
+export type MaterialReferences = { readonly items: Array<MaterialReference>; };
 export type MaterialVersion = { readonly filename: string; readonly materialId: string; readonly mediaType: string; readonly sha256: string; readonly sizeBytes: number; readonly version: number; };
 export type Materials = { readonly items: Array<Material>; readonly nextOffset: number | null; };
 export type MatrixRowAggregate = { readonly answered: number; readonly counts: Array<AggregateCount>; readonly invalid: number; readonly label: string; readonly rowId: string; readonly unanswered: number; };
@@ -255,6 +257,7 @@ export type SetListMember = { readonly access: "viewer" | "editor" | null; reado
 export type SetListMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedRevision: number; readonly idempotencyKey: string; };
 export type SetMaterialMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetMaterialMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
+export type SetMaterialReference = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly materialId: string; readonly materialVersion: number; readonly present: boolean; };
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
@@ -1778,6 +1781,33 @@ export class LeonAidApiClient {
       `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/comments`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listInboxMaterialReferences(
+    caseId: string,
+    options: RequestOptions = {},
+  ): Promise<MaterialReferences> {
+    return this.request<MaterialReferences>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/materials`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setInboxMaterialReference(
+    caseId: string,
+    body: SetMaterialReference,
+    options: RequestOptions = {},
+  ): Promise<Case> {
+    return this.request<Case>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/materials`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

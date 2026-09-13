@@ -8,6 +8,8 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
+    SetMaterialReference,
+    MaterialReferences,
     SetTaskReference,
     TaskReferences,
     AddComment,
@@ -142,6 +144,32 @@ async def list_task_references(
 ) -> TaskReferences:
     return await service(request).list_task_references(
         await actor(request, response), case_id
+    )
+
+
+@router.get(
+    "/inbox-cases/{case_id}/materials",
+    operation_id="listInboxMaterialReferences",
+    response_model=MaterialReferences,
+)
+async def list_material_references(
+    request: Request, response: Response, case_id: UUID
+) -> MaterialReferences:
+    return await service(request).list_material_references(
+        await actor(request, response), case_id
+    )
+
+
+@router.put(
+    "/inbox-cases/{case_id}/materials",
+    operation_id="setInboxMaterialReference",
+    response_model=Case,
+)
+async def set_material_reference(
+    request: Request, response: Response, case_id: UUID, body: SetMaterialReference
+) -> Case:
+    return await service(request).set_material_reference(
+        await actor(request, response), case_id, body
     )
 
 
