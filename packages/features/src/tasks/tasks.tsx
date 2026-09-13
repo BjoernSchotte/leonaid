@@ -29,10 +29,33 @@ export function TasksPage({
   const [status, setStatus] = useState<"open" | "done">("open");
   const [includeDeferred, setIncludeDeferred] = useState(false);
   const [title, setTitle] = useState("");
+  const [newListActionId, setNewListActionId] = useState("");
+  const [listActionFilter, setListActionFilter] = useState("");
+  const knownActions = [
+    ...new Map(
+      identity.actionMemberships.map((membership) => [
+        membership.actionId,
+        membership.actionName,
+      ]),
+    ).entries(),
+  ];
+  const managedActions = knownActions.filter(
+    ([actionId]) =>
+      identity.globalRoles.includes("system_admin") ||
+      identity.actionMemberships.some(
+        (membership) =>
+          membership.actionId === actionId &&
+          membership.role === "charity_admin",
+      ),
+  );
   const operation = useRef(crypto.randomUUID());
   const lists = useQuery({
-    queryKey: ["task-lists", listOffset],
-    queryFn: () => client.listTaskLists({ offset: listOffset }),
+    queryKey: ["task-lists", listOffset, listActionFilter],
+    queryFn: () =>
+      client.listTaskLists({
+        offset: listOffset,
+        actionId: listActionFilter || undefined,
+      }),
   });
   const selected = useQuery({
     queryKey: ["task-list", listId],
@@ -56,6 +79,7 @@ export function TasksPage({
     mutationFn: () =>
       client.createTaskList({
         title: title.trim(),
+        actionId: newListActionId || null,
         idempotencyKey: operation.current,
       }),
     onSuccess: (list) => window.location.assign(`${basePath}/${list.id}`),
@@ -72,6 +96,13 @@ export function TasksPage({
           Gemeinsam vorbereiten, Zuständigkeiten sehen und den nächsten Schritt
           finden.
         </p>
+        {selected.data && (
+          <p>
+            {selected.data.actionId
+              ? `Charity-Aktion: ${knownActions.find(([id]) => id === selected.data?.actionId)?.[1] ?? "Aktionsgebundene Liste"}`
+              : "Eigenständige Liste mit ausdrücklich vergebenem Zugriff"}
+          </p>
+        )}
       </header>
       {error && (
         <StatusMessage tone="error">
@@ -97,6 +128,25 @@ export function TasksPage({
       <div className="tasks-columns">
         <aside aria-label="Aufgabenlisten">
           <h2>Listen</h2>
+          {knownActions.length > 0 && (
+            <label>
+              Listen nach Aktion filtern
+              <select
+                value={listActionFilter}
+                onChange={(event) => {
+                  setListActionFilter(event.target.value);
+                  setListOffset(0);
+                }}
+              >
+                <option value="">Alle zugänglichen Listen</option>
+                {knownActions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <a href={basePath}>Alle zugänglichen Aufgaben</a>
           {lists.isPending ? (
             <p role="status">Listen werden geladen …</p>
@@ -140,7 +190,30 @@ export function TasksPage({
             }}
           >
             <h2>Neue Liste</h2>
-            <p>Die Liste ist zunächst nur für dich sichtbar.</p>
+            <label>
+              Kontext der neuen Liste
+              <select
+                value={newListActionId}
+                disabled={create.isPending}
+                onChange={(event) => {
+                  setNewListActionId(event.target.value);
+                  operation.current = crypto.randomUUID();
+                  create.reset();
+                }}
+              >
+                <option value="">Eigenständig</option>
+                {managedActions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p>
+              {newListActionId
+                ? "Aktuelle Mitglieder dieser Aktion können die Liste lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
+                : "Die Liste ist zunächst nur für dich sichtbar."}
+            </p>
             <label htmlFor="task-list-title">Name der Liste</label>
             <input
               id="task-list-title"

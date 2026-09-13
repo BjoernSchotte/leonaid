@@ -359,3 +359,12 @@ LIVE PostgreSQL: E-Mail mit unterschiedlicher Großschreibung, unbekanntes Konto
 Desktop-Axe entdeckte einen bestehenden unzulässigen aria-label auf dem Rollencontainer der Shell. Rollen und Arbeitskontext besitzen nun die passende group-Semantik. Wiederholter Browserlauf mit Desktop-/Mobile-Axe ohne critical/serious erfolgreich; Screenshot `/tmp/leonaid-members-desktop.png` visuell geprüft. Temporärer Nachweis `/tmp/leonaid-members-browser.cjs` gegen reale API/Datenbank.
 
 406 Unit-Tests (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features/Web/PWA/API-Client-Typprüfung, beide Builds und strukturelle Kompatibilität sämtlicher bisheriger OpenAPI-Pfade/-Schemas bestanden. Browsernachweis umfasst noch nicht konkurrierende Mitgliederänderungen, aktionsgebundene Listenerstellung oder produktiven Proxy-/Service-Worker-Betrieb. Übergeordnete M2-Abnahme bleibt offen.
+
+
+## M2 — Aktionskontext für Task-Listen
+
+Die gemeinsame Oberfläche bietet bei der Listenerstellung neben „Eigenständig“ die aktuell verwalteten Aktionen aus der authentifizierten Identität an. Zugehörige Aktionen lassen sich außerdem als Listenfilter auswählen. Die ausgewählte Liste zeigt ihren Kontext und erklärt die unterschiedlichen Zugriffsvoraussetzungen. Der vorhandene serverseitige CreateList-/ListQuery-Vertrag bleibt unverändert und prüft aktuelle Rechte beim Speichern/Lesen. Ein veralteter Identitätsstand ist keine Schreibberechtigung.
+
+LIVE: frisches PostgreSQL mit vollständigen Migrationen, echte HTTPS-FastAPI, synthetische Aktion mit Charity-Admin und Acquirer. Browser erstellt eine Liste im Aktionskontext, bestätigt die persistierte actionId und den Listenfilter, weist dem berechtigten Aktionsmitglied einen Task zu; dieses erledigt in PWA „Für mich“, der Admin sieht den gemeinsamen Status im Web. Mobile Axe ohne critical/serious und kein horizontaler Overflow. Desktop-Screenshot `/tmp/leonaid-tasks-desktop.png` geprüft; temporärer Nachweis `/tmp/leonaid-context-browser.cjs`. Der erste Lauf begann vor abgeschlossener Datenbankinitialisierung und scheiterte beim Verbindungsaufbau; derselbe Container wurde nach bestätigter Bereitschaft erfolgreich verwendet.
+
+Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden; Impeccable-Detektor ohne Treffer. Bekannte Grenze: Die Auswahl stammt derzeit aus eigenen aktuellen Aktionsmitgliedschaften. System-Admins ohne solche Mitgliedschaft benötigen noch eine berechtigte globale Aktionsauswahl; dieser Fall und die übergeordnete M2-Abnahme bleiben offen.
