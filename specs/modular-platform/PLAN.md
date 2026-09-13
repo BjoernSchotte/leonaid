@@ -279,6 +279,8 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 
 ### M2 — Tasks, Wissen und Materialien als Wiederverwendungsnachweis
 
+- [x] Vollständigen isolierten Schema-Gate mit aktuellem Backend abschließen: Leeraufbau bis 0041, Task-/Wissens-/Material-/Inbox-Verträge einschließlich HTTP, Konkurrenz und Rechteentzug sowie Upgrade des versionierten Altbestands mit Datenhalt. Eigene Testressourcen vollständig entfernt.
+
 - [x] Reihenfolgeabhängigkeit im Task-Aktions-Paginationstest beheben: eigene eindeutige Suchmenge, Rechteprüfungen unverändert; vollständige Matrix mit fremdem Aktionsbestand in PostgreSQL bestanden. Gesamt-Compose-Gate und Legacy-Upgrade weiterhin offen.
 
 - [ ] Tasks: Liste, optional ein Epic pro Task, offen/erledigt, optional persönliche Zuständigkeit, getrennte Fälligkeit und Zurückstellung. Keine verschachtelten Epics oder konfigurierbaren Statusmodelle.
