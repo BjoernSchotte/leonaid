@@ -256,6 +256,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [x] Remote-CI-Typfehler der Inbox-Browser-Seeds beheben: explizite Rückgabeannotation und typisierte Settings-Validierung; Mypy über src und beide Seeds sowie Ruff bestanden.
 
+- [x] UUIDs mit numerischem Ende vor der Telefonprüfung in öffentlichen CI-Logs redigieren; reale Schema-/Outbox-Ausgabe und unveränderte PII-Sperren geprüft.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [x] Export-Render-Abnahme bestätigen: aktuelle Renderer-Fixtures erneut erzeugt, 20 PDF-Seiten vollständig visuell geprüft; vier XLSX-Dateien und zugehörige bereits geprüfte Consumer-PDFs bytegenau bestätigt. Hash-Ledger unter proofs/export-render-review.json.
