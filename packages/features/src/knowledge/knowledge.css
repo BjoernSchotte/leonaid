@@ -116,3 +116,24 @@
   padding-block: 0.75rem;
   border-block: 1px solid var(--border);
 }
+
+.knowledge-material-picker {
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+}
+.knowledge-material-picker ul {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.knowledge-material-picker li {
+  min-width: 0;
+}
+.knowledge-material-picker li .ui-button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+}

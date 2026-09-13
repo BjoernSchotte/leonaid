@@ -9,6 +9,7 @@ import {
   useActionContexts,
 } from "../shared/action-contexts";
 import "./materials.css";
+import { downloadMaterial } from "./download";
 
 type Material = Awaited<ReturnType<LeonAidApiClient["getMaterial"]>>;
 
@@ -210,21 +211,7 @@ function Detail({
     retry: false,
   });
   const download = useMutation({
-    mutationFn: async () => {
-      const metadata = version.data!;
-      const blob = await client.downloadMaterialVersion(
-        materialId,
-        metadata.version,
-      );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = metadata.filename;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    },
+    mutationFn: () => downloadMaterial(client, version.data!),
   });
   return (
     <>

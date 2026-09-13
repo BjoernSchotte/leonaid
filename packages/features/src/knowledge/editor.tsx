@@ -14,6 +14,7 @@ import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "./knowledge.css";
+import { materialReference, MaterialPicker } from "./material-reference";
 import { TaskFromPage } from "./task-from-page";
 import { AccessMembersPanel } from "../shared/access-members";
 
@@ -157,6 +158,8 @@ function PageEditor({
   const [savedTitle, setSavedTitle] = useState(page.title);
   const [revision, setRevision] = useState(page.revision);
   const [taskOpen, setTaskOpen] = useState(false);
+  const [materialOpen, setMaterialOpen] = useState(false);
+  const materialTrigger = useRef<HTMLButtonElement>(null);
   const taskTrigger = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -175,6 +178,7 @@ function PageEditor({
         },
       }),
       taskReference(client, basePath),
+      materialReference(client),
     ],
     [client, basePath],
   );
@@ -334,6 +338,42 @@ function PageEditor({
             Wiederholen
           </Button>
         </div>
+      )}
+      {canEdit && !taskOpen && !invalid && !save.isPending && (
+        <>
+          <Button
+            variant="secondary"
+            disabled={!editor || materialOpen}
+            onClick={(event) => {
+              materialTrigger.current = event.currentTarget;
+              setMaterialOpen(true);
+            }}
+          >
+            Material aus Ablage verknüpfen
+          </Button>
+          {materialOpen && (
+            <MaterialPicker
+              client={client}
+              onClose={() => {
+                setMaterialOpen(false);
+                requestAnimationFrame(() => materialTrigger.current?.focus());
+              }}
+              onInsert={(materialId, version) => {
+                if (
+                  editor
+                    ?.chain()
+                    .focus()
+                    .insertContent({
+                      type: "materialReference",
+                      attrs: { materialId, version },
+                    })
+                    .run()
+                )
+                  setMaterialOpen(false);
+              }}
+            />
+          )}
+        </>
       )}
       <EditorContent editor={editor} />
       {save.error && (
