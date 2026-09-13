@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import Annotated, Literal, Protocol
 from uuid import UUID
-import re
 
 from pydantic import (
     ConfigDict,
@@ -16,6 +15,7 @@ from pydantic import (
 
 from leonaid.platform.http import TransportModel
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.application.crm import PersonData
 
 
 class InboxModel(TransportModel):
@@ -78,20 +78,18 @@ class SubmitCase(InboxModel):
             raise ValueError("E-Mail-Adresse ist zu lang.")
         return value
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, value: str | None) -> str | None:
-        if value is not None and (
-            re.fullmatch(r"\+?[0-9 ()/.-]+", value) is None
-            or not 7 <= sum(char.isdigit() for char in value) <= 15
-        ):
-            raise ValueError("Telefonnummer mit 7 bis 15 Ziffern erforderlich.")
-        return value
-
     @model_validator(mode="after")
     def require_contact(self) -> "SubmitCase":
         if self.email is None and self.phone is None:
             raise ValueError("E-Mail-Adresse oder Telefonnummer erforderlich.")
+        # Use the same contact contract as the existing CRM adapter. In particular,
+        # do not accept a national phone number that cannot later be synchronized.
+        PersonData(
+            given_name=self.given_name,
+            family_name=self.family_name,
+            email=self.email,
+            phone=self.phone,
+        )
         return self
 
 

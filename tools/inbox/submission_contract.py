@@ -67,6 +67,7 @@ async def main() -> None:
             {"email": "broken"},
             {"email": None},
             {"phone": "call me"},
+            {"phone": "0891234567"},
             {"phone": "+1 23"},
             {"phone": "1" * 16},
         ):
