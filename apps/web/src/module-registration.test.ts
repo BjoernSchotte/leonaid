@@ -6,6 +6,8 @@ import {
 } from "../../../packages/features/src/modules";
 import { registeredModules } from "../../../packages/features/src/registered-modules";
 
+import { registeredPwaModules } from "../../../packages/features/src/pwa-modules";
+
 describe("explicit UI modules", () => {
   it.each([
     "/admin/surveys",
@@ -29,6 +31,25 @@ describe("explicit UI modules", () => {
     expect(
       resolveModuleRoute(registeredModules, "pwa", "/app/surveys"),
     ).toBeNull();
+  });
+
+  it("registers the shared task feature in both shipped shells", () => {
+    for (const suffix of ["", "/10000000-0000-4000-8000-000000000001"]) {
+      expect(
+        resolveModuleRoute(registeredModules, "web", `/admin/tasks${suffix}`)
+          ?.moduleId,
+      ).toBe("tasks");
+      expect(
+        resolveModuleRoute(registeredPwaModules, "pwa", `/app/tasks${suffix}`)
+          ?.moduleId,
+      ).toBe("tasks");
+    }
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", "/app/tasks/nope"),
+    ).toBeNull();
+    expect(registeredPwaModules.some((module) => module.id === "surveys")).toBe(
+      false,
+    );
   });
 
   it("rejects duplicate IDs and overlapping routes", () => {

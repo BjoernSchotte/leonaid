@@ -1,0 +1,123 @@
+.tasks-workspace {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.tasks-workspace h1 {
+  margin: 0;
+}
+.tasks-workspace h2 {
+  font-size: var(--text-lg);
+  margin: 0 0 0.5rem;
+}
+.tasks-workspace p {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tasks-columns {
+  display: grid;
+  grid-template-columns: minmax(14rem, 19rem) minmax(0, 1fr);
+  gap: 2rem;
+}
+.tasks-columns > * {
+  min-width: 0;
+}
+.tasks-columns aside {
+  border-right: 1px solid var(--border);
+  padding-right: 1.5rem;
+}
+.tasks-workspace form,
+.tasks-filters label {
+  display: grid;
+  gap: 0.5rem;
+}
+.tasks-workspace form {
+  margin-top: 2rem;
+}
+.tasks-workspace input:not([type="checkbox"]),
+.tasks-workspace select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.65rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+.tasks-workspace :is(input, select, a):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.tasks-list-links,
+.tasks-results {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.tasks-list-links a {
+  display: block;
+  padding: 0.75rem;
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+.tasks-list-links a[aria-current="page"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+.tasks-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.tasks-filters .tasks-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--control-height);
+}
+.tasks-checkbox input {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+.tasks-results li {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.tasks-results p {
+  white-space: pre-wrap;
+}
+.tasks-results dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: var(--text-sm);
+}
+.tasks-results dt {
+  color: var(--muted);
+}
+.tasks-results dd {
+  margin: 0.25rem 0 0;
+}
+.tasks-paging {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+@media (max-width: 760px) {
+  .tasks-columns,
+  .tasks-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tasks-columns aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 1.5rem;
+  }
+}

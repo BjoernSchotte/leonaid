@@ -13,6 +13,7 @@ from pydantic import (
 )
 
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.platform.navigation import NavigationItem
 from leonaid.platform.http import TransportModel
 
 Title = Annotated[
@@ -278,7 +279,17 @@ class TaskService:
         return await self._repository.get_task(actor, task_id)
 
 
+def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    if not actor.account.can_authenticate:
+        return ()
+    return (
+        NavigationItem("tasks", "Aufgaben", "/admin/tasks", "web"),
+        NavigationItem("tasks", "Aufgaben", "/app/tasks", "pwa"),
+    )
+
+
 __all__ = [
+    "navigation",
     "SetListMember",
     "ListMember",
     "ListMembers",
