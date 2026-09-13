@@ -98,9 +98,27 @@ async def main() -> None:
                 assert (await client.get("/api/v1/task-lists", headers=headers)).json()[
                     "items"
                 ] == [listing]
+                epic_path = f"/api/v1/task-lists/{listing['id']}/epics"
+                epic_command = {"idempotencyKey": str(uuid4()), "title": "Preparation"}
+                epic_response = await client.post(
+                    epic_path, headers=headers, json=epic_command
+                )
+                assert epic_response.status_code == 200, epic_response.text
+                epic = epic_response.json()
+                assert (
+                    await client.post(epic_path, headers=headers, json=epic_command)
+                ).json() == epic
+                assert (
+                    await client.post(
+                        epic_path,
+                        headers=headers,
+                        json={**epic_command, "parentId": epic["id"]},
+                    )
+                ).status_code == 422
                 body = {
                     "idempotencyKey": str(uuid4()),
                     "title": "HTTP task",
+                    "epicId": epic["id"],
                     "assigneeUserId": str(user_id),
                     "dueAt": now.isoformat(),
                 }
@@ -111,6 +129,35 @@ async def main() -> None:
                 )
                 assert response.status_code == 200, response.text
                 task = response.json()
+                rename = {
+                    "idempotencyKey": str(uuid4()),
+                    "expectedRevision": 1,
+                    "title": "Ready",
+                }
+                renamed = await client.put(
+                    f"/api/v1/task-epics/{epic['id']}", headers=headers, json=rename
+                )
+                assert renamed.status_code == 200 and renamed.json()["revision"] == 2, (
+                    renamed.text
+                )
+                assert (
+                    await client.put(
+                        f"/api/v1/task-epics/{epic['id']}", headers=headers, json=rename
+                    )
+                ).json() == renamed.json()
+                assert (
+                    await client.put(
+                        f"/api/v1/task-epics/{epic['id']}",
+                        headers=headers,
+                        json={**rename, "idempotencyKey": str(uuid4())},
+                    )
+                ).status_code == 409
+                assert (
+                    await client.get(epic_path + "?search=Ready", headers=headers)
+                ).json()["items"] == [renamed.json()]
+                assert (
+                    await client.get(f"/api/v1/tasks/{task['id']}", headers=headers)
+                ).json()["epicId"] == epic["id"]
                 assert task["listId"] == listing["id"] and task["status"] == "open"
                 mine = await client.get(
                     "/api/v1/tasks?forMe=true&status=open", headers=headers
@@ -161,6 +208,10 @@ async def main() -> None:
         async with connection.transaction():
             await connection.execute(
                 "DELETE FROM task WHERE list_id IN (SELECT id FROM task_list WHERE owner_user_id=$1)",
+                user_id,
+            )
+            await connection.execute(
+                "DELETE FROM task_epic WHERE list_id IN (SELECT id FROM task_list WHERE owner_user_id=$1)",
                 user_id,
             )
             await connection.execute(

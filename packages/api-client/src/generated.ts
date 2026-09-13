@@ -76,6 +76,7 @@ export type CreateCampaignAliasRequest = { readonly alias: string; readonly alia
 export type CreateCharityActionRequest = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryDraftRequest>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalRequest; readonly name: string; readonly purpose: string; readonly startsOn: string; };
 export type CreateCommitmentRequest = { readonly buyer: CommitmentBuyerRequest; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient?: PublicOrderDeliveryRecipientRequest | null; readonly deliveryWindowId?: string | null; readonly invoiceRecipient?: CommitmentInvoiceRecipientRequest | null; readonly lines: Array<CommitmentLineRequest>; readonly readyForReview?: boolean; readonly source: "acquisition" | "admin"; };
 export type CreateEmailChangeRequest = { readonly newEmail: string; };
+export type CreateEpic = { readonly idempotencyKey: string; readonly title: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CreateList = { readonly actionId?: string | null; readonly idempotencyKey: string; readonly title: string; };
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly deliveryWindowId?: string | null; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: string; readonly website?: string | null; };
@@ -101,6 +102,8 @@ export type DraftValidation = { readonly expectedRevision: number; };
 export type Duplicate = { readonly expectedRevision: number; readonly operationId: string; readonly targetSurveyId: string; readonly title: string; };
 export type EmailChangeConfirmationResponse = { readonly revokedSessionCount: number; readonly status: "confirmed"; };
 export type EmailChangeDispatchResponse = { readonly changeId: string; readonly status: "pending"; };
+export type Epic = { readonly id: string; readonly listId: string; readonly revision: number; readonly title: string; };
+export type Epics = { readonly items: Array<Epic>; readonly nextOffset: number | null; };
 export type FeatureFlagAdminListResponse = { readonly flags: Array<FeatureFlagAdminResponse>; };
 export type FeatureFlagAdminResponse = { readonly clientSafe: boolean; readonly defaultEnabled: boolean; readonly description: string; readonly effect: string; readonly enabled: boolean; readonly key: "admin.system_status_panel" | "admin.preview_notice"; readonly revision: number; readonly title: string; readonly updatedAt: string; readonly updatedByUserId: string | null; };
 export type FeatureFlagEvaluationListResponse = { readonly flags: Array<FeatureFlagEvaluationResponse>; readonly surface: "web" | "pwa"; };
@@ -256,6 +259,7 @@ export type UpdateAcquisitionAssignmentRequest = { readonly dueAt?: string | nul
 export type UpdateActionDetailsRequest = { readonly carrierName: string; readonly endsOn: string; readonly name: string; readonly purpose: string; readonly revision: number; readonly startsOn: string; };
 export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
 export type UpdateCampaignAliasRequest = { readonly alias: string; readonly commandId: string; readonly enabled: boolean; readonly revision: number; readonly targetActionId: string; };
+export type UpdateEpic = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type UpdateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "open" | "done"; readonly title: string; };
 
@@ -2364,6 +2368,22 @@ export class LeonAidApiClient {
     );
   }
 
+  async updateTaskEpic(
+    epicId: string,
+    body: UpdateEpic,
+    options: RequestOptions = {},
+  ): Promise<Epic> {
+    return this.request<Epic>(
+      `/api/v1/task-epics/${encodeURIComponent(String(epicId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   async listTaskLists(
     queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly actionId?: string | null; } = {},
     options: RequestOptions = {},
@@ -2412,6 +2432,46 @@ export class LeonAidApiClient {
     return this.request<TaskList>(
       `/api/v1/task-lists/${encodeURIComponent(String(listId))}`,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async listTaskEpics(
+    listId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<Epics> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/task-lists/${encodeURIComponent(String(listId))}/epics` + (queryString ? `?${queryString}` : "");
+    return this.request<Epics>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async createTaskEpic(
+    listId: string,
+    body: CreateEpic,
+    options: RequestOptions = {},
+  ): Promise<Epic> {
+    return this.request<Epic>(
+      `/api/v1/task-lists/${encodeURIComponent(String(listId))}/epics`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

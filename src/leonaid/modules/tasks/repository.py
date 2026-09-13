@@ -18,6 +18,11 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.tasks.api import (
+    CreateEpic,
+    UpdateEpic,
+    Epic,
+    Epics,
+    SearchPage,
     ListQuery,
     TaskQuery,
     TaskLists,
@@ -170,7 +175,7 @@ class AsyncpgTaskRepository:
         actor: UUID,
         context: UUID,
         operation: str,
-        command: CreateList | CreateTask | UpdateTask,
+        command: CreateList | CreateTask | UpdateTask | CreateEpic | UpdateEpic,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -192,7 +197,7 @@ class AsyncpgTaskRepository:
         operation: str,
         actor: UUID,
         action_id: UUID | None,
-        result: Task | TaskList,
+        result: Task | TaskList | Epic,
     ) -> None:
         await conn.execute(
             """
@@ -203,7 +208,11 @@ class AsyncpgTaskRepository:
             action_id,
             actor,
             operation,
-            "task_list" if isinstance(result, TaskList) else "task",
+            "task_list"
+            if isinstance(result, TaskList)
+            else "task_epic"
+            if isinstance(result, Epic)
+            else "task",
             result.id,
             key,
         )
@@ -382,3 +391,90 @@ class AsyncpgTaskRepository:
                 result=result,
             )
             return result
+
+    async def create_epic(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
+    ) -> Epic:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            listing = await self._list(conn, actor.account.id, list_id, write=True)
+            key, replay = await self._receipt(
+                conn, actor.account.id, list_id, "tasks.epic.created", command
+            )
+            if replay:
+                return Epic.model_validate_json(replay["document"])
+            row = await conn.fetchrow(
+                "INSERT INTO task_epic (id,list_id,title) VALUES ($1,$2,$3) RETURNING id,list_id,title,revision",
+                uuid4(),
+                list_id,
+                command.title,
+            )
+            assert row is not None
+            result = Epic.model_validate(dict(row))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.epic.created",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
+    async def update_epic(
+        self, actor: IdentityPrincipal, epic_id: UUID, command: UpdateEpic
+    ) -> Epic:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            row = await conn.fetchrow(
+                "SELECT id,list_id,title,revision FROM task_epic WHERE id=$1 FOR UPDATE",
+                epic_id,
+            )
+            if row is None:
+                raise ResourceNotFound("not_found", "Epic nicht gefunden.")
+            listing = await self._list(
+                conn, actor.account.id, row["list_id"], write=True
+            )
+            key, replay = await self._receipt(
+                conn, actor.account.id, epic_id, "tasks.epic.updated", command
+            )
+            if replay:
+                return Epic.model_validate_json(replay["document"])
+            if row["revision"] != command.expected_revision:
+                raise Conflict("revision_conflict", "Epic wurde inzwischen geändert.")
+            updated = await conn.fetchrow(
+                "UPDATE task_epic SET title=$2,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING id,list_id,title,revision",
+                epic_id,
+                command.title,
+            )
+            assert updated is not None
+            result = Epic.model_validate(dict(updated))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.epic.updated",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
+    async def list_epics(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Epics:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._list(conn, actor.account.id, list_id, write=False)
+            rows = await conn.fetch(
+                "SELECT id,list_id,title,revision FROM task_epic WHERE list_id=$1 AND strpos(lower(title),lower($2))>0 ORDER BY created_at,id LIMIT $3 OFFSET $4",
+                list_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return Epics(
+                items=[Epic.model_validate(dict(row)) for row in rows[: query.limit]],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )

@@ -102,17 +102,17 @@ class Task(TaskFields):
     updated_at: datetime
 
 
-class ListQuery(TaskModel):
+class SearchPage(TaskModel):
     search: str = Field(default="", max_length=200)
     offset: int = Field(default=0, ge=0, le=5000)
     limit: int = Field(default=50, ge=1, le=100)
+
+
+class ListQuery(SearchPage):
     action_id: UUID | None = None
 
 
-class TaskQuery(TaskModel):
-    search: str = Field(default="", max_length=200)
-    offset: int = Field(default=0, ge=0, le=5000)
-    limit: int = Field(default=50, ge=1, le=100)
+class TaskQuery(SearchPage):
     list_id: UUID | None = None
     for_me: bool = False
     status: Literal["open", "done"] | None = None
@@ -129,7 +129,37 @@ class Tasks(TaskModel):
     next_offset: int | None
 
 
+class CreateEpic(TaskModel):
+    idempotency_key: UUID
+    title: Title
+
+
+class UpdateEpic(CreateEpic):
+    expected_revision: int = Field(ge=1)
+
+
+class Epic(TaskModel):
+    id: UUID
+    list_id: UUID
+    title: str
+    revision: int
+
+
+class Epics(TaskModel):
+    items: list[Epic]
+    next_offset: int | None
+
+
 class TaskRepository(Protocol):
+    async def create_epic(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
+    ) -> Epic: ...
+    async def update_epic(
+        self, actor: IdentityPrincipal, epic_id: UUID, command: UpdateEpic
+    ) -> Epic: ...
+    async def list_epics(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Epics: ...
     async def list_lists(
         self, actor: IdentityPrincipal, query: ListQuery
     ) -> TaskLists: ...
@@ -150,6 +180,27 @@ class TaskRepository(Protocol):
 class TaskService:
     def __init__(self, repository: TaskRepository) -> None:
         self._repository = repository
+
+    async def create_epic(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
+    ) -> Epic:
+        return await self._repository.create_epic(
+            actor, list_id, CreateEpic.model_validate(command)
+        )
+
+    async def update_epic(
+        self, actor: IdentityPrincipal, epic_id: UUID, command: UpdateEpic
+    ) -> Epic:
+        return await self._repository.update_epic(
+            actor, epic_id, UpdateEpic.model_validate(command)
+        )
+
+    async def list_epics(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Epics:
+        return await self._repository.list_epics(
+            actor, list_id, SearchPage.model_validate(query)
+        )
 
     async def list_lists(self, actor: IdentityPrincipal, query: ListQuery) -> TaskLists:
         return await self._repository.list_lists(actor, ListQuery.model_validate(query))
@@ -186,6 +237,11 @@ class TaskService:
 
 
 __all__ = [
+    "CreateEpic",
+    "UpdateEpic",
+    "Epic",
+    "Epics",
+    "SearchPage",
     "ListQuery",
     "TaskQuery",
     "TaskLists",

@@ -282,3 +282,11 @@ Der Contract ist im Schema-Runner eingebunden; `tools/tasks` gehört nun auch zu
 `tools/operations/test.sh` im eigenen Stack `leonaid-poc114-test-2137972478-20483` erfolgreich beendet und alle eigenen Ressourcen entfernt. Reale Ausfälle von Twenty, Storage, Mail und Worker, korrelierte Logs, technische Metriken, Dead Letter und manueller Mail-Retry geprüft. Ein Chromium-Browsertest bestand einschließlich mobiler Ansicht und Accessibility-Prüfungen des vorhandenen Runners. Die mobile Ergebnisgrafik wurde angesehen; die neuen Queue-Zeitangaben sind in der Outbox-Kachel sichtbar. Auch der ergänzte PostgreSQL-Zeitabfrage-Contract bestand.
 
 Der Lauf wurde bei `07d1008` gestartet; parallel entstandene Task-Änderungen sind dadurch nicht pauschal abgenommen. Worker-Aktivitätszeitstempel in der Operations-Ansicht, vollständige Export-Jobmessung und die übrigen M1/M2/M3-Gates bleiben offen.
+
+### M2: Epic-Fachoperationen
+
+Tasks bietet jetzt `create_epic`, `list_epics` und `update_epic` über dieselbe öffentliche API, drei FastAPI-Endpunkte und den generierten Client. Listenrechte werden vor Lesen, Schreiben und Replay geprüft. Erstellung und Umbenennung speichern fachliche Änderung, inhaltsfreien Audit-Eintrag mit `entity_type=task_epic` und bestehenden Command Receipt atomar. Umbenennen verlangt die erwartete Revision. Titeländerungen behalten die Epic-ID und bestehende Task-Referenzen; keine Eltern-/Kind-Epics oder zusätzlichen Zustände. Die vorhandenen begrenzten Such-/Seitenparameter sind in einem gemeinsamen Eingabemodell zusammengeführt.
+
+Der erweiterte HTTP-Contract bestand mit vollständigem produktivem App-Lifespan und echtem PostgreSQL: Erstellung und Replay, Ablehnung von `parentId`, Umbenennen und Replay, 409 bei veralteter Revision, Suche nach geändertem Titel sowie unveränderte `epicId` am zugehörigen Task. Die bisherigen direkten Task-, Sitzungs-, CSRF-, Validierungs- und Revisionsprüfungen bestanden ebenfalls. Eigene Testdaten und Container samt Volume entfernt.
+
+406 Unit-Tests, Python-/Client-Typprüfung, Ruff, No-test-doubles und Frontend-Client-Grenze bestanden. Bestehende OpenAPI-Pfade und Schemas sind strukturell unverändert. Mitgliedschaftsverwaltung, Aktionsmatrix und Task-/Epic-Oberfläche bleiben offen; M2 ist nicht insgesamt abgenommen.

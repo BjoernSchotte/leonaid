@@ -8,6 +8,11 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.tasks.api import (
+    CreateEpic,
+    UpdateEpic,
+    Epic,
+    Epics,
+    SearchPage,
     CreateList,
     CreateTask,
     UpdateTask,
@@ -122,4 +127,42 @@ async def update_task(
 ) -> Task:
     return await service(request).update_task(
         await actor(request, response), task_id, body
+    )
+
+
+@router.post(
+    "/task-lists/{list_id}/epics", operation_id="createTaskEpic", response_model=Epic
+)
+async def create_epic(
+    request: Request, response: Response, list_id: UUID, body: CreateEpic
+) -> Epic:
+    return await service(request).create_epic(
+        await actor(request, response), list_id, body
+    )
+
+
+@router.put("/task-epics/{epic_id}", operation_id="updateTaskEpic", response_model=Epic)
+async def update_epic(
+    request: Request, response: Response, epic_id: UUID, body: UpdateEpic
+) -> Epic:
+    return await service(request).update_epic(
+        await actor(request, response), epic_id, body
+    )
+
+
+@router.get(
+    "/task-lists/{list_id}/epics", operation_id="listTaskEpics", response_model=Epics
+)
+async def list_epics(
+    request: Request,
+    response: Response,
+    list_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Epics:
+    return await service(request).list_epics(
+        await actor(request, response),
+        list_id,
+        SearchPage(search=search, offset=offset, limit=limit),
     )
