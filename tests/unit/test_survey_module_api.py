@@ -7,6 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
+from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.application.errors import PermissionDenied
 from leonaid.modules.surveys.api import (
@@ -19,6 +21,8 @@ from leonaid.modules.surveys.api import (
     ResponsePage,
     Start,
     AnswerSave,
+    CreateSurveyExport,
+    SurveyExportService,
 )
 
 
@@ -70,6 +74,20 @@ async def test_direct_mutations_revalidate_changed_input_models() -> None:
     answers.answers["oversized"] = "x" * 262145
     with pytest.raises(ValidationError, match="Answers too large"):
         await service.save_response(survey_id, uuid4(), answers, "a" * 32)
+
+    storage = S3ObjectStorage(
+        endpoint_url="http://127.0.0.1:1",
+        access_key="synthetic",
+        secret_key="synthetic",
+        bucket="synthetic",
+    )
+    exports = SurveyExportService(AsyncpgSurveyExports(pool, storage))
+    export = CreateSurveyExport(
+        operationId="export", snapshotId=str(uuid4()), product="responses_csv"
+    )
+    export.snapshotId = "invalid"
+    with pytest.raises(ValidationError, match="snapshotId"):
+        await exports.create_export(actor, survey_id, export)
 
     # The existing repository authorization applies to direct calls as well.
     with pytest.raises(PermissionDenied):

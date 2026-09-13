@@ -146,3 +146,15 @@ Status: Implementierungsslice abgeschlossen am 13.09.2026; LIVE-Nachweise offen.
 Die verbliebenen String-Aufrufe der HTTP-Routen wurden durch benannte Methoden für Analyse, Exportauswahl, Antwortauswahl, Einladungslisten/-widerruf und Teilnahme ersetzt. `SurveyService.author` und `SurveyService.participate` entfallen. Der interne Repository-Dispatcher bleibt während der Adaptermigration bestehen und ist keine öffentliche Fachoperation. UUID-Referenzen und Paginierungsgrenzen werden über gemeinsame Eingabemodelle geprüft. Teilnahme-Cookies bleiben im HTTP-Adapter; die Fachmethoden erhalten explizite Zugangstoken und verwenden dieselbe bestehende Prüfung. Verschachtelte Analysefilter werden vor dem Repository-Aufruf neu validiert.
 
 Prüfung: 397 Unit-Tests bestanden; der Direktaufruf-Test deckt zusätzlich veränderte verschachtelte Statusfilter, zu großen Offset, ungültiges Resume-Secret und übergroße Antworten ab. Mypy für fünf Moduldateien, Ruff, No-test-doubles und unverändertes OpenAPI erfolgreich. Der bestehende LIVE-Modultest wurde um echte Direktaufrufe ergänzt: Listenvergleich mit HTTP, Survey-/Aktionsgrenzen und verweigerte Veröffentlichung. Dieser neue Test muss noch im Lifecycle-Runner ausgeführt werden; seine bloße Existenz ist kein LIVE-Nachweis. Die drei eigentlichen Exportoperationen nutzen noch den bereits typisierten Export-Port; ihre öffentliche Modul-Fassade und die verbleibende Bootstrap-Bereinigung folgen separat.
+
+## M1.4 — Export-Fassade und API-Komposition
+
+Status: Implementierungsslice abgeschlossen am 13.09.2026; LIVE-Abnahme offen.
+
+`SurveyExportService` bietet Erstellen, Status und Download über den vorhandenen Export-Port an. Die HTTP-Routen nutzen diese Fassade. Export-Eingaben werden auch nach einer nachträglichen Änderung erneut validiert; die bestehenden Datenbankprüfungen laden weiterhin aktuelle Rechte. Keine neue Exportverarbeitung und kein zusätzliches Storage. Öffentliche Modelle und Services sind nun explizit in `api.__all__` exportiert, damit auch strikt typisierte Modulverbraucher sie importieren können.
+
+`bootstrap/api.py` konstruiert Survey-Service, Export-Fassade und Erasure-Publisher; der Prozess-Entrypoint erhält die konkreten Instanzen nach Aufbau des gemeinsamen Storage. Die bisherige Konstruktion wurde entfernt. Der Publisher bleibt am vorhandenen Startup-Punkt vor Annahme von Requests aktiv.
+
+Prüfung: 397 Unit-Tests bestanden, Mypy für neun Quelldateien, Ruff, No-test-doubles und unverändertes OpenAPI erfolgreich. Der Direktaufruf-Test verwendet den tatsächlichen Exportadapter und S3-Client mit synthetischer Konfiguration; eine manipulierte Snapshot-ID scheitert vor I/O. Ein beim ersten Lauf entdeckter Fehler durch sofort ausgewertete `asyncpg.Pool`-Annotation wurde durch aufgeschobene Annotationen korrigiert und die Suite anschließend vollständig wiederholt.
+
+Lifecycle-Lauf `d5218eac529147baa1347df176c69a43` läuft noch. Er wurde auf `9f72c27` gestartet; während seiner Buildphase kamen Änderungen dieses Slices hinzu. Sein Ergebnis ist deshalb kein sicherer Nachweis des finalen aktuellen Commits. Vollständige LIVE-Abnahme, Jobvertrag und M2–M3 bleiben offen.

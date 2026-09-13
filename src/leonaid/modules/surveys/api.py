@@ -11,7 +11,12 @@ from leonaid.application.surveys.response_selection import (
     IndividualResponse,
     FreeTextItems,
 )
-from leonaid.application.surveys.exports import SurveyExportSelection
+from leonaid.application.surveys.exports import (
+    SurveyExportSelection,
+    SurveyExports,
+    CreateSurveyExport,
+    SurveyExportJob,
+)
 from leonaid.modules.surveys.models import (
     SnapshotReference,
     ResponsePage,
@@ -28,6 +33,7 @@ from leonaid.modules.surveys.models import (
     SurveyParticipationResponse,
     SurveyResponseSnapshot,
 )
+from leonaid.application.surveys.export_rendering import SurveyExportArtifact
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -396,7 +402,79 @@ class SurveyService:
         return SurveyResponseSnapshot.model_validate(result)
 
 
+class SurveyExportService:
+    """Validated export operations; the port rechecks current database permissions."""
+
+    def __init__(self, exports: SurveyExports):
+        self._exports = exports
+
+    async def create_export(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: CreateSurveyExport
+    ) -> SurveyExportJob:
+        body = CreateSurveyExport.model_validate(body.model_dump())
+        return await self._exports.create(actor.account.id, survey_id, body)
+
+    async def get_export(
+        self, actor: IdentityPrincipal, survey_id: UUID, job_id: UUID
+    ) -> SurveyExportJob:
+        return await self._exports.get(actor.account.id, survey_id, job_id)
+
+    async def download_export(
+        self, actor: IdentityPrincipal, survey_id: UUID, job_id: UUID
+    ) -> SurveyExportArtifact:
+        return await self._exports.download(actor.account.id, survey_id, job_id)
+
+
 def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
     return (NavigationItem("surveys", "Umfragen", "/admin/surveys", "web"),)
+
+
+__all__ = [
+    "SurveyService",
+    "SurveyExportService",
+    "navigation",
+    "AnalysisSnapshot",
+    "AnalysisVersions",
+    "AnswerSave",
+    "Create",
+    "CreateAnalysisSnapshot",
+    "CreateSurveyExport",
+    "DraftSave",
+    "DraftValidation",
+    "Duplicate",
+    "FreeTextItems",
+    "FreeTextQuery",
+    "IndividualResponse",
+    "IndividualResponseQuery",
+    "InvitationPage",
+    "Mutation",
+    "RedeemInvitation",
+    "ResponseItems",
+    "ResponsePage",
+    "ResponseSelection",
+    "RevokeInvitation",
+    "SnapshotReference",
+    "Start",
+    "SurveyAccess",
+    "SurveyDeletionResponse",
+    "SurveyDraftResponse",
+    "SurveyExportArtifact",
+    "SurveyExportJob",
+    "SurveyExportSelection",
+    "SurveyInvitationCreate",
+    "SurveyInvitationResponse",
+    "SurveyInvitationsResponse",
+    "SurveyListQuery",
+    "SurveyListResponse",
+    "SurveyParticipationResponse",
+    "SurveyResponseSnapshot",
+    "SurveySchedule",
+    "SurveySummaryResponse",
+    "SurveyTimeoutSettings",
+    "SurveyVersionResponse",
+    "TimeoutSettings",
+    "TimeoutSettingsResponse",
+    "Transition",
+]

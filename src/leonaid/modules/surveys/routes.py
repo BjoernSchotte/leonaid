@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Response, Query
 
 
-from leonaid.modules.surveys.api import SurveyService
+from leonaid.modules.surveys.api import SurveyService, SurveyExportService
 from leonaid.modules.surveys.models import (
     SnapshotReference,
     ResponsePage,
@@ -46,7 +46,6 @@ from leonaid.application.surveys.exports import (
     CreateSurveyExport,
     SurveyExportJob,
     SurveyExportSelection,
-    SurveyExports,
 )
 from leonaid.application.surveys.analysis_snapshot import (
     AnalysisSnapshot,
@@ -102,9 +101,9 @@ async def export_create(
         request.cookies.get(SESSION_COOKIE_NAME)
     )
     response.headers["Cache-Control"] = "no-store"
-    return await cast(SurveyExports, request.app.state.survey_exports).create(
-        principal.account.id, survey_id, body
-    )
+    return await cast(
+        SurveyExportService, request.app.state.survey_exports
+    ).create_export(principal, survey_id, body)
 
 
 @router.get(
@@ -119,8 +118,8 @@ async def export_get(
         request.cookies.get(SESSION_COOKIE_NAME)
     )
     response.headers["Cache-Control"] = "no-store"
-    return await cast(SurveyExports, request.app.state.survey_exports).get(
-        principal.account.id, survey_id, job_id
+    return await cast(SurveyExportService, request.app.state.survey_exports).get_export(
+        principal, survey_id, job_id
     )
 
 
@@ -146,9 +145,9 @@ async def export_download(request: Request, survey_id: UUID, job_id: UUID) -> Re
     principal = await request.app.state.identity_service.authenticate(
         request.cookies.get(SESSION_COOKIE_NAME)
     )
-    artifact = await cast(SurveyExports, request.app.state.survey_exports).download(
-        principal.account.id, survey_id, job_id
-    )
+    artifact = await cast(
+        SurveyExportService, request.app.state.survey_exports
+    ).download_export(principal, survey_id, job_id)
     return Response(
         content=artifact.content,
         media_type=artifact.media_type,

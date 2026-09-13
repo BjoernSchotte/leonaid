@@ -256,10 +256,12 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 - [ ] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
   - [x] Lebenszyklus, Liste und Grundeinstellungen: gemeinsame Eingabe-/Ergebnismodelle, benannte typisierte Methoden und Nutzung durch HTTP; Direktaufruf-Validierung einschließlich nachträglich veränderter Eingaben geprüft. Analyse, Antwortauswahl, Teilnahme und vollständiger LIVE-Rechtenachweis bleiben offen.
   - [x] Analyse, Antwortauswahl, Einladungsverwaltung und Teilnahme auf benannte typisierte Methoden umstellen; generische `SurveyService.author`-/`participate`-Aufrufe entfernen. Vollständige LIVE-Matrix und Export-Fassade bleiben offen.
+  - [x] Export-Fassade mit Direktaufruf-Validierung und expliziten öffentlichen Python-Exports ergänzen; HTTP auf dieselben Methoden umstellen.
 - [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
   - [x] Implementierung: Handler-Konstruktion und vorhandenen Sweep in `modules/surveys/jobs.py` bündeln, über Bootstrap registrieren und doppelte Sweep-Namen beim Start ablehnen. LIVE-Regressionsabnahme bleibt für den übergeordneten Task offen.
 - [ ] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
 - [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
+  - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.
 
 Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnahme, Kopieren, Export, Fristschluss und berechtigte Zugriffe funktionieren weiterhin. Bestehende HTTP-Verträge, URLs und gespeicherte Jobs bleiben kompatibel. Web, PWA-Zugang und öffentliche Teilnahme jeweils separat nachweisen.
 

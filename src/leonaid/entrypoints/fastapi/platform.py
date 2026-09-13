@@ -48,13 +48,11 @@ from leonaid.adapters.postgres.legal_configuration import (
     AsyncpgLegalConfigurationRepository,
 )
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_checkpoint_publisher import (
-    AsyncpgErasureCheckpointPublisher,
+from leonaid.bootstrap.api import (
+    module_navigation,
+    register_api_modules,
+    build_survey_services,
 )
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.modules.surveys.api import SurveyService
-from leonaid.bootstrap.api import module_navigation, register_api_modules
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
@@ -190,21 +188,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             else None
         )
         pool = await create_pool(settings.core_database_url.get_secret_value())
-        checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
-            pool,
-            settings.survey_erasure_archive_dir,
-            settings.mail_payload_secret.get_secret_value(),
-        )
-        application.state.survey_service = SurveyService(
-            AsyncpgSurveyRepository(
-                pool,
-                invitation_mail=SecureMailPayload(
-                    settings.mail_payload_secret.get_secret_value()
-                ),
-                public_base_url=str(settings.public_base_url),
-                checkpoint_publisher=checkpoint_publisher,
-            )
-        )
         application.state.platform_service = build_service(
             settings, PostgresReadinessProbe(pool)
         )
@@ -312,7 +295,11 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             repository=document_repository,
             storage=object_storage,
         )
-        application.state.survey_exports = AsyncpgSurveyExports(pool, object_storage)
+        (
+            application.state.survey_service,
+            application.state.survey_exports,
+            checkpoint_publisher,
+        ) = build_survey_services(pool, settings, object_storage)
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )
