@@ -1,6 +1,7 @@
 """Transport-independent Survey inputs and results, shared by HTTP and direct calls."""
 
 from typing import Any, Literal, Self
+from uuid import UUID
 from datetime import datetime, timezone
 from pydantic import (
     BaseModel,
@@ -229,3 +230,27 @@ class SurveyListQuery(SurveyInput):
     status: Literal["draft", "active", "ended", "archived", "deleted"] | None = None
     search: str = Field(default="", max_length=240)
     offset: int = Field(default=0, ge=0)
+
+
+class SnapshotReference(SurveyInput):
+    snapshotId: UUID
+
+
+class ResponsePage(SnapshotReference):
+    offset: int = Field(default=0, ge=0, le=5000)
+
+
+class IndividualResponseQuery(SnapshotReference):
+    participationId: UUID
+
+
+class FreeTextQuery(ResponsePage):
+    questionId: str
+
+
+class InvitationPage(SurveyInput):
+    offset: int = Field(default=0, ge=0)
+
+
+class RevokeInvitation(Mutation):
+    invitationId: UUID

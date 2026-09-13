@@ -1,5 +1,33 @@
 """Survey use cases expose a persistence port, independent of HTTP."""
 
+from leonaid.application.surveys.analysis_snapshot import (
+    AnalysisVersions,
+    AnalysisSnapshot,
+    CreateAnalysisSnapshot,
+)
+from leonaid.application.surveys.response_selection import (
+    ResponseSelection,
+    ResponseItems,
+    IndividualResponse,
+    FreeTextItems,
+)
+from leonaid.application.surveys.exports import SurveyExportSelection
+from leonaid.modules.surveys.models import (
+    SnapshotReference,
+    ResponsePage,
+    IndividualResponseQuery,
+    FreeTextQuery,
+    InvitationPage,
+    RevokeInvitation,
+    SurveyInvitationsResponse,
+)
+from leonaid.modules.surveys.models import (
+    Start,
+    RedeemInvitation,
+    AnswerSave,
+    SurveyParticipationResponse,
+    SurveyResponseSnapshot,
+)
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -79,27 +107,6 @@ class SurveyService:
             actor, body.model_dump(exclude_unset=True)
         )
         return TimeoutSettingsResponse.model_validate(result)
-
-    async def author(
-        self,
-        actor: IdentityPrincipal,
-        survey_id: UUID,
-        operation: str,
-        body: dict[str, Any],
-    ) -> dict[str, Any]:
-        return await self.repository.author(actor, survey_id, operation, body)
-
-    async def participate(
-        self,
-        survey_id: UUID,
-        participation_id: UUID | None,
-        operation: str,
-        body: dict[str, Any],
-        secret: str,
-    ) -> dict[str, Any]:
-        return await self.repository.participate(
-            survey_id, participation_id, operation, body, secret
-        )
 
     async def create_survey(
         self, actor: IdentityPrincipal, survey_id: UUID, body: Create
@@ -223,6 +230,170 @@ class SurveyService:
     ) -> SurveyDeletionResponse:
         result = await self.repository.author(actor, survey_id, "deletion-status", {})
         return SurveyDeletionResponse.model_validate(result)
+
+    async def list_export_versions(
+        self, actor: IdentityPrincipal, survey_id: UUID
+    ) -> AnalysisVersions:
+        result = await self.repository.author(
+            actor, survey_id, "export-selection-versions", {}
+        )
+        return AnalysisVersions.model_validate(result)
+
+    async def create_export_selection(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: CreateAnalysisSnapshot
+    ) -> SurveyExportSelection:
+        body = CreateAnalysisSnapshot.model_validate(body.model_dump())
+        result = await self.repository.author(
+            actor, survey_id, "export-selection-create", body.model_dump(mode="json")
+        )
+        return SurveyExportSelection.model_validate(result)
+
+    async def list_analysis_versions(
+        self, actor: IdentityPrincipal, survey_id: UUID
+    ) -> AnalysisVersions:
+        result = await self.repository.author(actor, survey_id, "analysis-versions", {})
+        return AnalysisVersions.model_validate(result)
+
+    async def create_analysis(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: CreateAnalysisSnapshot
+    ) -> AnalysisSnapshot:
+        body = CreateAnalysisSnapshot.model_validate(body.model_dump())
+        result = await self.repository.author(
+            actor, survey_id, "analysis-create", body.model_dump(mode="json")
+        )
+        return AnalysisSnapshot.model_validate(result)
+
+    async def get_analysis(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: SnapshotReference
+    ) -> AnalysisSnapshot:
+        body = SnapshotReference.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "analysis-get", body.model_dump(mode="json")
+        )
+        return AnalysisSnapshot.model_validate(result)
+
+    async def list_response_versions(
+        self, actor: IdentityPrincipal, survey_id: UUID
+    ) -> AnalysisVersions:
+        result = await self.repository.author(actor, survey_id, "response-versions", {})
+        return AnalysisVersions.model_validate(result)
+
+    async def create_response_selection(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: CreateAnalysisSnapshot
+    ) -> ResponseSelection:
+        body = CreateAnalysisSnapshot.model_validate(body.model_dump())
+        result = await self.repository.author(
+            actor, survey_id, "response-create", body.model_dump(mode="json")
+        )
+        return ResponseSelection.model_validate(result)
+
+    async def get_response_selection(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: SnapshotReference
+    ) -> ResponseSelection:
+        body = SnapshotReference.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "response-selection", body.model_dump(mode="json")
+        )
+        return ResponseSelection.model_validate(result)
+
+    async def list_responses(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: ResponsePage
+    ) -> ResponseItems:
+        body = ResponsePage.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "response-list", body.model_dump(mode="json")
+        )
+        return ResponseItems.model_validate(result)
+
+    async def get_response(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: IndividualResponseQuery
+    ) -> IndividualResponse:
+        body = IndividualResponseQuery.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "response-individual", body.model_dump(mode="json")
+        )
+        return IndividualResponse.model_validate(result)
+
+    async def list_free_text(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: FreeTextQuery
+    ) -> FreeTextItems:
+        body = FreeTextQuery.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "response-free-text", body.model_dump(mode="json")
+        )
+        return FreeTextItems.model_validate(result)
+
+    async def list_invitations(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: InvitationPage
+    ) -> SurveyInvitationsResponse:
+        body = InvitationPage.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "invitation-list", body.model_dump(mode="json")
+        )
+        return SurveyInvitationsResponse.model_validate(result)
+
+    async def revoke_invitation(
+        self, actor: IdentityPrincipal, survey_id: UUID, body: RevokeInvitation
+    ) -> SurveyInvitationResponse:
+        body = RevokeInvitation.model_validate(body)
+        result = await self.repository.author(
+            actor, survey_id, "invitation-revoke", body.model_dump(mode="json")
+        )
+        return SurveyInvitationResponse.model_validate(result)
+
+    async def get_public_definition(self, survey_id: UUID) -> SurveyVersionResponse:
+        result = await self.repository.participate(
+            survey_id, None, "definition", {}, ""
+        )
+        return SurveyVersionResponse.model_validate(result)
+
+    async def start_participation(
+        self, survey_id: UUID, body: Start
+    ) -> SurveyParticipationResponse:
+        body = Start.model_validate(body)
+        result = await self.repository.participate(
+            survey_id,
+            None,
+            "start",
+            body.model_dump(exclude={"resumeSecret"}),
+            body.resumeSecret,
+        )
+        return SurveyParticipationResponse.model_validate(result)
+
+    async def redeem_invitation(
+        self, survey_id: UUID, body: RedeemInvitation
+    ) -> SurveyParticipationResponse:
+        body = RedeemInvitation.model_validate(body)
+        result = await self.repository.participate(
+            survey_id, None, "redeem", {}, body.token
+        )
+        return SurveyParticipationResponse.model_validate(result)
+
+    async def restore_participation(
+        self, survey_id: UUID, participation_id: UUID, secret: str
+    ) -> SurveyParticipationResponse:
+        result = await self.repository.participate(
+            survey_id, participation_id, "restore", {}, secret
+        )
+        return SurveyParticipationResponse.model_validate(result)
+
+    async def save_response(
+        self, survey_id: UUID, participation_id: UUID, body: AnswerSave, secret: str
+    ) -> SurveyResponseSnapshot:
+        body = AnswerSave.model_validate(body)
+        result = await self.repository.participate(
+            survey_id, participation_id, "save", body.model_dump(), secret
+        )
+        return SurveyResponseSnapshot.model_validate(result)
+
+    async def complete_response(
+        self, survey_id: UUID, participation_id: UUID, body: Mutation, secret: str
+    ) -> SurveyResponseSnapshot:
+        body = Mutation.model_validate(body)
+        result = await self.repository.participate(
+            survey_id, participation_id, "complete", body.model_dump(), secret
+        )
+        return SurveyResponseSnapshot.model_validate(result)
 
 
 def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:

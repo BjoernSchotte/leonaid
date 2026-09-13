@@ -15,6 +15,10 @@ from leonaid.modules.surveys.api import (
     SurveySchedule,
     SurveyService,
     TimeoutSettings,
+    CreateAnalysisSnapshot,
+    ResponsePage,
+    Start,
+    AnswerSave,
 )
 
 
@@ -44,6 +48,28 @@ async def test_direct_mutations_revalidate_changed_input_models() -> None:
     schedule.endsAt = "2026-09-13T12:00:00"
     with pytest.raises(ValidationError, match="explicit time zone"):
         await service.schedule_end(actor, survey_id, schedule)
+
+    analysis = CreateAnalysisSnapshot.model_validate(
+        {"operationId": "analysis", "filter": {"versionId": str(uuid4())}}
+    )
+    analysis.filter.statuses.append("completed")
+    with pytest.raises(ValidationError, match="Duplicate response status"):
+        await service.create_analysis(actor, survey_id, analysis)
+
+    page = ResponsePage(snapshotId=uuid4())
+    page.offset = 5001
+    with pytest.raises(ValidationError, match="offset"):
+        await service.list_responses(actor, survey_id, page)
+
+    start = Start(operationId="start", resumeSecret="a" * 32)
+    start.resumeSecret = "short"
+    with pytest.raises(ValidationError, match="resumeSecret"):
+        await service.start_participation(survey_id, start)
+
+    answers = AnswerSave(operationId="answers", expectedRevision=1, answers={})
+    answers.answers["oversized"] = "x" * 262145
+    with pytest.raises(ValidationError, match="Answers too large"):
+        await service.save_response(survey_id, uuid4(), answers, "a" * 32)
 
     # The existing repository authorization applies to direct calls as well.
     with pytest.raises(PermissionDenied):

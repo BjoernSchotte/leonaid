@@ -1,12 +1,21 @@
 """Survey transport; respondent credentials remain in HttpOnly cookies."""
 
-from typing import Any, Literal, cast
+from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, Query
 
 
 from leonaid.modules.surveys.api import SurveyService
+from leonaid.modules.surveys.models import (
+    SnapshotReference,
+    ResponsePage,
+    IndividualResponseQuery,
+    FreeTextQuery,
+    InvitationPage,
+    RevokeInvitation,
+    SurveyInvitationsResponse,
+)
 from leonaid.modules.surveys.models import (
     Mutation,
     DraftValidation,
@@ -16,7 +25,6 @@ from leonaid.modules.surveys.models import (
     SurveyAccess,
     SurveyInvitationCreate,
     SurveyInvitationResponse,
-    SurveyInvitationsResponse,
     RedeemInvitation,
     SurveySchedule,
     TimeoutSettingsResponse,
@@ -67,15 +75,6 @@ router = APIRouter(
 
 def service(request: Request) -> SurveyService:
     return cast(SurveyService, request.app.state.survey_service)
-
-
-async def author(
-    request: Request, survey_id: UUID, operation: str, body: dict[str, Any]
-) -> dict[str, Any]:
-    principal = await request.app.state.identity_service.authenticate(
-        request.cookies.get(SESSION_COOKIE_NAME)
-    )
-    return await service(request).author(principal, survey_id, operation, body)
 
 
 async def principal(request: Request) -> IdentityPrincipal:
@@ -168,9 +167,11 @@ async def export_download(request: Request, survey_id: UUID, job_id: UUID) -> Re
 )
 async def export_selection_versions(
     survey_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> AnalysisVersions:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "export-selection-versions", {})
+    return await service(request).list_export_versions(
+        await principal(request), survey_id
+    )
 
 
 @router.post(
@@ -180,10 +181,10 @@ async def export_selection_versions(
 )
 async def export_selection_create(
     survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
-) -> dict[str, Any]:
+) -> SurveyExportSelection:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request, survey_id, "export-selection-create", body.model_dump()
+    return await service(request).create_export_selection(
+        await principal(request), survey_id, body
     )
 
 
@@ -194,9 +195,11 @@ async def export_selection_create(
 )
 async def analysis_versions(
     survey_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> AnalysisVersions:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "analysis-versions", {})
+    return await service(request).list_analysis_versions(
+        await principal(request), survey_id
+    )
 
 
 @router.post(
@@ -206,9 +209,11 @@ async def analysis_versions(
 )
 async def analysis_create(
     survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
-) -> dict[str, Any]:
+) -> AnalysisSnapshot:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "analysis-create", body.model_dump())
+    return await service(request).create_analysis(
+        await principal(request), survey_id, body
+    )
 
 
 @router.get(
@@ -218,10 +223,10 @@ async def analysis_create(
 )
 async def analysis_get(
     survey_id: UUID, snapshot_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> AnalysisSnapshot:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request, survey_id, "analysis-get", {"snapshotId": str(snapshot_id)}
+    return await service(request).get_analysis(
+        await principal(request), survey_id, SnapshotReference(snapshotId=snapshot_id)
     )
 
 
@@ -232,9 +237,11 @@ async def analysis_get(
 )
 async def response_versions(
     survey_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> AnalysisVersions:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "response-versions", {})
+    return await service(request).list_response_versions(
+        await principal(request), survey_id
+    )
 
 
 @router.post(
@@ -244,9 +251,11 @@ async def response_versions(
 )
 async def response_selection_create(
     survey_id: UUID, body: CreateAnalysisSnapshot, request: Request, response: Response
-) -> dict[str, Any]:
+) -> ResponseSelection:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "response-create", body.model_dump())
+    return await service(request).create_response_selection(
+        await principal(request), survey_id, body
+    )
 
 
 @router.get(
@@ -256,10 +265,10 @@ async def response_selection_create(
 )
 async def response_selection_get(
     survey_id: UUID, snapshot_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> ResponseSelection:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request, survey_id, "response-selection", {"snapshotId": str(snapshot_id)}
+    return await service(request).get_response_selection(
+        await principal(request), survey_id, SnapshotReference(snapshotId=snapshot_id)
     )
 
 
@@ -274,13 +283,12 @@ async def response_list(
     request: Request,
     response: Response,
     offset: int = Query(default=0, ge=0, le=5000),
-) -> dict[str, Any]:
+) -> ResponseItems:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request,
+    return await service(request).list_responses(
+        await principal(request),
         survey_id,
-        "response-list",
-        {"snapshotId": str(snapshot_id), "offset": offset},
+        ResponsePage(snapshotId=snapshot_id, offset=offset),
     )
 
 
@@ -295,13 +303,14 @@ async def response_individual(
     participation_id: UUID,
     request: Request,
     response: Response,
-) -> dict[str, Any]:
+) -> IndividualResponse:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request,
+    return await service(request).get_response(
+        await principal(request),
         survey_id,
-        "response-individual",
-        {"snapshotId": str(snapshot_id), "participationId": str(participation_id)},
+        IndividualResponseQuery(
+            snapshotId=snapshot_id, participationId=participation_id
+        ),
     )
 
 
@@ -317,13 +326,12 @@ async def response_free_text(
     request: Request,
     response: Response,
     offset: int = Query(default=0, ge=0, le=5000),
-) -> dict[str, Any]:
+) -> FreeTextItems:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request,
+    return await service(request).list_free_text(
+        await principal(request),
         survey_id,
-        "response-free-text",
-        {"snapshotId": str(snapshot_id), "questionId": question_id, "offset": offset},
+        FreeTextQuery(snapshotId=snapshot_id, questionId=question_id, offset=offset),
     )
 
 
@@ -561,9 +569,11 @@ async def list_invitations(
     request: Request,
     response: Response,
     offset: int = Query(default=0, ge=0),
-) -> dict[str, Any]:
+) -> SurveyInvitationsResponse:
     response.headers["Cache-Control"] = "no-store"
-    return await author(request, survey_id, "invitation-list", {"offset": offset})
+    return await service(request).list_invitations(
+        await principal(request), survey_id, InvitationPage(offset=offset)
+    )
 
 
 @router.post(
@@ -591,13 +601,12 @@ async def revoke_invitation(
     body: Mutation,
     request: Request,
     response: Response,
-) -> dict[str, Any]:
+) -> SurveyInvitationResponse:
     response.headers["Cache-Control"] = "no-store"
-    return await author(
-        request,
+    return await service(request).revoke_invitation(
+        await principal(request),
         survey_id,
-        "invitation-revoke",
-        {**body.model_dump(), "invitationId": str(invitation_id)},
+        RevokeInvitation(**body.model_dump(), invitationId=invitation_id),
     )
 
 
@@ -608,12 +617,10 @@ async def revoke_invitation(
 )
 async def redeem_invitation(
     survey_id: UUID, body: RedeemInvitation, request: Request, response: Response
-) -> dict[str, Any]:
-    result = await service(request).participate(
-        survey_id, None, "redeem", {}, body.token
-    )
+) -> SurveyParticipationResponse:
+    result = await service(request).redeem_invitation(survey_id, body)
     response.set_cookie(
-        cookie_name(result["id"]),
+        cookie_name(result.id),
         body.token,
         secure=True,
         httponly=True,
@@ -632,9 +639,9 @@ async def redeem_invitation(
 )
 async def definition(
     survey_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> SurveyVersionResponse:
     response.headers["Cache-Control"] = "no-store"
-    return await service(request).participate(survey_id, None, "definition", {}, "")
+    return await service(request).get_public_definition(survey_id)
 
 
 @router.post(
@@ -644,16 +651,10 @@ async def definition(
 )
 async def start(
     survey_id: UUID, body: Start, request: Request, response: Response
-) -> dict[str, Any]:
-    result = await service(request).participate(
-        survey_id,
-        None,
-        "start",
-        body.model_dump(exclude={"resumeSecret"}),
-        body.resumeSecret,
-    )
+) -> SurveyParticipationResponse:
+    result = await service(request).start_participation(survey_id, body)
     response.set_cookie(
-        cookie_name(result["id"]),
+        cookie_name(result.id),
         body.resumeSecret,
         secure=True,
         httponly=True,
@@ -672,13 +673,11 @@ async def start(
 )
 async def restore(
     survey_id: UUID, participation_id: UUID, request: Request, response: Response
-) -> dict[str, Any]:
+) -> SurveyParticipationResponse:
     response.headers["Cache-Control"] = "no-store"
-    return await service(request).participate(
+    return await service(request).restore_participation(
         survey_id,
         participation_id,
-        "restore",
-        {},
         request.cookies.get(cookie_name(participation_id), ""),
     )
 
@@ -694,13 +693,12 @@ async def save(
     body: AnswerSave,
     request: Request,
     response: Response,
-) -> dict[str, Any]:
+) -> SurveyResponseSnapshot:
     response.headers["Cache-Control"] = "no-store"
-    return await service(request).participate(
+    return await service(request).save_response(
         survey_id,
         participation_id,
-        "save",
-        body.model_dump(),
+        body,
         request.cookies.get(cookie_name(participation_id), ""),
     )
 
@@ -716,12 +714,11 @@ async def complete(
     body: Mutation,
     request: Request,
     response: Response,
-) -> dict[str, Any]:
+) -> SurveyResponseSnapshot:
     response.headers["Cache-Control"] = "no-store"
-    return await service(request).participate(
+    return await service(request).complete_response(
         survey_id,
         participation_id,
-        "complete",
-        body.model_dump(),
+        body,
         request.cookies.get(cookie_name(participation_id), ""),
     )
