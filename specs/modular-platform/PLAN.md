@@ -258,6 +258,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Export-Render-Abnahme bestätigen: aktuelle Renderer-Fixtures erneut erzeugt, 20 PDF-Seiten vollständig visuell geprüft; vier XLSX-Dateien und zugehörige bereits geprüfte Consumer-PDFs bytegenau bestätigt. Hash-Ledger unter proofs/export-render-review.json.
+
 - [x] Vollständige automatische Survey-Exportgruppe bestehen: exports, export-permissions, export-states, export-recovery und export-limits. Sichtprüfung der erzeugten Exportartefakte und Remote-Gesamt-CI bleiben separate Gates.
 
 - [x] Vollständigen Operations-Gate nach Ergänzung des Sweep-Zeitpunkts bestehen: reale Abhängigkeitsausfälle, Mail-Dead-Letter/Retry im Browser, Metriken und Loghygiene; eigener Stack vollständig bereinigt.
