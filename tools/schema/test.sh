@@ -89,6 +89,10 @@ compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/tasks/http_contract.py
+compose run --rm --no-deps \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/tasks/action_contract.py
 
 echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
 compose --profile '*' down --volumes --remove-orphans
