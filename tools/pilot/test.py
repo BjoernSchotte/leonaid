@@ -181,6 +181,12 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     check_workflows(root)
 
     ci.write_text(
+        workflow_with_upload(".artifacts/golden-journey-browser/**/test-failed-*.png"),
+        encoding="utf-8",
+    )
+    check_workflows(root)
+
+    ci.write_text(
         workflow_with_upload("${{ runner.temp }}/leonaid-synthetic-fixture").replace(
             "actions/upload-artifact@", "actions/cache/save@"
         ),
@@ -206,6 +212,10 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
     other.unlink()
 
     for forbidden in (
+        ".artifacts/golden-journey-browser/**",
+        ".artifacts/golden-journey-browser/**/*.png",
+        ".artifacts/golden-journey-browser/**/trace.zip",
+        ".artifacts/golden-journey-browser/**/error-context.md",
         ".artifacts/cache-measurement/*",
         ".artifacts/cache-measurement/**/*.json",
         ".artifacts/cache-measurement/*.log",

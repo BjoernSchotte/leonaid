@@ -17,6 +17,8 @@ ALLOWED_PUBLIC_UPLOADS = (
     ".artifacts/sbom/*.cdx.json",
     # Only bounded survey reports copied out of the private root-owned gate directory.
     "${{ runner.temp }}/surveys-ci-results/*.json",
+    # User-requested synthetic Golden screenshots only; never traces or sessions.
+    ".artifacts/golden-journey-browser/**/test-failed-*.png",
 )
 ALLOWED_PUBLIC_UPLOAD_PREFIXES = (".artifacts/ci/",)
 UPLOAD_ACTION = "actions/upload-artifact@"
