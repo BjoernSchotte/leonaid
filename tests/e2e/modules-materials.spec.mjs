@@ -44,6 +44,22 @@ for (const [surface, route, width] of [
       page.getByRole("heading", { name: title, exact: true }),
     ).toBeVisible();
     const detailURL = page.url();
+    const caseURL = `${baseURL}${route.replace("/materials", "/inbox")}/${fixture.cases[surface]}`;
+    await page.goto(caseURL);
+    await page
+      .getByRole("button", { name: "Material verknüpfen", exact: true })
+      .click();
+    await page
+      .getByLabel("Materialien zum Verknüpfen suchen", { exact: true })
+      .fill(title);
+    await page.getByRole("button", { name: title, exact: true }).click();
+    await page
+      .getByRole("button", { name: "Dateiversion einfügen", exact: true })
+      .click();
+    await expect(
+      page.getByText("original.txt · Dateiversion 1", { exact: true }),
+    ).toBeVisible();
+    await page.goto(detailURL);
     await page.getByLabel("Datei", { exact: true }).setInputFiles({
       name: "updated.txt",
       mimeType: "text/plain",
@@ -71,6 +87,27 @@ for (const [surface, route, width] of [
       path: testInfo.outputPath(`${surface}-retained-version.png`),
       fullPage: false,
     });
+    await page.goto(caseURL);
+    await expect(
+      page.getByText("original.txt · Dateiversion 1", { exact: true }),
+    ).toBeVisible();
+    const caseDownload = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Dateiversion herunterladen", exact: true })
+      .click();
+    expect(readFileSync(await (await caseDownload).path())).toEqual(original);
+    await page.screenshot({
+      path: testInfo.outputPath(`${surface}-inbox-download.png`),
+      fullPage: false,
+    });
+    await page
+      .getByRole("button", { name: "Verweis entfernen", exact: true })
+      .click();
+    await expect(
+      page.getByText("Noch keine Materialien verknüpft.", { exact: true }),
+    ).toBeVisible();
+    await page.goto(detailURL);
+    await expect(page.getByText(/Aktuelle Dateiversion 2/)).toBeVisible();
     await context.close();
 
     const foreign = await browser.newContext({

@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import asyncpg
 
+from leonaid.bootstrap.api import build_inbox_service
+from leonaid.modules.inbox.api import SubmitCase
 from leonaid.configuration import Settings
 from leonaid.adapters.storage.s3 import S3ObjectStorage
 
@@ -27,6 +29,7 @@ async def main() -> None:
     ).ensure_private_versioned_bucket()
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     tokens = []
+    users = []
     now = datetime.now(timezone.utc)
     try:
         async with conn.transaction():
@@ -46,8 +49,34 @@ async def main() -> None:
                     now,
                 )
                 tokens.append(token)
+                users.append(user_id)
+        cases = {}
+        pool = await asyncpg.create_pool(
+            os.environ["CORE_DATABASE_URL"], min_size=1, max_size=2
+        )
+        assert pool is not None
+        try:
+            for surface in ("web", "pwa"):
+                receipt = await build_inbox_service(pool).submit(
+                    SubmitCase(
+                        idempotency_key=uuid4(),
+                        given_name="Material",
+                        family_name="Browsernachweis",
+                        email="browser@example.org",
+                        subject=f"Dateiverweis {surface}",
+                        message="Synthetischer Fall für versionierte Dateien.",
+                    )
+                )
+                case_id = await conn.fetchval(
+                    "UPDATE inbox_case SET assignee_user_id=$1 WHERE public_reference=$2 RETURNING id",
+                    users[0],
+                    receipt.reference,
+                )
+                cases[surface] = str(case_id)
+        finally:
+            await pool.close()
         output = Path("/proof/material-browser-fixture.json")
-        output.write_text(json.dumps({"sessions": tokens}))
+        output.write_text(json.dumps({"sessions": tokens, "cases": cases}))
         output.chmod(0o600)
     finally:
         await conn.close()

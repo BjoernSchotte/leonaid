@@ -5,8 +5,8 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 shard=${1:-}
 
 case "$shard" in
-  materials)
-    python3 "$root/tools/testing/shared_stack.py" core tools/materials/browser.sh
+  modules)
+    python3 "$root/tools/testing/shared_stack.py" core tools/testing/modular_browser.sh
     ;;
   membership)
     python3 "$root/tools/testing/shared_stack.py" golden tools/invitations/test.sh tools/sessions/test.sh
