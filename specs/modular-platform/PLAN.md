@@ -261,7 +261,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 - [x] Aggregat-Runner unabhängig von einer macOS-Host-`.venv` ausführen: gepinnte Linux-Abhängigkeiten temporär außerhalb des schreibgeschützten Checkouts installieren. Echter Aggregat-, Ausfall-/Neustart- und Ressourcenbereinigungsnachweis bestanden.
 
 - [x] Surveys über Modulbeiträge registrieren: Backend-Router, Web-Einstieg und bestehender Zugang aus der PWA. Fehlenden PWA-Link ergänzt; bestehender gemeinsamer Web-Editor bleibt das Ziel. Registrierungs-/Identitätstests, Produktionsbuilds und tatsächlicher Browserwechsel PWA → Survey-Webübersicht bestanden.
-- [ ] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
+- [x] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
   - [x] Lebenszyklus, Liste und Grundeinstellungen: gemeinsame Eingabe-/Ergebnismodelle, benannte typisierte Methoden und Nutzung durch HTTP; Direktaufruf-Validierung einschließlich nachträglich veränderter Eingaben geprüft. Analyse, Antwortauswahl, Teilnahme und vollständiger LIVE-Rechtenachweis bleiben offen.
   - [x] Analyse, Antwortauswahl, Einladungsverwaltung und Teilnahme auf benannte typisierte Methoden umstellen; generische `SurveyService.author`-/`participate`-Aufrufe entfernen. Vollständige LIVE-Matrix und Export-Fassade bleiben offen.
   - [x] Export-Fassade mit Direktaufruf-Validierung und expliziten öffentlichen Python-Exports ergänzen; HTTP auf dieselben Methoden umstellen.
