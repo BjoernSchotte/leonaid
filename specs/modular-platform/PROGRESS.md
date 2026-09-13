@@ -896,3 +896,11 @@ Aufgabenlinks mit `?task=<id>` laden genau die autorisierte Aufgabe auch außerh
 LIVE über Produktionsimages und HTTPS: je eine private Aufgabe, Wissensseite und tatsächlich hochgeladene Datei für zwei vorhandene synthetische Konten angelegt. Anna sucht denselben Titelpräfix in Web und PWA: jeweils genau die drei eigenen Treffer, keine fremden privaten Titel. Zurückgestellten Task aus Suchtreffer geöffnet, Materialziel im Web und Wissensziel in mobiler PWA geöffnet. Direkter fremder Tasklink bleibt gesperrt. Bei 390 px beträgt die Seitenbreite 390 px und der Suchbutton 44 px. Screenshots visuell geprüft: `/tmp/leonaid-module-search-web.png`, `/tmp/leonaid-module-search-mobile.png`. Fixture-IDs unter `/tmp/leonaid-module-search-fixture.json`; keine Zugangsdaten im Commit.
 
 Prüfungen: Features-/Web-/PWA-Typen, zwölf Modulregistrierungstests, Frontend-API-Grenze, Prettier, Diffprüfung sowie beide Docker-Produktionsbuilds bestanden. Bestehende Anna-Anmeldung und Akquise-Navigation erhalten. Der separate Aggregat-Runner-Fix ist kein Teil dieses Commits.
+
+## M1 — Aggregat-Gate ohne Host-Venv-Abhängigkeit
+
+Der Survey-Gesamtlauf `d87d297714f74746998b0c3dae32a8c1` bestand contracts, lifecycle, lifecycle-concurrency, invitations und permissions (einschließlich 66 Browserprüfungen), scheiterte anschließend bei aggregates: uv versuchte die schreibgeschützte macOS-`.venv` im Linux-Container zu ersetzen. Dieser Lauf bleibt als fehlgeschlagen dokumentiert; die danach geplanten Prüfungen wurden nicht ausgeführt.
+
+`tools/surveys/aggregate-engine.sh` installiert nun den vorhandenen eingefrorenen Produktions-Lock vor der Netzwerkisolation in `/proof/venv` und verwendet diese temporäre Linux-Umgebung für alle drei Prüfphasen. Checkout und Host-Venv bleiben schreibgeschützt, das Testnetz intern und ohne Hostports. Keine neue Produktabhängigkeit oder dauerhafte Infrastruktur.
+
+`rtk proxy sh tools/surveys/aggregate-engine.sh` bestand mit Exit 0 (Session 87225, Projekt `surveys-engine-2137972478-34400`): echte HTTP-Aggregate gegen unabhängige Golden-Werte, expliziter Fehler bei gestopptem Dienst, identische korrekte Ergebnisse nach Wiederanlauf und vollständig geprüfte Bereinigung. Verifizieren/Ausfall/Neustart dauerten rund 35/32/34 Sekunden. Die übrigen Survey-/Exportprüfungen und vollständige Remote-CI-Abnahme bleiben offen.

@@ -256,6 +256,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Aggregat-Runner unabhängig von einer macOS-Host-`.venv` ausführen: gepinnte Linux-Abhängigkeiten temporär außerhalb des schreibgeschützten Checkouts installieren. Echter Aggregat-, Ausfall-/Neustart- und Ressourcenbereinigungsnachweis bestanden.
+
 - [x] Surveys über Modulbeiträge registrieren: Backend-Router, Web-Einstieg und bestehender Zugang aus der PWA. Fehlenden PWA-Link ergänzt; bestehender gemeinsamer Web-Editor bleibt das Ziel. Registrierungs-/Identitätstests, Produktionsbuilds und tatsächlicher Browserwechsel PWA → Survey-Webübersicht bestanden.
 - [ ] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
   - [x] Lebenszyklus, Liste und Grundeinstellungen: gemeinsame Eingabe-/Ergebnismodelle, benannte typisierte Methoden und Nutzung durch HTTP; Direktaufruf-Validierung einschließlich nachträglich veränderter Eingaben geprüft. Analyse, Antwortauswahl, Teilnahme und vollständiger LIVE-Rechtenachweis bleiben offen.
