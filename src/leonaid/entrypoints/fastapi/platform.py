@@ -52,6 +52,7 @@ from leonaid.bootstrap.api import (
     module_navigation,
     register_api_modules,
     build_survey_services,
+    build_task_service,
 )
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
@@ -300,6 +301,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.survey_exports,
             checkpoint_publisher,
         ) = build_survey_services(pool, settings, object_storage)
+        application.state.task_service = build_task_service(pool)
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )

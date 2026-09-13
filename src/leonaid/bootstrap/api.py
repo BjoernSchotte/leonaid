@@ -23,7 +23,12 @@ from leonaid.modules.surveys.api import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.platform.navigation import NavigationItem
 
+from leonaid.modules.tasks.api import TaskService
+from leonaid.modules.tasks.repository import AsyncpgTaskRepository
+from leonaid.modules.tasks.routes import router as tasks_router
+
 MODULES = (
+    ModuleRegistration("tasks", router=tasks_router),
     ModuleRegistration("surveys", router=surveys_router, navigation=survey_navigation),
 )
 
@@ -61,3 +66,7 @@ def build_survey_services(
     )
     exports = SurveyExportService(AsyncpgSurveyExports(pool, storage))
     return surveys, exports, publisher
+
+
+def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
+    return TaskService(AsyncpgTaskRepository(pool))

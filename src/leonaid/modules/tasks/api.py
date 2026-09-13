@@ -7,23 +7,51 @@ from uuid import UUID
 from pydantic import (
     field_validator,
     AwareDatetime,
-    BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
 )
 
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.platform.http import TransportModel
 
 Title = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
 ]
 
 
-class TaskModel(BaseModel):
+class TaskModel(TransportModel):
     model_config = ConfigDict(
         extra="forbid", strict=True, revalidate_instances="always"
     )
+
+    @field_validator(
+        "id",
+        "idempotency_key",
+        "action_id",
+        "list_id",
+        "epic_id",
+        "owner_user_id",
+        "assignee_user_id",
+        "created_by",
+        mode="before",
+        check_fields=False,
+    )
+    @classmethod
+    def parse_identifier(cls, value: object) -> object:
+        return UUID(value) if isinstance(value, str) else value
+
+    @field_validator(
+        "due_at",
+        "deferred_until",
+        "created_at",
+        "updated_at",
+        mode="before",
+        check_fields=False,
+    )
+    @classmethod
+    def parse_timestamp(cls, value: object) -> object:
+        return datetime.fromisoformat(value) if isinstance(value, str) else value
 
 
 class CreateList(TaskModel):

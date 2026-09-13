@@ -10,6 +10,7 @@ import asyncpg
 
 from leonaid.adapters.postgres.action_progress import AsyncpgCommandReceiptRepository
 from leonaid.application.errors import (
+    ApplicationError,
     AuthenticationRequired,
     Conflict,
     PermissionDenied,
@@ -173,9 +174,14 @@ class AsyncpgTaskRepository:
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
-        replay = await AsyncpgCommandReceiptRepository(conn).reserve(
-            idempotency_key=key, command_type=operation, request_hash=digest
-        )
+        try:
+            replay = await AsyncpgCommandReceiptRepository(conn).reserve(
+                idempotency_key=key, command_type=operation, request_hash=digest
+            )
+        except ApplicationError as error:
+            if error.code == "idempotency_conflict":
+                raise Conflict(error.code, error.message) from error
+            raise
         return key, replay
 
     async def _finish(
