@@ -252,6 +252,8 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 
 Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen einschließlich Rückabhängigkeiten der Plattform. Backend-/Frontend-Beiträge sind derselben Modul-ID zugeordnet; bestehende Navigation, Startbefehle und API bleiben unverändert. Keine neuen Infrastrukturcontainer, separaten Python-Pakete oder Laufzeitabhängigkeiten.
 
+- [x] CI-Formatierungsfehler im Navigationstest nach Materialregistrierung korrigieren. Vollständige Ruff- und Mypy-Zielmengen aus dem CI-Skript, Prettier und OpenAPI-Aktualität lokal geprüft; Remote-Gesamtabnahme bleibt offen.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [ ] Surveys über Modulbeiträge registrieren: Backend-Router, Web-Einstieg und bestehender Zugang aus der PWA.

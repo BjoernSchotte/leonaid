@@ -272,7 +272,9 @@ def test_principal_keeps_global_and_action_roles_separate() -> None:
     assert principal.is_system_admin is False
 
 
-def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access() -> None:
+def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access() -> (
+    None
+):
     acquirer = IdentityPrincipal(
         account=account(AccountStatus.ACTIVE),
         global_roles=frozenset(),
@@ -292,7 +294,12 @@ def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access(
 
     navigation = navigation_for(acquirer, module_navigation(acquirer))
 
-    assert {item.key for item in navigation if item.surface == "web"} == {"surveys", "tasks", "knowledge", "materials"}
+    assert {item.key for item in navigation if item.surface == "web"} == {
+        "surveys",
+        "tasks",
+        "knowledge",
+        "materials",
+    }
     assert {(item.surface, item.key) for item in navigation} >= {
         ("pwa", "overview-pwa"),
         ("pwa", "tasks"),
