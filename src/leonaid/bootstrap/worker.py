@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Any
 
@@ -11,7 +12,6 @@ import asyncpg
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.adapters.mail.smtp import SmtpMailHandler
-from leonaid.adapters.mail.survey_smtp import SurveyInvitationSmtpHandler
 from leonaid.adapters.mail.transport import SmtpTransport
 from leonaid.adapters.postgres.activity_projection import (
     ActionProgressActivityHandler,
@@ -21,16 +21,21 @@ from leonaid.adapters.postgres.invoice_deliveries import (
     AsyncpgInvoiceDeliveryRepository,
 )
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.adapters.operations import structured_event
 from leonaid.application.outbox import OutboxWorker
-from leonaid.bootstrap.registry import ModuleRegistration, collect_handlers
+from leonaid.bootstrap.registry import (
+    ModuleRegistration,
+    collect_handlers,
+    collect_background_tasks,
+)
+from leonaid.modules.surveys.jobs import (
+    handlers as survey_handlers,
+    survey_timeout_loop,
+)
 from leonaid.configuration import load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 
@@ -101,21 +106,12 @@ async def build_worker(
         (
             ModuleRegistration(
                 "surveys",
-                handlers={
-                    "survey.delete.v1": AsyncpgSurveyDeletion(
-                        pool, object_storage, configured_publisher(pool)
-                    ),
-                    "survey.export.render.v1": AsyncpgSurveyExports(
-                        pool, object_storage
-                    ),
-                    "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
-                        pool,
-                        transport=mail_transport,
-                        secure_payload=SecureMailPayload(
-                            os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
-                        ),
-                    ),
-                },
+                handlers=survey_handlers(
+                    pool,
+                    object_storage,
+                    mail_transport,
+                    os.environ["LEONAID_SESSION_ENCRYPTION_KEY"],
+                ),
             ),
             ModuleRegistration(
                 "actions",
@@ -166,3 +162,14 @@ async def build_worker(
         observer=observe_job,
     )
     return pool, queue, worker
+
+
+def background_tasks() -> dict[str, Callable[[], Awaitable[None]]]:
+    return collect_background_tasks(
+        (
+            ModuleRegistration(
+                "surveys",
+                background_tasks={"surveys.deadlines": survey_timeout_loop},
+            ),
+        )
+    )

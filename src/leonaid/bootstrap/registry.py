@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from fastapi import APIRouter, FastAPI
@@ -21,6 +21,9 @@ class ModuleRegistration:
     handlers: Mapping[str, OutboxEventHandler] = field(default_factory=dict)
     requires: tuple[str, ...] = ()
     navigation: Callable[[IdentityPrincipal], tuple[NavigationItem, ...]] | None = None
+    background_tasks: Mapping[str, Callable[[], Awaitable[None]]] = field(
+        default_factory=dict
+    )
 
 
 def validate_modules(modules: Sequence[ModuleRegistration]) -> None:
@@ -83,3 +86,16 @@ def collect_handlers(
                 raise ValueError(f"Duplicate module handler: {event_type}")
             handlers[event_type] = handler
     return handlers
+
+
+def collect_background_tasks(
+    modules: Sequence[ModuleRegistration],
+) -> dict[str, Callable[[], Awaitable[None]]]:
+    validate_modules(modules)
+    tasks: dict[str, Callable[[], Awaitable[None]]] = {}
+    for module in modules:
+        for name, task in module.background_tasks.items():
+            if not name.strip() or name in tasks:
+                raise ValueError(f"Empty or duplicate background task: {name}")
+            tasks[name] = task
+    return tasks

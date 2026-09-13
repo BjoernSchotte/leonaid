@@ -116,3 +116,13 @@ Prüfung:
 Ein isolierter Survey-Journey-Lauf wurde gestartet. Während seiner Buildphase wurden noch Frontend-Korrekturen vorgenommen; sein Ergebnis allein darf deshalb nicht als vollständiger Nachweis des finalen Slices gewertet werden. Nach Fixierung des Stands ist der aktuelle Browser-/CI-Nachweis erneut zu prüfen.
 
 Zusätzlicher offener CI-Befund: Security-Job `103701928640` meldet im API-Image drei kritische Perl-Funde (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376), installiert `5.40.1-6`, korrigiert ab `5.40.1-6+deb13u1`. Vor Gesamtabnahme Image korrigieren und Security-Gate erneut bestehen; keine Ausnahme/Unterdrückung geplant.
+
+## M1.1 — Survey-Worker-Beiträge
+
+Status: Implementierungsslice abgeschlossen am 13.09.2026; LIVE-Regressionsabnahme offen.
+
+`modules/surveys/jobs.py` konstruiert die drei bisherigen Handler für Export, Einladungsversand und Löschung. Bootstrap bindet diese über dieselbe Handler-Registrierung ein. Der bestehende Fristen-/Retention-Sweep wurde unverändert aus dem Prozess-Entrypoint in das Survey-Modul verschoben; Bootstrap registriert ihn als `surveys.deadlines`. Der Prozess startet die registrierten Hintergrundaufgaben. Leere und doppelte Namen werden vor Ausführung abgewiesen. Keine neue Queue, kein neuer Scheduler-Dienst und keine veränderten Payloads oder Wiederholungsintervalle.
+
+Prüfung: 395 Python-Unit-Tests bestanden (neun bestehende Pydantic-Warnungen), Mypy für sechs betroffene Quelldateien, Ruff inklusive Formatprüfung, No-test-doubles-Prüfung und unveränderter OpenAPI-/Client-Vertrag erfolgreich. Neue Registry-Tests verwenden den tatsächlichen Survey-Sweep als Beitrag; sie führen keine Datenbankarbeit aus und ersetzen keinen LIVE-Nachweis.
+
+Der zuvor gestartete Survey-Journey-Prozess ist weiterhin aktiv. Sein Stand ist nicht der aktuelle Commit; M1-Abnahme und Job-/Recovery-Laufzeitnachweise bleiben ausdrücklich offen.

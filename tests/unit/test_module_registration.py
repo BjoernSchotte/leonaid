@@ -5,6 +5,7 @@ from fastapi import APIRouter, FastAPI
 
 from leonaid.bootstrap.registry import (
     ModuleRegistration,
+    collect_background_tasks,
     collect_handlers,
     register_routes,
     validate_modules,
@@ -81,3 +82,27 @@ def test_application_has_registered_survey_routes_once() -> None:
     assert "get" in schema["paths"]["/api/v1/surveys"]
     paths = [getattr(route, "path", None) for route in app.routes]
     assert paths.count("/api/v1/surveys") == 1
+
+
+def test_background_tasks_reject_duplicate_or_empty_names() -> None:
+    from leonaid.modules.surveys.jobs import survey_timeout_loop
+
+    for name in ("surveys.deadlines", " "):
+        with pytest.raises(ValueError, match="Empty or duplicate background task"):
+            collect_background_tasks(
+                (
+                    ModuleRegistration(
+                        "surveys", background_tasks={name: survey_timeout_loop}
+                    ),
+                    ModuleRegistration(
+                        "other", background_tasks={name: survey_timeout_loop}
+                    ),
+                )
+            )
+
+
+def test_worker_registers_existing_survey_sweep_once() -> None:
+    from leonaid.bootstrap.worker import background_tasks
+    from leonaid.modules.surveys.jobs import survey_timeout_loop
+
+    assert background_tasks() == {"surveys.deadlines": survey_timeout_loop}
