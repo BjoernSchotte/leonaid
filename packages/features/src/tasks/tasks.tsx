@@ -24,6 +24,17 @@ export function TasksPage({
   basePath,
   listId,
 }: ModulePageContext & { basePath: string; listId?: string }) {
+  const targetId = new URLSearchParams(window.location.search).get("task");
+  const target = useQuery({
+    queryKey: ["tasks", "detail", identity.userId, targetId],
+    queryFn: () => client.getTask(targetId!),
+    enabled: !!targetId,
+    retry: false,
+    // Keep the revision used to open this editor until the draft is closed.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    gcTime: 0,
+  });
   const [editing, setEditing] = useState<Task | "new" | null>(null);
   const editorTrigger = useRef<HTMLButtonElement | null>(null);
   const [forMe, setForMe] = useState(!listId);
@@ -75,6 +86,35 @@ export function TasksPage({
   });
   const error = create.error ?? selected.error ?? lists.error ?? tasks.error;
   const reset = () => setOffset(0);
+  if (targetId) {
+    return (
+      <section className="tasks-workspace">
+        <h1>Aufgabe</h1>
+        <a href={listId ? `${basePath}/${listId}` : basePath}>
+          Zur Aufgabenliste
+        </a>
+        {target.isPending ? (
+          <p role="status">Aufgabe wird geladen …</p>
+        ) : target.isError ||
+          !target.data ||
+          (listId && target.data.listId !== listId) ? (
+          <StatusMessage tone="error">
+            Aufgabe nicht verfügbar oder kein Zugriff.
+          </StatusMessage>
+        ) : (
+          <TaskEditor
+            client={client}
+            userId={identity.userId}
+            listId={target.data.listId}
+            task={target.data}
+            onClose={() =>
+              window.location.assign(`${basePath}/${target.data.listId}`)
+            }
+          />
+        )}
+      </section>
+    );
+  }
   return (
     <section className="tasks-workspace" aria-labelledby="tasks-heading">
       <header>

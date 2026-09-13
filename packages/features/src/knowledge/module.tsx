@@ -17,6 +17,26 @@ export const knowledgeModule: UiModule = {
   id: "knowledge",
   area: "work",
   surfaces: ["web", "pwa"],
+  search: {
+    label: "Wissen",
+    find: async ({ client, identity }, search, surface, signal) => {
+      const result = await client.listKnowledgePages(
+        { search, limit: 10 },
+        { signal },
+      );
+      return result.items.map((page) => ({
+        id: page.id,
+        type: "knowledge-page" as const,
+        title: page.title,
+        context: page.actionId
+          ? (identity.actionMemberships.find(
+              (item) => item.actionId === page.actionId,
+            )?.actionName ?? "Aktionsseite")
+          : "Eigenständige Seite",
+        href: `/${surface === "web" ? "admin" : "app"}/knowledge/${page.id}`,
+      }));
+    },
+  },
   routes: [
     {
       pattern: /^\/(admin|app)\/knowledge\/([0-9a-f-]{36})\/?$/,

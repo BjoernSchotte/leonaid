@@ -13,6 +13,15 @@ export interface UiModule {
   readonly id: string;
   readonly area: string;
   readonly surfaces: readonly ("web" | "pwa")[];
+  readonly search?: {
+    readonly label: string;
+    readonly find: (
+      context: ModulePageContext,
+      query: string,
+      surface: "web" | "pwa",
+      signal: AbortSignal,
+    ) => Promise<readonly ModuleSearchResult[]>;
+  };
   readonly routes: readonly {
     readonly pattern: RegExp;
     readonly render: (
@@ -20,6 +29,14 @@ export interface UiModule {
       match: RegExpMatchArray,
     ) => ReactNode;
   }[];
+}
+
+export interface ModuleSearchResult {
+  readonly id: string;
+  readonly type: "task" | "knowledge-page" | "material";
+  readonly title: string;
+  readonly context: string;
+  readonly href: string;
 }
 
 export function validateUiModules(modules: readonly UiModule[]): void {

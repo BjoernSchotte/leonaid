@@ -1,3 +1,4 @@
+import { ModuleSearch } from "@leonaid/features";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -209,6 +210,12 @@ export function App({ client }: AppProps) {
           });
         }}
       >
+        <ModuleSearch
+          modules={registeredModules}
+          surface="web"
+          client={client}
+          identity={identity.data}
+        />
         <PreviewNotice />
         {currentRoute.kind === "module" ? (
           currentRoute.render({ client, identity: identity.data })

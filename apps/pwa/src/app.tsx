@@ -1,3 +1,4 @@
+import { ModuleSearch } from "@leonaid/features";
 import {
   Download04Icon,
   RefreshIcon,
@@ -370,6 +371,12 @@ export function App({ client }: AppProps) {
         surface="pwa"
         systemBanner={<PwaLifecycle />}
       >
+        <ModuleSearch
+          modules={registeredPwaModules}
+          surface="pwa"
+          client={client}
+          identity={identity.data}
+        />
         {moduleRoute ? (
           moduleRoute.render({ client, identity: identity.data })
         ) : route === "sponsors" ? (
