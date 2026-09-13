@@ -1,13 +1,13 @@
 # Modulare LeonAid-Plattform: Implementierungsspec
 
-Stand: 13.09.2026. Status: vorgeschlagen, nicht implementiert.
+Stand: 13.09.2026. Status: in Umsetzung; geprüfte Slices siehe [PROGRESS.md](PROGRESS.md).
 Gelesener Ausgangsstand: `2043b72` (Krapfentaxi-Lieferfenster und Lieferkontakte).
 
 ## 1. Ziel und Umfang
 
 LeonAid wird schrittweise als modularer Monolith organisiert. Fachmodule besitzen ihre Daten, bieten typisierte Aufrufe an und registrieren ihre Oberflächen und Hintergrundaufgaben explizit. Neue Funktionen sollen vorhandene Fachobjekte wiederverwenden, ohne weitere Dienste oder parallele Datenbestände vorauszusetzen.
 
-Diese Spec definiert die technische Grundlage und drei aufeinander aufbauende Nachweise: Surveys als bestehendes Modul, Tasks mit Wissensseiten und Materialien als zusammengesetzter Ablauf sowie Inbox mit dauerhafter CRM-Synchronisation. Sie ist kein Auftrag, alle denkbaren Produktfunktionen innerhalb eines einzigen PR umzusetzen. Jede Etappe wird separat implementiert und abgenommen. Der vorliegende PR enthält ausschließlich diese Spec.
+Diese Spec definiert die technische Grundlage und drei aufeinander aufbauende Nachweise: Surveys als bestehendes Modul, Tasks mit Wissensseiten und Materialien als zusammengesetzter Ablauf sowie Inbox mit dauerhafter CRM-Synchronisation. Jede Etappe wird separat implementiert und abgenommen. Die Umsetzung von M0 bis M3 erfolgt auf dem bestehenden Draft-PR; nach jedem abgeschlossenen Slice wird der geprüfte Stand gepusht.
 
 Verbindliche Leitlinien:
 
@@ -241,7 +241,7 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 
 ### M0 — Modulgrenzen und Verträge
 
-- [ ] Aktuellen Stand und konkrete Survey-Abhängigkeiten inventarisieren; betroffene Tabellen und öffentliche Use Cases benennen.
+- [x] Aktuellen Stand und konkrete Survey-Abhängigkeiten inventarisieren; betroffene Tabellen und öffentliche Use Cases benennen.
 - [ ] Bestehende Funktionen den Zuständigkeiten Plattform, Fachmodul, Bootstrap und Prozessstart zuordnen; nur die für den ersten Schnitt benötigten Dateien migrieren. Gemeinsamen Python-Namespace und bestehende Startpfade erhalten.
 - [ ] Kleinste Backend-/Frontend-Registrierung implementieren und Shell-Zuständigkeit festlegen.
 - [ ] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
