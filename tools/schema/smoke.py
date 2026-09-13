@@ -5,15 +5,27 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from typing import Any
+from pathlib import Path
+
+from alembic.script import ScriptDirectory
 
 import asyncpg
 
 EXPECTED_TABLES = {
+    "knowledge_page",
+    "knowledge_page_revision",
+    "knowledge_page_member",
+    "knowledge_page_task",
+    "task",
+    "task_list",
+    "task_list_member",
+    "task_epic",
     "acquisition_activity",
     "acquisition_assignment",
     "acquisition_assignment_history",
@@ -58,7 +70,8 @@ EXPECTED_TABLES = {
 
 USER_A = "10000000-0000-4000-8000-000000000004"
 USER_B = "10000000-0000-4000-8000-000000000005"
-ACTION = "20000000-0000-4000-8000-000000000001"
+LEGACY_ACTION = "20000000-0000-4000-8000-000000000001"
+ACTION = "20000000-0000-4000-8000-000000000021"
 COMPANY = "40000000-0000-4000-8000-000000000001"
 ASSIGNMENT_A = "60000000-0000-4000-8000-000000000001"
 ASSIGNMENT_B = "60000000-0000-4000-8000-000000000002"
@@ -74,11 +87,13 @@ class SchemaError(RuntimeError):
 
 
 async def expect_database_error(
+    connection: asyncpg.Connection[Any],
     operation: Callable[[], Awaitable[Any]],
     label: str,
 ) -> None:
     try:
-        await operation()
+        async with connection.transaction():
+            await operation()
     except asyncpg.PostgresError:
         return
     raise SchemaError(f"Constraint wurde nicht erzwungen: {label}")
@@ -97,7 +112,10 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
     if missing:
         raise SchemaError(f"Core-Tabellen fehlen: {sorted(missing)}")
     revision = await connection.fetchval("SELECT version_num FROM alembic_version")
-    if revision != "0020_account_status_admin":
+    expected_head = ScriptDirectory(
+        str(Path(__file__).resolve().parents[2] / "migrations")
+    ).get_current_head()
+    if revision != expected_head:
         raise SchemaError(f"unerwarteter Alembic-Head: {revision}")
     if legacy:
         marker = await connection.fetchrow(
@@ -106,8 +124,8 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
         if (
             marker is None
             or marker["label"] != "leonaid-core-v0"
-            or marker["payload"]["amountMinor"] != 7200
-            or marker["payload"]["actionId"] != ACTION
+            or json.loads(marker["payload"])["amountMinor"] != 7200
+            or json.loads(marker["payload"])["actionId"] != LEGACY_ACTION
         ):
             raise SchemaError("Daten des Vorgänger-Snapshots gingen verloren")
         migrated_invoice = await connection.fetchrow(
@@ -122,14 +140,16 @@ async def verify_tables(connection: asyncpg.Connection[Any], legacy: bool) -> No
         )
         if (
             migrated_invoice is None
-            or str(migrated_invoice["action_id"]) != ACTION
+            or str(migrated_invoice["action_id"]) != LEGACY_ACTION
             or migrated_invoice["status"] != "issued"
-            or migrated_invoice["recipient_snapshot"]["recipientName"]
+            or json.loads(migrated_invoice["recipient_snapshot"])["recipientName"]
             != "Legacy Sponsor GmbH"
-            or migrated_invoice["recipient_snapshot"]["streetLine1"] != "Altweg 7"
-            or migrated_invoice["line_snapshot"][0]["description"] != "Krapfenbox"
-            or migrated_invoice["line_snapshot"][0]["grossMinor"] != 7200
-            or migrated_invoice["issuer_snapshot"]["city"]
+            or json.loads(migrated_invoice["recipient_snapshot"])["streetLine1"]
+            != "Altweg 7"
+            or json.loads(migrated_invoice["line_snapshot"])[0]["description"]
+            != "Krapfenbox"
+            or json.loads(migrated_invoice["line_snapshot"])[0]["grossMinor"] != 7200
+            or json.loads(migrated_invoice["issuer_snapshot"])["city"]
             != "MIGRATION_REVIEW_REQUIRED"
             or migrated_invoice["tax_treatment"] != "tax_exempt"
             or migrated_invoice["tax_rate_basis_points"] != 0
@@ -178,6 +198,7 @@ async def insert_foundation(connection: asyncpg.Connection[Any]) -> None:
 
 async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE charity_action
@@ -190,6 +211,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "unvollständiges Publikationsfenster",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             "UPDATE charity_action SET revision = 0 WHERE id = $1",
             ACTION,
@@ -204,6 +226,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         ACTION,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO public_action_alias (alias, action_id)
@@ -214,6 +237,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "mehr als ein öffentlicher Alias je Aktion",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE charity_action
@@ -243,6 +267,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         date(2027, 1, 31),
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO public_action_alias (alias, action_id)
@@ -257,6 +282,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         disposable_action,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO charity_action (
@@ -279,15 +305,17 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         """
         SELECT template_key, version
         FROM action_template_version
-        ORDER BY template_key
+        ORDER BY template_key, version
         """
     )
     if [tuple(row.values()) for row in templates] != [
         ("blank", 1),
         ("krapfentaxi", 1),
+        ("krapfentaxi", 2),
     ]:
         raise SchemaError("eingebaute PoC-Templates fehlen oder sind unerwartet")
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE action_template_version
@@ -298,6 +326,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "Mutation einer veröffentlichten Template-Version",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO offering (
@@ -323,7 +352,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             unit_price_minor, currency
         )
         VALUES (
-            '70000000-0000-4000-8000-000000000001', $1,
+            '70000000-0000-4000-8000-000000000021', $1,
             'krapfenbox-24', 'Krapfenbox', 'active', 'box',
             ARRAY['box']::text[], 24, 3600, 'EUR'
         )
@@ -338,7 +367,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             currency, total_minor, idempotency_key
         )
         VALUES (
-            '80000000-0000-4000-8000-000000000001', $1, $2,
+            '80000000-0000-4000-8000-000000000021', $1, $2,
             'acquisition', 'invoiced',
             '{"partyKind":"company","twentyId":"40000000-0000-4000-8000-000000000001","displayName":"Musterwerk GmbH","email":null}'::jsonb,
             '{"recipientName":"Musterwerk GmbH","streetLine1":"Werkstraße 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","email":null}'::jsonb,
@@ -356,9 +385,9 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
             unit_price_minor, line_total_minor
         )
         VALUES (
-            '81000000-0000-4000-8000-000000000001',
-            '80000000-0000-4000-8000-000000000001',
-            '70000000-0000-4000-8000-000000000001',
+            '81000000-0000-4000-8000-000000000021',
+            '80000000-0000-4000-8000-000000000021',
+            '70000000-0000-4000-8000-000000000021',
             'Krapfenbox', 2, 'box', 24, 3600, 7200
         )
         """
@@ -386,6 +415,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         ACTION,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE invoice_profile
@@ -409,7 +439,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         )
         VALUES (
             '90000000-0000-4000-8000-000000000001', $1,
-            '80000000-0000-4000-8000-000000000001', 'KT26-0001',
+            '80000000-0000-4000-8000-000000000021', 'KT26-0001',
             'issued', CURRENT_TIMESTAMP, '2026-11-15', '2026-11-29',
             'EUR', 7200, 0, 7200,
             '{"legalName":"Lions Hilfswerk LeonAid Golden e.V.","streetLine1":"Clubweg 1","postalCode":"86150","city":"Augsburg","countryCode":"DE","taxIdentifier":"103/999/99999","email":"finanzen@leonaid.invalid"}'::jsonb,
@@ -425,6 +455,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         USER_A,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE invoice
@@ -436,6 +467,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "veränderter ausgestellter Rechnungssnapshot",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO invoice (
@@ -471,6 +503,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
     if preserved_number != "KT26-0001":
         raise SchemaError("Storno hat die ausgestellte Rechnungsnummer ersetzt")
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO acquisition_assignment (
@@ -501,6 +534,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         USER_A,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE acquisition_assignment
@@ -512,6 +546,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "nicht positive Zuordnungsrevision",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             INSERT INTO acquisition_assignment (
@@ -540,6 +575,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         USER_B,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             "UPDATE charity_action SET status = 'draft' WHERE id = $1",
             ACTION,
@@ -575,6 +611,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "b" * 64,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE action_invitation
@@ -586,6 +623,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "veränderter Einladungs-Snapshot",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE action_invitation
@@ -620,6 +658,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "c" * 64,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE user_session
@@ -656,6 +695,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "e" * 64,
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE login_challenge
@@ -667,6 +707,7 @@ async def verify_constraints(connection: asyncpg.Connection[Any]) -> None:
         "veränderter Login-Snapshot",
     )
     await expect_database_error(
+        connection,
         lambda: connection.execute(
             """
             UPDATE login_challenge
@@ -725,7 +766,7 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
         AUDIT,
         OUTBOX,
     )
-    if rolled_back != {"value": 0, "audits": 0, "outbox": 0}:
+    if dict(rolled_back or {}) != {"value": 0, "audits": 0, "outbox": 0}:
         raise SchemaError(f"Rollback war nicht atomar: {dict(rolled_back or {})}")
 
     async with connection.transaction():
@@ -771,7 +812,7 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
         AUDIT,
         OUTBOX,
     )
-    if committed != {"value": 7200, "audits": 1, "outbox": 1}:
+    if dict(committed or {}) != {"value": 7200, "audits": 1, "outbox": 1}:
         raise SchemaError(f"Commit war nicht atomar: {dict(committed or {})}")
 
     occurred_at = await connection.fetchval(
@@ -784,12 +825,15 @@ async def verify_transactionality(connection: asyncpg.Connection[Any]) -> None:
 
 async def run(legacy: bool) -> None:
     connection = await asyncpg.connect(os.environ["CORE_DATABASE_URL"], timeout=10)
+    transaction = connection.transaction()
+    await transaction.start()
     try:
         await verify_tables(connection, legacy)
         await insert_foundation(connection)
         await verify_constraints(connection)
         await verify_transactionality(connection)
     finally:
+        await transaction.rollback()
         await connection.close()
 
 
@@ -813,3 +857,7 @@ def main() -> int:
         "und transaktionales Audit/Outbox"
     )
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
