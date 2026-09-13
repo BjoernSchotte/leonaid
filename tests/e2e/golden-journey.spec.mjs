@@ -444,11 +444,52 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
         })),
     ),
   ).toEqual([]);
-  await invoiceRow.getByTestId("record-payment").click();
-  await expect(invoiceRow.getByTestId("invoice-settlement")).toHaveAttribute(
-    "data-state",
-    "paid",
-  );
+  const paymentEvents = await adminPage.evaluateHandle(() => {
+    const events = [];
+    for (const type of [
+      "pointerdown",
+      "pointerup",
+      "click",
+      "invalid",
+      "submit",
+    ]) {
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          const entry = {
+            type,
+            target:
+              target?.closest("[data-testid]")?.getAttribute("data-testid") ??
+              target?.tagName,
+            prevented: false,
+          };
+          if (events.length === 24) events.shift();
+          events.push(entry);
+          queueMicrotask(() => {
+            entry.prevented = event.defaultPrevented;
+          });
+        },
+        true,
+      );
+    }
+    return events;
+  });
+  try {
+    await invoiceRow.getByTestId("record-payment").click();
+    await expect(invoiceRow.getByTestId("invoice-settlement")).toHaveAttribute(
+      "data-state",
+      "paid",
+    );
+  } catch (error) {
+    console.error(
+      "golden-payment-events",
+      JSON.stringify(await paymentEvents.jsonValue()),
+    );
+    throw error;
+  } finally {
+    await paymentEvents.dispose();
+  }
 
   await adminPage.goto(
     `${baseUrl}/admin/?action=20000000-0000-4000-8000-000000000001`,
