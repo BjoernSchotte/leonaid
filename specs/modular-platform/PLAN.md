@@ -260,6 +260,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [x] Strikten Identitätsvertrag um den registrierten PWA-Survey-Zugang ergänzen; vollständiger HTTP-/Rollenvertrag und alle zehn Browserfälle einschließlich Anna-Akquise bestanden.
 
+- [x] Native Zahlungsformular-Validität in der Golden-Journey vor dem Submit prüfen und bei Fehlern nur Feld-IDs/Validitätsflags melden. Beide lokalen Fachrunden in drei Browsern bestanden; der Remote-WebKit-Fehler bleibt offen.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [x] Privates Backup-Manifest mit der Host-UID erzeugen: vollständige Sicherung aller fünf Dateien, Restic-Integritätsprüfung und Wiederanlauf der Quelldienste bestanden. Vollständiger Restore und Remote-Nightly bleiben separate offene Gates.

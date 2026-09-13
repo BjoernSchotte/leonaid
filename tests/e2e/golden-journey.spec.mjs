@@ -430,6 +430,20 @@ test("vollständige Krapfentaxi-Journey ohne Datenbankeingriff", async ({
   await invoiceRow
     .getByTestId("payment-reference")
     .fill(`GOLDEN-${slug.toUpperCase()}`);
+  expect(
+    await invoiceRow.getByTestId("payment-form").evaluate((form) =>
+      [...form.querySelectorAll("input")]
+        .filter((input) => !input.validity.valid)
+        .map((input) => ({
+          field: input.dataset.testid,
+          badInput: input.validity.badInput,
+          rangeUnderflow: input.validity.rangeUnderflow,
+          rangeOverflow: input.validity.rangeOverflow,
+          stepMismatch: input.validity.stepMismatch,
+          valueMissing: input.validity.valueMissing,
+        })),
+    ),
+  ).toEqual([]);
   await invoiceRow.getByTestId("record-payment").click();
   await expect(invoiceRow.getByTestId("invoice-settlement")).toHaveAttribute(
     "data-state",
