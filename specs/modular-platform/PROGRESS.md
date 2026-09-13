@@ -38,3 +38,18 @@ Wichtige Befunde für M1:
 - `gh api repos/BjoernSchotte/leonaid/commits/main --jq .sha`: Spec-Basis bestätigt.
 - Repository-Quellen, Transportoperationen und Survey-Migrationen gelesen; Tabellen-/Use-Case-Liste gegen diese Quellen geprüft.
 - Nur Dokumentation in diesem Slice: keine Anwendungstests erforderlich; keine Aussage über Laufzeitabnahme. Alle funktionalen Gates bleiben offen.
+
+## M0.2 — Rekursive Architekturprüfung
+
+Status: abgeschlossen am 13.09.2026. Slice-Commit ist der Commit, der diesen Abschnitt anlegt.
+
+`tests/unit/test_architecture_boundaries.py` prüft Domain/Application nun rekursiv. Zusätzlich werden absolute und relative Imports in Plattform, Modulen und Bootstrap auf Rückabhängigkeiten, fremde interne Modulimporte und Modulzyklen geprüft. Absichtlich ungültige Quelltexte in temporären Verzeichnissen beweisen die Erkennung; erlaubte öffentliche API-Imports werden ebenfalls geprüft. Keine Alt-Ausnahmen erforderlich, da die neuen Verzeichnisse bisher nicht existierten. Beim Migrieren bleibt jede neu erforderliche Ausnahme explizit zu behandeln. SQL-Eigentum bleibt zusätzlich Gegenstand des Reviews.
+
+Prüfung:
+
+- `.venv/bin/pytest tests/unit/test_architecture_boundaries.py -q`: 13 bestanden.
+- `.venv/bin/ruff check tests/unit/test_architecture_boundaries.py`: erfolgreich; Datei mit Ruff formatiert.
+- `env PYTHONPATH=src .venv/bin/pytest tests/unit -q`: 383 bestanden.
+- Der erste Aufruf ohne explizites `PYTHONPATH` hatte vier fehlgeschlagene Subprozess-Tests mit `ModuleNotFoundError`. Der Wiederholungslauf mit der im Repository-Runner vorgesehenen Umgebung bestand vollständig; keine Produktänderung zur Umgehung nötig.
+
+Noch offen: tatsächliche Modul-/Bootstrap-Migration, Registrierung, Runtime-/Browser-Nachweise und sämtliche M1–M3-Abnahmen. Die Architekturprüfung allein schließt M0 nicht ab.

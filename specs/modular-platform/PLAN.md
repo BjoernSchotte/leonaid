@@ -244,7 +244,7 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 - [x] Aktuellen Stand und konkrete Survey-Abhängigkeiten inventarisieren; betroffene Tabellen und öffentliche Use Cases benennen.
 - [ ] Bestehende Funktionen den Zuständigkeiten Plattform, Fachmodul, Bootstrap und Prozessstart zuordnen; nur die für den ersten Schnitt benötigten Dateien migrieren. Gemeinsamen Python-Namespace und bestehende Startpfade erhalten.
 - [ ] Kleinste Backend-/Frontend-Registrierung implementieren und Shell-Zuständigkeit festlegen.
-- [ ] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
+- [x] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
 - [ ] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
 
 Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen einschließlich Rückabhängigkeiten der Plattform. Backend-/Frontend-Beiträge sind derselben Modul-ID zugeordnet; bestehende Navigation, Startbefehle und API bleiben unverändert. Keine neuen Infrastrukturcontainer, separaten Python-Pakete oder Laufzeitabhängigkeiten.
