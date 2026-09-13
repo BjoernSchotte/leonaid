@@ -722,3 +722,11 @@ Der vollständige Twenty-Vertrag im isolierten Projekt `leonaid-poc031-test-2137
 `get_permissions` und `GET /api/v1/inbox-cases/{case_id}/permissions` liefern `canManage` für einen aktuell lesbaren Fall. Die Abfrage verwendet dieselbe `_MANAGE`-Regel wie die schreibenden Verwaltungsoperationen. Alle leseberechtigten Fallbearbeitenden können weiterhin Status, Kommentare und Referenzen bearbeiten; nur Fallverwaltende dürfen Zuständigkeit und Kontaktklärung verwalten. Die Auskunft erweitert keine Rechte und ersetzt keine Schreibprüfung.
 
 Die bestehende PostgreSQL-Fallmatrix prüft globale Verwaltung, aktuelle Aktionsverwaltung, zugewiesene Bearbeitende ohne Verwaltungsrecht, fremde Fälle und den Entzug einer Aktionsmitgliedschaft. Der Produktions-FastAPI-Vertrag prüft Sitzung, fremden Zugriff, Ergebnis und `no-store`. Beide Verträge bestanden. Generierter Client, Ruff und Mypy sind aktualisiert/geprüft; die tatsächliche Nutzung folgt in der gemeinsamen Inbox-Oberfläche.
+
+## M3 — Kontaktbestätigung über HTTP und konkurrierenden Worker
+
+Der erweiterte Twenty-Vertrag `leonaid-poc031-test-2137972478-95891` endete mit Exitcode 0; alle eigenen Ressourcen wurden entfernt. Produktions-FastAPI liefert die echte Kandidatenvorschau und bestätigt die Zuordnung mit 200/no-store, gleichzeitig mit einem direkten Fachaufruf desselben Befehls. Es bleiben genau ein Auditabschluss, ein abgeschlossener Queue-Auftrag und eine erhöhte Kontaktrevision bei unveränderter Fallrevision.
+
+Eine tatsächliche Twenty-Änderung nach der Vorschau invalidiert den Fingerprint. Ein über die vorhandene Queue erneut gestarteter und beanspruchter Auftrag verhindert manuelles Überholen. Der übrige reale Nachweis umfasst Audit-Constraint-Rollback, Rechteentzug, CRUD/Pagination, Ausfall/Wiederanlauf, verlorene Create-Antwort und Claim-Fencing.
+
+Der erste HTTP-Lauf `leonaid-poc031-test-2137972478-93527` scheiterte beim Produktions-Lifespan am geerbten Recovery-Archiv vor Aufruf der Inbox-Route. Der Vertrag verwendet nun ein eigenes temporäres beschreibbares Archiv und führt dessen echte Veröffentlichung weiterhin aus; die Schutzprüfung wurde nicht deaktiviert. Mypy/Ruff bestanden. Die neue Inbox-Oberfläche und der laufende Browserstack sind nicht Bestandteil dieses Nachweises.

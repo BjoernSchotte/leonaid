@@ -9,17 +9,27 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import UUID, uuid4
 from urllib.parse import urlsplit
 from typing import Any
 
 import asyncpg
+import httpx
+
+from leonaid.configuration import Settings
+from leonaid.entrypoints.fastapi.platform import create_app
+from leonaid.domain.sessions import (
+    SESSION_COOKIE_NAME,
+    SESSION_LIFETIME,
+    session_token_digest,
+)
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 
 from pydantic import SecretStr
 
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
-from leonaid.application.crm import PersonData
+from leonaid.application.crm import PersonData, PersonUpdate
 from leonaid.application.errors import Conflict, PermissionDenied, ResourceNotFound
 from leonaid.application.outbox import OutboxWorker
 from leonaid.domain.outbox import RetryPolicy
@@ -28,6 +38,7 @@ from leonaid.bootstrap.worker import build_worker
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.modules.inbox.api import (
     InboxService,
+    Case,
     SubmitCase,
     UpdateCase,
     ContactQuery,
@@ -78,6 +89,54 @@ async def confirm_existing_contact(
             assert error.code == code
         else:
             raise AssertionError("Stale contact confirmation succeeded")
+    await crm.update_person(
+        case_id,
+        candidate.person_id,
+        PersonUpdate(given_name="Changed"),
+        correlation_id="inbox-contact-preview-changed",
+    )
+    try:
+        try:
+            await service.confirm_contact(actor, case_id, command)
+        except Conflict as error:
+            assert error.code == "contact_changed"
+        else:
+            raise AssertionError("An actual CRM edit did not invalidate the preview")
+    finally:
+        await crm.update_person(
+            case_id,
+            candidate.person_id,
+            PersonUpdate(given_name="Different"),
+            correlation_id="inbox-contact-preview-restored",
+        )
+    queue = AsyncpgOutboxQueue(pool)
+    async with pool.acquire() as conn:
+        job_id = await conn.fetchval(
+            "SELECT contact_job_id FROM inbox_case WHERE id=$1", case_id
+        )
+    await queue.manual_retry(
+        event_id=job_id, operator="inbox-contact-proof", now=datetime.now(timezone.utc)
+    )
+    claimed = await queue.claim_next(
+        worker_id="inbox-contact-proof", now=datetime.now(timezone.utc)
+    )
+    assert claimed is not None and claimed.id == job_id
+    try:
+        await service.confirm_contact(actor, case_id, command)
+    except Conflict as error:
+        assert error.code == "contact_job_active"
+    else:
+        raise AssertionError("Manual confirmation overtook a claimed worker")
+    assert await service.get_case(actor, case_id) == before
+    await queue.fail(
+        event_id=job_id,
+        claim_token=claimed.claim_token,
+        error_code="inbox_contact_needs_review",
+        error_detail="inbox_contact_needs_review",
+        failed_at=datetime.now(timezone.utc),
+        available_at=datetime.now(timezone.utc),
+        dead_letter=True,
+    )
     # A real database constraint failure must roll back the local link AND queue.
     constraint = f"inbox_contact_proof_{uuid4().hex}"
     async with pool.acquire() as conn:
@@ -103,10 +162,66 @@ async def confirm_existing_contact(
     finally:
         async with pool.acquire() as conn:
             await conn.execute(f"ALTER TABLE audit_event DROP CONSTRAINT {constraint}")
-    first, replay = await asyncio.gather(
-        service.confirm_contact(actor, case_id, command),
-        service.confirm_contact(actor, case_id, command),
+    archive = TemporaryDirectory(prefix="inbox-contact-archive-")
+    settings = Settings.model_validate(
+        {
+            "LEONAID_ENV": "test",
+            "LEONAID_SURVEY_ERASURE_ARCHIVE_DIR": archive.name,
+            "CORE_DATABASE_URL": os.environ["CORE_DATABASE_URL"],
+            "LEONAID_SECRET_KEY": "synthetic-http-proof-secret-only-32-characters",
+            "LEONAID_SESSION_ENCRYPTION_KEY": "synthetic-http-proof-encryption-32-characters",
+            "LEONAID_PUBLIC_BASE_URL": "https://inbox.leonaid.invalid",
+            "LEONAID_ALLOWED_ORIGINS": "https://inbox.leonaid.invalid",
+            "TWENTY_BASE_URL": os.environ["TWENTY_BASE_URL"],
+            "TWENTY_INTEGRATION_API_KEY": os.environ["TWENTY_INTEGRATION_API_KEY"],
+        }
     )
+    token, session_id = uuid4().hex + uuid4().hex, uuid4()
+    now = datetime.now(timezone.utc)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO user_session(id,user_id,token_digest,expires_at,last_seen_at,fresh_login_at,device_hint,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5,'Inbox contact proof',$5,$5)",
+            session_id,
+            user_id,
+            session_token_digest(token),
+            now + SESSION_LIFETIME,
+            now,
+        )
+    app = create_app(settings)
+    try:
+        async with (
+            app.router.lifespan_context(app),
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="https://inbox.leonaid.invalid",
+                headers={
+                    "Cookie": f"{SESSION_COOKIE_NAME}={token}",
+                    "Origin": "https://inbox.leonaid.invalid",
+                },
+            ) as client,
+        ):
+            path = f"/api/v1/inbox-cases/{case_id}"
+            preview = await client.get(
+                path + "/contact-candidates", params={"givenName": "Different"}
+            )
+            assert preview.status_code == 200, preview.text
+            assert preview.headers["cache-control"] == "no-store"
+            assert preview.json()["items"][0]["fingerprint"] == candidate.fingerprint
+            response, first = await asyncio.gather(
+                client.post(
+                    path + "/contact-confirmation",
+                    json=command.model_dump(mode="json", by_alias=True),
+                ),
+                service.confirm_contact(actor, case_id, command),
+            )
+            assert response.status_code == 200, response.text
+            assert response.headers["cache-control"] == "no-store"
+            replay = Case.model_validate_json(response.content)
+    finally:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM user_session WHERE id=$1", session_id)
+        archive.cleanup()
+
     assert first == replay and first.contact_status == "linked"
     assert first.contact_revision == before.contact_revision + 1
     assert first.revision == before.revision
@@ -151,7 +266,7 @@ async def confirm_existing_contact(
                 user_id,
             )
     print(
-        "PASS inbox manual contact: actual Twenty selection, stale preview/revision, atomic audit rollback, concurrent replay, completed queue and revoked manager"
+        "PASS inbox manual contact: actual Twenty selection, stale preview/revision, atomic audit rollback, HTTP/direct concurrent replay, active-worker exclusion, completed queue and revoked manager"
     )
 
 
