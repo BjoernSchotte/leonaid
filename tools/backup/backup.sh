@@ -264,6 +264,7 @@ docker run --rm \
   tar -C /source -cf /backup/rustfs-data.tar .
 
 docker run --rm --network none \
+  --user "$(id -u):$(id -g)" \
   --env-file "$env_file" \
   -e PYTHONPATH=/workspace \
   -v "$root:/workspace:ro" -v "$stage:/backup" "$PYTHON_IMAGE" \

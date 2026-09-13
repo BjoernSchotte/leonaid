@@ -262,6 +262,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Privates Backup-Manifest mit der Host-UID erzeugen: vollständige Sicherung aller fünf Dateien, Restic-Integritätsprüfung und Wiederanlauf der Quelldienste bestanden. Vollständiger Restore und Remote-Nightly bleiben separate offene Gates.
+
 - [x] Export-Render-Abnahme bestätigen: aktuelle Renderer-Fixtures erneut erzeugt, 20 PDF-Seiten vollständig visuell geprüft; vier XLSX-Dateien und zugehörige bereits geprüfte Consumer-PDFs bytegenau bestätigt. Hash-Ledger unter proofs/export-render-review.json.
 
 - [x] Vollständige automatische Survey-Exportgruppe bestehen: exports, export-permissions, export-states, export-recovery und export-limits. Sichtprüfung der erzeugten Exportartefakte und Remote-Gesamt-CI bleiben separate Gates.
