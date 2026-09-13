@@ -22,6 +22,7 @@ class DependencySignal:
     latency_ms: float
     request_id: str
     error_code: str | None
+    last_successful_sweep_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

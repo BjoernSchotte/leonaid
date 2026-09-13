@@ -12,7 +12,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncpg
 
 from leonaid.bootstrap.worker import build_worker, background_tasks
-from leonaid.platform.worker_signals import record_success, render_activity_metrics
+from leonaid.platform.worker_signals import (
+    last_success_at,
+    record_success,
+    render_activity_metrics,
+)
 
 last_database_success = 0.0
 
@@ -30,6 +34,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                     "service": "leonaid-worker",
                     "status": "ready" if ready else "not-ready",
                     "checks": {"postgres": "ready" if ready else "not-ready"},
+                    "lastSuccessfulSweepAt": last_success_at("survey_sweep"),
                 },
             )
             return

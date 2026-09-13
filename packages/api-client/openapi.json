@@ -8557,6 +8557,18 @@
             ],
             "title": "Errorcode"
           },
+          "lastSuccessfulSweepAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastsuccessfulsweepat"
+          },
           "latencyMs": {
             "minimum": 0.0,
             "title": "Latencyms",

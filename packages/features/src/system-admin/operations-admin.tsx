@@ -56,6 +56,14 @@ function DependencyCard({
       <div>
         <span>{DEPENDENCY_LABELS[dependency.dependency]}</span>
         <strong>{ready ? "Bereit" : "Nicht erreichbar"}</strong>
+        {dependency.dependency === "worker" && (
+          <small>
+            {dependency.lastSuccessfulSweepAt
+              ? `Letzter erfolgreicher Fristenlauf: ${formatDate(dependency.lastSuccessfulSweepAt)}`
+              : "Kein erfolgreicher Fristenlauf gemeldet."}{" "}
+            Angabe seit dem letzten Worker-Start.
+          </small>
+        )}
       </div>
       <small>{dependency.latencyMs.toLocaleString("de-DE")} ms</small>
     </article>

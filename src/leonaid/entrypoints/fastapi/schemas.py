@@ -1906,6 +1906,7 @@ class OperationalDependencyResponse(TransportModel):
     latency_ms: float = Field(ge=0)
     request_id: str
     error_code: str | None
+    last_successful_sweep_at: datetime | None = None
 
 
 class OperationalStatusCountsResponse(TransportModel):

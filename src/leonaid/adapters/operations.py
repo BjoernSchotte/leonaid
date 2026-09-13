@@ -322,6 +322,7 @@ class OperationsService:
         request_id: str,
     ) -> DependencySignal:
         started = perf_counter()
+        last_sweep = None
         try:
             async with httpx.AsyncClient(timeout=3) as client:
                 response = await client.get(
@@ -329,6 +330,15 @@ class OperationsService:
                     headers={"X-Request-ID": request_id},
                 )
             response.raise_for_status()
+            if dependency == "worker":
+                try:
+                    value = response.json().get("lastSuccessfulSweepAt")
+                    if isinstance(value, str):
+                        observed = datetime.fromisoformat(value)
+                        if observed.tzinfo is not None:
+                            last_sweep = observed.astimezone(timezone.utc)
+                except (ValueError, AttributeError):
+                    pass  # Older workers need not provide activity evidence.
             status = "ready"
             error_code = None
         except Exception:
@@ -340,6 +350,7 @@ class OperationsService:
             latency_ms=round((perf_counter() - started) * 1000, 2),
             request_id=request_id,
             error_code=error_code,
+            last_successful_sweep_at=last_sweep,
         )
         print(
             structured_event(
