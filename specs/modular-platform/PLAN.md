@@ -277,6 +277,7 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 ### M2 — Tasks, Wissen und Materialien als Wiederverwendungsnachweis
 
 - [ ] Tasks: Liste, optional ein Epic pro Task, offen/erledigt, optional persönliche Zuständigkeit, getrennte Fälligkeit und Zurückstellung. Keine verschachtelten Epics oder konfigurierbaren Statusmodelle.
+  - [x] Datenbasis: Task-eigene Listen, explizite Mitgliederrechte, Epics und revisionierte Tasks mit getrennten Zeitpunkten migrieren. Same-List-Epic, Zustände, Fremdschlüssel und Rücknahme/erneutes Upgrade mit PostgreSQL nachgewiesen. Fachoperationen, Autorisierung und UI bleiben offen.
 - [ ] Wissen: Titel, Tiptap-Inhalt, Revision, stabile Task-/Materialreferenzen. Revisionskonflikt statt unbemerktem Überschreiben; kein Yjs-Dienst.
 - [ ] Materialien: vorhandenen S3-Zugriff und geeignete bestehende Dokumentfunktionen wiederverwenden; explizite Metadaten-/Versionsverantwortung klären. Keine zweite Dateiablage.
 - [ ] Gemeinsamer Aktionskontext sowie eigenständige Listen/Seiten mit explizitem berechtigtem Personenkreis. Verlinkung oder Erwähnung erweitert keine Rechte.

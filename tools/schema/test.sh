@@ -77,6 +77,10 @@ compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/schema/smoke.py
+compose run --rm --no-deps \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/tasks/schema_contract.py
 
 echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
 compose --profile '*' down --volumes --remove-orphans
