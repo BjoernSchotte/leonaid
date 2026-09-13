@@ -26,6 +26,7 @@ from leonaid.modules.knowledge.api import (
     SetPageMember,
     SetPageMemberByEmail,
     PageAccess,
+    PagePermissions,
     PageMember,
     PageMembers,
     CreatePage,
@@ -109,18 +110,18 @@ class AsyncpgKnowledgeRepository:
         )
         if row is None:
             raise ResourceNotFound("not_found", "Seite nicht gefunden.")
-        allowed = not write or row["owner_user_id"] == actor.account.id
-        if not allowed and row["action_id"] is not None:
-            allowed = await self._action_write(conn, actor.account.id, row["action_id"])
-        if not allowed:
-            allowed = bool(
-                await conn.fetchval(
-                    "SELECT EXISTS (SELECT 1 FROM knowledge_page_member WHERE page_id=$1 AND user_id=$2 AND access='editor')",
-                    page_id,
+        if (
+            write
+            and not (
+                await self._permissions(
+                    conn,
                     actor.account.id,
+                    page_id,
+                    row["owner_user_id"],
+                    row["action_id"],
                 )
-            )
-        if not allowed:
+            ).can_edit
+        ):
             raise ResourceNotFound("not_found", "Seite nicht gefunden.")
         revision = await conn.fetchrow(
             "SELECT title,content FROM knowledge_page_revision WHERE page_id=$1 AND revision=$2",
@@ -377,10 +378,11 @@ class AsyncpgKnowledgeRepository:
         write: bool,
     ) -> Page:
         page = await self._page(conn, actor, page_id, write=write)
-        if page.owner_user_id != actor.account.id and not (
-            page.action_id is not None
-            and await self._action_write(conn, actor.account.id, page.action_id)
-        ):
+        if not (
+            await self._permissions(
+                conn, actor.account.id, page_id, page.owner_user_id, page.action_id
+            )
+        ).can_manage:
             raise ResourceNotFound("not_found", "Seitenverwaltung nicht verfügbar.")
         return page
 
@@ -492,4 +494,35 @@ class AsyncpgKnowledgeRepository:
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
+            )
+
+    async def _permissions(
+        self,
+        conn: asyncpg.Connection[Any],
+        user_id: UUID,
+        page_id: UUID,
+        owner_user_id: UUID,
+        action_id: UUID | None,
+    ) -> PagePermissions:
+        # Call only after the page read policy has passed; ownership never bypasses action access.
+        manage = owner_user_id == user_id or (
+            action_id is not None and await self._action_write(conn, user_id, action_id)
+        )
+        edit = manage or bool(
+            await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM knowledge_page_member WHERE page_id=$1 AND user_id=$2 AND access='editor')",
+                page_id,
+                user_id,
+            )
+        )
+        return PagePermissions(can_edit=edit, can_manage=manage)
+
+    async def get_permissions(
+        self, actor: IdentityPrincipal, page_id: UUID
+    ) -> PagePermissions:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor)
+            page = await self._page(conn, actor, page_id, write=False)
+            return await self._permissions(
+                conn, actor.account.id, page_id, page.owner_user_id, page.action_id
             )

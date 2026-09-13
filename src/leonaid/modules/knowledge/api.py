@@ -118,6 +118,11 @@ class PageAccess(PageModel):
     access_revision: int
 
 
+class PagePermissions(PageModel):
+    can_edit: bool
+    can_manage: bool
+
+
 class PageMember(PageModel):
     user_id: UUID
     display_name: str
@@ -131,6 +136,10 @@ class PageMembers(PageAccess):
 
 
 class KnowledgeRepository(Protocol):
+    async def get_permissions(
+        self, actor: IdentityPrincipal, page_id: UUID
+    ) -> PagePermissions: ...
+
     async def set_page_member(
         self,
         actor: IdentityPrincipal,
@@ -156,6 +165,11 @@ class KnowledgeRepository(Protocol):
 
 
 class KnowledgeService:
+    async def get_permissions(
+        self, actor: IdentityPrincipal, page_id: UUID
+    ) -> PagePermissions:
+        return await self._repository.get_permissions(actor, page_id)
+
     def __init__(self, repository: KnowledgeRepository) -> None:
         self._repository = repository
 
@@ -207,6 +221,7 @@ class KnowledgeService:
 
 
 __all__ = [
+    "PagePermissions",
     "MemberQuery",
     "SetPageMember",
     "SetPageMemberByEmail",

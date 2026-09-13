@@ -457,3 +457,10 @@ Das Wissensmodul liefert aktive Konten in beiden Shells mit einem autorisierten 
 LIVE: tatsächliche Produktionsbuilds gegen FastAPI/PostgreSQL über HTTPS in Chrome: Web legt Seite an → dieselbe Seite in der PWA → nicht passende und passende Suche. Mobile Aufnahme mit 390 × 844 und Desktop mit 1280 × 900, keine horizontale Überbreite; mobile Axe-Prüfung ohne serious/critical. Impeccable-Detektor ohne Treffer. Unabhängiger Screenshot-/Source-Reviewer: `ship` ausschließlich für den ersten Listen-/Anlage-Slice, keine notwendigen Korrekturen. Fehler-/Lade-/Paginationzustände wurden im Code, nicht als eigener Browsernachweis geprüft.
 
 Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden (bestehende Chunkgrößenwarnungen). Acht Modulregistrierungstests und 429 Unit-Tests bestanden; die Navigationserwartung wurde um Wissen ergänzt. Ruff/Mypy und no-test-doubles erfolgreich. Der temporäre Browser-Harness ist noch kein dauerhafter CI-Browser-Gate. Gesamte M2-/M3-Abnahme bleibt offen.
+
+
+## M2 — Rechteauskunft für den Wissenseditor
+
+`get_permissions` liefert für eine lesbare Seite `canEdit` und `canManage`. Die Rechteberechnung wird ebenfalls von Schreib- und Freigabeoperationen verwendet. Aktive Konten und aktueller Seiten-/Aktionszugriff werden davor geprüft; insbesondere gewährt Eigentümerschaft nach Entzug der Aktionsmitgliedschaft keine Auskunft. Die Oberfläche muss keine Rollenregeln nachbauen. Die Auskunft ist kein Berechtigungsnachweis für spätere Schreibaufrufe: diese prüfen weiterhin selbst den aktuellen Zustand.
+
+HTTP und generierter Client ergänzt. LIVE: Eigentümer/Viewer/Editor, aktuelle Aktionsrollen, System-Admin sowie entzogene Mitgliedschaften über die vorhandenen Mitglieder-/Aktionsverträge; Produktions-HTTP prüft camelCase-Rechteantwort. Alle drei PostgreSQL-Verträge bestanden. 429 Unit-Tests, Ruff/Mypy, API-Client-Typprüfung und no-test-doubles bestanden; bestehende OpenAPI-Verträge unverändert. Editor und übrige offene Planaufgaben bleiben erforderlich.

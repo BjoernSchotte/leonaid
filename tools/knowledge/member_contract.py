@@ -58,6 +58,8 @@ async def main() -> None:
         )
         members = await knowledge.list_members(owner, page.id, MemberQuery())
         assert members.access_revision == 1 and not members.items
+        rights = await knowledge.get_permissions(owner, page.id)
+        assert rights.can_edit and rights.can_manage
         grant = SetPageMemberByEmail(
             idempotency_key=uuid4(),
             expected_access_revision=1,
@@ -68,6 +70,8 @@ async def main() -> None:
         assert result.access_revision == 2
         assert await knowledge.set_page_member_by_email(owner, page.id, grant) == result
         assert (await knowledge.get_page(reader, page.id)).revision == 1
+        rights = await knowledge.get_permissions(reader, page.id)
+        assert not rights.can_edit and not rights.can_manage
         members = await knowledge.list_members(
             owner, page.id, MemberQuery(search="KNOWLEDGE")
         )
@@ -121,6 +125,8 @@ async def main() -> None:
         )
         result = await knowledge.set_page_member(owner, page.id, promote)
         assert result.access_revision == 3
+        rights = await knowledge.get_permissions(reader, page.id)
+        assert rights.can_edit and not rights.can_manage
         await knowledge.update_page(
             reader,
             page.id,
@@ -183,7 +189,7 @@ async def main() -> None:
             ),
         )
         try:
-            await knowledge.get_page(reader, page.id)
+            await knowledge.get_permissions(reader, page.id)
         except ResourceNotFound:
             pass
         else:

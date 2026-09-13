@@ -166,6 +166,11 @@ async def main() -> None:
                         json={**update, "idempotencyKey": str(uuid4())},
                     )
                 ).status_code == 409
+                permissions = await client.get(path + "/permissions", headers=headers)
+                assert permissions.status_code == 200 and permissions.json() == {
+                    "canEdit": True,
+                    "canManage": True,
+                }
                 members_path = path + "/members"
                 members = await client.get(members_path, headers=headers)
                 assert (

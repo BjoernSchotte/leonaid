@@ -135,6 +135,12 @@ async def main() -> None:
             "global",
         ):
             assert (await service.get_page(actors[name], page.id)).id == page.id
+            rights = await service.get_permissions(actors[name], page.id)
+            assert (
+                rights.can_edit
+                == rights.can_manage
+                == (name in ("owner", "manager", "global"))
+            )
             assert [
                 p.id
                 for p in (
@@ -145,6 +151,7 @@ async def main() -> None:
             ] == [page.id]
         for name in ("expired", "future", "other", "outsider"):
             await rejected(service.get_page(actors[name], page.id), "not_found")
+            await rejected(service.get_permissions(actors[name], page.id), "not_found")
             assert not (
                 await service.list_pages(actors[name], PageQuery(action_id=actions[0]))
             ).items
@@ -266,6 +273,7 @@ async def main() -> None:
             )
         for name in ("owner", "acquirer", "global"):
             await rejected(service.get_page(actors[name], page.id), "not_found")
+            await rejected(service.get_permissions(actors[name], page.id), "not_found")
             assert not (
                 await service.list_pages(actors[name], PageQuery(action_id=actions[0]))
             ).items

@@ -12,6 +12,7 @@ from leonaid.modules.knowledge.api import (
     SetPageMember,
     SetPageMemberByEmail,
     PageAccess,
+    PagePermissions,
     PageMembers,
     CreatePage,
     CreateTaskFromPage,
@@ -138,4 +139,17 @@ async def list_members(
         await actor(request, response),
         page_id,
         MemberQuery(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.get(
+    "/{page_id}/permissions",
+    operation_id="getKnowledgePagePermissions",
+    response_model=PagePermissions,
+)
+async def get_permissions(
+    request: Request, response: Response, page_id: UUID
+) -> PagePermissions:
+    return await service(request).get_permissions(
+        await actor(request, response), page_id
     )

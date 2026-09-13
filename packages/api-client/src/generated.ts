@@ -183,6 +183,7 @@ export type Page = { readonly actionId: string | null; readonly content: Record<
 export type PageAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
 export type PageMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
 export type PageMembers = { readonly accessRevision: number; readonly items: Array<PageMember>; readonly nextOffset: number | null; readonly ownerUserId: string; };
+export type PagePermissions = { readonly canEdit: boolean; readonly canManage: boolean; };
 export type PageSummary = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type Pages = { readonly items: Array<PageSummary>; readonly nextOffset: number | null; };
 export type ParticipationCounts = { readonly completed: number; readonly in_progress: number; readonly partial: number; };
@@ -1860,6 +1861,17 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getKnowledgePagePermissions(
+    pageId: string,
+    options: RequestOptions = {},
+  ): Promise<PagePermissions> {
+    return this.request<PagePermissions>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/permissions`,
+      { method: "GET" },
       options,
     );
   }
