@@ -292,7 +292,7 @@ def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access(
 
     navigation = navigation_for(acquirer, module_navigation(acquirer))
 
-    assert {item.key for item in navigation if item.surface == "web"} == {"surveys", "tasks", "knowledge"}
+    assert {item.key for item in navigation if item.surface == "web"} == {"surveys", "tasks", "knowledge", "materials"}
     assert {(item.surface, item.key) for item in navigation} >= {
         ("pwa", "overview-pwa"),
         ("pwa", "tasks"),

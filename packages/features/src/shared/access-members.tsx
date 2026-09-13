@@ -16,12 +16,31 @@ export function AccessMembersPanel({
 }: {
   client: LeonAidApiClient;
   objectId: string;
-  kind: "task-list" | "knowledge-page";
+  kind: "task-list" | "knowledge-page" | "material";
   actionScoped: boolean;
 }) {
   const page = kind === "knowledge-page";
-  const subject = page ? "Seite" : "Liste";
-  const membersKey = page ? "knowledge-members" : "task-members";
+  const material = kind === "material";
+  const label = material
+    ? "Materialfreigaben"
+    : page
+      ? "Seitenfreigaben"
+      : "Listenmitglieder";
+  const accessLabel = material
+    ? "Materialzugriff"
+    : page
+      ? "Seitenzugriff"
+      : "Listenzugriff";
+  const subject = material
+    ? "dieses Material"
+    : page
+      ? "diese Seite"
+      : "diese Liste";
+  const membersKey = material
+    ? "material-members"
+    : page
+      ? "knowledge-members"
+      : "task-members";
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -32,6 +51,13 @@ export function AccessMembersPanel({
   const members = useQuery({
     queryKey: [membersKey, objectId, search, offset],
     queryFn: async () => {
+      if (material) {
+        const result = await client.listMaterialMembers(objectId, {
+          search,
+          offset,
+        });
+        return { ...result, revision: result.accessRevision };
+      }
       if (!page)
         return client.listTaskListMembers(objectId, { search, offset });
       const result = await client.listKnowledgePageMembers(objectId, {
@@ -54,6 +80,16 @@ export function AccessMembersPanel({
         expectedRevision,
         idempotencyKey: operation.current.key,
       };
+      if (material) {
+        const materialCommand = {
+          expectedAccessRevision: expectedRevision,
+          idempotencyKey: operation.current.key,
+          ...command,
+        };
+        return "email" in materialCommand
+          ? client.setMaterialMemberByEmail(objectId, materialCommand)
+          : client.setMaterialMember(objectId, materialCommand);
+      }
       if (page) {
         const pageCommand = {
           expectedAccessRevision: expectedRevision,
@@ -79,12 +115,19 @@ export function AccessMembersPanel({
         cache.invalidateQueries({ queryKey: [membersKey, objectId] }),
         cache.invalidateQueries({
           queryKey: [
-            page ? "knowledge-permissions" : "task-assignees",
+            material
+              ? "material-permissions"
+              : page
+                ? "knowledge-permissions"
+                : "task-assignees",
             objectId,
           ],
         }),
         cache.invalidateQueries({
-          queryKey: [page ? "knowledge-page" : "task-list", objectId],
+          queryKey: [
+            material ? "material" : page ? "knowledge-page" : "task-list",
+            objectId,
+          ],
         }),
       ]);
     },
@@ -97,11 +140,11 @@ export function AccessMembersPanel({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {page ? "Seitenfreigaben" : "Listenmitglieder"}
+        {label}
       </Button>
       {open && (
         <div>
-          <h2>Zugriff auf diese {subject}</h2>
+          <h2>Zugriff auf {subject}</h2>
           <p>
             {actionScoped
               ? "Aktionsrollen gelten weiterhin. Das Entfernen eines zusätzlichen Zugriffs entzieht keine Aktionsmitgliedschaft."
@@ -125,7 +168,7 @@ export function AccessMembersPanel({
           {members.data && !members.error && (
             <fieldset disabled={change.isPending}>
               <label>
-                {page ? "Seitenfreigaben" : "Listenmitglieder"} suchen
+                {label} suchen
                 <input
                   type="search"
                   maxLength={200}
@@ -169,9 +212,7 @@ export function AccessMembersPanel({
                           change.mutate({ userId: member.userId, access: null })
                         }
                       >
-                        {page
-                          ? "Seitenzugriff entfernen"
-                          : "Listenzugriff entfernen"}
+                        {accessLabel} entfernen
                       </Button>
                     </div>
                   </li>
@@ -216,7 +257,7 @@ export function AccessMembersPanel({
                   />
                 </label>
                 <label>
-                  {page ? "Seitenzugriff" : "Listenzugriff"}
+                  {accessLabel}
                   <select
                     value={access}
                     onChange={(event) =>

@@ -1,3 +1,4 @@
+import { materialsModule } from "./materials/module";
 import { knowledgeModule } from "./knowledge/module";
 import { validateUiModules } from "./modules";
 import { tasksModule } from "./tasks/module";
@@ -8,5 +9,6 @@ export const registeredModules = [
   surveysModule,
   tasksModule,
   knowledgeModule,
+  materialsModule,
 ] as const;
 validateUiModules(registeredModules);

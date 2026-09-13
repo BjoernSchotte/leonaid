@@ -78,6 +78,21 @@ describe("explicit UI modules", () => {
     ).toBeNull();
   });
 
+  it("resolves materials and version management in both shells", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    expect(
+      resolveModuleRoute(registeredModules, "web", "/admin/materials")
+        ?.moduleId,
+    ).toBe("materials");
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", `/app/materials/${id}`)
+        ?.moduleId,
+    ).toBe("materials");
+    expect(
+      resolveModuleRoute(registeredModules, "web", "/admin/materials/invalid"),
+    ).toBeNull();
+  });
+
   it("rejects duplicate IDs and overlapping routes", () => {
     const surveys = registeredModules[0];
     expect(() => validateUiModules([surveys, surveys])).toThrow("duplicate");
