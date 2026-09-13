@@ -391,7 +391,7 @@ Refactoring und fachliche Erweiterungen in getrennten reviewbaren Änderungen li
 Vor jeder Etappe Rücknahme auf den vorherigen Code mit dem erweiterten Schema prüfen. Bereits geschriebene neue Fachobjekte oder neue Jobtypen können ein einfaches Code-Rollback verhindern; dann neuen Eingang stoppen, Jobs gezielt drainieren und kompatible Handler erhalten oder einen Forward-Fix ausrollen. Keine Module durch Ausblenden des Menüs als technisch zurückgenommen betrachten. Keine Tabellen, Volumes oder Nutzerdaten zur Rücknahme löschen.
 
 - [x] Frühere API-Quellstände vor Registrierung, Tasks und Inbox mit erweitertem Schema prüfen: echter Lifespan, persistierte Sitzung, aktueller Kontosperrstatus und erhaltene neue Task-Daten. Reproduzierbarer Runner: `sh tools/schema/test.sh . code-rollback`. Heutige Python-Laufzeit; kein Nachweis für alte Images oder neue Jobtypen.
-- [ ] Rücknahme bei neuen Jobs einschließlich gestopptem Eingang und kompatibler Verarbeitung bzw. Forward-Fix nachweisen.
+- [x] Wartungsablauf bei neuen Jobs mit gestopptem Eingang und erhaltenem kompatiblen Produktionsworker nachweisen: gespeicherter Inbox-Auftrag während API-Stopp abgeschlossen, danach API wieder gesund. Betriebsanleitung in `ROLLBACK.md`; kein Nachweis für einen alten Worker ohne neue Handler und keine solche Freigabe.
 
 ## 10. Abschlusskriterium
 
