@@ -264,6 +264,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Vollständigen Backup-/Fresh-Volume-Restore mit separat reservierten Testnetzen bestehen: unveränderte Leeres-Ziel-Sperre, identisches SQL-/Dateiinventar, Golden-Snapshot, bestehende Sitzung im Browser und vollständige Bereinigung. RPO 329 s und RTO 634 s; Remote-Nightly bleibt offen.
+
 - [x] Manuellen Survey-Restic-Recovery-Pfad vollständig prüfen: ohne unabhängigen Lösch-Checkpoint bleiben Writer offline; gültiger Checkpoint entfernt nach Backup gelöschte Inhalte vor dem Neustart. SQL, exakte Exportversion, alte Sitzung, öffentliche Route, Browser und Bereinigung bestanden. Archiv-/Durable-/Pilot-Varianten und Remote-Nightly bleiben offen.
 
 - [x] Privates Backup-Manifest mit der Host-UID erzeugen: vollständige Sicherung aller fünf Dateien, Restic-Integritätsprüfung und Wiederanlauf der Quelldienste bestanden. Vollständiger Restore und Remote-Nightly bleiben separate offene Gates.

@@ -8,6 +8,7 @@ root=$(cd "$root" && pwd)
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 source_project=${LEONAID_BACKUP_TEST_SOURCE_PROJECT:-leonaid-poc112-source}-$suffix
 target_project=${LEONAID_BACKUP_TEST_TARGET_PROJECT:-leonaid-restore-poc112}-$suffix
+target_network_project="$target_project-networks"
 source_owned=false
 target_owned=false
 source_http_port=${LEONAID_BACKUP_TEST_SOURCE_PORT:-18122}
@@ -86,7 +87,12 @@ cleanup() {
   if [ "$target_owned" = true ]; then
     if [ "${LEONAID_BACKUP_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
       if ! target_compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
+      network_ids=$(docker network ls -q --filter "label=com.docker.compose.project=$target_network_project") || status=1
+      if [ -n "$network_ids" ]; then
+        docker network rm $network_ids >/dev/null || status=1
+      fi
       if ! verify_cleanup "$target_project"; then status=1; fi
+      if ! verify_cleanup "$target_network_project"; then status=1; fi
     else
       echo "backup-test: Owned restore project retained without host ports: $target_project"
     fi
@@ -103,8 +109,8 @@ trap cleanup EXIT HUP INT TERM
   echo "backup-test: ERROR: .env.local fehlt; zuerst ./leonaid bootstrap" >&2
   exit 1
 }
-# Check both resource identities before acquiring either one.
-for checked_project in "$source_project" "$target_project"; do
+# Check all resource identities before acquiring any of them.
+for checked_project in "$source_project" "$target_project" "$target_network_project"; do
   existing=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project")
   [ -z "$existing" ]
   existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project")
@@ -261,7 +267,27 @@ source_compose --profile '*' down --volumes --remove-orphans
 verify_cleanup "$source_project"
 python3 "$root/tools/surveys/network_override.py" "$target_isolation"
 target_owned=true
-target_compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$target_project" "$target_isolation"
+# Reserve fixture networks separately: restore must still observe an empty
+# target project, and subnet selection alone races with other test stacks.
+target_compose --profile '*' config --format json > "$proof/target-compose.json"
+python3 - "$root" "$target_network_project" "$target_isolation" "$proof/target-compose.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+sys.path.insert(0, sys.argv[1])
+from tools.testing.reserve_compose_networks import reserve
+
+project, overlay = sys.argv[2], Path(sys.argv[3])
+configuration = json.loads(Path(sys.argv[4]).read_text())
+for key, settings in configuration['networks'].items():
+    settings['name'] = f'{project}_{key}'
+reserve(project, overlay, configuration)
+document = overlay.read_text().split('networks:\n', 1)[0] + 'networks:\n'
+for key in configuration['networks']:
+    document += f'  {key}: !override\n    external: true\n    name: {project}_{key}\n'
+overlay.write_text(document)
+PY
 restore_started=$(date +%s)
 LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_HTTPS_PORT="$target_https_port" \
@@ -317,7 +343,7 @@ docker run --rm \
   /workspace/tests/fixtures/golden/v1
 
 docker run --rm \
-  --network "${target_project}_edge" \
+  --network "${target_network_project}_edge" \
   --env CI=1 \
   --env HOME=/tmp \
   --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
