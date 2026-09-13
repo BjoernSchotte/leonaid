@@ -209,6 +209,7 @@ jobs:
       max-parallel: 7
       matrix:
         shard:
+          - materials
           - acquisition-management
           - public-catalog
           - membership
