@@ -57,7 +57,8 @@ def validate_document(value: object) -> dict[str, Any]:
                 raise ValueError("Ungültige Überschriftenebene.")
         elif kind == "orderedList":
             if (
-                set(attrs) - {"start"}
+                set(attrs) - {"start", "type"}
+                or attrs.get("type") not in (None, "1", "a", "A", "i", "I")
                 or type(attrs.get("start", 1)) is not int
                 or not 1 <= attrs.get("start", 1) <= 2147483647
             ):
@@ -144,7 +145,7 @@ def validate_mark(mark: object) -> None:
         raise ValueError("Ungültige Formatattribute.")
     if kind in {"bold", "italic", "strike", "code"} and not attrs:
         return
-    if kind != "link" or set(attrs) - {"href", "target", "rel", "class"}:
+    if kind != "link" or set(attrs) - {"href", "target", "rel", "class", "title"}:
         raise ValueError("Diese Textformatierung wird nicht unterstützt.")
     href = attrs.get("href")
     if (
@@ -161,6 +162,9 @@ def validate_mark(mark: object) -> None:
         or attrs.get("class") is not None
     ):
         raise ValueError("Ungültige Linkattribute.")
+    title = attrs.get("title")
+    if title is not None and (not isinstance(title, str) or len(title) > 2048):
+        raise ValueError("Ungültiger Linktitel.")
     rel = attrs.get("rel")
     if rel is not None and (
         not isinstance(rel, str)

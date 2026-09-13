@@ -171,3 +171,70 @@ def test_commands_revalidate_mutated_documents_and_strict_revisions() -> None:
                 "content": command.content,
             }
         )
+
+
+@pytest.mark.parametrize("style", [None, "1", "a", "A", "i", "I"])
+def test_tiptap_ordered_list_attribute(style: str | None) -> None:
+    source = document(
+        {
+            "type": "orderedList",
+            "attrs": {"start": 1, "type": style},
+            "content": [{"type": "listItem", "content": [{"type": "paragraph"}]}],
+        }
+    )
+    assert validate_document(source) == source
+
+
+def test_tiptap_link_title_is_bounded() -> None:
+    source = document(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Link",
+                    "marks": [
+                        {
+                            "type": "link",
+                            "attrs": {"href": "https://example.org", "title": None},
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    assert validate_document(source) == source
+    invalid = document(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Link",
+                    "marks": [
+                        {
+                            "type": "link",
+                            "attrs": {
+                                "href": "https://example.org",
+                                "title": "x" * 2049,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError):
+        validate_document(invalid)
+    with pytest.raises(ValueError):
+        validate_document(
+            document(
+                {
+                    "type": "orderedList",
+                    "attrs": {"type": "unsafe"},
+                    "content": [
+                        {"type": "listItem", "content": [{"type": "paragraph"}]}
+                    ],
+                }
+            )
+        )

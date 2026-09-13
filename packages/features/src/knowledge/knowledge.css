@@ -63,3 +63,56 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+.knowledge-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.knowledge-document {
+  min-height: 16rem;
+  padding: 1rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.knowledge-document[contenteditable="false"] {
+  min-height: 4rem;
+}
+.knowledge-document:focus-visible,
+.knowledge-workspace a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.knowledge-document p {
+  margin-block: 0.75rem;
+}
+.knowledge-document :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-block: 1.5rem 0.5rem;
+}
+.knowledge-document ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.knowledge-document ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.knowledge-document pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.knowledge-workspace a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.knowledge-task-reference {
+  margin-block: 0.75rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--border);
+}

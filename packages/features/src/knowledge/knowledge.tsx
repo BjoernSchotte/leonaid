@@ -5,7 +5,10 @@ import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "./knowledge.css";
 
-export function KnowledgePage({ client }: ModulePageContext) {
+export function KnowledgePage({
+  client,
+  basePath,
+}: ModulePageContext & { basePath: string }) {
   const cache = useQueryClient();
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -113,7 +116,9 @@ export function KnowledgePage({ client }: ModulePageContext) {
             <ul className="knowledge-results">
               {pages.data.items.map((page) => (
                 <li key={page.id}>
-                  <h2>{page.title}</h2>
+                  <h2>
+                    <a href={`${basePath}/${page.id}`}>{page.title}</a>
+                  </h2>
                   <p>
                     {page.actionId ? "Aktionsseite" : "Eigenständige Seite"} ·
                     Version {page.revision}

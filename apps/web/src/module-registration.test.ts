@@ -63,6 +63,21 @@ describe("explicit UI modules", () => {
     ).toBe("knowledge");
   });
 
+  it("resolves knowledge editors without catching malformed page IDs", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    expect(
+      resolveModuleRoute(registeredModules, "web", `/admin/knowledge/${id}`)
+        ?.moduleId,
+    ).toBe("knowledge");
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", `/app/knowledge/${id}`)
+        ?.moduleId,
+    ).toBe("knowledge");
+    expect(
+      resolveModuleRoute(registeredModules, "web", "/admin/knowledge/invalid"),
+    ).toBeNull();
+  });
+
   it("rejects duplicate IDs and overlapping routes", () => {
     const surveys = registeredModules[0];
     expect(() => validateUiModules([surveys, surveys])).toThrow("duplicate");
