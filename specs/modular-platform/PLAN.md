@@ -263,6 +263,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 - [ ] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
   - [x] Optionalen timezone-aware Ausführungszeitpunkt in allen Pending-Event-Persistenzen ergänzen; mit echtem ActionProgress-Handler Rollback, Fälligkeitsgrenze, Lease-Übernahme und Fencing im isolierten PostgreSQL-Runner nachweisen. Bestehende SMTP-Retry-/Recovery-Prüfungen bestanden.
   - [x] Diagnostik: rohe Exception-Texte aus gespeicherten Fehlerdetails entfernen; sichere Codes und monotone Laufzeitmessung im Job-Log ergänzen. Unit-/Typprüfung bestanden; PostgreSQL-/Runtime-Abnahme bleibt offen.
+  - [x] Produktionsrenderer im API-Image mit 5.000 synthetischen Antworten messen und Ergebnisse dokumentieren. Vollständige Jobmessung einschließlich Datenbank/Storage und Laufzeitbegrenzung bleiben offen.
 - [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
   - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.
 

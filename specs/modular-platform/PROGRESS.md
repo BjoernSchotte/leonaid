@@ -189,3 +189,16 @@ CI-Ursache behoben und separat gepusht: `features` deklarierte `react-dom@19.2.8
 `sh tools/outbox/test.sh` ist erfolgreich beendet. Eigener Compose-Teststack `leonaid-poc022-test-2137972478-13179`, alle eigenen Ressourcen anschließend entfernt. Nachgewiesen: Commit überlebt Producer-Prozessende; vorhandene Aktivitätsprojektion wird nachgeholt; zwei Worker teilen 20 zusätzliche Jobs ohne doppelte Verarbeitung; physisch gestopptes SMTP führt über drei Versuche zu Dead Letter; manueller Retry und Replay erzeugen keine zusätzliche Mail. Der neue Test ergänzt atomaren Rollback eines terminierten Events, gespeicherten Ausführungszeitpunkt, kein Claim vor Fälligkeit, Claim bei Fälligkeit, Übernahme nach Lease-Ablauf, Zurückweisung des alten Claim-Tokens und genau eine Aktivitätsprojektion trotz erneutem Handler-Aufruf.
 
 Der Lauf enthält die unveränderten Implementierungsdateien des Delayed-Enqueue-Slices. Später ergänzte Worker-Diagnostik ist ausdrücklich nicht durch das vorher gebaute Image abgedeckt. Unit-Gesamtsuite nach beiden Änderungen: 400 bestanden. Repräsentative Exportmessung, begrenzte Joblaufzeit und die vollständige aktuelle CI-/LIVE-Abnahme bleiben offen.
+
+### Export-Renderer-Messung als Grundlage für Laufzeitgrenzen
+
+`tools/outbox/benchmark_exports.py` lief im bestehenden API-Image ohne Netzwerk, mit den Produktionsrenderern und synthetischem Fixture. Das validierte Fünf-Antworten-Fixture wurde 1000-fach wiederholt; aggregierte Zähler wurden entsprechend skaliert und erneut validiert. Drei Durchläufe pro Produkt:
+
+| Produkt | Median | Einzelmessungen in Sekunden | Ausgabegröße |
+| --- | ---: | --- | ---: |
+| Aggregat-PDF | 0,034 s | 0,046 / 0,0287 / 0,034 | 34.591 Bytes |
+| Aggregat-XLSX | 0,0225 s | 0,0254 / 0,0216 / 0,0225 | 17.795 Bytes |
+| 5.000 Antworten als CSV | 0,0978 s | 0,1096 / 0,0978 / 0,0938 | 5.433.474 Bytes |
+| 5.000 Antworten als XLSX | 7,1703 s | 7,0186 / 7,1703 / 7,2747 | 625.775 Bytes |
+
+Dies misst Rendering, keine vollständige Joblaufzeit mit PostgreSQL/S3 und keinen Worst Case jeder zulässigen Umfrage. Die serielle Verarbeitung und 300-Sekunden-Standard-Lease bleiben bestehen; aus diesen Messungen folgt noch keine Notwendigkeit für Parallelität oder Lease-Verlängerung. Der erste Messversuch scheiterte korrekt an inkonsistenter Antwortanzahl; nach Skalierung und erneuter Modellvalidierung bestand der vollständige Lauf. Das Tool enthält keine zusätzlichen Produktjobs oder Abhängigkeiten.
