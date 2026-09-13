@@ -5,10 +5,10 @@ from dataclasses import dataclass
 import hashlib
 import re
 import unicodedata
-from typing import Annotated, Protocol
+from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator
+from pydantic import EmailStr, ConfigDict, Field, StringConstraints, field_validator
 
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.http import TransportModel
@@ -27,6 +27,7 @@ class MaterialModel(TransportModel):
 
     @field_validator(
         "id",
+        "user_id",
         "material_id",
         "action_id",
         "owner_user_id",
@@ -122,7 +123,63 @@ def upload_digest(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+class MemberQuery(MaterialModel):
+    search: str = Field(default="", max_length=200)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class SetMaterialMember(MaterialModel):
+    idempotency_key: UUID
+    expected_access_revision: int = Field(ge=1)
+    user_id: UUID
+    access: Literal["viewer", "editor"] | None
+
+
+class SetMaterialMemberByEmail(MaterialModel):
+    idempotency_key: UUID
+    expected_access_revision: int = Field(ge=1)
+    email: EmailStr
+    access: Literal["viewer", "editor"]
+
+
+class MaterialAccess(MaterialModel):
+    owner_user_id: UUID
+    access_revision: int = Field(ge=1)
+
+
+class MaterialPermissions(MaterialModel):
+    can_edit: bool
+    can_manage: bool
+
+
+class MaterialMember(MaterialModel):
+    user_id: UUID
+    display_name: str
+    access: Literal["viewer", "editor"]
+    active: bool
+
+
+class MaterialMembers(MaterialAccess):
+    items: list[MaterialMember]
+    next_offset: int | None
+
+
 class MaterialRepository(Protocol):
+    async def get_permissions(
+        self, actor: IdentityPrincipal, material_id: UUID
+    ) -> MaterialPermissions: ...
+
+    async def set_material_member(
+        self,
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        command: SetMaterialMember | SetMaterialMemberByEmail,
+    ) -> MaterialAccess: ...
+    async def list_members(
+        self, actor: IdentityPrincipal, material_id: UUID, query: MemberQuery
+    ) -> MaterialMembers: ...
+
     async def download(
         self, actor: IdentityPrincipal, material_id: UUID, version: int
     ) -> MaterialDownload: ...
@@ -153,6 +210,35 @@ class MaterialRepository(Protocol):
 
 
 class MaterialService:
+    async def get_permissions(
+        self, actor: IdentityPrincipal, material_id: UUID
+    ) -> MaterialPermissions:
+        return await self._repository.get_permissions(actor, material_id)
+
+    async def set_material_member(
+        self, actor: IdentityPrincipal, material_id: UUID, command: SetMaterialMember
+    ) -> MaterialAccess:
+        return await self._repository.set_material_member(
+            actor, material_id, SetMaterialMember.model_validate(command)
+        )
+
+    async def set_material_member_by_email(
+        self,
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        command: SetMaterialMemberByEmail,
+    ) -> MaterialAccess:
+        return await self._repository.set_material_member(
+            actor, material_id, SetMaterialMemberByEmail.model_validate(command)
+        )
+
+    async def list_members(
+        self, actor: IdentityPrincipal, material_id: UUID, query: MemberQuery
+    ) -> MaterialMembers:
+        return await self._repository.list_members(
+            actor, material_id, MemberQuery.model_validate(query)
+        )
+
     async def download(
         self, actor: IdentityPrincipal, material_id: UUID, version: int
     ) -> MaterialDownload:

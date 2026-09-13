@@ -132,6 +132,57 @@ async def main() -> None:
                 assert (
                     await client.get(path + "/versions/1/download")
                 ).status_code == 401
+                target_id = uuid4()
+                target_email = f"{target_id}@example.org"
+                await connection.execute(
+                    "INSERT INTO user_account(id,email,display_name,status) VALUES ($1,$2,'Material member HTTP','active')",
+                    target_id,
+                    target_email,
+                )
+                permission = await client.get(path + "/permissions", headers=headers)
+                assert permission.json() == {"canEdit": True, "canManage": True}
+                grant = {
+                    "idempotencyKey": str(uuid4()),
+                    "expectedAccessRevision": 1,
+                    "email": target_email,
+                    "access": "editor",
+                }
+                access = await client.put(
+                    path + "/members/by-email", headers=headers, json=grant
+                )
+                assert (
+                    access.status_code == 200 and access.json()["accessRevision"] == 2
+                ), access.text
+                assert (
+                    await client.put(
+                        path + "/members/by-email", headers=headers, json=grant
+                    )
+                ).json() == access.json()
+                members = await client.get(
+                    path + "/members?search=member", headers=headers
+                )
+                assert members.json()["items"] == [
+                    {
+                        "userId": str(target_id),
+                        "displayName": "Material member HTTP",
+                        "access": "editor",
+                        "active": True,
+                    }
+                ]
+                removed = await client.put(
+                    path + "/members",
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedAccessRevision": 2,
+                        "userId": str(target_id),
+                        "access": None,
+                    },
+                )
+                assert (
+                    removed.status_code == 200 and removed.json()["accessRevision"] == 3
+                )
+                assert (await client.get(path, headers=headers)).json()["revision"] == 1
                 next_command = {"idempotencyKey": str(uuid4()), "expectedRevision": "1"}
                 changed = await client.post(
                     path + "/versions",

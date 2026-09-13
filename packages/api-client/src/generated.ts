@@ -162,6 +162,10 @@ export type ListMembers = { readonly items: Array<ListMember>; readonly nextOffs
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
 export type Material = { readonly actionId: string | null; readonly currentVersion: number; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type MaterialAccess = { readonly accessRevision: number; readonly ownerUserId: string; };
+export type MaterialMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
+export type MaterialMembers = { readonly accessRevision: number; readonly items: Array<MaterialMember>; readonly nextOffset: number | null; readonly ownerUserId: string; };
+export type MaterialPermissions = { readonly canEdit: boolean; readonly canManage: boolean; };
 export type MaterialVersion = { readonly filename: string; readonly materialId: string; readonly mediaType: string; readonly sha256: string; readonly sizeBytes: number; readonly version: number; };
 export type Materials = { readonly items: Array<Material>; readonly nextOffset: number | null; };
 export type MatrixRowAggregate = { readonly answered: number; readonly counts: Array<AggregateCount>; readonly invalid: number; readonly label: string; readonly rowId: string; readonly unanswered: number; };
@@ -244,6 +248,8 @@ export type SetActionGoalRequest = { readonly actualValue?: string; readonly cur
 export type SetActionPublicationRequest = { readonly publicAlias?: string | null; readonly publicationEndsAt?: string | null; readonly publicationStartsAt?: string | null; readonly revision: number; };
 export type SetListMember = { readonly access: "viewer" | "editor" | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetListMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedRevision: number; readonly idempotencyKey: string; };
+export type SetMaterialMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
+export type SetMaterialMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
@@ -1946,6 +1952,73 @@ export class LeonAidApiClient {
   ): Promise<Material> {
     return this.request<Material>(
       `/api/v1/materials/${encodeURIComponent(String(materialId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listMaterialMembers(
+    materialId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<MaterialMembers> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/materials/${encodeURIComponent(String(materialId))}/members` + (queryString ? `?${queryString}` : "");
+    return this.request<MaterialMembers>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setMaterialMember(
+    materialId: string,
+    body: SetMaterialMember,
+    options: RequestOptions = {},
+  ): Promise<MaterialAccess> {
+    return this.request<MaterialAccess>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/members`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async setMaterialMemberByEmail(
+    materialId: string,
+    body: SetMaterialMemberByEmail,
+    options: RequestOptions = {},
+  ): Promise<MaterialAccess> {
+    return this.request<MaterialAccess>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/members/by-email`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getMaterialPermissions(
+    materialId: string,
+    options: RequestOptions = {},
+  ): Promise<MaterialPermissions> {
+    return this.request<MaterialPermissions>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/permissions`,
       { method: "GET" },
       options,
     );

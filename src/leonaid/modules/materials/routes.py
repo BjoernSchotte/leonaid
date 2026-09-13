@@ -12,6 +12,12 @@ from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.materials.api import (
     MAX_UPLOAD_BYTES,
+    MemberQuery,
+    SetMaterialMember,
+    SetMaterialMemberByEmail,
+    MaterialAccess,
+    MaterialMembers,
+    MaterialPermissions,
     AddVersion,
     CreateMaterial,
     Material,
@@ -222,4 +228,66 @@ async def download(
             "X-Content-Type-Options": "nosniff",
             "Content-Disposition": f"attachment; filename=\"download\"; filename*=UTF-8''{quote(artifact.version.filename, safe='')}",
         },
+    )
+
+
+@router.put(
+    "/{material_id}/members",
+    operation_id="setMaterialMember",
+    response_model=MaterialAccess,
+)
+async def set_material_member(
+    request: Request, response: Response, material_id: UUID, body: SetMaterialMember
+) -> MaterialAccess:
+    return await service(request).set_material_member(
+        await actor(request, response), material_id, body
+    )
+
+
+@router.put(
+    "/{material_id}/members/by-email",
+    operation_id="setMaterialMemberByEmail",
+    response_model=MaterialAccess,
+)
+async def set_material_member_by_email(
+    request: Request,
+    response: Response,
+    material_id: UUID,
+    body: SetMaterialMemberByEmail,
+) -> MaterialAccess:
+    return await service(request).set_material_member_by_email(
+        await actor(request, response), material_id, body
+    )
+
+
+@router.get(
+    "/{material_id}/members",
+    operation_id="listMaterialMembers",
+    response_model=MaterialMembers,
+)
+async def list_members(
+    request: Request,
+    response: Response,
+    material_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> MaterialMembers:
+    return await service(request).list_members(
+        await actor(request, response),
+        material_id,
+        MemberQuery(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.get(
+    "/{material_id}/permissions",
+    operation_id="getMaterialPermissions",
+    response_model=MaterialPermissions,
+)
+async def get_permissions(
+    request: Request, response: Response, material_id: UUID
+) -> MaterialPermissions:
+    return await service(request).get_permissions(
+        await actor(request, response), material_id
     )

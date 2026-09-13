@@ -36,6 +36,13 @@ from leonaid.modules.materials.api import (
     MaterialQuery,
     Materials,
     upload_digest,
+    MemberQuery,
+    SetMaterialMember,
+    SetMaterialMemberByEmail,
+    MaterialAccess,
+    MaterialMember,
+    MaterialMembers,
+    MaterialPermissions,
 )
 
 _READ_ACCESS = """
@@ -117,22 +124,19 @@ class AsyncpgMaterialRepository:
         if row is None:
             raise ResourceNotFound("not_found", "Material nicht gefunden.")
         material = Material.model_validate(dict(row))
-        if write:
-            allowed = material.owner_user_id == actor.account.id
-            if not allowed and material.action_id is not None:
-                allowed = await self._action_write(
-                    conn, actor.account.id, material.action_id
+        if (
+            write
+            and not (
+                await self._permissions(
+                    conn,
+                    actor.account.id,
+                    material_id,
+                    material.owner_user_id,
+                    material.action_id,
                 )
-            if not allowed:
-                allowed = bool(
-                    await conn.fetchval(
-                        "SELECT EXISTS (SELECT 1 FROM material_member WHERE material_id=$1 AND user_id=$2 AND access='editor')",
-                        material_id,
-                        actor.account.id,
-                    )
-                )
-            if not allowed:
-                raise ResourceNotFound("not_found", "Material nicht gefunden.")
+            ).can_edit
+        ):
+            raise ResourceNotFound("not_found", "Material nicht gefunden.")
         return material
 
     async def _receipt(
@@ -141,13 +145,17 @@ class AsyncpgMaterialRepository:
         actor: IdentityPrincipal,
         context: UUID,
         operation: str,
-        command: CreateMaterial | AddVersion,
-        content: bytes,
+        command: CreateMaterial
+        | AddVersion
+        | SetMaterialMember
+        | SetMaterialMemberByEmail,
+        content: bytes | None = None,
     ) -> tuple[str, dict[str, str] | None, str]:
         key = f"materials:{actor.account.id}:{operation}:{context}:{command.idempotency_key}"
-        digest = hashlib.sha256(
-            (command.model_dump_json() + ":" + upload_digest(content)).encode()
-        ).hexdigest()
+        payload = command.model_dump_json()
+        if content is not None:
+            payload += ":" + upload_digest(content)
+        digest = hashlib.sha256(payload.encode()).hexdigest()
         try:
             replay = await AsyncpgCommandReceiptRepository(conn).reserve(
                 idempotency_key=key, command_type=operation, request_hash=digest
@@ -223,6 +231,7 @@ class AsyncpgMaterialRepository:
         material: Material,
         key: str,
         operation: str,
+        result: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
             """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
@@ -235,7 +244,8 @@ class AsyncpgMaterialRepository:
             key,
         )
         await AsyncpgCommandReceiptRepository(conn).complete(
-            idempotency_key=key, result={"material": material.model_dump_json()}
+            idempotency_key=key,
+            result=result or {"material": material.model_dump_json()},
         )
 
     async def create_material(
@@ -406,4 +416,176 @@ class AsyncpgMaterialRepository:
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
+            )
+
+    async def _manage_material(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        *,
+        write: bool,
+    ) -> Material:
+        material = await self._material(conn, actor, material_id, write=write)
+        if not (
+            await self._permissions(
+                conn,
+                actor.account.id,
+                material_id,
+                material.owner_user_id,
+                material.action_id,
+            )
+        ).can_manage:
+            raise ResourceNotFound("not_found", "Materialverwaltung nicht verfügbar.")
+        return material
+
+    async def set_material_member(
+        self,
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        command: SetMaterialMember | SetMaterialMemberByEmail,
+    ) -> MaterialAccess:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            material = await self._manage_material(conn, actor, material_id, write=True)
+            operation = "material.member_changed"
+            key, replay, _digest = await self._receipt(
+                conn, actor, material_id, operation, command
+            )
+            if replay:
+                return MaterialAccess.model_validate_json(replay["material"])
+            revision = await conn.fetchval(
+                "SELECT access_revision FROM material WHERE id=$1", material_id
+            )
+            if revision != command.expected_access_revision:
+                raise Conflict(
+                    "revision_conflict",
+                    "Die Materialrechte wurden inzwischen geändert.",
+                )
+            if isinstance(command, SetMaterialMemberByEmail):
+                user_id = await conn.fetchval(
+                    "SELECT id FROM user_account WHERE lower(email)=lower($1) AND status='active'",
+                    str(command.email),
+                )
+                if user_id is None:
+                    raise Conflict(
+                        "material_member_invalid",
+                        "Dieses Konto kann nicht hinzugefügt werden.",
+                    )
+            else:
+                user_id = command.user_id
+            if user_id == material.owner_user_id:
+                raise Conflict(
+                    "material_owner_protected",
+                    "Der Eigentümer kann nicht entfernt oder herabgestuft werden.",
+                )
+            if command.access is not None:
+                if not await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM user_account WHERE id=$1 AND status='active')",
+                    user_id,
+                ):
+                    raise Conflict(
+                        "material_member_invalid",
+                        "Dieses Konto kann nicht hinzugefügt werden.",
+                    )
+                if material.action_id is not None and not await conn.fetchval(
+                    f"SELECT EXISTS (SELECT 1 FROM material m WHERE m.id=$2 AND {_READ_ACCESS})",
+                    user_id,
+                    material_id,
+                ):
+                    raise Conflict(
+                        "material_member_invalid", "Aktionszugriff erforderlich."
+                    )
+                await conn.execute(
+                    "INSERT INTO material_member(material_id,user_id,access) VALUES ($1,$2,$3) ON CONFLICT(material_id,user_id) DO UPDATE SET access=EXCLUDED.access",
+                    material_id,
+                    user_id,
+                    command.access,
+                )
+            else:
+                await conn.execute(
+                    "DELETE FROM material_member WHERE material_id=$1 AND user_id=$2",
+                    material_id,
+                    user_id,
+                )
+            revision = await conn.fetchval(
+                "UPDATE material SET access_revision=access_revision+1 WHERE id=$1 RETURNING access_revision",
+                material_id,
+            )
+            result = MaterialAccess(
+                owner_user_id=material.owner_user_id, access_revision=revision
+            )
+            await self._finish(
+                conn,
+                actor,
+                material,
+                key,
+                operation,
+                result={"material": result.model_dump_json()},
+            )
+            return result
+
+    async def list_members(
+        self, actor: IdentityPrincipal, material_id: UUID, query: MemberQuery
+    ) -> MaterialMembers:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            material = await self._manage_material(
+                conn, actor, material_id, write=False
+            )
+            revision = await conn.fetchval(
+                "SELECT access_revision FROM material WHERE id=$1", material_id
+            )
+            rows = await conn.fetch(
+                "SELECT m.user_id,u.display_name,m.access,(u.status='active') AS active FROM material_member m JOIN user_account u ON u.id=m.user_id WHERE m.material_id=$1 AND strpos(lower(u.display_name),lower($2))>0 ORDER BY m.user_id LIMIT $3 OFFSET $4",
+                material_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return MaterialMembers(
+                owner_user_id=material.owner_user_id,
+                access_revision=revision,
+                items=[
+                    MaterialMember.model_validate(dict(row))
+                    for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def _permissions(
+        self,
+        conn: asyncpg.Connection[Any],
+        user_id: UUID,
+        material_id: UUID,
+        owner_user_id: UUID,
+        action_id: UUID | None,
+    ) -> MaterialPermissions:
+        # Call only after the material read policy has passed; ownership never bypasses action access.
+        manage = owner_user_id == user_id or (
+            action_id is not None and await self._action_write(conn, user_id, action_id)
+        )
+        edit = manage or bool(
+            await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM material_member WHERE material_id=$1 AND user_id=$2 AND access='editor')",
+                material_id,
+                user_id,
+            )
+        )
+        return MaterialPermissions(can_edit=edit, can_manage=manage)
+
+    async def get_permissions(
+        self, actor: IdentityPrincipal, material_id: UUID
+    ) -> MaterialPermissions:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            material = await self._material(conn, actor, material_id, write=False)
+            return await self._permissions(
+                conn,
+                actor.account.id,
+                material_id,
+                material.owner_user_id,
+                material.action_id,
             )
