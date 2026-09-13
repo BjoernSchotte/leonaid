@@ -50,11 +50,44 @@ Vor Beginn einer Umsetzung den dann aktuellen Hauptbranch gegen diese Befunde ab
 | Surveys | Bestehende Survey-Definitionen, Antworten und Prozesse | Bestehende Use Cases erhalten und als Modul exponieren |
 | Bestehende Fachbereiche | Akquise, Bestellungen, Rechnungen, Lieferung behalten ihre Zustände | Nur benötigte Anwendungsoperationen veröffentlichen |
 
-Identitäten, Berechtigungen, Audit, Datenbankverbindung und technische Adapter sind gemeinsame Plattformdienste. Twenty bleibt Quelle für Personen/Organisationen. Öffentliche Darstellung erhält ausdrücklich veröffentlichbare Core-Daten; redaktionelle Inhalte bleiben im bestehenden CMS-Pfad.
+Gemeinsame Identitätsverträge, Berechtigungsmechanismen, Audit-Infrastruktur, Datenbankverbindung und technische Adapter gehören zur Plattform. Fachliche Berechtigungsregeln und Audit-Anlässe bleiben beim jeweiligen Modul. Twenty bleibt Quelle für Personen/Organisationen. Öffentliche Darstellung erhält ausdrücklich veröffentlichbare Core-Daten; redaktionelle Inhalte bleiben im bestehenden CMS-Pfad. „LeonAid Core“ bezeichnet weiterhin das gesamte Backend, nicht einen neuen Sammelordner für Fachlogik.
 
 Suche, „Für mich“, Aktionsübersicht und öffentliche Clubübersicht sind Projektionen bzw. zusammengesetzte Abfragen. Sie schreiben keine fremden Fachzustände. Ein Album referenziert Materialien. Ein Task im Text ist ein Task des Tasks-Moduls. Ein erledigter Task verändert keine Rechnung, Bestellung oder Lieferung.
 
-### 3.1 Struktur und Importregeln
+### 3.1 Gemeinsamer Python-Namespace und Zuständigkeiten
+
+Das Backend bleibt unter dem gemeinsamen Python-Namespace `leonaid`. Fachliche Module benötigen zunächst weder separate installierbare Pakete noch eigene `pyproject.toml`-Dateien. Zielstruktur:
+
+```text
+src/leonaid/
+  platform/       # gemeinsame technische Dienste und Verträge
+  modules/        # Fachobjekte, Regeln und öffentliche Fachoperationen
+    actions/
+    tasks/
+    knowledge/
+    materials/
+    inbox/
+    surveys/
+    invoicing/
+    delivery/
+  bootstrap/      # konkrete Verdrahtung und statische Modulregistrierung
+  entrypoints/    # API- und Worker-Prozessstart
+```
+
+Die Modulnamen illustrieren das Zielbild und sind keine Pflicht, leere Verzeichnisse vorab anzulegen. `platform/`, `modules/` und `bootstrap/` trennen technische Grundlage, Fachlogik und Zusammenstellung der Anwendung. `platform/` enthält insbesondere keine Aktions-, Aufgaben- oder Rechnungsregeln und wird nicht zum allgemeinen `utils`-Sammelbereich. Die technische Queue gehört zur Plattform, ihre fachlichen Handler zu den Modulen.
+
+Verbindliche Abhängigkeitsrichtung:
+
+```text
+entrypoints -> bootstrap -> modules -> platform
+                      \-------------> platform
+```
+
+`bootstrap/` kennt konkrete Modulimplementierungen und Plattformadapter und injiziert die benötigten Abhängigkeiten. Module importieren weder `bootstrap/` noch Prozess-Entrypoints. `platform/` importiert weder Fachmodule noch deren Registrierung. Module dürfen gezielt öffentliche APIs anderer Module verwenden, sofern keine Zyklen entstehen. Domain-/Service-Code verwendet dabei Verträge statt konkreter Infrastrukturadapter; die Schichtengrenze gilt auch innerhalb der Plattform.
+
+Die bestehenden Schichtverzeichnisse werden pro bearbeitetem Bereich migriert. Geeignete vorhandene Plattformfunktionen zunächst weiterverwenden und erst bei der jeweiligen Migration verschieben; keine zweite Implementierung derselben Dienste. Vorhandene Startbefehle und Modulpfade der Prozesse bleiben kompatibel. Die benannten Abhängigkeitsregeln gelten für den migrierten Code sofort; unvermeidbare Alt-Kanten werden einzeln mit Entfernungsetappe dokumentiert.
+
+### 3.2 Struktur eines Fachmoduls und Importregeln
 
 Neue Module beginnen unter `src/leonaid/modules/<name>/`. Beispiel, keine Pflichtdateiliste:
 
@@ -67,17 +100,33 @@ modules/tasks/
   jobs.py         # Handler, falls benötigt
 ```
 
-`api.py` ist ein Importvertrag, kein Service Locator. Konkrete Instanzen und Abhängigkeiten verdrahtet der Composition Root. Öffentliche Signaturen enthalten keine FastAPI-Requests, Datenbankverbindungen, Queue-Zeilen oder ORM-Objekte. Domain-/Service-Code importiert keine konkreten Infrastrukturadapter; vorhandene Ports bleiben nutzbar. Keine zusätzlichen Interfaces allein zur Spiegelung jeder Funktion.
+`api.py` ist ein Importvertrag, kein Service Locator. Konkrete Instanzen und Abhängigkeiten verdrahtet der Composition Root unter `bootstrap/`. Öffentliche Signaturen enthalten keine FastAPI-Requests, Datenbankverbindungen, Queue-Zeilen oder ORM-Objekte. Domain-/Service-Code importiert keine konkreten Infrastrukturadapter; vorhandene Ports bleiben nutzbar. Keine zusätzlichen Interfaces allein zur Spiegelung jeder Funktion.
 
 Andere Module dürfen nur die öffentliche API importieren. Kein Zugriff auf fremde Repositories oder schreibendes SQL auf fremde Tabellen. Schema und Migrationen bleiben gemeinsam. Für globale Leseansichten zunächst öffentliche Abfragen bündeln und paginieren; materialisierte Projektionen oder direkte modulübergreifende SQL-Leseabfragen erst bei belegtem Bedarf und dokumentierter Eigentümerschaft.
 
 Abhängigkeiten bilden einen gerichteten azyklischen Graphen. Zusammengesetzte Abläufe liegen beim aufrufenden Feature oder in einer konkret benannten Application-Funktion. Beispiel: Wissen verwendet Tasks; Tasks muss dafür Wissen nicht importieren. Bestehende Querabhängigkeiten werden pro migriertem Bereich explizit erfasst; keine globale Ausnahme für alle Altimporte. Übergangs-Reexports haben eine benannte Entfernungsetappe.
 
+### 3.3 Monorepo: ein Fachmodul über mehrere Sprachbereiche
+
+Ein Fachmodul kann Backend, React-Oberfläche und Clientverträge umfassen. Seine gemeinsame Identität erfordert keinen gemeinsamen physischen Ordner für Python und TypeScript. Die vorhandene Workspace- und Buildstruktur bleibt erhalten:
+
+```text
+src/leonaid/modules/tasks/       # Python-Fachoperationen und HTTP-Adapter
+packages/features/src/tasks/    # gemeinsame React-Seiten und UI-Beiträge
+packages/api-client/            # bestehender TypeScript-Client und Verträge
+apps/web/                      # Web-Shell setzt UI-Beiträge zusammen
+apps/pwa/                      # PWA-Shell setzt UI-Beiträge zusammen
+```
+
+Backend und Frontend verwenden dieselben stabilen Modul-IDs und verständlich korrespondierende Bereichsnamen. Fachbezogene Clientoperationen bleiben im bestehenden API-Client; keine zweite API-Client-Implementierung pro Modul. Öffentliche Astro-/Campaign-Surfaces nutzen ihre vorhandenen Integrationspfade. Jede Änderung muss alle betroffenen Sprachbereiche und Surfaces benennen und prüfen.
+
+Separate Workspace-Pakete werden erst bei konkretem Bedarf erwogen: Wiederverwendung durch mehrere Backend-Anwendungen, unabhängig benötigte optionale Abhängigkeiten oder separate Auslieferung. Dann wäre ein Workspace mit eigenen Paketmetadaten und Python-Importnamen wie `leonaid_tasks` möglich. Die bloße Aufteilung in `src/leonaid-core/` und `src/modules/` bringt keine stärkere Importkontrolle; ein Bindestrich ist zudem kein geeigneter Name für ein normal importiertes Python-Paket. Für M0–M3 bleibt es bei einem gemeinsamen Backend-Projekt und geprüften Modulgrenzen.
+
 ## 4. Registrierung und App-Shell
 
 ### 4.1 Backend
 
-Eine statische Liste registriert installierte Module im Composition Root. Ein Eintrag enthält zunächst nur stabile Modul-ID, Router und vorhandene Navigationsbeiträge. Worker-Handler werden im Worker-Composition-Root aus expliziten Modulbeiträgen zusammengeführt. API und Worker importieren keine Frontend-Metadaten.
+Eine statische Liste unter `bootstrap/` registriert installierte Module im Composition Root. Ein Eintrag enthält zunächst nur stabile Modul-ID, Router und vorhandene Navigationsbeiträge. Worker-Handler werden ebenfalls unter `bootstrap/` aus expliziten Modulbeiträgen zusammengeführt. Prozess-Entrypoints starten diese Zusammensetzung; weder Plattform noch Fachmodule entdecken oder laden selbst andere Module. API und Worker importieren keine Frontend-Metadaten.
 
 Startvalidierung lehnt doppelte Modul-IDs, doppelte Handler-Typen und kollidierende Routen ab. Benötigte Modulabhängigkeiten werden explizit geprüft. Dies ist eine Startprüfung, kein dynamischer Dependency-Injection-Container.
 
@@ -193,11 +242,12 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 ### M0 — Modulgrenzen und Verträge
 
 - [ ] Aktuellen Stand und konkrete Survey-Abhängigkeiten inventarisieren; betroffene Tabellen und öffentliche Use Cases benennen.
+- [ ] Bestehende Funktionen den Zuständigkeiten Plattform, Fachmodul, Bootstrap und Prozessstart zuordnen; nur die für den ersten Schnitt benötigten Dateien migrieren. Gemeinsamen Python-Namespace und bestehende Startpfade erhalten.
 - [ ] Kleinste Backend-/Frontend-Registrierung implementieren und Shell-Zuständigkeit festlegen.
-- [ ] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
+- [ ] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
 - [ ] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
 
-Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen; bestehende Navigation und API bleiben unverändert. Keine neuen Infrastrukturcontainer oder Laufzeitabhängigkeiten.
+Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen einschließlich Rückabhängigkeiten der Plattform. Backend-/Frontend-Beiträge sind derselben Modul-ID zugeordnet; bestehende Navigation, Startbefehle und API bleiben unverändert. Keine neuen Infrastrukturcontainer, separaten Python-Pakete oder Laufzeitabhängigkeiten.
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
