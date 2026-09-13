@@ -1,0 +1,261 @@
+# Modulare LeonAid-Plattform: Implementierungsspec
+
+Stand: 13.09.2026. Status: vorgeschlagen, nicht implementiert.
+Gelesener Ausgangsstand: `2043b72` (Krapfentaxi-Lieferfenster und Lieferkontakte).
+
+## 1. Ziel und Umfang
+
+LeonAid wird schrittweise als modularer Monolith organisiert. Fachmodule besitzen ihre Daten, bieten typisierte Aufrufe an und registrieren ihre Oberflächen und Hintergrundaufgaben explizit. Neue Funktionen sollen vorhandene Fachobjekte wiederverwenden, ohne weitere Dienste oder parallele Datenbestände vorauszusetzen.
+
+Diese Spec definiert die technische Grundlage und drei aufeinander aufbauende Nachweise: Surveys als bestehendes Modul, Tasks mit Wissensseiten und Materialien als zusammengesetzter Ablauf sowie Inbox mit dauerhafter CRM-Synchronisation. Sie ist kein Auftrag, alle denkbaren Produktfunktionen innerhalb eines einzigen PR umzusetzen. Jede Etappe wird separat implementiert und abgenommen. Der vorliegende PR enthält ausschließlich diese Spec.
+
+Verbindliche Leitlinien:
+
+- Ein API-Prozess, ein vorhandener Worker-Dienst und die vorhandene Core-PostgreSQL-Datenbank bleiben das Betriebsmodell. Modulanzahl erhöht nicht die Containeranzahl.
+- Fachzustände haben genau einen Eigentümer. Ansichten, Einbettungen und Verknüpfungen referenzieren diesen Zustand.
+- Direkte Python-Aufrufe innerhalb des Core; HTTP für externe Clients. Kein internes HTTP zwischen Modulen.
+- Vorhandene Rechte-, Audit-, Idempotenz-, S3-, CRM- und Outbox-Funktionen wiederverwenden.
+- Explizite Registrierung zur Build-/Startzeit; keine dynamische Plugininstallation.
+- Abstraktionen erst für einen konkreten zweiten Bedarf erweitern. Keine Universalobjekte, generischen Workflow-Designer oder Command-Bus-Infrastruktur.
+- Kein vollständiger Datei- oder Tabellenumbau vor der ersten nutzbaren Etappe.
+
+Nicht Bestandteil: Microservices, Module Federation, ein eigener Dienst pro Modul, ein allgemeines Plugin-SDK als veröffentlichtes Paket, MCP-Server, Temporal, Redis als neue LeonAid-Queue, semantische Suche, OCR, Echtzeit-Coediting oder frei konfigurierbare Dashboards. Bestehende Infrastruktur anderer Produkte bleibt unabhängig davon erhalten.
+
+## 2. Verifizierter Ausgangspunkt
+
+| Einstieg | Befund und Konsequenz |
+| --- | --- |
+| [Domain/Application](../../src/leonaid/application/action_progress.py) | Application-Service mit Unit of Work, Audit, Command Receipt und transaktionaler Outbox vorhanden. Muster gezielt wiederverwenden. |
+| [Identität/Navigation](../../src/leonaid/application/identity.py) | `navigation_for` setzt Navigation zentral zusammen. Server bleibt maßgeblich für erlaubte Einstiege. |
+| [Web](../../apps/web/src/app.tsx), [PWA](../../apps/pwa/src/app.tsx) | App-Einstiege und Seitenauswahl sind zentral verdrahtet. Gemeinsam genutzte Features existieren bereits. |
+| [FastAPI](../../src/leonaid/entrypoints/fastapi/platform.py) | Zentrale Komposition; Surveys besitzen bereits einen separaten Router. Migration kann dort beginnen. |
+| [Outbox-Modell](../../src/leonaid/domain/outbox.py) | Retry mit begrenztem exponentiellem Backoff; `PendingOutboxEvent` enthält noch keinen expliziten Einplanungszeitpunkt. |
+| [PostgreSQL-Queue](../../src/leonaid/adapters/postgres/outbox.py) | `available_at`, `SKIP LOCKED`, Lease und Claim-Token, Dead Letters und manueller Retry vorhanden. |
+| [Worker](../../src/leonaid/entrypoints/worker/outbox.py) | Explizite Handler-Zuordnung vorhanden. Ein Ereignistyp wird einem Handler zugeordnet. |
+| [Worker-Prozess](../../src/leonaid/entrypoints/worker/platform.py) | Serielle Verarbeitung; eigener Survey-Sweep für Fristen und Aufbewahrung. Keine allgemeine Scheduler-Verwaltung. |
+| [Architekturtest](../../tests/unit/test_architecture_boundaries.py) | Schichtentests vorhanden; ein Teil scannt nur unmittelbare Python-Dateien. Rekursive Modulprüfung ergänzen. |
+| [Compose](../../infra/compose/compose.yml) | API, Worker und Core-Datenbank vorhanden. Diese Spec benötigt keine zusätzliche Infrastruktur. |
+
+Vor Beginn einer Umsetzung den dann aktuellen Hauptbranch gegen diese Befunde abgleichen. Insbesondere bestehende Survey-, Rechte- und Recovery-Pfade nicht anhand dieser Momentaufnahme ersetzen.
+
+## 3. Modulzuschnitt und Datenverantwortung
+
+| Modul | Eigentum | Öffentliche Zusammenarbeit |
+| --- | --- | --- |
+| Aktionen | Aktionsidentität, Lebenszyklus und aktionsbezogene Zuordnungen | Kontext und erlaubte Aktionsoperationen |
+| Tasks | Listen, Epics, Tasks, persönliche Zuständigkeit, Fälligkeit, Zurückstellung | Erstellen, lesen, zuweisen, erledigen und zurückstellen |
+| Wissen | Seiten, Revisionen, Vorlagen und Objektverweise | Seiten lesen/speichern; Fachobjekte referenzieren |
+| Materialien | Metadaten, Dateiversionen und Verknüpfungen | Upload-/Download-Autorisierung und Versionsreferenzen; Bytes im bestehenden S3-Backend |
+| Inbox | Fall, Eingangsnachricht, Zuständigkeit, Bearbeitungsstatus und Kontaktzuordnungsstatus | Fallbearbeitung; Task-/Materialverweise; Twenty über vorhandenen Adapter |
+| Surveys | Bestehende Survey-Definitionen, Antworten und Prozesse | Bestehende Use Cases erhalten und als Modul exponieren |
+| Bestehende Fachbereiche | Akquise, Bestellungen, Rechnungen, Lieferung behalten ihre Zustände | Nur benötigte Anwendungsoperationen veröffentlichen |
+
+Identitäten, Berechtigungen, Audit, Datenbankverbindung und technische Adapter sind gemeinsame Plattformdienste. Twenty bleibt Quelle für Personen/Organisationen. Öffentliche Darstellung erhält ausdrücklich veröffentlichbare Core-Daten; redaktionelle Inhalte bleiben im bestehenden CMS-Pfad.
+
+Suche, „Für mich“, Aktionsübersicht und öffentliche Clubübersicht sind Projektionen bzw. zusammengesetzte Abfragen. Sie schreiben keine fremden Fachzustände. Ein Album referenziert Materialien. Ein Task im Text ist ein Task des Tasks-Moduls. Ein erledigter Task verändert keine Rechnung, Bestellung oder Lieferung.
+
+### 3.1 Struktur und Importregeln
+
+Neue Module beginnen unter `src/leonaid/modules/<name>/`. Beispiel, keine Pflichtdateiliste:
+
+```text
+modules/tasks/
+  api.py          # öffentliche Typen und aufrufbare Anwendungsoperationen
+  service.py      # Regeln und Abläufe, sofern api.py sonst zu groß wird
+  repository.py   # konkreter PostgreSQL-Zugriff
+  routes.py       # HTTP-Adapter, falls benötigt
+  jobs.py         # Handler, falls benötigt
+```
+
+`api.py` ist ein Importvertrag, kein Service Locator. Konkrete Instanzen und Abhängigkeiten verdrahtet der Composition Root. Öffentliche Signaturen enthalten keine FastAPI-Requests, Datenbankverbindungen, Queue-Zeilen oder ORM-Objekte. Domain-/Service-Code importiert keine konkreten Infrastrukturadapter; vorhandene Ports bleiben nutzbar. Keine zusätzlichen Interfaces allein zur Spiegelung jeder Funktion.
+
+Andere Module dürfen nur die öffentliche API importieren. Kein Zugriff auf fremde Repositories oder schreibendes SQL auf fremde Tabellen. Schema und Migrationen bleiben gemeinsam. Für globale Leseansichten zunächst öffentliche Abfragen bündeln und paginieren; materialisierte Projektionen oder direkte modulübergreifende SQL-Leseabfragen erst bei belegtem Bedarf und dokumentierter Eigentümerschaft.
+
+Abhängigkeiten bilden einen gerichteten azyklischen Graphen. Zusammengesetzte Abläufe liegen beim aufrufenden Feature oder in einer konkret benannten Application-Funktion. Beispiel: Wissen verwendet Tasks; Tasks muss dafür Wissen nicht importieren. Bestehende Querabhängigkeiten werden pro migriertem Bereich explizit erfasst; keine globale Ausnahme für alle Altimporte. Übergangs-Reexports haben eine benannte Entfernungsetappe.
+
+## 4. Registrierung und App-Shell
+
+### 4.1 Backend
+
+Eine statische Liste registriert installierte Module im Composition Root. Ein Eintrag enthält zunächst nur stabile Modul-ID, Router und vorhandene Navigationsbeiträge. Worker-Handler werden im Worker-Composition-Root aus expliziten Modulbeiträgen zusammengeführt. API und Worker importieren keine Frontend-Metadaten.
+
+Startvalidierung lehnt doppelte Modul-IDs, doppelte Handler-Typen und kollidierende Routen ab. Benötigte Modulabhängigkeiten werden explizit geprüft. Dies ist eine Startprüfung, kein dynamischer Dependency-Injection-Container.
+
+Die bestehende Identity-Antwort und `navigation` bleiben während der Migration kompatibel. Navigationsbeiträge werden weiterhin serverseitig anhand der aktuellen Identität und Aktionszugehörigkeit gefiltert. Erforderliche zusätzliche Felder sind additiv; existierende Schlüssel und URLs bleiben erhalten.
+
+### 4.2 Web und PWA
+
+Module exportieren statisch importierte UI-Beiträge aus dem bestehenden Features-Paket. Beispielvertrag:
+
+```ts
+{
+  id: "tasks",
+  area: "work",
+  surfaces: ["web", "pwa"],
+  routes: taskRoutes,
+  navigation: taskNavigation,
+}
+```
+
+Der Implementierungsschnitt definiert konkrete TypeScript-Typen passend zum vorhandenen Routing. Kein Routerwechsel allein für die Registrierung. Modul-ID verknüpft Backend-Berechtigung und Frontend-Beitrag; `area` gruppiert Navigation und hat keine eigene fachliche oder sicherheitsrelevante Bedeutung.
+
+Die Shell besitzt Sitzung, Aktionsauswahl, Layout, Lade-/Fehlerzustände und Navigation. Module besitzen Seiten und Interaktionen. Web und PWA dürfen unterschiedliche Routen und Darstellungen anbieten; gemeinsame Fachkomponenten bleiben gemeinsam. Seiten werden bei Bedarf lazy geladen. Unbekannte Pfade zeigen einen verständlichen Nicht-gefunden-Zustand; direkte Links auf gesperrte Funktionen bleiben serverseitig gesperrt.
+
+Nicht verwechseln: registriert, für einen Kontext verfügbar und für einen Benutzer erlaubt. Feature Flags sind keine Rechteprüfung. Ein Menüeintrag allein gewährt keinen Zugriff. Modulaktivierung pro Club wird nicht als neue Konfigurationsfunktion gebaut. Ein bereits verwendetes Modul wird nicht zur Laufzeit entladen; ausstehende Jobs müssen weiter abgearbeitet werden können.
+
+### 4.3 Suche, Schnellerfassung und Objektverweise
+
+Erst in Etappe M2 kommen die konkret benötigten Suchbeiträge hinzu: begrenzte autorisierte Ergebnisse mit Typ, stabiler ID, Titel, Kontext und Ziel. Die Shell kann dieselben Navigationsbeiträge für die Befehlspalette verwenden. Suchvorschauen und Trefferzahlen dürfen keine unberechtigten Objekte offenlegen. Kein zusätzlicher Suchdienst.
+
+Objektverweise verwenden stabile IDs und eine geschlossene Liste unterstützter Typen. Ein Verweis gewährt keine Rechte; das Ziel prüft Zugriff erneut. Umbenennen und Verschieben ändern keine Identität. Für die ersten unterstützten Kontexte explizite Beziehungen/Constraints verwenden; kein universeller EAV-Datenbestand. Neue Objekttypen benötigen einen konkreten Rechte- und Löschvertrag.
+
+## 5. Öffentliche Fachoperationen
+
+Beispiel einer internen Operation, keine fertige Bibliothek:
+
+```python
+task = await tasks.create_task(
+    actor=actor,
+    list_id=list_id,
+    title="Vorbereitung bestätigen",
+    assignee_id=assignee_id,
+    idempotency_key=request_key,
+)
+```
+
+Für jeden implementierten Schreib-Use-Case gelten:
+
+1. Aktuelle Identität und Objektberechtigung am Anwendungseinstieg prüfen, auch bei direktem Python-Aufruf. Transportvalidierung bleibt zusätzlich bestehen.
+2. Typisierte Eingaben/Ergebnisse und stabile Fachfehler; HTTP übersetzt diese in passende Statuscodes. Keine privaten Werte in Fehlern.
+3. Wiederholbare Schreiboperationen verwenden vorhandene Command Receipts: Schlüssel wird mit Akteur, Operation und Kontext begrenzt; gleicher Schlüssel mit anderem normalisiertem Input ergibt Konflikt. Vor einem Replay Zugriff erneut prüfen.
+4. Fachänderung, Audit und erforderliche Outbox-Einträge werden in derselben PostgreSQL-Transaktion gespeichert. Netzwerkaufrufe nicht in neue langlaufende Datenbanktransaktionen verlagern.
+5. Revisionen bzw. atomare Zustandsbedingungen verhindern verlorene Updates. Keine implizite Last-write-wins-Regel bei gemeinsamen Seiten oder Bearbeitungszuständen.
+
+### 5.1 Zusammengesetzte Transaktionen
+
+Für „Task aus Seite anlegen“ besitzt eine konkrete Application-Funktion die Transaktion. Sie verwendet intern transaktionsgebundene Moduloperationen und committet einmal. Die Operationen behalten ihre Rechteprüfung und schreiben ausschließlich die eigenen Daten. Der gemeinsame Transaktionsmechanismus bleibt intern; er erscheint nicht im späteren HTTP-/MCP-Vertrag. Keine eigenständig committenden Unteroperationen innerhalb dieses Ablaufs.
+
+Seitenrevision, Task-Erstellung, Task-Referenz und Idempotenzbeleg müssen gemeinsam erfolgreich sein oder zurückrollen. Ein Revisionkonflikt hinterlässt keinen unbeabsichtigten Task. Das Entfernen einer Einbettung löscht den Task nicht. Kopieren einer Seite erzeugt ohne ausdrückliche Kopieroperation keine neuen Tasks.
+
+### 5.2 Späterer MCP-Anschluss
+
+Keine MCP-Implementierung in M0–M3. Ein späterer Adapter ruft dieselben autorisierten Fachoperationen auf. Tools werden explizit ausgewählt; keine automatische Exposition aller Methoden, SQL-Zugriffe oder Queue-Handler. Agent-Identität, delegierte Rechte, Audit und Wiederholungsverhalten sind dann Bestandteil der separaten Umsetzung. Ein Worker verwendet eine explizit begrenzte Systemoperation; gespeicherte Benutzer-IDs sind keine dauerhafte Vollmacht.
+
+## 6. Dauerhafte Jobs und Zeitsteuerung
+
+### 6.1 Bestehende Outbox als Grundlage
+
+Vorhandene Tabellen, Zustände, Handler und Operations-Anzeige weiterverwenden. Kein paralleles Queue-System. Eine Zeile bezeichnet eine konkrete abzuarbeitende Folgeaktion; unabhängige Empfänger erhalten getrennte Aufträge mit eigenen Idempotenzschlüsseln. Die aktuelle Ein-Handler-Zuordnung wird nicht zu einem impliziten Broadcast umgedeututet.
+
+`PendingOutboxEvent` und dessen Persistenz erhalten bei Bedarf einen optionalen timezone-aware Ausführungszeitpunkt. Ohne Angabe bleibt das heutige Verhalten erhalten. `available_at` wird beim Einfügen atomar gesetzt. Alle betroffenen Producer, Replay-Pfade und Migrationen sind vor einer Änderung zu inventarisieren. Bestehende Payloads und versionierte Handler-Namen bleiben ausführbar.
+
+Jobs liefern mindestens At-least-once-Verarbeitung. Claim-Fencing schützt den Queue-Zustand, nicht externe Effekte. Handler brauchen fachliche Idempotenz. Ein Timeout nach einem erfolgreichen externen Aufruf ist ein unklarer Ausgang und darf nicht blind erneut einen Datensatz oder Versand erzeugen. Vorhandene Recovery-/Ledger-Verfahren erhalten.
+
+### 6.2 Nur Nebenwirkungen einplanen
+
+| Bedarf | Umsetzung |
+| --- | --- |
+| Task wieder sichtbar nach Zurückstellung | Abfrage mit Serverzeit; Fälligkeit bleibt unabhängig |
+| Pin läuft ab | Abfrage mit Ablaufzeit; Inhalt bleibt gespeichert |
+| Gezielte Erinnerung | Dauerhafter Job, vor Ausführung aktuellen Zustand prüfen |
+| Twenty-Zuordnung | Dauerhafter Auftrag mit Wiederholung und sichtbarem Fehlerstatus |
+| Rendering | Auftrag bei relevanter Änderung, über Objekt/Revision dedupliziert |
+| Fristen/Aufbewahrung | Bestehenden fachlichen Sweep erhalten, später explizit registrieren |
+
+Erinnerungen zu inzwischen erledigten/geänderten Objekten enden ohne Nebenwirkung. Es braucht dafür zunächst keinen generischen Cancel-Workflow. UTC für gespeicherte Zeitpunkte; lokale Tages-/Uhrzeitregeln werden vor Speicherung anhand einer expliziten IANA-Zeitzone aufgelöst.
+
+### 6.3 Wiederkehrende Sweeps
+
+In M1 den vorhandenen Survey-Sweep als expliziten Beitrag registrieren, seine fachliche Nachholsemantik erhalten. Erst mit einem zweiten echten periodischen Bedarf einen kleinen gemeinsamen Scheduler ergänzen. Anfangs nur feste Intervalle oder konkrete fachliche Fälligkeiten, kein Cron-Parser und keine konfigurierbare Kalender-Engine.
+
+Für neue periodische Aufträge: eine kleine persistente Schedule-Zeile mit stabiler ID und nächster UTC-Fälligkeit; Scheduler sperrt fällige Zeilen, schreibt Auftrag mit eindeutigem Schlüssel `(schedule_id, scheduled_for)` und verschiebt die nächste Fälligkeit in derselben Transaktion. Unique Constraint verhindert doppelte Ausführungen bei mehreren Scheduler-Prozessen. Abgebrochene Transaktion lässt den Termin fällig. Scheduler läuft im vorhandenen Worker und führt keine Facharbeit während der Planungstransaktion aus.
+
+Standard bei verpassten Intervallen: einen zusammengefassten Nachholauftrag erzeugen, nächste Fälligkeit in die Zukunft setzen. Abweichende Regeln wie Überspringen werden pro tatsächlich implementierter Aufgabe dokumentiert. Fachlich vollständiges Nachholen arbeitet begrenzte Batches ab. Kein unbeschränktes Aufholen tausender Zeitpunkte nach einem Ausfall. Der fachliche Survey-Sweep wird nicht unbesehen in einen anderen Takt überführt.
+
+### 6.4 Laufzeit, Wiederholung und Betrieb
+
+- Vor Erweiterung Joblaufzeiten mit repräsentativen synthetischen Export-/Renderdaten messen. Serielle Verarbeitung und Standard-Lease von 300 Sekunden als aktuelle Grenze dokumentieren.
+- Jeder neue Handler erhält eine begrenzte Laufzeit unterhalb seiner Lease. Bei blockierenden Subprozessen Timeout bis zum Subprozess durchsetzen. Lease-Verlängerung nur für nachweislich erforderliche längere Jobs implementieren.
+- Erst bei belegter Blockierung eine kleine begrenzte Parallelität ergänzen; Jobreihenfolge bei fachlichen Abhängigkeiten nicht voraussetzen. Kein Worker pro Modul.
+- Backoff bleibt begrenzt; Jitter kann injizierbar ergänzt werden. Permanente Validierungs-/Berechtigungsfehler werden nicht mehrfach versucht. Wiederholungsbudget und manueller Retry werden explizit getestet.
+- Operations zeigt bestehende Queue-Zustände weiterhin, ergänzt benötigte Angaben wie nächsten Versuch, Alter des ältesten fälligen Jobs und letzte erfolgreiche Scheduler-Aktivität. Datenbank-Erreichbarkeit allein ist kein Nachweis funktionierender Jobverarbeitung.
+- Logs enthalten Job-ID, Typ, Versuch, Dauer und sicheren Fehlercode; keine Kontaktangaben, Mailinhalte oder Zugangsdaten. Sichere Shutdowns unterbrechen keine Transaktion halb; verlorene Claims bleiben wiederherstellbar.
+- Retention bestehender Queue-/Audit-Daten nicht stillschweigend ändern. Neue Zeitplantabellen in Migration und Backup aufnehmen.
+
+### 6.5 Entscheidungspunkt für eine Bibliothek
+
+Procrastinate wird erst evaluiert, wenn konkret benötigte Prioritäten, konkurrierende Jobklassen, komplexere Zeitpläne oder Lease-Verwaltung den kleinen eigenen Pfad deutlich vergrößern. Der Vergleich muss gemeinsame Transaktion mit den derzeitigen Datenbankadaptern, Schema-Migration, Crash-Recovery, Operations und Entfernung des alten Queue-Codes nachweisen. Dokumentation allein belegt keine kompatible Integration.
+
+pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die erste Wahl für den Python-Core. Temporal ist ohne konkreten langlebigen Workflow-Bedarf nicht vorgesehen. Referenzen: [Procrastinate](https://procrastinate.readthedocs.io/en/stable/howto/advanced.html), [pg-boss](https://github.com/timgit/pg-boss), [Temporal Self-hosting](https://docs.temporal.io/self-hosted-guide). Versionen und Fähigkeiten vor einem späteren Einsatz erneut prüfen.
+
+## 7. Umsetzungsetappen
+
+### M0 — Modulgrenzen und Verträge
+
+- [ ] Aktuellen Stand und konkrete Survey-Abhängigkeiten inventarisieren; betroffene Tabellen und öffentliche Use Cases benennen.
+- [ ] Kleinste Backend-/Frontend-Registrierung implementieren und Shell-Zuständigkeit festlegen.
+- [ ] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
+- [ ] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
+
+Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen; bestehende Navigation und API bleiben unverändert. Keine neuen Infrastrukturcontainer oder Laufzeitabhängigkeiten.
+
+### M1 — Surveys vertikal migrieren und Jobvertrag festigen
+
+- [ ] Surveys über Modulbeiträge registrieren: Backend-Router, Web-Einstieg und bestehender Zugang aus der PWA.
+- [ ] Öffentliche Survey-Operationen benennen und direkte Aufrufe mit denselben Rechteprüfungen absichern; bestehende Autorisierungslogik nicht duplizieren.
+- [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
+- [ ] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
+- [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
+
+Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnahme, Kopieren, Export, Fristschluss und berechtigte Zugriffe funktionieren weiterhin. Bestehende HTTP-Verträge, URLs und gespeicherte Jobs bleiben kompatibel. Web, PWA-Zugang und öffentliche Teilnahme jeweils separat nachweisen.
+
+### M2 — Tasks, Wissen und Materialien als Wiederverwendungsnachweis
+
+- [ ] Tasks: Liste, optional ein Epic pro Task, offen/erledigt, optional persönliche Zuständigkeit, getrennte Fälligkeit und Zurückstellung. Keine verschachtelten Epics oder konfigurierbaren Statusmodelle.
+- [ ] Wissen: Titel, Tiptap-Inhalt, Revision, stabile Task-/Materialreferenzen. Revisionskonflikt statt unbemerktem Überschreiben; kein Yjs-Dienst.
+- [ ] Materialien: vorhandenen S3-Zugriff und geeignete bestehende Dokumentfunktionen wiederverwenden; explizite Metadaten-/Versionsverantwortung klären. Keine zweite Dateiablage.
+- [ ] Gemeinsamer Aktionskontext sowie eigenständige Listen/Seiten mit explizitem berechtigtem Personenkreis. Verlinkung oder Erwähnung erweitert keine Rechte.
+- [ ] Atomaren „Task aus Seite“-Use-Case einschließlich Wiederholung und Revisionskonflikt implementieren.
+- [ ] „Für mich“ als Abfrage derselben Tasks; begrenzte Suche über die tatsächlich vorhandenen Objekte. Kein separater Taskbestand im Editor oder Dashboard.
+- [ ] Navigation in Web und PWA sowie verständliche mobile Bearbeitung bereitstellen; gemeinsame Funktionen nur einmal implementieren.
+
+Abnahme: Seite anlegen → Task erstellen/zuweisen → in „Für mich“ erledigen → derselbe Status in der Seite. Zurückstellung ändert Fälligkeit nicht. Eine Datei einmal hochladen und mehrfach referenzieren. Nichtberechtigte sehen auch in Suche/Einbettungen keine Inhalte. Konkurrierendes Speichern und wiederholtes Absenden erzeugen weder verlorene Änderungen noch doppelte Tasks.
+
+Diese Etappe ist ein nutzbarer technischer Schnitt, keine vollständige Wissensplattform. Erweiterte Vorlagen, Ordnernavigation und weitere Suchtypen benötigen anschließend eigene kleine Umsetzungsschnitte.
+
+### M3 — Inbox und Twenty-Ausfall als Integrationsnachweis
+
+- [ ] Ein Fallmodell für Kontakt-/Hilfsanfragen: Eingang, optionale Aktionsreferenz, zuständige Person, neu/in Bearbeitung/geschlossen, Abschlussnotiz und Wiederöffnung.
+- [ ] Öffentliche Eingabe begrenzen und validieren; bestehende Schutzmechanismen gegen missbräuchliche öffentliche Requests passend wiederverwenden.
+- [ ] Eingangssnapshot, Fall und Kontaktzuordnungsauftrag gemeinsam speichern. Erst danach Bestätigung mit Referenz. Keine E-Mail durch Formularübermittlung.
+- [ ] Ausstehende/fehlgeschlagene Twenty-Zuordnung sichtbar machen. Twenty bleibt Stammdatenquelle; der Eingangssnapshot ist kein paralleles CRM. Keine Zusammenführung allein nach Namen und kein stilles Überschreiben verifizierter Kontaktdaten.
+- [ ] Vorhandene CRM-Recovery-Muster auf Eignung prüfen. Nach unklarem externem Create-Ausgang Kontakt anhand belastbarer Korrelation abgleichen; ohne zuverlässigen Nachweis manuelle Klärung statt blindem erneutem Create.
+- [ ] Tasks und Materialien über vorhandene Fachoperationen referenzieren. Interne Kommentare bleiben intern; gemeinsame Kommentar-/Mention-Funktion nur soweit für diesen Schnitt erforderlich bauen und dann wiederverwenden.
+- [ ] Case-Bearbeitung in Web und PWA, öffentliche Einreichung über vorhandene Public-/Campaign-Surfaces integrieren. Alias-/kanonische Routen bei Nutzung separat prüfen.
+
+Abnahme: Bei abgeschaltetem Twenty wird genau ein Fall bestätigt und bleibt bearbeitbar. Nach Wiederanlauf entsteht eine nachvollziehbare Kontaktzuordnung ohne doppelten Fall. Timeout nach extern erfolgreichem Create führt zu Recovery oder sichtbarer Klärung. Wiederholungen, fremde Zugriffe und Wechsel der Zuständigkeit sind geprüft. Abschluss ist keine Förderzusage oder Auszahlung. Kein automatischer Mailversand.
+
+## 8. Prüfgates und Nachweise
+
+| Gate | Erforderlicher Nachweis |
+| --- | --- |
+| Architektur | Rekursive Importprüfung, keine neuen Zyklen oder fremden Schreibzugriffe; Review ergänzt die Grenzen statischer Importtests |
+| API | Bestehende Contract-Gates; direkte Modulaufrufe und HTTP haben gleiche erlaubte/verbotene Ergebnisse; Replay nach Rechteentzug verweigert |
+| Daten | Migration mit Altbestand; atomarer Rollback zusammengesetzter Operationen; keine doppelten Zustände |
+| Jobs | Echtes PostgreSQL: zwei Worker, Claim-Verlust, Absturz vor/nach Commit, Retry und Dead Letter; externe Nebenwirkung mit unklarem Ausgang |
+| Zeit | Kontrollierbare Uhr für Fälligkeiten; Neustart/Nachholen, konkurrierende Scheduler; UTC und erforderliche lokale Zeitgrenzen |
+| Oberflächen | Pro betroffener Surface tatsächlicher Browserablauf; Direktlink, fehlende Rechte, mobile Bedienung, Lade-/Fehlerzustände |
+| Bestand | Passende vorhandene Survey-/Order-/Invoice-/Delivery-Prüfungen für berührte Pfade; vollständige erforderliche CI-Gates |
+| Betrieb | Gleiche Compose-Topologie, kompatible Health-/Operations-Anzeige, begrenzte Laufzeiten und vorhandene Backup-Pfade |
+
+Vorhandene Testwerkzeuge und Runner verwenden; keine zusätzliche Testplattform. LIVE-Nachweise verwenden synthetische Daten und isolierte Compose-Projekte. Jeder fertiggestellte Schnitt dokumentiert Commit, Befehle, Ergebnis und verbleibende Grenze in einer erst dann angelegten `PROGRESS.md`. Keine grünen Abnahmehäkchen allein aufgrund von Unit-Tests oder einem erfolgreichen Build.
+
+## 9. Rollout und Rücknahme
+
+Refactoring und fachliche Erweiterungen in getrennten reviewbaren Änderungen liefern. M1 erhält URLs, API-Formate, Handler-Namen und Datenhaltung. Neue Tabellen/Felder additiv migrieren; destruktive Bereinigung erst nach bewiesener Umstellung. Beim Upgrade bestehende Jobs abarbeiten können und keinen Handler entfernen, solange sein Payload noch in der Queue liegt.
+
+Vor jeder Etappe Rücknahme auf den vorherigen Code mit dem erweiterten Schema prüfen. Bereits geschriebene neue Fachobjekte oder neue Jobtypen können ein einfaches Code-Rollback verhindern; dann neuen Eingang stoppen, Jobs gezielt drainieren und kompatible Handler erhalten oder einen Forward-Fix ausrollen. Keine Module durch Ausblenden des Menüs als technisch zurückgenommen betrachten. Keine Tabellen, Volumes oder Nutzerdaten zur Rücknahme löschen.
+
+## 10. Abschlusskriterium
+
+Die Grundlage ist nach M1 abgeschlossen, wenn ein bestehendes Modul über die Registrierung integriert ist, seine Fachoperationen transportunabhängig autorisiert sind, die Grenzen automatisch geprüft werden und bestehende Jobs/Surfaces unverändert funktionieren. M2 und M3 weisen anschließend nach, dass neue Funktionen diese Grundlage tatsächlich wiederverwenden. Kein Schritt benötigt pauschal weitere Dienste; jede spätere Infrastrukturentscheidung verlangt einen konkreten Bedarf und einen eigenen Nachweis.
