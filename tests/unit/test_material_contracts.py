@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from leonaid.modules.materials.api import (
     AddVersion,
+    CleanupUpload,
     CreateMaterial,
     MaterialQuery,
     MAX_UPLOAD_BYTES,
@@ -123,3 +124,45 @@ def test_versions_require_real_positive_revision_and_exclude_storage_fields() ->
 def test_search_bounds(changes: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         MaterialQuery.model_validate(changes)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"storageVersionId": "null"},
+        {"storageVersionId": ""},
+        {"storageVersionId": "bad\nversion"},
+        {"materialId": "../surveys"},
+        {"uploadId": "not-a-uuid"},
+        {"apply": "true"},
+        {"reason": "short"},
+        {"reason": "        "},
+        {"bucket": "other"},
+    ],
+)
+def test_cleanup_requires_exact_bounded_operator_input(
+    change: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        CleanupUpload.model_validate(
+            {
+                "materialId": str(uuid4()),
+                "uploadId": str(uuid4()),
+                "storageVersionId": "exact-version",
+                "reason": "Abandoned upload verification",
+                **change,
+            }
+        )
+
+
+def test_cleanup_defaults_to_dry_run_and_revalidates() -> None:
+    command = CleanupUpload(
+        material_id=uuid4(),
+        upload_id=uuid4(),
+        storage_version_id="exact-version",
+        reason="Abandoned upload verification",
+    )
+    assert command.apply is False
+    command.storage_version_id = "null"
+    with pytest.raises(ValidationError):
+        CleanupUpload.model_validate(command)

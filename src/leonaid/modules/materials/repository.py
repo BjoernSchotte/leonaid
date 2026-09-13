@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 import hashlib
+import json
 from typing import Any
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
@@ -25,10 +26,12 @@ from leonaid.application.object_storage import (
     ObjectWrite,
     ObjectStorageError,
     ObjectStorageConflict,
+    ObjectDeletionAuthorization,
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.materials.api import (
     CreateMaterial,
+    CleanupUpload,
     AddVersion,
     Material,
     MaterialVersion,
@@ -166,6 +169,95 @@ class AsyncpgMaterialRepository:
             raise
         return key, replay, digest
 
+    async def _lock_upload(
+        self, conn: asyncpg.Connection[Any], location: ObjectLocation
+    ) -> None:
+        # Same transaction lock for uploader and cleanup; includes an outer caller transaction.
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+            f"materials:object:{location.bucket}:{location.key}",
+        )
+
+    async def _cleanup_admin(
+        self, conn: asyncpg.Connection[Any], actor: IdentityPrincipal
+    ) -> None:
+        await self._active(conn, actor)
+        if not await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM user_global_role WHERE user_id=$1 AND role='system_admin')",
+            actor.account.id,
+        ):
+            raise ResourceNotFound("not_found", "Materialwartung nicht verfügbar.")
+
+    async def cleanup_upload(
+        self, actor: IdentityPrincipal, command: CleanupUpload
+    ) -> bool:
+        if self.connection is not None:
+            raise ValueError(
+                "Upload-Bereinigung benötigt einen eigenen Transaktionsrahmen."
+            )
+        location = ObjectLocation(
+            self.storage.bucket,
+            f"materials/{command.material_id}/{command.upload_id}",
+            command.storage_version_id,
+        )
+        attempt_id = uuid4()
+        async with self.pool.acquire() as conn:
+            if command.apply:
+                # Persist intention before external deletion; a crash leaves an auditable attempt.
+                async with conn.transaction():
+                    await self._cleanup_admin(conn, actor)
+                    await conn.execute(
+                        "INSERT INTO audit_event(id,actor_user_id,event_type,entity_type,entity_id,request_id,payload) VALUES ($1,$2,'material.upload_cleanup_requested','material',$3,$4,$5::jsonb)",
+                        attempt_id,
+                        actor.account.id,
+                        command.material_id,
+                        str(attempt_id),
+                        json.dumps(command.model_dump(mode="json")),
+                    )
+            async with conn.transaction():
+                await self._cleanup_admin(conn, actor)
+                await self._lock_upload(conn, location)
+                if await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM material_version WHERE storage_bucket=$1 AND object_key=$2 AND storage_version_id=$3)",
+                    location.bucket,
+                    location.key,
+                    location.version_id,
+                ):
+                    raise Conflict(
+                        "material_upload_referenced",
+                        "Diese Dateiversion wird verwendet und darf nicht bereinigt werden.",
+                    )
+                try:
+                    stored = await self.storage.head(location)
+                    if stored is not None and stored.metadata.get("material-id") != str(
+                        command.material_id
+                    ):
+                        raise Conflict(
+                            "material_upload_mismatch",
+                            "Die Dateiversion gehört nicht zum angegebenen Material.",
+                        )
+                    if stored is not None and command.apply:
+                        await self.storage.delete(
+                            location,
+                            authorization=ObjectDeletionAuthorization(
+                                actor.account.id, command.reason
+                            ),
+                        )
+                except ObjectStorageError as error:
+                    raise DependencyUnavailable(
+                        "material_storage_unavailable",
+                        "Die Upload-Bereinigung konnte nicht bestätigt werden. Wiederhole denselben Aufruf.",
+                    ) from error
+                if command.apply:
+                    await conn.execute(
+                        "INSERT INTO audit_event(id,actor_user_id,event_type,entity_type,entity_id,request_id,payload) VALUES ($1,$2,'material.upload_cleanup_completed','material',$3,$4,'{}'::jsonb)",
+                        uuid4(),
+                        actor.account.id,
+                        command.material_id,
+                        str(attempt_id),
+                    )
+                return stored is not None
+
     async def _store_version(
         self,
         conn: asyncpg.Connection[Any],
@@ -180,6 +272,7 @@ class AsyncpgMaterialRepository:
             bucket=self.storage.bucket,
             key=f"materials/{material.id}/{uuid5(NAMESPACE_URL, key)}",
         )
+        await self._lock_upload(conn, location)
         try:
             stored = await self.storage.put_immutable(
                 ObjectWrite(

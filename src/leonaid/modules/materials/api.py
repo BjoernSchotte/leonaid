@@ -33,12 +33,34 @@ class MaterialModel(TransportModel):
         "action_id",
         "owner_user_id",
         "idempotency_key",
+        "upload_id",
         mode="before",
         check_fields=False,
     )
     @classmethod
     def parse_identifier(cls, value: object) -> object:
         return UUID(value) if isinstance(value, str) else value
+
+
+class CleanupUpload(MaterialModel):
+    material_id: UUID
+    upload_id: UUID
+    storage_version_id: str = Field(min_length=1, max_length=1024)
+    reason: str = Field(min_length=8, max_length=500)
+    apply: bool = False
+
+    @field_validator("storage_version_id", "reason")
+    @classmethod
+    def nonempty_text(cls, value: str) -> str:
+        if (
+            value != value.strip()
+            or value == "null"
+            or any(unicodedata.category(c).startswith("C") for c in value)
+        ):
+            raise ValueError(
+                "Eine eindeutige Version und nachvollziehbare Begründung sind erforderlich."
+            )
+        return value
 
 
 class UploadMetadata(MaterialModel):
@@ -167,6 +189,10 @@ class MaterialMembers(MaterialAccess):
 
 
 class MaterialRepository(Protocol):
+    async def cleanup_upload(
+        self, actor: IdentityPrincipal, command: CleanupUpload
+    ) -> bool: ...
+
     async def get_permissions(
         self, actor: IdentityPrincipal, material_id: UUID
     ) -> MaterialPermissions: ...
@@ -211,6 +237,14 @@ class MaterialRepository(Protocol):
 
 
 class MaterialService:
+    async def cleanup_upload(
+        self, actor: IdentityPrincipal, command: CleanupUpload
+    ) -> bool:
+        """Administrative exact-version cleanup; false means already absent."""
+        return await self._repository.cleanup_upload(
+            actor, CleanupUpload.model_validate(command)
+        )
+
     async def get_permissions(
         self, actor: IdentityPrincipal, material_id: UUID
     ) -> MaterialPermissions:
