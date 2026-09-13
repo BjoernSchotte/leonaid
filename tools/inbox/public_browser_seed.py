@@ -9,7 +9,7 @@ from uuid import uuid4
 import asyncpg
 
 
-async def main(output: Path):
+async def main(output: Path) -> None:
     c = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
     result = {}
     async with c.transaction():

@@ -254,6 +254,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [x] CI-Formatierungsfehler im Navigationstest nach Materialregistrierung korrigieren. Vollständige Ruff- und Mypy-Zielmengen aus dem CI-Skript, Prettier und OpenAPI-Aktualität lokal geprüft; Remote-Gesamtabnahme bleibt offen.
 
+- [x] Remote-CI-Typfehler der Inbox-Browser-Seeds beheben: explizite Rückgabeannotation und typisierte Settings-Validierung; Mypy über src und beide Seeds sowie Ruff bestanden.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [x] Vollständige automatische Survey-Exportgruppe bestehen: exports, export-permissions, export-states, export-recovery und export-limits. Sichtprüfung der erzeugten Exportartefakte und Remote-Gesamt-CI bleiben separate Gates.

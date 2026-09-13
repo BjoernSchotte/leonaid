@@ -25,7 +25,7 @@ from leonaid.modules.tasks.api import CreateList, CreateTask, SetListMember
 
 
 async def main(output: Path) -> None:
-    settings = Settings()
+    settings = Settings.model_validate(dict(os.environ))
     storage = S3ObjectStorage(
         endpoint_url=str(settings.object_storage_endpoint_url),
         access_key=settings.object_storage_access_key.get_secret_value(),
