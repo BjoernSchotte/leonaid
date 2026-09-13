@@ -256,6 +256,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Vollständige automatische Survey-Exportgruppe bestehen: exports, export-permissions, export-states, export-recovery und export-limits. Sichtprüfung der erzeugten Exportartefakte und Remote-Gesamt-CI bleiben separate Gates.
+
 - [x] Vollständigen Operations-Gate nach Ergänzung des Sweep-Zeitpunkts bestehen: reale Abhängigkeitsausfälle, Mail-Dead-Letter/Retry im Browser, Metriken und Loghygiene; eigener Stack vollständig bereinigt.
 
 - [x] Aggregat-Runner unabhängig von einer macOS-Host-`.venv` ausführen: gepinnte Linux-Abhängigkeiten temporär außerhalb des schreibgeschützten Checkouts installieren. Echter Aggregat-, Ausfall-/Neustart- und Ressourcenbereinigungsnachweis bestanden.
