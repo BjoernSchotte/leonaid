@@ -122,4 +122,11 @@ def build_material_service(
 
 
 def build_inbox_service(pool: asyncpg.Pool[Any]) -> InboxService:
-    return InboxService(AsyncpgInboxRepository(pool))
+    return InboxService(
+        AsyncpgInboxRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+        )
+    )

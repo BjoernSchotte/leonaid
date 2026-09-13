@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import hashlib
 import json
 from typing import Any
@@ -19,6 +20,9 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
+    SetTaskReference,
+    TaskReference,
+    TaskReferences,
     AddComment,
     Comment,
     CommentQuery,
@@ -34,6 +38,7 @@ from leonaid.modules.inbox.api import (
     UpdateCase,
 )
 
+from leonaid.modules.tasks.api import TaskService
 
 _CASE_COLUMNS = ",".join(f"c.{name}" for name in Case.model_fields)
 _MANAGE = """
@@ -58,8 +63,13 @@ _ELIGIBLE_ASSIGNEE = """
 
 
 class AsyncpgInboxRepository:
-    def __init__(self, pool: asyncpg.Pool[Any]) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        tasks: Callable[[asyncpg.Connection[Any]], TaskService],
+    ) -> None:
         self.pool = pool
+        self.tasks = tasks
 
     async def submit(self, command: SubmitCase) -> Submission:
         key = f"inbox.submit:{command.idempotency_key}"
@@ -188,6 +198,103 @@ class AsyncpgInboxRepository:
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
             )
+
+    async def list_task_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> TaskReferences:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._case(conn, actor.account.id, case_id)
+            rows = await conn.fetch(
+                "SELECT task_id FROM inbox_case_task WHERE case_id=$1 ORDER BY task_id LIMIT 100",
+                case_id,
+            )
+            items = []
+            tasks = self.tasks(conn)
+            for row in rows:
+                try:
+                    task = await tasks.get_task(actor, row["task_id"])
+                except ResourceNotFound:
+                    task = None
+                items.append(TaskReference(task_id=row["task_id"], task=task))
+            return TaskReferences(items=items)
+
+    async def set_task_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetTaskReference
+    ) -> Case:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            current = await self._case(conn, actor.account.id, case_id)
+            if command.present:
+                # Same connection keeps reference and source authorization in the
+                # transaction; no task data is copied into Inbox-owned tables.
+                await self.tasks(conn).get_task(actor, command.task_id)
+            key = f"inbox.task-reference:{actor.account.id}:{case_id}:{command.idempotency_key}"
+            receipts = AsyncpgCommandReceiptRepository(conn)
+            try:
+                replay = await receipts.reserve(
+                    idempotency_key=key,
+                    command_type="inbox.task_reference_changed",
+                    request_hash=hashlib.sha256(
+                        command.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+            except ApplicationError as error:
+                if error.code == "idempotency_conflict":
+                    raise Conflict(error.code, error.message) from error
+                raise
+            if replay is not None:
+                return current
+            if current.revision != command.expected_revision:
+                raise Conflict(
+                    "revision_conflict", "Der Fall wurde inzwischen geändert."
+                )
+            exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM inbox_case_task WHERE case_id=$1 AND task_id=$2)",
+                case_id,
+                command.task_id,
+            )
+            if exists != command.present:
+                if command.present:
+                    count = await conn.fetchval(
+                        "SELECT count(*) FROM inbox_case_task WHERE case_id=$1", case_id
+                    )
+                    if count >= 100:
+                        raise Conflict(
+                            "reference_limit",
+                            "Höchstens 100 Aufgaben pro Fall möglich.",
+                        )
+                    await conn.execute(
+                        "INSERT INTO inbox_case_task(case_id,task_id) VALUES($1,$2)",
+                        case_id,
+                        command.task_id,
+                    )
+                else:
+                    await conn.execute(
+                        "DELETE FROM inbox_case_task WHERE case_id=$1 AND task_id=$2",
+                        case_id,
+                        command.task_id,
+                    )
+                await conn.execute(
+                    "UPDATE inbox_case SET revision=revision+1,updated_at=now() WHERE id=$1",
+                    case_id,
+                )
+                await conn.execute(
+                    """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
+                        VALUES($1,$2,$3,'inbox.task_reference_changed','inbox_case',$4,$5,
+                            jsonb_build_object('taskId',$6::text,'present',$7::boolean))""",
+                    uuid4(),
+                    current.action_id,
+                    actor.account.id,
+                    case_id,
+                    key,
+                    str(command.task_id),
+                    command.present,
+                )
+            await receipts.complete(
+                idempotency_key=key, result={"caseId": str(case_id)}
+            )
+            return await self._case(conn, actor.account.id, case_id)
 
     async def list_comments(
         self, actor: IdentityPrincipal, case_id: UUID, query: CommentQuery

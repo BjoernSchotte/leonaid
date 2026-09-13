@@ -16,6 +16,7 @@ from pydantic import (
 from leonaid.platform.http import TransportModel
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.application.crm import PersonData
+from leonaid.modules.tasks.api import Task
 
 
 class InboxModel(TransportModel):
@@ -31,6 +32,7 @@ class InboxModel(TransportModel):
         "assignee_user_id",
         "user_id",
         "case_id",
+        "task_id",
         "author_user_id",
         "twenty_person_id",
         mode="before",
@@ -154,6 +156,23 @@ class Assignees(InboxModel):
     next_offset: int | None
 
 
+class SetTaskReference(InboxModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    task_id: UUID
+    present: bool
+
+
+class TaskReference(InboxModel):
+    task_id: UUID
+    # A stored reference never grants access to the referenced task.
+    task: Task | None
+
+
+class TaskReferences(InboxModel):
+    items: list[TaskReference]
+
+
 class AddComment(InboxModel):
     idempotency_key: UUID
     body: Annotated[
@@ -206,6 +225,13 @@ class UpdateCase(InboxModel):
 
 
 class InboxRepository(Protocol):
+    async def set_task_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetTaskReference
+    ) -> Case: ...
+    async def list_task_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> TaskReferences: ...
+
     async def add_comment(
         self, actor: IdentityPrincipal, case_id: UUID, command: AddComment
     ) -> Comment: ...
@@ -228,6 +254,18 @@ class InboxRepository(Protocol):
 class InboxService:
     def __init__(self, repository: InboxRepository) -> None:
         self._repository = repository
+
+    async def set_task_reference(
+        self, actor: IdentityPrincipal, case_id: UUID, command: SetTaskReference
+    ) -> Case:
+        return await self._repository.set_task_reference(
+            actor, case_id, SetTaskReference.model_validate(command)
+        )
+
+    async def list_task_references(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> TaskReferences:
+        return await self._repository.list_task_references(actor, case_id)
 
     async def add_comment(
         self, actor: IdentityPrincipal, case_id: UUID, command: AddComment
@@ -278,6 +316,9 @@ __all__ = [
     "AssigneeQuery",
     "Assignee",
     "Assignees",
+    "SetTaskReference",
+    "TaskReference",
+    "TaskReferences",
     "AddComment",
     "Comment",
     "CommentQuery",

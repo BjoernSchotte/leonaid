@@ -8,6 +8,8 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
+    SetTaskReference,
+    TaskReferences,
     AddComment,
     Comment,
     CommentQuery,
@@ -126,6 +128,32 @@ async def add_comment(
     request: Request, response: Response, case_id: UUID, body: AddComment
 ) -> Comment:
     return await service(request).add_comment(
+        await actor(request, response), case_id, body
+    )
+
+
+@router.get(
+    "/inbox-cases/{case_id}/tasks",
+    operation_id="listInboxTaskReferences",
+    response_model=TaskReferences,
+)
+async def list_task_references(
+    request: Request, response: Response, case_id: UUID
+) -> TaskReferences:
+    return await service(request).list_task_references(
+        await actor(request, response), case_id
+    )
+
+
+@router.put(
+    "/inbox-cases/{case_id}/tasks",
+    operation_id="setInboxTaskReference",
+    response_model=Case,
+)
+async def set_task_reference(
+    request: Request, response: Response, case_id: UUID, body: SetTaskReference
+) -> Case:
+    return await service(request).set_task_reference(
         await actor(request, response), case_id, body
     )
 

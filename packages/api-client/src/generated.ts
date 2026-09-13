@@ -258,6 +258,7 @@ export type SetMaterialMemberByEmail = { readonly access: "viewer" | "editor"; r
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
+export type SetTaskReference = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly present: boolean; readonly taskId: string; };
 export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
 export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
 export type SponsorMatchCandidateResponse = { readonly assignedAcquirers: Array<AssignedAcquirerResponse>; readonly city: string | null; readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly postalCode: string | null; readonly twentyId: string; };
@@ -288,6 +289,8 @@ export type Task = { readonly assigneeUserId?: string | null; readonly createdAt
 export type TaskFromPage = { readonly page: Page; readonly task: Task; };
 export type TaskList = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type TaskLists = { readonly items: Array<TaskList>; readonly nextOffset: number | null; };
+export type TaskReference = { readonly task: Task | null; readonly taskId: string; };
+export type TaskReferences = { readonly items: Array<TaskReference>; };
 export type Tasks = { readonly items: Array<Task>; readonly nextOffset: number | null; };
 export type TimeoutSettings = { readonly endedRetentionSeconds?: number | null; readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number; readonly operationId: string; readonly trashRetentionSeconds?: number | null; };
 export type TimeoutSettingsResponse = { readonly endedRetentionSeconds?: number | null; readonly inactivityTimeoutSeconds: number; readonly revision: number; readonly trashRetentionSeconds?: number | null; };
@@ -1775,6 +1778,33 @@ export class LeonAidApiClient {
       `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/comments`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listInboxTaskReferences(
+    caseId: string,
+    options: RequestOptions = {},
+  ): Promise<TaskReferences> {
+    return this.request<TaskReferences>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/tasks`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setInboxTaskReference(
+    caseId: string,
+    body: SetTaskReference,
+    options: RequestOptions = {},
+  ): Promise<Case> {
+    return this.request<Case>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/tasks`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
