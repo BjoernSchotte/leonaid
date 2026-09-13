@@ -852,3 +852,11 @@ Im eigenen Browserstack `leonaid-shared-32c62f415463ad67` gemessen (Sekunden ab 
 Der laufende Worker bestätigt eine Lease von 300 Sekunden; die vorhandene Export-Handlergrenze beträgt damit 240 Sekunden. Dies sind lokale Einzelmessungen mit synthetischer Last, kein allgemeiner Durchsatzbenchmark. Alle vier Jobs wurden zusätzlich in PostgreSQL als `available` bestätigt. Der vorherige reine Renderer-Benchmark bleibt als engerer Vergleich erhalten.
 
 Der größere Survey-Gate hat inzwischen `contracts` bestanden und arbeitet an `lifecycle`; weitere Integration-/Exportgruppen sind weiterhin offen.
+
+## M3 — Verständliche Wiederholung nach unklarem Ausgang und Ablehnung
+
+Das öffentliche Formular forderte nach einer verlorenen Antwort und anschließendem HTTP 422 zum Prüfen der Eingaben auf, obwohl es den Entwurf zum Schutz vor Doppelanlage absichtlich sperrt. Der Hinweis priorisiert nun den weiterhin unklaren Eingang und beschreibt die Wiederholung mit unveränderten Angaben.
+
+LIVE im eigenen HTTPS-Produktionsstack: Anfrage mit synthetischer, serverseitig ungültiger E-Mail-Adresse senden; tatsächliche 422-Antwort per Browser-Verbindungsabbruch verwerfen; erneut senden und die zweite echte 422-Antwort passieren lassen. Beide JSON-Befehle einschließlich Idempotenzschlüssel waren identisch. Vor der Korrektur war die widersprüchliche Meldung reproduzierbar; nach Neubau und Deployment bleiben Entwurf und Wiederholung erhalten und die Meldung passt zum gesperrten Zustand. Keine Serverantwort wurde erfunden. Die temporäre Browser-Interception wurde entfernt. Screenshot: `/tmp/leonaid-inbox-uncertain-rejection.png`.
+
+Validierung: `bun run --cwd apps/public check` (31 Dateien, keine Fehler/Warnungen), Prettier und Public-Docker-Produktionsbuild bestanden. Dieser Nachweis umfasst keinen erfolgreichen Commit und keine anschließende 429-Antwort; der erfolgreiche Commit mit verlorener Bestätigung ist separat dokumentiert.

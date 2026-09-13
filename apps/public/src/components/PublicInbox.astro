@@ -170,12 +170,11 @@ const { actionId, actionName } = Astro.props;
             fields.disabled = false;
           }
           if (!rejected) uncertain = true;
-          result.textContent =
-            error instanceof ApiError && error.status === 429
+          result.textContent = uncertain
+            ? "Der Eingang deiner Anfrage ist noch unklar. Bitte warte etwas und sende dieselbe Anfrage erneut; sie wird nicht doppelt angelegt. Deine Angaben bleiben dafür unverändert erhalten."
+            : error instanceof ApiError && error.status === 429
               ? "Zu viele Anfragen. Bitte warte etwas und versuche es erneut. Deine Eingaben bleiben erhalten."
-              : rejected
-                ? "Die Anfrage wurde nicht angenommen. Prüfe deine Eingaben und ob die Aktion noch geöffnet ist. Deine Eingaben bleiben erhalten."
-                : "Die Bestätigung ist noch nicht angekommen. Bitte sende dieselbe Anfrage erneut; sie wird nicht doppelt angelegt. Deine Eingaben bleiben erhalten.";
+              : "Die Anfrage wurde nicht angenommen. Prüfe deine Eingaben und ob die Aktion noch geöffnet ist. Deine Eingaben bleiben erhalten.";
           label.textContent = "Erneut senden";
           button.disabled = false;
         } finally {
