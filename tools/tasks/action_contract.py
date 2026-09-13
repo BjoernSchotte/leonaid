@@ -74,6 +74,7 @@ async def main() -> None:
     )
     users = [actor.account.id for actor in actors.values()]
     actions = [uuid4(), uuid4()]
+    context_search = f"Task matrix {actions[0]}"
     service = TaskService(AsyncpgTaskRepository(pool))
     try:
         async with pool.acquire() as conn:
@@ -86,9 +87,10 @@ async def main() -> None:
                 )
             for action_id in actions:
                 await conn.execute(
-                    "INSERT INTO charity_action (id,carrier_name,name,purpose,status,starts_on,ends_on,archive_slug) VALUES ($1,'Synthetic','Task matrix','Proof','draft','2026-01-01','2026-12-31',$2)",
+                    "INSERT INTO charity_action (id,carrier_name,name,purpose,status,starts_on,ends_on,archive_slug) VALUES ($1,'Synthetic',$3,'Proof','draft','2026-01-01','2026-12-31',$2)",
                     action_id,
                     f"task-matrix-{action_id}",
+                    context_search,
                 )
             for name in (
                 "owner",
@@ -135,12 +137,13 @@ async def main() -> None:
             assert not (
                 await service.list_action_contexts(actors[name], SearchPage())
             ).items
+        # Other integration contracts may have created additional visible actions.
         first_context = await service.list_action_contexts(
-            actors["global"], SearchPage(limit=1)
+            actors["global"], SearchPage(search=context_search, limit=1)
         )
         assert len(first_context.items) == 1 and first_context.next_offset == 1
         second_context = await service.list_action_contexts(
-            actors["global"], SearchPage(limit=1, offset=1)
+            actors["global"], SearchPage(search=context_search, limit=1, offset=1)
         )
         assert second_context.next_offset is None
         assert {

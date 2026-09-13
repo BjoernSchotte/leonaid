@@ -612,3 +612,10 @@ LIVE-Vertrag mit PostgreSQL/RustFS: Die Wartung blockiert nachweislich an der ta
 ## CI — Formatierung nach Materialregistrierung
 
 Der aktuelle Remote-Lauf für `47e4f5d` meldete als konkreten Fehler in „Lint and types“ ausschließlich die Ruff-Formatierung von `tests/unit/test_identity_domain.py`. Die Datei wurde formatiert; keine Testsemantik geändert. Lokal die beiden vollständigen Ruff-Prüfumfänge und Formatprüfungen aus `tools/ci/lint-types.sh` ausgeführt (11 beziehungsweise 442 Dateien), Mypy für alle 379 dort ausgewählten Source-Dateien, vollständige dortige Prettier-Zielmenge und OpenAPI-/Client-Aktualitätscheck: bestanden. Das ersetzt keine vollständige Remote-CI-Abnahme. Der separate lokale isolierte Compose-Schema-Gate läuft zum Zeitpunkt dieses Korrektur-Slices noch; sein Ergebnis wird gesondert dokumentiert.
+
+
+## Integration — Task-Pagination mit vorhandenem Testbestand
+
+Der isolierte Compose-Gate auf dem Image von `47e4f5d` bestand Leeraufbau bis `0040`, Materialschema/-Service/-Freigaben/-Aktionsmatrix/-Bereinigung/-HTTP, Wissensschema/-Service/-Materialreferenzen/-HTTP/-Aktionsmatrix/-Task-Anlage/-Mitglieder sowie Task-Service/-HTTP. Anschließend scheiterte der Task-Aktionsvertrag an der Annahme, dass der globale Administrator insgesamt nur die beiden lokal angelegten Aktionen sieht. Die vorhergehenden Materialverträge hatten weitere berechtigte Aktionen hinterlassen. Damit sind weder der gesamte Gate noch der nachfolgende Legacy-Upgrade-Abschnitt bestanden.
+
+Die Pagination-Abfrage verwendet jetzt den eindeutigen Titelpräfix ihrer eigenen zwei Aktionen. Ungefilterte Berechtigungsprüfungen bleiben unverändert. Der vollständige Task-Aktionsvertrag wurde mit einer zusätzlich angelegten fremden Aktion in echtem PostgreSQL erneut ausgeführt und bestand. Der abgebrochene Compose-Gate hat seine Container, Volumes und acht Netzwerke vollständig entfernt; dies wurde anhand seiner exakten Projektlabels bestätigt. Ein erneuter Gesamt-Gate bleibt erforderlich. Der Remote-Lint-/Typcheck für `f88bf76` ist inzwischen erfolgreich abgeschlossen.

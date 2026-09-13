@@ -278,6 +278,8 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 
 ### M2 — Tasks, Wissen und Materialien als Wiederverwendungsnachweis
 
+- [x] Reihenfolgeabhängigkeit im Task-Aktions-Paginationstest beheben: eigene eindeutige Suchmenge, Rechteprüfungen unverändert; vollständige Matrix mit fremdem Aktionsbestand in PostgreSQL bestanden. Gesamt-Compose-Gate und Legacy-Upgrade weiterhin offen.
+
 - [ ] Tasks: Liste, optional ein Epic pro Task, offen/erledigt, optional persönliche Zuständigkeit, getrennte Fälligkeit und Zurückstellung. Keine verschachtelten Epics oder konfigurierbaren Statusmodelle.
   - [x] Datenbasis: Task-eigene Listen, explizite Mitgliederrechte, Epics und revisionierte Tasks mit getrennten Zeitpunkten migrieren. Same-List-Epic, Zustände, Fremdschlüssel und Rücknahme/erneutes Upgrade mit PostgreSQL nachgewiesen. Fachoperationen, Autorisierung und UI bleiben offen.
   - [x] Erste direkte Fachoperationen: Liste erstellen/lesen und Task erstellen/lesen/ändern mit typisierten Eingaben, aktuellen Datenbankrechten, Revisionen, gemeinsamen Receipts und atomarem Audit. Reale Standalone-Replay-/Rechteprüfung bestanden. HTTP, Listenabfragen, Epic-/Mitgliederverwaltung und vollständige Aktionsmatrix bleiben offen.
