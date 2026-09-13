@@ -13,6 +13,8 @@ from pydantic import SecretStr
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
 from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
 from leonaid.application.crm import PersonData
+from leonaid.adapters.storage.s3 import S3ObjectStorage
+from leonaid.configuration import Settings
 from leonaid.modules.inbox.jobs import InboxContactHandler, InboxContactError
 
 from leonaid.bootstrap.api import build_inbox_service, build_task_service
@@ -23,6 +25,16 @@ from leonaid.modules.tasks.api import CreateList, CreateTask, SetListMember
 
 
 async def main(output: Path) -> None:
+    settings = Settings()
+    storage = S3ObjectStorage(
+        endpoint_url=str(settings.object_storage_endpoint_url),
+        access_key=settings.object_storage_access_key.get_secret_value(),
+        secret_key=settings.object_storage_secret_key.get_secret_value(),
+        bucket=settings.object_storage_bucket,
+        region=settings.object_storage_region,
+        path_style=settings.object_storage_path_style,
+    )
+    await storage.ensure_private_versioned_bucket()
     pool = await asyncpg.create_pool(
         os.environ["CORE_DATABASE_URL"], min_size=1, max_size=4
     )
