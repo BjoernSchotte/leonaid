@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
+import { TaskEditor, type Task } from "./task-editor";
 import "./tasks.css";
 
 function date(value: string) {
@@ -14,9 +15,12 @@ function date(value: string) {
 
 export function TasksPage({
   client,
+  identity,
   basePath,
   listId,
 }: ModulePageContext & { basePath: string; listId?: string }) {
+  const [editing, setEditing] = useState<Task | "new" | null>(null);
+  const editorTrigger = useRef<HTMLButtonElement | null>(null);
   const [forMe, setForMe] = useState(!listId);
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -60,7 +64,7 @@ export function TasksPage({
   return (
     <section className="tasks-workspace" aria-labelledby="tasks-heading">
       <header>
-        <h1 id="tasks-heading">
+        <h1 id="tasks-heading" tabIndex={-1}>
           {listId ? (selected.data?.title ?? "Aufgabenliste") : "Aufgaben"}
         </h1>
         <p>
@@ -155,6 +159,33 @@ export function TasksPage({
           </form>
         </aside>
         <div>
+          {listId && !editing && (
+            <Button
+              onClick={(event) => {
+                editorTrigger.current = event.currentTarget;
+                setEditing("new");
+              }}
+            >
+              Neue Aufgabe
+            </Button>
+          )}
+          {editing && (
+            <TaskEditor
+              key={editing === "new" ? "new" : editing.id}
+              client={client}
+              userId={identity.userId}
+              listId={editing === "new" ? listId! : editing.listId}
+              task={editing === "new" ? undefined : editing}
+              onClose={() => {
+                setEditing(null);
+                requestAnimationFrame(() => {
+                  if (editorTrigger.current?.isConnected)
+                    editorTrigger.current.focus();
+                  else document.getElementById("tasks-heading")?.focus();
+                });
+              }}
+            />
+          )}
           <div className="tasks-filters">
             <label>
               Ansicht
@@ -243,6 +274,16 @@ export function TasksPage({
                       </div>
                     )}
                   </dl>
+                  <Button
+                    variant="secondary"
+                    disabled={!!editing}
+                    onClick={(event) => {
+                      editorTrigger.current = event.currentTarget;
+                      setEditing(task);
+                    }}
+                  >
+                    Bearbeiten
+                  </Button>
                 </li>
               ))}
             </ul>

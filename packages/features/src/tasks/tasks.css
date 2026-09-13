@@ -121,3 +121,35 @@
     padding: 0 0 1.5rem;
   }
 }
+
+.task-editor {
+  border-block: 1px solid var(--border);
+  padding-block: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.task-editor fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+}
+.task-editor label {
+  display: grid;
+  gap: 0.5rem;
+}
+.task-editor textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.65rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+.task-editor textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}

@@ -359,6 +359,7 @@ export function App({ client }: AppProps) {
   return (
     <>
       <AppShell
+        moduleNavigationKeys={registeredPwaModules.map((module) => module.id)}
         currentActionName={currentAction}
         identity={identity.data}
         onLogout={() => {

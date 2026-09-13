@@ -30,6 +30,7 @@ import { ToastProvider } from "./toast";
 export interface AppShellProps {
   readonly children: ReactNode;
   readonly systemBanner?: ReactNode;
+  readonly moduleNavigationKeys?: readonly string[];
   readonly currentActionName: string;
   readonly identity: CurrentIdentityResponse;
   readonly onLogout: () => void;
@@ -148,6 +149,7 @@ export function AppShell({
   onLogout,
   surface = "web",
   systemBanner,
+  moduleNavigationKeys = [],
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(
     () => window.localStorage.getItem("leonaid.sidebar-collapsed") === "true",
@@ -156,8 +158,12 @@ export function AppShell({
   const navigation = identity.navigation.filter(
     (item) => item.surface === surface,
   );
-  const implemented =
-    surface === "pwa" ? implementedPwaNavigation : implementedWebNavigation;
+  const implemented = new Set([
+    ...(surface === "pwa"
+      ? implementedPwaNavigation
+      : implementedWebNavigation),
+    ...moduleNavigationKeys,
+  ]);
 
   function toggleSidebar() {
     const next = !collapsed;

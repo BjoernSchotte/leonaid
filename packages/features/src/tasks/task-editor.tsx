@@ -1,0 +1,178 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useId, useRef, useState } from "react";
+import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
+import { Button, StatusMessage } from "@leonaid/ui";
+
+export type Task = Awaited<ReturnType<LeonAidApiClient["getTask"]>>;
+
+function localTime(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+export function TaskEditor({
+  client,
+  listId,
+  task,
+  userId,
+  onClose,
+}: {
+  client: LeonAidApiClient;
+  listId: string;
+  task?: Task;
+  userId: string;
+  onClose: () => void;
+}) {
+  const id = useId();
+  const cache = useQueryClient();
+  const operation = useRef(crypto.randomUUID());
+  const [title, setTitle] = useState(task?.title ?? "");
+  const [description, setDescription] = useState(task?.description ?? "");
+  const [status, setStatus] = useState<"open" | "done">(task?.status ?? "open");
+  const [assignee, setAssignee] = useState(task?.assigneeUserId ?? "");
+  const [due, setDue] = useState(localTime(task?.dueAt));
+  const [deferred, setDeferred] = useState(localTime(task?.deferredUntil));
+  const save = useMutation({
+    mutationFn: () => {
+      const body = {
+        title: title.trim(),
+        description,
+        assigneeUserId: assignee || null,
+        epicId: task?.epicId ?? null,
+        dueAt:
+          due === localTime(task?.dueAt)
+            ? (task?.dueAt ?? null)
+            : due
+              ? new Date(due).toISOString()
+              : null,
+        deferredUntil:
+          deferred === localTime(task?.deferredUntil)
+            ? (task?.deferredUntil ?? null)
+            : deferred
+              ? new Date(deferred).toISOString()
+              : null,
+        idempotencyKey: operation.current,
+      };
+      return task
+        ? client.updateTask(task.id, {
+            ...body,
+            status,
+            expectedRevision: task.revision,
+          })
+        : client.createTask(listId, body);
+    },
+    onSuccess: async () => {
+      await cache.invalidateQueries({ queryKey: ["tasks"] });
+      onClose();
+    },
+  });
+  return (
+    <form
+      className="task-editor"
+      aria-labelledby={`${id}-heading`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        save.mutate();
+      }}
+      onChange={() => {
+        operation.current = crypto.randomUUID();
+        save.reset();
+      }}
+    >
+      <h2 id={`${id}-heading`}>
+        {task ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
+      </h2>
+      {save.error && (
+        <StatusMessage tone="error">
+          <p>
+            {save.error instanceof ApiError && save.error.status === 409
+              ? "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Dein Entwurf bleibt erhalten. Schließe die Bearbeitung und lade die Aufgaben neu, bevor du deine Änderungen erneut übernimmst."
+              : save.error instanceof ApiError &&
+                  [403, 404].includes(save.error.status)
+                ? "Du darfst diese Aufgabe nicht bearbeiten oder hast keinen Zugriff mehr auf die Liste."
+                : "Speichern fehlgeschlagen. Dein Entwurf bleibt erhalten; du kannst erneut speichern."}
+          </p>
+        </StatusMessage>
+      )}
+      <fieldset disabled={save.isPending}>
+        <label>
+          Titel
+          <input
+            autoFocus
+            required
+            maxLength={240}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </label>
+        <label>
+          Beschreibung
+          <textarea
+            rows={4}
+            maxLength={10000}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </label>
+        {task && (
+          <label>
+            Status
+            <select
+              value={status}
+              onChange={(event) =>
+                setStatus(event.target.value as "open" | "done")
+              }
+            >
+              <option value="open">Offen</option>
+              <option value="done">Erledigt</option>
+            </select>
+          </label>
+        )}
+        <label>
+          Zuständigkeit
+          <select
+            value={assignee}
+            onChange={(event) => setAssignee(event.target.value)}
+          >
+            <option value="">Nicht zugewiesen</option>
+            <option value={userId}>Ich</option>
+            {task?.assigneeUserId && task.assigneeUserId !== userId && (
+              <option value={task.assigneeUserId}>
+                Bisherige zuständige Person
+              </option>
+            )}
+          </select>
+        </label>
+        <label>
+          Fällig am
+          <input
+            type="datetime-local"
+            value={due}
+            onChange={(event) => setDue(event.target.value)}
+          />
+        </label>
+        <label>
+          Zurückgestellt bis
+          <input
+            type="datetime-local"
+            value={deferred}
+            onChange={(event) => setDeferred(event.target.value)}
+          />
+        </label>
+        <p>
+          Zeiten gelten in deiner lokalen Zeitzone. Zurückstellen blendet die
+          Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.
+        </p>
+        <div className="tasks-paging">
+          <Button type="submit" disabled={!title.trim()}>
+            {save.isPending ? "Wird gespeichert …" : "Speichern"}
+          </Button>
+          <Button variant="secondary" type="button" onClick={onClose}>
+            Abbrechen
+          </Button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}

@@ -193,6 +193,7 @@ export function App({ client }: AppProps) {
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
       <AppShell
+        moduleNavigationKeys={registeredModules.map((module) => module.id)}
         currentActionName={selectedMembership?.actionName ?? currentAction}
         identity={{
           ...identity.data,
