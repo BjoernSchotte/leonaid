@@ -26,7 +26,6 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  scroll-behavior: smooth;
 }
 
 body {

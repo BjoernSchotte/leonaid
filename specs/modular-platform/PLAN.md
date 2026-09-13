@@ -262,6 +262,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [x] Native Zahlungsformular-Validität in der Golden-Journey vor dem Submit prüfen und bei Fehlern nur Feld-IDs/Validitätsflags melden. Beide lokalen Fachrunden in drei Browsern bestanden; der Remote-WebKit-Fehler bleibt offen.
 
+- [x] Global erzwungenes sanftes Scrollen der App-Shell entfernen, nachdem CI unterschiedliche Ziele bei Pointerdown und Pointerup des Zahlungsbuttons nachweist. Vollständiger lokaler Golden-Lauf mit beiden Runden in drei Browsern bestanden; Remote-Bestätigung bleibt offen.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [x] Vollständigen Backup-/Fresh-Volume-Restore mit separat reservierten Testnetzen bestehen: unveränderte Leeres-Ziel-Sperre, identisches SQL-/Dateiinventar, Golden-Snapshot, bestehende Sitzung im Browser und vollständige Bereinigung. RPO 329 s und RTO 634 s; Remote-Nightly bleibt offen.
