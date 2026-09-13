@@ -121,6 +121,52 @@ async def main() -> None:
                 assert (
                     await client.get(root + "?search=HTTP%20Inbox", headers=headers)
                 ).json()["items"] == [case]
+                comment_path = path + "/comments"
+                comment = {"idempotencyKey": str(uuid4()), "body": "Internal HTTP note"}
+                assert (await client.get(comment_path)).status_code == 401
+                assert (
+                    await client.get(comment_path, headers=outsider)
+                ).status_code == 404
+                assert (
+                    await client.post(comment_path, headers=outsider, json=comment)
+                ).status_code == 404
+                assert (
+                    await client.post(
+                        comment_path,
+                        headers={"Cookie": headers["Cookie"], "Sec-Fetch-Mode": "cors"},
+                        json=comment,
+                    )
+                ).status_code == 403
+                added = await client.post(comment_path, headers=headers, json=comment)
+                assert added.status_code == 201, added.text
+                assert added.headers["cache-control"] == "no-store"
+                assert added.json()["authorUserId"] == str(users[0])
+                assert (
+                    await client.post(comment_path, headers=headers, json=comment)
+                ).json() == added.json()
+                assert (await client.get(comment_path, headers=headers)).json()[
+                    "items"
+                ] == [added.json()]
+                assert (
+                    await client.post(
+                        comment_path,
+                        headers=headers,
+                        json={**comment, "body": "Changed"},
+                    )
+                ).status_code == 409
+                assert (
+                    await client.post(
+                        comment_path, headers=headers, json={**comment, "body": " "}
+                    )
+                ).status_code == 422
+                assert (
+                    await client.get(
+                        comment_path, headers=headers, params={"limit": 101}
+                    )
+                ).status_code == 422
+                assert (
+                    await client.get(f"/api/v1/public/inbox-cases/{case_id}/comments")
+                ).status_code == 404
                 change = {
                     "idempotencyKey": str(uuid4()),
                     "expectedRevision": 1,
@@ -183,12 +229,18 @@ async def main() -> None:
                 assert (
                     await client.put(path, headers=headers, json=change)
                 ).status_code == 404
+                assert (
+                    await client.get(comment_path, headers=headers)
+                ).status_code == 404
+                assert (
+                    await client.post(comment_path, headers=headers, json=comment)
+                ).status_code == 404
                 await conn.execute(
                     "UPDATE user_account SET status='suspended' WHERE id=$1", users[0]
                 )
                 assert (await client.get(root, headers=headers)).status_code == 401
         print(
-            "PASS inbox HTTP: production lifespan/session/CSRF, same ACL, no-store, strict JSON/query, close/replay/conflict, revoked access and suspended session"
+            "PASS inbox HTTP: production lifespan/session/CSRF, internal comments, same ACL, no-store, strict JSON/query, close/replay/conflict, revoked access and suspended session"
         )
     finally:
         async with conn.transaction():
@@ -199,9 +251,10 @@ async def main() -> None:
             )
             await conn.execute("DELETE FROM audit_event WHERE entity_id=$1", case_id)
             await conn.execute(
-                "DELETE FROM command_receipt WHERE idempotency_key=$1 OR idempotency_key LIKE $2",
+                "DELETE FROM command_receipt WHERE idempotency_key=$1 OR idempotency_key LIKE $2 OR idempotency_key LIKE $3",
                 f"inbox.submit:{command.idempotency_key}",
                 f"inbox.update:{users[0]}:%",
+                f"inbox.comment:{users[0]}:%",
             )
             await conn.execute(
                 "DELETE FROM user_session WHERE user_id=ANY($1::uuid[])", users

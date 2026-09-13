@@ -8,6 +8,10 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
+    AddComment,
+    Comment,
+    CommentQuery,
+    Comments,
     AssigneeQuery,
     Assignees,
     Case,
@@ -90,6 +94,39 @@ async def list_assignees(
         await actor(request, response),
         case_id,
         AssigneeQuery(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.get(
+    "/inbox-cases/{case_id}/comments",
+    operation_id="listInboxComments",
+    response_model=Comments,
+)
+async def list_comments(
+    request: Request,
+    response: Response,
+    case_id: UUID,
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Comments:
+    return await service(request).list_comments(
+        await actor(request, response),
+        case_id,
+        CommentQuery(offset=offset, limit=limit),
+    )
+
+
+@router.post(
+    "/inbox-cases/{case_id}/comments",
+    operation_id="addInboxComment",
+    response_model=Comment,
+    status_code=201,
+)
+async def add_comment(
+    request: Request, response: Response, case_id: UUID, body: AddComment
+) -> Comment:
+    return await service(request).add_comment(
+        await actor(request, response), case_id, body
     )
 
 

@@ -28,6 +28,7 @@ export type ActionTemplateSummaryResponse = { readonly capabilities: Array<"acqu
 export type ActivateLegalConfigurationRequest = { readonly expectedRevision: number; };
 export type ActivityFeedItemResponse = { readonly actionId: string; readonly actionName: string; readonly commitmentId: string; readonly currency: string; readonly eventType: "public_order_received"; readonly id: string; readonly isRead: boolean; readonly nextActionHref: string; readonly nextActionLabel: string; readonly occurredAt: string; readonly partyDisplayName: string; readonly partyId: string; readonly partyKind: "company" | "person"; readonly publicReference: string; readonly readAt: string | null; readonly totalBoxes: number; readonly totalMinor: number; readonly totalPieces: number; };
 export type ActivityFeedResponse = { readonly items: Array<ActivityFeedItemResponse>; readonly limit: number; readonly offset: number; readonly total: number; readonly unreadCount: number; };
+export type AddComment = { readonly body: string; readonly idempotencyKey: string; };
 export type AdministratorOptionResponse = { readonly displayName: string; readonly email: string; readonly isAvailable: boolean; readonly isResponsible: boolean; readonly userId: string; };
 export type AggregateCount = { readonly count: number; readonly label: string; readonly percentage: number | null; readonly value: string | number | number; };
 export type AnalysisFilter = { readonly createdBefore?: string | null; readonly createdFrom?: string | null; readonly isTest?: boolean; readonly statuses?: Array<"in_progress" | "partial" | "completed">; readonly versionId: string; };
@@ -58,6 +59,8 @@ export type ChangeMemberStatusRequest = { readonly expectedRevision: number; rea
 export type CharityActionConfigurationResponse = { readonly action: CharityActionResponse; readonly offerings: Array<ConfiguredOfferingResponse>; readonly orderForm: OrderFormConfigurationResponse | null; readonly template: ActionTemplateSnapshotResponse; };
 export type CharityActionResponse = { readonly archiveSlug: string; readonly beneficiaries: Array<BeneficiaryResponse>; readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly carrierName: string; readonly endsOn: string; readonly goal: ActionGoalResponse; readonly id: string; readonly isPublished: boolean; readonly name: string; readonly publicationEndsAt: string | null; readonly publicationStartsAt: string | null; readonly purpose: string; readonly revision: number; readonly startsOn: string; readonly status: "draft" | "scheduled" | "active" | "completed" | "archived"; };
 export type CharityAdminDashboardResponse = { readonly commitments: DashboardCommitmentResponse; readonly invoices: DashboardInvoiceResponse; readonly pipeline: DashboardPipelineResponse; };
+export type Comment = { readonly authorUserId: string; readonly body: string; readonly caseId: string; readonly createdAt: string; readonly id: string; };
+export type Comments = { readonly items: Array<Comment>; readonly nextOffset: number | null; };
 export type CommitmentBuyerRequest = { readonly displayName: string; readonly email?: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentBuyerResponse = { readonly displayName: string; readonly email: string | null; readonly partyKind: "company" | "person"; readonly twentyId: string; };
 export type CommitmentCaptureContextResponse = { readonly actionId: string; readonly actionName: string; readonly deliveryConfiguration?: DeliveryConfigurationResponse | null; readonly offerings: Array<ConfiguredOfferingResponse>; };
@@ -1738,6 +1741,43 @@ export class LeonAidApiClient {
     return this.request<Assignees>(
       requestPath,
       { method: "GET" },
+      options,
+    );
+  }
+
+  async listInboxComments(
+    caseId: string,
+    queryParameters: { readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<Comments> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/comments` + (queryString ? `?${queryString}` : "");
+    return this.request<Comments>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async addInboxComment(
+    caseId: string,
+    body: AddComment,
+    options: RequestOptions = {},
+  ): Promise<Comment> {
+    return this.request<Comment>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/comments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

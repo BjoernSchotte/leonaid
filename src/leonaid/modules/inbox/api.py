@@ -30,6 +30,8 @@ class InboxModel(TransportModel):
         "id",
         "assignee_user_id",
         "user_id",
+        "case_id",
+        "author_user_id",
         "twenty_person_id",
         mode="before",
         check_fields=False,
@@ -152,6 +154,36 @@ class Assignees(InboxModel):
     next_offset: int | None
 
 
+class AddComment(InboxModel):
+    idempotency_key: UUID
+    body: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+    ]
+
+    @field_validator("body")
+    @classmethod
+    def validate_body(cls, value: str) -> str:
+        return SubmitCase.reject_controls(value)
+
+
+class Comment(InboxModel):
+    id: UUID
+    case_id: UUID
+    author_user_id: UUID
+    body: str
+    created_at: datetime
+
+
+class CommentQuery(InboxModel):
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class Comments(InboxModel):
+    items: list[Comment]
+    next_offset: int | None
+
+
 class UpdateCase(InboxModel):
     idempotency_key: UUID
     expected_revision: int = Field(ge=1)
@@ -174,6 +206,13 @@ class UpdateCase(InboxModel):
 
 
 class InboxRepository(Protocol):
+    async def add_comment(
+        self, actor: IdentityPrincipal, case_id: UUID, command: AddComment
+    ) -> Comment: ...
+    async def list_comments(
+        self, actor: IdentityPrincipal, case_id: UUID, query: CommentQuery
+    ) -> Comments: ...
+
     async def list_assignees(
         self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery
     ) -> Assignees: ...
@@ -189,6 +228,20 @@ class InboxRepository(Protocol):
 class InboxService:
     def __init__(self, repository: InboxRepository) -> None:
         self._repository = repository
+
+    async def add_comment(
+        self, actor: IdentityPrincipal, case_id: UUID, command: AddComment
+    ) -> Comment:
+        return await self._repository.add_comment(
+            actor, case_id, AddComment.model_validate(command)
+        )
+
+    async def list_comments(
+        self, actor: IdentityPrincipal, case_id: UUID, query: CommentQuery
+    ) -> Comments:
+        return await self._repository.list_comments(
+            actor, case_id, CommentQuery.model_validate(query)
+        )
 
     async def list_assignees(
         self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery
@@ -225,4 +278,8 @@ __all__ = [
     "AssigneeQuery",
     "Assignee",
     "Assignees",
+    "AddComment",
+    "Comment",
+    "CommentQuery",
+    "Comments",
 ]

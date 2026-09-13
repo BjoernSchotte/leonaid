@@ -19,6 +19,10 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
+    AddComment,
+    Comment,
+    CommentQuery,
+    Comments,
     Assignee,
     AssigneeQuery,
     Assignees,
@@ -184,6 +188,82 @@ class AsyncpgInboxRepository:
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
             )
+
+    async def list_comments(
+        self, actor: IdentityPrincipal, case_id: UUID, query: CommentQuery
+    ) -> Comments:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._case(conn, actor.account.id, case_id)
+            rows = await conn.fetch(
+                "SELECT * FROM inbox_case_comment WHERE case_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3",
+                case_id,
+                query.limit + 1,
+                query.offset,
+            )
+            return Comments(
+                items=[
+                    Comment.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def add_comment(
+        self, actor: IdentityPrincipal, case_id: UUID, command: AddComment
+    ) -> Comment:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            current = await self._case(conn, actor.account.id, case_id)
+            key = (
+                f"inbox.comment:{actor.account.id}:{case_id}:{command.idempotency_key}"
+            )
+            receipts = AsyncpgCommandReceiptRepository(conn)
+            try:
+                replay = await receipts.reserve(
+                    idempotency_key=key,
+                    command_type="inbox.commented",
+                    request_hash=hashlib.sha256(
+                        command.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+            except ApplicationError as error:
+                if error.code == "idempotency_conflict":
+                    raise Conflict(error.code, error.message) from error
+                raise
+            if replay is not None:
+                row = await conn.fetchrow(
+                    "SELECT * FROM inbox_case_comment WHERE id=$1 AND case_id=$2",
+                    UUID(replay["commentId"]),
+                    case_id,
+                )
+                if row is None:
+                    raise ResourceNotFound("not_found", "Kommentar nicht gefunden.")
+                return Comment.model_validate(dict(row))
+            comment_id = uuid4()
+            row = await conn.fetchrow(
+                "INSERT INTO inbox_case_comment(id,case_id,author_user_id,body) VALUES($1,$2,$3,$4) RETURNING *",
+                comment_id,
+                case_id,
+                actor.account.id,
+                command.body,
+            )
+            assert row is not None
+            await conn.execute(
+                """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
+                    VALUES($1,$2,$3,'inbox.commented','inbox_case',$4,$5,jsonb_build_object('commentId',$6::text))""",
+                uuid4(),
+                current.action_id,
+                actor.account.id,
+                case_id,
+                key,
+                str(comment_id),
+            )
+            await receipts.complete(
+                idempotency_key=key, result={"commentId": str(comment_id)}
+            )
+            return Comment.model_validate(dict(row))
 
     async def list_assignees(
         self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery

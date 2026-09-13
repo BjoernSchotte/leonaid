@@ -23,7 +23,14 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
 )
-from leonaid.modules.inbox.api import AssigneeQuery, CaseQuery, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import (
+    AddComment,
+    CommentQuery,
+    AssigneeQuery,
+    CaseQuery,
+    SubmitCase,
+    UpdateCase,
+)
 
 
 async def main() -> None:
@@ -169,6 +176,99 @@ async def main() -> None:
         )
         current = await service.update_case(manager, scoped, assignment)
         assert current.revision == 2
+        comment_command = AddComment(
+            idempotency_key=uuid4(), body="  Interne Notiz <b>kein HTML</b>  "
+        )
+        comments = await asyncio.gather(
+            *(service.add_comment(assigned, scoped, comment_command) for _ in range(2))
+        )
+        assert comments[0] == comments[1]
+        assert comments[0].body == "Interne Notiz <b>kein HTML</b>"
+        assert comments[0].author_user_id == assigned.account.id
+        try:
+            await service.add_comment(
+                assigned, scoped, comment_command.model_copy(update={"body": "Changed"})
+            )
+        except Conflict:
+            pass
+        else:
+            raise AssertionError("Comment key reused with changed content")
+        for body in (" ", "x" * 4001, "bad\x00text"):
+            try:
+                await service.add_comment(
+                    assigned,
+                    scoped,
+                    AddComment.model_construct(idempotency_key=uuid4(), body=body),
+                )
+            except ValidationError:
+                pass
+            else:
+                raise AssertionError("Invalid direct comment accepted")
+        second_comment = await service.add_comment(
+            manager, scoped, AddComment(idempotency_key=uuid4(), body="Andere Notiz")
+        )
+        page_comments = await service.list_comments(
+            assigned, scoped, CommentQuery(limit=1)
+        )
+        assert (
+            page_comments.items == [second_comment] and page_comments.next_offset == 1
+        )
+        assert (
+            await service.list_comments(manager, scoped, CommentQuery(offset=1))
+        ).items == [comments[0]]
+        assert await service.get_case(assigned, scoped) == current
+        for operation in (
+            service.list_comments(outsider, scoped, CommentQuery()),
+            service.add_comment(outsider, scoped, comment_command),
+        ):
+            try:
+                await operation
+            except ResourceNotFound:
+                pass
+            else:
+                raise AssertionError("Outsider accessed internal comments")
+        # Real audit failure must roll back the comment and its receipt together.
+        failed_comment = AddComment(idempotency_key=uuid4(), body="Rollback proof")
+        constraint = f"comment_proof_{uuid4().hex}"
+        failed_key = f"inbox.comment:{assigned.account.id}:{scoped}:{failed_comment.idempotency_key}"
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"ALTER TABLE audit_event ADD CONSTRAINT {constraint} CHECK (request_id <> '{failed_key}')"
+            )
+        try:
+            try:
+                await service.add_comment(assigned, scoped, failed_comment)
+            except asyncpg.CheckViolationError:
+                pass
+            else:
+                raise AssertionError("Expected actual audit constraint failure")
+            async with pool.acquire() as conn:
+                assert (
+                    await conn.fetchval(
+                        "SELECT count(*) FROM inbox_case_comment WHERE case_id=$1",
+                        scoped,
+                    )
+                    == 2
+                )
+                assert not await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM command_receipt WHERE idempotency_key=$1)",
+                    failed_key,
+                )
+        finally:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    f"ALTER TABLE audit_event DROP CONSTRAINT {constraint}"
+                )
+        await service.add_comment(assigned, scoped, failed_comment)
+        async with pool.acquire() as conn:
+            audit = await conn.fetch(
+                "SELECT payload FROM audit_event WHERE entity_id=$1 AND event_type='inbox.commented'",
+                scoped,
+            )
+            assert len(audit) == 3 and all(
+                set(json.loads(row["payload"])) == {"commentId"} for row in audit
+            )
+
         try:
             await service.list_assignees(assigned, scoped, AssigneeQuery())
         except PermissionDenied:
@@ -297,6 +397,16 @@ async def main() -> None:
                 await service.list_assignees(manager, scoped, AssigneeQuery())
             ).items
         }
+        for operation in (
+            service.list_comments(assigned, scoped, CommentQuery()),
+            service.add_comment(assigned, scoped, comment_command),
+        ):
+            try:
+                await operation
+            except ResourceNotFound:
+                pass
+            else:
+                raise AssertionError("Revoked member accessed or replayed comment")
         assert not (await service.list_cases(assigned, CaseQuery())).items
         try:
             await service.update_case(assigned, scoped, close)
@@ -383,7 +493,7 @@ async def main() -> None:
         else:
             raise AssertionError("Suspended assignee retained access")
         print(
-            "PASS inbox cases: current roles/assignment, private search, authorized candidate pagination and revocation, action isolation, close/reopen audit, concurrent revision conflict, immutable input, independent CRM state and revoked replay"
+            "PASS inbox cases: current roles/assignment, atomic internal comments/replay/revocation, private search, authorized candidate pagination and revocation, action isolation, close/reopen audit, concurrent revision conflict, immutable input, independent CRM state and revoked replay"
         )
     finally:
         async with pool.acquire() as conn, conn.transaction():
@@ -400,7 +510,11 @@ async def main() -> None:
             await conn.execute(
                 "DELETE FROM command_receipt WHERE idempotency_key=ANY($1::text[]) OR idempotency_key LIKE ANY($2::text[])",
                 keys,
-                [f"inbox.update:{user}:%" for user in users],
+                [
+                    f"inbox.{operation}:{user}:%"
+                    for operation in ("update", "comment")
+                    for user in users
+                ],
             )
             await conn.execute(
                 "DELETE FROM action_membership WHERE action_id=ANY($1::uuid[])", actions
