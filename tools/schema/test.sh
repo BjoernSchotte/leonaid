@@ -89,6 +89,10 @@ compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
   api /repo/tools/materials/schema_contract.py
+compose run --rm --no-deps \
+  --volume "$root:/repo:ro" \
+  --entrypoint python \
+  api /repo/tools/inbox/schema_contract.py
 compose up --detach --wait --wait-timeout 120 rustfs
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \

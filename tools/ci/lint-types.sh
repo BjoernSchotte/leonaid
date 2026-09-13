@@ -40,7 +40,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
@@ -51,7 +51,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
@@ -62,7 +62,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check
