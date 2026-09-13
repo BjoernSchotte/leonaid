@@ -1,0 +1,409 @@
+"""Material-owned PostgreSQL state using the existing private object storage port."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
+import hashlib
+from typing import Any
+from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
+
+import asyncpg
+
+from leonaid.adapters.postgres.action_progress import AsyncpgCommandReceiptRepository
+from leonaid.application.errors import (
+    ApplicationError,
+    AuthenticationRequired,
+    Conflict,
+    DependencyUnavailable,
+    ResourceNotFound,
+)
+from leonaid.application.object_storage import (
+    ObjectStorage,
+    ObjectLocation,
+    ObjectWrite,
+    ObjectStorageError,
+    ObjectStorageConflict,
+)
+from leonaid.domain.identity import IdentityPrincipal
+from leonaid.modules.materials.api import (
+    CreateMaterial,
+    AddVersion,
+    Material,
+    MaterialVersion,
+    MaterialDownload,
+    MaterialQuery,
+    Materials,
+    upload_digest,
+)
+
+_READ_ACCESS = """
+    ((m.action_id IS NULL AND (m.owner_user_id=$1 OR EXISTS (
+        SELECT 1 FROM material_member a WHERE a.material_id=m.id AND a.user_id=$1)))
+    OR (m.action_id IS NOT NULL AND (
+        EXISTS (SELECT 1 FROM user_global_role g WHERE g.user_id=$1 AND g.role='system_admin')
+        OR EXISTS (SELECT 1 FROM action_membership a WHERE a.user_id=$1 AND a.action_id=m.action_id
+            AND a.active_from<=now() AND (a.active_until IS NULL OR a.active_until>now())))))
+"""
+_FIELDS = "m.id,m.action_id,m.owner_user_id,m.title,m.revision,m.current_version"
+
+
+class AsyncpgMaterialRepository:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        storage: ObjectStorage,
+        *,
+        connection: asyncpg.Connection[Any] | None = None,
+    ) -> None:
+        self.pool = pool
+        self.storage = storage
+        self.connection = connection
+
+    @asynccontextmanager
+    async def _connection(self) -> AsyncIterator[asyncpg.Connection[Any]]:
+        if self.connection is not None:
+            yield self.connection
+        else:
+            async with self.pool.acquire() as conn:
+                yield conn
+
+    async def _active(
+        self, conn: asyncpg.Connection[Any], actor: IdentityPrincipal
+    ) -> None:
+        if (
+            await conn.fetchval(
+                "SELECT status FROM user_account WHERE id=$1 FOR SHARE",
+                actor.account.id,
+            )
+            != "active"
+        ):
+            raise AuthenticationRequired(
+                "authentication_required", "Aktives Konto erforderlich."
+            )
+
+    async def _action_write(
+        self, conn: asyncpg.Connection[Any], user_id: UUID, action_id: UUID
+    ) -> bool:
+        return bool(
+            await conn.fetchval(
+                """
+            SELECT EXISTS (SELECT 1 FROM charity_action a WHERE a.id=$2 AND (
+                EXISTS (SELECT 1 FROM user_global_role WHERE user_id=$1 AND role='system_admin')
+                OR EXISTS (SELECT 1 FROM action_membership WHERE user_id=$1 AND action_id=a.id
+                    AND role='charity_admin' AND active_from<=now()
+                    AND (active_until IS NULL OR active_until>now()))))
+        """,
+                user_id,
+                action_id,
+            )
+        )
+
+    async def _material(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        *,
+        write: bool = False,
+    ) -> Material:
+        lock = "UPDATE" if write else "SHARE"
+        row = await conn.fetchrow(
+            f"SELECT {_FIELDS} FROM material m WHERE m.id=$2 AND {_READ_ACCESS} FOR {lock} OF m",
+            actor.account.id,
+            material_id,
+        )
+        if row is None:
+            raise ResourceNotFound("not_found", "Material nicht gefunden.")
+        material = Material.model_validate(dict(row))
+        if write:
+            allowed = material.owner_user_id == actor.account.id
+            if not allowed and material.action_id is not None:
+                allowed = await self._action_write(
+                    conn, actor.account.id, material.action_id
+                )
+            if not allowed:
+                allowed = bool(
+                    await conn.fetchval(
+                        "SELECT EXISTS (SELECT 1 FROM material_member WHERE material_id=$1 AND user_id=$2 AND access='editor')",
+                        material_id,
+                        actor.account.id,
+                    )
+                )
+            if not allowed:
+                raise ResourceNotFound("not_found", "Material nicht gefunden.")
+        return material
+
+    async def _receipt(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        context: UUID,
+        operation: str,
+        command: CreateMaterial | AddVersion,
+        content: bytes,
+    ) -> tuple[str, dict[str, str] | None, str]:
+        key = f"materials:{actor.account.id}:{operation}:{context}:{command.idempotency_key}"
+        digest = hashlib.sha256(
+            (command.model_dump_json() + ":" + upload_digest(content)).encode()
+        ).hexdigest()
+        try:
+            replay = await AsyncpgCommandReceiptRepository(conn).reserve(
+                idempotency_key=key, command_type=operation, request_hash=digest
+            )
+        except ApplicationError as error:
+            if error.code == "idempotency_conflict":
+                raise Conflict(error.code, error.message) from error
+            raise
+        return key, replay, digest
+
+    async def _store_version(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        material: Material,
+        command: CreateMaterial | AddVersion,
+        content: bytes,
+        key: str,
+        digest: str,
+    ) -> None:
+        location = ObjectLocation(
+            bucket=self.storage.bucket,
+            key=f"materials/{material.id}/{uuid5(NAMESPACE_URL, key)}",
+        )
+        try:
+            stored = await self.storage.put_immutable(
+                ObjectWrite(
+                    location=location,
+                    content=content,
+                    media_type=command.media_type,
+                    sha256=upload_digest(content),
+                    metadata={"material-id": str(material.id), "request-hash": digest},
+                )
+            )
+            retrieved = await self.storage.get(stored.location)
+            if retrieved.content != content or retrieved.stored != stored:
+                raise DependencyUnavailable(
+                    "material_integrity_failed",
+                    "Die gespeicherte Datei ist nicht byteidentisch lesbar.",
+                )
+        except ObjectStorageConflict as error:
+            raise Conflict(
+                "idempotency_conflict",
+                "Dieser Upload-Schlüssel wurde bereits für andere Dateidaten verwendet.",
+            ) from error
+        except ObjectStorageError as error:
+            raise DependencyUnavailable(
+                "material_storage_unavailable",
+                "Die Datei konnte nicht sicher gespeichert werden. Wiederhole denselben Upload.",
+            ) from error
+        await conn.execute(
+            """
+            INSERT INTO material_version(material_id,version,filename,media_type,size_bytes,sha256,
+                storage_bucket,object_key,storage_version_id,created_by)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        """,
+            material.id,
+            material.current_version,
+            command.filename,
+            stored.media_type,
+            stored.size_bytes,
+            stored.sha256,
+            stored.location.bucket,
+            stored.location.key,
+            stored.location.version_id,
+            actor.account.id,
+        )
+
+    async def _finish(
+        self,
+        conn: asyncpg.Connection[Any],
+        actor: IdentityPrincipal,
+        material: Material,
+        key: str,
+        operation: str,
+    ) -> None:
+        await conn.execute(
+            """INSERT INTO audit_event(id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
+            VALUES ($1,$2,$3,$4,'material',$5,$6,'{}'::jsonb)""",
+            uuid4(),
+            material.action_id,
+            actor.account.id,
+            operation,
+            material.id,
+            key,
+        )
+        await AsyncpgCommandReceiptRepository(conn).complete(
+            idempotency_key=key, result={"material": material.model_dump_json()}
+        )
+
+    async def create_material(
+        self, actor: IdentityPrincipal, command: CreateMaterial, content: bytes
+    ) -> Material:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            if command.action_id is not None and not await self._action_write(
+                conn, actor.account.id, command.action_id
+            ):
+                raise ResourceNotFound("not_found", "Aktion nicht verfügbar.")
+            operation = "material.created"
+            key, replay, digest = await self._receipt(
+                conn,
+                actor,
+                command.action_id or actor.account.id,
+                operation,
+                command,
+                content,
+            )
+            if replay:
+                material = Material.model_validate_json(replay["material"])
+                await self._material(conn, actor, material.id, write=True)
+                return material
+            material = Material(
+                id=uuid5(NAMESPACE_URL, key),
+                action_id=command.action_id,
+                owner_user_id=actor.account.id,
+                title=command.title,
+                revision=1,
+                current_version=1,
+            )
+            await conn.execute(
+                "INSERT INTO material(id,action_id,owner_user_id,title) VALUES ($1,$2,$3,$4)",
+                material.id,
+                material.action_id,
+                material.owner_user_id,
+                material.title,
+            )
+            await self._store_version(
+                conn, actor, material, command, content, key, digest
+            )
+            await self._finish(conn, actor, material, key, operation)
+            return material
+
+    async def add_version(
+        self,
+        actor: IdentityPrincipal,
+        material_id: UUID,
+        command: AddVersion,
+        content: bytes,
+    ) -> Material:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            current = await self._material(conn, actor, material_id, write=True)
+            operation = "material.version_added"
+            key, replay, digest = await self._receipt(
+                conn, actor, material_id, operation, command, content
+            )
+            if replay:
+                return Material.model_validate_json(replay["material"])
+            if command.expected_revision != current.revision:
+                raise Conflict(
+                    "revision_conflict", "Das Material wurde inzwischen geändert."
+                )
+            material = current.model_copy(
+                update={
+                    "revision": current.revision + 1,
+                    "current_version": current.current_version + 1,
+                }
+            )
+            await self._store_version(
+                conn, actor, material, command, content, key, digest
+            )
+            await conn.execute(
+                "UPDATE material SET revision=$2,current_version=$3,updated_at=now() WHERE id=$1",
+                material.id,
+                material.revision,
+                material.current_version,
+            )
+            await self._finish(conn, actor, material, key, operation)
+            return material
+
+    async def get_material(
+        self, actor: IdentityPrincipal, material_id: UUID
+    ) -> Material:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            return await self._material(conn, actor, material_id)
+
+    async def _version(
+        self, conn: asyncpg.Connection[Any], material_id: UUID, version: int
+    ) -> asyncpg.Record:
+        row = await conn.fetchrow(
+            "SELECT * FROM material_version WHERE material_id=$1 AND version=$2",
+            material_id,
+            version,
+        )
+        if row is None:
+            raise ResourceNotFound("not_found", "Dateiversion nicht gefunden.")
+        return row
+
+    def _public_version(self, row: asyncpg.Record) -> MaterialVersion:
+        return MaterialVersion.model_validate(
+            {field: row[field] for field in MaterialVersion.model_fields}
+        )
+
+    async def get_version(
+        self, actor: IdentityPrincipal, material_id: UUID, version: int
+    ) -> MaterialVersion:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            await self._material(conn, actor, material_id)
+            return self._public_version(await self._version(conn, material_id, version))
+
+    async def download(
+        self, actor: IdentityPrincipal, material_id: UUID, version: int
+    ) -> MaterialDownload:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            await self._material(conn, actor, material_id)
+            row = await self._version(conn, material_id, version)
+            metadata = self._public_version(row)
+            try:
+                retrieved = await self.storage.get(
+                    ObjectLocation(
+                        bucket=row["storage_bucket"],
+                        key=row["object_key"],
+                        version_id=row["storage_version_id"],
+                    )
+                )
+            except ObjectStorageError as error:
+                raise DependencyUnavailable(
+                    "material_storage_unavailable",
+                    "Die Dateiversion ist momentan nicht sicher abrufbar.",
+                ) from error
+            if (
+                retrieved.stored.sha256 != metadata.sha256
+                or retrieved.stored.size_bytes != metadata.size_bytes
+                or retrieved.stored.media_type != metadata.media_type
+                or upload_digest(retrieved.content) != metadata.sha256
+            ):
+                raise DependencyUnavailable(
+                    "material_integrity_failed",
+                    "Die Dateiversion verletzt ihre gespeicherten Integritätsdaten.",
+                )
+            return MaterialDownload(version=metadata, content=retrieved.content)
+
+    async def list_materials(
+        self, actor: IdentityPrincipal, query: MaterialQuery
+    ) -> Materials:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor)
+            rows = await conn.fetch(
+                f"""SELECT {_FIELDS} FROM material m
+                WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR m.action_id=$2)
+                AND strpos(lower(m.title),lower($3))>0 ORDER BY lower(m.title),m.id LIMIT $4 OFFSET $5""",
+                actor.account.id,
+                query.action_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return Materials(
+                items=[
+                    Material.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
