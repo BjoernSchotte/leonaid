@@ -29,6 +29,7 @@ class InboxModel(TransportModel):
         "reference",
         "id",
         "assignee_user_id",
+        "user_id",
         "twenty_person_id",
         mode="before",
         check_fields=False,
@@ -135,6 +136,22 @@ class Cases(InboxModel):
     next_offset: int | None
 
 
+class AssigneeQuery(InboxModel):
+    search: str = Field(default="", max_length=200)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class Assignee(InboxModel):
+    user_id: UUID
+    display_name: str
+
+
+class Assignees(InboxModel):
+    items: list[Assignee]
+    next_offset: int | None
+
+
 class UpdateCase(InboxModel):
     idempotency_key: UUID
     expected_revision: int = Field(ge=1)
@@ -157,6 +174,10 @@ class UpdateCase(InboxModel):
 
 
 class InboxRepository(Protocol):
+    async def list_assignees(
+        self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery
+    ) -> Assignees: ...
+
     async def submit(self, command: SubmitCase) -> Submission: ...
     async def get_case(self, actor: IdentityPrincipal, case_id: UUID) -> Case: ...
     async def list_cases(self, actor: IdentityPrincipal, query: CaseQuery) -> Cases: ...
@@ -168,6 +189,13 @@ class InboxRepository(Protocol):
 class InboxService:
     def __init__(self, repository: InboxRepository) -> None:
         self._repository = repository
+
+    async def list_assignees(
+        self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery
+    ) -> Assignees:
+        return await self._repository.list_assignees(
+            actor, case_id, AssigneeQuery.model_validate(query)
+        )
 
     async def submit(self, command: SubmitCase) -> Submission:
         return await self._repository.submit(SubmitCase.model_validate(command))
@@ -194,4 +222,7 @@ __all__ = [
     "CaseQuery",
     "Cases",
     "UpdateCase",
+    "AssigneeQuery",
+    "Assignee",
+    "Assignees",
 ]

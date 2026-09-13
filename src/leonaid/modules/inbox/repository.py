@@ -19,6 +19,9 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
+    Assignee,
+    AssigneeQuery,
+    Assignees,
     Case,
     CaseQuery,
     Cases,
@@ -38,6 +41,15 @@ _READ = f"""
     ({_MANAGE} OR (c.assignee_user_id=$1 AND (c.action_id IS NULL OR EXISTS (
         SELECT 1 FROM action_membership m WHERE m.user_id=$1 AND m.action_id=c.action_id
         AND m.active_from<=now() AND (m.active_until IS NULL OR m.active_until>now())))))
+"""
+
+
+# Shared by candidate discovery and assignment validation. $2 is the case action.
+_ELIGIBLE_ASSIGNEE = """
+    u.status='active' AND ($2::uuid IS NULL OR EXISTS (
+        SELECT 1 FROM user_global_role g WHERE g.user_id=u.id AND g.role='system_admin')
+    OR EXISTS (SELECT 1 FROM action_membership m WHERE m.user_id=u.id AND m.action_id=$2
+        AND m.active_from<=now() AND (m.active_until IS NULL OR m.active_until>now())))
 """
 
 
@@ -173,6 +185,38 @@ class AsyncpgInboxRepository:
                 else None,
             )
 
+    async def list_assignees(
+        self, actor: IdentityPrincipal, case_id: UUID, query: AssigneeQuery
+    ) -> Assignees:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            current = await self._case(conn, actor.account.id, case_id)
+            if not await conn.fetchval(
+                f"SELECT {_MANAGE} FROM inbox_case c WHERE c.id=$2",
+                actor.account.id,
+                case_id,
+            ):
+                raise PermissionDenied(
+                    "permission_denied", "Nur die Verwaltung kann Zuständige auswählen."
+                )
+            rows = await conn.fetch(
+                f"""SELECT u.id AS user_id,u.display_name FROM user_account u
+                    WHERE strpos(lower(u.display_name),lower($1))>0 AND {_ELIGIBLE_ASSIGNEE}
+                    ORDER BY lower(u.display_name),u.id LIMIT $3 OFFSET $4""",
+                query.search,
+                current.action_id,
+                query.limit + 1,
+                query.offset,
+            )
+            return Assignees(
+                items=[
+                    Assignee.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
     async def update_case(
         self, actor: IdentityPrincipal, case_id: UUID, command: UpdateCase
     ) -> Case:
@@ -222,10 +266,7 @@ class AsyncpgInboxRepository:
                     )
                 if command.assignee_user_id is not None:
                     eligible = await conn.fetchval(
-                        """SELECT EXISTS (SELECT 1 FROM user_account u WHERE u.id=$1 AND u.status='active'
-                            AND ($2::uuid IS NULL OR EXISTS (SELECT 1 FROM user_global_role g WHERE g.user_id=u.id AND g.role='system_admin')
-                            OR EXISTS (SELECT 1 FROM action_membership m WHERE m.user_id=u.id AND m.action_id=$2
-                                AND m.active_from<=now() AND (m.active_until IS NULL OR m.active_until>now()))))""",
+                        f"SELECT EXISTS (SELECT 1 FROM user_account u WHERE u.id=$1 AND {_ELIGIBLE_ASSIGNEE})",
                         command.assignee_user_id,
                         current.action_id,
                     )

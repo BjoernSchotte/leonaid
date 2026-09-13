@@ -1718,6 +1718,30 @@ export class LeonAidApiClient {
     );
   }
 
+  async listInboxAssignees(
+    caseId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<Assignees> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/assignees` + (queryString ? `?${queryString}` : "");
+    return this.request<Assignees>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async listInvitations(
     queryParameters: { readonly actionId?: string | null; readonly status?: "pending" | "accepted" | "expired" | "revoked" | null; } = {},
     options: RequestOptions = {},

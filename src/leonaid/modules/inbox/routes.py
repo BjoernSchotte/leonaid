@@ -8,6 +8,8 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
+    AssigneeQuery,
+    Assignees,
     Case,
     CaseQuery,
     Cases,
@@ -69,6 +71,26 @@ async def list_cases(
 @router.get("/inbox-cases/{case_id}", operation_id="getInboxCase", response_model=Case)
 async def get_case(request: Request, response: Response, case_id: UUID) -> Case:
     return await service(request).get_case(await actor(request, response), case_id)
+
+
+@router.get(
+    "/inbox-cases/{case_id}/assignees",
+    operation_id="listInboxAssignees",
+    response_model=Assignees,
+)
+async def list_assignees(
+    request: Request,
+    response: Response,
+    case_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Assignees:
+    return await service(request).list_assignees(
+        await actor(request, response),
+        case_id,
+        AssigneeQuery(search=search, offset=offset, limit=limit),
+    )
 
 
 @router.put(

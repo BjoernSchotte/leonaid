@@ -89,6 +89,26 @@ async def main() -> None:
                 assert (await client.get(root)).status_code == 401
                 assert (await client.get(path, headers=outsider)).status_code == 404
                 assert (await client.get(root, headers=outsider)).json()["items"] == []
+                candidates_path = path + "/assignees"
+                assert (await client.get(candidates_path)).status_code == 401
+                assert (
+                    await client.get(candidates_path, headers=outsider)
+                ).status_code == 404
+                candidates = await client.get(
+                    candidates_path,
+                    headers=headers,
+                    params={"search": "Inbox HTTP proof", "limit": 1},
+                )
+                assert candidates.status_code == 200, candidates.text
+                assert candidates.headers["cache-control"] == "no-store"
+                assert len(candidates.json()["items"]) == 1
+                assert set(candidates.json()["items"][0]) == {"userId", "displayName"}
+                assert candidates.json()["nextOffset"] == 1
+                assert (
+                    await client.get(
+                        candidates_path, headers=headers, params={"limit": 101}
+                    )
+                ).status_code == 422
                 response = await client.get(path, headers=headers)
                 assert response.status_code == 200, response.text
                 assert response.headers["cache-control"] == "no-store"

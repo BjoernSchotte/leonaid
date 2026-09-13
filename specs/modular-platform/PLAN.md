@@ -340,6 +340,7 @@ Diese Etappe ist ein nutzbarer technischer Schnitt, keine vollständige Wissensp
 - [ ] Tasks und Materialien über vorhandene Fachoperationen referenzieren. Interne Kommentare bleiben intern; gemeinsame Kommentar-/Mention-Funktion nur soweit für diesen Schnitt erforderlich bauen und dann wiederverwenden.
 - [x] Interne Inbox-HTTP-Routen über Bootstrap und Produktions-Lifespan registrieren; OpenAPI und TypeScript-Client generieren. Echter PostgreSQL-/FastAPI-Vertrag für Sitzung, CSRF, Rechteentzug, strikte Eingaben und Revisionskonflikte bestanden. Öffentliche Einreichung und UI folgen separat.
 - [ ] Case-Bearbeitung in Web und PWA, öffentliche Einreichung über vorhandene Public-/Campaign-Surfaces integrieren. Alias-/kanonische Routen bei Nutzung separat prüfen.
+  - [x] Fallbezogene Zuständigkeitsauswahl als direkte Fachoperation und HTTP-Route mit generiertem Client bereitstellen. Gemeinsame Regel für Suche und Zuweisung; echtes PostgreSQL prüft Pagination, aktive Konten, aktuelle Aktionsrechte und Verwaltungsentzug. Produktions-HTTP-Vertrag einschließlich Sitzung, fremdem Fall und Eingabegrenzen bestanden; UI folgt separat.
 
 Abnahme: Bei abgeschaltetem Twenty wird genau ein Fall bestätigt und bleibt bearbeitbar. Nach Wiederanlauf entsteht eine nachvollziehbare Kontaktzuordnung ohne doppelten Fall. Timeout nach extern erfolgreichem Create führt zu Recovery oder sichtbarer Klärung. Wiederholungen, fremde Zugriffe und Wechsel der Zuständigkeit sind geprüft. Abschluss ist keine Förderzusage oder Auszahlung. Kein automatischer Mailversand.
 

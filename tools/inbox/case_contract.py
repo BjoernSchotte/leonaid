@@ -23,7 +23,7 @@ from leonaid.domain.identity import (
     IdentityPrincipal,
     UserAccount,
 )
-from leonaid.modules.inbox.api import CaseQuery, SubmitCase, UpdateCase
+from leonaid.modules.inbox.api import AssigneeQuery, CaseQuery, SubmitCase, UpdateCase
 
 
 async def main() -> None:
@@ -64,9 +64,10 @@ async def main() -> None:
         async with pool.acquire() as conn:
             for actor in actors:
                 await conn.execute(
-                    "INSERT INTO user_account(id,email,display_name,status) VALUES($1,$2,'Inbox proof','active')",
+                    "INSERT INTO user_account(id,email,display_name,status) VALUES($1,$2,$3,'active')",
                     actor.account.id,
                     actor.account.email,
+                    marker,
                 )
             await conn.execute(
                 "INSERT INTO user_global_role(user_id,role) VALUES($1,'system_admin')",
@@ -100,6 +101,38 @@ async def main() -> None:
                     )
                 )
         general, scoped, foreign = case_ids
+        candidate_query = AssigneeQuery(search=marker, limit=1)
+        first = await service.list_assignees(manager, scoped, candidate_query)
+        assert len(first.items) == 1 and first.next_offset == 1
+        candidates = await service.list_assignees(
+            manager, scoped, AssigneeQuery(search=marker)
+        )
+        assert {item.user_id for item in candidates.items} == set(users[:4])
+        second = await service.list_assignees(
+            manager, scoped, AssigneeQuery(search=marker, offset=1, limit=1)
+        )
+        assert len(second.items) == 1 and second.items[0] != first.items[0]
+        assert not (
+            await service.list_assignees(manager, scoped, AssigneeQuery(search="%"))
+        ).items
+        general_candidates = await service.list_assignees(
+            admin, general, AssigneeQuery(search=marker)
+        )
+        assert {item.user_id for item in general_candidates.items} == set(users)
+        try:
+            await service.list_assignees(manager, foreign, AssigneeQuery())
+        except ResourceNotFound:
+            pass
+        else:
+            raise AssertionError("Candidate search disclosed another action")
+        try:
+            await service.list_assignees(
+                manager, scoped, AssigneeQuery.model_construct(limit=101)
+            )
+        except ValidationError:
+            pass
+        else:
+            raise AssertionError("Direct candidate query bypassed limits")
         query = CaseQuery(search=marker, limit=1)
         page = await service.list_cases(admin, query)
         assert len(page.items) == 1 and page.next_offset == 1
@@ -136,6 +169,12 @@ async def main() -> None:
         )
         current = await service.update_case(manager, scoped, assignment)
         assert current.revision == 2
+        try:
+            await service.list_assignees(assigned, scoped, AssigneeQuery())
+        except PermissionDenied:
+            pass
+        else:
+            raise AssertionError("Assigned reader enumerated accounts")
         assert await service.update_case(manager, scoped, assignment) == current
         assert (await service.list_cases(assigned, CaseQuery(for_me=True))).items == [
             current
@@ -230,12 +269,34 @@ async def main() -> None:
             commands[1].given_name,
             commands[1].email,
         )
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_account SET status='suspended' WHERE id=$1",
+                replacement.account.id,
+            )
+        assert replacement.account.id not in {
+            item.user_id
+            for item in (
+                await service.list_assignees(manager, scoped, AssigneeQuery())
+            ).items
+        }
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_account SET status='active' WHERE id=$1",
+                replacement.account.id,
+            )
         # Expiring assignment membership removes every access path, including replay.
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE action_membership SET active_until=now()-interval '1 second' WHERE user_id=$1",
                 assigned.account.id,
             )
+        assert assigned.account.id not in {
+            item.user_id
+            for item in (
+                await service.list_assignees(manager, scoped, AssigneeQuery())
+            ).items
+        }
         assert not (await service.list_cases(assigned, CaseQuery())).items
         try:
             await service.update_case(assigned, scoped, close)
@@ -283,6 +344,12 @@ async def main() -> None:
             pass
         else:
             raise AssertionError("Assignment replay bypassed lost management rights")
+        try:
+            await service.list_assignees(manager, scoped, AssigneeQuery())
+        except PermissionDenied:
+            pass
+        else:
+            raise AssertionError("Revoked manager enumerated accounts")
         # General cases can be deliberately delegated by the global administrator.
         delegated = await service.update_case(
             admin,
@@ -316,7 +383,7 @@ async def main() -> None:
         else:
             raise AssertionError("Suspended assignee retained access")
         print(
-            "PASS inbox cases: current roles/assignment, private search, action isolation, close/reopen audit, concurrent revision conflict, immutable input, independent CRM state and revoked replay"
+            "PASS inbox cases: current roles/assignment, private search, authorized candidate pagination and revocation, action isolation, close/reopen audit, concurrent revision conflict, immutable input, independent CRM state and revoked replay"
         )
     finally:
         async with pool.acquire() as conn, conn.transaction():
