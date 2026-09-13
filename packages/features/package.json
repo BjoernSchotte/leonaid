@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./modules": "./src/modules.ts",
+    "./registered-modules": "./src/registered-modules.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "4.2.3",
@@ -14,7 +16,8 @@
     "@leonaid/ui": "workspace:*",
     "@openfeature/react-sdk": "1.4.1",
     "@tanstack/react-query": "5.101.4",
-    "react": "19.2.8"
+    "react": "19.2.8",
+    "@leonaid/surveys": "workspace:*"
   },
   "peerDependencies": {
     "react-dom": "19.2.8"

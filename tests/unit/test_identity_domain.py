@@ -288,7 +288,9 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         ),
     )
 
-    navigation = navigation_for(acquirer)
+    from leonaid.bootstrap.api import module_navigation
+
+    navigation = navigation_for(acquirer, module_navigation(acquirer))
 
     assert {item.key for item in navigation if item.surface == "web"} == {"surveys"}
     assert {(item.surface, item.key) for item in navigation} >= {
@@ -297,6 +299,18 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         ("pwa", "activities"),
         ("pwa", "commitment"),
     }
+
+
+@pytest.mark.parametrize("status", [AccountStatus.SUSPENDED, AccountStatus.ARCHIVED])
+def test_registered_modules_hide_navigation_for_inactive_accounts(
+    status: AccountStatus,
+) -> None:
+    from leonaid.bootstrap.api import module_navigation
+
+    principal = IdentityPrincipal(
+        account=account(status), global_roles=frozenset(), action_memberships=()
+    )
+    assert module_navigation(principal) == ()
 
 
 @pytest.mark.parametrize(

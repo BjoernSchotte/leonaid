@@ -54,7 +54,7 @@ from leonaid.adapters.postgres.survey_checkpoint_publisher import (
 )
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.modules.surveys.api import SurveyService
-from leonaid.bootstrap.api import register_api_modules
+from leonaid.bootstrap.api import module_navigation, register_api_modules
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
@@ -246,6 +246,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         identity_repository = AsyncpgIdentityRepository(pool)
         application.state.identity_service = IdentityQueryService(
             identity_repository,
+            module_navigation=module_navigation,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
         application.state.identity_administration_service = (

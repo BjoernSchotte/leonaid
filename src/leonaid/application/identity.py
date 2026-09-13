@@ -28,6 +28,7 @@ from leonaid.domain.identity import (
     can_manage_action_roles,
 )
 from leonaid.domain.sessions import UserSession
+from leonaid.platform.navigation import NavigationItem
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,14 +95,6 @@ class IdentityRepository(Protocol):
         include_global_roles: bool,
         now: datetime,
     ) -> MemberDirectorySnapshot: ...
-
-
-@dataclass(frozen=True, slots=True)
-class NavigationItem:
-    key: str
-    label: str
-    href: str
-    surface: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,7 +295,9 @@ def paginate_member_directory(
     return page, len(filtered), next_cursor
 
 
-def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+def navigation_for(
+    principal: IdentityPrincipal, module_items: tuple[NavigationItem, ...] = ()
+) -> tuple[NavigationItem, ...]:
     action_roles = {membership.role for membership in principal.action_memberships}
     has_web_access = (
         principal.is_system_admin
@@ -313,7 +308,7 @@ def navigation_for(principal: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     )
     items: list[NavigationItem] = [
         NavigationItem("overview-pwa", "Übersicht", "/app/", "pwa"),
-        NavigationItem("surveys", "Umfragen", "/admin/surveys", "web"),
+        *module_items,
     ]
     if has_web_access:
         items.insert(
@@ -407,11 +402,14 @@ class IdentityQueryService:
         repository: IdentityRepository,
         *,
         fresh_login_window: timedelta = timedelta(minutes=15),
+        module_navigation: Callable[[IdentityPrincipal], tuple[NavigationItem, ...]]
+        | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if fresh_login_window <= timedelta(0):
             raise ValueError("Das Fresh-Login-Fenster muss positiv sein.")
         self._repository = repository
+        self._module_navigation = module_navigation
         self._fresh_login_window = fresh_login_window
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -483,7 +481,10 @@ class IdentityQueryService:
             global_roles=tuple(sorted(principal.global_roles, key=str)),
             action_memberships=memberships,
             role_labels=tuple(ROLE_LABELS[role] for role in sorted(all_roles, key=str)),
-            navigation=navigation_for(principal),
+            navigation=navigation_for(
+                principal,
+                self._module_navigation(principal) if self._module_navigation else (),
+            ),
             session_expires_at=identity.session.expires_at,
             session_last_seen_at=identity.session.last_seen_at,
             fresh_login_at=identity.session.fresh_login_at,

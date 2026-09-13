@@ -92,3 +92,27 @@ Prüfung:
 - `python -m leonaid.entrypoints.worker.outbox --help`: bestehender Prozesspfad und CLI-Operationen verfügbar.
 
 Dieser Slice weist Struktur- und Vertragskompatibilität nach, nicht den Betrieb mit Datenbank oder Browser. Frontend-Registrierung, komplette M0-Abnahme und M1–M3 bleiben offen.
+
+
+## M0.5 — Navigation und Frontend-Beiträge
+
+Status: Implementierungsslice abgeschlossen am 13.09.2026; die übergreifende LIVE-Abnahme von M0/M1 bleibt offen. Slice-Commit ist der Commit, der diesen Abschnitt anlegt.
+
+Die Backend-Registrierung liefert jetzt autorisierte Navigationsbeiträge aus dem Survey-Modul. `IdentityQueryService` erhält den Provider aus Bootstrap; Plattform/Identity importieren keine Registrierung. Die bestehende Survey-Navigation inklusive PWA-Link zur Web-Oberfläche bleibt erhalten, gesperrte Konten erhalten keine Moduleinträge. `NavigationItem` ist ein gemeinsamer Plattformvertrag.
+
+Survey-Seiten, Analyse, Antworten, Exportdarstellung, CSS und Vorlagen wurden nach `packages/features/src/surveys/` verschoben. Ein lazy geladener Modulbeitrag besitzt Routen und Darstellung; die Web-Shell löst ihn über die gemeinsame Registrierung auf. Unbekannte Web-Pfade erhalten einen Nicht-gefunden-Zustand. Die Registrierung prüft IDs, identische Routenmuster und mehrdeutige Matches. Die getrennten Package-Exports verhindern, dass die PWA allein durch ihren Features-Import den Survey-Editor mitbündelt. Native PWA-Beiträge für die neuen Arbeitsmodule folgen in M2; für Surveys bleibt bewusst der bestehende Oberflächenwechsel erhalten.
+
+Prüfung:
+
+- Python-Unit-Suite: 393 bestanden; neun bestehende Pydantic-Warnungen.
+- Gezielte Vitest-Prüfung für Modulregistrierung, Aktionsort und Campaign-Link: neun Tests bestanden. Ein vollständiger Component-Aufruf ohne Testserver scheiterte erwartungsgemäß am erforderlichen `LEONAID_COMPONENT_API_BASE_URL`; dieser LIVE-Test bleibt über den bestehenden Runner abzuarbeiten.
+- Mypy: zwölf Quelldateien erfolgreich; Ruff erfolgreich. OpenAPI/TypeScript-Client unverändert.
+- `typecheck:features`, `typecheck:web`, `typecheck:pwa`: erfolgreich. UI-Paket mit explizitem `--typeRoots ./node_modules/@types` erfolgreich; der direkte lokale Gesamtaufruf liest ansonsten inkompatible MDX-Typen aus einem übergeordneten Verzeichnis außerhalb des Repositories. Der isolierte CI-Gesamtcheck bleibt maßgeblich.
+- Features übernimmt `skipLibCheck` vom bisherigen Web-Verbraucher: Die verschobene SurveyJS-Integration zieht eine inkonsistente externe nullable Render-Signatur ein. Eigener TypeScript-Code bleibt unter `strict`; keine Eingabe-, API- oder Fachtests wurden abgeschwächt. PWA-Konfiguration bleibt unverändert.
+- Web- und PWA-Produktionsbuild erfolgreich; Survey-JS/CSS als separater Web-Chunk, kein Survey-Chunk im PWA-Ausgabeverzeichnis. Bestehende Chunkgrößen-/Sourcemap-Warnungen bleiben sichtbar.
+- Workspace-Lockfile mit Bun 1.2.19 und `--frozen-lockfile --ignore-scripts` geprüft; einzige fachliche Lockänderung ist die bereits existierende Survey-Workspace-Abhängigkeit des Features-Pakets.
+- No-test-doubles-Policy erfolgreich.
+
+Ein isolierter Survey-Journey-Lauf wurde gestartet. Während seiner Buildphase wurden noch Frontend-Korrekturen vorgenommen; sein Ergebnis allein darf deshalb nicht als vollständiger Nachweis des finalen Slices gewertet werden. Nach Fixierung des Stands ist der aktuelle Browser-/CI-Nachweis erneut zu prüfen.
+
+Zusätzlicher offener CI-Befund: Security-Job `103701928640` meldet im API-Image drei kritische Perl-Funde (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376), installiert `5.40.1-6`, korrigiert ab `5.40.1-6+deb13u1`. Vor Gesamtabnahme Image korrigieren und Security-Gate erneut bestehen; keine Ausnahme/Unterdrückung geplant.

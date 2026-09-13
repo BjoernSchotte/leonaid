@@ -4,6 +4,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from leonaid.domain.identity import IdentityPrincipal
+from leonaid.platform.navigation import NavigationItem
 
 
 class SurveyRepository(Protocol):
@@ -65,3 +66,9 @@ class SurveyService:
         return await self.repository.participate(
             survey_id, participation_id, operation, body, secret
         )
+
+
+def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    if not actor.account.can_authenticate:
+        return ()
+    return (NavigationItem("surveys", "Umfragen", "/admin/surveys", "web"),)

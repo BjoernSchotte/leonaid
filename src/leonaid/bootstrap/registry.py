@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from fastapi import APIRouter, FastAPI
 from starlette.routing import Route
 
 from leonaid.application.outbox import OutboxEventHandler
+from leonaid.domain.identity import IdentityPrincipal
+from leonaid.platform.navigation import NavigationItem
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,7 @@ class ModuleRegistration:
     router: APIRouter | None = None
     handlers: Mapping[str, OutboxEventHandler] = field(default_factory=dict)
     requires: tuple[str, ...] = ()
+    navigation: Callable[[IdentityPrincipal], tuple[NavigationItem, ...]] | None = None
 
 
 def validate_modules(modules: Sequence[ModuleRegistration]) -> None:
