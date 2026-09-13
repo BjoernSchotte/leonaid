@@ -87,6 +87,7 @@ export type CreatePage = { readonly actionId?: string | null; readonly content?:
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly deliveryWindowId?: string | null; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: string; readonly website?: string | null; };
 export type CreateSurveyExport = { readonly operationId: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly snapshotId: string; };
 export type CreateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly idempotencyKey: string; readonly title: string; };
+export type CreateTaskFromPage = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly listId: string; readonly title: string; };
 export type CrmPartyKind = "company" | "person";
 export type CurrentIdentityResponse = { readonly actionMemberships: Array<IdentityMembershipResponse>; readonly displayName: string; readonly email: string; readonly freshLoginAt: string; readonly freshUntil: string; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly navigation: Array<NavigationItemResponse>; readonly roleLabels: Array<string>; readonly sessionExpiresAt: string; readonly sessionLastSeenAt: string; readonly userId: string; };
 export type DashboardCommitmentResponse = { readonly activeTotal: number; readonly activeTotalMinor: number; readonly cancelled: number; readonly confirmed: number; readonly currency: string; readonly draft: number; readonly invoiced: number; readonly reviewReady: number; readonly total: number; readonly totalBoxes: number; readonly totalPieces: number; };
@@ -260,6 +261,7 @@ export type SurveySummaryResponse = { readonly accessMode: "anonymous" | "invita
 export type SurveyTimeoutSettings = { readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number | null; readonly operationId: string; };
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
 export type Task = { readonly assigneeUserId?: string | null; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly id: string; readonly listId: string; readonly revision: number; readonly status: "open" | "done"; readonly title: string; readonly updatedAt: string; };
+export type TaskFromPage = { readonly page: Page; readonly task: Task; };
 export type TaskList = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type TaskLists = { readonly items: Array<TaskList>; readonly nextOffset: number | null; };
 export type Tasks = { readonly items: Array<Task>; readonly nextOffset: number | null; };
@@ -1794,6 +1796,22 @@ export class LeonAidApiClient {
       `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async createTaskFromKnowledgePage(
+    pageId: string,
+    body: CreateTaskFromPage,
+    options: RequestOptions = {},
+  ): Promise<TaskFromPage> {
+    return this.request<TaskFromPage>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}/tasks`,
+      {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

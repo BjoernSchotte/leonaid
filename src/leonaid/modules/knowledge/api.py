@@ -14,6 +14,7 @@ from pydantic import (
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.http import TransportModel
 from leonaid.modules.knowledge.document import validate_document
+from leonaid.modules.tasks.api import CreateTask, Task
 
 Document = Annotated[dict[str, Any], BeforeValidator(validate_document)]
 Title = Annotated[
@@ -55,6 +56,11 @@ class UpdatePage(PageModel):
     content: Document
 
 
+class CreateTaskFromPage(CreateTask):
+    list_id: UUID
+    expected_revision: int = Field(ge=1)
+
+
 class PageQuery(PageModel):
     search: str = Field(default="", max_length=200)
     offset: int = Field(default=0, ge=0, le=5000)
@@ -74,12 +80,21 @@ class Page(PageSummary):
     content: Document
 
 
+class TaskFromPage(PageModel):
+    page: Page
+    task: Task
+
+
 class Pages(PageModel):
     items: list[PageSummary]
     next_offset: int | None
 
 
 class KnowledgeRepository(Protocol):
+    async def create_task_from_page(
+        self, actor: IdentityPrincipal, page_id: UUID, command: CreateTaskFromPage
+    ) -> TaskFromPage: ...
+
     async def create_page(
         self, actor: IdentityPrincipal, command: CreatePage
     ) -> Page: ...
@@ -93,6 +108,13 @@ class KnowledgeRepository(Protocol):
 class KnowledgeService:
     def __init__(self, repository: KnowledgeRepository) -> None:
         self._repository = repository
+
+    async def create_task_from_page(
+        self, actor: IdentityPrincipal, page_id: UUID, command: CreateTaskFromPage
+    ) -> TaskFromPage:
+        return await self._repository.create_task_from_page(
+            actor, page_id, CreateTaskFromPage.model_validate(command)
+        )
 
     async def create_page(self, actor: IdentityPrincipal, command: CreatePage) -> Page:
         return await self._repository.create_page(
@@ -114,6 +136,8 @@ class KnowledgeService:
 
 
 __all__ = [
+    "CreateTaskFromPage",
+    "TaskFromPage",
     "CreatePage",
     "UpdatePage",
     "PageQuery",

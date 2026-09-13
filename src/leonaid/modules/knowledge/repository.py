@@ -7,9 +7,10 @@ from collections.abc import Callable
 import hashlib
 import json
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import asyncpg
+from pydantic import ValidationError
 
 from leonaid.adapters.postgres.action_progress import AsyncpgCommandReceiptRepository
 from leonaid.application.errors import (
@@ -19,9 +20,11 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.domain.identity import IdentityPrincipal
-from leonaid.modules.tasks.api import TaskService
+from leonaid.modules.tasks.api import TaskService, CreateTask
 from leonaid.modules.knowledge.api import (
     CreatePage,
+    CreateTaskFromPage,
+    TaskFromPage,
     UpdatePage,
     Page,
     Pages,
@@ -133,7 +136,7 @@ class AsyncpgKnowledgeRepository:
         actor: IdentityPrincipal,
         context: UUID,
         operation: str,
-        command: CreatePage | UpdatePage,
+        command: CreatePage | UpdatePage | CreateTaskFromPage,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"knowledge:{actor.account.id}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -177,6 +180,7 @@ class AsyncpgKnowledgeRepository:
         page: Page,
         key: str,
         operation: str,
+        result: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
             """
@@ -191,7 +195,7 @@ class AsyncpgKnowledgeRepository:
             key,
         )
         await AsyncpgCommandReceiptRepository(conn).complete(
-            idempotency_key=key, result={"document": page.model_dump_json()}
+            idempotency_key=key, result=result or {"document": page.model_dump_json()}
         )
 
     async def create_page(self, actor: IdentityPrincipal, command: CreatePage) -> Page:
@@ -257,6 +261,71 @@ class AsyncpgKnowledgeRepository:
             )
             await self._finish(conn, actor, page, key, operation)
             return page
+
+    async def create_task_from_page(
+        self, actor: IdentityPrincipal, page_id: UUID, command: CreateTaskFromPage
+    ) -> TaskFromPage:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor)
+            current = await self._page(conn, actor, page_id, write=True)
+            operation = "knowledge.page.task_created"
+            key, replay = await self._receipt(conn, actor, page_id, operation, command)
+            tasks = self.tasks(conn)
+            if replay:
+                result = TaskFromPage.model_validate_json(replay["document"])
+                await tasks.get_task(actor, result.task.id)
+                return result
+            if current.revision != command.expected_revision:
+                raise Conflict(
+                    "revision_conflict", "Die Seite wurde inzwischen geändert."
+                )
+            # Derive a page-specific key to avoid accidental receipt collisions across entry points.
+            task_command = CreateTask.model_validate(
+                {
+                    **command.model_dump(exclude={"list_id", "expected_revision"}),
+                    "idempotency_key": uuid5(page_id, str(command.idempotency_key)),
+                }
+            )
+            task = await tasks.create_task(actor, command.list_id, task_command)
+            try:
+                page = Page(
+                    id=current.id,
+                    action_id=current.action_id,
+                    owner_user_id=current.owner_user_id,
+                    revision=current.revision + 1,
+                    title=current.title,
+                    content={
+                        "type": "doc",
+                        "content": [
+                            *current.content["content"],
+                            {
+                                "type": "taskReference",
+                                "attrs": {"taskId": str(task.id)},
+                            },
+                        ],
+                    },
+                )
+            except ValidationError as error:
+                raise Conflict(
+                    "document_limit",
+                    "Die Seite bietet keinen Platz für einen weiteren Verweis.",
+                ) from error
+            await self._revision(conn, actor, page)
+            await conn.execute(
+                "UPDATE knowledge_page SET revision=$2,updated_at=now() WHERE id=$1",
+                page.id,
+                page.revision,
+            )
+            result = TaskFromPage(page=page, task=task)
+            await self._finish(
+                conn,
+                actor,
+                page,
+                key,
+                operation,
+                result={"document": result.model_dump_json()},
+            )
+            return result
 
     async def get_page(self, actor: IdentityPrincipal, page_id: UUID) -> Page:
         async with self.pool.acquire() as conn, conn.transaction():

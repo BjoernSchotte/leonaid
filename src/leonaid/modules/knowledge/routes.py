@@ -9,6 +9,8 @@ from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.knowledge.api import (
     CreatePage,
+    CreateTaskFromPage,
+    TaskFromPage,
     UpdatePage,
     Page,
     Pages,
@@ -71,5 +73,18 @@ async def update_page(
     request: Request, response: Response, page_id: UUID, body: UpdatePage
 ) -> Page:
     return await service(request).update_page(
+        await actor(request, response), page_id, body
+    )
+
+
+@router.post(
+    "/{page_id}/tasks",
+    operation_id="createTaskFromKnowledgePage",
+    response_model=TaskFromPage,
+)
+async def create_task_from_page(
+    request: Request, response: Response, page_id: UUID, body: CreateTaskFromPage
+) -> TaskFromPage:
+    return await service(request).create_task_from_page(
         await actor(request, response), page_id, body
     )

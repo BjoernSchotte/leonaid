@@ -166,6 +166,41 @@ async def main() -> None:
                         json={**update, "idempotencyKey": str(uuid4())},
                     )
                 ).status_code == 409
+                task_list = await client.post(
+                    "/api/v1/task-lists",
+                    headers=headers,
+                    json={"idempotencyKey": str(uuid4()), "title": "From page"},
+                )
+                assert task_list.status_code == 200, task_list.text
+                task_command = {
+                    "idempotencyKey": str(uuid4()),
+                    "listId": task_list.json()["id"],
+                    "expectedRevision": 2,
+                    "title": "From HTTP page",
+                    "assigneeUserId": str(user_id),
+                }
+                task_response = await client.post(
+                    path + "/tasks", headers=headers, json=task_command
+                )
+                assert task_response.status_code == 200, task_response.text
+                composed = task_response.json()
+                assert composed["page"]["revision"] == 3
+                assert (
+                    composed["page"]["content"]["content"][-1]["attrs"]["taskId"]
+                    == composed["task"]["id"]
+                )
+                assert (
+                    await client.post(
+                        path + "/tasks", headers=headers, json=task_command
+                    )
+                ).json() == composed
+                assert (
+                    await client.post(
+                        path + "/tasks",
+                        headers=headers,
+                        json={**task_command, "idempotencyKey": str(uuid4())},
+                    )
+                ).status_code == 409
                 await connection.execute(
                     "UPDATE user_account SET status='suspended' WHERE id=$1", user_id
                 )
@@ -180,6 +215,14 @@ async def main() -> None:
         async with connection.transaction():
             await connection.execute(
                 "DELETE FROM knowledge_page WHERE owner_user_id=$1", user_id
+            )
+            await connection.execute("DELETE FROM task WHERE created_by=$1", user_id)
+            await connection.execute(
+                "DELETE FROM task_list WHERE owner_user_id=$1", user_id
+            )
+            await connection.execute(
+                "DELETE FROM command_receipt WHERE idempotency_key LIKE $1",
+                f"tasks:{user_id}:%",
             )
             await connection.execute(
                 "DELETE FROM audit_event WHERE actor_user_id=$1", user_id

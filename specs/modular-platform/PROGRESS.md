@@ -426,3 +426,14 @@ Die Produktions-App erstellt den Knowledge-Service im Lifespan und registriert d
 Nach Entzug der Mitgliedschaft verlieren auch Seiteneigentümer und expliziter Editor Lesen, Suche und Wiederholung alter Schreibbefehle. Nach Entzug der globalen Rolle verliert der System-Admin den Aktionszugriff. Private Seiten bleiben auch vor diesem Entzug für ihn unsichtbar; der Eigentümer behält seine private Seite unabhängig von seiner Aktionsmitgliedschaft. Der verbleibende Charity-Admin kann die Aktionsseite weiterhin lesen.
 
 LIVE auf frisch bis 0038 migriertem PostgreSQL bestanden. Ruff/Mypy, no-test-doubles und Diffprüfung bestanden. Der Vertrag ist im Schema-Gate eingebunden. Die expliziten Editor-Zuordnungen sind reale SQL-Fixtures; damit ist keine Mitglieder-API oder Browser-Rechteprüfung behauptet. Diese sowie die übrigen offenen M2-/M3-Aufgaben bleiben erforderlich.
+
+
+## M2 — Atomare Aufgabe aus Wissensseite
+
+`KnowledgeService.create_task_from_page` verwendet den öffentlichen Task-Erstellungsvertrag einschließlich Zuständigkeit, Epic, Fälligkeit und Zurückstellung. Erwartete Seitenrevision und Zielliste ergänzen diesen Vertrag. Der aktuelle gespeicherte Seiteninhalt erhält eine stabile Task-ID am Dokumentende; Titel und Status der Aufgabe werden nicht in den Seiteninhalt kopiert. Der gemeinsame Transaktionsrahmen umfasst Task, Seitenrevision, Referenzen, beide Audits und Receipts. Der innere Task-Befehl erhält einen seitenbezogen abgeleiteten Wiederholungsschlüssel. Replay prüft erneut Seiten-Schreibrecht und Task-Leserecht, bevor das ursprüngliche Ergebnis zurückgegeben wird.
+
+Der neue HTTP-Endpunkt `POST /api/v1/knowledge-pages/{page_id}/tasks` und der generierte Client sind verfügbar. Bestehende OpenAPI-Pfade und Schemas sind strukturell unverändert. Änderungen im noch ungespeicherten Editor werden von diesem Befehl nicht übertragen; die spätere Oberfläche muss sie vorher revisioniert speichern.
+
+LIVE bestanden: gleicher Befehl bei einem Pool-Slot erzeugt genau eine Aufgabe; zwei konkurrierende Befehle auf zwei Verbindungen erzeugen einen Erfolg und einen Konflikt; veraltete Revision und fehlende Seiten-/Listenrechte werden abgewiesen. Ein bereits volles Dokument löst nach der inneren Task-Erstellung einen `document_limit`-Konflikt aus: Task-, Audit-, Receipt- und Revisionsanzahl bleiben unverändert. Task-Erledigung ändert dasselbe Task-Objekt, während die Seite ihre stabile Referenz behält. Nach Entzug der Listenrechte verrät auch Replay keine Task-Daten. Der Produktions-HTTP-Vertrag prüft Erstellung, Zuordnung, Replay und Konflikt ebenfalls. Der direkte Vertrag ist ins Schema-Gate aufgenommen.
+
+429 Unit-Tests bestanden (neun bekannte Warnungen), Ruff/Mypy, API-Client-Typprüfung, Frontend-Transportgrenze und no-test-doubles erfolgreich. Editor, Darstellung des aktuellen referenzierten Task-Status im Browser, Mitgliederverwaltung, Materialien und vollständige M2-/M3-Abnahme bleiben offen.
