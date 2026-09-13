@@ -14,6 +14,7 @@ Verbindliche Leitlinien:
 - Ein API-Prozess, ein vorhandener Worker-Dienst und die vorhandene Core-PostgreSQL-Datenbank bleiben das Betriebsmodell. Modulanzahl erhöht nicht die Containeranzahl.
 - Fachzustände haben genau einen Eigentümer. Ansichten, Einbettungen und Verknüpfungen referenzieren diesen Zustand.
 - Direkte Python-Aufrufe innerhalb des Core; HTTP für externe Clients. Kein internes HTTP zwischen Modulen.
+- FastAPI bleibt das HTTP-Framework des Python-Backends. Ein späterer FastMCP-Adapter kann dieselben autorisierten Fachoperationen verwenden; FastMCP wird in M0–M3 noch nicht eingebaut.
 - Vorhandene Rechte-, Audit-, Idempotenz-, S3-, CRM- und Outbox-Funktionen wiederverwenden.
 - Explizite Registrierung zur Build-/Startzeit; keine dynamische Plugininstallation.
 - Abstraktionen erst für einen konkreten zweiten Bedarf erweitern. Keine Universalobjekte, generischen Workflow-Designer oder Command-Bus-Infrastruktur.
@@ -245,7 +246,7 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 - [ ] Bestehende Funktionen den Zuständigkeiten Plattform, Fachmodul, Bootstrap und Prozessstart zuordnen; nur die für den ersten Schnitt benötigten Dateien migrieren. Gemeinsamen Python-Namespace und bestehende Startpfade erhalten.
 - [ ] Kleinste Backend-/Frontend-Registrierung implementieren und Shell-Zuständigkeit festlegen.
 - [x] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
-- [ ] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
+- [x] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
 
 Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen einschließlich Rückabhängigkeiten der Plattform. Backend-/Frontend-Beiträge sind derselben Modul-ID zugeordnet; bestehende Navigation, Startbefehle und API bleiben unverändert. Keine neuen Infrastrukturcontainer, separaten Python-Pakete oder Laufzeitabhängigkeiten.
 

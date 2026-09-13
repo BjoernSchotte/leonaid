@@ -54,7 +54,7 @@ from leonaid.adapters.postgres.survey_checkpoint_publisher import (
 )
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
 from leonaid.application.surveys import SurveyService
-from leonaid.entrypoints.fastapi.surveys import router as surveys_router
+from leonaid.bootstrap.api import register_api_modules
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
@@ -635,7 +635,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
 
     application.include_router(router)
-    application.include_router(surveys_router)
+    register_api_modules(application)
     return application
 
 

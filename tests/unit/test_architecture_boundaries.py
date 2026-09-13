@@ -77,14 +77,15 @@ def module_boundary_violations(root: Path) -> list[str]:
             source = parts[1] if area == "modules" and len(parts) > 2 else None
             package = ".".join(("leonaid", *parts[:-1]))
             imports = imported_modules(path, package)
+            is_logic = area != "bootstrap" and (
+                path.stem in {"api", "service", "domain"}
+                or "domain" in parts
+                or "application" in parts
+            )
             for target in sorted(imports):
                 target_parts = target.split(".")
                 if target_parts[0] != "leonaid":
-                    if (
-                        path.stem in {"api", "service", "domain"}
-                        or "domain" in parts
-                        or "application" in parts
-                    ) and target_parts[0] in FORBIDDEN_INFRASTRUCTURE:
+                    if is_logic and target_parts[0] in FORBIDDEN_INFRASTRUCTURE:
                         violations.append(f"{relative}: infrastructure {target}")
                     continue
                 destination = target_parts[1] if len(target_parts) > 1 else ""
@@ -106,11 +107,7 @@ def module_boundary_violations(root: Path) -> list[str]:
                     edges.setdefault(source, set()).add(other)
                     if len(target_parts) < 4 or target_parts[3] != "api":
                         violations.append(f"{relative}: private module import {target}")
-                if (
-                    path.stem in {"api", "service", "domain"}
-                    or "domain" in parts
-                    or "application" in parts
-                ) and destination == "adapters":
+                if is_logic and destination == "adapters":
                     violations.append(f"{relative}: concrete adapter {target}")
 
     visited: set[str] = set()

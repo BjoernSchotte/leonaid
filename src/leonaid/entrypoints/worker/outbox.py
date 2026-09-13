@@ -35,7 +35,8 @@ from leonaid.adapters.storage import S3ObjectStorage
 from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.adapters.operations import structured_event
-from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
+from leonaid.application.outbox import OutboxWorker
+from leonaid.bootstrap.registry import ModuleRegistration, collect_handlers
 from leonaid.configuration import load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
 
@@ -102,37 +103,63 @@ async def build_worker(
         envelope_from=mail_settings.envelope_from,
         reply_to=mail_settings.reply_to,
     )
-    handlers: dict[str, OutboxEventHandler] = {
-        "survey.delete.v1": AsyncpgSurveyDeletion(
-            pool, object_storage, configured_publisher(pool)
-        ),
-        "survey.export.render.v1": AsyncpgSurveyExports(pool, object_storage),
-        "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
-            pool,
-            transport=mail_transport,
-            secure_payload=SecureMailPayload(
-                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+    handlers = collect_handlers(
+        (
+            ModuleRegistration(
+                "surveys",
+                handlers={
+                    "survey.delete.v1": AsyncpgSurveyDeletion(
+                        pool, object_storage, configured_publisher(pool)
+                    ),
+                    "survey.export.render.v1": AsyncpgSurveyExports(
+                        pool, object_storage
+                    ),
+                    "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
+                        pool,
+                        transport=mail_transport,
+                        secure_payload=SecureMailPayload(
+                            os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+                        ),
+                    ),
+                },
             ),
-        ),
-        "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
-        "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
-            repository=AsyncpgGeneratedDocumentRepository(pool),
-            renderer=TypstInvoiceRenderer(),
-            storage=object_storage,
-        ),
-        "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
-            repository=AsyncpgInvoiceDeliveryRepository(pool),
-            storage=object_storage,
-            transport=mail_transport,
-        ),
-        "mail.send.v1": SmtpMailHandler(
-            pool,
-            transport=mail_transport,
-            secure_payload=SecureMailPayload(
-                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+            ModuleRegistration(
+                "actions",
+                handlers={
+                    "charity_action.progress.recorded.v1": ActionProgressActivityHandler(
+                        pool
+                    ),
+                },
             ),
-        ),
-    }
+            ModuleRegistration(
+                "invoicing",
+                handlers={
+                    "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
+                        repository=AsyncpgGeneratedDocumentRepository(pool),
+                        renderer=TypstInvoiceRenderer(),
+                        storage=object_storage,
+                    ),
+                    "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
+                        repository=AsyncpgInvoiceDeliveryRepository(pool),
+                        storage=object_storage,
+                        transport=mail_transport,
+                    ),
+                },
+            ),
+            ModuleRegistration(
+                "mail",
+                handlers={
+                    "mail.send.v1": SmtpMailHandler(
+                        pool,
+                        transport=mail_transport,
+                        secure_payload=SecureMailPayload(
+                            os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
+                        ),
+                    ),
+                },
+            ),
+        )
+    )
     worker = OutboxWorker(
         worker_id=worker_id,
         queue=queue,

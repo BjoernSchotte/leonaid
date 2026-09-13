@@ -53,3 +53,23 @@ Prüfung:
 - Der erste Aufruf ohne explizites `PYTHONPATH` hatte vier fehlgeschlagene Subprozess-Tests mit `ModuleNotFoundError`. Der Wiederholungslauf mit der im Repository-Runner vorgesehenen Umgebung bestand vollständig; keine Produktänderung zur Umgehung nötig.
 
 Noch offen: tatsächliche Modul-/Bootstrap-Migration, Registrierung, Runtime-/Browser-Nachweise und sämtliche M1–M3-Abnahmen. Die Architekturprüfung allein schließt M0 nicht ab.
+
+## M0.3 — Startprüfungen an API und Worker angeschlossen
+
+Status: abgeschlossen am 13.09.2026. Slice-Commit ist der Commit, der diesen Abschnitt anlegt.
+
+`bootstrap/registry.py` validiert explizite Beiträge auf gültige/eindeutige Modul-IDs, fehlende Abhängigkeiten, Zyklen, kollidierende HTTP-Methoden/Pfade und doppelte Jobtypen. Routenparameter mit unterschiedlichen Namen zählen als dieselbe Route. Die Routenprüfung erfolgt vollständig vor dem Einhängen der Beiträge. Der echte FastAPI-Start registriert Surveys über `bootstrap/api.py`; der Worker sammelt seine bestehenden Handler über die geprüfte Registrierung. Handler-Namen, Payloads und Prozessbefehle bleiben erhalten.
+
+Übergang bis M1: `bootstrap/api.py` importiert noch den existierenden Survey-Router unter `entrypoints/fastapi/surveys.py`. Die konkreten Worker-Handler werden noch im vorhandenen Worker-Composition-Root instanziiert. M1 verschiebt diese Beiträge in das Fachmodul bzw. Bootstrap; die derzeitige Registrierung wird dabei wiederverwendet. Frontend-Registrierung und vollständige Fachoperationen fehlen noch.
+
+Die Architekturprüfung unterscheidet nun außerdem Bootstrap-Verdrahtung von Fach-APIs: `bootstrap/api.py` darf FastAPI importieren, eine fachliche `modules/<name>/api.py` weiterhin nicht. Dies ist die in der Spec vorgesehene Schichtentrennung und keine Alt-Ausnahme.
+
+Prüfung:
+
+- `env PYTHONPATH=src .venv/bin/pytest tests/unit -q --disable-warnings`: 391 bestanden. Neun Pydantic-Warnungen aus der bestehenden OpenAPI-Erzeugung; keine Testfehler.
+- Ruff-Check und Formatierung der geänderten Python-Dateien: erfolgreich.
+- `.venv/bin/mypy src/leonaid/bootstrap src/leonaid/entrypoints/worker/outbox.py`: erfolgreich (vier Quelldateien).
+- `env PYTHONPATH=src .venv/bin/python tools/openapi/generate.py --root . --check`: OpenAPI und TypeScript-Client unverändert/aktuell.
+- `.venv/bin/python tools/ci/no_test_doubles.py .`: erfolgreich. Registry-Tests verwenden reale FastAPI-Router und einen realen, nicht gestarteten PostgreSQL-Pool; sie behaupten keinen Worker-I/O-Nachweis.
+
+M0 als Gesamtetappe sowie Runtime-, Browser- und Jobabnahmen bleiben offen. FastAPI bleibt auf ausdrücklichen Wunsch das Backend-Framework; der spätere FastMCP-Anschluss läuft über dieselben Fachoperationen und ist keine aktuelle Abhängigkeit.
