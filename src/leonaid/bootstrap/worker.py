@@ -44,6 +44,7 @@ def observe_job(
     name: str,
     event: ClaimedOutboxEvent,
     error_code: str | None,
+    duration_ms: float | None,
 ) -> None:
     action_value = event.payload.get("actionId")
     action_id = action_value if isinstance(action_value, str) else None
@@ -57,6 +58,7 @@ def observe_job(
             actionId=action_id,
             attempt=event.attempts,
             errorCode=error_code,
+            durationMs=duration_ms,
         ),
         flush=True,
     )

@@ -158,3 +158,28 @@ Status: Implementierungsslice abgeschlossen am 13.09.2026; LIVE-Abnahme offen.
 Prüfung: 397 Unit-Tests bestanden, Mypy für neun Quelldateien, Ruff, No-test-doubles und unverändertes OpenAPI erfolgreich. Der Direktaufruf-Test verwendet den tatsächlichen Exportadapter und S3-Client mit synthetischer Konfiguration; eine manipulierte Snapshot-ID scheitert vor I/O. Ein beim ersten Lauf entdeckter Fehler durch sofort ausgewertete `asyncpg.Pool`-Annotation wurde durch aufgeschobene Annotationen korrigiert und die Suite anschließend vollständig wiederholt.
 
 Lifecycle-Lauf `d5218eac529147baa1347df176c69a43` läuft noch. Er wurde auf `9f72c27` gestartet; während seiner Buildphase kamen Änderungen dieses Slices hinzu. Sein Ergebnis ist deshalb kein sicherer Nachweis des finalen aktuellen Commits. Vollständige LIVE-Abnahme, Jobvertrag und M2–M3 bleiben offen.
+
+## M1.5 — Optionaler Ausführungszeitpunkt: Implementierung und Inventar
+
+Status: Implementierung geprüft; PostgreSQL-/Worker-Abnahme läuft noch, Slice noch nicht als abgenommen markiert.
+
+`PendingOutboxEvent.available_at` ist optional und verlangt bei Angabe einen Zeitpunkt mit Zeitzone. Die bestehende Datenbankspalte `outbox_event.available_at` genügt; keine Migration oder Änderung bestehender Payloads. Alle Verbraucher des Pending-Vertrags wurden inventarisiert und angepasst:
+
+| Producer/Persistenz | Verhalten ohne Zeitpunkt | Verhalten mit Zeitpunkt |
+| --- | --- | --- |
+| ActionProgress / `AsyncpgTransactionalOutboxRepository.append` | Datenbank-Transaktionszeit wie bisheriger Default | Zeitpunkt atomar beim Append |
+| Einladungen und Ersatzeinladungen / `AsyncpgInvitationRepository` | bisheriges `occurred_at` | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
+| E-Mail-Wechsel / `AsyncpgEmailChangeRepository` | bisheriges `occurred_at` | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
+| Login-Mail / `AsyncpgSessionRepository` | Datenbank-Transaktionszeit wie bisheriger Default | eigener Zeitpunkt; `created_at` unverändert |
+
+Direkte SQL-Producer für Rechnung, Rechnungsversand, Survey-Einladung, Export, Löschung und Recovery verwenden keinen `PendingOutboxEvent` und bleiben bei ihrem vorhandenen Default. Ihre Replay-/Ledger-Pfade werden nicht verändert. Bestehende ActionProgress-Command-Hashes und Ereignis-IDs bleiben gleich. Die Speicherung liegt weiterhin in derselben fachlichen Transaktion.
+
+Prüfung bisher: 398 Unit-Tests, Mypy für sechs betroffene Quellen, Ruff und No-test-doubles erfolgreich. Der erweiterte vorhandene Outbox-Runner verwendet einen echten ActionProgress-Handler mit synthetischen Daten: Rollback, Persistenz des Termins, Grenze vor/bei Fälligkeit, Claim-Übernahme, Fencing und idempotente Projektion. Der gestartete LIVE-Lauf ist noch nicht beendet; Laufzeitgrenzen und sichere Retry-Fehler sind weitere offene M1-Arbeit.
+
+## Worker-Diagnostik und zwischenzeitliche LIVE-Ergebnisse
+
+Diagnostik-Implementierung abgeschlossen: Der Worker speichert als Fehlerdetail nur noch den sicheren Fehlercode, keinen rohen Exception-Text. Auch der Fallback-Code erfüllt die bestehende Code-Grammatik. Completion und Retry/Dead-Letter-Logs erhalten die mit monotoner Uhr gemessene Dauer; Claim-Logs haben noch keine Dauer. Der tatsächliche Log-Adapter wurde auf Dauer und Nichtausgabe von Payload-Inhalten getestet. Unit-Suite: 400 bestanden; Mypy, Ruff und No-test-doubles erfolgreich. Der bereits laufende Queue-Test verwendet sein zuvor gebautes Image und belegt diese Diagnostikänderung noch nicht.
+
+Lifecycle-Lauf `d5218eac529147baa1347df176c69a43` erfolgreich abgeschlossen: direkter Listenvergleich mit HTTP, Survey-/Aktionsgrenzen und verweigerte Veröffentlichung; reale Worker-Neustarts und Fristnachholung; 25 Lifecycle-/Aktionspaare; drei Browsertests einschließlich mobiler eingeschränkter Designeransicht. Die zuvor dokumentierte Einschränkung der Commit-Zuordnung bleibt bestehen. Der separate Queue-Lauf hat bislang Commit-Abbruch/Recovery und zwei konkurrierende Worker bestanden; SMTP-Ausfall, Abschluss und neuer verzögerter Claim-Test laufen noch.
+
+CI-Ursache behoben und separat gepusht: `features` deklarierte `react-dom@19.2.8` nur als Peer, die vorhandene Survey-Host-Pin-Policy verlangt eine direkte Dependency. Pin-Check und Bun-1.2.19-Frozen-Install bestanden nach der Korrektur, ohne Versionswechsel. Neue CI-Ergebnisse sind noch abzuwarten; dies ersetzt nicht die offene Image-Security-Korrektur.
