@@ -8,17 +8,17 @@ Der per GitHub API gelesene Hauptbranch ist `2043b72b7c5453b37978f2a58436243dbc3
 
 ### Eigentum und Abhängigkeiten des ersten Moduls
 
-| Bereich | Bestehender Pfad / Vertrag | Einordnung für Migration |
-| --- | --- | --- |
-| Definitionen und Lebenszyklus | `domain/surveys/`, `application/surveys/`, `adapters/postgres/surveys.py` | Survey-Modul; `SurveyService` delegiert heute an einen Persistence-Port |
-| Transport | `entrypoints/fastapi/surveys.py` | Survey-Router einschließlich Pydantic-Eingaben; Sitzung, CSRF und Body-Grenzen erhalten |
-| Identität | `domain/identity.py`, `domain/policies.py` | Gemeinsame Identität und Aktionszugriffsprüfung; keine neue Identitätskopie |
-| Analyse/Antworten | `application/surveys/{analysis,analysis_snapshot,response_selection}.py`, entsprechende PostgreSQL-Adapter | Survey-eigen; Analyse-/Antwortauswahl nicht in globale Plattform verschieben |
-| Exporte | `application/surveys/exports.py`, `adapters/postgres/survey_exports.py` | Survey-eigene Jobs mit gemeinsamem Storage, Queue und Typst-Adapter |
-| Löschung/Recovery | `adapters/postgres/survey_{deletion,retention,recovery,checkpoint_publisher}.py` | Fachliche Lösch- und Wiederherstellungsregeln bleiben Surveys; bestehendes Archiv erhalten |
-| Einladungen | Survey-Repository und `adapters/mail/survey_smtp.py` | Fachliche Einladungen mit gemeinsamem sicheren Mailtransport |
-| Verdrahtung | `entrypoints/fastapi/platform.py`, `entrypoints/worker/{outbox,platform}.py` | Modulregistrierung/Komposition nach Bootstrap; Prozessstart kompatibel halten |
-| Frontend | `apps/web/src/surveys*.tsx`, `packages/surveys/`, bestehender API-Client | Web-Einstieg modularisieren, Renderer/Client weiterverwenden; PWA verweist bereits auf Web-Survey-Einstieg |
+| Bereich                       | Bestehender Pfad / Vertrag                                                                                 | Einordnung für Migration                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Definitionen und Lebenszyklus | `domain/surveys/`, `application/surveys/`, `adapters/postgres/surveys.py`                                  | Survey-Modul; `SurveyService` delegiert heute an einen Persistence-Port                                    |
+| Transport                     | `entrypoints/fastapi/surveys.py`                                                                           | Survey-Router einschließlich Pydantic-Eingaben; Sitzung, CSRF und Body-Grenzen erhalten                    |
+| Identität                     | `domain/identity.py`, `domain/policies.py`                                                                 | Gemeinsame Identität und Aktionszugriffsprüfung; keine neue Identitätskopie                                |
+| Analyse/Antworten             | `application/surveys/{analysis,analysis_snapshot,response_selection}.py`, entsprechende PostgreSQL-Adapter | Survey-eigen; Analyse-/Antwortauswahl nicht in globale Plattform verschieben                               |
+| Exporte                       | `application/surveys/exports.py`, `adapters/postgres/survey_exports.py`                                    | Survey-eigene Jobs mit gemeinsamem Storage, Queue und Typst-Adapter                                        |
+| Löschung/Recovery             | `adapters/postgres/survey_{deletion,retention,recovery,checkpoint_publisher}.py`                           | Fachliche Lösch- und Wiederherstellungsregeln bleiben Surveys; bestehendes Archiv erhalten                 |
+| Einladungen                   | Survey-Repository und `adapters/mail/survey_smtp.py`                                                       | Fachliche Einladungen mit gemeinsamem sicheren Mailtransport                                               |
+| Verdrahtung                   | `entrypoints/fastapi/platform.py`, `entrypoints/worker/{outbox,platform}.py`                               | Modulregistrierung/Komposition nach Bootstrap; Prozessstart kompatibel halten                              |
+| Frontend                      | `apps/web/src/surveys*.tsx`, `packages/surveys/`, bestehender API-Client                                   | Web-Einstieg modularisieren, Renderer/Client weiterverwenden; PWA verweist bereits auf Web-Survey-Einstieg |
 
 Survey-eigene Tabellen aus Migrationen 0027–0034: `survey`, `survey_grant`, `survey_draft`, `survey_version`, `survey_participation`, `survey_operation`, `survey_settings`, `survey_settings_operation`, `survey_invitation`, `survey_analysis_snapshot`, `survey_export_job`, `survey_deletion`, `survey_recovery_identity`. Gemeinsame Abhängigkeiten umfassen `charity_action`, Benutzer-/Mitgliedschaftsdaten, `outbox_event` und Audit; diese werden nicht Survey-Eigentum.
 
@@ -74,7 +74,6 @@ Prüfung:
 
 M0 als Gesamtetappe sowie Runtime-, Browser- und Jobabnahmen bleiben offen. FastAPI bleibt auf ausdrücklichen Wunsch das Backend-Framework; der spätere FastMCP-Anschluss läuft über dieselben Fachoperationen und ist keine aktuelle Abhängigkeit.
 
-
 ## M0.4 — Erste vertikale Backend-Zuordnung
 
 Status: abgeschlossen am 13.09.2026. Slice-Commit ist der Commit, der diesen Abschnitt anlegt.
@@ -92,7 +91,6 @@ Prüfung:
 - `python -m leonaid.entrypoints.worker.outbox --help`: bestehender Prozesspfad und CLI-Operationen verfügbar.
 
 Dieser Slice weist Struktur- und Vertragskompatibilität nach, nicht den Betrieb mit Datenbank oder Browser. Frontend-Registrierung, komplette M0-Abnahme und M1–M3 bleiben offen.
-
 
 ## M0.5 — Navigation und Frontend-Beiträge
 
@@ -165,12 +163,12 @@ Status: abgeschlossen am 13.09.2026. PostgreSQL-/Worker-Abnahme inzwischen erfol
 
 `PendingOutboxEvent.available_at` ist optional und verlangt bei Angabe einen Zeitpunkt mit Zeitzone. Die bestehende Datenbankspalte `outbox_event.available_at` genügt; keine Migration oder Änderung bestehender Payloads. Alle Verbraucher des Pending-Vertrags wurden inventarisiert und angepasst:
 
-| Producer/Persistenz | Verhalten ohne Zeitpunkt | Verhalten mit Zeitpunkt |
-| --- | --- | --- |
-| ActionProgress / `AsyncpgTransactionalOutboxRepository.append` | Datenbank-Transaktionszeit wie bisheriger Default | Zeitpunkt atomar beim Append |
-| Einladungen und Ersatzeinladungen / `AsyncpgInvitationRepository` | bisheriges `occurred_at` | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
-| E-Mail-Wechsel / `AsyncpgEmailChangeRepository` | bisheriges `occurred_at` | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
-| Login-Mail / `AsyncpgSessionRepository` | Datenbank-Transaktionszeit wie bisheriger Default | eigener Zeitpunkt; `created_at` unverändert |
+| Producer/Persistenz                                               | Verhalten ohne Zeitpunkt                          | Verhalten mit Zeitpunkt                              |
+| ----------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| ActionProgress / `AsyncpgTransactionalOutboxRepository.append`    | Datenbank-Transaktionszeit wie bisheriger Default | Zeitpunkt atomar beim Append                         |
+| Einladungen und Ersatzeinladungen / `AsyncpgInvitationRepository` | bisheriges `occurred_at`                          | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
+| E-Mail-Wechsel / `AsyncpgEmailChangeRepository`                   | bisheriges `occurred_at`                          | eigener Zeitpunkt; `created_at` bleibt `occurred_at` |
+| Login-Mail / `AsyncpgSessionRepository`                           | Datenbank-Transaktionszeit wie bisheriger Default | eigener Zeitpunkt; `created_at` unverändert          |
 
 Direkte SQL-Producer für Rechnung, Rechnungsversand, Survey-Einladung, Export, Löschung und Recovery verwenden keinen `PendingOutboxEvent` und bleiben bei ihrem vorhandenen Default. Ihre Replay-/Ledger-Pfade werden nicht verändert. Bestehende ActionProgress-Command-Hashes und Ereignis-IDs bleiben gleich. Die Speicherung liegt weiterhin in derselben fachlichen Transaktion.
 
@@ -194,12 +192,12 @@ Der Lauf enthält die unveränderten Implementierungsdateien des Delayed-Enqueue
 
 `tools/outbox/benchmark_exports.py` lief im bestehenden API-Image ohne Netzwerk, mit den Produktionsrenderern und synthetischem Fixture. Das validierte Fünf-Antworten-Fixture wurde 1000-fach wiederholt; aggregierte Zähler wurden entsprechend skaliert und erneut validiert. Drei Durchläufe pro Produkt:
 
-| Produkt | Median | Einzelmessungen in Sekunden | Ausgabegröße |
-| --- | ---: | --- | ---: |
-| Aggregat-PDF | 0,034 s | 0,046 / 0,0287 / 0,034 | 34.591 Bytes |
-| Aggregat-XLSX | 0,0225 s | 0,0254 / 0,0216 / 0,0225 | 17.795 Bytes |
-| 5.000 Antworten als CSV | 0,0978 s | 0,1096 / 0,0978 / 0,0938 | 5.433.474 Bytes |
-| 5.000 Antworten als XLSX | 7,1703 s | 7,0186 / 7,1703 / 7,2747 | 625.775 Bytes |
+| Produkt                  |   Median | Einzelmessungen in Sekunden |    Ausgabegröße |
+| ------------------------ | -------: | --------------------------- | --------------: |
+| Aggregat-PDF             |  0,034 s | 0,046 / 0,0287 / 0,034      |    34.591 Bytes |
+| Aggregat-XLSX            | 0,0225 s | 0,0254 / 0,0216 / 0,0225    |    17.795 Bytes |
+| 5.000 Antworten als CSV  | 0,0978 s | 0,1096 / 0,0978 / 0,0938    | 5.433.474 Bytes |
+| 5.000 Antworten als XLSX | 7,1703 s | 7,0186 / 7,1703 / 7,2747    |   625.775 Bytes |
 
 Dies misst Rendering, keine vollständige Joblaufzeit mit PostgreSQL/S3 und keinen Worst Case jeder zulässigen Umfrage. Die serielle Verarbeitung und 300-Sekunden-Standard-Lease bleiben bestehen; aus diesen Messungen folgt noch keine Notwendigkeit für Parallelität oder Lease-Verlängerung. Der erste Messversuch scheiterte korrekt an inkonsistenter Antwortanzahl; nach Skalierung und erneuter Modellvalidierung bestand der vollständige Lauf. Das Tool enthält keine zusätzlichen Produktjobs oder Abhängigkeiten.
 
@@ -309,13 +307,11 @@ Bestanden: Lesen und gefilterte Suche für berechtigte Rollen, keine Treffer/kei
 
 Der reale Lauf bestand; alle synthetischen Datensätze, eigenen Container und dessen Volume entfernt. Der Contract ist in den vorhandenen Schema-Runner aufgenommen. Ruff, Mypy, Shellsyntax und No-test-doubles bestanden. Dies ergänzt die vorherige Standalone-/Sitzungsprüfung, ersetzt jedoch keine Task-Browserabnahme oder die noch fehlenden anderen M2-Module.
 
-
 ## M2 — Task-Navigation und erste gemeinsame Oberfläche
 
 Das Task-Modul liefert Navigation für aktive Konten nach Web und PWA. Beide Shells laden dieselbe Aufgabenansicht mit Listen, Seitennavigation, Titelsuche, Status, „Für mich“, Zurückstellungsfilter und Erstellung einer zunächst privaten Liste. Alle Daten stammen aus den vorhandenen autorisierten Fachoperationen. Die PWA verwendet eine explizite Zusammenstellung ihrer Modulbeiträge; dadurch wird der ausschließlich im Web benötigte Survey-Editor nicht in ihren Importgraph aufgenommen. Ein erster Versuch mit der vollständigen Web-Zusammenstellung zeigte einen SurveyJS-Deklarationsfehler in der strikten PWA-Typprüfung; die getrennte Zusammenstellung beseitigt den unnötigen Import ohne Compiler-Ausnahmen.
 
 Nachweise: Features-, Web- und PWA-Typprüfung, beide Produktionsbuilds, 40 Python-Registrierungs-/Identitätstests und sieben UI-Registrierungstests. Der lokale Node-Lauf benötigt `NODE_OPTIONS=--no-experimental-webstorage`, damit jsdom sein eigenes localStorage bereitstellt; ohne diese Option scheitert bereits das bestehende Test-Setup. Bestehende Pydantic-Warnungen und Vite-Hinweise zu Sourcemaps/großen Chunks bleiben. Die neue Aufgabenansicht wird separat als kleiner Chunk geladen. Dies ist keine Browser- oder M2-Gesamtabnahme: Aufgabenbearbeitung, Epic-/Mitgliederverwaltung, Aktionskontext und reale Desktop-/Mobile-Prüfung bleiben offen.
-
 
 ## M2 — Gemeinsame Aufgabenbearbeitung und echter Browserlauf
 
@@ -327,7 +323,6 @@ LIVE: isoliertes PostgreSQL 16 mit allen Migrationen, echte FastAPI-Lifespan/Mid
 
 Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden; Impeccable-Detektor meldet keine Treffer. Dieser Schnitt belegt noch keine vollständige M2-Abnahme: konkurrierende Browserbearbeitung, Rechtewechsel im Browser, Fremdzuweisung, Epics, Mitglieder und Wissens-/Materialfunktionen bleiben offen.
 
-
 ## M2 — Epic-Auswahl und Verwaltung im gemeinsamen Editor
 
 Der Task-Editor bietet die autorisierte Epic-Suche mit begrenzter Pagination, optionaler Zuordnung sowie Anlegen und revisioniertem Umbenennen. Eine bestehende Auswahl bleibt erhalten, wenn sie auf der aktuellen Suchseite fehlt; „Kein Epic“ entfernt die Zuordnung ausdrücklich. Anlegen/Umbenennen speichern sofort und werden im Formular entsprechend erklärt. Während eines Epic-Schreibvorgangs ist der Aufgabenentwurf gegen gleichzeitiges Absenden gesperrt. Fehler erhalten den eingegebenen Titel; ein erneutes Laden erlaubt bei Revisionskonflikten die bewusste Prüfung des aktuellen Stands. Keine zusätzliche API oder verschachtelte Epic-Struktur.
@@ -335,7 +330,6 @@ Der Task-Editor bietet die autorisierte Epic-Suche mit begrenzter Pagination, op
 LIVE mit frischem PostgreSQL, sämtlichen Migrationen und echter HTTPS-FastAPI: im Web Epic anlegen, umbenennen und einem neuen Task zuordnen; in PWA trotz erfolgloser Epic-Suche Zuordnung beim Statuswechsel erhalten; im Web dieselbe Epic-ID mit neuem Titel lesen, Zuordnung entfernen und erneut lesen. Zwei erfolgreiche Browserläufe. Mobile Liste und geöffneter Editor ohne critical/serious Axe-Befunde; Editor-Screenshot `/tmp/leonaid-epics-editor.png` visuell geprüft. Temporärer Nachweis `/tmp/leonaid-epics-browser.cjs` verwendet echte HTTP-Aufrufe ohne Antwort-Doubles.
 
 Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden. Impeccable-Detektor ohne Treffer. Browsernachweis umfasst noch keine konkurrierende Epic-Umbenennung bzw. Rechteänderung und keinen produktiven Proxy-/Service-Worker-Betrieb. Die übergeordneten M2-Abnahmen bleiben offen.
-
 
 ## M2 — Berechtigte Personenauswahl und Fremdzuweisung
 
@@ -346,7 +340,6 @@ Der gemeinsame Editor ersetzt die bisherige Selbst-/Bestandsauswahl durch diese 
 LIVE PostgreSQL: Standalone-Eigentümer und expliziter Editor, Aktionsrollen, fremde/abgelaufene/zukünftige Mitgliedschaft, entzogene Systemrolle und Aktionsrechte, suspendiertes Zielkonto, Namenssuche, literal `%` und Pagination nachgewiesen. Beide erweiterten Task-Verträge bestanden. LIVE HTTPS/Chrome mit zwei tatsächlichen Sitzungen: Eigentümer legt Liste an, gibt der synthetischen Kollegin Editorrechte, weist ihr eine Aufgabe über den Editor zu; Kollegin erledigt sie in PWA „Für mich“; Eigentümer sieht denselben erledigten Task. Mobile Axe ohne critical/serious und kein horizontaler Overflow. Temporärer Lauf `/tmp/leonaid-assignees-browser.cjs`; keine HTTP-Doubles.
 
 406 Unit-Tests bestanden (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features/Web/PWA/API-Client-Typprüfung und beide Builds erfolgreich. Vorhandene OpenAPI-Pfade und Schemas strukturell unverändert; nur neuer Vertrag ergänzt. Impeccable-Detektor ohne Treffer. Mitgliederverwaltung im Produkt, vollständige Browser-Rechte-/Konfliktmatrix und weitere M2-Module bleiben offen.
-
 
 ## M2 — Listenmitglieder verwalten
 
@@ -360,7 +353,6 @@ Desktop-Axe entdeckte einen bestehenden unzulässigen aria-label auf dem Rollenc
 
 406 Unit-Tests (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features/Web/PWA/API-Client-Typprüfung, beide Builds und strukturelle Kompatibilität sämtlicher bisheriger OpenAPI-Pfade/-Schemas bestanden. Browsernachweis umfasst noch nicht konkurrierende Mitgliederänderungen, aktionsgebundene Listenerstellung oder produktiven Proxy-/Service-Worker-Betrieb. Übergeordnete M2-Abnahme bleibt offen.
 
-
 ## M2 — Aktionskontext für Task-Listen
 
 Die gemeinsame Oberfläche bietet bei der Listenerstellung neben „Eigenständig“ die aktuell verwalteten Aktionen aus der authentifizierten Identität an. Zugehörige Aktionen lassen sich außerdem als Listenfilter auswählen. Die ausgewählte Liste zeigt ihren Kontext und erklärt die unterschiedlichen Zugriffsvoraussetzungen. Der vorhandene serverseitige CreateList-/ListQuery-Vertrag bleibt unverändert und prüft aktuelle Rechte beim Speichern/Lesen. Ein veralteter Identitätsstand ist keine Schreibberechtigung.
@@ -368,7 +360,6 @@ Die gemeinsame Oberfläche bietet bei der Listenerstellung neben „Eigenständi
 LIVE: frisches PostgreSQL mit vollständigen Migrationen, echte HTTPS-FastAPI, synthetische Aktion mit Charity-Admin und Acquirer. Browser erstellt eine Liste im Aktionskontext, bestätigt die persistierte actionId und den Listenfilter, weist dem berechtigten Aktionsmitglied einen Task zu; dieses erledigt in PWA „Für mich“, der Admin sieht den gemeinsamen Status im Web. Mobile Axe ohne critical/serious und kein horizontaler Overflow. Desktop-Screenshot `/tmp/leonaid-tasks-desktop.png` geprüft; temporärer Nachweis `/tmp/leonaid-context-browser.cjs`. Der erste Lauf begann vor abgeschlossener Datenbankinitialisierung und scheiterte beim Verbindungsaufbau; derselbe Container wurde nach bestätigter Bereitschaft erfolgreich verwendet.
 
 Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden; Impeccable-Detektor ohne Treffer. Bekannte Grenze: Die Auswahl stammt derzeit aus eigenen aktuellen Aktionsmitgliedschaften. System-Admins ohne solche Mitgliedschaft benötigen noch eine berechtigte globale Aktionsauswahl; dieser Fall und die übergeordnete M2-Abnahme bleiben offen.
-
 
 ## M2 — Globale und autorisierte Aktionsauswahl
 
@@ -380,7 +371,6 @@ LIVE PostgreSQL: alle vier Aktionsrollen, globale Berechtigung ohne Mitgliedscha
 
 406 Unit-Tests (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features-/Web-/PWA-Typprüfungen und beide Produktionsbuilds bestanden. Bestehende OpenAPI-Pfade/-Schemas strukturell unverändert. Wissens-/Materialkontexte und übergeordnete M2-Abnahmen bleiben offen.
 
-
 ## M2 — Datenbasis der Wissensseiten und aktivierter Schema-Smoke
 
 Migration `0038_knowledge_pages` ergänzt wissenseigene Seiten mit optionalem Aktionskontext/Eigentümer, explizite viewer/editor-Zugriffe und Revisionssnapshots mit Titel, JSON-Dokument und Autor. Titel/Inhalt liegen ausschließlich in der jeweiligen Revision; der Seitenkopf zeigt auf die aktuelle Revision. Ein bis Transaktionsende aufschiebbarer Fremdschlüssel erlaubt atomare Erstellung und verhindert fehlende aktuelle Revisionen. Dokumente besitzen einen `doc`-Wurzeltyp und maximal 1 MiB JSONB-Textgröße; vollständige Tiptap-Validierung folgt in der Fach-API. Revisionsbezogene Task-Verweise nutzen echte Fremdschlüssel. Seiten-/Referenzentfernung löscht keine Tasks.
@@ -391,7 +381,6 @@ Bei der Integration wurde entdeckt, dass `tools/schema/smoke.py` bei direktem Au
 
 LIVE bestanden: tatsächlich gestarteter Schema-Smoke auf leer migriertem PostgreSQL sowie auf Migration 0011 mit `tests/fixtures/schema/v0.sql` und anschließendem Upgrade bis Head. Vorherige leere Skriptaufrufe gelten ausdrücklich nicht als Nachweis. Ruff/Mypy, Migrationspolicy und no-test-doubles bestanden; 406 Unit-Tests im Verlauf dieser Änderung bestanden (neun bekannte Pydantic-Warnungen). Keine neue Laufzeitkomponente. Wissens-Fachoperationen, Autorisierung, Editor, Materialintegration und Gesamt-M2 bleiben offen.
 
-
 ## M2 — Typisierter Wissens- und Dokumentvertrag
 
 `modules/knowledge/api.py` definiert Erstellen/Ändern/Lesen/Listen sowie deren typisierte Eingaben/Ergebnisse. Mutierende Service-Einstiege validieren Modelle erneut; die konkrete Repository-Implementierung und Runtime-Registrierung folgen noch. Die Erstellung besitzt ein leeres Absatzdokument als sicheren Standard.
@@ -399,7 +388,6 @@ LIVE bestanden: tatsächlich gestarteter Schema-Smoke auf leer migriertem Postgr
 `document.py` prüft den für den ersten Editor vorgesehenen Tiptap-Umfang: Absätze, Überschriften, Listen, Zitate, Codeblöcke, Text, Umbrüche, Trennlinie und Task-Referenzblöcke. Zulässige Textmarkierungen sind bold/italic/strike/code sowie vollständige HTTP(S)-Links mit begrenzten Attributen. Unbekannte Knoten/Attribute, unsichere Linkschemata, ungültige Kindstrukturen und veränderliche Nicht-JSON-Werte werden abgewiesen. Höchstens 1 MiB Dokument, 10.000 Knoten und Tiefe 32. Validierung liefert eine unabhängige JSON-Kopie. Task-Referenzen enthalten ausschließlich IDs und werden dedupliziert extrahiert; das ist keine Objektzugriffsfreigabe. Materialknoten werden erst mit der Materialintegration ergänzt.
 
 23 neue echte Validierungstests ohne Repository-/Transport-Doubles: unterstützte Strukturen, stabile Referenzen, kein kopierter fremder Task-Titel, unsichere Links, falsche Attribute, Größen-/Tiefen-/Knotengrenzen, Snapshot-Kopie sowie erneut validierte manipulierte Befehle und strikte Revisionen. Gesamte Unit-Suite: 429 bestanden, neun bestehende Pydantic-Warnungen. Ruff/Mypy und no-test-doubles bestanden. Kein HTTP-/Persistenz-/Browsernachweis für Wissen behauptet; Fachoperationen mit echten Daten, Autorisierung und Editor bleiben offen.
-
 
 ## M2 — Transaktionale Wissensoperationen
 
@@ -409,7 +397,6 @@ Task-Verweise werden über den öffentlichen Task-Service autorisiert. Der Boots
 
 LIVE bestanden: Wissensvertrag mit Ein-Verbindungs-Pool, tatsächlicher Konkurrenz auf zwei Verbindungen, äußerem Rollback, Viewer/Editor-Wechsel, widerrufenem Zugriff, gesperrtem Konto, Titelsuche und unveränderter Historie nach abgewiesener Referenz. Bestehende Task-Service-, Aktionsrechte- und Produktions-FastAPI-Verträge ebenfalls bestanden. Ruff/Mypy und no-test-doubles erfolgreich. 429 Unit-Tests bestanden (neun bekannte Pydantic-Warnungen). Der Wissensvertrag läuft künftig im Schema-Gate. HTTP-Anbindung, vollständige Wissens-Aktionsrechtematrix, Mitgliederverwaltung, Editor, atomare Aufgabe-aus-Seite und Materialien bleiben offen.
 
-
 ## M2 — Wissens-HTTP-Adapter
 
 Die Produktions-App erstellt den Knowledge-Service im Lifespan und registriert das Modul mit expliziter Tasks-Abhängigkeit. Vier Endpunkte unter `/api/v1/knowledge-pages` bieten Erstellen, Lesen, begrenzte Suche und revisioniertes Ändern. Der Adapter verwendet den bestehenden Sitzungsdienst sowie die globale CSRF-/Fehlerbehandlung; erfolgreiche Antworten sind `no-store`. Fachoperationen und deren Autorisierung bleiben im Modul-Service. OpenAPI und der gemeinsame TypeScript-Client sind regeneriert; bestehende Pfade und Schemas wurden strukturell unverändert bestätigt.
@@ -418,7 +405,6 @@ Die Produktions-App erstellt den Knowledge-Service im Lifespan und registriert d
 
 429 Unit-Tests bestanden (neun bekannte Pydantic-Warnungen), Ruff/Mypy, API-Client-Typprüfung, Frontend-Transportgrenze und no-test-doubles ebenfalls erfolgreich. Wissensnavigation, Editor, Mitgliederverwaltung, Aktionsrechtematrix, Materialien und M2-Gesamtabnahme bleiben offen.
 
-
 ## M2 — Wissens-Aktionsrechte mit PostgreSQL
 
 `tools/knowledge/action_contract.py` prüft zehn echte Konten über den Produktions-Bootstrap und zwei Aktionen. Aktuelle Mitglieder aller vier Aktionsrollen sowie der aktuelle System-Admin können die Aktionsseite lesen und finden. Schreiben ist auf Eigentümer/Aktionsadministration/System-Admin und explizite aktuelle Editoren begrenzt. Abgelaufene, zukünftige und fremde Mitgliedschaften sowie eine nur im Principal behauptete Systemrolle gewähren keine Rechte. Ein expliziter Editor-Eintrag für einen Außenstehenden umgeht die Aktionsgrenze nicht.
@@ -426,7 +412,6 @@ Die Produktions-App erstellt den Knowledge-Service im Lifespan und registriert d
 Nach Entzug der Mitgliedschaft verlieren auch Seiteneigentümer und expliziter Editor Lesen, Suche und Wiederholung alter Schreibbefehle. Nach Entzug der globalen Rolle verliert der System-Admin den Aktionszugriff. Private Seiten bleiben auch vor diesem Entzug für ihn unsichtbar; der Eigentümer behält seine private Seite unabhängig von seiner Aktionsmitgliedschaft. Der verbleibende Charity-Admin kann die Aktionsseite weiterhin lesen.
 
 LIVE auf frisch bis 0038 migriertem PostgreSQL bestanden. Ruff/Mypy, no-test-doubles und Diffprüfung bestanden. Der Vertrag ist im Schema-Gate eingebunden. Die expliziten Editor-Zuordnungen sind reale SQL-Fixtures; damit ist keine Mitglieder-API oder Browser-Rechteprüfung behauptet. Diese sowie die übrigen offenen M2-/M3-Aufgaben bleiben erforderlich.
-
 
 ## M2 — Atomare Aufgabe aus Wissensseite
 
@@ -438,7 +423,6 @@ LIVE bestanden: gleicher Befehl bei einem Pool-Slot erzeugt genau eine Aufgabe; 
 
 429 Unit-Tests bestanden (neun bekannte Warnungen), Ruff/Mypy, API-Client-Typprüfung, Frontend-Transportgrenze und no-test-doubles erfolgreich. Editor, Darstellung des aktuellen referenzierten Task-Status im Browser, Mitgliederverwaltung, Materialien und vollständige M2-/M3-Abnahme bleiben offen.
 
-
 ## M2 — Wissens-Mitgliederverwaltung mit eigener Freigaberevision
 
 Migration `0039_knowledge_access_revision` ergänzt einen positiven, bei 1 beginnenden Revisionszähler für Seitenrechte. Inhaltssnapshots behalten ihren bisherigen Revisionszähler. Die Verwaltung sperrt denselben Seitenkopf, prüft aktuelle Eigentümer-/Aktionsadministrationsrechte und vergleicht `expectedAccessRevision`; Freigabe, Zähler, Audit und Receipt werden atomar geschrieben. Editor-Rechte allein berechtigen nicht zur Freigabeverwaltung. Eigentümer sind geschützt; bei Aktionsseiten müssen hinzugefügte aktive Konten bereits aktuellen Aktionszugriff besitzen. Entfernen bleibt auch für inzwischen inaktive Konten möglich.
@@ -449,7 +433,6 @@ LIVE bestanden: Standalone-Vertrag mit E-Mail-Auflösung, Replay, Eigentümersch
 
 Die Mitgliederoberfläche, Wissenseditor, Materialintegration und übergeordnete M2-/M3-Abnahme bleiben offen. Frühere SQL-Fixtures bleiben als unabhängige Prüfung der Rechteauswertung bestehen.
 
-
 ## M2 — Gemeinsame Wissensnavigation und Seitenliste
 
 Das Wissensmodul liefert aktive Konten in beiden Shells mit einem autorisierten Navigationseintrag. Die gemeinsame lazy-geladene Ansicht unter `/admin/knowledge` beziehungsweise `/app/knowledge` bietet begrenzte Titelsuche/Pagination und Anlage einer zunächst privaten Seite. Leere Ergebnisse, Laden, Fehler mit Wiederholung, unverlorener Eingabetitel und Erfolgsmeldung sind abgebildet. Die bestehende Shell und deren UI-Tokens bleiben maßgeblich. Diese erste Ansicht zeigt Seitenüberschriften; Öffnen/Bearbeiten, Aktionsauswahl und Freigabeverwaltung folgen noch.
@@ -458,13 +441,11 @@ LIVE: tatsächliche Produktionsbuilds gegen FastAPI/PostgreSQL über HTTPS in Ch
 
 Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden (bestehende Chunkgrößenwarnungen). Acht Modulregistrierungstests und 429 Unit-Tests bestanden; die Navigationserwartung wurde um Wissen ergänzt. Ruff/Mypy und no-test-doubles erfolgreich. Der temporäre Browser-Harness ist noch kein dauerhafter CI-Browser-Gate. Gesamte M2-/M3-Abnahme bleibt offen.
 
-
 ## M2 — Rechteauskunft für den Wissenseditor
 
 `get_permissions` liefert für eine lesbare Seite `canEdit` und `canManage`. Die Rechteberechnung wird ebenfalls von Schreib- und Freigabeoperationen verwendet. Aktive Konten und aktueller Seiten-/Aktionszugriff werden davor geprüft; insbesondere gewährt Eigentümerschaft nach Entzug der Aktionsmitgliedschaft keine Auskunft. Die Oberfläche muss keine Rollenregeln nachbauen. Die Auskunft ist kein Berechtigungsnachweis für spätere Schreibaufrufe: diese prüfen weiterhin selbst den aktuellen Zustand.
 
 HTTP und generierter Client ergänzt. LIVE: Eigentümer/Viewer/Editor, aktuelle Aktionsrollen, System-Admin sowie entzogene Mitgliedschaften über die vorhandenen Mitglieder-/Aktionsverträge; Produktions-HTTP prüft camelCase-Rechteantwort. Alle drei PostgreSQL-Verträge bestanden. 429 Unit-Tests, Ruff/Mypy, API-Client-Typprüfung und no-test-doubles bestanden; bestehende OpenAPI-Verträge unverändert. Editor und übrige offene Planaufgaben bleiben erforderlich.
-
 
 ## M2 — Gemeinsamer Tiptap-Editor und aktuelle Task-Verweise
 
@@ -478,7 +459,6 @@ Desktop/Mobilaufnahmen geprüft, mobile Axe ohne serious/critical und ohne horiz
 
 Freigabeoberfläche, Aktionsauswahl, Task-Anlage über Editor, Materialfunktionen, dauerhafte vollständige Browser-Gates und übrige M2-/M3-Abnahme bleiben offen.
 
-
 ## M2 — Gemeinsame Freigabeoberfläche für Seiten und Aufgabenlisten
 
 `AccessMembersPanel` wird von beiden tatsächlichen Nutzern, Tasks und Wissen, wiederverwendet. Die gemeinsame Darstellung verwaltet begrenzte Mitgliedersuche, vorhandenes Konto per E-Mail, Lesen/Bearbeiten und Entfernen. Die jeweiligen typisierten API-Aufrufe und Zähler bleiben getrennt (`revision` für Task-Listen, `accessRevision` für Wissensfreigaben). Stabile Wiederholungsschlüssel, Konflikt-/Fehleranzeige und Neuladen bleiben erhalten. Der bisherige Task-Wrapper ist klein; nicht mehr verwendete Task-Mitglieder-CSS-Regeln wurden entfernt.
@@ -491,7 +471,6 @@ Features-/Web-/PWA-Typprüfungen, beide Produktionsbuilds, neun Registrierungste
 
 Aktionsauswahl, Task-Anlage aus dem Editor, Materialien, vollständige Browser-Gates und übrige M2-/M3-Arbeit bleiben offen.
 
-
 ## M2 — Task-Anlage aus dem gemeinsamen Wissenseditor
 
 „Aufgabe aus dieser Seite“ öffnet eine begrenzte Listenwahl und danach das bereits vorhandene Task-Formular mit Zuständigkeit, Epic, Fälligkeit und Zurückstellung. Ein konkreter Erstellungs-Callback verwendet den atomaren Wissensbefehl statt einer separaten Task-Anlage. Ungespeicherte Seitenänderungen müssen vorher gespeichert werden; während der Aufgabenanlage bleiben Seiteninhalt und Revision unverändert. Erfolg übernimmt die neue Seitenrevision und stabile Task-Referenz. Der Browser-Verlassensschutz berücksichtigt den offenen Aufgabenentwurf; ein Rechte-Refresh entfernt das offene Formular nicht. Schreibrechte werden weiterhin durch den tatsächlichen Befehl geprüft.
@@ -502,7 +481,6 @@ Features-/Web-/PWA-Typprüfungen und beide Produktionsbuilds bestanden; bestehen
 
 Die Listenwahl zeigt lesbare Listen; fehlendes Schreibrecht wird beim autorisierten Aufruf abgewiesen. Aktionsauswahl für Wissen, Materialfunktionen, vollständige Browser-Gates und übrige M1-/M2-/M3-Abnahme bleiben offen.
 
-
 ## M2 — Aktionskontext für Wissensseiten mit gemeinsamer Suche
 
 Die vorhandene begrenzte Aktionssuche wird als konkreter Hook und Suchbedienung von Tasks und Wissen gemeinsam verwendet. Die bestehende API liefert aktuelle Aktionsmitgliedschaften und Verwaltungsrecht (`canCreateLists`); dessen serverseitige Regel stimmt mit der vorhandenen Wissens-Seitenanlage überein. Die Wissensoberfläche ergänzt Kontextwahl, Aktionsfilter und Kontextnamen in der Ergebnisliste. Eigenständige Seiten bleiben möglich und zunächst privat. Auswahl bleibt über Suchseiten hinweg erhalten; Fehler liefern keine veralteten Auswahlangebote. Jede tatsächliche Seitenanlage prüft aktuelle Rechte erneut. Keine neue Infrastruktur und kein zusätzlicher API-Vertrag.
@@ -510,7 +488,6 @@ Die vorhandene begrenzte Aktionssuche wird als konkreter Hook und Suchbedienung 
 LIVE Chrome mit beiden Produktionsbuilds und echter FastAPI/PostgreSQL: leere und passende Aktionssuche, Charity-Admin legt Aktionsseite an, aktuelles Mitglied findet sie in der PWA über den Aktionsfilter und öffnet sie nur lesbar. Für dieses Mitglied fehlt die aktionsgebundene Anlageoption; der direkte API-Versuch liefert tatsächlich 404. Bestehender Task-Aktionsbrowserlauf nach gemeinsamer Extraktion bestanden: Liste anlegen/filtern, Mitglied zuweisen, PWA erledigen, gleicher Status beim Eigentümer.
 
 Features-/Web-/PWA-Typprüfungen, beide Builds, zehn Registrierungstests und no-test-doubles bestanden; bekannte Pydantic- und Buildwarnungen unverändert. Mobile Axe ohne serious/critical oder Überbreite, Desktop-/Mobilaufnahmen geprüft, Detektor ohne Treffer. Unabhängige UI-/Dokumentationsprüfung: ship, keine erforderlichen Korrekturen oder neuen Designregeln. Die temporären Browser-Harnesses sind weiterhin kein dauerhafter CI-Gate. Materialkontexte und -funktionen sowie übrige offene Planabnahmen bleiben erforderlich.
-
 
 ## M2 — Materialschema und genaue Versionsreferenzen
 
@@ -521,7 +498,6 @@ Wissen besitzt seine Seitenverweise und bindet sie an eine konkrete Materialvers
 Wiederverwendungsentscheidung nach Codeprüfung: `ObjectStorage`/`S3ObjectStorage` werden für private versionierte Bytes und Integritätsprüfung wiederverwendet. `GeneratedDocumentService` bleibt für erzeugte Rechnungsdokumente zuständig: dessen Pflichtbezug auf Rechnung/Commitment, Finanzberechtigung und Versand-Unveränderlichkeit passen nicht zu allgemeinen hochgeladenen Materialien. Es entstehen weder eine zweite Dateiablage noch kopierte Rechnungsobjekte. Material-Metadaten und Freigaben gehören dem neuen Fachmodul, konkrete Referenzen dem jeweils einbettenden Modul.
 
 LIVE PostgreSQL auf leerem Schema: zwei Seiten auf derselben Dateiversion, neuer Versionskopf ohne Umhängen der Referenzen, Entfernung der Seiten ohne Dateiverlust und 21 ungültige Schreibversuche geprüft. Neue Migration zurückgenommen und erneut ausgeführt, Materialvertrag danach erneut bestanden; tatsächlicher Schema-Smoke erfolgreich. Dauerhaften Vertrag in Schema-Gate sowie Ruff/Mypy-Läufe aufgenommen. Ruff, Mypy, Migrationspolicy, Shell-Syntax, no-test-doubles und Diffprüfung bestanden. Kein S3-Upload wurde durch diesen Schema-Slice nachgewiesen; Fachoperationen, aktuelle Rechteauswertung, HTTP/UI, Upload-Wiederholung und vollständige Materialabnahme bleiben offen.
-
 
 ## M2 — Direkte Materialoperationen mit vorhandener S3-Ablage
 
@@ -535,7 +511,6 @@ Dauerhaften PostgreSQL-/S3-Servicevertrag ins Schema-Gate aufgenommen; dieses st
 
 Bootstrap/HTTP/Client/UI, Material-Freigabeverwaltung, vollständige Aktionsrechtematrix und Wissenseinbettung bleiben offen. Ein nach S3-Erfolg endgültig abgebrochener Upload kann ein privates, noch nicht referenziertes Speicherobjekt hinterlassen; Wiederaufnahme ist bewiesen, kontrollierte Bereinigung solcher nie wiederaufgenommenen Objekte bleibt für die Materialabnahme erforderlich. Der deklarierte Medientyp ist keine Inhaltsprüfung; HTTP muss Downloads als Anhänge und mit nosniff ausliefern.
 
-
 ## M2 — Material-HTTP und generierter Multipart-Client
 
 Das Materialmodul registriert sechs HTTP-Operationen über Bootstrap: Anlage, zusätzliche Version, Materialliste, Materialmetadaten, Versionsmetadaten und Download. Produktions-Lifespan injiziert den bestehenden S3-Adapter. Uploads verwenden das bereits installierte Multipart-Paket; unbekannte und doppelte Formularfelder werden abgewiesen. Die Fach-API erhält Dateiname, tatsächliche Bytes und den auf type/subtype normalisierten Multipart-Medientyp. Parameter wie das von Bun ergänzte charset werden am Transport entfernt. Öffentliche Formfeldnamen sind camelCase und entsprechen dem generierten Vertrag.
@@ -548,7 +523,6 @@ LIVE mit Produktions-FastAPI, echtem PostgreSQL und RustFS: Sitzung/CSRF, Anlage
 
 466 Unit-Tests mit neun bekannten Pydantic-Warnungen, Ruff/Mypy, API-Client-Typprüfung, no-test-doubles, Frontend-Transportgrenze und Diffprüfung bestanden. Vollständiger Compose-Gate in diesem Slice nicht wiederholt. Freigabeverwaltung, Navigation/UI, Aktionsmatrix, Materialreferenzen im Editor und kontrollierte Bereinigung nicht wiederaufgenommener Uploads bleiben offen.
 
-
 ## M2 — Materialfreigaben und gemeinsame Rechteberechnung
 
 Öffentliche Operationen verwalten bestehende aktive Konten per E-Mail oder ID als viewer/editor beziehungsweise entfernen zusätzliche Rechte. E-Mail-Auflösung erfolgt erst nach aktueller Verwaltungsprüfung. Eigentümer sind geschützt, Aktionsmaterialien können nur innerhalb des aktuellen Aktionszugriffs geteilt werden. Der vorhandene separate `access_revision`-Zähler wird unter derselben Materialkopfsperre geprüft und mit Freigabe, Audit und Receipt atomar erhöht. Dateirevision und Versionskopf bleiben unverändert. Die gemeinsame Rechteberechnung liefert `canEdit`/`canManage` und wird ebenfalls von Schreib- und Verwaltungsoperationen verwendet; Leserecht wird davor erneut geprüft.
@@ -559,7 +533,6 @@ LIVE mit PostgreSQL/RustFS: E-Mail-Freigabe und Replay, Mitgliedersuche, Eigent�
 
 Produktions-HTTP-Vertrag bestätigt Rechteauskunft, E-Mail-Freigabe/Replay, Suche und Entfernen ohne Änderung der Dateirevision. Bestehender Upload-/Rollback-Servicevertrag erneut bestanden. Dauerhaften Mitgliedervertrag ins Schema-Gate aufgenommen. 466 Unit-Tests (neun bekannte Pydantic-Warnungen), Ruff/Mypy, API-Client-Typprüfung, no-test-doubles, Frontend-Transportgrenze und Diffprüfung bestanden. Gesamter Compose-Gate in diesem Slice nicht wiederholt. Freigabeoberfläche, übrige Material-UI, vollständige Aktionsmatrix, Wissensreferenzen und Upload-Bereinigung bleiben offen.
 
-
 ## M2 — Gemeinsame Materialoberfläche in Web und PWA
 
 Das Materialmodul registriert Navigation und verzögert geladene gemeinsame Seiten in beiden Shells. Die Oberfläche bietet private beziehungsweise aktionsbezogene Anlage, begrenzte Titelsuche und Aktionsfilter, Dateiversionen bis 25 MiB, gezielte Versionswahl und autorisierte Downloads. Aktionssuche und Freigabebedienung werden mit Aufgaben und Wissen geteilt. Aktuelle Rechte steuern Upload und Verwaltung; der Server prüft jeden Zugriff erneut. Fehlgeschlagene Uploads erhalten die Dateiauswahl und den Wiederholungsschlüssel; tatsächliche Eingabeänderungen erzeugen einen neuen Schlüssel.
@@ -568,7 +541,6 @@ LIVE mit echtem PostgreSQL, RustFS und Produktions-FastAPI über HTTPS: Web-Uplo
 
 Features-/Web-/PWA-Typprüfungen und beide Produktionsbuilds bestanden. 466 Python-Unit-Tests (neun bekannte Pydantic-Warnungen), zehn Modulregistrierungstests, Ruff/Mypy, no-test-doubles und Diffprüfung bestanden. Unabhängige UI-Abschlussprüfung: keine erforderlichen Codekorrekturen. Die temporären Browsernachweise ersetzen noch keinen dauerhaften CI-Browser-Gate; gesamter Compose-Gate nicht erneut ausgeführt. Vollständige Material-Aktionsmatrix, versionsgebundene Wissenseinbettung und kontrollierte Bereinigung nicht wiederaufgenommener Uploads bleiben offen.
 
-
 ## M2 — Autorisierte Materialreferenzen in Wissensrevisionen
 
 Der strikte Dokumentvertrag unterstützt `materialReference` mit ausschließlich `materialId` und einer positiven konkreten `version`. Dateinamen, URLs oder weitere geschützte Metadaten werden nicht im Dokument zwischengespeichert. Doppelte Referenzen werden für die revisionsbezogene Verknüpfung dedupliziert. Beim Erstellen und Ändern einer Seite prüft die öffentliche Materialoperation `get_version` den aktuellen Zugriff und die Existenz der genauen Version. Bootstrap bindet den Material-Service wie den Task-Service an dieselbe Transaktionsverbindung; keine fremden Repository-Imports im Wissensmodul und kein zusätzlicher Pool-Slot. Die vorhandene S3-Instanz wird vom Entrypoint weitergereicht.
@@ -576,7 +548,6 @@ Der strikte Dokumentvertrag unterstützt `materialReference` mit ausschließlich
 Dauerhafter LIVE-Vertrag mit echtem PostgreSQL, RustFS und einem Ein-Verbindungs-Pool: ein Upload in zwei Seiten, neue Dateiversion ohne Änderung bestehender Referenzen, alte und neue Bytes getrennt abrufbar; lesbare Seite gewährt keine Materialrechte. Ohne Materialzugriff scheitern Anlage und Änderung, nach Viewer-Freigabe gelingt das Speichern. Fehlende Version und späterer Entzug lassen Seitenrevision, Referenzanzahl und Audit unverändert. Entfernen beider Seiten lässt die ursprüngliche Datei abrufbar. Produktions-FastAPI-Vertrag prüft zusätzlich HTTP-Anlage/Lesen mit Materialreferenz und vollständigen Rollback beim Verweis auf eine fehlende Version.
 
 477 Unit-Tests mit neun bekannten Pydantic-Warnungen bestanden. Wissens-Service-, Task-aus-Seite-, Aktionsrechte- und Mitgliederverträge mit echten Datenbankoperationen erneut bestanden; Ruff/Mypy und no-test-doubles bestanden. Den neuen Materialreferenzvertrag ins Schema-Gate aufgenommen. Der vollständige Compose-Gate bleibt ausstehend. Editor-Darstellung und Auswahl der Materialreferenzen sind noch nicht umgesetzt: der vorhandene Editor blockiert Speichern bei nicht unterstützten Dokumentknoten, statt sie still zu entfernen. Dieser Backend-Slice ist keine vollständige Abnahme der Wissenseinbettung.
-
 
 ## M2 — Materialreferenzen im gemeinsamen Wissenseditor
 
@@ -588,7 +559,6 @@ Mobile Axe-Prüfung ohne schwere/kritische Befunde. Ein gültiger Titel mit 180 
 
 Unabhängige Abschlussprüfung nach Korrektur und neuen Aufnahmen: ship für diesen UI-Slice, keine verbleibenden wesentlichen Befunde. Separate Dokumentationsprüfung bestätigt eine lokale Erweiterung des bestehenden Designs ohne neue globale Designregeln.
 
-
 ## M2 — Vollständige Material-Aktionsrechtematrix
 
 Dauerhafter Vertrag `tools/materials/action_contract.py` prüft zehn synthetische Identitäten mit echten aktuellen PostgreSQL-Rollen: Eigentümer und weitere Charity-Administration, Acquirer, Finance Reader, Driver, abgelaufene und zukünftige Mitgliedschaft, Verwaltung einer anderen Aktion, aktueller System-Admin sowie Außenstehender mit veralteter/behaupteter System-Admin-Rolle im Principal. Leserechte gelten für Material, genaue Versionsmetadaten, tatsächlichen S3-Download, Titelsuche und Aktionsfilter. Upload und Freigabeverwaltung bleiben auf die vorgesehenen aktuellen Rechte beschränkt. System-Administration gewährt keinen pauschalen Zugriff auf eigenständige Privatdateien.
@@ -596,7 +566,6 @@ Dauerhafter Vertrag `tools/materials/action_contract.py` prüft zehn synthetisch
 Explizite Editoren können Versionen ergänzen, aber zusätzliche Mitgliederdaten umgehen die aktuelle Aktionsgrenze nicht. Herabstufung auf Viewer sperrt einen zuvor erfolgreichen Upload-Replay trotz fortbestehenden Leserechts. Späterer Entzug der Aktionsmitgliedschaft sperrt Eigentümer und Editor; Entfernung der globalen Rolle sperrt den zuvor berechtigten System-Admin. Wiederholte Anlage/Versionsbefehle werden erneut autorisiert. Originalbytes bleiben für berechtigte Rollen abrufbar. Der Vertrag verwendet echte private RustFS-Dateiversionen, keine I/O-Doubles.
 
 Vertrag auf realem PostgreSQL/RustFS bestanden, auch bei Wiederholung mit unabhängig erzeugten Identitäten und Titeln. In den dauerhaften Schema-Testlauf aufgenommen. Ruff/Mypy, Shell-Syntax, no-test-doubles und Diffprüfung bestanden. Keine Änderung der Fachimplementierung erforderlich. Gesamt-Compose-Gate nicht erneut ausgeführt; Browser-Gates, kontrollierte Upload-Bereinigung und übrige M0–M3-Arbeiten bleiben offen.
-
 
 ## M2 — Kontrollierte Bereinigung abgebrochener Materialuploads
 
@@ -608,18 +577,15 @@ LIVE-Vertrag mit PostgreSQL/RustFS: Die Wartung blockiert nachweislich an der ta
 
 487 Unit-Tests mit neun bekannten Pydantic-Warnungen, Ruff/Mypy, no-test-doubles, Shell-Syntax und Diffprüfung bestanden. Dauerhaften Bereinigungsvertrag in das Schema-Gate aufgenommen; gesamter Compose-Gate noch nicht erneut ausgeführt. Dieser Slice schließt die konkrete Bereinigungslücke, nicht die verbleibenden Browser-CI-, M1- und M3-Abnahmen.
 
-
 ## CI — Formatierung nach Materialregistrierung
 
 Der aktuelle Remote-Lauf für `47e4f5d` meldete als konkreten Fehler in „Lint and types“ ausschließlich die Ruff-Formatierung von `tests/unit/test_identity_domain.py`. Die Datei wurde formatiert; keine Testsemantik geändert. Lokal die beiden vollständigen Ruff-Prüfumfänge und Formatprüfungen aus `tools/ci/lint-types.sh` ausgeführt (11 beziehungsweise 442 Dateien), Mypy für alle 379 dort ausgewählten Source-Dateien, vollständige dortige Prettier-Zielmenge und OpenAPI-/Client-Aktualitätscheck: bestanden. Das ersetzt keine vollständige Remote-CI-Abnahme. Der separate lokale isolierte Compose-Schema-Gate läuft zum Zeitpunkt dieses Korrektur-Slices noch; sein Ergebnis wird gesondert dokumentiert.
-
 
 ## Integration — Task-Pagination mit vorhandenem Testbestand
 
 Der isolierte Compose-Gate auf dem Image von `47e4f5d` bestand Leeraufbau bis `0040`, Materialschema/-Service/-Freigaben/-Aktionsmatrix/-Bereinigung/-HTTP, Wissensschema/-Service/-Materialreferenzen/-HTTP/-Aktionsmatrix/-Task-Anlage/-Mitglieder sowie Task-Service/-HTTP. Anschließend scheiterte der Task-Aktionsvertrag an der Annahme, dass der globale Administrator insgesamt nur die beiden lokal angelegten Aktionen sieht. Die vorhergehenden Materialverträge hatten weitere berechtigte Aktionen hinterlassen. Damit sind weder der gesamte Gate noch der nachfolgende Legacy-Upgrade-Abschnitt bestanden.
 
 Die Pagination-Abfrage verwendet jetzt den eindeutigen Titelpräfix ihrer eigenen zwei Aktionen. Ungefilterte Berechtigungsprüfungen bleiben unverändert. Der vollständige Task-Aktionsvertrag wurde mit einer zusätzlich angelegten fremden Aktion in echtem PostgreSQL erneut ausgeführt und bestand. Der abgebrochene Compose-Gate hat seine Container, Volumes und acht Netzwerke vollständig entfernt; dies wurde anhand seiner exakten Projektlabels bestätigt. Ein erneuter Gesamt-Gate bleibt erforderlich. Der Remote-Lint-/Typcheck für `f88bf76` ist inzwischen erfolgreich abgeschlossen.
-
 
 ## M3 — Additives Inbox-Schema
 
@@ -629,7 +595,6 @@ Migration `0041_inbox_cases` ergänzt Fälle mit begrenzten Eingangsfeldern, opt
 
 Ruff, Formatprüfung, Mypy, Migrationspolicy und Shell-Syntax bestanden. Der Schema-Vertrag und `tools/schema/smoke.py` wurden vor diesem Commit erneut gegen die tatsächliche Datenbank ausgeführt. Das Schema erzwingt noch keine Unveränderlichkeit des Eingangssnapshots und beweist keine atomare öffentliche Einreichung: Fachoperationen, aktuelle Zugriffsprüfung, HTTP, CRM-Worker und sämtliche Inbox-Oberflächen bleiben offen. Der vollständige Compose-/Legacy-Gate bleibt gesondert erforderlich.
 
-
 ## M3 — Atomarer Inbox-Eingang als direkte Fachoperation
 
 `InboxService.submit` revalidiert auch direkt übergebene Modelle: begrenzte Namen, Betreff und Nachricht, gültige E-Mail oder begrenzte Telefonnummer, keine unzulässigen Steuerzeichen. Bootstrap verdrahtet die konkrete PostgreSQL-Implementierung. Eine Transaktion schreibt Fall, bestehende Outbox, Audit und vorhandenen Command-Receipt. Der Auftrag enthält nur die Fall-ID; weder Audit noch Receipt duplizieren den Eingangstext. Als öffentliche Bestätigung wird ausschließlich eine zufällige Referenz zurückgegeben, die kein Zugriffstoken ist. Aktionsbezogene neue Eingänge setzen eine aktuell aktive Veröffentlichung voraus. Bereits bestätigte identische Eingänge bleiben nach Veröffentlichungsende wiederholbar.
@@ -637,7 +602,6 @@ Ruff, Formatprüfung, Mypy, Migrationspolicy und Shell-Syntax bestanden. Der Sch
 `tools/inbox/submission_contract.py` gegen tatsächliches PostgreSQL bestanden: parallele Einreichung ergibt genau einen Fall/Job, geänderte Eingaben unter demselben Schlüssel werden abgewiesen, neun manipulierte direkte Modelle scheitern an Validierung, geschlossene Veröffentlichung verweigert neue Eingänge. Eine echte zusätzliche Audit-Constraint erzwingt einen Speicherfehler nach Fall-/Job-Schreibvorgängen; keine Teilobjekte oder Receipts bleiben bestehen. Nach Entfernen der Constraint gelingt derselbe Befehl. Das Werkzeug entfernt seine synthetischen Daten und die Constraint. Kein Twenty- oder Mailadapter wird beim Eingang aufgerufen.
 
 Ruff/Mypy, 27 Architektur-/Registrierungstests (neun bekannte Pydantic-Warnungen), no-test-doubles und Diffprüfung bestanden. Der laufende Compose-Gate prüft noch das zuvor gebaute Schema-Image; der neue Eingangsvertrag ist dort noch nicht verdrahtet. HTTP-Route und öffentliche Missbrauchsschutzmechanismen, registrierter Kontakt-Worker, Fallbearbeitung und Oberflächen bleiben offen; dieser Slice ist keine Freigabe einer öffentlichen Inbox.
-
 
 ## M3 — Autorisierte interne Fallbearbeitung
 
@@ -647,13 +611,11 @@ Eingangsfelder und Aktionsbezug sind über die Änderungsoperation unveränderli
 
 `tools/inbox/case_contract.py` mit echtem PostgreSQL bestanden: fünf Identitäten mit absichtlich behaupteten Admin-Rollen, zwei Aktionen und allgemeiner Fall; isolierte Suche, Zuweisung, Abschluss/Wiederöffnung, erhaltene Abschlussnotiz, genau ein Konflikt bei zwei parallelen Änderungen, unveränderter Eingang, unabhängiger CRM-Fehlerzustand, Mitgliedschaftsablauf, Rollenentzug, unberechtigte Kandidaten und Kontosperre. Eingangsvertrag erneut bestanden. 27 Architektur-/Registrierungstests (neun bekannte Pydantic-Warnungen), Ruff/Mypy und no-test-doubles bestanden. Öffentliche Schutzmechanismen, HTTP-/UI-Anbindung, Kommentare/Referenzoperationen und CRM-Worker bleiben offen. Der laufende Compose-Gate verwendet weiterhin das frühere Schema-Image; die beiden neuen direkten Verträge müssen nach seinem Abschluss in den Runner aufgenommen werden.
 
-
 ## M3 — Interne Inbox-HTTP-Anbindung
 
 Das Modul registriert drei interne FastAPI-Routen zum Auflisten, Lesen und Ändern von Fällen. Der Produktions-Lifespan verdrahtet denselben Service wie direkte Modulaufrufe; bestehende Sitzungsauthentifizierung, CSRF-Middleware und Fehlerübersetzung bleiben maßgeblich. Erfolgreiche Antworten sind `no-store`. Interne Create-/Job-Korrelationen verlassen das Repository nicht. OpenAPI und TypeScript-Client wurden regeneriert. Öffentliche Einreichung ist noch nicht als HTTP-Endpunkt vorhanden; Navigation und UI folgen separat.
 
 `tools/inbox/http_contract.py` mit Produktions-FastAPI-Lifespan und echtem PostgreSQL bestanden: anonym 401, fremder Fall 404 und leere Suche, Sitzung/CSRF, camelCase, unveränderlicher Eingang, strikte JSON-/Query-Grenzen, Abschluss/Replay/409, Entzug globaler Rechte und gesperrte Sitzung. 487 Unit-Tests (neun bekannte Pydantic-Warnungen), Ruff/Format/Mypy, API-Client-Typecheck und no-test-doubles bestanden. Der separat laufende Compose-Gate hat den Leeraufbau samt bisherigen Modulverträgen bestanden und prüft noch den Legacy-Upgrade; die drei neuen Inbox-Service-/HTTP-Verträge werden nach dessen Ende in seinen Runner aufgenommen.
-
 
 ## Integration — Schema-Gate mit Altbestand bestanden
 
@@ -662,7 +624,6 @@ Das Modul registriert drei interne FastAPI-Routen zum Auflisten, Lesen und Ände
 Nach Abschluss wurden die drei neuen Inbox-Verträge (Einreichung, Fallbearbeitung, HTTP) in denselben Runner aufgenommen. Sie waren einzeln auf echtem PostgreSQL erfolgreich, sind aber nicht rückwirkend Teil des oben bestandenen Image-Laufs.
 
 Bei Vorbereitung des CRM-Workers wurde die Eingangsvalidierung an den bereits vorhandenen `PersonData`-Vertrag angebunden: Telefonnummern müssen international angegeben sein. Die eigene schwächere Regex entfällt; formatierte internationale Eingaben bleiben als Eingangssnapshot erhalten, der CRM-Vertrag übernimmt die Normalisierung bei Verwendung. Der dauerhafte Eingangsvertrag verweigert jetzt zusätzlich eine nationale Nummer ohne Vorwahl und besteht erneut. Mypy, Ruff und Shell-Syntax bestanden. CRM-Verarbeitung bleibt offen.
-
 
 ## Integration — Navigationserwartung im Identity-Vertrag
 
@@ -740,13 +701,11 @@ Das vorhandene Material-Repository kann nun Metadaten ohne Objektspeicher-Zugang
 
 Bestehende `tools/materials/http_contract.py` und `tools/knowledge/material_contract.py` mit echtem RustFS ebenfalls erfolgreich: Multipart, versionierte Bytes, Downloadheader, Größenlimit, Wissensverweise und unabhängige Dateilebensdauer. 487 Unit-Tests (neun bekannte Pydantic-Warnungen), Ruff/Format/Mypy, API-Client-Typecheck und no-test-doubles bestanden. Der neue Vertrag wird im nächsten Schema-Lauf nach dem Start von RustFS ausgeführt; der bereits laufende immutable Runner verwendet weiterhin seinen vorherigen Image-Stand. Inbox-Bedienoberfläche und manuelle Kontaktklärung bleiben offen.
 
-
 ## Integration — Vollständiger Schema-Lauf mit Inbox-Taskverweisen
 
 Der unveränderte Runner `/tmp/leonaid-schema-a392607.sh` im isolierten Projekt `leonaid-poc021-test-2137972478-86129` endete mit Exitcode 0. Das vollständige Log bestätigt Leeraufbau, Vorgänger-Upgrade, Constraints und Datenhalt sowie den abschließenden Schema-Vertrag. Alle projektgebundenen Testressourcen wurden entfernt. Die zuvor beobachteten öffentlichen Inbox-Fehler und der Fehler durch Änderung einer laufenden Runner-Datei traten nicht mehr auf.
 
 Dieser Nachweis gilt für das bei `a392607` gebaute Image einschließlich Inbox-Kommentaren, beider Proxy-Betriebsarten und Taskverweisen. Die später hinzugefügten Inbox-Materialverweise und die derzeit entstehende manuelle Kontaktbestätigung sind nicht durch diesen Gesamtlauf abgedeckt; ihre eigenen Integrationsnachweise und ein abschließender aktueller Gesamtstand bleiben erforderlich.
-
 
 ## M3 — Manuelle Kontaktklärung über bestehende Fach- und Queue-APIs
 
@@ -757,3 +716,9 @@ Die lokale Transaktion sperrt zuerst den Outbox-Auftrag und dann den Fall, entsp
 HTTP und generierter Client enthalten Kandidatensuche und Bestätigung. Der erweiterte Produktions-FastAPI-Vertrag auf echtem PostgreSQL besteht: Sitzung, fremder Zugriff, CSRF, leere/zu lange Suchnamen, ungültige Bestätigung und tatsächlicher fehlgeschlagener Twenty-Verbindungsaufbau. CRM-Ausfall ergibt eine sichere 503-Antwort. Der Test deckte fehlendes `no-store` bei Inbox-Fehlerantworten auf; der gemeinsame Fehlerhandler schützt nun auch diese Antworten. 487 Unit-Tests (neun bekannte Pydantic-Warnungen), Ruff, Mypy, OpenAPI-Frischeprüfung, Client-Typecheck und no-test-doubles bestanden.
 
 Der vollständige Twenty-Vertrag im isolierten Projekt `leonaid-poc031-test-2137972478-91104` besteht einschließlich tatsächlicher manueller Auswahl eines abweichenden Kontakts, konkurrierender Wiederholung, Rechteentzug und Audit-Constraint-Rollback. Bestehende CRUD-/Pagination-, Ausfall-/Wiederanlauf-, verlorene-Antwort- und Worker-Fencing-Prüfungen sind ebenfalls bestanden. Der HTTP-Ausfallvertrag wurde zusätzlich mit aktuellem Source-Stand ausgeführt; die tatsächliche erfolgreiche Bestätigung über HTTP und die Inbox-Oberfläche bleiben als folgende Integrationsschritte offen.
+
+## M3 — Aktuelle Rechteauskunft für die Inbox-Oberfläche
+
+`get_permissions` und `GET /api/v1/inbox-cases/{case_id}/permissions` liefern `canManage` für einen aktuell lesbaren Fall. Die Abfrage verwendet dieselbe `_MANAGE`-Regel wie die schreibenden Verwaltungsoperationen. Alle leseberechtigten Fallbearbeitenden können weiterhin Status, Kommentare und Referenzen bearbeiten; nur Fallverwaltende dürfen Zuständigkeit und Kontaktklärung verwalten. Die Auskunft erweitert keine Rechte und ersetzt keine Schreibprüfung.
+
+Die bestehende PostgreSQL-Fallmatrix prüft globale Verwaltung, aktuelle Aktionsverwaltung, zugewiesene Bearbeitende ohne Verwaltungsrecht, fremde Fälle und den Entzug einer Aktionsmitgliedschaft. Der Produktions-FastAPI-Vertrag prüft Sitzung, fremden Zugriff, Ergebnis und `no-store`. Beide Verträge bestanden. Generierter Client, Ruff und Mypy sind aktualisiert/geprüft; die tatsächliche Nutzung folgt in der gemeinsamen Inbox-Oberfläche.

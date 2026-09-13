@@ -18,7 +18,12 @@ from pydantic import (
 
 from leonaid.platform.http import TransportModel
 from leonaid.domain.identity import IdentityPrincipal
-from leonaid.application.crm import CrmGateway, CrmGatewayError, PersonData, PersonRecord
+from leonaid.application.crm import (
+    CrmGateway,
+    CrmGatewayError,
+    PersonData,
+    PersonRecord,
+)
 from leonaid.application.errors import Conflict, DependencyUnavailable, ResourceNotFound
 from leonaid.modules.tasks.api import Task
 from leonaid.modules.materials.api import MaterialVersion
@@ -312,7 +317,15 @@ class UpdateCase(InboxModel):
         return self
 
 
+class CasePermissions(InboxModel):
+    can_manage: bool
+
+
 class InboxRepository(Protocol):
+    async def get_permissions(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> CasePermissions: ...
+
     async def get_managed_case(
         self, actor: IdentityPrincipal, case_id: UUID
     ) -> Case: ...
@@ -359,6 +372,11 @@ class InboxService:
     ) -> None:
         self._repository = repository
         self._crm = crm
+
+    async def get_permissions(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> CasePermissions:
+        return await self._repository.get_permissions(actor, case_id)
 
     def _contact_gateway(self) -> CrmGateway:
         if self._crm is None:
@@ -480,6 +498,7 @@ __all__ = [
     "Submission",
     "Case",
     "CaseQuery",
+    "CasePermissions",
     "Cases",
     "UpdateCase",
     "AssigneeQuery",

@@ -108,6 +108,19 @@ async def main() -> None:
                     )
                 )
         general, scoped, foreign = case_ids
+        assert (await service.get_permissions(admin, general)).can_manage
+        assert (await service.get_permissions(manager, scoped)).can_manage
+        for account, target in (
+            (manager, foreign),
+            (outsider, scoped),
+            (assigned, scoped),
+        ):
+            try:
+                await service.get_permissions(account, target)
+            except ResourceNotFound:
+                pass
+            else:
+                raise AssertionError("Permissions disclosed an inaccessible case")
         candidate_query = AssigneeQuery(search=marker, limit=1)
         first = await service.list_assignees(manager, scoped, candidate_query)
         assert len(first.items) == 1 and first.next_offset == 1
@@ -176,6 +189,7 @@ async def main() -> None:
         )
         current = await service.update_case(manager, scoped, assignment)
         assert current.revision == 2
+        assert not (await service.get_permissions(assigned, scoped)).can_manage
         comment_command = AddComment(
             idempotency_key=uuid4(), body="  Interne Notiz <b>kein HTML</b>  "
         )
@@ -397,16 +411,17 @@ async def main() -> None:
                 await service.list_assignees(manager, scoped, AssigneeQuery())
             ).items
         }
-        for operation in (
+        for revoked_operation in (
+            service.get_permissions(assigned, scoped),
             service.list_comments(assigned, scoped, CommentQuery()),
             service.add_comment(assigned, scoped, comment_command),
         ):
             try:
-                await operation
+                await revoked_operation
             except ResourceNotFound:
                 pass
             else:
-                raise AssertionError("Revoked member accessed or replayed comment")
+                raise AssertionError("Revoked member accessed permissions or comments")
         assert not (await service.list_cases(assigned, CaseQuery())).items
         try:
             await service.update_case(assigned, scoped, close)

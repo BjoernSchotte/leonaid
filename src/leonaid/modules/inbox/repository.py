@@ -21,6 +21,7 @@ from leonaid.application.errors import (
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.inbox.api import (
     ConfirmContact,
+    CasePermissions,
     SetMaterialReference,
     MaterialReference,
     MaterialReferences,
@@ -182,6 +183,22 @@ class AsyncpgInboxRepository:
         async with self.pool.acquire() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             return await self._case(conn, actor.account.id, case_id)
+
+    async def get_permissions(
+        self, actor: IdentityPrincipal, case_id: UUID
+    ) -> CasePermissions:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._case(conn, actor.account.id, case_id)
+            return CasePermissions(
+                can_manage=bool(
+                    await conn.fetchval(
+                        f"SELECT {_MANAGE} FROM inbox_case c WHERE c.id=$2",
+                        actor.account.id,
+                        case_id,
+                    )
+                )
+            )
 
     async def list_cases(self, actor: IdentityPrincipal, query: CaseQuery) -> Cases:
         async with self.pool.acquire() as conn, conn.transaction():

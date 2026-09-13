@@ -9,6 +9,7 @@ from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.inbox.api import (
     ConfirmContact,
+    CasePermissions,
     ContactCandidates,
     ContactQuery,
     SetMaterialReference,
@@ -82,6 +83,19 @@ async def list_cases(
 @router.get("/inbox-cases/{case_id}", operation_id="getInboxCase", response_model=Case)
 async def get_case(request: Request, response: Response, case_id: UUID) -> Case:
     return await service(request).get_case(await actor(request, response), case_id)
+
+
+@router.get(
+    "/inbox-cases/{case_id}/permissions",
+    operation_id="getInboxCasePermissions",
+    response_model=CasePermissions,
+)
+async def get_permissions(
+    request: Request, response: Response, case_id: UUID
+) -> CasePermissions:
+    return await service(request).get_permissions(
+        await actor(request, response), case_id
+    )
 
 
 @router.get(

@@ -53,6 +53,7 @@ export type CampaignAliasTargetResponse = { readonly actionId: string; readonly 
 export type CampaignRendererResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly renderer: "legacy" | "campaign"; readonly revision: number; };
 export type CancelInvoiceRequest = { readonly reason: string; };
 export type Case = { readonly actionId: string | null; readonly assigneeUserId: string | null; readonly closedAt: string | null; readonly closureNote: string | null; readonly contactErrorCode: string | null; readonly contactRevision: number; readonly contactStatus: "pending" | "linked" | "needs_review" | "failed"; readonly email: string | null; readonly familyName: string; readonly givenName: string; readonly id: string; readonly message: string; readonly phone: string | null; readonly publicReference: string; readonly receivedAt: string; readonly revision: number; readonly status: "new" | "in_progress" | "closed"; readonly subject: string; readonly twentyPersonId: string | null; readonly updatedAt: string; };
+export type CasePermissions = { readonly canManage: boolean; };
 export type Cases = { readonly items: Array<Case>; readonly nextOffset: number | null; };
 export type ChangeMemberRoleRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
 export type ChangeMemberStatusRequest = { readonly expectedRevision: number; readonly status: "active" | "suspended" | "archived"; };
@@ -1851,6 +1852,17 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async getInboxCasePermissions(
+    caseId: string,
+    options: RequestOptions = {},
+  ): Promise<CasePermissions> {
+    return this.request<CasePermissions>(
+      `/api/v1/inbox-cases/${encodeURIComponent(String(caseId))}/permissions`,
+      { method: "GET" },
       options,
     );
   }

@@ -24,32 +24,32 @@ Nicht Bestandteil: Microservices, Module Federation, ein eigener Dienst pro Modu
 
 ## 2. Verifizierter Ausgangspunkt
 
-| Einstieg | Befund und Konsequenz |
-| --- | --- |
+| Einstieg                                                               | Befund und Konsequenz                                                                                                              |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | [Domain/Application](../../src/leonaid/application/action_progress.py) | Application-Service mit Unit of Work, Audit, Command Receipt und transaktionaler Outbox vorhanden. Muster gezielt wiederverwenden. |
-| [Identität/Navigation](../../src/leonaid/application/identity.py) | `navigation_for` setzt Navigation zentral zusammen. Server bleibt maßgeblich für erlaubte Einstiege. |
-| [Web](../../apps/web/src/app.tsx), [PWA](../../apps/pwa/src/app.tsx) | App-Einstiege und Seitenauswahl sind zentral verdrahtet. Gemeinsam genutzte Features existieren bereits. |
-| [FastAPI](../../src/leonaid/entrypoints/fastapi/platform.py) | Zentrale Komposition; Surveys besitzen bereits einen separaten Router. Migration kann dort beginnen. |
-| [Outbox-Modell](../../src/leonaid/domain/outbox.py) | Retry mit begrenztem exponentiellem Backoff; `PendingOutboxEvent` enthält noch keinen expliziten Einplanungszeitpunkt. |
-| [PostgreSQL-Queue](../../src/leonaid/adapters/postgres/outbox.py) | `available_at`, `SKIP LOCKED`, Lease und Claim-Token, Dead Letters und manueller Retry vorhanden. |
-| [Worker](../../src/leonaid/entrypoints/worker/outbox.py) | Explizite Handler-Zuordnung vorhanden. Ein Ereignistyp wird einem Handler zugeordnet. |
-| [Worker-Prozess](../../src/leonaid/entrypoints/worker/platform.py) | Serielle Verarbeitung; eigener Survey-Sweep für Fristen und Aufbewahrung. Keine allgemeine Scheduler-Verwaltung. |
-| [Architekturtest](../../tests/unit/test_architecture_boundaries.py) | Schichtentests vorhanden; ein Teil scannt nur unmittelbare Python-Dateien. Rekursive Modulprüfung ergänzen. |
-| [Compose](../../infra/compose/compose.yml) | API, Worker und Core-Datenbank vorhanden. Diese Spec benötigt keine zusätzliche Infrastruktur. |
+| [Identität/Navigation](../../src/leonaid/application/identity.py)      | `navigation_for` setzt Navigation zentral zusammen. Server bleibt maßgeblich für erlaubte Einstiege.                               |
+| [Web](../../apps/web/src/app.tsx), [PWA](../../apps/pwa/src/app.tsx)   | App-Einstiege und Seitenauswahl sind zentral verdrahtet. Gemeinsam genutzte Features existieren bereits.                           |
+| [FastAPI](../../src/leonaid/entrypoints/fastapi/platform.py)           | Zentrale Komposition; Surveys besitzen bereits einen separaten Router. Migration kann dort beginnen.                               |
+| [Outbox-Modell](../../src/leonaid/domain/outbox.py)                    | Retry mit begrenztem exponentiellem Backoff; `PendingOutboxEvent` enthält noch keinen expliziten Einplanungszeitpunkt.             |
+| [PostgreSQL-Queue](../../src/leonaid/adapters/postgres/outbox.py)      | `available_at`, `SKIP LOCKED`, Lease und Claim-Token, Dead Letters und manueller Retry vorhanden.                                  |
+| [Worker](../../src/leonaid/entrypoints/worker/outbox.py)               | Explizite Handler-Zuordnung vorhanden. Ein Ereignistyp wird einem Handler zugeordnet.                                              |
+| [Worker-Prozess](../../src/leonaid/entrypoints/worker/platform.py)     | Serielle Verarbeitung; eigener Survey-Sweep für Fristen und Aufbewahrung. Keine allgemeine Scheduler-Verwaltung.                   |
+| [Architekturtest](../../tests/unit/test_architecture_boundaries.py)    | Schichtentests vorhanden; ein Teil scannt nur unmittelbare Python-Dateien. Rekursive Modulprüfung ergänzen.                        |
+| [Compose](../../infra/compose/compose.yml)                             | API, Worker und Core-Datenbank vorhanden. Diese Spec benötigt keine zusätzliche Infrastruktur.                                     |
 
 Vor Beginn einer Umsetzung den dann aktuellen Hauptbranch gegen diese Befunde abgleichen. Insbesondere bestehende Survey-, Rechte- und Recovery-Pfade nicht anhand dieser Momentaufnahme ersetzen.
 
 ## 3. Modulzuschnitt und Datenverantwortung
 
-| Modul | Eigentum | Öffentliche Zusammenarbeit |
-| --- | --- | --- |
-| Aktionen | Aktionsidentität, Lebenszyklus und aktionsbezogene Zuordnungen | Kontext und erlaubte Aktionsoperationen |
-| Tasks | Listen, Epics, Tasks, persönliche Zuständigkeit, Fälligkeit, Zurückstellung | Erstellen, lesen, zuweisen, erledigen und zurückstellen |
-| Wissen | Seiten, Revisionen, Vorlagen und Objektverweise | Seiten lesen/speichern; Fachobjekte referenzieren |
-| Materialien | Metadaten, Dateiversionen und Verknüpfungen | Upload-/Download-Autorisierung und Versionsreferenzen; Bytes im bestehenden S3-Backend |
-| Inbox | Fall, Eingangsnachricht, Zuständigkeit, Bearbeitungsstatus und Kontaktzuordnungsstatus | Fallbearbeitung; Task-/Materialverweise; Twenty über vorhandenen Adapter |
-| Surveys | Bestehende Survey-Definitionen, Antworten und Prozesse | Bestehende Use Cases erhalten und als Modul exponieren |
-| Bestehende Fachbereiche | Akquise, Bestellungen, Rechnungen, Lieferung behalten ihre Zustände | Nur benötigte Anwendungsoperationen veröffentlichen |
+| Modul                   | Eigentum                                                                               | Öffentliche Zusammenarbeit                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Aktionen                | Aktionsidentität, Lebenszyklus und aktionsbezogene Zuordnungen                         | Kontext und erlaubte Aktionsoperationen                                                |
+| Tasks                   | Listen, Epics, Tasks, persönliche Zuständigkeit, Fälligkeit, Zurückstellung            | Erstellen, lesen, zuweisen, erledigen und zurückstellen                                |
+| Wissen                  | Seiten, Revisionen, Vorlagen und Objektverweise                                        | Seiten lesen/speichern; Fachobjekte referenzieren                                      |
+| Materialien             | Metadaten, Dateiversionen und Verknüpfungen                                            | Upload-/Download-Autorisierung und Versionsreferenzen; Bytes im bestehenden S3-Backend |
+| Inbox                   | Fall, Eingangsnachricht, Zuständigkeit, Bearbeitungsstatus und Kontaktzuordnungsstatus | Fallbearbeitung; Task-/Materialverweise; Twenty über vorhandenen Adapter               |
+| Surveys                 | Bestehende Survey-Definitionen, Antworten und Prozesse                                 | Bestehende Use Cases erhalten und als Modul exponieren                                 |
+| Bestehende Fachbereiche | Akquise, Bestellungen, Rechnungen, Lieferung behalten ihre Zustände                    | Nur benötigte Anwendungsoperationen veröffentlichen                                    |
 
 Gemeinsame Identitätsverträge, Berechtigungsmechanismen, Audit-Infrastruktur, Datenbankverbindung und technische Adapter gehören zur Plattform. Fachliche Berechtigungsregeln und Audit-Anlässe bleiben beim jeweiligen Modul. Twenty bleibt Quelle für Personen/Organisationen. Öffentliche Darstellung erhält ausdrücklich veröffentlichbare Core-Daten; redaktionelle Inhalte bleiben im bestehenden CMS-Pfad. „LeonAid Core“ bezeichnet weiterhin das gesamte Backend, nicht einen neuen Sammelordner für Fachlogik.
 
@@ -203,14 +203,14 @@ Jobs liefern mindestens At-least-once-Verarbeitung. Claim-Fencing schützt den Q
 
 ### 6.2 Nur Nebenwirkungen einplanen
 
-| Bedarf | Umsetzung |
-| --- | --- |
-| Task wieder sichtbar nach Zurückstellung | Abfrage mit Serverzeit; Fälligkeit bleibt unabhängig |
-| Pin läuft ab | Abfrage mit Ablaufzeit; Inhalt bleibt gespeichert |
-| Gezielte Erinnerung | Dauerhafter Job, vor Ausführung aktuellen Zustand prüfen |
-| Twenty-Zuordnung | Dauerhafter Auftrag mit Wiederholung und sichtbarem Fehlerstatus |
-| Rendering | Auftrag bei relevanter Änderung, über Objekt/Revision dedupliziert |
-| Fristen/Aufbewahrung | Bestehenden fachlichen Sweep erhalten, später explizit registrieren |
+| Bedarf                                   | Umsetzung                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Task wieder sichtbar nach Zurückstellung | Abfrage mit Serverzeit; Fälligkeit bleibt unabhängig                |
+| Pin läuft ab                             | Abfrage mit Ablaufzeit; Inhalt bleibt gespeichert                   |
+| Gezielte Erinnerung                      | Dauerhafter Job, vor Ausführung aktuellen Zustand prüfen            |
+| Twenty-Zuordnung                         | Dauerhafter Auftrag mit Wiederholung und sichtbarem Fehlerstatus    |
+| Rendering                                | Auftrag bei relevanter Änderung, über Objekt/Revision dedupliziert  |
+| Fristen/Aufbewahrung                     | Bestehenden fachlichen Sweep erhalten, später explizit registrieren |
 
 Erinnerungen zu inzwischen erledigten/geänderten Objekten enden ohne Nebenwirkung. Es braucht dafür zunächst keinen generischen Cancel-Workflow. UTC für gespeicherte Zeitpunkte; lokale Tages-/Uhrzeitregeln werden vor Speicherung anhand einer expliziten IANA-Zeitzone aufgelöst.
 
@@ -343,6 +343,7 @@ Diese Etappe ist ein nutzbarer technischer Schnitt, keine vollständige Wissensp
   - [x] Task-Verweise im Fall über bestehende Task-Fachoperationen ergänzen/entfernen und aktuell auflösen. Echte PostgreSQL-/HTTP-Verträge prüfen unabhängige Rechte, Statusänderung, Rechteentzug beim Replay, Revisionskonflikt, atomaren Rollback und 100-Verweise-Grenze. Unzugängliche Tasks bleiben inhaltslose Verweise; Materialverweise und UI folgen separat.
   - [x] Materialverweise mit exakter Dateiversion über bestehende Material-Fachoperationen ergänzen/entfernen und autorisiert auflösen. Echter PostgreSQL-/RustFS-/HTTP-Vertrag prüft geteilte Datei, erhaltene Version nach neuem Upload, unabhängige Rechte, Replay/Entzug, Rollback und Grenze mit 101 tatsächlichen Dateiversionen. Bestehende Material-HTTP- und Wissensverträge ebenfalls bestanden; UI folgt separat.
 - [x] Interne Inbox-HTTP-Routen über Bootstrap und Produktions-Lifespan registrieren; OpenAPI und TypeScript-Client generieren. Echter PostgreSQL-/FastAPI-Vertrag für Sitzung, CSRF, Rechteentzug, strikte Eingaben und Revisionskonflikte bestanden. Öffentliche Einreichung und UI folgen separat.
+- [x] Aktuelle fallbezogene Verwaltungsrechte für die gemeinsame Inbox-Oberfläche über Fachoperation, HTTP und Client auskunftsfähig machen. Dieselbe SQL-Regel wie Zuständigkeits- und Kontaktverwaltung; echte PostgreSQL-/HTTP-Prüfung für Admin, Aktionsverwaltung, zugewiesene Bearbeitende, fremde Fälle und Rechteentzug bestanden.
 - [ ] Case-Bearbeitung in Web und PWA, öffentliche Einreichung über vorhandene Public-/Campaign-Surfaces integrieren. Alias-/kanonische Routen bei Nutzung separat prüfen.
   - [x] Fallbezogene Zuständigkeitsauswahl als direkte Fachoperation und HTTP-Route mit generiertem Client bereitstellen. Gemeinsame Regel für Suche und Zuweisung; echtes PostgreSQL prüft Pagination, aktive Konten, aktuelle Aktionsrechte und Verwaltungsentzug. Produktions-HTTP-Vertrag einschließlich Sitzung, fremdem Fall und Eingabegrenzen bestanden; UI folgt separat.
 
@@ -350,16 +351,16 @@ Abnahme: Bei abgeschaltetem Twenty wird genau ein Fall bestätigt und bleibt bea
 
 ## 8. Prüfgates und Nachweise
 
-| Gate | Erforderlicher Nachweis |
-| --- | --- |
-| Architektur | Rekursive Importprüfung, keine neuen Zyklen oder fremden Schreibzugriffe; Review ergänzt die Grenzen statischer Importtests |
-| API | Bestehende Contract-Gates; direkte Modulaufrufe und HTTP haben gleiche erlaubte/verbotene Ergebnisse; Replay nach Rechteentzug verweigert |
-| Daten | Migration mit Altbestand; atomarer Rollback zusammengesetzter Operationen; keine doppelten Zustände |
-| Jobs | Echtes PostgreSQL: zwei Worker, Claim-Verlust, Absturz vor/nach Commit, Retry und Dead Letter; externe Nebenwirkung mit unklarem Ausgang |
-| Zeit | Kontrollierbare Uhr für Fälligkeiten; Neustart/Nachholen, konkurrierende Scheduler; UTC und erforderliche lokale Zeitgrenzen |
-| Oberflächen | Pro betroffener Surface tatsächlicher Browserablauf; Direktlink, fehlende Rechte, mobile Bedienung, Lade-/Fehlerzustände |
-| Bestand | Passende vorhandene Survey-/Order-/Invoice-/Delivery-Prüfungen für berührte Pfade; vollständige erforderliche CI-Gates |
-| Betrieb | Gleiche Compose-Topologie, kompatible Health-/Operations-Anzeige, begrenzte Laufzeiten und vorhandene Backup-Pfade |
+| Gate        | Erforderlicher Nachweis                                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Architektur | Rekursive Importprüfung, keine neuen Zyklen oder fremden Schreibzugriffe; Review ergänzt die Grenzen statischer Importtests               |
+| API         | Bestehende Contract-Gates; direkte Modulaufrufe und HTTP haben gleiche erlaubte/verbotene Ergebnisse; Replay nach Rechteentzug verweigert |
+| Daten       | Migration mit Altbestand; atomarer Rollback zusammengesetzter Operationen; keine doppelten Zustände                                       |
+| Jobs        | Echtes PostgreSQL: zwei Worker, Claim-Verlust, Absturz vor/nach Commit, Retry und Dead Letter; externe Nebenwirkung mit unklarem Ausgang  |
+| Zeit        | Kontrollierbare Uhr für Fälligkeiten; Neustart/Nachholen, konkurrierende Scheduler; UTC und erforderliche lokale Zeitgrenzen              |
+| Oberflächen | Pro betroffener Surface tatsächlicher Browserablauf; Direktlink, fehlende Rechte, mobile Bedienung, Lade-/Fehlerzustände                  |
+| Bestand     | Passende vorhandene Survey-/Order-/Invoice-/Delivery-Prüfungen für berührte Pfade; vollständige erforderliche CI-Gates                    |
+| Betrieb     | Gleiche Compose-Topologie, kompatible Health-/Operations-Anzeige, begrenzte Laufzeiten und vorhandene Backup-Pfade                        |
 
 Vorhandene Testwerkzeuge und Runner verwenden; keine zusätzliche Testplattform. LIVE-Nachweise verwenden synthetische Daten und isolierte Compose-Projekte. Jeder fertiggestellte Schnitt dokumentiert Commit, Befehle, Ergebnis und verbleibende Grenze in einer erst dann angelegten `PROGRESS.md`. Keine grünen Abnahmehäkchen allein aufgrund von Unit-Tests oder einem erfolgreichen Build.
 

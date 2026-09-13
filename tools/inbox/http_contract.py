@@ -90,6 +90,15 @@ async def main() -> None:
                 assert (await client.get(root)).status_code == 401
                 assert (await client.get(path, headers=outsider)).status_code == 404
                 assert (await client.get(root, headers=outsider)).json()["items"] == []
+                permissions_path = path + "/permissions"
+                assert (await client.get(permissions_path)).status_code == 401
+                assert (
+                    await client.get(permissions_path, headers=outsider)
+                ).status_code == 404
+                permissions = await client.get(permissions_path, headers=headers)
+                assert permissions.status_code == 200, permissions.text
+                assert permissions.json() == {"canManage": True}
+                assert permissions.headers["cache-control"] == "no-store"
                 contact_path = path + "/contact-candidates"
                 confirm_path = path + "/contact-confirmation"
                 confirmation = {
