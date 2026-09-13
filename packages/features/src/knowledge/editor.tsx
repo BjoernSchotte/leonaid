@@ -14,6 +14,7 @@ import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import "./knowledge.css";
+import { TaskFromPage } from "./task-from-page";
 import { AccessMembersPanel } from "../shared/access-members";
 
 type Page = Awaited<ReturnType<LeonAidApiClient["getKnowledgePage"]>>;
@@ -71,6 +72,7 @@ function taskReference(client: LeonAidApiClient, basePath: string) {
 
 export function KnowledgeEditorPage({
   client,
+  identity,
   pageId,
   basePath,
 }: ModulePageContext & { pageId: string; basePath: string }) {
@@ -119,6 +121,7 @@ export function KnowledgeEditorPage({
           key={`${pageId}:${generation}`}
           client={client}
           page={page.data}
+          userId={identity.userId}
           canEdit={rights.data.canEdit && !page.error && !rights.error}
           canManage={rights.data.canManage && !page.error && !rights.error}
           basePath={basePath}
@@ -135,6 +138,7 @@ export function KnowledgeEditorPage({
 
 function PageEditor({
   client,
+  userId,
   page,
   canEdit,
   canManage,
@@ -143,6 +147,7 @@ function PageEditor({
 }: {
   client: LeonAidApiClient;
   page: Page;
+  userId: string;
   canEdit: boolean;
   canManage: boolean;
   basePath: string;
@@ -151,6 +156,8 @@ function PageEditor({
   const [title, setTitle] = useState(page.title);
   const [savedTitle, setSavedTitle] = useState(page.title);
   const [revision, setRevision] = useState(page.revision);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const taskTrigger = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
   const [invalid, setInvalid] = useState(false);
@@ -218,17 +225,20 @@ function PageEditor({
     },
   });
   useEffect(() => {
-    editor?.setEditable(canEdit && !save.isPending && !invalid, false);
-  }, [editor, canEdit, save.isPending, invalid]);
+    editor?.setEditable(
+      canEdit && !save.isPending && !invalid && !taskOpen,
+      false,
+    );
+  }, [editor, canEdit, save.isPending, invalid, taskOpen]);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !taskOpen) return;
     const prevent = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", prevent);
     return () => window.removeEventListener("beforeunload", prevent);
-  }, [dirty]);
+  }, [dirty, taskOpen]);
   return (
     <>
       <header>
@@ -253,7 +263,7 @@ function PageEditor({
             maxLength={240}
             required
             value={title}
-            disabled={save.isPending}
+            disabled={save.isPending || taskOpen}
             onChange={(event) => {
               setTitle(event.target.value);
               changed();
@@ -277,7 +287,7 @@ function PageEditor({
         >
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             aria-pressed={state?.bold}
             onClick={() => editor?.chain().focus().toggleBold().run()}
           >
@@ -285,7 +295,7 @@ function PageEditor({
           </Button>
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             aria-pressed={state?.italic}
             onClick={() => editor?.chain().focus().toggleItalic().run()}
           >
@@ -293,7 +303,7 @@ function PageEditor({
           </Button>
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             aria-pressed={state?.heading}
             onClick={() =>
               editor?.chain().focus().toggleHeading({ level: 2 }).run()
@@ -303,7 +313,7 @@ function PageEditor({
           </Button>
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             aria-pressed={state?.bullet}
             onClick={() => editor?.chain().focus().toggleBulletList().run()}
           >
@@ -311,14 +321,14 @@ function PageEditor({
           </Button>
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             onClick={() => editor?.chain().focus().undo().run()}
           >
             Rückgängig
           </Button>
           <Button
             variant="secondary"
-            disabled={!editor || save.isPending || invalid}
+            disabled={!editor || save.isPending || invalid || taskOpen}
             onClick={() => editor?.chain().focus().redo().run()}
           >
             Wiederholen
@@ -340,7 +350,12 @@ function PageEditor({
         <div className="knowledge-toolbar">
           <Button
             disabled={
-              !editor || !dirty || !title.trim() || save.isPending || invalid
+              !editor ||
+              !dirty ||
+              !title.trim() ||
+              save.isPending ||
+              invalid ||
+              taskOpen
             }
             onClick={() => save.mutate()}
           >
@@ -348,12 +363,58 @@ function PageEditor({
           </Button>
           <Button
             variant="secondary"
-            disabled={save.isPending}
+            disabled={save.isPending || taskOpen}
             onClick={() => void reload()}
           >
             Aktuelle Version laden
           </Button>
         </div>
+      )}
+      {canEdit && (
+        <>
+          <Button
+            variant="secondary"
+            disabled={!editor || dirty || save.isPending || invalid || taskOpen}
+            onClick={(event) => {
+              taskTrigger.current = event.currentTarget;
+              setTaskOpen(true);
+            }}
+          >
+            Aufgabe aus dieser Seite
+          </Button>
+          {dirty && (
+            <p>
+              Speichere deine Seitenänderungen, bevor du eine Aufgabe daraus
+              anlegst.
+            </p>
+          )}
+        </>
+      )}
+      {taskOpen && (
+        <TaskFromPage
+          client={client}
+          userId={userId}
+          onClose={() => {
+            setTaskOpen(false);
+            requestAnimationFrame(() => taskTrigger.current?.focus());
+          }}
+          createTask={async (listId, command) => {
+            const result = await client.createTaskFromKnowledgePage(page.id, {
+              ...command,
+              listId,
+              expectedRevision: revision,
+            });
+            editor!.commands.setContent(result.page.content, {
+              emitUpdate: false,
+            });
+            setRevision(result.page.revision);
+            setSavedTitle(result.page.title);
+            setTitle(result.page.title);
+            setDirty(false);
+            setSaved(true);
+            return result.task;
+          }}
+        />
       )}
     </>
   );

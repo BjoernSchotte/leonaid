@@ -24,12 +24,18 @@ export function TaskEditor({
   task,
   userId,
   onClose,
+  createTask,
+  conflictMessage,
 }: {
   client: LeonAidApiClient;
   listId: string;
   task?: Task;
   userId: string;
   onClose: () => void;
+  conflictMessage?: string;
+  createTask?: (
+    command: Parameters<LeonAidApiClient["createTask"]>[1],
+  ) => Promise<Task>;
 }) {
   const id = useId();
   const cache = useQueryClient();
@@ -70,7 +76,9 @@ export function TaskEditor({
             status,
             expectedRevision: task.revision,
           })
-        : client.createTask(listId, body);
+        : createTask
+          ? createTask(body)
+          : client.createTask(listId, body);
     },
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ["tasks"] });
@@ -97,7 +105,8 @@ export function TaskEditor({
         <StatusMessage tone="error">
           <p>
             {save.error instanceof ApiError && save.error.status === 409
-              ? "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Dein Entwurf bleibt erhalten. Schließe die Bearbeitung und lade die Aufgaben neu, bevor du deine Änderungen erneut übernimmst."
+              ? (conflictMessage ??
+                "Die Aufgabe wurde inzwischen geändert oder dieser Speicherversuch hat einen Konflikt. Dein Entwurf bleibt erhalten. Schließe die Bearbeitung und lade die Aufgaben neu, bevor du deine Änderungen erneut übernimmst.")
               : save.error instanceof ApiError &&
                   [403, 404].includes(save.error.status)
                 ? "Du darfst diese Aufgabe nicht bearbeiten oder hast keinen Zugriff mehr auf die Liste."

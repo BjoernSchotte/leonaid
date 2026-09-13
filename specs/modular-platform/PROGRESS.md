@@ -490,3 +490,14 @@ LIVE Chrome/HTTPS mit zwei echten Sitzungen und PostgreSQL: Eigentümer gewährt
 Features-/Web-/PWA-Typprüfungen, beide Produktionsbuilds, neun Registrierungstests, no-test-doubles und Diffprüfung bestanden. Bestehende Chunkwarnungen bleiben unverändert. Detektor ohne Treffer. Unabhängige UI-Prüfung: `ship` unter der inzwischen erfüllten Task-Regressionsbedingung; keine erforderlichen Korrekturen oder dauerhaften Designänderungen. Minor limitation: Während Rechteänderungen sind die Controls gesperrt, ohne separate Speichern-Statusansage. Mobile Tastatur-/Screenreader-Nutzung ist damit nicht vollständig abgenommen.
 
 Aktionsauswahl, Task-Anlage aus dem Editor, Materialien, vollständige Browser-Gates und übrige M2-/M3-Arbeit bleiben offen.
+
+
+## M2 — Task-Anlage aus dem gemeinsamen Wissenseditor
+
+„Aufgabe aus dieser Seite“ öffnet eine begrenzte Listenwahl und danach das bereits vorhandene Task-Formular mit Zuständigkeit, Epic, Fälligkeit und Zurückstellung. Ein konkreter Erstellungs-Callback verwendet den atomaren Wissensbefehl statt einer separaten Task-Anlage. Ungespeicherte Seitenänderungen müssen vorher gespeichert werden; während der Aufgabenanlage bleiben Seiteninhalt und Revision unverändert. Erfolg übernimmt die neue Seitenrevision und stabile Task-Referenz. Der Browser-Verlassensschutz berücksichtigt den offenen Aufgabenentwurf; ein Rechte-Refresh entfernt das offene Formular nicht. Schreibrechte werden weiterhin durch den tatsächlichen Befehl geprüft.
+
+LIVE Chrome mit Produktionsbuilds, FastAPI und frischem PostgreSQL-Schema: Web-Seite speichern → Liste wählen → Aufgabe einer Kollegin zuweisen → Kollegin erledigt in PWA „Für mich“ → ursprüngliche Seite zeigt denselben erledigten Task. Separater tatsächlicher konkurrierender Seiten-Schreibzugriff: HTTP 409, eingegebener Aufgabentitel bleibt erhalten, keine Aufgabe erzeugt, Abbrechen und bestätigtes Neuladen zeigen neue Seitenversion. Der Konflikthinweis erklärt hierfür ausdrücklich die Seitenaktualisierung und das vorherige Kopieren der Aufgabenangaben. Das bestehende vollständige Task-Mitglieder-/Zuweisungs-Browserszenario besteht weiterhin.
+
+Features-/Web-/PWA-Typprüfungen und beide Produktionsbuilds bestanden; bestehende Chunk-/Sourcemapwarnungen bleiben sichtbar. Mobile Axe ohne serious/critical und ohne horizontale Überbreite; Desktop-/Mobilaufnahmen durch unabhängige UI-Prüfung abgenommen. Deren konkrete Korrektur am Konflikthinweis ist umgesetzt und erneut freigegeben. Detektor ohne Treffer, no-test-doubles bestanden. Temporäre Browser-Harnesses ersetzen weiterhin nicht die ausstehende dauerhafte CI-Browserabnahme.
+
+Die Listenwahl zeigt lesbare Listen; fehlendes Schreibrecht wird beim autorisierten Aufruf abgewiesen. Aktionsauswahl für Wissen, Materialfunktionen, vollständige Browser-Gates und übrige M1-/M2-/M3-Abnahme bleiben offen.
