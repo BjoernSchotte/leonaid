@@ -290,3 +290,13 @@ Tasks bietet jetzt `create_epic`, `list_epics` und `update_epic` über dieselbe 
 Der erweiterte HTTP-Contract bestand mit vollständigem produktivem App-Lifespan und echtem PostgreSQL: Erstellung und Replay, Ablehnung von `parentId`, Umbenennen und Replay, 409 bei veralteter Revision, Suche nach geändertem Titel sowie unveränderte `epicId` am zugehörigen Task. Die bisherigen direkten Task-, Sitzungs-, CSRF-, Validierungs- und Revisionsprüfungen bestanden ebenfalls. Eigene Testdaten und Container samt Volume entfernt.
 
 406 Unit-Tests, Python-/Client-Typprüfung, Ruff, No-test-doubles und Frontend-Client-Grenze bestanden. Bestehende OpenAPI-Pfade und Schemas sind strukturell unverändert. Mitgliedschaftsverwaltung, Aktionsmatrix und Task-/Epic-Oberfläche bleiben offen; M2 ist nicht insgesamt abgenommen.
+
+### M2: explizite Listenrechte verwalten
+
+`set_list_member` und `list_members` ergänzen Fach-API, FastAPI und Client. Nur der weiterhin zugriffsberechtigte Eigentümer bzw. die aktuelle Aktionsverwaltung verwaltet die expliziten Rechte. Leser/Bearbeiter können sich nicht selbst hochstufen. Setzen auf viewer/editor erfordert ein aktives Zielkonto und bei Aktionslisten dessen aktuellen Aktionszugriff. Entfernen ist auch bei inzwischen inaktivem Zielkonto möglich. Der Eigentümer kann über diesen Pfad nicht entfernt oder herabgestuft werden. Aktionsrollen bestehen daneben weiter; Entfernen einer expliziten Listenzuweisung widerruft keine Aktionsmitgliedschaft.
+
+Rechteänderungen sperren die Listenzeile vor dem Lesen, verlangen die erwartete Listenrevision und erhöhen diese atomar mit Audit und Receipt. Der Audit-Eintrag enthält nur Zielkonto-ID und Zugriffswert, keine Namen oder Kontaktangaben. Der bestehende `_finish`-Pfad wird wiederverwendet. Die begrenzte Mitgliederabfrage liefert der Verwaltung Namen, explizite Rolle und Aktivstatus; sie ist kein globales Personenverzeichnis.
+
+Der direkte PostgreSQL-Contract verwendet nun echte Fachoperationen statt SQL zur Rechtevergabe/-entfernung. Bestanden: Eigentümerschutz, paralleles Replay ohne doppelte Änderung, Lesen als viewer aber kein Schreiben, verweigerte Selbstbeförderung, veraltete Revision, Promotion zum editor, Schreiben, Rechteentzug und verweigertes Task-Replay danach. Exakt sieben Audit-/Receipt-Einträge für sieben erfolgreiche Fachänderungen. HTTP prüft zusätzlich die Mitgliederantwort und 409 beim versuchten Entfernen des Eigentümers; die bisherigen Task-/Epic-Contracts bestanden. Eigene Datenbank samt Volume entfernt.
+
+406 Unit-Tests, Python-/Client-Typprüfung, Ruff und No-test-doubles bestanden. Bestehende OpenAPI-Pfade/-Schemas unverändert. Die vollständige Aktionsmatrix und die Bedienoberfläche bleiben offen.

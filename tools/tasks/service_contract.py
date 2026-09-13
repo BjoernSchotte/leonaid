@@ -11,12 +11,15 @@ from pydantic import ValidationError
 
 from leonaid.application.errors import (
     ApplicationError,
+    PermissionDenied,
     AuthenticationRequired,
     Conflict,
     ResourceNotFound,
 )
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
 from leonaid.modules.tasks.api import (
+    SetListMember,
+    SearchPage,
     ListQuery,
     TaskQuery,
     CreateList,
@@ -157,12 +160,63 @@ async def main() -> None:
             pass
         else:
             raise AssertionError("Mutated input accepted")
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO task_list_member VALUES ($1,$2,'editor')",
-                first.id,
-                reader_id,
+        protected = SetListMember(
+            idempotency_key=uuid4(), expected_revision=1, user_id=owner_id, access=None
+        )
+        try:
+            await service.set_list_member(owner, first.id, protected)
+        except Conflict as error:
+            assert error.code == "list_owner_protected"
+        else:
+            raise AssertionError("Owner access could be removed")
+        grant = SetListMember(
+            idempotency_key=uuid4(),
+            expected_revision=1,
+            user_id=reader_id,
+            access="viewer",
+        )
+        granted, replayed_grant = await asyncio.gather(
+            service.set_list_member(owner, first.id, grant),
+            service.set_list_member(owner, first.id, grant),
+        )
+        assert granted == replayed_grant and granted.revision == 2
+        assert (await service.get_list(reader, first.id)).id == first.id
+        members = await service.list_members(owner, first.id, SearchPage())
+        assert (
+            members.revision == 2
+            and members.items[0].user_id == reader_id
+            and members.items[0].access == "viewer"
+        )
+        try:
+            await service.create_task(
+                reader, first.id, CreateTask(idempotency_key=uuid4(), title="Forbidden")
             )
+        except ResourceNotFound:
+            pass
+        else:
+            raise AssertionError("Viewer could write")
+        promotion = SetListMember(
+            idempotency_key=uuid4(),
+            expected_revision=2,
+            user_id=reader_id,
+            access="editor",
+        )
+        try:
+            await service.set_list_member(reader, first.id, promotion)
+        except PermissionDenied:
+            pass
+        else:
+            raise AssertionError("Member could promote itself")
+        try:
+            await service.set_list_member(
+                owner, first.id, promotion.model_copy(update={"expected_revision": 1})
+            )
+        except Conflict as error:
+            assert error.code == "revision_conflict"
+        else:
+            raise AssertionError("Stale rights update accepted")
+        promoted = await service.set_list_member(owner, first.id, promotion)
+        assert promoted.revision == 3
         reader_command = CreateTask(idempotency_key=uuid4(), title="Shared task")
         shared = await service.create_task(reader, first.id, reader_command)
         assert await service.get_task(reader, shared.id) == shared
@@ -185,12 +239,17 @@ async def main() -> None:
                 owner, TaskQuery(for_me=True, status="open", include_deferred=True)
             )
         ).items
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "DELETE FROM task_list_member WHERE list_id=$1 AND user_id=$2",
-                first.id,
-                reader_id,
-            )
+        revoked = await service.set_list_member(
+            owner,
+            first.id,
+            SetListMember(
+                idempotency_key=uuid4(),
+                expected_revision=3,
+                user_id=reader_id,
+                access=None,
+            ),
+        )
+        assert revoked.revision == 4
         assert not (
             await service.list_tasks(reader, TaskQuery(include_deferred=True))
         ).items
@@ -223,7 +282,7 @@ async def main() -> None:
                     "SELECT count(*) FROM audit_event WHERE actor_user_id=ANY($1::uuid[]) AND event_type LIKE 'tasks.%'",
                     [owner_id, reader_id],
                 )
-                == 4
+                == 7
             )
             assert (
                 await conn.fetchval(
@@ -231,7 +290,7 @@ async def main() -> None:
                     f"tasks:{owner_id}:%",
                     f"tasks:{reader_id}:%",
                 )
-                == 4
+                == 7
             )
         print(
             "PASS: direct operations, concurrent replay, conflict rollback, revisions, current permissions, suspension, authorized search, pagination and database-time deferral"

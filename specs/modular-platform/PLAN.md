@@ -284,6 +284,7 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 - [ ] Wissen: Titel, Tiptap-Inhalt, Revision, stabile Task-/Materialreferenzen. Revisionskonflikt statt unbemerktem Überschreiben; kein Yjs-Dienst.
 - [ ] Materialien: vorhandenen S3-Zugriff und geeignete bestehende Dokumentfunktionen wiederverwenden; explizite Metadaten-/Versionsverantwortung klären. Keine zweite Dateiablage.
 - [ ] Gemeinsamer Aktionskontext sowie eigenständige Listen/Seiten mit explizitem berechtigtem Personenkreis. Verlinkung oder Erwähnung erweitert keine Rechte.
+  - [x] Explizite Task-Listenrechte über direkte API, HTTP und Client verwalten: viewer/editor hinzufügen/ändern/entfernen, Eigentümer schützen, Revision und Replay prüfen. Standalone-Rechtematrix mit PostgreSQL bestanden. Vollständige Aktionsmatrix, weitere Module und UI bleiben offen.
 - [ ] Atomaren „Task aus Seite“-Use-Case einschließlich Wiederholung und Revisionskonflikt implementieren.
 - [ ] „Für mich“ als Abfrage derselben Tasks; begrenzte Suche über die tatsächlich vorhandenen Objekte. Kein separater Taskbestand im Editor oder Dashboard.
   - [x] Direkte Task-/Listenabfragen mit gemeinsamer Leseregel, begrenzter Pagination, Titelsuche, Status-/Zuständigkeitsfilter und datenbankzeitabhängiger Zurückstellung implementieren. Reale Rechte-/Such-/Pagination-Nachweise bestanden. HTTP/UI und modulübergreifende Suche bleiben offen.

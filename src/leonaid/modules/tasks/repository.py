@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -18,6 +19,9 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.tasks.api import (
+    SetListMember,
+    ListMember,
+    ListMembers,
     CreateEpic,
     UpdateEpic,
     Epic,
@@ -175,7 +179,12 @@ class AsyncpgTaskRepository:
         actor: UUID,
         context: UUID,
         operation: str,
-        command: CreateList | CreateTask | UpdateTask | CreateEpic | UpdateEpic,
+        command: CreateList
+        | CreateTask
+        | UpdateTask
+        | CreateEpic
+        | UpdateEpic
+        | SetListMember,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -198,11 +207,12 @@ class AsyncpgTaskRepository:
         actor: UUID,
         action_id: UUID | None,
         result: Task | TaskList | Epic,
+        details: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
             """
             INSERT INTO audit_event (id,action_id,actor_user_id,event_type,entity_type,entity_id,request_id,payload)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,'{}'::jsonb)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
         """,
             uuid4(),
             action_id,
@@ -215,6 +225,7 @@ class AsyncpgTaskRepository:
             else "task",
             result.id,
             key,
+            json.dumps(details or {}),
         )
         await AsyncpgCommandReceiptRepository(conn).complete(
             idempotency_key=key, result={"document": result.model_dump_json()}
@@ -474,6 +485,114 @@ class AsyncpgTaskRepository:
             )
             return Epics(
                 items=[Epic.model_validate(dict(row)) for row in rows[: query.limit]],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def _manage_list(
+        self, conn: asyncpg.Connection[Any], user_id: UUID, list_id: UUID
+    ) -> TaskList:
+        listing = await self._list(conn, user_id, list_id, write=False)
+        if listing.owner_user_id != user_id and not (
+            listing.action_id is not None
+            and await self._action_access(conn, user_id, listing.action_id, write=True)
+        ):
+            raise PermissionDenied(
+                "permission_denied",
+                "Nur die Listen- oder Aktionsverwaltung darf Zugriffsrechte verwalten.",
+            )
+        return listing
+
+    async def set_list_member(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
+    ) -> TaskList:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            # Lock before the read-policy check to avoid upgrading concurrent shared locks.
+            await conn.fetchval(
+                "SELECT id FROM task_list WHERE id=$1 FOR UPDATE", list_id
+            )
+            listing = await self._manage_list(conn, actor.account.id, list_id)
+            key, replay = await self._receipt(
+                conn, actor.account.id, list_id, "tasks.list.member.changed", command
+            )
+            if replay:
+                return TaskList.model_validate_json(replay["document"])
+            if listing.revision != command.expected_revision:
+                raise Conflict(
+                    "revision_conflict", "Listenrechte wurden inzwischen geändert."
+                )
+            if command.user_id == listing.owner_user_id:
+                raise Conflict(
+                    "list_owner_protected",
+                    "Der Eigentümer behält den Zugriff auf die Liste.",
+                )
+            if command.access is not None:
+                if not await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM user_account WHERE id=$1 AND status='active')",
+                    command.user_id,
+                ):
+                    raise Conflict(
+                        "list_member_invalid", "Dieses Konto ist nicht verfügbar."
+                    )
+                if listing.action_id is not None and not await self._action_access(
+                    conn, command.user_id, listing.action_id, write=False
+                ):
+                    raise Conflict(
+                        "list_member_invalid", "Aktionszugriff erforderlich."
+                    )
+                await conn.execute(
+                    "INSERT INTO task_list_member (list_id,user_id,access) VALUES ($1,$2,$3) ON CONFLICT (list_id,user_id) DO UPDATE SET access=EXCLUDED.access",
+                    list_id,
+                    command.user_id,
+                    command.access,
+                )
+            else:
+                await conn.execute(
+                    "DELETE FROM task_list_member WHERE list_id=$1 AND user_id=$2",
+                    list_id,
+                    command.user_id,
+                )
+            row = await conn.fetchrow(
+                "UPDATE task_list SET revision=revision+1,updated_at=now() WHERE id=$1 RETURNING id,title,action_id,owner_user_id,revision",
+                list_id,
+            )
+            assert row is not None
+            result = TaskList.model_validate(dict(row))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.list.member.changed",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+                details={
+                    "userId": str(command.user_id),
+                    "access": command.access or "removed",
+                },
+            )
+            return result
+
+    async def list_members(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> ListMembers:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            listing = await self._manage_list(conn, actor.account.id, list_id)
+            rows = await conn.fetch(
+                "SELECT m.user_id,u.display_name,m.access,(u.status='active') AS active FROM task_list_member m JOIN user_account u ON u.id=m.user_id WHERE m.list_id=$1 AND strpos(lower(u.display_name),lower($2))>0 ORDER BY m.user_id LIMIT $3 OFFSET $4",
+                list_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return ListMembers(
+                items=[
+                    ListMember.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                owner_user_id=listing.owner_user_id,
+                revision=listing.revision,
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,

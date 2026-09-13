@@ -98,6 +98,24 @@ async def main() -> None:
                 assert (await client.get("/api/v1/task-lists", headers=headers)).json()[
                     "items"
                 ] == [listing]
+                member_path = f"/api/v1/task-lists/{listing['id']}/members"
+                members = await client.get(member_path, headers=headers)
+                assert members.status_code == 200 and members.json()["items"] == []
+                assert members.json()["ownerUserId"] == str(user_id)
+                protection = await client.put(
+                    member_path,
+                    headers=headers,
+                    json={
+                        "idempotencyKey": str(uuid4()),
+                        "expectedRevision": 1,
+                        "userId": str(user_id),
+                        "access": None,
+                    },
+                )
+                assert (
+                    protection.status_code == 409
+                    and protection.json()["error"]["code"] == "list_owner_protected"
+                )
                 epic_path = f"/api/v1/task-lists/{listing['id']}/epics"
                 epic_command = {"idempotencyKey": str(uuid4()), "title": "Preparation"}
                 epic_response = await client.post(

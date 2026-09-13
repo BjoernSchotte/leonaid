@@ -6854,6 +6854,80 @@
         "title": "LegalRetentionResponse",
         "type": "object"
       },
+      "ListMember": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "enum": [
+              "viewer",
+              "editor"
+            ],
+            "title": "Access",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "access",
+          "active"
+        ],
+        "title": "ListMember",
+        "type": "object"
+      },
+      "ListMembers": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ListMember"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "nextOffset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextoffset"
+          },
+          "ownerUserId": {
+            "format": "uuid",
+            "title": "Owneruserid",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "ownerUserId",
+          "revision",
+          "nextOffset"
+        ],
+        "title": "ListMembers",
+        "type": "object"
+      },
       "LoginDispatchResponse": {
         "additionalProperties": false,
         "properties": {
@@ -10569,6 +10643,49 @@
           "revision"
         ],
         "title": "SetActionPublicationRequest",
+        "type": "object"
+      },
+      "SetListMember": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "enum": [
+                  "viewer",
+                  "editor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access"
+          },
+          "expectedRevision": {
+            "minimum": 1.0,
+            "title": "Expectedrevision",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "expectedRevision",
+          "userId",
+          "access"
+        ],
+        "title": "SetListMember",
         "type": "object"
       },
       "SetResponsibleAdministratorsRequest": {
@@ -28415,6 +28532,255 @@
           }
         },
         "summary": "Create Epic",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/task-lists/{list_id}/members": {
+      "get": {
+        "operationId": "listTaskListMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "list_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "List Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 5000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMembers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "put": {
+        "operationId": "setTaskListMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "list_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "List Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetListMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Set List Member",
         "tags": [
           "tasks"
         ]

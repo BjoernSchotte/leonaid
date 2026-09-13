@@ -149,6 +149,8 @@ export type LegalIssuerRequest = { readonly city: string; readonly countryCode?:
 export type LegalIssuerResponse = { readonly city: string; readonly countryCode: string; readonly email: string; readonly legalName: string; readonly postalCode: string; readonly streetLine1: string; readonly taxIdentifier: string; };
 export type LegalRetentionRequest = { readonly auditDays: number; readonly commitmentDays: number; readonly consentEvidenceDays: number; readonly contactDays: number; readonly invoiceDays: number; };
 export type LegalRetentionResponse = { readonly auditDays: number; readonly commitmentDays: number; readonly consentEvidenceDays: number; readonly contactDays: number; readonly invoiceDays: number; };
+export type ListMember = { readonly access: "viewer" | "editor"; readonly active: boolean; readonly displayName: string; readonly userId: string; };
+export type ListMembers = { readonly items: Array<ListMember>; readonly nextOffset: number | null; readonly ownerUserId: string; readonly revision: number; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
 export type MatrixRowAggregate = { readonly answered: number; readonly counts: Array<AggregateCount>; readonly invalid: number; readonly label: string; readonly rowId: string; readonly unanswered: number; };
@@ -222,6 +224,7 @@ export type SetActionBeneficiariesRequest = { readonly beneficiaries: Array<Bene
 export type SetActionCapabilitiesRequest = { readonly capabilities: Array<"acquisition" | "offerings" | "ordering" | "invoicing">; readonly revision: number; };
 export type SetActionGoalRequest = { readonly actualValue?: string; readonly currency?: string | null; readonly goalValue?: string | null; readonly revision: number; readonly unit?: string | null; };
 export type SetActionPublicationRequest = { readonly publicAlias?: string | null; readonly publicationEndsAt?: string | null; readonly publicationStartsAt?: string | null; readonly revision: number; };
+export type SetListMember = { readonly access: "viewer" | "editor" | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
 export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
 export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
@@ -2469,6 +2472,46 @@ export class LeonAidApiClient {
       `/api/v1/task-lists/${encodeURIComponent(String(listId))}/epics`,
       {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async listTaskListMembers(
+    listId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<ListMembers> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/task-lists/${encodeURIComponent(String(listId))}/members` + (queryString ? `?${queryString}` : "");
+    return this.request<ListMembers>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setTaskListMember(
+    listId: string,
+    body: SetListMember,
+    options: RequestOptions = {},
+  ): Promise<TaskList> {
+    return this.request<TaskList>(
+      `/api/v1/task-lists/${encodeURIComponent(String(listId))}/members`,
+      {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

@@ -32,6 +32,7 @@ class TaskModel(TransportModel):
         "list_id",
         "epic_id",
         "owner_user_id",
+        "user_id",
         "assignee_user_id",
         "created_by",
         mode="before",
@@ -150,7 +151,34 @@ class Epics(TaskModel):
     next_offset: int | None
 
 
+class SetListMember(TaskModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    user_id: UUID
+    access: Literal["viewer", "editor"] | None
+
+
+class ListMember(TaskModel):
+    user_id: UUID
+    display_name: str
+    access: Literal["viewer", "editor"]
+    active: bool
+
+
+class ListMembers(TaskModel):
+    items: list[ListMember]
+    owner_user_id: UUID
+    revision: int
+    next_offset: int | None
+
+
 class TaskRepository(Protocol):
+    async def set_list_member(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
+    ) -> TaskList: ...
+    async def list_members(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> ListMembers: ...
     async def create_epic(
         self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
     ) -> Epic: ...
@@ -180,6 +208,20 @@ class TaskRepository(Protocol):
 class TaskService:
     def __init__(self, repository: TaskRepository) -> None:
         self._repository = repository
+
+    async def set_list_member(
+        self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
+    ) -> TaskList:
+        return await self._repository.set_list_member(
+            actor, list_id, SetListMember.model_validate(command)
+        )
+
+    async def list_members(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> ListMembers:
+        return await self._repository.list_members(
+            actor, list_id, SearchPage.model_validate(query)
+        )
 
     async def create_epic(
         self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
@@ -237,6 +279,9 @@ class TaskService:
 
 
 __all__ = [
+    "SetListMember",
+    "ListMember",
+    "ListMembers",
     "CreateEpic",
     "UpdateEpic",
     "Epic",

@@ -8,6 +8,8 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.tasks.api import (
+    SetListMember,
+    ListMembers,
     CreateEpic,
     UpdateEpic,
     Epic,
@@ -162,6 +164,39 @@ async def list_epics(
     limit: int = Query(default=50, ge=1, le=100),
 ) -> Epics:
     return await service(request).list_epics(
+        await actor(request, response),
+        list_id,
+        SearchPage(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.put(
+    "/task-lists/{list_id}/members",
+    operation_id="setTaskListMember",
+    response_model=TaskList,
+)
+async def set_list_member(
+    request: Request, response: Response, list_id: UUID, body: SetListMember
+) -> TaskList:
+    return await service(request).set_list_member(
+        await actor(request, response), list_id, body
+    )
+
+
+@router.get(
+    "/task-lists/{list_id}/members",
+    operation_id="listTaskListMembers",
+    response_model=ListMembers,
+)
+async def list_members(
+    request: Request,
+    response: Response,
+    list_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> ListMembers:
+    return await service(request).list_members(
         await actor(request, response),
         list_id,
         SearchPage(search=search, offset=offset, limit=limit),
