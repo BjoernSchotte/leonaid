@@ -258,6 +258,8 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 - [x] UUIDs mit numerischem Ende vor der Telefonprüfung in öffentlichen CI-Logs redigieren; reale Schema-/Outbox-Ausgabe und unveränderte PII-Sperren geprüft.
 
+- [x] Strikten Identitätsvertrag um den registrierten PWA-Survey-Zugang ergänzen; vollständiger HTTP-/Rollenvertrag und alle zehn Browserfälle einschließlich Anna-Akquise bestanden.
+
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
 - [x] Export-Render-Abnahme bestätigen: aktuelle Renderer-Fixtures erneut erzeugt, 20 PDF-Seiten vollständig visuell geprüft; vier XLSX-Dateien und zugehörige bereits geprüfte Consumer-PDFs bytegenau bestätigt. Hash-Ledger unter proofs/export-render-review.json.

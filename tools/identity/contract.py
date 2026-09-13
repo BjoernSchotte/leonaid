@@ -27,7 +27,7 @@ from leonaid.domain.identity import (
     GlobalRole,
 )
 
-WORK_MODULES = {"tasks", "knowledge", "materials", "inbox"}
+WORK_MODULES = {"surveys", "tasks", "knowledge", "materials", "inbox"}
 
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
@@ -878,7 +878,7 @@ async def run(arguments: argparse.Namespace) -> None:
                     "commitment",
                 }
                 | WORK_MODULES
-                or navigation_keys(anna_payload, "web") != {"surveys"} | WORK_MODULES
+                or navigation_keys(anna_payload, "web") != WORK_MODULES
             ):
                 raise ContractFailure("Akquisiteur-Navigation enthält falsche Bereiche")
 
