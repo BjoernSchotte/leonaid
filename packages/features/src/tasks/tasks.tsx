@@ -5,6 +5,10 @@ import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import { ListMembersPanel } from "./list-members";
 import { TaskEditor, type Task } from "./task-editor";
+import {
+  ActionContextSearch,
+  useActionContexts,
+} from "../shared/action-contexts";
 import "./tasks.css";
 
 function date(value: string) {
@@ -31,23 +35,8 @@ export function TasksPage({
   const [title, setTitle] = useState("");
   const [newListActionId, setNewListActionId] = useState("");
   const [listActionFilter, setListActionFilter] = useState("");
-  const [actionSearch, setActionSearch] = useState("");
-  const [actionOffset, setActionOffset] = useState(0);
-  const contexts = useQuery({
-    queryKey: ["task-action-contexts", actionSearch, actionOffset],
-    queryFn: () =>
-      client.listTaskActionContexts({
-        search: actionSearch,
-        offset: actionOffset,
-      }),
-    retry: false,
-  });
-  const knownActions = (contexts.data?.items ?? []).map(
-    (action) => [action.actionId, action.name] as const,
-  );
-  const managedActions = (contexts.data?.items ?? [])
-    .filter((action) => action.canCreateLists)
-    .map((action) => [action.actionId, action.name] as const);
+  const contexts = useActionContexts(client);
+  const { knownActions, managedActions } = contexts;
   const operation = useRef(crypto.randomUUID());
   const lists = useQuery({
     queryKey: ["task-lists", listOffset, listActionFilter],
@@ -128,56 +117,7 @@ export function TasksPage({
       <div className="tasks-columns">
         <aside aria-label="Aufgabenlisten">
           <h2>Listen</h2>
-          <details>
-            <summary>Aktionen suchen</summary>
-            <label>
-              Aktionsname
-              <input
-                type="search"
-                maxLength={200}
-                value={actionSearch}
-                onChange={(event) => {
-                  setActionSearch(event.target.value);
-                  setActionOffset(0);
-                }}
-              />
-            </label>
-            {contexts.isPending && (
-              <p role="status">Aktionen werden geladen …</p>
-            )}
-            {contexts.error && (
-              <StatusMessage tone="error">
-                Aktionen konnten nicht geladen werden.{" "}
-                <Button
-                  variant="secondary"
-                  onClick={() => void contexts.refetch()}
-                >
-                  Aktionen neu laden
-                </Button>
-              </StatusMessage>
-            )}
-            {contexts.data?.items.length === 0 && (
-              <p>Keine zugänglichen Aktionen für diese Suche.</p>
-            )}
-            <div className="tasks-paging">
-              <Button
-                variant="secondary"
-                disabled={actionOffset === 0 || contexts.isFetching}
-                onClick={() => setActionOffset(Math.max(0, actionOffset - 50))}
-              >
-                Vorherige Aktionen
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={
-                  contexts.data?.nextOffset == null || contexts.isFetching
-                }
-                onClick={() => setActionOffset(contexts.data!.nextOffset!)}
-              >
-                Weitere Aktionen
-              </Button>
-            </div>
-          </details>
+          <ActionContextSearch contexts={contexts} />
           {(knownActions.length > 0 || listActionFilter) && (
             <label>
               Listen nach Aktion filtern

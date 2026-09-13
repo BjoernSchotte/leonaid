@@ -3,6 +3,10 @@ import { useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
+import {
+  ActionContextSearch,
+  useActionContexts,
+} from "../shared/action-contexts";
 import "./knowledge.css";
 
 export function KnowledgePage({
@@ -13,23 +17,34 @@ export function KnowledgePage({
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [title, setTitle] = useState("");
+  const [actionId, setActionId] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const contexts = useActionContexts(client);
+  const { knownActions, managedActions } = contexts;
   const [notice, setNotice] = useState("");
   const operation = useRef(crypto.randomUUID());
   const pages = useQuery({
-    queryKey: ["knowledge-pages", search, offset],
-    queryFn: () => client.listKnowledgePages({ search, offset }),
+    queryKey: ["knowledge-pages", search, offset, actionFilter],
+    queryFn: () =>
+      client.listKnowledgePages({
+        search,
+        offset,
+        actionId: actionFilter || undefined,
+      }),
     retry: false,
   });
   const create = useMutation({
     mutationFn: () =>
       client.createKnowledgePage({
         title: title.trim(),
+        actionId: actionId || null,
         idempotencyKey: operation.current,
       }),
     onSuccess: (page) => {
       setNotice(`„${page.title}“ wurde angelegt.`);
       setTitle("");
       setSearch("");
+      setActionFilter(page.actionId ?? "");
       setOffset(0);
       operation.current = crypto.randomUUID();
       void cache.invalidateQueries({ queryKey: ["knowledge-pages"] });
@@ -44,6 +59,30 @@ export function KnowledgePage({
         <h1 id="knowledge-heading">Wissen</h1>
         <p>Seiten für gemeinsame Abläufe, Notizen und Vorbereitung.</p>
       </header>
+      <ActionContextSearch contexts={contexts} />
+      <label>
+        Seiten nach Aktion filtern
+        <select
+          value={actionFilter}
+          onChange={(event) => {
+            setActionFilter(event.target.value);
+            setOffset(0);
+          }}
+        >
+          <option value="">Alle zugänglichen Seiten</option>
+          {actionFilter &&
+            !knownActions.some(([id]) => id === actionFilter) && (
+              <option value={actionFilter}>
+                Ausgewählte Aktion beibehalten
+              </option>
+            )}
+          {knownActions.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
       <details className="knowledge-create">
         <summary>Neue Seite</summary>
         <form
@@ -67,7 +106,33 @@ export function KnowledgePage({
               }}
             />
           </label>
-          <p>Die neue Seite ist zunächst nur für dich sichtbar.</p>
+          <label>
+            Kontext der neuen Seite
+            <select
+              value={actionId}
+              disabled={create.isPending}
+              onChange={(event) => {
+                setActionId(event.target.value);
+                operation.current = crypto.randomUUID();
+                create.reset();
+              }}
+            >
+              <option value="">Eigenständig</option>
+              {actionId && !managedActions.some(([id]) => id === actionId) && (
+                <option value={actionId}>Ausgewählte Aktion beibehalten</option>
+              )}
+              {managedActions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            {actionId
+              ? "Aktuelle Mitglieder dieser Aktion können die Seite lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
+              : "Die neue Seite ist zunächst nur für dich sichtbar."}
+          </p>
           <Button type="submit" disabled={create.isPending || !title.trim()}>
             {create.isPending ? "Wird angelegt …" : "Seite anlegen"}
           </Button>
@@ -120,8 +185,10 @@ export function KnowledgePage({
                     <a href={`${basePath}/${page.id}`}>{page.title}</a>
                   </h2>
                   <p>
-                    {page.actionId ? "Aktionsseite" : "Eigenständige Seite"} ·
-                    Version {page.revision}
+                    {page.actionId
+                      ? `Aktionsseite: ${knownActions.find(([id]) => id === page.actionId)?.[1] ?? "Charity-Aktion"}`
+                      : "Eigenständige Seite"}{" "}
+                    · Version {page.revision}
                   </p>
                 </li>
               ))}
