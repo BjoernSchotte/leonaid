@@ -6,6 +6,7 @@ import type {
 } from "@leonaid/api-client";
 
 import PublicOrder from "./PublicOrder.astro";
+import PublicInbox from "./PublicInbox.astro";
 import { offeringPrice, offeringUnit } from "../lib/order-presentation";
 import KrapfentaxiIntro from "./KrapfentaxiIntro.astro";
 import { isKrapfentaxiAction } from "../lib/presentation";
@@ -280,6 +281,12 @@ const goalUnit = action.goal.unit ?? action.goal.currency ?? "";
           </div>
         </div>
       </section>
+    )
+  }
+
+  {
+    route.submissionsAllowed && !isArchive && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
     )
   }
 
