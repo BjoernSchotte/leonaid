@@ -428,7 +428,10 @@ class SurveyExportService:
 def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
     if not actor.account.can_authenticate:
         return ()
-    return (NavigationItem("surveys", "Umfragen", "/admin/surveys", "web"),)
+    return tuple(
+        NavigationItem("surveys", "Umfragen", "/admin/surveys", surface)
+        for surface in ("web", "pwa")
+    )
 
 
 __all__ = [

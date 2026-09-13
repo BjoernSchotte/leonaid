@@ -825,3 +825,12 @@ Die echte Campaign-Oberfläche sendete einen synthetischen Eingang an die Produk
 Chrome zeigte den unklaren Ausgang mit erhaltenen, gesperrten Feldern und aktivem „Erneut senden“. Der zweite im Browser abgesendete JSON-Befehl war vollständig identisch, einschließlich `idempotencyKey`. Die echte Wiederholungsantwort (201) wurde unverändert durchgelassen. Die Oberfläche bestätigte die ursprüngliche Referenz. Die anschließende SQL-Abfrage über die eindeutige synthetische E-Mail/Betreff-Kombination ergab einen Fall, einen Kontaktauftrag und eine Kontaktzuordnung.
 
 Die nur für diesen API-Aufruf eingerichtete Browser-Interception wurde anschließend vollständig entfernt (`Fetch.enable` mit leerer Pattern-Liste). Screenshots von unklarem Ausgang und bestätigtem Replay wurden am PR angehängt. Dieser Nachweis deckt Antwortverlust nach Commit ab; zwischenzeitliche 429/422 nach unklarem Ausgang und automatische CRM-Erholung vor der Retry-Grenze bleiben eigene offene Prüfungen.
+
+
+### Survey-Zugang aus der PWA wiederhergestellt
+
+Die separate Browserabnahme fand eine reale Registrierungslücke: Der Survey-Beitrag lieferte nur `surface=web`; die Shell filtert Navigation nach Surface. Der aktive Testadministrator hatte deshalb in der PWA keinen Survey-Einstieg. Der Backend-Modulbeitrag liefert nun für Web und PWA denselben Link `/admin/surveys`. Die PWA registriert einen reinen Survey-Navigationsbeitrag ohne eigene Editorroute oder Editorimport.
+
+40 Python-Identitäts-/Registrierungstests und 12 Frontend-Registrierungstests bestanden. Die Regression prüft beide Surface-Links und ausdrücklich das Fehlen einer zweiten PWA-Editorroute. PWA-Typprüfung, Ruff/Prettier sowie neue API-/PWA-Produktionsimages bestanden. Nach dem Deployment im eigenen Browserstack erschienen „Umfragen“ in der PWA und nach echtem Klick die vorhandene Survey-Webübersicht mit Suche und Neuanlage. Screenshots beider Zustände am Draft-PR.
+
+Der parallel gestartete Survey-Integrations-/Exportlauf (Session 55844, Bericht `.artifacts/surveys-gate/results/d87d297714f74746998b0c3dae32a8c1.json`) bezieht sich auf den Ausgangsstand vor dieser Navigationskorrektur und ist noch nicht abgeschlossen. Seine Ergebnisse ersetzen weder die aktuelle Browserabnahme noch spätere Gesamt- und Recovery-Gates.

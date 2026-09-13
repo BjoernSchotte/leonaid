@@ -293,6 +293,12 @@ def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access(
     from leonaid.bootstrap.api import module_navigation
 
     navigation = navigation_for(acquirer, module_navigation(acquirer))
+    assert {
+        (item.surface, item.href) for item in navigation if item.key == "surveys"
+    } == {
+        ("web", "/admin/surveys"),
+        ("pwa", "/admin/surveys"),
+    }
 
     assert {item.key for item in navigation if item.surface == "web"} == {
         "surveys",

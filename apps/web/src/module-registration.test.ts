@@ -47,9 +47,18 @@ describe("explicit UI modules", () => {
     expect(
       resolveModuleRoute(registeredPwaModules, "pwa", "/app/tasks/nope"),
     ).toBeNull();
+  });
+
+  it("registers the survey link without shipping a PWA editor route", () => {
     expect(registeredPwaModules.some((module) => module.id === "surveys")).toBe(
-      false,
+      true,
     );
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", "/admin/surveys"),
+    ).toBeNull();
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", "/app/surveys"),
+    ).toBeNull();
   });
 
   it("registers knowledge in both shipped shells", () => {

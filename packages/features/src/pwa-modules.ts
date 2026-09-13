@@ -10,5 +10,7 @@ export const registeredPwaModules = [
   knowledgeModule,
   materialsModule,
   inboxModule,
+  // The PWA links to the shared Web editor; it does not ship a second editor.
+  { id: "surveys", area: "work", surfaces: ["pwa"], routes: [] },
 ] as const;
 validateUiModules(registeredPwaModules);
