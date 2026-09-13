@@ -16,7 +16,14 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.domain.identity import AccountStatus, IdentityPrincipal, UserAccount
-from leonaid.modules.tasks.api import CreateList, CreateTask, UpdateTask, TaskService
+from leonaid.modules.tasks.api import (
+    ListQuery,
+    TaskQuery,
+    CreateList,
+    CreateTask,
+    UpdateTask,
+    TaskService,
+)
 from leonaid.modules.tasks.repository import AsyncpgTaskRepository
 
 
@@ -54,6 +61,10 @@ async def main() -> None:
             service.create_list(owner, command), service.create_list(owner, command)
         )
         assert first == replay and first.title == "Preparation"
+        assert (await service.list_lists(owner, ListQuery())).items == [first]
+        assert not (
+            await service.list_lists(reader, ListQuery(search="Preparation"))
+        ).items
         try:
             await service.create_list(
                 owner, command.model_copy(update={"title": "Different"})
@@ -78,6 +89,38 @@ async def main() -> None:
         )
         task = await service.create_task(owner, first.id, creation)
         assert await service.create_task(owner, first.id, creation) == task
+        assert not (await service.list_tasks(owner, TaskQuery(for_me=True))).items
+        assert (
+            await service.list_tasks(
+                owner, TaskQuery(for_me=True, include_deferred=True)
+            )
+        ).items == [task]
+        assert not (
+            await service.list_tasks(
+                reader, TaskQuery(search="Prepare", include_deferred=True)
+            )
+        ).items
+        assert not (
+            await service.list_tasks(
+                owner, TaskQuery(search="%", include_deferred=True)
+            )
+        ).items
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE task SET deferred_until=now() WHERE id=$1", task.id
+            )
+        visible = (await service.list_tasks(owner, TaskQuery(for_me=True))).items
+        assert (
+            len(visible) == 1
+            and visible[0].id == task.id
+            and visible[0].due_at == creation.due_at
+        )
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE task SET deferred_until=$2 WHERE id=$1",
+                task.id,
+                creation.deferred_until,
+            )
         assert creation.due_at is not None
         offset_creation = creation.model_copy(
             update={"due_at": creation.due_at.astimezone(timezone(timedelta(hours=2)))}
@@ -123,12 +166,35 @@ async def main() -> None:
         reader_command = CreateTask(idempotency_key=uuid4(), title="Shared task")
         shared = await service.create_task(reader, first.id, reader_command)
         assert await service.get_task(reader, shared.id) == shared
+        page = await service.list_tasks(
+            reader, TaskQuery(include_deferred=True, limit=1)
+        )
+        assert len(page.items) == 1 and page.next_offset == 1
+        following = await service.list_tasks(
+            reader, TaskQuery(include_deferred=True, limit=1, offset=page.next_offset)
+        )
+        assert len(following.items) == 1 and following.next_offset is None
+        assert page.items[0].id != following.items[0].id
+        assert (
+            await service.list_tasks(
+                owner, TaskQuery(for_me=True, status="done", include_deferred=True)
+            )
+        ).items == [changed]
+        assert not (
+            await service.list_tasks(
+                owner, TaskQuery(for_me=True, status="open", include_deferred=True)
+            )
+        ).items
         async with pool.acquire() as conn:
             await conn.execute(
                 "DELETE FROM task_list_member WHERE list_id=$1 AND user_id=$2",
                 first.id,
                 reader_id,
             )
+        assert not (
+            await service.list_tasks(reader, TaskQuery(include_deferred=True))
+        ).items
+        assert not (await service.list_lists(reader, ListQuery())).items
         try:
             await service.create_task(reader, first.id, reader_command)
         except ResourceNotFound:
@@ -168,7 +234,7 @@ async def main() -> None:
                 == 4
             )
         print(
-            "PASS: direct operations, concurrent replay, conflict rollback, revisions, current permissions and suspension"
+            "PASS: direct operations, concurrent replay, conflict rollback, revisions, current permissions, suspension, authorized search, pagination and database-time deferral"
         )
     finally:
         async with pool.acquire() as conn, conn.transaction():

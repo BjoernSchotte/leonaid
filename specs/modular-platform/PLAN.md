@@ -284,6 +284,7 @@ Abnahme: Survey-Erstellung, Bearbeitung, Veröffentlichung, öffentliche Teilnah
 - [ ] Gemeinsamer Aktionskontext sowie eigenständige Listen/Seiten mit explizitem berechtigtem Personenkreis. Verlinkung oder Erwähnung erweitert keine Rechte.
 - [ ] Atomaren „Task aus Seite“-Use-Case einschließlich Wiederholung und Revisionskonflikt implementieren.
 - [ ] „Für mich“ als Abfrage derselben Tasks; begrenzte Suche über die tatsächlich vorhandenen Objekte. Kein separater Taskbestand im Editor oder Dashboard.
+  - [x] Direkte Task-/Listenabfragen mit gemeinsamer Leseregel, begrenzter Pagination, Titelsuche, Status-/Zuständigkeitsfilter und datenbankzeitabhängiger Zurückstellung implementieren. Reale Rechte-/Such-/Pagination-Nachweise bestanden. HTTP/UI und modulübergreifende Suche bleiben offen.
 - [ ] Navigation in Web und PWA sowie verständliche mobile Bearbeitung bereitstellen; gemeinsame Funktionen nur einmal implementieren.
 
 Abnahme: Seite anlegen → Task erstellen/zuweisen → in „Für mich“ erledigen → derselbe Status in der Seite. Zurückstellung ändert Fälligkeit nicht. Eine Datei einmal hochladen und mehrfach referenzieren. Nichtberechtigte sehen auch in Suche/Einbettungen keine Inhalte. Konkurrierendes Speichern und wiederholtes Absenden erzeugen weder verlorene Änderungen noch doppelte Tasks.

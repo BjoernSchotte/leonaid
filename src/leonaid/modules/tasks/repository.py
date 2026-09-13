@@ -16,7 +16,28 @@ from leonaid.application.errors import (
     ResourceNotFound,
 )
 from leonaid.domain.identity import IdentityPrincipal
-from leonaid.modules.tasks.api import CreateList, CreateTask, UpdateTask, Task, TaskList
+from leonaid.modules.tasks.api import (
+    ListQuery,
+    TaskQuery,
+    TaskLists,
+    Tasks,
+    CreateList,
+    CreateTask,
+    UpdateTask,
+    Task,
+    TaskList,
+)
+
+
+# Same read policy for individual objects, lists, search and "for me".
+_READ_ACCESS = """
+    ((l.action_id IS NULL AND (l.owner_user_id=$1 OR EXISTS (
+        SELECT 1 FROM task_list_member m WHERE m.list_id=l.id AND m.user_id=$1)))
+    OR (l.action_id IS NOT NULL AND (
+        EXISTS (SELECT 1 FROM user_global_role g WHERE g.user_id=$1 AND g.role='system_admin')
+        OR EXISTS (SELECT 1 FROM action_membership m WHERE m.user_id=$1 AND m.action_id=l.action_id
+            AND m.active_from <= now() AND (m.active_until IS NULL OR m.active_until > now())))))
+"""
 
 
 class AsyncpgTaskRepository:
@@ -63,39 +84,84 @@ class AsyncpgTaskRepository:
         write: bool,
     ) -> TaskList:
         row = await conn.fetchrow(
-            "SELECT id,title,action_id,owner_user_id,revision FROM task_list WHERE id=$1 FOR SHARE",
+            f"SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision FROM task_list l WHERE l.id=$2 AND {_READ_ACCESS} FOR SHARE OF l",
+            user_id,
             list_id,
         )
         if row is None:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
-        if row["action_id"] is not None:
-            # Explicit grants do not bypass a revoked action membership.
+        allowed = not write or row["owner_user_id"] == user_id
+        if not allowed and row["action_id"] is not None:
             allowed = await self._action_access(
-                conn, user_id, row["action_id"], write=write
+                conn, user_id, row["action_id"], write=True
             )
-            if not allowed and not write:
-                raise ResourceNotFound("not_found", "Liste nicht gefunden.")
-            if not allowed and await self._action_access(
-                conn, user_id, row["action_id"], write=False
-            ):
-                allowed = row["owner_user_id"] == user_id or await conn.fetchval(
+        if not allowed:
+            allowed = bool(
+                await conn.fetchval(
                     "SELECT EXISTS (SELECT 1 FROM task_list_member WHERE list_id=$1 AND user_id=$2 AND access='editor')",
                     list_id,
                     user_id,
                 )
-        else:
-            allowed = row["owner_user_id"] == user_id or await conn.fetchval(
-                """
-                SELECT EXISTS (SELECT 1 FROM task_list_member WHERE list_id=$1 AND user_id=$2
-                    AND (NOT $3 OR access='editor'))
-            """,
-                list_id,
-                user_id,
-                write,
             )
         if not allowed:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
         return TaskList.model_validate(dict(row))
+
+    async def list_lists(self, actor: IdentityPrincipal, query: ListQuery) -> TaskLists:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            rows = await conn.fetch(
+                f"""
+                SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision FROM task_list l
+                WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR l.action_id=$2)
+                    AND strpos(lower(l.title), lower($3)) > 0
+                ORDER BY l.created_at,l.id LIMIT $4 OFFSET $5
+            """,
+                actor.account.id,
+                query.action_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return TaskLists(
+                items=[
+                    TaskList.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            if query.list_id is not None:
+                await self._list(conn, actor.account.id, query.list_id, write=False)
+            rows = await conn.fetch(
+                f"""
+                SELECT t.* FROM task t JOIN task_list l ON l.id=t.list_id
+                WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR t.list_id=$2)
+                    AND (NOT $3 OR t.assignee_user_id=$1)
+                    AND ($4::text IS NULL OR t.status=$4)
+                    AND ($5 OR t.deferred_until IS NULL OR t.deferred_until<=now())
+                    AND strpos(lower(t.title), lower($6)) > 0
+                ORDER BY t.created_at,t.id LIMIT $7 OFFSET $8
+            """,
+                actor.account.id,
+                query.list_id,
+                query.for_me,
+                query.status,
+                query.include_deferred,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return Tasks(
+                items=[Task.model_validate(dict(row)) for row in rows[: query.limit]],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
 
     async def _receipt(
         self,

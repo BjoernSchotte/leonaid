@@ -74,7 +74,38 @@ class Task(TaskFields):
     updated_at: datetime
 
 
+class ListQuery(TaskModel):
+    search: str = Field(default="", max_length=200)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+    action_id: UUID | None = None
+
+
+class TaskQuery(TaskModel):
+    search: str = Field(default="", max_length=200)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+    list_id: UUID | None = None
+    for_me: bool = False
+    status: Literal["open", "done"] | None = None
+    include_deferred: bool = False
+
+
+class TaskLists(TaskModel):
+    items: list[TaskList]
+    next_offset: int | None
+
+
+class Tasks(TaskModel):
+    items: list[Task]
+    next_offset: int | None
+
+
 class TaskRepository(Protocol):
+    async def list_lists(
+        self, actor: IdentityPrincipal, query: ListQuery
+    ) -> TaskLists: ...
+    async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks: ...
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList: ...
@@ -91,6 +122,12 @@ class TaskRepository(Protocol):
 class TaskService:
     def __init__(self, repository: TaskRepository) -> None:
         self._repository = repository
+
+    async def list_lists(self, actor: IdentityPrincipal, query: ListQuery) -> TaskLists:
+        return await self._repository.list_lists(actor, ListQuery.model_validate(query))
+
+    async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks:
+        return await self._repository.list_tasks(actor, TaskQuery.model_validate(query))
 
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
@@ -120,4 +157,15 @@ class TaskService:
         return await self._repository.get_task(actor, task_id)
 
 
-__all__ = ["CreateList", "CreateTask", "UpdateTask", "Task", "TaskList", "TaskService"]
+__all__ = [
+    "ListQuery",
+    "TaskQuery",
+    "TaskLists",
+    "Tasks",
+    "CreateList",
+    "CreateTask",
+    "UpdateTask",
+    "Task",
+    "TaskList",
+    "TaskService",
+]
