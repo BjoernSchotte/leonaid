@@ -8,6 +8,10 @@ import asyncio
 import json
 import os
 from decimal import Decimal
+from dataclasses import replace
+from datetime import timedelta
+from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
+from leonaid.adapters.postgres.activity_projection import ActionProgressActivityHandler
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -556,8 +560,94 @@ async def verify_business_idempotency(pool: asyncpg.Pool[Any]) -> None:
                     raise RuntimeError("Rechnungs-Idempotenz lieferte eine andere ID.")
 
 
+async def verify_delayed_fencing() -> None:
+    pool = await create_pool(database_url())
+    try:
+        async with pool.acquire() as conn:
+            now = await conn.fetchval("SELECT clock_timestamp()")
+            due = now + timedelta(minutes=1)
+            event = replace(
+                progress_command(
+                    uuid5(COMMAND_NAMESPACE, "delayed-fencing"), Decimal("1200")
+                ).outbox_event(),
+                available_at=due,
+            )
+            transaction = conn.transaction()
+            await transaction.start()
+            await AsyncpgTransactionalOutboxRepository(conn).append(event)
+            await transaction.rollback()
+            assert not await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM outbox_event WHERE id=$1)", event.id
+            )
+            async with conn.transaction():
+                await AsyncpgTransactionalOutboxRepository(conn).append(event)
+            assert (
+                await conn.fetchval(
+                    "SELECT available_at FROM outbox_event WHERE id=$1", event.id
+                )
+                == due
+            )
+        queue = AsyncpgOutboxQueue(pool, claim_lease=timedelta(seconds=2))
+        assert (
+            await queue.claim_next(
+                worker_id="early", now=due - timedelta(microseconds=1)
+            )
+            is None
+        )
+        first = await queue.claim_next(worker_id="first", now=due)
+        assert first is not None and first.id == event.id
+        assert (
+            await queue.claim_next(worker_id="too-soon", now=due + timedelta(seconds=1))
+            is None
+        )
+        second = await queue.claim_next(
+            worker_id="replacement", now=due + timedelta(seconds=3)
+        )
+        assert (
+            second is not None
+            and second.id == first.id
+            and second.claim_token != first.claim_token
+        )
+        handler = ActionProgressActivityHandler(pool)
+        await handler.handle(second)
+        await queue.complete(
+            event_id=event.id,
+            claim_token=second.claim_token,
+            completed_at=due + timedelta(seconds=3),
+        )
+        # A delayed old handler cannot duplicate the projection or change queue state.
+        await handler.handle(first)
+        try:
+            await queue.complete(
+                event_id=event.id,
+                claim_token=first.claim_token,
+                completed_at=due + timedelta(seconds=4),
+            )
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Stale claim completed the job")
+        async with pool.acquire() as conn:
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM activity_event WHERE source_outbox_event_id=$1",
+                    event.id,
+                )
+                == 1
+            )
+        state = await queue.state(event.id)
+        assert state is not None and state.status == "completed" and state.attempts == 2
+    finally:
+        await pool.close()
+    print(
+        "PASS: real delayed projection, transaction rollback, due boundary, lease takeover and stale-claim fencing"
+    )
+
+
 async def run(arguments: argparse.Namespace) -> None:
-    if arguments.command == "prepare":
+    if arguments.command == "delayed-fencing":
+        await verify_delayed_fencing()
+    elif arguments.command == "prepare":
         await prepare()
     elif arguments.command == "produce-crash":
         await produce_crash()
@@ -584,6 +674,7 @@ def parser() -> argparse.ArgumentParser:
     subcommands = command_parser.add_subparsers(dest="command", required=True)
     for name in (
         "prepare",
+        "delayed-fencing",
         "produce-crash",
         "verify-crash",
         "verify-recovery",

@@ -261,6 +261,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 - [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
   - [x] Implementierung: Handler-Konstruktion und vorhandenen Sweep in `modules/surveys/jobs.py` bündeln, über Bootstrap registrieren und doppelte Sweep-Namen beim Start ablehnen. LIVE-Regressionsabnahme bleibt für den übergeordneten Task offen.
 - [ ] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
+  - [x] Optionalen timezone-aware Ausführungszeitpunkt in allen Pending-Event-Persistenzen ergänzen; mit echtem ActionProgress-Handler Rollback, Fälligkeitsgrenze, Lease-Übernahme und Fencing im isolierten PostgreSQL-Runner nachweisen. Bestehende SMTP-Retry-/Recovery-Prüfungen bestanden.
   - [x] Diagnostik: rohe Exception-Texte aus gespeicherten Fehlerdetails entfernen; sichere Codes und monotone Laufzeitmessung im Job-Log ergänzen. Unit-/Typprüfung bestanden; PostgreSQL-/Runtime-Abnahme bleibt offen.
 - [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
   - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.

@@ -119,5 +119,6 @@ outbox_cli \
   --base-backoff-seconds 0 \
   run-until-idle
 api_probe replay-and-verify-mail
+api_probe delayed-fencing
 
 echo "poc022-test: OK: UoW, Crash-Recovery, Worker-Fencing, Retry, Dead Letter und Idempotenz bewiesen"

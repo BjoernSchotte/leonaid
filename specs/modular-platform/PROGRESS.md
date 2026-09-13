@@ -161,7 +161,7 @@ Lifecycle-Lauf `d5218eac529147baa1347df176c69a43` läuft noch. Er wurde auf `9f7
 
 ## M1.5 — Optionaler Ausführungszeitpunkt: Implementierung und Inventar
 
-Status: Implementierung geprüft; PostgreSQL-/Worker-Abnahme läuft noch, Slice noch nicht als abgenommen markiert.
+Status: abgeschlossen am 13.09.2026. PostgreSQL-/Worker-Abnahme inzwischen erfolgreich, siehe Ergebnis unten.
 
 `PendingOutboxEvent.available_at` ist optional und verlangt bei Angabe einen Zeitpunkt mit Zeitzone. Die bestehende Datenbankspalte `outbox_event.available_at` genügt; keine Migration oder Änderung bestehender Payloads. Alle Verbraucher des Pending-Vertrags wurden inventarisiert und angepasst:
 
@@ -183,3 +183,9 @@ Diagnostik-Implementierung abgeschlossen: Der Worker speichert als Fehlerdetail 
 Lifecycle-Lauf `d5218eac529147baa1347df176c69a43` erfolgreich abgeschlossen: direkter Listenvergleich mit HTTP, Survey-/Aktionsgrenzen und verweigerte Veröffentlichung; reale Worker-Neustarts und Fristnachholung; 25 Lifecycle-/Aktionspaare; drei Browsertests einschließlich mobiler eingeschränkter Designeransicht. Die zuvor dokumentierte Einschränkung der Commit-Zuordnung bleibt bestehen. Der separate Queue-Lauf hat bislang Commit-Abbruch/Recovery und zwei konkurrierende Worker bestanden; SMTP-Ausfall, Abschluss und neuer verzögerter Claim-Test laufen noch.
 
 CI-Ursache behoben und separat gepusht: `features` deklarierte `react-dom@19.2.8` nur als Peer, die vorhandene Survey-Host-Pin-Policy verlangt eine direkte Dependency. Pin-Check und Bun-1.2.19-Frozen-Install bestanden nach der Korrektur, ohne Versionswechsel. Neue CI-Ergebnisse sind noch abzuwarten; dies ersetzt nicht die offene Image-Security-Korrektur.
+
+### Abschluss M1.5: reale Queue-Prüfung
+
+`sh tools/outbox/test.sh` ist erfolgreich beendet. Eigener Compose-Teststack `leonaid-poc022-test-2137972478-13179`, alle eigenen Ressourcen anschließend entfernt. Nachgewiesen: Commit überlebt Producer-Prozessende; vorhandene Aktivitätsprojektion wird nachgeholt; zwei Worker teilen 20 zusätzliche Jobs ohne doppelte Verarbeitung; physisch gestopptes SMTP führt über drei Versuche zu Dead Letter; manueller Retry und Replay erzeugen keine zusätzliche Mail. Der neue Test ergänzt atomaren Rollback eines terminierten Events, gespeicherten Ausführungszeitpunkt, kein Claim vor Fälligkeit, Claim bei Fälligkeit, Übernahme nach Lease-Ablauf, Zurückweisung des alten Claim-Tokens und genau eine Aktivitätsprojektion trotz erneutem Handler-Aufruf.
+
+Der Lauf enthält die unveränderten Implementierungsdateien des Delayed-Enqueue-Slices. Später ergänzte Worker-Diagnostik ist ausdrücklich nicht durch das vorher gebaute Image abgedeckt. Unit-Gesamtsuite nach beiden Änderungen: 400 bestanden. Repräsentative Exportmessung, begrenzte Joblaufzeit und die vollständige aktuelle CI-/LIVE-Abnahme bleiben offen.
