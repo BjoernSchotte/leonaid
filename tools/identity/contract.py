@@ -27,6 +27,8 @@ from leonaid.domain.identity import (
     GlobalRole,
 )
 
+WORK_MODULES = {"tasks", "knowledge", "materials"}
+
 SYSTEM_ID = UUID("10000000-0000-4000-8000-000000000001")
 KLARA_ID = UUID("10000000-0000-4000-8000-000000000002")
 ANNA_ID = UUID("10000000-0000-4000-8000-000000000004")
@@ -419,7 +421,7 @@ async def prove_role_administration(
             await identity_response(client, tokens["ANNA_OLD_SESSION"]),
             display_name="Anna Akquise",
         )
-        if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"}:
+        if navigation_keys(anna_offboarded, "pwa") != {"overview-pwa"} | WORK_MODULES:
             raise ContractFailure(
                 "Membership-Entzug wirkte nicht im nächsten PWA-Request"
             )
@@ -867,12 +869,17 @@ async def run(arguments: argparse.Namespace) -> None:
                 raise ContractFailure(
                     "aktionsbezogene Charity-Admin-Sicht ist nicht korrekt"
                 )
-            if navigation_keys(anna_payload, "pwa") != {
-                "overview-pwa",
-                "sponsors",
-                "activities",
-                "commitment",
-            } or navigation_keys(anna_payload, "web") != {"surveys"}:
+            if (
+                navigation_keys(anna_payload, "pwa")
+                != {
+                    "overview-pwa",
+                    "sponsors",
+                    "activities",
+                    "commitment",
+                }
+                | WORK_MODULES
+                or navigation_keys(anna_payload, "web") != {"surveys"} | WORK_MODULES
+            ):
                 raise ContractFailure("Akquisiteur-Navigation enthält falsche Bereiche")
 
             suspended = await identity_response(client, tokens["GESA_SESSION"])

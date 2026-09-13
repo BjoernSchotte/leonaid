@@ -662,3 +662,10 @@ Das Modul registriert drei interne FastAPI-Routen zum Auflisten, Lesen und Ände
 Nach Abschluss wurden die drei neuen Inbox-Verträge (Einreichung, Fallbearbeitung, HTTP) in denselben Runner aufgenommen. Sie waren einzeln auf echtem PostgreSQL erfolgreich, sind aber nicht rückwirkend Teil des oben bestandenen Image-Laufs.
 
 Bei Vorbereitung des CRM-Workers wurde die Eingangsvalidierung an den bereits vorhandenen `PersonData`-Vertrag angebunden: Telefonnummern müssen international angegeben sein. Die eigene schwächere Regex entfällt; formatierte internationale Eingaben bleiben als Eingangssnapshot erhalten, der CRM-Vertrag übernimmt die Normalisierung bei Verwendung. Der dauerhafte Eingangsvertrag verweigert jetzt zusätzlich eine nationale Nummer ohne Vorwahl und besteht erneut. Mypy, Ruff und Shell-Syntax bestanden. CRM-Verarbeitung bleibt offen.
+
+
+## Integration — Navigationserwartung im Identity-Vertrag
+
+Remote-CI auf `a9e2d5`: `E2E leaf / identity` scheiterte an „Akquisiteur-Navigation enthält falsche Bereiche“ (`103744057354`). Der bestehende Vertrag erwartete noch ausschließlich Survey-/Akquisebereiche und nach Rollenentzug nur die PWA-Übersicht. Tasks, Wissen und Materialien sind inzwischen für aktive Konten auch ohne Aktionsrolle verfügbar; ihre eigenen Datenberechtigungen bleiben maßgeblich. Die expliziten Mengenprüfungen berücksichtigen jetzt diese drei Module, ohne privilegierte Bereiche freizugeben. Der ebenfalls rote `E2E / invoices`-Job (`103745209589`) enthält nur die aggregierte Prüfung `RESULT=failure`, keinen separaten Invoice-Testfehler.
+
+Korrigierte Mengen mit tatsächlicher PostgreSQL-Sitzung, `IdentityQueryService`, Modulregistrierung und dem HTTP-Antwortmodell vor/nach Entzug einer Acquirer-Mitgliedschaft geprüft. Privilegierte Bereiche bleiben ausgeschlossen. Ruff/Mypy und Diffprüfung bestanden. Der komplette Identity-Browser-Gate muss im folgenden CI-Lauf erneut bestehen; dieser Nachweis ersetzt ihn nicht. Alle Survey-Gruppen sowie Golden Journey, Lint/Types, Unit, Build und Schema-/Outbox-Integration waren im abgefragten Remote-Lauf erfolgreich; die gesamte CI-Abnahme bleibt wegen der E2E-Gruppe offen.
