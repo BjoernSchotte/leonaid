@@ -390,6 +390,15 @@ jobs:
           path: .artifacts/ci/golden-${{ matrix.part }}
           if-no-files-found: error
           retention-days: 14
+      - name: Publish synthetic Golden browser failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: golden-browser-screenshots-${{ matrix.part }}
+          path: .artifacts/golden-journey-browser/**/test-failed-*.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   golden-journey:
     name: Golden journey
