@@ -248,6 +248,7 @@ pg-boss erfordert eine passende Node.js-Integration und ist deshalb nicht die er
 - [x] Rekursive Architekturtests für Schichten, öffentliche Modulimporte und Zyklen ergänzen. Insbesondere Plattformimporte von Fachmodulen sowie Modulimporte von Bootstrap/Prozess-Entrypoints verbieten. Alte erlaubte Kanten einzeln dokumentieren; neue verbotene Kanten schlagen fehl.
 - [x] Startprüfungen für doppelte IDs, Handler und Routenkollisionen implementieren.
 - [x] Survey-Host-Pins nach Frontend-Verschiebung korrigieren: vorhandenes `react-dom@19.2.8` im Features-Paket direkt deklarieren. `tools/pins/check.py` und Bun-1.2.19-Frozen-Install bestanden; erneuter CI-Lauf bleibt maßgeblich.
+- [x] Bekannten kritischen Perl-Befund im API-/Worker-Image durch gepinntes Debian-Sicherheitsupdate beheben; gebautes Image mit CI-Trivy-Konfiguration lokal erfolgreich geprüft. Vollständige CI-Abnahme bleibt offen.
 
 Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen einschließlich Rückabhängigkeiten der Plattform. Backend-/Frontend-Beiträge sind derselben Modul-ID zugeordnet; bestehende Navigation, Startbefehle und API bleiben unverändert. Keine neuen Infrastrukturcontainer, separaten Python-Pakete oder Laufzeitabhängigkeiten.
 

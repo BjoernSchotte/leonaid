@@ -2,6 +2,11 @@ FROM ghcr.io/typst/typst:v0.13.1@sha256:253fa1351e43316f5f8dd12d0dd7906b7eedc0c9
 
 FROM ghcr.io/astral-sh/uv:0.11.17-python3.13-trixie-slim@sha256:6181d17d152967488408b4ced7b2930cc91c2b39adb7af6fb339965afce3404e
 
+# Security fixes missing from the pinned base image; keep the package reproducible.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends --only-upgrade perl-base=5.40.1-6+deb13u1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
 ENV PATH="/workspace/.venv/bin:${PATH}" \
     PYTHONPATH="/workspace/src" \
