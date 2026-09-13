@@ -15,7 +15,7 @@ from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
 from leonaid.adapters.postgres.survey_retention import sweep_retention
 from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
-from leonaid.entrypoints.worker.outbox import build_worker
+from leonaid.bootstrap.worker import build_worker
 
 last_database_success = 0.0
 

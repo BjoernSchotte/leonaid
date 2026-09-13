@@ -15,7 +15,7 @@ import httpx
 
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
-from leonaid.entrypoints.fastapi.surveys import router
+from leonaid.modules.surveys.routes import router
 
 # Exact row-count deltas for two concurrent identical requests, not just equality
 # of HTTP bodies. All unlisted survey/outbox tables must retain their row counts.

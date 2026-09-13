@@ -53,7 +53,7 @@ from leonaid.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
 )
 from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.application.surveys import SurveyService
+from leonaid.modules.surveys.api import SurveyService
 from leonaid.bootstrap.api import register_api_modules
 from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository

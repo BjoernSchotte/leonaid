@@ -14,7 +14,7 @@ from pydantic import (
     EmailStr,
 )
 
-from leonaid.application.surveys import SurveyService
+from leonaid.modules.surveys.api import SurveyService
 from leonaid.application.surveys.exports import (
     CreateSurveyExport,
     SurveyExportJob,
@@ -32,7 +32,7 @@ from leonaid.application.surveys.response_selection import (
     IndividualResponse,
     FreeTextItems,
 )
-from leonaid.entrypoints.fastapi.schemas import ApiErrorResponse
+from leonaid.platform.http import ApiErrorResponse
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.domain.surveys.validation import json_size
 

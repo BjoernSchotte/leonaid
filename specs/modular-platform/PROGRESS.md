@@ -73,3 +73,22 @@ Prüfung:
 - `.venv/bin/python tools/ci/no_test_doubles.py .`: erfolgreich. Registry-Tests verwenden reale FastAPI-Router und einen realen, nicht gestarteten PostgreSQL-Pool; sie behaupten keinen Worker-I/O-Nachweis.
 
 M0 als Gesamtetappe sowie Runtime-, Browser- und Jobabnahmen bleiben offen. FastAPI bleibt auf ausdrücklichen Wunsch das Backend-Framework; der spätere FastMCP-Anschluss läuft über dieselben Fachoperationen und ist keine aktuelle Abhängigkeit.
+
+
+## M0.4 — Erste vertikale Backend-Zuordnung
+
+Status: abgeschlossen am 13.09.2026. Slice-Commit ist der Commit, der diesen Abschnitt anlegt.
+
+SurveyService und Survey-Router liegen jetzt in `modules/surveys/api.py` bzw. `routes.py`. Die bisherigen Definitionen wurden entfernt, alle gefundenen Produktions- und Testtool-Imports aktualisiert. Gemeinsame Transport-/Fehlermodelle liegen in `platform/http.py`; das alte Schema-Modul importiert dieselben Klassen für seine bestehenden Verbraucher. Die konkrete Worker-Konstruktion liegt in `bootstrap/worker.py`; der bestehende CLI-Prozesspfad bleibt erhalten. Die API-Registrierung importiert nun das tatsächliche Fachmodul und nicht mehr den alten Router-Entrypoint.
+
+Bewusst noch vorhandene Alt-Struktur: Survey-Domain, Analyse-/Export-Application-Verträge und PostgreSQL-/Mail-Adapter verbleiben bis zu ihrem jeweiligen M1-Schnitt an den inventarisierten Orten. Der neue Survey-Service verwendet denselben Repository-Port; die Verbesserung der typisierten Eingaben und Direktaufruf-Verträge bleibt offen. Keine neuen Dienste oder Pakete.
+
+Prüfung:
+
+- Unit-Suite mit `PYTHONPATH=src`: 391 bestanden, neun bestehende Pydantic-Warnungen.
+- Ruff für alle neuen/verschobenen Python-Bereiche: erfolgreich.
+- Mypy für Plattform, Module, Bootstrap und Worker-CLI: erfolgreich, elf Quelldateien.
+- `tools/openapi/generate.py --root . --check`: OpenAPI und TypeScript-Client unverändert.
+- `python -m leonaid.entrypoints.worker.outbox --help`: bestehender Prozesspfad und CLI-Operationen verfügbar.
+
+Dieser Slice weist Struktur- und Vertragskompatibilität nach, nicht den Betrieb mit Datenbank oder Browser. Frontend-Registrierung, komplette M0-Abnahme und M1–M3 bleiben offen.
