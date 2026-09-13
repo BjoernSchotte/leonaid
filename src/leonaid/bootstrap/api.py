@@ -23,6 +23,8 @@ from leonaid.modules.surveys.api import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.platform.navigation import NavigationItem
 
+from leonaid.modules.knowledge.api import KnowledgeService
+from leonaid.modules.knowledge.repository import AsyncpgKnowledgeRepository
 from leonaid.modules.tasks.api import TaskService, navigation as task_navigation
 from leonaid.modules.tasks.repository import AsyncpgTaskRepository
 from leonaid.modules.tasks.routes import router as tasks_router
@@ -70,3 +72,14 @@ def build_survey_services(
 
 def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
     return TaskService(AsyncpgTaskRepository(pool))
+
+
+def build_knowledge_service(pool: asyncpg.Pool[Any]) -> KnowledgeService:
+    return KnowledgeService(
+        AsyncpgKnowledgeRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+        )
+    )

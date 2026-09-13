@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
 import hashlib
 import json
 from typing import Any
@@ -56,8 +59,22 @@ _READ_ACCESS = """
 
 
 class AsyncpgTaskRepository:
-    def __init__(self, pool: asyncpg.Pool[Any]) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool[Any],
+        *,
+        connection: asyncpg.Connection[Any] | None = None,
+    ) -> None:
         self.pool = pool
+        self.connection = connection
+
+    @asynccontextmanager
+    async def _connection(self) -> AsyncIterator[asyncpg.Connection[Any]]:
+        if self.connection is not None:
+            yield self.connection
+        else:
+            async with self.pool.acquire() as conn:
+                yield conn
 
     async def _active(self, conn: asyncpg.Connection[Any], user_id: UUID) -> None:
         status = await conn.fetchval(
@@ -125,7 +142,7 @@ class AsyncpgTaskRepository:
     async def list_action_contexts(
         self, actor: IdentityPrincipal, query: SearchPage
     ) -> ActionContexts:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             rows = await conn.fetch(
                 """
@@ -160,7 +177,7 @@ class AsyncpgTaskRepository:
     async def list_assignees(
         self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
     ) -> Assignees:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             await self._list(conn, actor.account.id, list_id, write=True)
             # Apply the identical list-read policy to each prospective assignee.
@@ -187,7 +204,7 @@ class AsyncpgTaskRepository:
             )
 
     async def list_lists(self, actor: IdentityPrincipal, query: ListQuery) -> TaskLists:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             rows = await conn.fetch(
                 f"""
@@ -212,7 +229,7 @@ class AsyncpgTaskRepository:
             )
 
     async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             if query.list_id is not None:
                 await self._list(conn, actor.account.id, query.list_id, write=False)
@@ -304,7 +321,7 @@ class AsyncpgTaskRepository:
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             if command.action_id is not None:
                 if not await self._action_access(
@@ -352,7 +369,7 @@ class AsyncpgTaskRepository:
             return result
 
     async def get_list(self, actor: IdentityPrincipal, list_id: UUID) -> TaskList:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             return await self._list(conn, actor.account.id, list_id, write=False)
 
@@ -381,7 +398,7 @@ class AsyncpgTaskRepository:
     async def create_task(
         self, actor: IdentityPrincipal, list_id: UUID, command: CreateTask
     ) -> Task:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             listing = await self._list(conn, actor.account.id, list_id, write=True)
             key, replay = await self._receipt(
@@ -418,7 +435,7 @@ class AsyncpgTaskRepository:
             return result
 
     async def get_task(self, actor: IdentityPrincipal, task_id: UUID) -> Task:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             row = await conn.fetchrow("SELECT * FROM task WHERE id=$1", task_id)
             if row is None:
@@ -429,7 +446,7 @@ class AsyncpgTaskRepository:
     async def update_task(
         self, actor: IdentityPrincipal, task_id: UUID, command: UpdateTask
     ) -> Task:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             row = await conn.fetchrow(
                 "SELECT * FROM task WHERE id=$1 FOR UPDATE", task_id
@@ -476,7 +493,7 @@ class AsyncpgTaskRepository:
     async def create_epic(
         self, actor: IdentityPrincipal, list_id: UUID, command: CreateEpic
     ) -> Epic:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             listing = await self._list(conn, actor.account.id, list_id, write=True)
             key, replay = await self._receipt(
@@ -505,7 +522,7 @@ class AsyncpgTaskRepository:
     async def update_epic(
         self, actor: IdentityPrincipal, epic_id: UUID, command: UpdateEpic
     ) -> Epic:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             row = await conn.fetchrow(
                 "SELECT id,list_id,title,revision FROM task_epic WHERE id=$1 FOR UPDATE",
@@ -543,7 +560,7 @@ class AsyncpgTaskRepository:
     async def list_epics(
         self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
     ) -> Epics:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             await self._list(conn, actor.account.id, list_id, write=False)
             rows = await conn.fetch(
@@ -590,7 +607,7 @@ class AsyncpgTaskRepository:
         list_id: UUID,
         command: SetListMember | SetListMemberByEmail,
     ) -> TaskList:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             # Lock before the read-policy check to avoid upgrading concurrent shared locks.
             await conn.fetchval(
@@ -672,7 +689,7 @@ class AsyncpgTaskRepository:
     async def list_members(
         self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
     ) -> ListMembers:
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
             listing = await self._manage_list(conn, actor.account.id, list_id)
             rows = await conn.fetch(
