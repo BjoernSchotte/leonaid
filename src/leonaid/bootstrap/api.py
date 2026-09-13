@@ -23,6 +23,9 @@ from leonaid.modules.surveys.api import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.platform.navigation import NavigationItem
 
+from leonaid.modules.inbox.api import InboxService
+from leonaid.modules.inbox.repository import AsyncpgInboxRepository
+
 from leonaid.modules.knowledge.routes import router as knowledge_router
 from leonaid.modules.knowledge.api import (
     KnowledgeService,
@@ -114,3 +117,7 @@ def build_material_service(
     pool: asyncpg.Pool[Any], storage: ObjectStorage
 ) -> MaterialService:
     return MaterialService(AsyncpgMaterialRepository(pool, storage))
+
+
+def build_inbox_service(pool: asyncpg.Pool[Any]) -> InboxService:
+    return InboxService(AsyncpgInboxRepository(pool))
