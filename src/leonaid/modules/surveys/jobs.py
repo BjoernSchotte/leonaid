@@ -8,6 +8,8 @@ from typing import Any
 
 import asyncpg
 
+from leonaid.platform.worker_signals import record_success
+
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
 from leonaid.modules.surveys.adapters.mail.survey_smtp import (
     SurveyInvitationSmtpHandler,
@@ -60,6 +62,7 @@ async def survey_timeout_loop() -> None:
                 closed = await repository.close_due_surveys()
                 count = await repository.classify_overdue()
                 retained = await sweep_retention(pool, checkpoint_publisher=publisher)
+                record_success("survey_sweep")
                 await asyncio.sleep(
                     0.25 if count == 1000 or closed == 100 or retained == 100 else 5
                 )

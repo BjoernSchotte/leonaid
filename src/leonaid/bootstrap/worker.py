@@ -36,6 +36,7 @@ from leonaid.modules.surveys.jobs import (
     handlers as survey_handlers,
     survey_timeout_loop,
 )
+from leonaid.platform.worker_signals import record_success
 from leonaid.configuration import load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryPolicy
 
@@ -46,6 +47,8 @@ def observe_job(
     error_code: str | None,
     duration_ms: float | None,
 ) -> None:
+    if name == "outbox.job.completed":
+        record_success("job_completion")
     action_value = event.payload.get("actionId")
     action_id = action_value if isinstance(action_value, str) else None
     print(

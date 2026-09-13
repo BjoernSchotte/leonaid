@@ -10,6 +10,7 @@ from leonaid.domain.outbox import RetryPolicy
 from leonaid.domain.outbox import ClaimedOutboxEvent
 from leonaid.application.outbox import OutboxWorker
 from leonaid.bootstrap.worker import observe_job
+from leonaid.platform.worker_signals import render_activity_metrics
 
 ACTION_ID = UUID("20000000-0000-4000-8000-000000000001")
 COMMAND_ID = UUID("f1000000-0000-4000-8000-000000000001")
@@ -38,7 +39,12 @@ def test_worker_observation_includes_duration_without_payload(
         claim_token=COMMAND_ID,
         claimed_by="worker",
     )
+    before = render_activity_metrics()
+    observe_job("outbox.job.retry", event, "job_timeout", 12.5)
+    assert render_activity_metrics() == before
+    capsys.readouterr()
     observe_job("outbox.job.completed", event, None, 12.5)
+    assert '{activity="job_completion"} 0.0' not in render_activity_metrics()
     output = capsys.readouterr().out
     assert json.loads(output)["durationMs"] == 12.5
     assert "recipient@example.test" not in output

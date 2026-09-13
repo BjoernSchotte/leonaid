@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncpg
 
 from leonaid.bootstrap.worker import build_worker, background_tasks
+from leonaid.platform.worker_signals import record_success, render_activity_metrics
 
 last_database_success = 0.0
 
@@ -34,11 +35,12 @@ class HealthHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/metrics":
             ready = time.monotonic() - last_database_success < 10
-            body = (
+            metrics = (
                 "# HELP leonaid_worker_ready Whether the durable worker can reach PostgreSQL.\n"
                 "# TYPE leonaid_worker_ready gauge\n"
                 f"leonaid_worker_ready {1 if ready else 0}\n"
-            ).encode()
+            )
+            body = (metrics + render_activity_metrics()).encode()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
@@ -80,6 +82,7 @@ async def durable_worker_loop() -> None:
             )
             while True:
                 handled = await worker.run_once()
+                record_success("queue_poll")
                 if not handled:
                     await asyncio.sleep(0.25)
         except Exception:
