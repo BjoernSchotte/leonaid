@@ -72,6 +72,23 @@ echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"
 compose build api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+if [ "${2:-full}" = "code-rollback" ]; then
+  # Pinned predecessors of registration, Tasks, and Inbox. No checkout mutation.
+  for revision in 4d05276c5b74932461926e86c8a4fdbaa5f192b6 07d100883c418370afa662b41aef0dfc8743335d b46f46223c9ddb3d16a02e13875609febcc63eed; do
+    mkdir "$proof/$revision"
+    git -C "$root" archive --format=tar "$revision" src >"$proof/source.tar"
+    tar -xf "$proof/source.tar" -C "$proof/$revision"
+    echo "code-rollback: testing $revision against the expanded schema"
+    compose run --rm --no-deps \
+      --volume "$proof/$revision:/old:ro" \
+      --volume "$root/tools/schema/code_rollback.py:/proof.py:ro" \
+      --env PYTHONPATH=/old/src --env ROLLBACK_SOURCE=/old/src \
+      --entrypoint python api /proof.py
+  done
+  echo "code-rollback: PASS: older API startup and identity on current schema; new-job drain remains separate"
+  exit 0
+fi
 compose run --rm --no-deps --entrypoint alembic api upgrade head
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
