@@ -805,3 +805,14 @@ Die synthetische aktive Aktion wurde im nativen CMS als Entwurf angelegt und pub
 Auf `/campaigns/inbox-active-c4ee700b-2026/` wurde die Anfrage im Browser abgesendet. Die API lehnte zunächst die reservierte Testdomain `.invalid` mit 422 ab; der Entwurf blieb erhalten. Nach Korrektur auf `example.com` wurde Referenz `ae651cbe-6cfe-46b4-80b6-6805f64727ae` bestätigt. SQL zeigt genau einen Fall mit Aktion `c4ee700b-70b8-4ae6-8414-27b1bf7432b0`, Status `pending` und einem Kontaktauftrag. Der Worker bleibt angehalten; dies ersetzt den vollständigen Twenty-Ausfall-/Recovery-Browsergate nicht.
 
 `public_form_routes.py --campaign` prüft zusätzlich echtes veröffentlichtes CMS-HTML und 308 vom slashlosen Pfad zur kanonischen Slash-URL. Startseite, Public-Alias, Archiv und inaktiver Alias sind weiterhin korrekt. Die separate Weiterleitung vom Public-Alias zur Campaign-URL bleibt offen. Screenshot: `/tmp/leonaid-inbox-campaign-success.png`, als PR-Kommentar angehängt.
+
+
+### Campaign-Alias und tatsächlicher Twenty-Ausfall im Browser
+
+Der primäre synthetische Alias `inbox-active-c4ee700b` wurde über den vorhandenen frisch authentifizierten System-Admin-Endpunkt auf Renderer `campaign` gesetzt. Der echte HTTP-Vertrag prüft mit `--campaign --campaign-alias` 302 für GET und HEAD; Chrome landet auf der veröffentlichten kanonischen Seite mit Anfrageformular. Auch die unveränderte Legacy-Variante wurde mit einem zweiten frischen Seed erneut geprüft.
+
+Im ausschließlich eigenen Projekt `leonaid-shared-32c62f415463ad67` wurde Twenty tatsächlich gestoppt und der normale Worker gestartet. Chrome bestätigte die neue Anfrage mit Referenz `2de8431d-0ed6-4aea-9b0b-9f8868ca8eef`. Fall `9dad860f-0cf8-4a19-9609-0bbce9c53695` blieb trotz `crm_unavailable` bearbeitbar; Statusänderung auf `in_progress` wurde im Browser gespeichert, Revision 2. Nach fünf Versuchen lag der Kontaktauftrag in `dead_letter`.
+
+Nach bestätigtem Twenty-Neustart wurde exakt Auftrag `4fb35a72-1a69-4e78-860e-129222c7f128` über den vorhandenen Admin-HTTP-Retry erneut freigegeben (`manualRetryCount=1`), ohne direkte Änderung der Jobdaten. Der normale Worker stellte die Kontaktzuordnung her. `tools/inbox/browser_receipt.py --linked` prüft echte PostgreSQL-/Twenty-Daten: genau ein Fall und Job zur Referenz, richtige Aktion, abgeschlossener Auftrag, exakte Kontaktkorrelation, ein Treffer für den synthetischen Namen und unveränderte Fallrevision/Status. Chrome zeigt danach „Kontakt zugeordnet“ und weiterhin „In Bearbeitung“. Der automatische Wiederanlauf vor Erreichen der Retry-Grenze und unklarer Browser-Netzausgang sind damit noch nicht abgenommen.
+
+Screenshots im PR-Kommentar: öffentliche Bestätigung bei gestopptem Twenty, gespeicherte Fallbearbeitung während des Ausfalls und erfolgreiche Zuordnung nach Wiederholung. Keine E-Mail-Jobs entstanden laut Betriebsansicht; der allgemeine Nachweis der Versandfreiheit liegt weiterhin in den Eingangsverträgen.

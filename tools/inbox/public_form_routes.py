@@ -29,7 +29,14 @@ def main() -> None:
         action="store_true",
         help="Require published CMS content for the active fixture",
     )
+    parser.add_argument(
+        "--campaign-alias",
+        action="store_true",
+        help="Require alias redirect to the published CMS campaign",
+    )
     args = parser.parse_args()
+    if args.campaign_alias and not args.campaign:
+        parser.error("--campaign-alias requires --campaign")
     fixture = json.loads(args.fixture.read_text())
     active, inactive = fixture["active"], fixture["inactive"]
     with httpx.Client(
@@ -50,10 +57,18 @@ def main() -> None:
         assert campaign.json()["submissionsAllowed"] is False
         paths = [
             ("/", [None]),
-            (f"/{active['alias']}", [active["id"]]),
             (f"/archive/{active['slug']}", []),
             (f"/{inactive['alias']}", []),
         ]
+        if args.campaign_alias:
+            alias_path = f"/{active['alias']}"
+            for method in ("GET", "HEAD"):
+                redirected = client.request(method, alias_path)
+                assert redirected.status_code == 302
+                assert redirected.headers["location"] == f"/campaigns/{active['slug']}/"
+                print(f"PASS {method} {alias_path}: campaign redirect")
+        else:
+            paths.append((f"/{active['alias']}", [active["id"]]))
         if args.campaign:
             canonical = f"/campaigns/{active['slug']}/"
             redirect = client.get(canonical.rstrip("/"))
