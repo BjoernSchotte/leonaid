@@ -53,9 +53,10 @@ from leonaid.bootstrap.api import (
     register_api_modules,
     build_survey_services,
     build_task_service,
+    build_material_service,
     build_knowledge_service,
 )
-from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
+from leonaid.platform.http_body import RequestBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
@@ -302,6 +303,9 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.survey_exports,
             checkpoint_publisher,
         ) = build_survey_services(pool, settings, object_storage)
+        application.state.material_service = build_material_service(
+            pool, object_storage
+        )
         application.state.task_service = build_task_service(pool)
         application.state.knowledge_service = build_knowledge_service(pool)
         public_order_tokens = PublicOrderTokenCodec(
@@ -390,7 +394,15 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         version="0.0.0",
         lifespan=lifespan,
     )
-    application.add_middleware(SurveyBodyLimitMiddleware)
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        limits=(
+            ("/api/v1/surveys", 1_048_576),
+            ("/api/v1/public/surveys", 1_048_576),
+            ("/api/v1/survey-settings", 1_048_576),
+            ("/api/v1/materials", 25 * 1024 * 1024 + 65_536),
+        ),
+    )
 
     @application.middleware("http")
     async def correlate_request(

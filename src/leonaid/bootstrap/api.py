@@ -33,7 +33,12 @@ from leonaid.modules.tasks.api import TaskService, navigation as task_navigation
 from leonaid.modules.tasks.repository import AsyncpgTaskRepository
 from leonaid.modules.tasks.routes import router as tasks_router
 
+from leonaid.modules.materials.api import MaterialService
+from leonaid.modules.materials.repository import AsyncpgMaterialRepository
+from leonaid.modules.materials.routes import router as materials_router
+
 MODULES = (
+    ModuleRegistration("materials", router=materials_router),
     ModuleRegistration(
         "knowledge",
         router=knowledge_router,
@@ -93,3 +98,9 @@ def build_knowledge_service(pool: asyncpg.Pool[Any]) -> KnowledgeService:
             ),
         )
     )
+
+
+def build_material_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> MaterialService:
+    return MaterialService(AsyncpgMaterialRepository(pool, storage))

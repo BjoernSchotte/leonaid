@@ -1,28 +1,27 @@
-"""Bound survey request bytes before JSON parsing, including chunked bodies."""
+"""Bound configured request bytes before parsing, including chunked bodies."""
 
 from uuid import uuid4
 
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-SURVEY_REQUEST_BYTES = 1_048_576
 
-
-class SurveyBodyLimitMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+class RequestBodyLimitMiddleware:
+    def __init__(self, app: ASGIApp, limits: tuple[tuple[str, int], ...]) -> None:
         self.app = app
+        self.limits = limits
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
-        is_survey = any(
-            path == prefix or path.startswith(prefix + "/")
-            for prefix in (
-                "/api/v1/surveys",
-                "/api/v1/public/surveys",
-                "/api/v1/survey-settings",
-            )
+        limit = next(
+            (
+                maximum
+                for prefix, maximum in self.limits
+                if path == prefix or path.startswith(prefix + "/")
+            ),
+            None,
         )
-        if scope["type"] != "http" or not is_survey:
+        if scope["type"] != "http" or limit is None:
             await self.app(scope, receive, send)
             return
 
@@ -32,7 +31,7 @@ class SurveyBodyLimitMiddleware:
             if message["type"] == "http.disconnect":
                 return
             chunk = message.get("body", b"")
-            if len(body) + len(chunk) > SURVEY_REQUEST_BYTES:
+            if len(body) + len(chunk) > limit:
                 state = scope.setdefault("state", {})
                 state["error_code"] = "limit_exceeded"
                 response = JSONResponse(

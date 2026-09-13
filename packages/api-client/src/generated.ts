@@ -43,6 +43,8 @@ export type Assignee = { readonly displayName: string; readonly userId: string; 
 export type Assignees = { readonly items: Array<Assignee>; readonly nextOffset: number | null; };
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
+export type Body_addMaterialVersion = { readonly expectedRevision: number; readonly file: Blob; readonly idempotencyKey: string; };
+export type Body_createMaterial = { readonly actionId?: string | null; readonly file: Blob; readonly idempotencyKey: string; readonly title: string; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
 export type CampaignAliasListResponse = { readonly actionId: string; readonly canonicalPath: string; readonly items: Array<CampaignAliasItemResponse>; readonly targets: Array<CampaignAliasTargetResponse>; };
 export type CampaignAliasMutationResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly removed: boolean; readonly revision: number; };
@@ -159,6 +161,9 @@ export type ListMember = { readonly access: "viewer" | "editor"; readonly active
 export type ListMembers = { readonly items: Array<ListMember>; readonly nextOffset: number | null; readonly ownerUserId: string; readonly revision: number; };
 export type LoginDispatchResponse = { readonly status: "queued"; };
 export type LogoutResponse = { readonly status: "signed_out"; };
+export type Material = { readonly actionId: string | null; readonly currentVersion: number; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type MaterialVersion = { readonly filename: string; readonly materialId: string; readonly mediaType: string; readonly sha256: string; readonly sizeBytes: number; readonly version: number; };
+export type Materials = { readonly items: Array<Material>; readonly nextOffset: number | null; };
 export type MatrixRowAggregate = { readonly answered: number; readonly counts: Array<AggregateCount>; readonly invalid: number; readonly label: string; readonly rowId: string; readonly unanswered: number; };
 export type MemberDirectoryActionResponse = { readonly actionId: string; readonly actionName: string; readonly availableRoles: Array<"charity_admin" | "acquirer" | "finance_reader" | "driver">; };
 export type MemberDirectoryMemberResponse = { readonly actionMemberships: Array<MemberDirectoryMembershipResponse>; readonly activeSessionCount: number; readonly displayName: string; readonly email: string; readonly globalRoleLabels: Array<string>; readonly globalRoles: Array<"system_admin" | "finance_reader" | "finance_manager">; readonly lastLoginAt: string | null; readonly revision: number; readonly status: "invited" | "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
@@ -1888,6 +1893,102 @@ export class LeonAidApiClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
+      options,
+    );
+  }
+
+  async listMaterials(
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly actionId?: string | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<Materials> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("actionId", String(queryParameters.actionId));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/materials" + (queryString ? `?${queryString}` : "");
+    return this.request<Materials>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async createMaterial(
+    body: Body_createMaterial,
+    options: RequestOptions = {},
+  ): Promise<Material> {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(body)) {
+      if (value !== undefined && value !== null) {
+        form.append(key, value instanceof Blob ? value : String(value));
+      }
+    }
+    return this.request<Material>(
+      "/api/v1/materials",
+      { method: "POST", body: form },
+      options,
+    );
+  }
+
+  async getMaterial(
+    materialId: string,
+    options: RequestOptions = {},
+  ): Promise<Material> {
+    return this.request<Material>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async addMaterialVersion(
+    materialId: string,
+    body: Body_addMaterialVersion,
+    options: RequestOptions = {},
+  ): Promise<Material> {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(body)) {
+      if (value !== undefined && value !== null) {
+        form.append(key, value instanceof Blob ? value : String(value));
+      }
+    }
+    return this.request<Material>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/versions`,
+      { method: "POST", body: form },
+      options,
+    );
+  }
+
+  async getMaterialVersion(
+    materialId: string,
+    version: number,
+    options: RequestOptions = {},
+  ): Promise<MaterialVersion> {
+    return this.request<MaterialVersion>(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/versions/${encodeURIComponent(String(version))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async downloadMaterialVersion(
+    materialId: string,
+    version: number,
+    options: RequestOptions = {},
+  ): Promise<Blob> {
+    return this.requestBlob(
+      `/api/v1/materials/${encodeURIComponent(String(materialId))}/versions/${encodeURIComponent(String(version))}/download`,
+      { method: "GET" },
       options,
     );
   }
