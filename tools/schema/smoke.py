@@ -18,6 +18,10 @@ from alembic.script import ScriptDirectory
 import asyncpg
 
 EXPECTED_TABLES = {
+    "material",
+    "material_version",
+    "material_member",
+    "knowledge_page_material",
     "knowledge_page",
     "knowledge_page_revision",
     "knowledge_page_member",
