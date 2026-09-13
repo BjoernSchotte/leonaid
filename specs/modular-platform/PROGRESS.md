@@ -1134,3 +1134,7 @@ CI 34790135355 auf a326ff0 bestätigt beide Golden-Installationen und ihren Verg
 ## Betrieb — Fehlende Twenty-Feldbestätigung anhand des Zustands klären
 
 Seed-Reset auf a326ff0 (Job 103812838108) scheitert in CreateField nach protokollierter Transaktion und Cache-Invalidierung bei der Suche des Antwortobjekts. Für exakt diesen Flat-Entity-Fehler verwendet der Provisioner jetzt die bestehende begrenzte GraphQL-Leseprüfung und anschließend den vollständigen Feldvergleich. Er wiederholt keine Mutation. Vier Regressionen bestätigen erfolgreich persistierte Felder, fehlenden Commit, Schema-Drift und unverändert weitergereichte Berechtigungsfehler; Ruff besteht. Die Integration ist noch offen. Der gestartete lokale Seed-Runner 59794 archiviert HEAD 3c5de25 und prüft deshalb ausdrücklich noch den Ausgangsstand; er zählt nicht als Nachweis dieser Änderung.
+
+## CI — Unzulässigen Testdouble entfernen
+
+Security-Job 103815429236 lehnt den neuen Twenty-Feldtest wegen `unittest.mock` ab. Dieser Test wird vollständig entfernt; weder Importregel noch Testgrenze werden gelockert. Seine vier zuvor grünen Fälle zählen nicht als akzeptierter Nachweis. Der vorhandene Twenty-Integrationsrunner prüft Idempotenz, vollständigen Schemaabgleich, absichtlich erzeugten echten Drift und Integrations-Key-Rechte gegen das reale System. Die Feldkorrektur bleibt bis zu dessen Abschluss und dem Seed-Reset offen.
