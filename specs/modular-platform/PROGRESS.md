@@ -448,3 +448,12 @@ Benannte Service-Methoden, drei HTTP-Endpunkte und generierter Client unterstüt
 LIVE bestanden: Standalone-Vertrag mit E-Mail-Auflösung, Replay, Eigentümerschutz, Managergrenze, Lesen/Bearbeiten/Entfernen und zwei tatsächlichen konkurrierenden Verbindungen; genau ein Freigabebefehl gewinnt. Aktionsvertrag ergänzt Charity-Admin-Verwaltung, System-Admin-Lesen und Ablehnung fremder Mitglieder. Produktions-HTTP prüft Freigabevertrag, Eigentümerschutz, unbekannte E-Mail und Query-Grenzen. Migration vorwärts, rückwärts und erneut vorwärts sowie erneuter Mitgliedervertrag und echter Schema-Smoke bestanden. Migrationspolicy, Ruff/Mypy, no-test-doubles, API-Client-Typprüfung und 429 Unit-Tests bestanden (neun bekannte Warnungen); bestehende OpenAPI-Verträge unverändert.
 
 Die Mitgliederoberfläche, Wissenseditor, Materialintegration und übergeordnete M2-/M3-Abnahme bleiben offen. Frühere SQL-Fixtures bleiben als unabhängige Prüfung der Rechteauswertung bestehen.
+
+
+## M2 — Gemeinsame Wissensnavigation und Seitenliste
+
+Das Wissensmodul liefert aktive Konten in beiden Shells mit einem autorisierten Navigationseintrag. Die gemeinsame lazy-geladene Ansicht unter `/admin/knowledge` beziehungsweise `/app/knowledge` bietet begrenzte Titelsuche/Pagination und Anlage einer zunächst privaten Seite. Leere Ergebnisse, Laden, Fehler mit Wiederholung, unverlorener Eingabetitel und Erfolgsmeldung sind abgebildet. Die bestehende Shell und deren UI-Tokens bleiben maßgeblich. Diese erste Ansicht zeigt Seitenüberschriften; Öffnen/Bearbeiten, Aktionsauswahl und Freigabeverwaltung folgen noch.
+
+LIVE: tatsächliche Produktionsbuilds gegen FastAPI/PostgreSQL über HTTPS in Chrome: Web legt Seite an → dieselbe Seite in der PWA → nicht passende und passende Suche. Mobile Aufnahme mit 390 × 844 und Desktop mit 1280 × 900, keine horizontale Überbreite; mobile Axe-Prüfung ohne serious/critical. Impeccable-Detektor ohne Treffer. Unabhängiger Screenshot-/Source-Reviewer: `ship` ausschließlich für den ersten Listen-/Anlage-Slice, keine notwendigen Korrekturen. Fehler-/Lade-/Paginationzustände wurden im Code, nicht als eigener Browsernachweis geprüft.
+
+Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden (bestehende Chunkgrößenwarnungen). Acht Modulregistrierungstests und 429 Unit-Tests bestanden; die Navigationserwartung wurde um Wissen ergänzt. Ruff/Mypy und no-test-doubles erfolgreich. Der temporäre Browser-Harness ist noch kein dauerhafter CI-Browser-Gate. Gesamte M2-/M3-Abnahme bleibt offen.

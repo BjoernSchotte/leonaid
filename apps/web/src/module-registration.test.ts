@@ -52,6 +52,17 @@ describe("explicit UI modules", () => {
     );
   });
 
+  it("registers knowledge in both shipped shells", () => {
+    expect(
+      resolveModuleRoute(registeredModules, "web", "/admin/knowledge")
+        ?.moduleId,
+    ).toBe("knowledge");
+    expect(
+      resolveModuleRoute(registeredPwaModules, "pwa", "/app/knowledge")
+        ?.moduleId,
+    ).toBe("knowledge");
+  });
+
   it("rejects duplicate IDs and overlapping routes", () => {
     const surveys = registeredModules[0];
     expect(() => validateUiModules([surveys, surveys])).toThrow("duplicate");

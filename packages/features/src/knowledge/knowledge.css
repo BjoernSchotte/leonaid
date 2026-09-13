@@ -1,0 +1,65 @@
+.knowledge-workspace {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.knowledge-workspace h1 {
+  margin: 0;
+}
+.knowledge-workspace p {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  max-width: 70ch;
+}
+.knowledge-create summary {
+  cursor: pointer;
+  padding-block: 0.75rem;
+  color: var(--primary);
+}
+.knowledge-create form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 40rem;
+  padding-block: 1rem;
+}
+.knowledge-workspace label {
+  display: grid;
+  gap: 0.5rem;
+}
+.knowledge-workspace input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.65rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+.knowledge-workspace :is(input, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.knowledge-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.knowledge-results li {
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.knowledge-results h2 {
+  font-size: var(--text-lg);
+  margin: 0;
+}
+.knowledge-results p {
+  margin-bottom: 0;
+}
+.knowledge-paging {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

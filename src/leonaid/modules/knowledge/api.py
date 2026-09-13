@@ -14,6 +14,7 @@ from pydantic import (
 
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.http import TransportModel
+from leonaid.platform.navigation import NavigationItem
 from leonaid.modules.knowledge.document import validate_document
 from leonaid.modules.tasks.api import CreateTask, Task
 
@@ -222,3 +223,12 @@ __all__ = [
     "Pages",
     "KnowledgeService",
 ]
+
+
+def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    if not actor.account.can_authenticate:
+        return ()
+    return (
+        NavigationItem("knowledge", "Wissen", "/admin/knowledge", "web"),
+        NavigationItem("knowledge", "Wissen", "/app/knowledge", "pwa"),
+    )
