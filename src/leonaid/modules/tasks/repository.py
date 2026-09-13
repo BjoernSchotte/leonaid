@@ -19,6 +19,8 @@ from leonaid.application.errors import (
 )
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.modules.tasks.api import (
+    Assignee,
+    Assignees,
     SetListMember,
     ListMember,
     ListMembers,
@@ -116,6 +118,35 @@ class AsyncpgTaskRepository:
         if not allowed:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
         return TaskList.model_validate(dict(row))
+
+    async def list_assignees(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Assignees:
+        async with self.pool.acquire() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._list(conn, actor.account.id, list_id, write=True)
+            # Apply the identical list-read policy to each prospective assignee.
+            access = _READ_ACCESS.replace("$1", "u.id")
+            rows = await conn.fetch(
+                f"""
+                SELECT u.id AS user_id,u.display_name FROM user_account u
+                CROSS JOIN task_list l WHERE l.id=$1 AND u.status='active'
+                    AND {access} AND strpos(lower(u.display_name), lower($2)) > 0
+                ORDER BY lower(u.display_name),u.id LIMIT $3 OFFSET $4
+                """,
+                list_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return Assignees(
+                items=[
+                    Assignee.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
 
     async def list_lists(self, actor: IdentityPrincipal, query: ListQuery) -> TaskLists:
         async with self.pool.acquire() as conn, conn.transaction():

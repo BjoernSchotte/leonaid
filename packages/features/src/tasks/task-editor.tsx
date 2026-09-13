@@ -7,6 +7,7 @@ import { useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
+import { AssigneePicker } from "./assignee-picker";
 import { EpicPicker } from "./epic-picker";
 
 export type Task = Awaited<ReturnType<LeonAidApiClient["getTask"]>>;
@@ -138,21 +139,17 @@ export function TaskEditor({
             </select>
           </label>
         )}
-        <label>
-          Zuständigkeit
-          <select
-            value={assignee}
-            onChange={(event) => setAssignee(event.target.value)}
-          >
-            <option value="">Nicht zugewiesen</option>
-            <option value={userId}>Ich</option>
-            {task?.assigneeUserId && task.assigneeUserId !== userId && (
-              <option value={task.assigneeUserId}>
-                Bisherige zuständige Person
-              </option>
-            )}
-          </select>
-        </label>
+        <AssigneePicker
+          client={client}
+          listId={listId}
+          value={assignee}
+          userId={userId}
+          onChange={(value) => {
+            setAssignee(value);
+            operation.current = crypto.randomUUID();
+            save.reset();
+          }}
+        />
         <EpicPicker
           client={client}
           listId={listId}

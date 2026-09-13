@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, Request, Response
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
 from leonaid.modules.tasks.api import (
+    Assignees,
     SetListMember,
     ListMembers,
     CreateEpic,
@@ -197,6 +198,26 @@ async def list_members(
     limit: int = Query(default=50, ge=1, le=100),
 ) -> ListMembers:
     return await service(request).list_members(
+        await actor(request, response),
+        list_id,
+        SearchPage(search=search, offset=offset, limit=limit),
+    )
+
+
+@router.get(
+    "/task-lists/{list_id}/assignees",
+    operation_id="listTaskAssignees",
+    response_model=Assignees,
+)
+async def list_assignees(
+    request: Request,
+    response: Response,
+    list_id: UUID,
+    search: str = Query(default="", max_length=200),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Assignees:
+    return await service(request).list_assignees(
         await actor(request, response),
         list_id,
         SearchPage(search=search, offset=offset, limit=limit),

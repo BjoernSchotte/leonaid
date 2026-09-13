@@ -335,3 +335,14 @@ Der Task-Editor bietet die autorisierte Epic-Suche mit begrenzter Pagination, op
 LIVE mit frischem PostgreSQL, sämtlichen Migrationen und echter HTTPS-FastAPI: im Web Epic anlegen, umbenennen und einem neuen Task zuordnen; in PWA trotz erfolgloser Epic-Suche Zuordnung beim Statuswechsel erhalten; im Web dieselbe Epic-ID mit neuem Titel lesen, Zuordnung entfernen und erneut lesen. Zwei erfolgreiche Browserläufe. Mobile Liste und geöffneter Editor ohne critical/serious Axe-Befunde; Editor-Screenshot `/tmp/leonaid-epics-editor.png` visuell geprüft. Temporärer Nachweis `/tmp/leonaid-epics-browser.cjs` verwendet echte HTTP-Aufrufe ohne Antwort-Doubles.
 
 Features-/Web-/PWA-Typprüfung und beide Produktionsbuilds bestanden. Impeccable-Detektor ohne Treffer. Browsernachweis umfasst noch keine konkurrierende Epic-Umbenennung bzw. Rechteänderung und keinen produktiven Proxy-/Service-Worker-Betrieb. Die übergeordneten M2-Abnahmen bleiben offen.
+
+
+## M2 — Berechtigte Personenauswahl und Fremdzuweisung
+
+`list_assignees` ergänzt die öffentliche Task-API, einen GET-Endpunkt und den generierten Client. Die Abfrage verlangt ein aktives Konto mit Schreibrecht auf die konkrete Liste und wendet dieselbe vorhandene Listen-Leseregel auf mögliche Zuständige an. Ergebnis enthält ausschließlich Benutzer-ID und Anzeigename aktiver berechtigter Konten; keine E-Mail-Adressen oder allgemeine Kontosuche. Namenssuche ist literal und unabhängig von Großschreibung, Ergebnisse sind begrenzt und paginiert. Die Schreiboperation prüft die Zuständigkeit beim Speichern weiterhin erneut.
+
+Der gemeinsame Editor ersetzt die bisherige Selbst-/Bestandsauswahl durch diese Personensuche. Eine bestehende Auswahl außerhalb der aktuellen Suchseite bleibt ausdrücklich erhalten; Entfernen ist eine eigene Auswahl. Fehler legen keine weiteren Personen offen.
+
+LIVE PostgreSQL: Standalone-Eigentümer und expliziter Editor, Aktionsrollen, fremde/abgelaufene/zukünftige Mitgliedschaft, entzogene Systemrolle und Aktionsrechte, suspendiertes Zielkonto, Namenssuche, literal `%` und Pagination nachgewiesen. Beide erweiterten Task-Verträge bestanden. LIVE HTTPS/Chrome mit zwei tatsächlichen Sitzungen: Eigentümer legt Liste an, gibt der synthetischen Kollegin Editorrechte, weist ihr eine Aufgabe über den Editor zu; Kollegin erledigt sie in PWA „Für mich“; Eigentümer sieht denselben erledigten Task. Mobile Axe ohne critical/serious und kein horizontaler Overflow. Temporärer Lauf `/tmp/leonaid-assignees-browser.cjs`; keine HTTP-Doubles.
+
+406 Unit-Tests bestanden (neun bestehende Pydantic-Warnungen), Ruff/Mypy, Features/Web/PWA/API-Client-Typprüfung und beide Builds erfolgreich. Vorhandene OpenAPI-Pfade und Schemas strukturell unverändert; nur neuer Vertrag ergänzt. Impeccable-Detektor ohne Treffer. Mitgliederverwaltung im Produkt, vollständige Browser-Rechte-/Konfliktmatrix und weitere M2-Module bleiben offen.

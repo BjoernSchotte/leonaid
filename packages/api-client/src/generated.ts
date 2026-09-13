@@ -37,6 +37,8 @@ export type ApiErrorDetail = { readonly code: string; readonly message: string; 
 export type ApiErrorResponse = { readonly error: ApiErrorDetail; };
 export type ApproveLegalConfigurationRequest = { readonly evidenceId: string; readonly expectedRevision: number; };
 export type AssignedAcquirerResponse = { readonly displayName: string; readonly userId: string; };
+export type Assignee = { readonly displayName: string; readonly userId: string; };
+export type Assignees = { readonly items: Array<Assignee>; readonly nextOffset: number | null; };
 export type BeneficiaryDraftRequest = { readonly organizationName: string; readonly publicDescription: string; };
 export type BeneficiaryResponse = { readonly id: string; readonly organizationName: string; readonly publicDescription: string; readonly sortOrder: number; };
 export type CampaignAliasItemResponse = { readonly actionId: string; readonly alias: string; readonly aliasId: string; readonly enabled: boolean; readonly isPrimary: boolean; readonly revision: number; };
@@ -2434,6 +2436,30 @@ export class LeonAidApiClient {
   ): Promise<TaskList> {
     return this.request<TaskList>(
       `/api/v1/task-lists/${encodeURIComponent(String(listId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async listTaskAssignees(
+    listId: string,
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; } = {},
+    options: RequestOptions = {},
+  ): Promise<Assignees> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = `/api/v1/task-lists/${encodeURIComponent(String(listId))}/assignees` + (queryString ? `?${queryString}` : "");
+    return this.request<Assignees>(
+      requestPath,
       { method: "GET" },
       options,
     );

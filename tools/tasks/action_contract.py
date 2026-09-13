@@ -7,7 +7,7 @@ import asyncio
 import os
 from collections.abc import Awaitable
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import asyncpg
 
@@ -131,6 +131,66 @@ async def main() -> None:
                 idempotency_key=uuid4(), title="Action work", action_id=actions[0]
             ),
         )
+        expected_assignees = {
+            actors[name].account.id
+            for name in (
+                "owner",
+                "manager",
+                "acquirer",
+                "finance_reader",
+                "driver",
+                "global",
+            )
+        }
+        assert {
+            item.user_id
+            for item in (
+                await service.list_assignees(owner, listing.id, SearchPage())
+            ).items
+        } == expected_assignees
+        assert [
+            item.user_id
+            for item in (
+                await service.list_assignees(
+                    owner, listing.id, SearchPage(search="ACQUIRER")
+                )
+            ).items
+        ] == [actors["acquirer"].account.id]
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_account SET status='suspended' WHERE id=$1",
+                actors["driver"].account.id,
+            )
+        assert {
+            item.user_id
+            for item in (
+                await service.list_assignees(owner, listing.id, SearchPage())
+            ).items
+        } == expected_assignees - {actors["driver"].account.id}
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_account SET status='active' WHERE id=$1",
+                actors["driver"].account.id,
+            )
+        paged_ids: set[UUID] = set()
+        offset = 0
+        while True:
+            page = await service.list_assignees(
+                owner, listing.id, SearchPage(offset=offset, limit=2)
+            )
+            paged_ids.update(item.user_id for item in page.items)
+            if page.next_offset is None:
+                break
+            offset = page.next_offset
+        assert paged_ids == expected_assignees
+        assert not (
+            await service.list_assignees(owner, listing.id, SearchPage(search="%"))
+        ).items
+        for name in ("acquirer", "expired", "future", "other", "outsider"):
+            await rejected(
+                service.list_assignees(actors[name], listing.id, SearchPage()),
+                "not_found",
+            )
         task = await service.create_task(
             owner,
             listing.id,
@@ -265,6 +325,16 @@ async def main() -> None:
                 "DELETE FROM user_global_role WHERE user_id=$1",
                 actors["global"].account.id,
             )
+        assert {
+            item.user_id
+            for item in (
+                await service.list_assignees(
+                    actors["manager"], listing.id, SearchPage()
+                )
+            ).items
+        } == {
+            actors[name].account.id for name in ("manager", "finance_reader", "driver")
+        }
         for name in ("owner", "acquirer", "global"):
             await rejected(service.get_task(actors[name], task.id), "not_found")
             assert not (

@@ -173,7 +173,21 @@ class ListMembers(TaskModel):
     next_offset: int | None
 
 
+class Assignee(TaskModel):
+    user_id: UUID
+    display_name: str
+
+
+class Assignees(TaskModel):
+    items: list[Assignee]
+    next_offset: int | None
+
+
 class TaskRepository(Protocol):
+    async def list_assignees(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Assignees: ...
+
     async def set_list_member(
         self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
     ) -> TaskList: ...
@@ -209,6 +223,13 @@ class TaskRepository(Protocol):
 class TaskService:
     def __init__(self, repository: TaskRepository) -> None:
         self._repository = repository
+
+    async def list_assignees(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> Assignees:
+        return await self._repository.list_assignees(
+            actor, list_id, SearchPage.model_validate(query)
+        )
 
     async def set_list_member(
         self, actor: IdentityPrincipal, list_id: UUID, command: SetListMember
@@ -289,6 +310,8 @@ def navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
 
 
 __all__ = [
+    "Assignee",
+    "Assignees",
     "navigation",
     "SetListMember",
     "ListMember",

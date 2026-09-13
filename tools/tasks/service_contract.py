@@ -64,6 +64,12 @@ async def main() -> None:
             service.create_list(owner, command), service.create_list(owner, command)
         )
         assert first == replay and first.title == "Preparation"
+        assert [
+            item.user_id
+            for item in (
+                await service.list_assignees(owner, first.id, SearchPage())
+            ).items
+        ] == [owner_id]
         assert (await service.list_lists(owner, ListQuery())).items == [first]
         assert not (
             await service.list_lists(reader, ListQuery(search="Preparation"))
@@ -216,6 +222,12 @@ async def main() -> None:
         else:
             raise AssertionError("Stale rights update accepted")
         promoted = await service.set_list_member(owner, first.id, promotion)
+        assert {
+            item.user_id
+            for item in (
+                await service.list_assignees(reader, first.id, SearchPage())
+            ).items
+        } == {owner_id, reader_id}
         assert promoted.revision == 3
         reader_command = CreateTask(idempotency_key=uuid4(), title="Shared task")
         shared = await service.create_task(reader, first.id, reader_command)
