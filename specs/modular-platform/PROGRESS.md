@@ -940,3 +940,13 @@ LIVE im eigenen Produktionsstack leonaid-shared-32c62f415463ad67: API/Worker/Web
 Acht gezielte Worker-/Operations-Tests bestanden, darunter frischer Python-Prozess ohne Sweep-Erfolg und später tatsächlich gesetzte Erfolgsmarke. Ruff, Mypy der vier betroffenen Python-Implementierungen, Features-Typecheck, OpenAPI-/Client-Generierung, Prettier, Diffprüfung und Produktionsbuild bestanden. Der umfassende Operations-/Survey-Abschluss bleibt separat offen.
 
 Der separate Survey-Runner hat auch request-limits bestanden: Bericht a66990d6ae7342f8b3c9db922da6c403, Exit 0, 337,029 Sekunden. Session 10846 führt payload-limits und danach die vollständige Exportgruppe weiter aus.
+
+## M2 — Gemeinsame Aktionskontexte und unabhängige Objektberechtigungen abgenommen
+
+Den übergeordneten Kontext-/Rechtepunkt nach aktuellem Code- und Nachweisabgleich abgenommen. Tasks, Wissen und Materialien verwenden dieselbe begrenzte Aktionsauswahl im Frontend; jede Anlage und jeder spätere Objektzugriff prüft die tatsächlichen Datenbankrechte erneut. Eigenständige Objekte erlauben Eigentümer und explizit berechtigte Konten; eine globale Verwaltungsrolle öffnet keine privaten Objekte. Aktionsobjekte verlangen aktuelle Aktionsmitgliedschaft oder aktuelle Systemadministration. Zusätzliche Objektfreigaben umgehen diese Grenze nicht. Darstellung, Suche, Referenzauflösung und Downloads verwenden die jeweilige Objektregel. Referenzierte IDs gewähren keine Rechte.
+
+Die im vollständig bestandenen Schema-Gate (Session 19955) ausgeführten drei Aktionsverträge prüfen jeweils zehn Identitäten einschließlich fremder Aktion, abgelaufener/künftiger Mitgliedschaft, veralteter behaupteter Globalrolle, Entzug und Replay. Wissens-Service- und Materialreferenzverträge prüfen explizit, dass lesbare Seiten keinen Task-/Dateizugriff erteilen. Die vorhandenen Browsernachweise decken private Freigaben mit Rollenwechsel/Entzug, Aktionsanlage und Filter in Web/PWA sowie fremde private Objekte in der gemeinsamen Suche ab. Der aktuelle Source-Abgleich bestätigt die gemeinsame Auswahl und Freigabebedienung in allen drei Modulen. Keine Produktionsänderung für diesen Abnahmeschnitt. Die separate vollständige mobile Bedien- und Browser-CI-Abnahme bleibt offen.
+
+## M1 — Payload-Limitprüfung bestanden
+
+Session 10846 meldet payload-limits als bestanden. Der zentrale Bericht 4193166e5a114ce48d2efa8759797b04 bestätigt Exit 0 nach 345,991 Sekunden. Anschließend wurde die vollständige Exportgruppe gestartet (Bericht a241762639374f03ac8a5db5c68c23db, noch running). Keine erneute Ausführung wegen bloßer Wartezeit; der bestehende Prozess arbeitet weiter.
