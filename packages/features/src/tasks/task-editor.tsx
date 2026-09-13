@@ -1,7 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
+
+import { EpicPicker } from "./epic-picker";
 
 export type Task = Awaited<ReturnType<LeonAidApiClient["getTask"]>>;
 
@@ -26,10 +32,13 @@ export function TaskEditor({
 }) {
   const id = useId();
   const cache = useQueryClient();
+  const epicPending =
+    useIsMutating({ mutationKey: ["task-epic-write", listId] }) > 0;
   const operation = useRef(crypto.randomUUID());
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [status, setStatus] = useState<"open" | "done">(task?.status ?? "open");
+  const [epic, setEpic] = useState(task?.epicId ?? "");
   const [assignee, setAssignee] = useState(task?.assigneeUserId ?? "");
   const [due, setDue] = useState(localTime(task?.dueAt));
   const [deferred, setDeferred] = useState(localTime(task?.deferredUntil));
@@ -39,7 +48,7 @@ export function TaskEditor({
         title: title.trim(),
         description,
         assigneeUserId: assignee || null,
-        epicId: task?.epicId ?? null,
+        epicId: epic || null,
         dueAt:
           due === localTime(task?.dueAt)
             ? (task?.dueAt ?? null)
@@ -95,7 +104,7 @@ export function TaskEditor({
           </p>
         </StatusMessage>
       )}
-      <fieldset disabled={save.isPending}>
+      <fieldset disabled={save.isPending || epicPending}>
         <label>
           Titel
           <input
@@ -144,6 +153,16 @@ export function TaskEditor({
             )}
           </select>
         </label>
+        <EpicPicker
+          client={client}
+          listId={listId}
+          value={epic}
+          onChange={(value) => {
+            setEpic(value);
+            operation.current = crypto.randomUUID();
+            save.reset();
+          }}
+        />
         <label>
           Fällig am
           <input
