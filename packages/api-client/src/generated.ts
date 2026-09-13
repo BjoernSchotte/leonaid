@@ -83,6 +83,7 @@ export type CreateEmailChangeRequest = { readonly newEmail: string; };
 export type CreateEpic = { readonly idempotencyKey: string; readonly title: string; };
 export type CreateInvitationRequest = { readonly actionId: string; readonly displayName: string; readonly email: string; readonly role: "charity_admin" | "acquirer" | "finance_reader" | "driver"; };
 export type CreateList = { readonly actionId?: string | null; readonly idempotencyKey: string; readonly title: string; };
+export type CreatePage = { readonly actionId?: string | null; readonly content?: Record<string, unknown>; readonly idempotencyKey: string; readonly title: string; };
 export type CreatePublicOrderRequest = { readonly accessToken: string; readonly bindingOrderConfirmed: boolean; readonly commandId: string; readonly deliveryContact?: DeliveryContactRequest | null; readonly deliveryRecipient: PublicOrderDeliveryRecipientRequest; readonly deliveryWindowId?: string | null; readonly invoiceRecipient: PublicOrderInvoiceRecipientRequest; readonly lines: Array<PublicOrderLineRequest>; readonly message?: string | null; readonly party: PublicOrderPartyRequest; readonly privacyAcknowledged: boolean; readonly privacyNoticeVersion: string; readonly website?: string | null; };
 export type CreateSurveyExport = { readonly operationId: string; readonly product: "responses_csv" | "responses_xlsx" | "analysis_xlsx" | "analysis_pdf"; readonly snapshotId: string; };
 export type CreateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly idempotencyKey: string; readonly title: string; };
@@ -177,6 +178,9 @@ export type OperationalMonitoringResponse = { readonly activeAlerts: Array<Opera
 export type OperationalStatusCountsResponse = { readonly completed: number; readonly deadLetter: number; readonly pending: number; readonly processing: number; };
 export type OperationsOverviewResponse = { readonly api: OperationalApiMetricsResponse; readonly dependencies: Array<OperationalDependencyResponse>; readonly failedJobs: Array<OperationalFailedJobResponse>; readonly generatedAt: string; readonly login: OperationalLoginMetricsResponse; readonly mail: OperationalStatusCountsResponse; readonly monitoring: OperationalMonitoringResponse; readonly nextPendingAttemptAt?: string | null; readonly oldestDuePendingAgeSeconds?: number | null; readonly outbox: OperationalStatusCountsResponse; readonly requestId: string; };
 export type OrderFormConfigurationResponse = { readonly allowMessage: boolean; readonly formKey: string; readonly id: string; readonly introduction: string; readonly requireBillingAddress: boolean; readonly requireCompanyName: boolean; readonly requireContactName: boolean; readonly requireDeliveryAddress: boolean; readonly requireEmail: boolean; readonly requirePhone: boolean; readonly submitLabel: string; readonly title: string; };
+export type Page = { readonly actionId: string | null; readonly content: Record<string, unknown>; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type PageSummary = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type Pages = { readonly items: Array<PageSummary>; readonly nextOffset: number | null; };
 export type ParticipationCounts = { readonly completed: number; readonly in_progress: number; readonly partial: number; };
 export type PilotDailyDependenciesResponse = { readonly ready: number; readonly total: number; readonly unavailable: Array<"twenty" | "rustfs" | "mail" | "worker">; };
 export type PilotDailyMonitoringResponse = { readonly activeP0: number; readonly activeP1: number; readonly activeP2: number; readonly backupAgeSeconds?: number | null; readonly backupStatus: "ready" | "critical" | "unavailable"; readonly diskFreeRatio?: number | null; readonly diskStatus: "ready" | "critical" | "unavailable"; readonly status: "inactive" | "ready" | "attention" | "unavailable"; readonly tlsRemainingSeconds?: number | null; readonly tlsStatus: "ready" | "critical" | "unavailable"; };
@@ -269,6 +273,7 @@ export type UpdateActivityFeedItemRequest = { readonly read: boolean; };
 export type UpdateCampaignAliasRequest = { readonly alias: string; readonly commandId: string; readonly enabled: boolean; readonly revision: number; readonly targetActionId: string; };
 export type UpdateEpic = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateFeatureFlagRequest = { readonly enabled: boolean; readonly expectedRevision: number; };
+export type UpdatePage = { readonly content: Record<string, unknown>; readonly expectedRevision: number; readonly idempotencyKey: string; readonly title: string; };
 export type UpdateTask = { readonly assigneeUserId?: string | null; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly expectedRevision: number; readonly idempotencyKey: string; readonly status: "open" | "done"; readonly title: string; };
 
 export type FetchLike = (
@@ -1724,6 +1729,74 @@ export class LeonAidApiClient {
     return this.request<InvitationDispatchResponse>(
       `/api/v1/invitations/${encodeURIComponent(String(invitationId))}/resend`,
       { method: "POST" },
+      options,
+    );
+  }
+
+  async listKnowledgePages(
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly actionId?: string | null; } = {},
+    options: RequestOptions = {},
+  ): Promise<Pages> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.search !== undefined && queryParameters.search !== null) {
+      searchParameters.set("search", String(queryParameters.search));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    if (queryParameters.actionId !== undefined && queryParameters.actionId !== null) {
+      searchParameters.set("actionId", String(queryParameters.actionId));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/knowledge-pages" + (queryString ? `?${queryString}` : "");
+    return this.request<Pages>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async createKnowledgePage(
+    body: CreatePage,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      "/api/v1/knowledge-pages",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getKnowledgePage(
+    pageId: string,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async updateKnowledgePage(
+    pageId: string,
+    body: UpdatePage,
+    options: RequestOptions = {},
+  ): Promise<Page> {
+    return this.request<Page>(
+      `/api/v1/knowledge-pages/${encodeURIComponent(String(pageId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
       options,
     );
   }

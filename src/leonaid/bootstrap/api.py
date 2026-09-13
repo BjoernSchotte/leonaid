@@ -23,6 +23,7 @@ from leonaid.modules.surveys.api import navigation as survey_navigation
 from leonaid.modules.surveys.routes import router as surveys_router
 from leonaid.platform.navigation import NavigationItem
 
+from leonaid.modules.knowledge.routes import router as knowledge_router
 from leonaid.modules.knowledge.api import KnowledgeService
 from leonaid.modules.knowledge.repository import AsyncpgKnowledgeRepository
 from leonaid.modules.tasks.api import TaskService, navigation as task_navigation
@@ -30,6 +31,7 @@ from leonaid.modules.tasks.repository import AsyncpgTaskRepository
 from leonaid.modules.tasks.routes import router as tasks_router
 
 MODULES = (
+    ModuleRegistration("knowledge", router=knowledge_router, requires=("tasks",)),
     ModuleRegistration("tasks", router=tasks_router, navigation=task_navigation),
     ModuleRegistration("surveys", router=surveys_router, navigation=survey_navigation),
 )
