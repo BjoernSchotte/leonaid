@@ -68,6 +68,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 async def durable_worker_loop() -> None:
     while True:
         pool = None
+        worker = None
         try:
             pool, _, worker = await build_worker(
                 database_url=os.environ["CORE_DATABASE_URL"],
@@ -88,8 +89,12 @@ async def durable_worker_loop() -> None:
         except Exception:
             await asyncio.sleep(2)
         finally:
-            if pool is not None:
-                await pool.close()
+            try:
+                if worker is not None:
+                    await worker.close()
+            finally:
+                if pool is not None:
+                    await pool.close()
 
 
 async def database_readiness_loop() -> None:

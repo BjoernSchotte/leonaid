@@ -61,7 +61,10 @@ async def execute(arguments: argparse.Namespace) -> int:
             return 0
         raise RuntimeError(f"Unbekannter Worker-Befehl: {arguments.command}")
     finally:
-        await pool.close()
+        try:
+            await worker.close()
+        finally:
+            await pool.close()
 
 
 def _json_state(state: OutboxState) -> dict[str, object]:

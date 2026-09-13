@@ -276,6 +276,7 @@ async def main():
                         )
                         == 1
                     )
+                    await production_worker.close()
                     await production_pool.close()
                     (PROOF / "recovery-installation.txt").write_text(
                         str(checkpoint.installation_id)

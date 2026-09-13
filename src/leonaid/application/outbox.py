@@ -6,7 +6,7 @@ import re
 import asyncio
 import math
 from time import perf_counter
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
@@ -61,6 +61,7 @@ class OutboxWorker:
         clock: Callable[[], datetime] | None = None,
         observer: OutboxObserver | None = None,
         handler_timeouts: Mapping[str, float] | None = None,
+        on_close: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         if not worker_id.strip():
             raise ValueError("worker_id darf nicht leer sein.")
@@ -78,6 +79,11 @@ class OutboxWorker:
         self._retry_policy = retry_policy
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._observer = observer
+        self._on_close = on_close
+
+    async def close(self) -> None:
+        if self._on_close is not None:
+            await self._on_close()
 
     async def run_once(self) -> bool:
         event = await self._queue.claim_next(

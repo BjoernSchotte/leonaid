@@ -8,6 +8,9 @@ from datetime import timedelta
 from typing import Any
 
 import asyncpg
+from pydantic import SecretStr
+from leonaid.adapters.twenty.gateway import TwentyCrmGateway, TwentyGatewaySettings
+from leonaid.modules.inbox.jobs import InboxContactHandler
 
 from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
 from leonaid.adapters.mail.secure_payload import SecureMailPayload
@@ -107,8 +110,25 @@ async def build_worker(
         envelope_from=mail_settings.envelope_from,
         reply_to=mail_settings.reply_to,
     )
+    crm_key = os.environ.get("TWENTY_INTEGRATION_API_KEY")
+    crm = (
+        TwentyCrmGateway(
+            TwentyGatewaySettings(
+                base_url=os.environ["TWENTY_BASE_URL"],
+                api_key=SecretStr(crm_key),
+                # Durable retries own waiting; retain the gateway's shared rate limiter.
+                max_rate_limit_retries=0,
+            )
+        )
+        if crm_key
+        else None
+    )
     handlers = collect_handlers(
         (
+            ModuleRegistration(
+                "inbox",
+                handlers={"inbox.contact_link.v1": InboxContactHandler(pool, crm)},
+            ),
             ModuleRegistration(
                 "surveys",
                 handlers=survey_handlers(
@@ -165,10 +185,12 @@ async def build_worker(
             maximum_delay=timedelta(minutes=15),
         ),
         observer=observe_job,
+        on_close=crm.close if crm is not None else None,
         # Export rendering is repeatable; keep time for cancellation and queue update.
         # Legacy mail handlers retain their transport/recovery semantics.
         handler_timeouts={
             "survey.export.render.v1": min(240.0, claim_lease_seconds * 0.8),
+            "inbox.contact_link.v1": min(90.0, claim_lease_seconds * 0.8),
         },
     )
     return pool, queue, worker
