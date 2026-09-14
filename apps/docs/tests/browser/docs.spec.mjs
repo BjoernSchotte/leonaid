@@ -6,11 +6,15 @@ import process from "node:process";
 
 const baseURL = process.env.LEONAID_DOCS_BASE_URL;
 const artifactDirectory = process.env.LEONAID_DOCS_ARTIFACT_DIR;
+const expectedRevision = process.env.LEONAID_DOCS_EXPECTED_REVISION;
 if (!baseURL || !artifactDirectory) {
   throw new Error(
     "LEONAID_DOCS_BASE_URL and LEONAID_DOCS_ARTIFACT_DIR are required",
   );
 }
+const siteRoot = new URL(baseURL.endsWith("/") ? baseURL : `${baseURL}/`);
+const siteUrl = (relative = "") =>
+  new URL(relative.replace(/^\/+/, ""), siteRoot).href;
 
 const observations = [];
 
@@ -19,7 +23,7 @@ async function waitUntilReady(request) {
     .poll(
       async () => {
         try {
-          return (await request.get("/build-manifest.json")).status();
+          return (await request.get(siteUrl("build-manifest.json"))).status();
         } catch {
           return 0;
         }
@@ -49,17 +53,20 @@ async function scan(page, label) {
 }
 
 async function search(page, query) {
-  return page.evaluate(async (term) => {
-    const pagefind = await import("/pagefind/pagefind.js");
-    await pagefind.init();
-    const result = await pagefind.search(term);
-    return Promise.all(
-      result.results.slice(0, 10).map(async (entry) => {
-        const data = await entry.data();
-        return { title: data.meta.title, url: data.url };
-      }),
-    );
-  }, query);
+  return page.evaluate(
+    async ({ script, term }) => {
+      const pagefind = await import(script);
+      await pagefind.init();
+      const result = await pagefind.search(term);
+      return Promise.all(
+        result.results.slice(0, 10).map(async (entry) => {
+          const data = await entry.data();
+          return { title: data.meta.title, url: data.url };
+        }),
+      );
+    },
+    { script: new URL("pagefind/pagefind.js", siteRoot).pathname, term: query },
+  );
 }
 
 test.beforeAll(async ({ request }) => {
@@ -78,11 +85,12 @@ test("serves the exact manifested bilingual artifact", async ({
   page,
   request,
 }) => {
-  const response = await request.get("/build-manifest.json");
+  const response = await request.get(siteUrl("build-manifest.json"));
   expect(response.status()).toBe(200);
   const manifest = await response.json();
   expect(manifest.schemaVersion).toBe(1);
   expect(manifest.sourceSha).toMatch(/^([0-9a-f]{40}|development)$/);
+  if (expectedRevision) expect(manifest.sourceSha).toBe(expectedRevision);
   expect(manifest.documentation).toMatchObject({
     defaultLocale: "de",
     locales: ["de", "en"],
@@ -90,9 +98,14 @@ test("serves the exact manifested bilingual artifact", async ({
     languagePairs: 31,
   });
   expect(manifest.api.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(manifest.hosting.publicUrl).toBe(
+    `${manifest.hosting.siteUrl.replace(/\/$/, "")}${manifest.hosting.basePath}/`,
+  );
+  expect(new URL(manifest.hosting.siteUrl).protocol).toBe("https:");
+  expect(new URL(manifest.hosting.publicUrl).pathname).toBe(siteRoot.pathname);
 
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/de\/$/);
+  await page.goto(siteUrl());
+  await expect(page).toHaveURL(siteUrl("de/"));
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
   await expect(
     page.getByRole("heading", {
@@ -108,7 +121,7 @@ test("serves the exact manifested bilingual artifact", async ({
 test("keeps navigation, language switch and search localized", async ({
   page,
 }) => {
-  await page.goto("/de/ops/tutorials/local-demo/");
+  await page.goto(siteUrl("de/ops/tutorials/local-demo/"));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Lokale Demo installieren",
   );
@@ -116,13 +129,16 @@ test("keeps navigation, language switch and search localized", async ({
     page.getByRole("link", { name: "LeonAid betreiben" }).first(),
   ).toBeVisible();
   const germanResults = await search(page, "Lieferfenster");
-  expect(germanResults.some((entry) => entry.url.startsWith("/de/"))).toBe(
-    true,
-  );
+  const germanPath = new URL("de/", siteRoot).pathname;
+  expect(
+    germanResults.some((entry) =>
+      new URL(entry.url, siteRoot).pathname.startsWith(germanPath),
+    ),
+  ).toBe(true);
 
   const language = page.getByLabel("Sprache wählen").first();
-  await language.selectOption("/en/ops/tutorials/local-demo/");
-  await expect(page).toHaveURL(/\/en\/ops\/tutorials\/local-demo\/$/);
+  await language.selectOption({ label: "English" });
+  await expect(page).toHaveURL(siteUrl("en/ops/tutorials/local-demo/"));
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Install a local demo",
@@ -132,9 +148,12 @@ test("keeps navigation, language switch and search localized", async ({
   ).toBeVisible();
 
   const englishResults = await search(page, "delivery window");
-  expect(englishResults.some((entry) => entry.url.startsWith("/en/"))).toBe(
-    true,
-  );
+  const englishPath = new URL("en/", siteRoot).pathname;
+  expect(
+    englishResults.some((entry) =>
+      new URL(entry.url, siteRoot).pathname.startsWith(englishPath),
+    ),
+  ).toBe(true);
 });
 
 test("is accessible by keyboard at desktop and 200 percent zoom", async ({
@@ -145,7 +164,7 @@ test("is accessible by keyboard at desktop and 200 percent zoom", async ({
   });
   const page = await context.newPage();
   try {
-    await page.goto(`${baseURL}/en/dev/reference/api/`);
+    await page.goto(siteUrl("en/dev/reference/api/"));
     await page.keyboard.press("Tab");
     await expect(
       page.getByRole("link", { name: "Skip to content" }),
@@ -184,7 +203,7 @@ test("keeps the 375 pixel mobile entry usable", async ({ browser }) => {
   });
   const page = await context.newPage();
   try {
-    await page.goto(`${baseURL}/de/`);
+    await page.goto(siteUrl("de/"));
     await expect(
       page.getByRole("link", { name: "LeonAid verwenden" }),
     ).toBeVisible();

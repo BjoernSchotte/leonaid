@@ -5,8 +5,8 @@ template: splash
 docId: DOC-P001
 audience: [user, ops, dev]
 diataxis: explanation
-contentRevision: 2
-reviewedRevision: 2
+contentRevision: 3
+reviewedRevision: 3
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 hero:
@@ -14,13 +14,13 @@ hero:
   tagline: LeonAid supports charity campaigns from the first contact to reliable operations. Choose the path that matches your work.
   actions:
     - text: Use LeonAid
-      link: /en/user/
+      link: ./user/
       icon: right-arrow
     - text: Operate LeonAid
-      link: /en/ops/
+      link: ./ops/
       variant: minimal
     - text: Deutsch
-      link: /de/
+      link: ../de/
       variant: minimal
 ---
 
@@ -30,20 +30,20 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components";
   <LinkCard
     title="Using LeonAid"
     description="Step-by-step guidance for campaigns, orders, and invoices."
-    href="/en/user/"
+    href="./user/"
   />
   <LinkCard
     title="Operating LeonAid"
     description="Installation, diagnosis, backup, restore, and upgrades for system administrators."
-    href="/en/ops/"
+    href="./ops/"
   />
   <LinkCard
     title="Developing LeonAid"
     description="Architecture, API contracts, and the path to your first verified change."
-    href="/en/dev/"
+    href="./dev/"
   />
 </CardGrid>
 
 LeonAid is currently development and pilot software. Review the
-[known limits](/en/known-limits/) before using it. The [glossary](/en/glossary/)
+[known limits](./known-limits/) before using it. The [glossary](./glossary/)
 defines shared product terms.

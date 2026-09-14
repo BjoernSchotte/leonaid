@@ -5,6 +5,7 @@ export function isAllowedOutput(relative) {
       "build-manifest.json",
       "favicon.svg",
       "index.html",
+      "robots.txt",
       "sitemap-0.xml",
       "sitemap-index.xml",
     ].includes(relative)

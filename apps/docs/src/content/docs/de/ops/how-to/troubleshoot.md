@@ -4,8 +4,8 @@ description: Häufige Betriebsfehler mit Doctor, Healthchecks und sicheren Korre
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -33,3 +33,19 @@ Tokens, E-Mail-Adressen oder Dokumentbytes.
 Bei wiederholbaren Fehlern notiere Zeitpunkt, Release-SHA, Service und
 Korrelations-ID. Wiederhole schreibende Jobs nur über den dafür vorgesehenen
 sicheren Retry-Weg.
+
+## Dokumentationswebsite zurücksetzen
+
+Schlägt der HTTPS-Smoke nach einem Pages-Deployment fehl, öffne den letzten
+grünen `Documentation`-Lauf von `main`, prüfe dessen Manifest-SHA und führe
+genau diesen Lauf erneut aus. GitHub Pages aktiviert das daraus neu erzeugte
+Artefakt atomar. Prüfe danach den deutschen und englischen Einstieg, Suche,
+Sprachwechsel und `build-manifest.json`. Verwende keinen PR-Lauf als
+Rollback-Quelle.
+
+Der getrennte Workflow `Documentation watchdog` öffnet bei einem
+fehlgeschlagenen `main`-Lauf sofort ein Repository-Issue. Zusätzlich prüft er
+alle sechs Stunden, ob seit mehr als 30 Stunden keine erfolgreiche
+Veröffentlichung vorliegt. Damit liegt der vorgesehene Alarm vor der
+36-Stunden-Grenze. Ein erfolgreicher Wiederanlauf schließt das Issue. Der
+Maintainer muss Benachrichtigungen für Repository-Issues aktiviert haben.

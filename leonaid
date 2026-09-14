@@ -253,11 +253,15 @@ run_docs_bun() {
   docs_revision=${LEONAID_DOCS_REVISION:-$(git -C "$root" rev-parse HEAD 2>/dev/null || printf development)}
   docs_built_at=${LEONAID_DOCS_BUILT_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
   docs_artifact_id=${LEONAID_DOCS_ARTIFACT_ID:-local-$(printf %s "$docs_revision" | cut -c 1-12)}
+  docs_site_url=${LEONAID_DOCS_SITE_URL:-https://docs.leonaid.invalid}
+  docs_base_path=${LEONAID_DOCS_BASE_PATH:-}
   docker_retry docker run --rm \
     -e ASTRO_TELEMETRY_DISABLED=1 \
     -e LEONAID_DOCS_ARTIFACT_ID="$docs_artifact_id" \
     -e LEONAID_DOCS_BUILT_AT="$docs_built_at" \
+    -e LEONAID_DOCS_BASE_PATH="$docs_base_path" \
     -e LEONAID_DOCS_REVISION="$docs_revision" \
+    -e LEONAID_DOCS_SITE_URL="$docs_site_url" \
     --network none \
     -v "$root:/workspace" \
     -w /workspace \
@@ -269,9 +273,13 @@ serve_docs() {
   mode=$1
   require_docker
   docs_revision=${LEONAID_DOCS_REVISION:-$(git -C "$root" rev-parse HEAD 2>/dev/null || printf development)}
+  docs_site_url=${LEONAID_DOCS_SITE_URL:-https://docs.leonaid.invalid}
+  docs_base_path=${LEONAID_DOCS_BASE_PATH:-}
   docker_retry docker run --rm \
     -e ASTRO_TELEMETRY_DISABLED=1 \
+    -e LEONAID_DOCS_BASE_PATH="$docs_base_path" \
     -e LEONAID_DOCS_REVISION="$docs_revision" \
+    -e LEONAID_DOCS_SITE_URL="$docs_site_url" \
     -p "127.0.0.1:${LEONAID_DOCS_PORT:-4321}:4321" \
     -v "$root:/workspace" \
     -w /workspace \
@@ -294,6 +302,8 @@ test_docs() {
   preview_container=
   preview_network=
   base_url=${LEONAID_DOCS_BASE_URL:-}
+  docs_site_url=${LEONAID_DOCS_SITE_URL:-https://docs.leonaid.invalid}
+  docs_base_path=${LEONAID_DOCS_BASE_PATH:-}
   browser_network_arguments="--add-host host.docker.internal:host-gateway"
   cleanup_docs_test() {
     status=$?
@@ -324,7 +334,9 @@ test_docs() {
       --name "$preview_container" \
       --network "$preview_network" \
       -e ASTRO_TELEMETRY_DISABLED=1 \
+      -e LEONAID_DOCS_BASE_PATH="$docs_base_path" \
       -e LEONAID_DOCS_REVISION="$docs_revision" \
+      -e LEONAID_DOCS_SITE_URL="$docs_site_url" \
       -v "$root:/workspace" \
       -w /workspace \
       "$BUN_IMAGE" \
@@ -336,7 +348,7 @@ test_docs() {
       echo "test-docs: ERROR: isolated preview has no network address" >&2
       exit 1
     fi
-    base_url="http://$preview_address:4321"
+    base_url="http://$preview_address:4321$docs_base_path/"
     browser_network_arguments="--network $preview_network"
   fi
 
@@ -347,6 +359,7 @@ test_docs() {
     -e HOME=/tmp \
     -e LEONAID_DOCS_ARTIFACT_DIR=/proof \
     -e LEONAID_DOCS_BASE_URL="$base_url" \
+    -e LEONAID_DOCS_EXPECTED_REVISION="${LEONAID_DOCS_EXPECTED_REVISION:-}" \
     -e LEONAID_DOCS_TEST_OUTPUT=/proof/results \
     -v "$root:/workspace:ro" \
     -v "$artifact_directory:/proof" \

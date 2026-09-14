@@ -2,6 +2,13 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
 const sourceRevision = process.env.LEONAID_DOCS_REVISION ?? "development";
+const siteUrl =
+  process.env.LEONAID_DOCS_SITE_URL ?? "https://docs.leonaid.invalid";
+const basePath = (process.env.LEONAID_DOCS_BASE_PATH ?? "").replace(/\/+$/, "");
+
+if (basePath && !/^\/[a-z0-9/-]+$/.test(basePath)) {
+  throw new Error("LEONAID_DOCS_BASE_PATH must be an absolute URL path");
+}
 
 const generatedSection = (label, translation, directory) => ({
   label,
@@ -10,8 +17,9 @@ const generatedSection = (label, translation, directory) => ({
 });
 
 export default defineConfig({
-  site: process.env.LEONAID_DOCS_SITE_URL ?? "https://docs.leonaid.invalid",
-  redirects: { "/": "/de/" },
+  site: siteUrl,
+  base: basePath || undefined,
+  redirects: { "/": `${basePath}/de/` },
   integrations: [
     starlight({
       title: {

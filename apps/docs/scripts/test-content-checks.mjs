@@ -127,6 +127,7 @@ if (missing.category !== "permanent" || missing.attempts !== 1) {
 
 for (const file of [
   "build-manifest.json",
+  "robots.txt",
   "de/ops/index.html",
   "_astro/site.abc123.css",
   "pagefind/fragment/de_abc123.pf_fragment",

@@ -4,8 +4,8 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -33,8 +33,21 @@ allgemeine Produktionsfreigabe.
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
 - Teil- und Überzahlungen sind nicht implementiert; die Buchung akzeptiert nur
   den exakten vollständigen Rechnungsbetrag.
-- Die getrennte Dokumentationswebsite hat noch keine freigegebene Domain. Bis
-  DOC-070 sind die versionierten Quellen und CI-Artefakte der belastbare Zugang.
+- Die getrennte Dokumentationswebsite wird als statische GitHub-Pages-Site aus
+  dem geprüften Artefakt veröffentlicht. Bis zur öffentlichen Abnahme sind die
+  versionierten Quellen und CI-Artefakte der belastbare Zugang.
+
+## Hinweise zur Dokumentationswebsite
+
+Björn Schotte pflegt die Website über das öffentliche
+[LeonAid-Repository](https://github.com/BjoernSchotte/leonaid). Fehler können
+dort als Issue gemeldet werden. Die statische Site setzt keine eigene Analyse
+ein und benötigt keine Anmeldung. GitHub verarbeitet beim Hosting technische
+Zugriffsdaten nach seiner
+[Datenschutzerklärung](https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement).
+
+Für LeonAid ist noch keine Open-Source-Lizenz gewählt. Die Dokumentation ändert
+diesen Status nicht; Lizenzen eingebundener Komponenten gelten unabhängig.
 
 Melde eine Abweichung mit dem betroffenen Produktpfad, der sichtbaren Meldung
 und dem verwendeten Commit. Die Implementierung bleibt die Wahrheitsquelle.

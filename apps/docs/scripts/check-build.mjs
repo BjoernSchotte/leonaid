@@ -14,6 +14,9 @@ const canaryPath = path.resolve(
   import.meta.dirname,
   "../tests/fixtures/private-build-canary.txt",
 );
+const basePath = (process.env.LEONAID_DOCS_BASE_PATH ?? "").replace(/\/+$/, "");
+const siteUrl =
+  process.env.LEONAID_DOCS_SITE_URL ?? "https://docs.leonaid.invalid";
 
 async function outputFiles() {
   return Array.fromAsync(
@@ -27,7 +30,14 @@ function routeForHtml(relative) {
 }
 
 function fileForPath(pathname) {
-  const relative = decodeURIComponent(pathname).replace(/^\/+/, "");
+  let normalized = decodeURIComponent(pathname);
+  if (
+    basePath &&
+    (normalized === basePath || normalized.startsWith(`${basePath}/`))
+  ) {
+    normalized = normalized.slice(basePath.length) || "/";
+  }
+  const relative = normalized.replace(/^\/+/, "");
   if (!relative || relative.endsWith("/") || !path.extname(relative))
     return path.join(distRoot, relative, "index.html");
   return path.join(distRoot, relative);
@@ -81,7 +91,7 @@ for (const file of textFiles) {
 for (const relative of files.filter((file) => file.endsWith(".html"))) {
   const source = path.join(distRoot, relative);
   const html = await readFile(source, "utf8");
-  const base = `https://docs.leonaid.invalid${routeForHtml(relative)}`;
+  const base = `https://docs.leonaid.invalid${basePath}${routeForHtml(relative)}`;
   for (const raw of localUrls(html)) {
     if (/^(?:https?:|mailto:|tel:|data:|javascript:)/.test(raw)) continue;
     const target = new URL(raw, base);
@@ -117,11 +127,38 @@ for (const required of [
   "de/index.html",
   "en/index.html",
   "build-manifest.json",
+  "robots.txt",
   "sitemap-index.xml",
   "pagefind/pagefind.js",
 ]) {
   if (!files.includes(required))
     errors.push(`missing required build output ${required}`);
+}
+
+if (siteUrl !== "https://docs.leonaid.invalid") {
+  const publicRoot = `${siteUrl.replace(/\/$/, "")}${basePath}`;
+  for (const locale of ["de", "en"]) {
+    const html = await readFile(
+      path.join(distRoot, locale, "index.html"),
+      "utf8",
+    );
+    if (!html.includes(`rel="canonical" href="${publicRoot}/${locale}/"`)) {
+      errors.push(`${locale}/index.html: canonical URL is invalid`);
+    }
+    for (const alternate of ["de", "en"]) {
+      if (
+        !html.includes(
+          `rel="alternate" hreflang="${alternate}" href="${publicRoot}/${alternate}/"`,
+        )
+      ) {
+        errors.push(`${locale}/index.html: missing ${alternate} alternate URL`);
+      }
+    }
+  }
+  const robots = await readFile(path.join(distRoot, "robots.txt"), "utf8");
+  if (!robots.includes(`Sitemap: ${publicRoot}/sitemap-index.xml`)) {
+    errors.push("robots.txt does not name the public sitemap");
+  }
 }
 
 if (files.some((file) => /(?:^|\/)private-build-canary\.txt$/.test(file))) {
@@ -139,6 +176,18 @@ try {
   }
   if (!/^[0-9a-f]{64}$/.test(manifest.contentSha256 ?? "")) {
     errors.push("manifest contentSha256 is invalid");
+  }
+  if (manifest.hosting?.basePath !== basePath) {
+    errors.push("manifest basePath does not match the build configuration");
+  }
+  if (manifest.hosting?.siteUrl !== siteUrl) {
+    errors.push("manifest siteUrl does not match the build configuration");
+  }
+  if (
+    manifest.hosting?.publicUrl !==
+    `${manifest.hosting?.siteUrl?.replace(/\/$/, "")}${basePath}/`
+  ) {
+    errors.push("manifest publicUrl is invalid");
   }
   if (manifest.documentation?.locales?.join(",") !== "de,en") {
     errors.push("manifest locales are not de,en");

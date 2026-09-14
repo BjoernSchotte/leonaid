@@ -4,8 +4,8 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -32,8 +32,20 @@ general production approval.
   cancellation and a new transaction.
 - Partial payments and overpayments are not implemented; recording a payment
   accepts only the exact full invoice amount.
-- The separate documentation site does not yet have an approved domain. Until
-  DOC-070, the versioned source and CI artifacts are the reliable entry points.
+- The separate documentation website will be published as a static GitHub Pages
+  site from the verified artifact. Until public acceptance, the versioned
+  source and CI artifacts remain the reliable entry points.
+
+## Documentation website information
+
+Björn Schotte maintains the website through the public
+[LeonAid repository](https://github.com/BjoernSchotte/leonaid). Problems can
+be reported there as issues. The static site has no first-party analytics and
+requires no sign-in. GitHub processes technical access data for hosting under
+its [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+
+LeonAid does not yet have an open-source license. The documentation does not
+change that status; licenses for included components continue to apply.
 
 Report a discrepancy with the affected product route, visible message, and
 commit. The implementation remains the source of truth.

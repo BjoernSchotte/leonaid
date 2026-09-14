@@ -1,0 +1,60 @@
+name: Documentation watchdog
+
+on:
+  workflow_run:
+    workflows: [Documentation]
+    types: [completed]
+  schedule:
+    - cron: "47 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  issues: write
+
+concurrency:
+  group: documentation-watchdog
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    name: Alert or resolve publication failure
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ALERT_TITLE: "[docs-watchdog] Documentation publication needs attention"
+    steps:
+      - name: Check publication and maintain alert
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -eu
+
+          problem=
+          if [ "$EVENT_NAME" = workflow_run ] && [ "$RUN_CONCLUSION" != success ]; then
+            problem="The Documentation workflow failed: $RUN_URL"
+          elif [ "$EVENT_NAME" != workflow_run ]; then
+            last_success=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].created_at // empty')
+            if [ -z "$last_success" ] || \
+              [ "$(( $(date -u +%s) - $(date -u -d "$last_success" +%s) ))" -gt 108000 ]; then
+              problem="No successful Documentation publication was recorded in the last 30 hours."
+            fi
+          fi
+
+          issue=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" \
+            --jq '[.[] | select(.pull_request == null and .title == "[docs-watchdog] Documentation publication needs attention")][0].number // empty')
+
+          if [ -n "$problem" ] && [ -z "$issue" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "$ALERT_TITLE" \
+              --body "$problem Run the protected main workflow manually, verify its live smoke, and close this alert only after recovery."
+          elif [ -z "$problem" ] && [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
+              --comment "A successful Documentation publication is current again."
+          fi

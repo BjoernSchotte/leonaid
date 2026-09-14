@@ -21,6 +21,9 @@ const sourceSha = process.env.LEONAID_DOCS_REVISION ?? "development";
 const artifactId =
   process.env.LEONAID_DOCS_ARTIFACT_ID ?? `local-${sourceSha.slice(0, 12)}`;
 const builtAt = process.env.LEONAID_DOCS_BUILT_AT ?? new Date().toISOString();
+const siteUrl =
+  process.env.LEONAID_DOCS_SITE_URL ?? "https://docs.leonaid.invalid";
+const basePath = (process.env.LEONAID_DOCS_BASE_PATH ?? "").replace(/\/+$/, "");
 
 if (!/^([0-9a-f]{40}|development)$/.test(sourceSha)) {
   throw new Error(
@@ -29,6 +32,12 @@ if (!/^([0-9a-f]{40}|development)$/.test(sourceSha)) {
 }
 if (!/^\d{4}-\d{2}-\d{2}T/.test(builtAt) || Number.isNaN(Date.parse(builtAt))) {
   throw new Error("LEONAID_DOCS_BUILT_AT must be an ISO-8601 timestamp");
+}
+if (new URL(siteUrl).pathname !== "/") {
+  throw new Error("LEONAID_DOCS_SITE_URL must contain only the site origin");
+}
+if (basePath && !/^\/[a-z0-9/-]+$/.test(basePath)) {
+  throw new Error("LEONAID_DOCS_BASE_PATH must be an absolute URL path");
 }
 
 const validation = await validateContent({ docsRoot, inventory });
@@ -65,6 +74,11 @@ const manifest = {
   builtAt: new Date(builtAt).toISOString(),
   sourceSha,
   contentSha256: contentHash.digest("hex"),
+  hosting: {
+    siteUrl,
+    basePath,
+    publicUrl: `${siteUrl.replace(/\/$/, "")}${basePath}/`,
+  },
   documentation: {
     defaultLocale: "de",
     locales: ["de", "en"],

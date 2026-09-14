@@ -4,8 +4,8 @@ description: Diagnose common operational failures with Doctor, health checks, an
 docId: DOC-P025
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
+contentRevision: 2
+reviewedRevision: 2
 verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
 reviewer: Björn Schotte
 ---
@@ -30,3 +30,17 @@ email addresses, or document bytes.
 
 For repeatable faults, record time, release SHA, service, and correlation ID.
 Retry write jobs only through their defined safe retry path.
+
+## Roll back the documentation website
+
+If the HTTPS smoke fails after a Pages deployment, open the last green
+`Documentation` run from `main`, verify its manifest SHA, and rerun that exact
+workflow run. GitHub Pages atomically activates the newly produced artifact.
+Then verify the German and English entries, search, the language switch, and
+`build-manifest.json`. Never use a pull-request run as a rollback source.
+
+The separate `Documentation watchdog` workflow opens a repository issue
+immediately when a `main` run fails. It also checks every six hours whether no
+successful publication has occurred for more than 30 hours, placing the
+intended alert before the 36-hour boundary. A successful recovery run closes
+the issue. The maintainer must enable notifications for repository issues.
