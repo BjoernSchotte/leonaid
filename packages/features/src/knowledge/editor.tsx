@@ -6,10 +6,12 @@ import {
   NodeViewWrapper,
   ReactNodeViewRenderer,
   useEditor,
-  useEditorState,
   type NodeViewProps,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { TextStyle, FontFamily, FontSize } from "@tiptap/extension-text-style";
+import TextAlign from "@tiptap/extension-text-align";
+import { FormattingToolbar } from "./formatting-toolbar";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
@@ -169,7 +171,6 @@ function PageEditor({
   const extensions = useMemo(
     () => [
       StarterKit.configure({
-        underline: false,
         trailingNode: false,
         link: {
           openOnClick: false,
@@ -178,6 +179,10 @@ function PageEditor({
           isAllowedUri: (url) => /^https?:\/\//i.test(url),
         },
       }),
+      TextStyle,
+      FontFamily,
+      FontSize,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
       taskReference(client, basePath),
       materialReference(client),
     ],
@@ -203,15 +208,6 @@ function PageEditor({
         class: "knowledge-document",
       },
     },
-  });
-  const state = useEditorState({
-    editor,
-    selector: ({ editor: current }) => ({
-      bold: current?.isActive("bold") ?? false,
-      italic: current?.isActive("italic") ?? false,
-      bullet: current?.isActive("bulletList") ?? false,
-      heading: current?.isActive("heading", { level: 2 }) ?? false,
-    }),
   });
   const save = useMutation({
     mutationFn: () =>
@@ -254,12 +250,15 @@ function PageEditor({
         </p>
       </header>
       {canManage && (
-        <AccessMembersPanel
-          client={client}
-          objectId={page.id}
-          kind="knowledge-page"
-          actionScoped={!!page.actionId}
-        />
+        <details className="knowledge-access">
+          <summary>Freigaben verwalten</summary>
+          <AccessMembersPanel
+            client={client}
+            objectId={page.id}
+            kind="knowledge-page"
+            actionScoped={!!page.actionId}
+          />
+        </details>
       )}
       {canEdit && (
         <label>
@@ -284,61 +283,11 @@ function PageEditor({
           </p>
         </StatusMessage>
       )}
-      {canEdit && (
-        <div
-          className="knowledge-toolbar"
-          role="group"
-          aria-label="Textformatierung"
-        >
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            aria-pressed={state?.bold}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-          >
-            Fett
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            aria-pressed={state?.italic}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-          >
-            Kursiv
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            aria-pressed={state?.heading}
-            onClick={() =>
-              editor?.chain().focus().toggleHeading({ level: 2 }).run()
-            }
-          >
-            Überschrift
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            aria-pressed={state?.bullet}
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-          >
-            Aufzählung
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            onClick={() => editor?.chain().focus().undo().run()}
-          >
-            Rückgängig
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={!editor || save.isPending || invalid || taskOpen}
-            onClick={() => editor?.chain().focus().redo().run()}
-          >
-            Wiederholen
-          </Button>
-        </div>
+      {canEdit && editor && (
+        <FormattingToolbar
+          editor={editor}
+          disabled={save.isPending || invalid || taskOpen}
+        />
       )}
       {canEdit && !taskOpen && !invalid && !save.isPending && (
         <>

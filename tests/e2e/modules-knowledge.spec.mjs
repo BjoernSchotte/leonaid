@@ -40,6 +40,21 @@ for (const [surface, width] of [
       exact: true,
     });
     await editor.fill("Erster gemeinsamer Inhalt.");
+    await editor.press("ControlOrMeta+a");
+    await page
+      .getByRole("button", { name: "Unterstreichen", exact: true })
+      .click();
+    await page.getByLabel("Schriftart", { exact: true }).selectOption("serif");
+    await page.getByLabel("Schriftgröße", { exact: true }).selectOption("18px");
+    await page.getByRole("button", { name: "Zentriert", exact: true }).click();
+    await expect(editor.locator("u")).toHaveText("Erster gemeinsamer Inhalt.");
+    await expect(editor.locator("p")).toHaveCSS("text-align", "center");
+    await expect(editor.locator("span").first()).toHaveCSS("font-size", "18px");
+    await page.screenshot({
+      path: testInfo.outputPath(`${surface}-knowledge-formatting.png`),
+      fullPage: true,
+    });
+
     await page.getByRole("button", { name: "Speichern", exact: true }).click();
     await expect(page.getByText("Gespeichert.", { exact: true })).toBeVisible();
     const second = await context.newPage();
@@ -51,6 +66,18 @@ for (const [surface, width] of [
     await expect(
       second.getByRole("textbox", { name: "Seiteninhalt", exact: true }),
     ).toHaveText("Erster gemeinsamer Inhalt.");
+    const reopened = second.getByRole("textbox", {
+      name: "Seiteninhalt",
+      exact: true,
+    });
+    await expect(reopened.locator("u")).toHaveText(
+      "Erster gemeinsamer Inhalt.",
+    );
+    await expect(reopened.locator("p")).toHaveCSS("text-align", "center");
+    await expect(reopened.locator("span").first()).toHaveCSS(
+      "font-size",
+      "18px",
+    );
     await editor.fill("Lokaler Entwurf bleibt erhalten.");
     await second
       .getByRole("textbox", { name: "Seiteninhalt", exact: true })

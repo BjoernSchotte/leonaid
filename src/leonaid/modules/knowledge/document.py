@@ -8,6 +8,8 @@ from uuid import UUID
 MAX_DOCUMENT_BYTES = 1048576
 MAX_DOCUMENT_NODES = 10000
 MAX_DOCUMENT_DEPTH = 32
+FONT_FAMILIES = {"sans-serif", "serif", "monospace"}
+FONT_SIZES = {"12px", "14px", "16px", "18px", "20px", "24px", "32px"}
 BLOCKS = {
     "paragraph",
     "heading",
@@ -49,9 +51,22 @@ def validate_document(value: object) -> dict[str, Any]:
         attrs = node.get("attrs", {})
         if not isinstance(attrs, dict):
             raise ValueError("Ungültige Dokumentattribute.")
-        if kind == "heading":
+        if kind in {"paragraph", "heading"}:
+            if attrs.get("textAlign") not in (
+                None,
+                "left",
+                "center",
+                "right",
+                "justify",
+            ):
+                raise ValueError("Ungültige Textausrichtung.")
+        if kind == "paragraph":
+            if set(attrs) - {"textAlign"}:
+                raise ValueError("Ungültige Absatzattribute.")
+        elif kind == "heading":
             if (
-                set(attrs) != {"level"}
+                set(attrs) - {"level", "textAlign"}
+                or "level" not in attrs
                 or type(attrs["level"]) is not int
                 or not 1 <= attrs["level"] <= 6
             ):
@@ -89,7 +104,7 @@ def validate_document(value: object) -> dict[str, Any]:
         elif attrs:
             raise ValueError("Dieser Knoten unterstützt keine Attribute.")
         marks = node.get("marks", [])
-        if not isinstance(marks, list) or (marks and kind != "text") or len(marks) > 5:
+        if not isinstance(marks, list) or (marks and kind != "text") or len(marks) > 7:
             raise ValueError("Ungültige Textformatierung.")
         for mark in marks:
             validate_mark(mark)
@@ -160,7 +175,17 @@ def validate_mark(mark: object) -> None:
     attrs = mark.get("attrs", {})
     if not isinstance(attrs, dict):
         raise ValueError("Ungültige Formatattribute.")
-    if kind in {"bold", "italic", "strike", "code"} and not attrs:
+    if kind in {"bold", "italic", "underline", "strike", "code"} and not attrs:
+        return
+    if kind == "textStyle":
+        if set(attrs) - {"fontFamily", "fontSize"}:
+            raise ValueError("Ungültige Schriftattribute.")
+        for key, allowed in (("fontFamily", FONT_FAMILIES), ("fontSize", FONT_SIZES)):
+            value = attrs.get(key)
+            if value is not None and (
+                not isinstance(value, str) or value not in allowed
+            ):
+                raise ValueError("Nicht unterstützte Schrift oder Schriftgröße.")
         return
     if kind != "link" or set(attrs) - {"href", "target", "rel", "class", "title"}:
         raise ValueError("Diese Textformatierung wird nicht unterstützt.")

@@ -70,8 +70,8 @@
   gap: 0.5rem;
 }
 .knowledge-document {
-  min-height: 16rem;
-  padding: 1rem;
+  min-height: max(32rem, 65dvh);
+  padding: clamp(1.25rem, 4vw, 3rem);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -115,4 +115,115 @@
   margin-block: 0.75rem;
   padding-block: 0.75rem;
   border-block: 1px solid var(--border);
+}
+
+.knowledge-formatting {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.knowledge-formatting-row,
+.knowledge-tool-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.knowledge-tool-group + .knowledge-tool-group {
+  border-left: 1px solid var(--border);
+  padding-left: 0.5rem;
+}
+.knowledge-workspace .knowledge-formatting select {
+  width: auto;
+  min-height: 2.25rem;
+  padding: 0.35rem;
+  font-size: 0.875rem;
+}
+.knowledge-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.knowledge-tool:hover:not(:disabled),
+.knowledge-tool[aria-pressed="true"] {
+  background: var(--muted);
+  border-color: var(--border);
+}
+.knowledge-tool[aria-pressed="true"] {
+  color: var(--primary);
+}
+.knowledge-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.knowledge-tool:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.knowledge-link-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+  padding-top: 0.75rem;
+}
+.knowledge-link-form label {
+  flex: 1 1 15rem;
+}
+.knowledge-document {
+  caret-color: var(--primary);
+}
+.knowledge-document p {
+  max-width: none;
+}
+.knowledge-document h1 {
+  font-size: 2rem;
+}
+.knowledge-document h2 {
+  font-size: 1.65rem;
+}
+.knowledge-document h3 {
+  font-size: 1.4rem;
+}
+.knowledge-document h4 {
+  font-size: 1.2rem;
+}
+.knowledge-document h5 {
+  font-size: 1.05rem;
+}
+.knowledge-document h6 {
+  font-size: 1rem;
+}
+.knowledge-access summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+@media (pointer: coarse) {
+  .knowledge-tool,
+  .knowledge-workspace .knowledge-formatting select {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
+@media (max-width: 600px) {
+  .knowledge-formatting {
+    position: static;
+  }
+  .knowledge-document {
+    padding: 1rem;
+  }
 }

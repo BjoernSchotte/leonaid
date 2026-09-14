@@ -301,3 +301,68 @@ def test_material_reference_rejects_bad_id_and_children() -> None:
     ):
         with pytest.raises(ValueError):
             validate_document(document(node))
+
+
+def test_extended_formatting_roundtrip_keeps_old_document_valid() -> None:
+    source = document(
+        {
+            "type": "heading",
+            "attrs": {"level": 3, "textAlign": "center"},
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Gestalteter Inhalt",
+                    "marks": [
+                        {"type": "underline"},
+                        {"type": "bold"},
+                        {
+                            "type": "textStyle",
+                            "attrs": {"fontFamily": "serif", "fontSize": "18px"},
+                        },
+                    ],
+                }
+            ],
+        },
+        {"type": "paragraph", "attrs": {"textAlign": None}},
+    )
+    assert validate_document(source) == source
+    assert validate_document(document({"type": "paragraph"})) == document(
+        {"type": "paragraph"}
+    )
+
+
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"fontFamily": "url(https://example.org/font)"},
+        {"fontFamily": ["serif"]},
+        {"fontSize": "999px"},
+        {"fontSize": "18px; color:red"},
+        {"color": "red"},
+        {"fontSize": 18},
+    ],
+)
+def test_font_styles_reject_unbounded_or_injected_values(attrs: object) -> None:
+    with pytest.raises(ValueError):
+        validate_document(
+            document(
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Text",
+                            "marks": [{"type": "textStyle", "attrs": attrs}],
+                        }
+                    ],
+                }
+            )
+        )
+
+
+@pytest.mark.parametrize("alignment", ["float", "left;position:fixed", 1, [], {}])
+def test_alignment_rejects_non_contract_values(alignment: object) -> None:
+    with pytest.raises(ValueError):
+        validate_document(
+            document({"type": "paragraph", "attrs": {"textAlign": alignment}})
+        )
