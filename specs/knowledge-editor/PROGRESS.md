@@ -20,3 +20,28 @@ Noch offen: Auswahlmenü, kompakter Dokumentkopf und gemeinsame Einfügeaktionen
 Die erste mobile Aufnahme zeigt, dass vor der Schreibfläche noch zu viele
 Verwaltungselemente stehen; der zweite Slice verschiebt diese in den Dokumentkopf
 und prüft die Auswahlposition gegenüber der festen PWA-Navigation.
+
+
+## Slice 2: Auswahlmenü und Dokumentkopf
+
+Die Auswahlleiste besteht aus genau einer Zeile mit sechs Icons. Weitere Formate
+öffnen ein eigenes Bedienfeld; die Hauptzeile bricht dabei nicht um. Allgemeine
+Toolbar und Auswahlmenü verwenden dieselben Formatierungsaktionen. Der Kopf
+bündelt Titel, Speicherstatus und Speicheraktionen; Freigaben und Einfügen von
+Aufgaben/Materialien sind einklappbar.
+
+Die Browserprüfung erfasst Auswahl, Schriftwechsel im Untermenü, Linkeingabe,
+Escape, gespeicherte Formatierung und Konfliktentwurf in Web/PWA. Escape setzt den
+Cursor ans Auswahlende. Der native Tastaturzugriff berücksichtigt Tiptaps
+Event-Weitergabe. Bei Alles markieren verankert sich das Menü innerhalb der
+Textblöcke statt an der hohen Dokumentfläche. Die Abnahme misst eine einzige
+Icon-Zeile, Viewportgrenzen und weniger als 24 px Abstand zum ausgewählten Absatz.
+
+Der vollständige Modul-Browserlauf vom 14.09.2026 besteht mit sieben Fällen;
+Log `/tmp/leonaid-knowledge-selection-browser-4.log`, isoliertes Projekt
+`leonaid-shared-2bed92392f53f536`. Desktop und Mobile wurden visuell geprüft.
+TypeScript, Diffprüfung und Impeccable-Detektor bestehen. Der Secret-Scan umfasst
+die vorbereiteten Quelldateien. Die CI für Slice 1 ist ebenfalls vollständig grün.
+
+Noch offen: Copy/Paste-Normalisierung und erweiterte Gesamtannahme einschließlich
+Touch-Zielen, Listen/History, gemischter Auswahl, Referenzen und Leserechten.

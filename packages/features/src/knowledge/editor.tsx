@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Node } from "@tiptap/core";
+import { Node, posToDOMRect } from "@tiptap/core";
 import {
   EditorContent,
   NodeViewWrapper,
@@ -8,6 +8,8 @@ import {
   useEditor,
   type NodeViewProps,
 } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
+import { NodeSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontFamily, FontSize } from "@tiptap/extension-text-style";
 import TextAlign from "@tiptap/extension-text-align";
@@ -162,6 +164,7 @@ function PageEditor({
   const [revision, setRevision] = useState(page.revision);
   const [taskOpen, setTaskOpen] = useState(false);
   const [materialOpen, setMaterialOpen] = useState(false);
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const materialTrigger = useRef<HTMLButtonElement>(null);
   const taskTrigger = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState(false);
@@ -241,40 +244,122 @@ function PageEditor({
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty, taskOpen]);
   return (
-    <>
-      <header>
-        <h1 id="page-heading">{savedTitle}</h1>
-        <p>
-          Version {revision}
-          {!canEdit ? " · Nur lesen" : ""}
-        </p>
+    <div className="knowledge-page-editor">
+      <header className="knowledge-editor-header">
+        <h1
+          id="page-heading"
+          className={canEdit ? "knowledge-visually-hidden" : undefined}
+        >
+          {savedTitle}
+        </h1>
+        {canEdit && (
+          <label>
+            Seitentitel
+            <input
+              maxLength={240}
+              required
+              value={title}
+              disabled={save.isPending || taskOpen}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                changed();
+              }}
+            />
+          </label>
+        )}
+        <div className="knowledge-editor-meta">
+          <span>
+            Version {revision}
+            {!canEdit
+              ? " · Nur lesen"
+              : dirty
+                ? " · Ungespeicherte Änderungen"
+                : ""}
+          </span>
+          {canEdit && (
+            <div className="knowledge-toolbar">
+              <Button
+                disabled={
+                  !editor ||
+                  !dirty ||
+                  !title.trim() ||
+                  save.isPending ||
+                  invalid ||
+                  taskOpen
+                }
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? "Wird gespeichert …" : "Speichern"}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={save.isPending || taskOpen}
+                onClick={() => void reload()}
+              >
+                Aktuelle Version laden
+              </Button>
+            </div>
+          )}
+        </div>
       </header>
-      {canManage && (
-        <details className="knowledge-access">
-          <summary>Freigaben verwalten</summary>
-          <AccessMembersPanel
-            client={client}
-            objectId={page.id}
-            kind="knowledge-page"
-            actionScoped={!!page.actionId}
-          />
-        </details>
-      )}
-      {canEdit && (
-        <label>
-          Seitentitel
-          <input
-            maxLength={240}
-            required
-            value={title}
-            disabled={save.isPending || taskOpen}
-            onChange={(event) => {
-              setTitle(event.target.value);
-              changed();
-            }}
-          />
-        </label>
-      )}
+      <div className="knowledge-editor-actions">
+        {canManage && (
+          <details className="knowledge-access">
+            <summary>Freigaben verwalten</summary>
+            <AccessMembersPanel
+              client={client}
+              objectId={page.id}
+              kind="knowledge-page"
+              actionScoped={!!page.actionId}
+            />
+          </details>
+        )}
+        {canEdit && (
+          <details className="knowledge-insert">
+            <summary>Einfügen</summary>
+            <div className="knowledge-insert-options">
+              <Button
+                variant="secondary"
+                disabled={
+                  !editor ||
+                  materialOpen ||
+                  taskOpen ||
+                  invalid ||
+                  save.isPending
+                }
+                onClick={(event) => {
+                  materialTrigger.current = event.currentTarget;
+                  setMaterialOpen(true);
+                }}
+              >
+                Material aus Ablage verknüpfen
+              </Button>
+              {canEdit && (
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={
+                      !editor || dirty || save.isPending || invalid || taskOpen
+                    }
+                    onClick={(event) => {
+                      taskTrigger.current = event.currentTarget;
+                      setTaskOpen(true);
+                    }}
+                  >
+                    Aufgabe aus dieser Seite
+                  </Button>
+                  {dirty && (
+                    <p>
+                      Speichere deine Seitenänderungen, bevor du eine Aufgabe
+                      daraus anlegst.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
       {invalid && (
         <StatusMessage tone="error">
           <p>
@@ -291,16 +376,6 @@ function PageEditor({
       )}
       {canEdit && !taskOpen && !invalid && !save.isPending && (
         <>
-          <Button
-            variant="secondary"
-            disabled={!editor || materialOpen}
-            onClick={(event) => {
-              materialTrigger.current = event.currentTarget;
-              setMaterialOpen(true);
-            }}
-          >
-            Material aus Ablage verknüpfen
-          </Button>
           {materialOpen && (
             <MaterialPicker
               client={client}
@@ -325,6 +400,60 @@ function PageEditor({
           )}
         </>
       )}
+      {canEdit && editor && (
+        <BubbleMenu
+          editor={editor}
+          ref={bubbleRef}
+          pluginKey="knowledgeSelection"
+          className="knowledge-selection-menu"
+          getReferencedVirtualElement={() => {
+            const { selection, doc } = editor.state;
+            // Select All includes the document boundary; anchor inside the text
+            // blocks instead of the tall, otherwise empty writing surface.
+            const rect = posToDOMRect(
+              editor.view,
+              Math.max(1, selection.from),
+              Math.min(doc.content.size - 1, selection.to),
+            );
+            return { getBoundingClientRect: () => rect };
+          }}
+          options={{
+            strategy: "fixed",
+            placement: "top",
+            offset: 8,
+            flip: { padding: 12 },
+            shift: { padding: { top: 12, bottom: 100, left: 12, right: 12 } },
+          }}
+          shouldShow={({ editor: current, state }) =>
+            current.isEditable &&
+            !(state.selection instanceof NodeSelection) &&
+            !!state.doc.textBetween(state.selection.from, state.selection.to)
+              .length &&
+            !state.selection.empty &&
+            (current.isFocused ||
+              !!bubbleRef.current?.contains(document.activeElement))
+          }
+          onKeyDown={(event) => {
+            if (event.nativeEvent.key === "Escape") {
+              event.preventDefault();
+              editor
+                .chain()
+                .focus()
+                .setTextSelection(editor.state.selection.to)
+                .run();
+              editor.view.dispatch(
+                editor.state.tr.setMeta("knowledgeSelection", "hide"),
+              );
+            }
+          }}
+        >
+          <FormattingToolbar
+            editor={editor}
+            compact
+            disabled={save.isPending || invalid || taskOpen}
+          />
+        </BubbleMenu>
+      )}
       <EditorContent editor={editor} />
       {save.error && (
         <StatusMessage tone="error">
@@ -336,50 +465,6 @@ function PageEditor({
         </StatusMessage>
       )}
       {saved && <p role="status">Gespeichert.</p>}
-      {canEdit && (
-        <div className="knowledge-toolbar">
-          <Button
-            disabled={
-              !editor ||
-              !dirty ||
-              !title.trim() ||
-              save.isPending ||
-              invalid ||
-              taskOpen
-            }
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Wird gespeichert …" : "Speichern"}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={save.isPending || taskOpen}
-            onClick={() => void reload()}
-          >
-            Aktuelle Version laden
-          </Button>
-        </div>
-      )}
-      {canEdit && (
-        <>
-          <Button
-            variant="secondary"
-            disabled={!editor || dirty || save.isPending || invalid || taskOpen}
-            onClick={(event) => {
-              taskTrigger.current = event.currentTarget;
-              setTaskOpen(true);
-            }}
-          >
-            Aufgabe aus dieser Seite
-          </Button>
-          {dirty && (
-            <p>
-              Speichere deine Seitenänderungen, bevor du eine Aufgabe daraus
-              anlegst.
-            </p>
-          )}
-        </>
-      )}
       {taskOpen && (
         <TaskFromPage
           client={client}
@@ -406,6 +491,6 @@ function PageEditor({
           }}
         />
       )}
-    </>
+    </div>
   );
 }

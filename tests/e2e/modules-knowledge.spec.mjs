@@ -27,6 +27,8 @@ for (const [surface, width] of [
       },
     ]);
     const page = await context.newPage();
+    const pageErrors = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     const title = `Wissen Browsernachweis ${randomUUID()}`;
     await page.goto(`${baseURL}/${surface}/knowledge`);
     await page.getByText("Neue Seite", { exact: true }).click();
@@ -41,15 +43,86 @@ for (const [surface, width] of [
     });
     await editor.fill("Erster gemeinsamer Inhalt.");
     await editor.press("ControlOrMeta+a");
-    await page
+    const mainToolbar = page.getByRole("toolbar", {
+      name: "Textformatierung",
+      exact: true,
+    });
+    const bubble = page.getByRole("toolbar", {
+      name: "Auswahl formatieren",
+      exact: true,
+    });
+    await expect(bubble).toBeVisible();
+    await bubble
       .getByRole("button", { name: "Unterstreichen", exact: true })
       .click();
-    await page.getByLabel("Schriftart", { exact: true }).selectOption("serif");
-    await page.getByLabel("Schriftgröße", { exact: true }).selectOption("18px");
-    await page.getByRole("button", { name: "Zentriert", exact: true }).click();
+    await mainToolbar
+      .getByLabel("Schriftart", { exact: true })
+      .selectOption("serif");
+    await mainToolbar
+      .getByLabel("Schriftgröße", { exact: true })
+      .selectOption("18px");
+    await mainToolbar
+      .getByRole("button", { name: "Zentriert", exact: true })
+      .click();
     await expect(editor.locator("u")).toHaveText("Erster gemeinsamer Inhalt.");
     await expect(editor.locator("p")).toHaveCSS("text-align", "center");
     await expect(editor.locator("span").first()).toHaveCSS("font-size", "18px");
+    await editor.focus();
+    await editor.press("ControlOrMeta+a");
+    await expect(bubble).toBeVisible();
+    await bubble
+      .getByRole("button", { name: "Weitere Formate", exact: true })
+      .click();
+    await page
+      .getByRole("group", { name: "Weitere Textformate", exact: true })
+      .getByLabel("Schriftgröße", { exact: true })
+      .selectOption("20px");
+    await expect(editor.locator("span").first()).toHaveCSS("font-size", "20px");
+    await bubble
+      .getByRole("button", { name: "Link bearbeiten", exact: true })
+      .click();
+    const bubbleRoot = page.locator(".knowledge-selection-menu");
+    await bubbleRoot
+      .getByLabel("Link-Adresse", { exact: true })
+      .fill("https://example.org/planung");
+    await bubbleRoot
+      .getByRole("button", { name: "Link übernehmen", exact: true })
+      .click();
+    await expect(editor.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://example.org/planung",
+    );
+    await editor.scrollIntoViewIfNeeded();
+    await editor.press("ControlOrMeta+a");
+    await expect(bubble).toBeVisible();
+    await expect
+      .poll(async () => {
+        const menu = await bubbleRoot.boundingBox();
+        const text = await editor.locator("p").first().boundingBox();
+        return Math.min(
+          Math.abs(menu.y + menu.height - text.y),
+          Math.abs(menu.y - text.y - text.height),
+        );
+      })
+      .toBeLessThan(24);
+    const menuBounds = await bubbleRoot.boundingBox();
+    const iconBounds = await bubble.getByRole("button").evaluateAll((buttons) =>
+      buttons.map((button) => ({
+        y: button.getBoundingClientRect().y,
+        height: button.getBoundingClientRect().height,
+      })),
+    );
+    expect(new Set(iconBounds.map(({ y }) => Math.round(y))).size).toBe(1);
+    expect(await bubble.locator("svg").count()).toBe(6);
+    expect(menuBounds.x).toBeGreaterThanOrEqual(0);
+    expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: testInfo.outputPath(`${surface}-knowledge-selection.png`),
+      fullPage: false,
+    });
+    await bubble.getByRole("button", { name: "Fett", exact: true }).focus();
+    await page.keyboard.press("Escape");
+    await expect(bubble).not.toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath(`${surface}-knowledge-formatting.png`),
       fullPage: true,
@@ -76,7 +149,11 @@ for (const [surface, width] of [
     await expect(reopened.locator("p")).toHaveCSS("text-align", "center");
     await expect(reopened.locator("span").first()).toHaveCSS(
       "font-size",
-      "18px",
+      "20px",
+    );
+    await expect(reopened.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://example.org/planung",
     );
     await editor.fill("Lokaler Entwurf bleibt erhalten.");
     await second
@@ -112,6 +189,7 @@ for (const [surface, width] of [
       .getByRole("button", { name: "Aktuelle Version laden", exact: true })
       .click();
     await expect(editor).toHaveText("Andere Sitzung hat gespeichert.");
+    expect(pageErrors).toEqual([]);
     await context.close();
   });
 }

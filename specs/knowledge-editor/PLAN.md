@@ -12,8 +12,8 @@ Yjs/Hocuspocus und zusätzliche Dienste sind nicht Bestandteil dieses Ausbaus.
       Schriftgröße, ungeordnete/nummerierte Listen, Ein-/Ausrücken, Ausrichtung,
       Undo/Redo; große Schreibfläche. Backend validiert neue Attribute eng;
       bestehende Dokumente und Task-/Materialreferenzen bleiben lesbar.
-- [ ] Gemeinsames Auswahlmenü mit Tiptap BubbleMenu; erhaltene Auswahl bei
-      Klick, Dropdowns und Linkeingabe; kompakte Grundaktionen und weitere Formate.
+- [x] Gemeinsames Auswahlmenü mit Tiptap BubbleMenu; erhaltene Auswahl bei
+      Klick, Dropdowns und Linkeingabe; einzeilige Icon-Leiste und explizites Menü für weitere Formate.
       Seitenkopf mit Titel/Speicherstatus/Freigaben, Einfügen für Tasks/Materialien.
 - [ ] Gesamtabnahme: Desktop und mobile PWA, Auswahl per Maus/Tastatur,
       Speichern/Wiederöffnen, gemischte Formate, Copy/Paste, Undo/Redo,
