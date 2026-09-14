@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 abgeschlossen.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 und DOC-020 abgeschlossen.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -253,10 +253,10 @@ Nachweis: Keine Startumfang-Seite ohne Quelle, Abnahmeschritt oder Reviewzustän
 
 Abhängigkeit: DOC-010.
 
-- [ ] `@leonaid/docs` mit gelockter kompatibler Astro-/Starlight-Kombination und Docker-Wrapperbefehlen einführen.
-- [ ] DE/EN-Routing, drei Zielgruppeneinstiege, Diátaxis-Navigation und Pagefind konfigurieren.
-- [ ] `dist` und temporäre Generatorausgaben ignorieren; minimale Beispielseiten zum Nachweis verwenden.
-- [ ] Frontmatter-Schema und vollständigen Ausschluss von Entwürfen umsetzen.
+- [x] `@leonaid/docs` mit gelockter kompatibler Astro-/Starlight-Kombination und Docker-Wrapperbefehlen einführen.
+- [x] DE/EN-Routing, drei Zielgruppeneinstiege, Diátaxis-Navigation und Pagefind konfigurieren.
+- [x] `dist` und temporäre Generatorausgaben ignorieren; minimale Beispielseiten zum Nachweis verwenden.
+- [x] Frontmatter-Schema und vollständigen Ausschluss von Entwürfen umsetzen.
 
 Nachweis: Frischer Checkout baut und previewt die Site ohne Produktstack oder Produkt-Secrets. Desktop/Mobil und Tastatur zeigen beide Sprachen. Vorhandene Produkt-Apps werden bei gemeinsam geänderten Locks/Toolchains mit den betroffenen bestehenden Checks geprüft. Versionskonflikte werden gelöst, bevor Inhalte auf dem Gerüst aufbauen.
 

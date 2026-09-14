@@ -1,0 +1,45 @@
+---
+title: LeonAid-Dokumentation
+description: Einstieg in die Dokumentation für die Anwendung, den Betrieb und die Entwicklung von LeonAid.
+template: splash
+docId: DOC-P001
+audience: [user, ops, dev]
+diataxis: explanation
+contentRevision: 1
+reviewedRevision: 1
+verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+reviewer: Björn Schotte
+hero:
+  title: Hilfe, die zur Aufgabe passt.
+  tagline: LeonAid unterstützt Charity-Aktionen vom ersten Kontakt bis zum sicheren Betrieb. Wähle den Einstieg, der zu deiner Aufgabe passt.
+  actions:
+    - text: LeonAid verwenden
+      link: /de/user/
+      icon: right-arrow
+    - text: LeonAid betreiben
+      link: /de/ops/
+      variant: minimal
+    - text: English
+      link: /en/
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <LinkCard
+    title="Anwendung"
+    description="Schritt für Schritt durch Charity-Aktionen, Bestellungen und Rechnungen."
+    href="/de/user/"
+  />
+  <LinkCard
+    title="Betrieb"
+    description="Installation, Diagnose, Backup, Restore und Updates für Sysadmins."
+    href="/de/ops/"
+  />
+  <LinkCard
+    title="Entwicklung"
+    description="Architektur, API-Verträge und der Weg zur ersten geprüften Änderung."
+    href="/de/dev/"
+  />
+</CardGrid>

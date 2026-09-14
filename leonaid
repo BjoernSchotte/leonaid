@@ -16,6 +16,11 @@ Commands:
   doctor            Diagnose Docker, locks, secrets and local dependencies
   dev               Build and start the ready PoC core stack
   check             Run non-mutating quality and policy gates
+  docs-dev          Serve the bilingual documentation source for authoring
+  docs-check        Validate the documentation project and frontmatter schema
+  docs-build        Build the static documentation website into apps/docs/dist
+  docs-preview      Serve the exact static documentation build on port 4321
+  test-docs         Prove the built documentation in a real browser
   generate-api-client
                     Regenerate canonical OpenAPI and TypeScript client
   provision-twenty  Provision and verify Twenty schema, roles and API key
@@ -241,6 +246,31 @@ run_bun() {
     -w /workspace \
     "$BUN_IMAGE" \
     "$@"
+}
+
+run_docs_bun() {
+  require_docker
+  docker_retry docker run --rm \
+    -e ASTRO_TELEMETRY_DISABLED=1 \
+    -e LEONAID_DOCS_REVISION="${LEONAID_DOCS_REVISION:-development}" \
+    --network none \
+    -v "$root:/workspace" \
+    -w /workspace \
+    "$BUN_IMAGE" \
+    bun run --filter @leonaid/docs "$@"
+}
+
+serve_docs() {
+  mode=$1
+  require_docker
+  docker_retry docker run --rm \
+    -e ASTRO_TELEMETRY_DISABLED=1 \
+    -e LEONAID_DOCS_REVISION="${LEONAID_DOCS_REVISION:-development}" \
+    -p "127.0.0.1:${LEONAID_DOCS_PORT:-4321}:4321" \
+    -v "$root:/workspace" \
+    -w /workspace \
+    "$BUN_IMAGE" \
+    bun run --filter @leonaid/docs "$mode"
 }
 
 generate_test_logins() {
@@ -2034,6 +2064,14 @@ case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
   check) check_all ;;
+  docs-dev) serve_docs dev ;;
+  docs-check) run_docs_bun check ;;
+  docs-build) run_docs_bun build ;;
+  docs-preview) serve_docs preview ;;
+  test-docs)
+    echo "test-docs: DOC-060 browser contract is not implemented yet." >&2
+    exit 1
+    ;;
   export-campaign-schema)
     require_docker
     docker_retry docker run --rm --network none \
