@@ -47,7 +47,12 @@ from leonaid.modules.materials.repository import AsyncpgMaterialRepository
 from leonaid.modules.materials.routes import router as materials_router
 
 MODULES = (
-    ModuleRegistration("inbox", router=inbox_router, navigation=inbox_navigation),
+    ModuleRegistration(
+        "inbox",
+        router=inbox_router,
+        navigation=inbox_navigation,
+        requires=("tasks", "materials"),
+    ),
     ModuleRegistration(
         "materials", router=materials_router, navigation=material_navigation
     ),
@@ -55,7 +60,7 @@ MODULES = (
         "knowledge",
         router=knowledge_router,
         navigation=knowledge_navigation,
-        requires=("tasks",),
+        requires=("tasks", "materials"),
     ),
     ModuleRegistration("tasks", router=tasks_router, navigation=task_navigation),
     ModuleRegistration("surveys", router=surveys_router, navigation=survey_navigation),

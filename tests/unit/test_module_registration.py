@@ -84,6 +84,24 @@ def test_application_has_registered_survey_routes_once() -> None:
     assert paths.count("/api/v1/surveys") == 1
 
 
+@pytest.mark.parametrize("consumer", ["inbox", "knowledge"])
+@pytest.mark.parametrize("dependency", ["tasks", "materials"])
+def test_composed_api_modules_require_their_dependencies(
+    consumer: str, dependency: str
+) -> None:
+    from leonaid.bootstrap.api import MODULES
+
+    modules = tuple(
+        module for module in MODULES if module.id in {consumer, "tasks", "materials"}
+    )
+    validate_modules(modules)
+    app = FastAPI()
+    before = list(app.routes)
+    with pytest.raises(ValueError, match=f"Missing module dependency: {dependency}"):
+        register_routes(app, tuple(m for m in modules if m.id != dependency))
+    assert app.routes == before
+
+
 def test_background_tasks_reject_duplicate_or_empty_names() -> None:
     from leonaid.modules.surveys.jobs import survey_timeout_loop
 

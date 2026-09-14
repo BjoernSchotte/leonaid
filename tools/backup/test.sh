@@ -270,24 +270,8 @@ target_owned=true
 # Reserve fixture networks separately: restore must still observe an empty
 # target project, and subnet selection alone races with other test stacks.
 target_compose --profile '*' config --format json > "$proof/target-compose.json"
-python3 - "$root" "$target_network_project" "$target_isolation" "$proof/target-compose.json" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-sys.path.insert(0, sys.argv[1])
-from tools.testing.reserve_compose_networks import reserve
-
-project, overlay = sys.argv[2], Path(sys.argv[3])
-configuration = json.loads(Path(sys.argv[4]).read_text())
-for key, settings in configuration['networks'].items():
-    settings['name'] = f'{project}_{key}'
-reserve(project, overlay, configuration)
-document = overlay.read_text().split('networks:\n', 1)[0] + 'networks:\n'
-for key in configuration['networks']:
-    document += f'  {key}: !override\n    external: true\n    name: {project}_{key}\n'
-overlay.write_text(document)
-PY
+python3 "$root/tools/testing/reserve_compose_networks.py" \
+  "$target_network_project" "$target_isolation" --external < "$proof/target-compose.json"
 restore_started=$(date +%s)
 LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_HTTPS_PORT="$target_https_port" \

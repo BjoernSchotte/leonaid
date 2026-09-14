@@ -266,6 +266,10 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
 
 ### M1 — Surveys vertikal migrieren und Jobvertrag festigen
 
+- [x] Vollständigen Pilot-Deploy-/Release-/Survey-Recovery-Lauf bestehen: fünf ungültige Checkpoints mit echten wiederhergestellten Daten ablehnen, unterbrochene Löschanwendung wiederaufnehmen, gültigen Restore buildfrei starten und gelöschte Inhalte unzugänglich halten. Alle eigenen Ressourcen bereinigt; erweiterte Remote-Abnahme bleibt offen.
+
+- [x] Vollständigen Upgrade-/Rollback-Gate mit separat reservierten Fixture-Netzen bestehen: echte Twenty-/RustFS-Upgrades, drei Restore-Generationen, erkannter Core-Migrationsfehler, unveränderte Golden Journeys vor/nach Upgrade und nach Rollback sowie vollständige Bereinigung. Remote-Abnahme der Runner-Korrektur bleibt separat offen.
+
 - [x] Vollständigen Backup-/Fresh-Volume-Restore mit separat reservierten Testnetzen bestehen: unveränderte Leeres-Ziel-Sperre, identisches SQL-/Dateiinventar, Golden-Snapshot, bestehende Sitzung im Browser und vollständige Bereinigung. RPO 329 s und RTO 634 s; Remote-Nightly bleibt offen.
 
 - [x] Manuellen Survey-Restic-Recovery-Pfad vollständig prüfen: ohne unabhängigen Lösch-Checkpoint bleiben Writer offline; gültiger Checkpoint entfernt nach Backup gelöschte Inhalte vor dem Neustart. SQL, exakte Exportversion, alte Sitzung, öffentliche Route, Browser und Bereinigung bestanden. Archiv-/Durable-/Pilot-Varianten und Remote-Nightly bleiben offen.
