@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: Spezifikation zur Review; nicht implementiert.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 abgeschlossen.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -229,10 +229,10 @@ Die folgenden Docs-Befehle sind **neu einzuführende Zielverträge**, heute nich
 
 Abhängigkeit: keine.
 
-- [ ] `CONTENT-INVENTORY.md` mit jeder Startumfang-Seite, Quellpfaden, Ziel-URL, Diátaxis-Typ, Zielgruppe, DE/EN-Status und Reviewer anlegen.
-- [ ] Historische Aussagen zu Pilot, CMS, Rollen und Lieferangaben gegen aktuellen Code und vorhandene Nachweise abgleichen; Abweichungen einzeln dokumentieren.
-- [ ] CONTENT-01 bis CONTENT-08 auf konkrete Seiten abbilden und Verantwortliche benennen; Zurückstellungen begründen.
-- [ ] Entwicklungsstand als ersten Publikationskanal sowie Monorepo-/Locale-Entscheidung festhalten.
+- [x] `CONTENT-INVENTORY.md` mit jeder Startumfang-Seite, Quellpfaden, Ziel-URL, Diátaxis-Typ, Zielgruppe, DE/EN-Status und Reviewer anlegen.
+- [x] Historische Aussagen zu Pilot, CMS, Rollen und Lieferangaben gegen aktuellen Code und vorhandene Nachweise abgleichen; Abweichungen einzeln dokumentieren.
+- [x] CONTENT-01 bis CONTENT-08 auf konkrete Seiten abbilden und Verantwortliche benennen; Zurückstellungen begründen.
+- [x] Entwicklungsstand als ersten Publikationskanal sowie Monorepo-/Locale-Entscheidung festhalten.
 
 Nachweis: Keine Startumfang-Seite ohne Quelle, Abnahmeschritt oder Reviewzuständigkeit; Rollen mit `PERSONAS.md` abgeglichen. Ungeklärte Funktionsverfügbarkeit stoppt die betroffene Anleitung, nicht die restliche Bestandsaufnahme.
 
