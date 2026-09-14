@@ -7,8 +7,9 @@ code and tests are the source of truth.
 
 ## Documentation
 
-The documentation website is maintained in this monorepo. Until its public URL
-is available, GitHub users can read the source directly:
+The documentation website is available at
+[bjoernschotte.github.io/leonaid](https://bjoernschotte.github.io/leonaid/).
+GitHub users can also read the source directly:
 
 | Area               | Deutsch                                                           | English                                                           |
 | ------------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
