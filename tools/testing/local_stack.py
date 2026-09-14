@@ -114,6 +114,7 @@ class LocalStack:
                     stored_kind,
                     output=self.output,
                     directory=self.directory / "data",
+                    lean=stored_kind == "core",
                 )
                 self.stack.project = state["project"]
                 self.stack.compose[self.stack.compose.index("--project-name") + 1] = (
@@ -194,6 +195,7 @@ class LocalStack:
                     kind,
                     output=self.output,
                     directory=self.directory / "data",
+                    lean=kind == "core",
                 )
                 if kind == "core":
                     self.stack.project = (

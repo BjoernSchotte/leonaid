@@ -84,8 +84,16 @@ class SharedStackTests(unittest.TestCase):
         self.assertTrue((second.directory / "in-use").is_dir())
 
     def test_matching_local_image_fingerprint_skips_build(self):
-        stack = module.SharedStack(ROOT, "core")
+        default = module.SharedStack(ROOT, "core")
+        self.addCleanup(default.close)
+        self.assertFalse(default.lean)
+        self.assertEqual(
+            (default.directory / "services.yml").read_text(), "services: {}\n"
+        )
+
+        stack = module.SharedStack(ROOT, "core", lean=True)
         self.addCleanup(stack.close)
+        self.assertIn("health/live", (stack.directory / "services.yml").read_text())
         stack.env["LEONAID_REUSE_BUILD_HASH"] = "current"
         marker = stack.directory.parent / f"{stack.project}.images.hash"
         marker.write_text("current")

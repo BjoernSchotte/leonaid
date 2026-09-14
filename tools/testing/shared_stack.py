@@ -45,10 +45,21 @@ _CORE_SERVICES = """services:
 
 class SharedStack:
     def __init__(
-        self, root: Path, kind: str, output=None, directory: Path | None = None
+        self,
+        root: Path,
+        kind: str,
+        output=None,
+        directory: Path | None = None,
+        *,
+        lean: bool = False,
     ):
+        if lean and kind != "core":
+            raise ValueError(
+                "Lean shared stacks are only supported for core browser tests"
+            )
         self.root = root.resolve()
         self.kind = kind
+        self.lean = lean
         self.output = output
         self.directory = directory or Path(
             tempfile.mkdtemp(prefix="leonaid-test-stack-")
@@ -59,7 +70,7 @@ class SharedStack:
             (self.root / "tools/testing/survey-runtime.yml").read_text()
             if kind == "survey"
             else _CORE_SERVICES
-            if kind == "core"
+            if lean
             else "services: {}\n"
         )
         self.project = "leonaid-shared-" + secrets.token_hex(8)
@@ -91,7 +102,7 @@ class SharedStack:
             "--profile",
             "dev-mail",
         ]
-        if kind == "core":
+        if lean:
             self.compose += [
                 "--file",
                 str(self.root / "tools/testing/shared-runtime.yml"),
@@ -197,7 +208,7 @@ class SharedStack:
         # Ordinary Survey leaves never start the PWA; journeys explicitly needs it.
         targets = (
             ["api", "proxy", "web", "pwa", "public", "survey-validator"]
-            if self.kind == "core"
+            if self.lean
             else ["api", "worker", "proxy", "web", "public", "survey-validator"]
             if self.kind == "survey"
             else []
@@ -228,12 +239,12 @@ class SharedStack:
                     if self.env.get("LEONAID_FIXTURE_BUILD") == "1"
                     else ["api"]
                 ),
-                *([] if self.kind == "core" else ["twenty-worker"]),
+                *([] if self.lean else ["twenty-worker"]),
                 "mailpit",
                 *(["seaweedfs"] if self.kind == "documents" else []),
             ]
         )
-        if self.env.get("LEONAID_FIXTURE_BUILD") == "1" and self.kind != "core":
+        if self.env.get("LEONAID_FIXTURE_BUILD") == "1" and not self.lean:
             # A template contains schema, not API startup side effects. Run the
             # real migrations directly so unrelated request code is not an input.
             self.call(
@@ -297,7 +308,7 @@ class SharedStack:
             )
         # Schema and scheduled jobs now exist; keep repeated upgrades/registration
         # out of functional leaves that always restore this exact fixture.
-        if self.kind != "core":
+        if not self.lean:
             self.compose += [
                 "--file",
                 str(self.root / "tools/testing/shared-runtime.yml"),
@@ -309,7 +320,7 @@ class SharedStack:
                 "create",
                 "--no-build",
                 "proxy",
-                *([] if self.kind == "core" else ["worker"]),
+                *([] if self.lean else ["worker"]),
                 "mailpit",
             ]
         )
