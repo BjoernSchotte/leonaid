@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-060 abgeschlossen, DOC-070 öffentlich abgenommen mit Nachtlauf und Rückweg noch offen.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-060 abgeschlossen, DOC-070 öffentlich abgenommen mit tatsächlichem Nachtlauf noch offen.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -314,7 +314,7 @@ Abhängigkeit: DOC-060 sowie festgelegter Hoster, Domain, Deployment-Zugang und 
 - [ ] Tatsächliche Nachtveröffentlichung, Fehleralarm, Erkennung eines ausgebliebenen Laufs und Wiederanlauf prüfen.
 - [x] Live-Smoke auf der getrennten Website in DE/EN durchführen; Manifest-SHA gegen das freigegebene Artefakt prüfen.
 - [x] Nach erfolgreicher Veröffentlichung die tatsächliche Dokumentationswebsite-URL zusätzlich im englischen Root-README verlinken; bestehende Docs-Quelllinks erhalten.
-- [ ] Fehlgeschlagenen Live-Smoke und Rückkehr zum vorherigen Artefakt kontrolliert nachweisen.
+- [x] Fehlgeschlagenen Live-Smoke und Rückkehr zum vorherigen Artefakt kontrolliert nachweisen.
 
 Nachweis: Beide Sprachen sind unter der gewählten Domain anonym erreichbar, Suche und Sprachwechsel funktionieren, die neue Revision wird ausgeliefert und der Rückweg ist belegt. Ohne diese Nachweise lautet der Status „lokal/CI abgenommen, Veröffentlichung offen“.
 
