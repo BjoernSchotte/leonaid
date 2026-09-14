@@ -1,5 +1,10 @@
 # Compose
 
+Current bilingual installation tutorial:
+[Deutsch](../../apps/docs/src/content/docs/de/ops/tutorials/local-demo.md) ·
+[English](../../apps/docs/src/content/docs/en/ops/tutorials/local-demo.md).
+This file remains the low-level Compose reference.
+
 `compose.yml` ist die einzige Definition für lokale Entwicklung und
 Integrationstests.
 

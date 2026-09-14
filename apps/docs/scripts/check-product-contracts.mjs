@@ -27,6 +27,6 @@ if (errors.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    `docs-product-contracts: OK: ${Object.keys(contracts).length} user pages match current UI and domain tokens`,
+    `docs-product-contracts: OK: ${Object.keys(contracts).length} user and technical pages match current code and contract tokens`,
   );
 }

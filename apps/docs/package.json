@@ -5,13 +5,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "astro build && bun scripts/check-build.mjs",
-    "check": "astro check && bun run check:content && bun run check:product && bun run test:quality",
+    "build": "bun run generate:api && astro build && bun scripts/check-build.mjs",
+    "check": "bun run generate:api && astro check && bun run check:content && bun run check:product && bun run check:repo-links && bun run test:quality",
     "check:content": "bun scripts/check-content.mjs",
     "check:external": "bun scripts/check-external-links.mjs",
     "check:product": "bun scripts/check-product-contracts.mjs",
+    "check:repo-links": "bun scripts/check-repository-doc-links.mjs",
     "dev": "astro dev --host 0.0.0.0 --port 4321",
     "preview": "astro preview --host 0.0.0.0 --port 4321",
+    "generate:api": "bun scripts/generate-api-reference.mjs",
     "test:quality": "bun scripts/test-content-checks.mjs"
   },
   "dependencies": {

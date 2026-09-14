@@ -113,5 +113,206 @@
       "file": "apps/public/src/components/AuthPage.astro",
       "contains": ["requestFreshLogin", "completeFreshLogin"]
     }
+  ],
+  "DOC-P021": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "bootstrap) bootstrap ;;",
+        "doctor) doctor ;;",
+        "test-handoff)"
+      ]
+    },
+    {
+      "file": "infra/compose/README.md",
+      "contains": ["https://localhost:8443", "http://localhost:8080"]
+    }
+  ],
+  "DOC-P022": [
+    {
+      "file": "infra/pilot/README.md",
+      "contains": [
+        "LEONAID_RELEASE_COMMIT",
+        "up --no-build --pull missing",
+        "Exit `0` bedeutet bereit"
+      ]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["pilot-deploy)", "pilot-doctor)"]
+    }
+  ],
+  "DOC-P023": [
+    {
+      "file": "infra/backup/README.md",
+      "contains": ["restic check --read-data", "leonaid-restore-<name>", "RPO"]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["pilot-backup)", "pilot-restore)"]
+    }
+  ],
+  "DOC-P024": [
+    {
+      "file": "infra/upgrade/README.md",
+      "contains": [
+        "command:prod run-instance-commands",
+        "command:prod upgrade",
+        "503 maintenance_mode"
+      ]
+    }
+  ],
+  "DOC-P025": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "Docker ist nicht erreichbar",
+        "doctor) doctor ;;",
+        "test-mail-domain"
+      ]
+    },
+    {
+      "file": "src/leonaid/entrypoints/fastapi/platform.py",
+      "contains": ["maintenance_mode", "Retry-After"]
+    }
+  ],
+  "DOC-P026": [
+    {
+      "file": ".env.example",
+      "contains": [
+        "LEONAID_ENV=local",
+        "__GENERATE_HEX_32__",
+        "TWENTY_BOOTSTRAP_EMAIL"
+      ]
+    },
+    {
+      "file": "infra/pilot/production.env.example",
+      "contains": ["LEONAID_RELEASE_COMMIT", "LEONAID_DEPLOYMENT_STAGE"]
+    }
+  ],
+  "DOC-P027": [
+    {
+      "file": "infra/compose/compose.yml",
+      "contains": ["core-postgres:", "twenty-server:", "rustfs:", "proxy:"]
+    },
+    {
+      "file": "leonaid",
+      "contains": [
+        "backup            Create encrypted",
+        "test-upgrade      Prove pinned"
+      ]
+    }
+  ],
+  "DOC-P028": [
+    {
+      "file": "src/leonaid/domain/commitments.py",
+      "contains": ["invoice_recipient", "delivery_window_snapshot"]
+    },
+    {
+      "file": "src/leonaid/domain/documents.py",
+      "contains": ["sha256", "object_key"]
+    }
+  ],
+  "DOC-P029": [
+    {
+      "file": "infra/upgrade/maintenance.sh",
+      "contains": ["enable", "disable", "status"]
+    },
+    {
+      "file": "infra/pilot/compose.yml",
+      "contains": ["80:80", "443:443"]
+    }
+  ],
+  "DOC-P031": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "bootstrap         Create local secrets",
+        "check             Run non-mutating",
+        "test-handoff"
+      ]
+    },
+    {
+      "file": "tools/dx/test-fresh-checkout.sh",
+      "contains": [
+        "pre-bootstrap-doctor",
+        "bootstrap",
+        "doctor",
+        "fresh bootstrap/doctor/check"
+      ]
+    }
+  ],
+  "DOC-P032": [
+    {
+      "file": "tools/openapi/generate.py",
+      "contains": ["document = app.openapi()", "openapi.json", "generated.ts"]
+    },
+    {
+      "file": "tools/openapi/test.sh",
+      "contains": ["--check", "cmp", "check_frontend.py"]
+    }
+  ],
+  "DOC-P033": [
+    {
+      "file": "leonaid",
+      "contains": ["doctor            Diagnose Docker", "test-env-stop"]
+    },
+    {
+      "file": "infra/compose/compose.yml",
+      "contains": ["healthcheck:", "networks:"]
+    }
+  ],
+  "DOC-P034": [
+    {
+      "file": "migrations/README.md",
+      "contains": [
+        "Alembic ist alleiniger Owner",
+        "drop_table",
+        "interne Twenty-Tabellen"
+      ]
+    }
+  ],
+  "DOC-P035": [
+    {
+      "file": "packages/api-client/openapi.json",
+      "contains": ["\"openapi\": \"3.1.0\"", "\"title\": \"LeonAid Core\""]
+    },
+    {
+      "file": "apps/docs/scripts/generate-api-reference.mjs",
+      "contains": [
+        "packages/api-client/openapi.json",
+        "createHash(\"sha256\")",
+        "Object.keys(contract.paths"
+      ]
+    }
+  ],
+  "DOC-P036": [
+    {
+      "file": "package.json",
+      "contains": ["\"apps/*\"", "\"packages/*\"", "\"typecheck:docs\""]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["docs-check", "generate-api-client", "test-integration"]
+    }
+  ],
+  "DOC-P037": [
+    {
+      "file": "src/leonaid/domain/identity.py",
+      "contains": [
+        "class GlobalRole",
+        "class ActionRole",
+        "CHARITY_ADMIN",
+        "ACQUIRER"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/commitments.py",
+      "contains": ["CommitmentRepository"]
+    },
+    {
+      "file": "src/leonaid/adapters/twenty/gateway.py",
+      "contains": ["class TwentyCrmGateway"]
+    }
   ]
 }

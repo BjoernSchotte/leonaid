@@ -1,5 +1,9 @@
 # Core-Migrationen
 
+Current bilingual contributor guide:
+[Deutsch](../apps/docs/src/content/docs/de/dev/how-to/add-migration.md) ·
+[English](../apps/docs/src/content/docs/en/dev/how-to/add-migration.md).
+
 Alembic ist alleiniger Owner des produktiven LeonAid-Core-Schemas.
 
 - Jede Revision muss vorwärts von der vorherigen Revision auf `head` laufen.

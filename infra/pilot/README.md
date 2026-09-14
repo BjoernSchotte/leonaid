@@ -1,5 +1,10 @@
 # Pilot-Betrieb
 
+Current bilingual operator guide:
+[Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/deploy-pilot.md) ·
+[English](../../apps/docs/src/content/docs/en/ops/how-to/deploy-pilot.md).
+This file remains the detailed pilot contract.
+
 Diese additive Konfiguration härtet den bestehenden LeonAid-Core für genau
 eine Staging- oder Produktionsinstallation. Sie baut keine Images auf dem
 Server und veröffentlicht ausschließlich Caddy auf Port 80/443.

@@ -51,6 +51,12 @@ against the current code path and an executable contract before publishing it.
 The first four commands use the locked Bun container. `test-docs` remains
 fail-closed until its DOC-060 browser contract is implemented.
 
+`bun run --filter @leonaid/docs generate:api` reads the checked-in
+`packages/api-client/openapi.json` contract and writes the stable, sorted
+reference model to the ignored `apps/docs/src/generated/` directory. The
+German and English API entry pages add curated context around that same model;
+they do not maintain a second API contract.
+
 `bun run --filter @leonaid/docs check:external` performs the networked nightly
 external-link check. It retries timeouts, HTTP 408/425/429, and 5xx responses;
 remaining temporary failures are reported separately from permanent 4xx

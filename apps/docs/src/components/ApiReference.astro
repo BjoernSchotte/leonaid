@@ -1,0 +1,160 @@
+---
+import reference from "../generated/openapi-reference.json";
+
+interface Props {
+  locale: "de" | "en";
+}
+
+const { locale } = Astro.props;
+const labels =
+  locale === "de"
+    ? {
+        contract: "Vertrag",
+        method: "Methode",
+        operation: "Operation",
+        responses: "Antworten",
+        routes: "Routen",
+        schemas: "Schemata",
+      }
+    : {
+        contract: "Contract",
+        method: "Method",
+        operation: "Operation",
+        responses: "Responses",
+        routes: "Routes",
+        schemas: "Schemas",
+      };
+const operationCount = reference.tags.reduce(
+  (sum, tag) => sum + tag.operations.length,
+  0,
+);
+---
+
+<dl class="contract-summary">
+  <div>
+    <dt>{labels.contract}</dt>
+    <dd>{reference.contract.title} {reference.contract.version}</dd>
+  </div>
+  <div>
+    <dt>{labels.routes}</dt>
+    <dd>{operationCount}</dd>
+  </div>
+  <div>
+    <dt>{labels.schemas}</dt>
+    <dd>{reference.schemaCount}</dd>
+  </div>
+</dl>
+
+<p class="contract-hash">
+  OpenAPI {reference.contract.openapi} · SHA-256 <code
+    >{reference.contract.sha256}</code
+  >
+</p>
+
+{
+  reference.tags.map((tag, index) => (
+    <details open={index === 0}>
+      <summary>
+        {tag.name} <span>{tag.operations.length}</span>
+      </summary>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{labels.method}</th>
+              <th scope="col">Path</th>
+              <th scope="col">{labels.operation}</th>
+              <th scope="col">{labels.responses}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tag.operations.map((operation) => (
+              <tr>
+                <td>
+                  <code>{operation.method}</code>
+                </td>
+                <td>
+                  <code>{operation.path}</code>
+                </td>
+                <td>
+                  {operation.summary}
+                  <small>{operation.operationId}</small>
+                </td>
+                <td>{operation.responses.join(", ")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  ))
+}
+
+<style>
+  .contract-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.75rem;
+    margin-block: 1.5rem 0.75rem;
+  }
+
+  .contract-summary div {
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.6rem;
+    background: var(--sl-color-gray-7);
+  }
+
+  dt,
+  small {
+    color: var(--sl-color-gray-2);
+    font-size: 0.78rem;
+  }
+
+  dd {
+    margin: 0.15rem 0 0;
+    font-weight: 650;
+  }
+
+  .contract-hash code {
+    overflow-wrap: anywhere;
+  }
+
+  details {
+    margin-block: 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.6rem;
+  }
+
+  summary {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  summary span {
+    float: right;
+    color: var(--sl-color-gray-2);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  table {
+    width: 100%;
+    min-width: 42rem;
+    font-size: 0.86rem;
+  }
+
+  th,
+  td {
+    vertical-align: top;
+  }
+
+  td small {
+    display: block;
+    margin-top: 0.2rem;
+  }
+</style>
