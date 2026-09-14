@@ -41,7 +41,7 @@ def main() -> int:
     validate_manifest(manifest)
     revisions = {item["revision"] for item in manifest["migrations"]}
     assert {"0027_surveys", "0027_campaign_alias_namespaces"} <= revisions
-    assert manifest["schemas"]["coreAlembicHead"] == "0035_merge_campaign_surveys"
+    assert manifest["schemas"]["coreAlembicHead"] == "0036_delivery_windows"
     truncated = deepcopy(manifest)
     for item in truncated["migrations"]:
         item["revision"] = item["revision"].split("_", 1)[0]

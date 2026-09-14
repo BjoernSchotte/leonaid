@@ -1,5 +1,10 @@
 # LeonAid PoC – Development Guide
 
+Current bilingual contributor entry point:
+[Deutsch](../../apps/docs/src/content/docs/de/dev/index.mdx) ·
+[English](../../apps/docs/src/content/docs/en/dev/index.mdx).
+This document remains a historical milestone reference.
+
 ## Grundsatz
 
 Für den PoC wird nur Docker vorausgesetzt. Python, uv, Node, Bun, Typst,

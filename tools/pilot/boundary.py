@@ -15,11 +15,15 @@ ALLOWED_PUBLIC_UPLOADS = (
     # Fixed scalar-only build timing reports; no Docker logs or environment dumps.
     ".artifacts/cache-measurement/*.json",
     ".artifacts/sbom/*.cdx.json",
+    # Browser evidence contains only the public documentation site.
+    ".artifacts/docs",
+    # Allowlisted static documentation output; the docs build rejects other files.
+    "apps/docs/dist",
     # Only bounded survey reports copied out of the private root-owned gate directory.
     "${{ runner.temp }}/surveys-ci-results/*.json",
 )
 ALLOWED_PUBLIC_UPLOAD_PREFIXES = (".artifacts/ci/",)
-UPLOAD_ACTION = "actions/upload-artifact@"
+UPLOAD_ACTIONS = ("actions/upload-artifact@", "actions/upload-pages-artifact@")
 CACHE_ACTIONS = ("actions/cache@", "actions/cache/save@", "actions/cache/restore@")
 SYNTHETIC_FIXTURE_CACHE = "${{ runner.temp }}/leonaid-synthetic-fixture"
 
@@ -93,12 +97,13 @@ def upload_paths(workflow: Path, text: str) -> list[str]:
         if not stripped.startswith("uses:"):
             continue
         action = stripped.removeprefix("uses:").strip()
-        if "upload" in action.casefold() and not action.startswith(UPLOAD_ACTION):
+        is_upload = action.startswith(UPLOAD_ACTIONS)
+        if "upload" in action.casefold() and not is_upload:
             raise BoundaryError(
                 f"{workflow}: unbekannte Upload-Action ist nicht freigegeben: {action}"
             )
         is_cache = action.startswith(CACHE_ACTIONS)
-        if not action.startswith(UPLOAD_ACTION) and not is_cache:
+        if not is_upload and not is_cache:
             continue
         action_indent = len(line) - len(line.lstrip())
         path: str | None = None

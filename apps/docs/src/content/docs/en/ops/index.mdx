@@ -1,0 +1,33 @@
+---
+title: Operate LeonAid
+description: The technical starting point for installing, operating, diagnosing, and recovering a LeonAid installation.
+docId: DOC-P020
+audience: [ops]
+diataxis: explanation
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+reviewer: Björn Schotte
+---
+
+LeonAid runs locally as a Docker Compose system. A pilot installation uses the
+same services with separate projects, domains, secrets, recovery targets, and
+digest-pinned release images.
+
+## Start with your task
+
+- **Tutorial:** [Install a local demo](./tutorials/local-demo/)
+- **How-to guides:** [Deploy a pilot](./how-to/deploy-pilot/),
+  [back up and restore](./how-to/backup-and-restore/),
+  [upgrade and roll back](./how-to/upgrade-and-rollback/), and
+  [troubleshoot](./how-to/troubleshoot/)
+- **Reference:** [Requirements and configuration](./reference/requirements-and-configuration/)
+  and [services, ports, and commands](./reference/services-ports-and-commands/)
+- **Explanation:** [System boundaries](./explanation/system-boundaries/) and
+  [the operations model](./explanation/operations-model/)
+
+:::caution[Development and pilot status]
+Synthetic repository tests do not approve a specific production environment.
+DNS, TLS, mail, backup targets, operator details, and responsibilities require
+separate acceptance for every installation.
+:::

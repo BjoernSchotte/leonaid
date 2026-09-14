@@ -1,0 +1,32 @@
+{
+  "name": "@leonaid/docs",
+  "version": "0.0.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run generate:api && astro build && bun scripts/write-build-manifest.mjs && bun scripts/check-build.mjs",
+    "check": "bun run generate:api && astro check && bun run check:content && bun run check:product && bun run check:repo-links && bun run check:workflow && bun run test:quality",
+    "check:content": "bun scripts/check-content.mjs",
+    "check:external": "bun scripts/check-external-links.mjs",
+    "check:product": "bun scripts/check-product-contracts.mjs",
+    "check:repo-links": "bun scripts/check-repository-doc-links.mjs",
+    "check:workflow": "bun scripts/check-workflow.mjs",
+    "dev": "astro dev --host 0.0.0.0 --port 4321",
+    "preview": "astro preview --host 0.0.0.0 --port 4321",
+    "generate:api": "bun scripts/generate-api-reference.mjs",
+    "test:browser": "playwright test --config=playwright.config.mjs",
+    "test:quality": "bun scripts/test-content-checks.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.41.7",
+    "@fontsource-variable/instrument-sans": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
+    "astro": "7.2.8",
+    "github-slugger": "2.0.0",
+    "js-yaml": "4.3.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.9"
+  }
+}

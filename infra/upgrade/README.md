@@ -1,5 +1,10 @@
 # Upgrade und Rollback
 
+Current bilingual task guide:
+[Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/upgrade-and-rollback.md) ·
+[English](../../apps/docs/src/content/docs/en/ops/how-to/upgrade-and-rollback.md).
+This file remains the detailed upgrade contract.
+
 Dieses Runbook beschreibt den fail-closed Upgradepfad für LeonAid Core,
 Twenty und RustFS. Es ergänzt das
 [`Backup-/Restore-Runbook`](../backup/README.md). Ein Upgrade ohne frischen,

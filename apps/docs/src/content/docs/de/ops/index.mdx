@@ -1,0 +1,33 @@
+---
+title: LeonAid betreiben
+description: Der technische Einstieg für Installation, Betrieb, Diagnose und Wiederherstellung einer LeonAid-Installation.
+docId: DOC-P020
+audience: [ops]
+diataxis: explanation
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+reviewer: Björn Schotte
+---
+
+LeonAid wird lokal als Docker-Compose-System betrieben. Eine Pilotinstallation
+verwendet dieselben Dienste, aber getrennte Projekte, Domains, Secrets,
+Recovery-Ziele und digest-gepinnte Release-Images.
+
+## Nach Aufgabe einsteigen
+
+- **Lernen:** [Lokale Demo installieren](./tutorials/local-demo/)
+- **Anleitungen:** [Pilot bereitstellen](./how-to/deploy-pilot/),
+  [Backup und Restore](./how-to/backup-and-restore/),
+  [Upgrade und Rollback](./how-to/upgrade-and-rollback/) und
+  [Störungen eingrenzen](./how-to/troubleshoot/)
+- **Referenz:** [Voraussetzungen und Konfiguration](./reference/requirements-and-configuration/)
+  sowie [Dienste, Ports und Befehle](./reference/services-ports-and-commands/)
+- **Hintergründe:** [Systemgrenzen](./explanation/system-boundaries/) und
+  [Betriebsmodell](./explanation/operations-model/)
+
+:::caution[Entwicklungs- und Pilotstand]
+Die synthetischen Nachweise im Repository sind keine Freigabe einer konkreten
+Produktionsumgebung. DNS, TLS, Mail, Backupziel, Betreiberangaben und
+Verantwortliche müssen für jede Installation separat abgenommen werden.
+:::

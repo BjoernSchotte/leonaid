@@ -6,7 +6,8 @@
     "moduleResolution": "Bundler",
     "noEmit": true,
     "strict": true,
-    "target": "ES2023"
+    "target": "ES2023",
+    "types": ["react"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
