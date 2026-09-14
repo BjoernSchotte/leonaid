@@ -6,9 +6,10 @@
   "type": "module",
   "scripts": {
     "build": "astro build && bun scripts/check-build.mjs",
-    "check": "astro check && bun run check:content && bun run test:quality",
+    "check": "astro check && bun run check:content && bun run check:product && bun run test:quality",
     "check:content": "bun scripts/check-content.mjs",
     "check:external": "bun scripts/check-external-links.mjs",
+    "check:product": "bun scripts/check-product-contracts.mjs",
     "dev": "astro dev --host 0.0.0.0 --port 4321",
     "preview": "astro preview --host 0.0.0.0 --port 4321",
     "test:quality": "bun scripts/test-content-checks.mjs"

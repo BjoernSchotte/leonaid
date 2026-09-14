@@ -23,7 +23,7 @@ function routeForHtml(relative) {
 
 function fileForPath(pathname) {
   const relative = decodeURIComponent(pathname).replace(/^\/+/, "");
-  if (!relative || relative.endsWith("/"))
+  if (!relative || relative.endsWith("/") || !path.extname(relative))
     return path.join(distRoot, relative, "index.html");
   return path.join(distRoot, relative);
 }

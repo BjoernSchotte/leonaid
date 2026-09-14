@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-030 abgeschlossen.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-040 abgeschlossen.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -11,16 +11,16 @@ Diese Spezifikation definiert Zielbild, Inhaltsstruktur, Pflegevertrag und abhak
 
 ### 1.1 Anforderungen und vorgeschlagene Entscheidungen
 
-| ID | Anforderung / Planungsentscheidung | Einordnung |
-| --- | --- | --- |
-| DOC-R01 | Deutsch und Englisch ab dem ersten veröffentlichten Umfang; weitere Sprachen später ergänzbar | Nutzeranforderung |
-| DOC-R02 | Getrennte Einstiege für Endanwender und technische Zielgruppen; Installation, Betrieb und Entwicklung abdecken | Nutzeranforderung |
-| DOC-R03 | Diátaxis für Endanwender; auch für Betrieb und Entwicklung einsetzen | Nutzeranforderung / Empfehlung für technische Bereiche |
-| DOC-R04 | Separate statische Website mit Astro und Starlight unter `apps/docs` | Empfohlene Konkretisierung der gewünschten Richtung |
-| DOC-R05 | Inhalte und Site zunächst im Monorepo, gemeinsam mit Produktänderungen reviewen | Empfohlener Start entsprechend Nutzerpräferenz |
-| DOC-R06 | PR-Prüfung und nächtlicher Build mit Veröffentlichung nach erfolgreichen Gates; manueller Wiederanlauf | Empfohlene Konkretisierung des CI-Vorschlags |
-| DOC-R07 | Reproduzierbare Referenzgenerierung, geprüfte Übersetzungen, nachvollziehbarer Produktstand | Qualitätsanforderung dieses Plans |
-| DOC-R08 | Root-README auf Englisch reduzieren und zunächst auf tatsächlich vorhandene Docs-Quelldateien im Repository verlinken; Website-URL und typische Repository-Informationen später ergänzen | Nutzeranforderung |
+| ID      | Anforderung / Planungsentscheidung                                                                                                                                                       | Einordnung                                             |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| DOC-R01 | Deutsch und Englisch ab dem ersten veröffentlichten Umfang; weitere Sprachen später ergänzbar                                                                                            | Nutzeranforderung                                      |
+| DOC-R02 | Getrennte Einstiege für Endanwender und technische Zielgruppen; Installation, Betrieb und Entwicklung abdecken                                                                           | Nutzeranforderung                                      |
+| DOC-R03 | Diátaxis für Endanwender; auch für Betrieb und Entwicklung einsetzen                                                                                                                     | Nutzeranforderung / Empfehlung für technische Bereiche |
+| DOC-R04 | Separate statische Website mit Astro und Starlight unter `apps/docs`                                                                                                                     | Empfohlene Konkretisierung der gewünschten Richtung    |
+| DOC-R05 | Inhalte und Site zunächst im Monorepo, gemeinsam mit Produktänderungen reviewen                                                                                                          | Empfohlener Start entsprechend Nutzerpräferenz         |
+| DOC-R06 | PR-Prüfung und nächtlicher Build mit Veröffentlichung nach erfolgreichen Gates; manueller Wiederanlauf                                                                                   | Empfohlene Konkretisierung des CI-Vorschlags           |
+| DOC-R07 | Reproduzierbare Referenzgenerierung, geprüfte Übersetzungen, nachvollziehbarer Produktstand                                                                                              | Qualitätsanforderung dieses Plans                      |
+| DOC-R08 | Root-README auf Englisch reduzieren und zunächst auf tatsächlich vorhandene Docs-Quelldateien im Repository verlinken; Website-URL und typische Repository-Informationen später ergänzen | Nutzeranforderung                                      |
 
 Erfolg bedeutet: Eine deutsch- oder englischsprachige Person findet ihren Einstieg, kann den beschriebenen Kernablauf anhand der Dokumentation durchführen und erkennt den dazugehörigen Produktstand sowie bekannte Grenzen.
 
@@ -46,18 +46,18 @@ Dokumentation an den Code angepasst. Soll stattdessen das Produktverhalten
 geändert werden, ist das eine eigene Implementierungsänderung mit eigenem
 Nachweis; die Dokumentation nimmt sie nicht vorweg.
 
-| Quelle | Befund | Konsequenz |
-| --- | --- | --- |
-| [Root-README](../../README.md) | Deutscher Einstieg, Golden Journey, verstreute Dokumentlinks; teilweise historische PoC-Formulierungen | Auf einen kurzen englischen GitHub-Einstieg reduzieren; ausführliche Anleitungen in die Docs übertragen und deren vorhandene Quelldateien verlinken |
-| [Personas](../../PERSONAS.md) | Zentrale Rollen- und Produktreferenz mit Pflegevertrag | Grundlage für Anwenderzielgruppen; Rollenbeschreibungen nicht unabhängig neu erfinden |
-| [Development Guide](../leonaid-poc/DEVELOPMENT.md), [Architektur](../leonaid-poc/ARCHITECTURE.md), [Runbooks](../leonaid-poc/RUNBOOKS.md) | Technische Dokumentation innerhalb einer Milestone-Spezifikation | Aktuelle Teile fachlich prüfen, in Diátaxis aufteilen und zuordnen |
-| [Bekannte PoC-Grenzen](../leonaid-poc/KNOWN-LIMITS.md) | Datierter Stand vom Juli, unter anderem ohne CMS | Nicht als heutige Funktionsliste übernehmen; neuere [EmDash-Spezifikation](../emdash-campaign-microsite-spike/PLAN.md) und Implementierung abgleichen |
-| [Lieferplanung](../krapfentaxi-lieferplanung/PLAN.md) | Neuere Erweiterung für Krapfentaxi-Bestellungen und mehrere Oberflächen | Aktuelle Bestellwege anhand ihrer eigenen Nachweise und UI prüfen |
-| [Compose-README](../../infra/compose/README.md), [Pilot](../../infra/pilot/README.md), [Backup](../../infra/backup/README.md), [Upgrade](../../infra/upgrade/README.md) | Verteilte Betriebsanleitungen | Nach Installation, Tagesbetrieb, Diagnose, Wiederherstellung und Upgrade ordnen |
-| [CLI](../../leonaid) | Kanonischer Einstieg einschließlich `test-handoff` und `generate-api-client`; noch keine Docs-Befehle | Docker-basierten Workflow erweitern, vorhandene Nachweise wiederverwenden |
-| [Workspace](../../package.json), [Locks](../../bun.lock), [Campaign-App](../../apps/campaign-site/package.json) | Bun-Workspace `apps/*` / `packages/*`, Astro bereits vorhanden | Docs als separates Workspace-Paket; Starlight-Kompatibilität vor Versionswahl prüfen |
-| [OpenAPI](../../packages/api-client/openapi.json), [API-CI](../../.github/workflows/api-contract.yml) | Generierter Vertrag mit bestehender Prüfung | Referenz daraus ableiten, keinen zweiten API-Vertrag pflegen |
-| [CI](../../.github/workflows/ci.yml) | GitHub Actions, Docker-Toolchains und SHA-gepinnte Actions | Bestehende Konventionen für Docs verwenden |
+| Quelle                                                                                                                                                                  | Befund                                                                                                 | Konsequenz                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Root-README](../../README.md)                                                                                                                                          | Deutscher Einstieg, Golden Journey, verstreute Dokumentlinks; teilweise historische PoC-Formulierungen | Auf einen kurzen englischen GitHub-Einstieg reduzieren; ausführliche Anleitungen in die Docs übertragen und deren vorhandene Quelldateien verlinken   |
+| [Personas](../../PERSONAS.md)                                                                                                                                           | Zentrale Rollen- und Produktreferenz mit Pflegevertrag                                                 | Grundlage für Anwenderzielgruppen; Rollenbeschreibungen nicht unabhängig neu erfinden                                                                 |
+| [Development Guide](../leonaid-poc/DEVELOPMENT.md), [Architektur](../leonaid-poc/ARCHITECTURE.md), [Runbooks](../leonaid-poc/RUNBOOKS.md)                               | Technische Dokumentation innerhalb einer Milestone-Spezifikation                                       | Aktuelle Teile fachlich prüfen, in Diátaxis aufteilen und zuordnen                                                                                    |
+| [Bekannte PoC-Grenzen](../leonaid-poc/KNOWN-LIMITS.md)                                                                                                                  | Datierter Stand vom Juli, unter anderem ohne CMS                                                       | Nicht als heutige Funktionsliste übernehmen; neuere [EmDash-Spezifikation](../emdash-campaign-microsite-spike/PLAN.md) und Implementierung abgleichen |
+| [Lieferplanung](../krapfentaxi-lieferplanung/PLAN.md)                                                                                                                   | Neuere Erweiterung für Krapfentaxi-Bestellungen und mehrere Oberflächen                                | Aktuelle Bestellwege anhand ihrer eigenen Nachweise und UI prüfen                                                                                     |
+| [Compose-README](../../infra/compose/README.md), [Pilot](../../infra/pilot/README.md), [Backup](../../infra/backup/README.md), [Upgrade](../../infra/upgrade/README.md) | Verteilte Betriebsanleitungen                                                                          | Nach Installation, Tagesbetrieb, Diagnose, Wiederherstellung und Upgrade ordnen                                                                       |
+| [CLI](../../leonaid)                                                                                                                                                    | Kanonischer Einstieg einschließlich `test-handoff` und `generate-api-client`; noch keine Docs-Befehle  | Docker-basierten Workflow erweitern, vorhandene Nachweise wiederverwenden                                                                             |
+| [Workspace](../../package.json), [Locks](../../bun.lock), [Campaign-App](../../apps/campaign-site/package.json)                                                         | Bun-Workspace `apps/*` / `packages/*`, Astro bereits vorhanden                                         | Docs als separates Workspace-Paket; Starlight-Kompatibilität vor Versionswahl prüfen                                                                  |
+| [OpenAPI](../../packages/api-client/openapi.json), [API-CI](../../.github/workflows/api-contract.yml)                                                                   | Generierter Vertrag mit bestehender Prüfung                                                            | Referenz daraus ableiten, keinen zweiten API-Vertrag pflegen                                                                                          |
+| [CI](../../.github/workflows/ci.yml)                                                                                                                                    | GitHub Actions, Docker-Toolchains und SHA-gepinnte Actions                                             | Bestehende Konventionen für Docs verwenden                                                                                                            |
 
 Konkretes Drift-Beispiel: Das Root-README führt HTTP-Einstiege auf, während das Compose-README HTTPS als regulären Mitgliederzugang beschreibt. Die Migration klärt den tatsächlichen unterstützten Einstieg, statt beide Angaben ungeprüft zu kopieren. Auch historische Aussagen zu Rollen, Pilotstatus und CMS werden nicht allein aus dem Alter oder Namen einer Datei abgeleitet.
 
@@ -67,11 +67,11 @@ Diátaxis unterscheidet Tutorials zum Lernen, How-to-Anleitungen für konkrete A
 
 Die Website beginnt mit drei verständlichen Einstiegen. „Technische Dokumentation“ umfasst dabei die beiden Bereiche Betrieb und Entwicklung; ein zusätzlicher Navigationsschritt ist nicht notwendig.
 
-| Einstieg DE / EN | Zielgruppen | Tutorials / Lernen | How-to / Aufgaben erledigen | Reference / Nachschlagen | Explanation / Verstehen |
-| --- | --- | --- | --- | --- | --- |
-| Anwendung / Using LeonAid | Charity-Admin, Akquisiteur, Finanzrolle, öffentliche Besteller | Erste Kundenbestellung in einer Demo erfassen | Lieferfenster pflegen; Rechnung bearbeiten; Zugang wiedererlangen | Rollen, Felder, Bestell- und Rechnungsstatus | Aktion, CRM-Kontakt und Bestellung; Rechte innerhalb einer Aktion |
-| Betrieb / Operating LeonAid | Installierende und Sysadmins | Lokale Demo installieren und prüfen | Pilot bereitstellen; sichern und wiederherstellen; Upgrade und Rückweg; Störung eingrenzen | Voraussetzungen, Konfiguration, Dienste, Ports und Operatorbefehle | Systemgrenzen, Persistenz, Mail, TLS und Betriebsmodell |
-| Entwicklung / Developing LeonAid | Mitwirkende, Integrationsentwickler | Checkout bis zu einer kleinen Änderung mit passendem Test | API-Vertrag aktualisieren; debuggen; Migration ergänzen | API, Paketstruktur und Entwicklungsbefehle | Core, Adapter, Datenhoheit und gemeinsame Frontend-Bausteine |
+| Einstieg DE / EN                 | Zielgruppen                                                    | Tutorials / Lernen                                        | How-to / Aufgaben erledigen                                                                | Reference / Nachschlagen                                           | Explanation / Verstehen                                           |
+| -------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Anwendung / Using LeonAid        | Charity-Admin, Akquisiteur, Finanzrolle, öffentliche Besteller | Erste Kundenbestellung in einer Demo erfassen             | Lieferfenster pflegen; Rechnung bearbeiten; Zugang wiedererlangen                          | Rollen, Felder, Bestell- und Rechnungsstatus                       | Aktion, CRM-Kontakt und Bestellung; Rechte innerhalb einer Aktion |
+| Betrieb / Operating LeonAid      | Installierende und Sysadmins                                   | Lokale Demo installieren und prüfen                       | Pilot bereitstellen; sichern und wiederherstellen; Upgrade und Rückweg; Störung eingrenzen | Voraussetzungen, Konfiguration, Dienste, Ports und Operatorbefehle | Systemgrenzen, Persistenz, Mail, TLS und Betriebsmodell           |
+| Entwicklung / Developing LeonAid | Mitwirkende, Integrationsentwickler                            | Checkout bis zu einer kleinen Änderung mit passendem Test | API-Vertrag aktualisieren; debuggen; Migration ergänzen                                    | API, Paketstruktur und Entwicklungsbefehle                         | Core, Adapter, Datenhoheit und gemeinsame Frontend-Bausteine      |
 
 Die Tabelle ist ein Inhaltsauftrag, keine Behauptung, dass jeder genannte Ablauf bereits produktiv freigegeben ist. DOC-010 prüft die Verfügbarkeit; nicht verfügbare Abläufe werden als Grenze beschrieben oder ausdrücklich zurückgestellt.
 
@@ -90,16 +90,16 @@ Die Tabelle ist ein Inhaltsauftrag, keine Behauptung, dass jeder genannte Ablauf
 
 Vor dem ersten öffentlichen Start müssen folgende Einheiten auf DE und EN vollständig geprüft vorliegen:
 
-| ID | Bereich | Mindestumfang und Nachweis |
-| --- | --- | --- |
-| CONTENT-01 | Orientierung | Startseite, drei Bereichseinstiege, Glossar und aktuelle Grenzen; Links führen zum passenden Produktstand |
-| CONTENT-02 | Anwendung: Tutorial | Akquise-Persona meldet sich in der Demo an, wählt einen zugeordneten Kunden und erfasst eine Bestellung einschließlich Lieferangaben; UI-Schritte und Ergebnis stimmen |
-| CONTENT-03 | Anwendung: How-to | Charity-Admin pflegt Lieferfenster; öffentliche Person bestellt; Finanzrolle bearbeitet einen belegten Rechnungs-/Zahlungsablauf; jeweils Voraussetzungen und Rechte erklärt |
-| CONTENT-04 | Anwendung: Referenz/Erklärung | Rollen- und Statusreferenz sowie Erklärung Aktion/Kontakt/Bestellung; Aussagen gegen `PERSONAS.md`, Core und UI abgeglichen |
-| CONTENT-05 | Betrieb: Tutorial/How-to | Frischer lokaler Demo-Start, klar getrennter Pilot-Installationspfad mit noch benötigten Betreiberangaben, Backup/Restore, Upgrade/Rollback und Login-/Mail-/TLS-Diagnose |
-| CONTENT-06 | Betrieb: Referenz/Erklärung | Konfiguration mit sicheren Platzhaltern, Voraussetzungen, Dienste/Persistenz und Betriebsgrenzen; kein Demo-Reset als Produktionsanleitung |
-| CONTENT-07 | Entwicklung: Tutorial/How-to | Kleine Änderung im frischen Checkout bis zum passenden Test sowie API-Vertrag regenerieren und Drift prüfen |
-| CONTENT-08 | Entwicklung: Referenz/Erklärung | Versionierte API-Referenz, Befehls-/Paketübersicht und Architektur/Datenhoheit |
+| ID         | Bereich                         | Mindestumfang und Nachweis                                                                                                                                                   |
+| ---------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CONTENT-01 | Orientierung                    | Startseite, drei Bereichseinstiege, Glossar und aktuelle Grenzen; Links führen zum passenden Produktstand                                                                    |
+| CONTENT-02 | Anwendung: Tutorial             | Akquise-Persona meldet sich in der Demo an, wählt einen zugeordneten Kunden und erfasst eine Bestellung einschließlich Lieferangaben; UI-Schritte und Ergebnis stimmen       |
+| CONTENT-03 | Anwendung: How-to               | Charity-Admin pflegt Lieferfenster; öffentliche Person bestellt; Finanzrolle bearbeitet einen belegten Rechnungs-/Zahlungsablauf; jeweils Voraussetzungen und Rechte erklärt |
+| CONTENT-04 | Anwendung: Referenz/Erklärung   | Rollen- und Statusreferenz sowie Erklärung Aktion/Kontakt/Bestellung; Aussagen gegen `PERSONAS.md`, Core und UI abgeglichen                                                  |
+| CONTENT-05 | Betrieb: Tutorial/How-to        | Frischer lokaler Demo-Start, klar getrennter Pilot-Installationspfad mit noch benötigten Betreiberangaben, Backup/Restore, Upgrade/Rollback und Login-/Mail-/TLS-Diagnose    |
+| CONTENT-06 | Betrieb: Referenz/Erklärung     | Konfiguration mit sicheren Platzhaltern, Voraussetzungen, Dienste/Persistenz und Betriebsgrenzen; kein Demo-Reset als Produktionsanleitung                                   |
+| CONTENT-07 | Entwicklung: Tutorial/How-to    | Kleine Änderung im frischen Checkout bis zum passenden Test sowie API-Vertrag regenerieren und Drift prüfen                                                                  |
+| CONTENT-08 | Entwicklung: Referenz/Erklärung | Versionierte API-Referenz, Befehls-/Paketübersicht und Architektur/Datenhoheit                                                                                               |
 
 Für jede Einheit wird in DOC-010 eine endliche Liste von Seiten-IDs festgelegt. Keine automatische Vollabdeckung aller Produktbereiche: etwaige Survey- oder weiterführende CMS-Handbücher werden nach Bestandsaufnahme priorisiert. Fehlende Funktionen dürfen den ersten Umfang nur durch eine dokumentierte Scope-Entscheidung verändern, nicht durch leere Seiten mit dem Status „fertig“.
 
@@ -140,13 +140,13 @@ Eine Seite ist fertig, wenn Inhalt und Übersetzung geprüft sind, Produktstand 
 
 ### 5.1 Monorepo zuerst
 
-| Kriterium | Monorepo | Eigenes Repository |
-| --- | --- | --- |
-| Produkt- und Docs-Änderung | Ein PR und derselbe Commitstand | Synchronisation über mehrere PRs oder Releases |
-| Generierte Referenz | Direkter Zugriff auf geprüfte lokale Quellen | Versionierte Übergabeartefakte erforderlich |
-| Redaktionelle Zugriffsrechte | An Repository-Rechte gekoppelt | Eigenständige Rechte und Releaseprozesse möglich |
-| Toolchain | Bestehende Locks und Docker-Konventionen | Eigene Installation und Wartung |
-| Veröffentlichung | Separates Artefakt und Deployment trotzdem möglich | Ebenfalls separate Veröffentlichung |
+| Kriterium                    | Monorepo                                           | Eigenes Repository                               |
+| ---------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+| Produkt- und Docs-Änderung   | Ein PR und derselbe Commitstand                    | Synchronisation über mehrere PRs oder Releases   |
+| Generierte Referenz          | Direkter Zugriff auf geprüfte lokale Quellen       | Versionierte Übergabeartefakte erforderlich      |
+| Redaktionelle Zugriffsrechte | An Repository-Rechte gekoppelt                     | Eigenständige Rechte und Releaseprozesse möglich |
+| Toolchain                    | Bestehende Locks und Docker-Konventionen           | Eigene Installation und Wartung                  |
+| Veröffentlichung             | Separates Artefakt und Deployment trotzdem möglich | Ebenfalls separate Veröffentlichung              |
 
 **Empfehlung:** `apps/docs` im Monorepo. Das gewünschte getrennte Hosting erfordert kein getrenntes Repository. Eine spätere Auslagerung wird erst bei eigenständigem Redaktionsteam, anderen Zugriffsrechten oder unabhängigem Releasezyklus bewertet.
 
@@ -209,12 +209,12 @@ Empfohlener Erstmodus: Die Website dokumentiert den aktuellen Entwicklungsstand 
 
 ### 6.2 CI-Ereignisse
 
-| Ereignis | Verhalten |
-| --- | --- |
-| Pull Request | Metadaten/Sprachvollständigkeit, Links/Anker, Referenzgenerierung, statischer Build und Browser-Smoke; herunterladbares Preview-Artefakt ohne Deployment-Secrets |
-| Push auf Default-Branch | Gleiche Docs-Gates und Artefakt; anfangs keine sofortige öffentliche Veröffentlichung |
-| Nächtlich | Default-Branch-SHA fixieren, alle Docs-Gates ausführen, geprüftes Artefakt veröffentlichen |
-| Manuell | Denselben Ablauf vom geschützten Default-Branch erneut starten, etwa nach ausgefallenem Nachtlauf |
+| Ereignis                | Verhalten                                                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pull Request            | Metadaten/Sprachvollständigkeit, Links/Anker, Referenzgenerierung, statischer Build und Browser-Smoke; herunterladbares Preview-Artefakt ohne Deployment-Secrets |
+| Push auf Default-Branch | Gleiche Docs-Gates und Artefakt; anfangs keine sofortige öffentliche Veröffentlichung                                                                            |
+| Nächtlich               | Default-Branch-SHA fixieren, alle Docs-Gates ausführen, geprüftes Artefakt veröffentlichen                                                                       |
+| Manuell                 | Denselben Ablauf vom geschützten Default-Branch erneut starten, etwa nach ausgefallenem Nachtlauf                                                                |
 
 Zeitvorschlag: täglich 02:23 UTC, entsprechend 03:23 Uhr im deutschen Winter und 04:23 Uhr im Sommer. Keine minutengenaue Zusage: GitHub beschreibt mögliche Verzögerungen/ausfallende Schedule-Jobs und die Bindung an den Default-Branch. Bei öffentlichen Repositories ist außerdem die Deaktivierung nach 60 Tagen ohne Aktivität zu berücksichtigen. Quelle: [GitHub Actions Schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
@@ -275,9 +275,9 @@ Nachweis: Bewusst fehlende Übersetzung, veraltete Revision und defekter interne
 
 Abhängigkeit: DOC-030.
 
-- [ ] CONTENT-01 bis CONTENT-04 aus geprüftem Bestand schreiben und übersetzen.
-- [ ] Aktuelle Akquise-, Charity-Admin-, Finanz- und öffentliche Bestellwege mit synthetischen Daten nachvollziehen; tatsächliche UI-Labels verwenden.
-- [ ] Mindestens ein Tutorial und die aufgelisteten How-tos in beiden Sprachen anhand der Anleitung durchlaufen; bestehende Journey-Tests als ergänzenden Nachweis verwenden.
+- [x] CONTENT-01 bis CONTENT-04 aus geprüftem Bestand schreiben und übersetzen.
+- [x] Aktuelle Akquise-, Charity-Admin-, Finanz- und öffentliche Bestellwege mit synthetischen Daten nachvollziehen; tatsächliche UI-Labels verwenden.
+- [x] Mindestens ein Tutorial und die aufgelisteten How-tos in beiden Sprachen anhand der Anleitung durchlaufen; bestehende Journey-Tests als ergänzenden Nachweis verwenden.
 
 Nachweis: Erwartete Ergebnisse treten ein, Rollen- und Aktionsgrenzen sind korrekt beschrieben, Screenshots enthalten ausschließlich freigegebene synthetische Daten. Abweichende UI-/Core-Funktionalität wird vor Veröffentlichung korrigiert oder die Anleitung nach belegtem Scope angepasst.
 
@@ -320,26 +320,26 @@ Nachweis: Beide Sprachen sind unter der gewählten Domain anonym erreichbar, Suc
 
 ## 8. Gesamt-Abnahme und offene Entscheidungen
 
-| Anforderung | Nachweisverantwortliche Tasks |
-| --- | --- |
-| DOC-R01 Mehrsprachigkeit | DOC-020, DOC-030, DOC-040, DOC-050, DOC-060, DOC-070 |
-| DOC-R02 Zielgruppen | DOC-010, DOC-040, DOC-050 |
-| DOC-R03 Diátaxis | DOC-010, DOC-030, DOC-040, DOC-050 |
-| DOC-R04 Website | DOC-020, DOC-060, DOC-070 |
-| DOC-R05 Monorepo | DOC-010, DOC-020, DOC-050 |
-| DOC-R06 CI/Nachtlauf | DOC-060, DOC-070 |
-| DOC-R07 Qualität/Produktstand | DOC-030 bis DOC-070 |
-| DOC-R08 Kompaktes englisches Root-README | DOC-050, DOC-070 |
+| Anforderung                              | Nachweisverantwortliche Tasks                        |
+| ---------------------------------------- | ---------------------------------------------------- |
+| DOC-R01 Mehrsprachigkeit                 | DOC-020, DOC-030, DOC-040, DOC-050, DOC-060, DOC-070 |
+| DOC-R02 Zielgruppen                      | DOC-010, DOC-040, DOC-050                            |
+| DOC-R03 Diátaxis                         | DOC-010, DOC-030, DOC-040, DOC-050                   |
+| DOC-R04 Website                          | DOC-020, DOC-060, DOC-070                            |
+| DOC-R05 Monorepo                         | DOC-010, DOC-020, DOC-050                            |
+| DOC-R06 CI/Nachtlauf                     | DOC-060, DOC-070                                     |
+| DOC-R07 Qualität/Produktstand            | DOC-030 bis DOC-070                                  |
+| DOC-R08 Kompaktes englisches Root-README | DOC-050, DOC-070                                     |
 
 Für die technische Vorbereitung sind keine weiteren Nutzerangaben erforderlich. Die folgenden Entscheidungen werden erst vor dem jeweils abhängigen Schritt benötigt:
 
-| Entscheidung | Vorgeschlagener Ausgangspunkt | Spätestens benötigt |
-| --- | --- | --- |
-| Redaktionelle Ausgangssprache | Deutsch; vollständiges Englisch für den Startumfang | DOC-010 |
-| Öffentlich dokumentierter Produktstand | Klar markierter Default-Branch-Entwicklungs-/Pilotstand | DOC-010; vor Veröffentlichung erneut prüfen |
-| Reviewer und Site-Maintainer | Bestehende Produkt-/Codeverantwortliche mit DE/EN-Review | DOC-010 |
-| Domain und statischer Hoster | Getrennte Docs-Website; konkreten Anbieter später auswählen | DOC-070 |
-| Deployment-Identität und Alarmempfänger | Minimaler Docs-Zugriff, benannter Maintainer | DOC-070 |
-| Nutzungsrechte an Dokumentation und öffentliche Betreiberangaben | Vorhandenen Projektstatus respektieren, gesonderte Entscheidung falls nötig | DOC-070 |
+| Entscheidung                                                     | Vorgeschlagener Ausgangspunkt                                               | Spätestens benötigt                         |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------- |
+| Redaktionelle Ausgangssprache                                    | Deutsch; vollständiges Englisch für den Startumfang                         | DOC-010                                     |
+| Öffentlich dokumentierter Produktstand                           | Klar markierter Default-Branch-Entwicklungs-/Pilotstand                     | DOC-010; vor Veröffentlichung erneut prüfen |
+| Reviewer und Site-Maintainer                                     | Bestehende Produkt-/Codeverantwortliche mit DE/EN-Review                    | DOC-010                                     |
+| Domain und statischer Hoster                                     | Getrennte Docs-Website; konkreten Anbieter später auswählen                 | DOC-070                                     |
+| Deployment-Identität und Alarmempfänger                          | Minimaler Docs-Zugriff, benannter Maintainer                                | DOC-070                                     |
+| Nutzungsrechte an Dokumentation und öffentliche Betreiberangaben | Vorhandenen Projektstatus respektieren, gesonderte Entscheidung falls nötig | DOC-070                                     |
 
 Eine spätere Abnahme trennt Inhaltsvollständigkeit, lokale Funktion, CI und öffentliche Veröffentlichung ausdrücklich. Ein offener Hosting-Zugang verhindert weder die Inhaltsarbeit noch einen vollständigen reproduzierbaren Build.

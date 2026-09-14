@@ -1,0 +1,117 @@
+{
+  "DOC-P011": [
+    {
+      "file": "packages/features/src/commitments/commitment-capture.tsx",
+      "contains": [
+        "Zugeordneter Sponsor",
+        "Prüfbereit erfassen",
+        "Als Entwurf speichern",
+        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut."
+      ]
+    },
+    {
+      "file": "packages/features/src/commitments/complete-draft.tsx",
+      "contains": ["Entwurf prüfbereit abschließen"]
+    }
+  ],
+  "DOC-P012": [
+    {
+      "file": "packages/features/src/action-admin/delivery-section.tsx",
+      "contains": [
+        "Lieferplanung für diese Aktion aktivieren",
+        "Weiteren Tag hinzufügen",
+        "Zeitfenster hinzufügen",
+        "Lieferplanung speichern",
+        "Aktuellen Stand laden und Eingaben behalten"
+      ]
+    },
+    {
+      "file": "packages/features/src/action-admin/manage-action.tsx",
+      "contains": ["configuration.data?.template.key === \"krapfentaxi\""]
+    }
+  ],
+  "DOC-P013": [
+    {
+      "file": "apps/public/src/components/PublicOrder.astro",
+      "contains": [
+        "Aktueller Bestellwert",
+        "Rechnungsadresse entspricht der Lieferadresse",
+        "Ich bestelle die gewählte Menge verbindlich.",
+        "Bestellung eingegangen"
+      ]
+    }
+  ],
+  "DOC-P014": [
+    {
+      "file": "packages/features/src/invoices/invoice-admin.tsx",
+      "contains": [
+        "Zahlung erfassen",
+        "Vollzahlung verbuchen",
+        "Vollständig bezahlt",
+        "mayManageSettlements"
+      ]
+    }
+  ],
+  "DOC-P015": [
+    {
+      "file": "apps/public/src/components/AuthPage.astro",
+      "contains": [
+        "Login-Code anfordern",
+        "Sechsstelliger Code",
+        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten"
+      ]
+    },
+    {
+      "file": "apps/public/src/pages/invite.astro",
+      "contains": ["Einladung bestätigen", "ungültig oder nicht mehr gültig"]
+    }
+  ],
+  "DOC-P016": [
+    {
+      "file": "PERSONAS.md",
+      "contains": [
+        "`system_admin`",
+        "`finance_reader`",
+        "`finance_manager`",
+        "`charity_admin`",
+        "`acquirer`",
+        "`driver`"
+      ]
+    }
+  ],
+  "DOC-P017": [
+    {
+      "file": "packages/api-client/src/generated.ts",
+      "contains": [
+        "\"draft\" | \"scheduled\" | \"active\" | \"completed\" | \"archived\"",
+        "\"draft\" | \"review_ready\" | \"confirmed\" | \"invoiced\" | \"cancelled\"",
+        "\"issued\" | \"sent\" | \"paid\" | \"cancelled\"",
+        "\"queued\" | \"sending\" | \"retrying\" | \"failed\" | \"sent\""
+      ]
+    }
+  ],
+  "DOC-P018": [
+    {
+      "file": "src/leonaid/domain/commitments.py",
+      "contains": [
+        "class Commitment",
+        "invoice_recipient",
+        "delivery_window_snapshot"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/commitments.py",
+      "contains": ["CommitmentRepository"]
+    }
+  ],
+  "DOC-P019": [
+    {
+      "file": "src/leonaid/domain/identity.py",
+      "contains": ["CHARITY_ADMIN", "ACQUIRER", "FINANCE_READER"]
+    },
+    {
+      "file": "apps/public/src/components/AuthPage.astro",
+      "contains": ["requestFreshLogin", "completeFreshLogin"]
+    }
+  ]
+}
