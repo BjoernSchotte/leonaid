@@ -1,7 +1,7 @@
 # Aufgaben-UX: Implementierung und Abnahme
 
-Stand: S1 bis S3 sind mit vollständig grüner PR-CI abgeschlossen. S4 ist lokal
-vollständig abgenommen und wartet auf Push/K5; S5–S11 bleiben offen.
+Stand: S1 bis S4 sind mit vollständig grüner PR-CI abgeschlossen. S5 ist lokal
+vollständig abgenommen und wartet auf Push/K5; S6–S11 bleiben offen.
 Ausgangsstand: `0a084c88ac5ddd73faf112d3d6abc767ab2d6c6f` auf Draft-PR #7.
 Die CI dieses Ausgangsstands war beim Implementierungsbeginn vollständig grün
 (`gh pr checks 7 --json name,state`, keine offenen/fehlgeschlagenen Checks).
@@ -34,16 +34,16 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 | S3-A4 | `bef87bcfd50785b525037cc95215facb62d0aac8` | Gleiche Fälligkeit, doppelte Abschnittstitel, ohne Abschnitt, drei Seiten | Stabile Reihenfolge, 125 eindeutige IDs, je eine zusammenhängende Überschrift, ohne Abschnitt zuletzt | bestanden | PostgreSQL-Vertrag; Browser lädt 121 aktive Zeilen und drei Gruppen |
 | S3-A5 | `bef87bcfd50785b525037cc95215facb62d0aac8` | Legacy- und fehlerhafte Query-Kombinationen über Service/FastAPI | `includeDeferred` kompatibel; Widersprüche, naive/invertierte Grenzen und Abschnitt ohne Liste liefern 422 | bestanden | vollständiger K2-Service-/HTTP-Lauf |
 | S3-A6 | `bef87bcfd50785b525037cc95215facb62d0aac8` | Nachladen, Filter-/Sortierwechsel, Detail und Browser-Zurück | Alte Seiten verschwinden; URL-Zustand kehrt zurück; Ladebutton fehlt am Ende | bestanden | `tasks-views.spec.mjs`, vollständiger K3-Lauf: 17/17 und PR-CI |
-| S4-A1 | S4-Abschlussstand dieses Commits | Web/PWA bei 1440, 1024, 720, 390 und 320 px; lange Namen, Tooltips, Fokus sowie Button-/Touch-Geometrie | Kein horizontaler Überlauf oder Abschneiden; 720 px bildet den 200-%-Desktopfall ab; Desktopziele 40–44 px, Touchziele mindestens 44 px | lokal bestanden | Geometrieassertionen in `modules-tasks.spec.mjs`/`tasks-details.spec.mjs`, K3 19/19 und visuell geprüfte Matrix |
-| S4-A2 | S4-Abschlussstand dieses Commits | Web/PWA: anlegen → zuweisen → Abschnitt anlegen/zuordnen → zurückstellen → suchen → erledigen → wiederöffnen | Aufgabe wieder offen und im Abschnitt; Fälligkeit bitgleich erhalten, Wiedervorlage entfernt; keine verlorene Referenz | lokal bestanden | beide vollständigen Hauptabläufe in `modules-tasks.spec.mjs`, abschließender echter API-Read und Screenshots |
-| S4-A3 | S4-Abschlussstand dieses Commits | Eigentümer/Bearbeiter/Leser, 409, Rechteentzug, Direktlink und bestehende Wissens-/Inbox-/Materialverweise | Keine Mutation oder Detailauflösung nach Entzug; fremde Daten nicht sichtbar; bestehende Verweise bleiben funktionsfähig | lokal bestanden | Web/PWA-Rechtefall plus unveränderte Modulregressionen im vollständigen K3-Lauf |
-| S4-A4 | S4-Abschlussstand dieses Commits | K1, K3, K4, Push, Screenshot-Kommentar und vollständige PR-CI einschließlich K2 | Alle lokalen Gates und anschließend alle PR-Jobs grün; Draft bleibt erhalten | offen | K1 grün, K3 19/19, K4 507/507; wartet auf Push, PR-Anhänge und K5 |
-| S5-A1 | – | noch auszuführen | siehe SLICES.md, S5-A1 | offen | – |
-| S5-A2 | – | noch auszuführen | siehe SLICES.md, S5-A2 | offen | – |
-| S5-A3 | – | noch auszuführen | siehe SLICES.md, S5-A3 | offen | – |
-| S5-A4 | – | noch auszuführen | siehe SLICES.md, S5-A4 | offen | – |
-| S5-A5 | – | noch auszuführen | siehe SLICES.md, S5-A5 | offen | – |
-| S5-A6 | – | noch auszuführen | siehe SLICES.md, S5-A6 | offen | – |
+| S4-A1 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | Web/PWA bei 1440, 1024, 720, 390 und 320 px; lange Namen, Tooltips, Fokus sowie Button-/Touch-Geometrie | Kein horizontaler Überlauf oder Abschneiden; 720 px bildet den 200-%-Desktopfall ab; Desktopziele 40–44 px, Touchziele mindestens 44 px | bestanden | Geometrieassertionen in `modules-tasks.spec.mjs`/`tasks-details.spec.mjs`, K3 19/19 und visuell geprüfte Matrix |
+| S4-A2 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | Web/PWA: anlegen → zuweisen → Abschnitt anlegen/zuordnen → zurückstellen → suchen → erledigen → wiederöffnen | Aufgabe wieder offen und im Abschnitt; Fälligkeit bitgleich erhalten, Wiedervorlage entfernt; keine verlorene Referenz | bestanden | beide vollständigen Hauptabläufe in `modules-tasks.spec.mjs`, abschließender echter API-Read und Screenshots |
+| S4-A3 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | Eigentümer/Bearbeiter/Leser, 409, Rechteentzug, Direktlink und bestehende Wissens-/Inbox-/Materialverweise | Keine Mutation oder Detailauflösung nach Entzug; fremde Daten nicht sichtbar; bestehende Verweise bleiben funktionsfähig | bestanden | Web/PWA-Rechtefall plus unveränderte Modulregressionen im vollständigen K3-Lauf |
+| S4-A4 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | K1, K3, K4, Push, Screenshot-Kommentar und vollständige PR-CI einschließlich K2 | Alle lokalen Gates und anschließend alle PR-Jobs grün; Draft bleibt erhalten | bestanden | K1, K3 19/19, K4 507/507 und 68/68 PR-Checks grün; Screenshot-Kommentar `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5668340706` |
+| S5-A1 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | A und B planen dieselbe Aufgabe für verschiedene Tage; Task vor/nach Planung vergleichen | Jeder sieht nur den eigenen Plan; gemeinsame Revision, Deadline, Zuweisung und Wiedervorlage bleiben unverändert | lokal bestanden | PostgreSQL-Mehrnutzervertrag in `planning_contract.py` |
+| S5-A2 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Überfälligen Plan schließen und wieder öffnen | Offen in Heute; geschlossen unsichtbar; nach Wiederöffnung mit ursprünglichem Datum wieder sichtbar | lokal bestanden | PostgreSQL-Servicevertrag in `planning_contract.py` |
+| S5-A3 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Geplante und heute fällige Aufgaben einschließlich künftig geplantem Fälligkeitstreffer | Keine Duplikate; ungeplante Fälligkeit bleibt Hinweis; kein automatisch erzeugter Plan | lokal bestanden | Servicevertrag und Desktop-Browserfall `tasks-planning.spec.mjs` |
+| S5-A4 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Leser plant persönlich, versucht gemeinsame Mutation; danach Rechteentzug | Eigene Planung zulässig, Task-Mutation gesperrt; danach weder Task noch Plan auflösbar | lokal bestanden | Service-/HTTP-Vertrag und PWA-Leserfall mit echtem Rechteentzug |
+| S5-A5 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Plan entfernen, veraltete Revision schreiben, identischen Auftrag wiederholen | Revisionsträger verhindert ABA; veraltet 409; identischer Retry genau ein Effekt | lokal bestanden | PostgreSQL-Transaktionsvertrag in `planning_contract.py` |
+| S5-A6 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Ungültige Zeitzone und widersprüchliche Zustände; Ansicht in zwei Zeitzonen | 422 ohne Mutation; lokales Datum bleibt gespeichert und Heute-Zuordnung folgt der Zeitzone | lokal bestanden | Service-/HTTP-Vertrag und vollständiger K2-Lauf |
 | S6-A1 | – | noch auszuführen | siehe SLICES.md, S6-A1 | offen | – |
 | S6-A2 | – | noch auszuführen | siehe SLICES.md, S6-A2 | offen | – |
 | S6-A3 | – | noch auszuführen | siehe SLICES.md, S6-A3 | offen | – |
@@ -180,4 +180,26 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 - Visuelle Prüfung: 1440/1024/720/390/320 px ohne horizontalen Überlauf oder
   abgeschnittene Pflichtaktionen. Die Desktop- und PWA-Hauptabläufe sowie 720-/320-
   Detailzustände liegen unter `.artifacts/tasks-s4-final-3/modules/`.
+- K5: PR-Head `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8`, Draft-Status
+  erhalten und 68/68 PR-Checks grün. Screenshot-Kommentar:
+  `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5668340706`.
+
+## S5-Verifikation
+
+- K1: vollständiger Repository-Lint mit Ruff, Formatierung, mypy für 403 Quellen,
+  deterministischem OpenAPI-Client, Frontend-Grenzen und allen Workspace-Typen
+  bestanden.
+- K2: vollständiger isolierter Schema-/Service-/HTTP-Lauf bestanden. Er umfasst
+  den leeren Aufbau bis Migration 0042, das Upgrade eines befüllten Vorgängers,
+  Mehrnutzerisolation, Leserrechte, ABA-/Idempotenzfälle und Zeitzonenfehler.
+- K3: vollständiger modularer Browserlauf mit 20/20 Fällen bestanden. Der neue
+  Fall prüft persönliche Planung auf Web und PWA, private Ansichten, Fälligkeitshinweise
+  ohne Duplikate sowie den Entzug eines Leserzugriffs. Desktop- und PWA-Aufnahmen
+  liegen unter `.artifacts/tasks-s5-final/modules/`.
+- K4: 507/507 Unit-/Domain-/Architektur-/Migrationsfälle bestanden. Zusätzlich
+  sind Test-Double-, Diff- und der lokale SharedStack-Selbsttest mit 5/5 grün.
+- Der lokale Browserrunner verwendet pro Worktree einen wiederverwendbaren
+  Compose-Stack. Unveränderte Images werden nicht gebaut; der warme Datenreset
+  dauerte im finalen Lauf 2,0 Sekunden. Nach dem Lauf wurden nur die Container
+  gestoppt, Cache, Images und Volumes bleiben erhalten.
 - K5: wartet auf Push, Screenshot-Kommentar und vollständig grüne PR-CI.

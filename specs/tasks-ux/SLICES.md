@@ -168,7 +168,7 @@ Keine Datumswerte zur Herstellung einer Ansicht umschreiben.
 **Arbeitsschritte:**
 - [x] Offene Nachweiszellen ermitteln, Fälle durchführen, konkrete Fehler korrigieren.
 - [x] K1/K3/K4 auf dem Abschlussstand; Desktop-/PWA-Hauptablauf visuell dokumentieren.
-- [ ] S4 erst nach vollständigem Ergebnis abhaken; dann kann S5 beginnen.
+- [x] S4 erst nach vollständigem Ergebnis abhaken; dann kann S5 beginnen.
 **Rücknahmegrenze:** bis hier keine fachliche Datenmigration. Bestehende Aufgaben
 müssen mit der vorherigen UI weiterhin les-/bearbeitbar sein.
 
@@ -198,8 +198,8 @@ Actor/Aufgabe; keine Spaltenänderung an gemeinsamer Deadline oder Zuweisung.
 | S5-A6 | Ungültige Zeitzone, scheduled ohne Datum, someday mit Datum | 422 ohne Schreibvorgang. Zeitzonenwechsel verändert Heute-Zuordnung, nicht das gespeicherte Kalenderdatum. |
 
 **Arbeitsschritte:**
-- [ ] S5-A1/A4/A5 als echte Mehrnutzer-/Transaktionsfälle ergänzen und ausführen.
-- [ ] Migration, persönliche Operationen und UI gemeinsam liefern; historische
+- [x] S5-A1/A4/A5 als echte Mehrnutzer-/Transaktionsfälle ergänzen und ausführen.
+- [x] Migration, persönliche Operationen und UI gemeinsam liefern; historische
   Aufgaben bleiben ohne Plan und erhalten keine automatische Planung.
 - [ ] K1–K4, Migration über befüllten Altbestand prüfen; persönliche Desktop-/PWA-
   Ansichten aufnehmen, pushen/K5.
