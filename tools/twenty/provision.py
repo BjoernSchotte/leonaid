@@ -41,6 +41,9 @@ class SchemaDrift(TwentySchemaError):
         super().__init__("\n".join(lines))
 
 
+TRANSIENT_FLAT_ENTITY_ERROR = "Could not find flat entity"
+
+
 def json_object(value: Any, label: str) -> JsonObject:
     if not isinstance(value, dict):
         raise TwentySchemaError(f"{label} muss ein JSON-Objekt sein")
@@ -1456,6 +1459,23 @@ class Provisioner:
         )
 
 
+def apply_with_metadata_retry(
+    provisioner: Provisioner,
+    token_output: Path | None,
+) -> JsonObject:
+    deadline = time.monotonic() + 90
+    while True:
+        try:
+            return provisioner.apply(token_output)
+        except SeedError as error:
+            if (
+                TRANSIENT_FLAT_ENTITY_ERROR not in str(error)
+                or time.monotonic() >= deadline
+            ):
+                raise
+            time.sleep(0.5)
+
+
 def write_json(path: Path, value: JsonObject) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -1589,10 +1609,11 @@ def run(arguments: argparse.Namespace) -> None:
     provisioner = Provisioner(manifest)
     try:
         if arguments.command == "apply":
-            value = provisioner.apply(
+            value = apply_with_metadata_retry(
+                provisioner,
                 arguments.token_output.resolve()
                 if arguments.token_output is not None
-                else None
+                else None,
             )
             if arguments.snapshot_output is not None:
                 write_json(arguments.snapshot_output.resolve(), value)
