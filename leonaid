@@ -228,7 +228,6 @@ run_python() {
     -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
-    -e UV_PROJECT_ENVIRONMENT=/workspace/.cache/ci-venv \
     -v "$root:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
@@ -2052,7 +2051,8 @@ case "$command" in
     ;;
   test-unit)
     require_docker
-    run_python uv run --frozen pytest tests/unit
+    run_python env UV_PROJECT_ENVIRONMENT=/workspace/.cache/ci-venv \
+      uv run --frozen pytest tests/unit
     ;;
   dev) dev ;;
   test-integration)
