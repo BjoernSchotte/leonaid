@@ -21,8 +21,11 @@ class PendingOutboxEvent:
     event_type: str
     idempotency_key: str
     payload: dict[str, JsonValue]
+    available_at: datetime | None = None
 
     def __post_init__(self) -> None:
+        if self.available_at is not None and self.available_at.utcoffset() is None:
+            raise ValueError("available_at muss timezone-aware sein.")
         for label, value in (
             ("aggregate_type", self.aggregate_type),
             ("event_type", self.event_type),

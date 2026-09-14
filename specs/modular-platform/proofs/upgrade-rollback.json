@@ -1,0 +1,26 @@
+{
+  "backupRollback": "passed",
+  "coreMigrationFailureDetected": "passed",
+  "failedUpgradeDetected": "passed",
+  "maintenanceWriteBoundary": "passed",
+  "postContract": "passed",
+  "postE2e": "passed",
+  "postGoldenJourney": "passed",
+  "preContract": "passed",
+  "preE2e": "passed",
+  "preGoldenJourney": "passed",
+  "releaseLedger": "passed",
+  "result": "passed",
+  "rollbackGoldenJourney": "passed",
+  "rollbackJourneyEquivalent": "passed",
+  "sameManifestPromotion": "passed",
+  "schemaVersion": 1,
+  "source": {
+    "rustfs": "1.0.0-beta.10",
+    "twenty": "2.23.2"
+  },
+  "target": {
+    "rustfs": "1.0.0-beta.11",
+    "twenty": "2.24.0"
+  }
+}

@@ -272,7 +272,9 @@ def test_principal_keeps_global_and_action_roles_separate() -> None:
     assert principal.is_system_admin is False
 
 
-def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> None:
+def test_navigation_gives_acquirer_work_modules_without_other_backoffice_access() -> (
+    None
+):
     acquirer = IdentityPrincipal(
         account=account(AccountStatus.ACTIVE),
         global_roles=frozenset(),
@@ -288,15 +290,43 @@ def test_navigation_gives_acquirer_surveys_without_other_backoffice_access() -> 
         ),
     )
 
-    navigation = navigation_for(acquirer)
+    from leonaid.bootstrap.api import module_navigation
 
-    assert {item.key for item in navigation if item.surface == "web"} == {"surveys"}
+    navigation = navigation_for(acquirer, module_navigation(acquirer))
+    assert {
+        (item.surface, item.href) for item in navigation if item.key == "surveys"
+    } == {
+        ("web", "/admin/surveys"),
+        ("pwa", "/admin/surveys"),
+    }
+
+    assert {item.key for item in navigation if item.surface == "web"} == {
+        "surveys",
+        "tasks",
+        "knowledge",
+        "materials",
+        "inbox",
+    }
     assert {(item.surface, item.key) for item in navigation} >= {
         ("pwa", "overview-pwa"),
+        ("pwa", "tasks"),
+        ("pwa", "inbox"),
         ("pwa", "sponsors"),
         ("pwa", "activities"),
         ("pwa", "commitment"),
     }
+
+
+@pytest.mark.parametrize("status", [AccountStatus.SUSPENDED, AccountStatus.ARCHIVED])
+def test_registered_modules_hide_navigation_for_inactive_accounts(
+    status: AccountStatus,
+) -> None:
+    from leonaid.bootstrap.api import module_navigation
+
+    principal = IdentityPrincipal(
+        account=account(status), global_roles=frozenset(), action_memberships=()
+    )
+    assert module_navigation(principal) == ()
 
 
 @pytest.mark.parametrize(

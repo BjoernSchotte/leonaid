@@ -265,13 +265,19 @@ chmod 600 \
   "$restic_password_file" \
   "$wrong_restic_password_file" \
   "$backup_credentials_file"
+echo "pilot-deployment-test: baut sechs Release-Images vor dem Deployment"
+build_owned=true
+docker compose \
+  --project-name "$build_project" \
+  --env-file "$root/.env.local" \
+  --file "$root/infra/compose/compose.yml" \
+  build api web pwa public survey-validator proxy
+
 docker run --rm \
   --env "AWS_ACCESS_KEY_ID=$backup_access_key" \
   --env "AWS_SECRET_ACCESS_KEY=$backup_secret_key" \
-  --volume "$root:/workspace:ro" \
-  --workdir /workspace \
-  "$PYTHON_IMAGE" \
-  /workspace/.venv/bin/python -c "import boto3
+  "$core_image" \
+  python -c "import boto3
 s3=boto3.client(
   's3',
   endpoint_url='http://$backup_ip:9000',
@@ -352,14 +358,6 @@ docker run --rm \
   --workdir /workspace \
   "$PYTHON_IMAGE" \
   python tools/pilot_deployment/test.py /proof/compose.json
-
-echo "pilot-deployment-test: baut sechs Release-Images vor dem Deployment"
-build_owned=true
-docker compose \
-  --project-name "$build_project" \
-  --env-file "$root/.env.local" \
-  --file "$root/infra/compose/compose.yml" \
-  build api web pwa public survey-validator proxy
 
 echo "pilot-deployment-test: startet die Produktions-Topologie ohne Build"
 runtime_owned=true

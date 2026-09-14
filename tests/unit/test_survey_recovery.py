@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from leonaid.application.surveys.recovery import (
+from leonaid.modules.surveys.application.recovery import (
     ErasureCheckpoint,
     ErasureRecord,
     seal,
@@ -123,7 +123,7 @@ def test_duplicate_identities_rejected_even_with_valid_signature():
 
 
 def test_export_and_import_share_the_exact_document_byte_boundary(monkeypatch):
-    import leonaid.application.surveys.recovery as recovery
+    import leonaid.modules.surveys.application.recovery as recovery
 
     checkpoint, cutoff = sample()
     document = seal(checkpoint, SECRET)

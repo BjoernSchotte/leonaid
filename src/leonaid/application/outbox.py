@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+import asyncio
+import math
+from time import perf_counter
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
 from leonaid.domain.outbox import ClaimedOutboxEvent, RetryDecision, RetryPolicy
 
-OutboxObserver = Callable[[str, ClaimedOutboxEvent, str | None], None]
+OutboxObserver = Callable[[str, ClaimedOutboxEvent, str | None, float | None], None]
 SAFE_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,119}\Z")
 
 
@@ -57,17 +60,30 @@ class OutboxWorker:
         retry_policy: RetryPolicy,
         clock: Callable[[], datetime] | None = None,
         observer: OutboxObserver | None = None,
+        handler_timeouts: Mapping[str, float] | None = None,
+        on_close: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         if not worker_id.strip():
             raise ValueError("worker_id darf nicht leer sein.")
         if not handlers:
             raise ValueError("Mindestens ein Outbox-Handler ist erforderlich.")
+        self._handler_timeouts = dict(handler_timeouts or {})
+        for event_type, seconds in self._handler_timeouts.items():
+            if event_type not in handlers or not math.isfinite(seconds) or seconds <= 0:
+                raise ValueError(
+                    "Handler timeout requires a registered handler and finite positive seconds."
+                )
         self._worker_id = worker_id
         self._queue = queue
         self._handlers = dict(handlers)
         self._retry_policy = retry_policy
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._observer = observer
+        self._on_close = on_close
+
+    async def close(self) -> None:
+        if self._on_close is not None:
+            await self._on_close()
 
     async def run_once(self) -> bool:
         event = await self._queue.claim_next(
@@ -76,6 +92,7 @@ class OutboxWorker:
         )
         if event is None:
             return False
+        started = perf_counter()
         self._observe("outbox.job.claimed", event)
         try:
             handler = self._handlers[event.event_type]
@@ -83,16 +100,18 @@ class OutboxWorker:
             await self._record_failure(
                 event,
                 code="handler_not_registered",
-                detail=f"Kein Handler für {event.event_type}",
+                started=started,
             )
             return True
+        deadline = asyncio.timeout(self._handler_timeouts.get(event.event_type))
         try:
-            await handler.handle(event)
+            async with deadline:
+                await handler.handle(event)
         except Exception as error:
             await self._record_failure(
                 event,
-                code=self.error_code(error),
-                detail=str(error),
+                code="job_timeout" if deadline.expired() else self.error_code(error),
+                started=started,
                 retryable=getattr(error, "retryable", True) is not False,
             )
             return True
@@ -101,7 +120,11 @@ class OutboxWorker:
             claim_token=event.claim_token,
             completed_at=self._clock(),
         )
-        self._observe("outbox.job.completed", event)
+        self._observe(
+            "outbox.job.completed",
+            event,
+            duration_ms=round((perf_counter() - started) * 1000, 2),
+        )
         return True
 
     async def run_until_idle(self, *, maximum_events: int = 10_000) -> int:
@@ -115,7 +138,7 @@ class OutboxWorker:
         event: ClaimedOutboxEvent,
         *,
         code: str,
-        detail: str,
+        started: float,
         retryable: bool = True,
     ) -> None:
         failed_at = self._clock()
@@ -128,7 +151,8 @@ class OutboxWorker:
             event_id=event.id,
             claim_token=event.claim_token,
             error_code=code[:120],
-            error_detail=detail[:2000],
+            # Exception messages can contain credentials, recipient data or payloads.
+            error_detail=code[:120],
             failed_at=failed_at,
             available_at=decision.available_at,
             dead_letter=decision.dead_letter,
@@ -139,6 +163,7 @@ class OutboxWorker:
             else "outbox.job.retry_scheduled",
             event,
             code,
+            duration_ms=round((perf_counter() - started) * 1000, 2),
         )
 
     @staticmethod
@@ -146,13 +171,15 @@ class OutboxWorker:
         explicit = getattr(error, "code", None)
         if isinstance(explicit, str) and SAFE_ERROR_CODE.fullmatch(explicit):
             return explicit
-        return type(error).__name__.lower()[:120]
+        fallback = type(error).__name__.lower()
+        return fallback if SAFE_ERROR_CODE.fullmatch(fallback) else "job_failed"
 
     def _observe(
         self,
         name: str,
         event: ClaimedOutboxEvent,
         error_code: str | None = None,
+        duration_ms: float | None = None,
     ) -> None:
         if self._observer is not None:
-            self._observer(name, event, error_code)
+            self._observer(name, event, error_code, duration_ms)

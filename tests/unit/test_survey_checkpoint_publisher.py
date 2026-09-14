@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from leonaid.adapters.postgres.survey_checkpoint_publisher import (
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
     AsyncpgErasureCheckpointPublisher,
     configured_publisher,
 )

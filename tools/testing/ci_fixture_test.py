@@ -79,6 +79,22 @@ class FixtureBoundaryTests(unittest.TestCase):
             migration.write_text("changed schema")
             self.assertNotEqual(key(root), original)
 
+    def test_relocated_survey_inputs_still_invalidate_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            previous = key(root)
+            for name in (
+                "src/leonaid/modules/surveys/domain/validation.py",
+                "src/leonaid/modules/surveys/adapters/typst/templates/survey-analysis-v1.typ",
+            ):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("changed fixture input")
+                current = key(root)
+                self.assertNotEqual(current, previous)
+                previous = current
+
     def test_environment_is_deterministic_and_local(self):
         content = environment(ROOT)
         self.assertEqual(content, environment(ROOT))

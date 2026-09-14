@@ -72,11 +72,55 @@ echo "poc021-test: migriert eine vollständig leere PostgreSQL-Instanz bis Head"
 compose build api
 compose up --detach --wait --wait-timeout 120 core-postgres
 compose run --rm --no-deps --entrypoint alembic api upgrade head
-compose run --rm --no-deps --entrypoint alembic api upgrade head
+
+if [ "${2:-full}" = "code-rollback" ]; then
+  # Pinned predecessors of registration, Tasks, and Inbox. No checkout mutation.
+  for revision in 4d05276c5b74932461926e86c8a4fdbaa5f192b6 07d100883c418370afa662b41aef0dfc8743335d b46f46223c9ddb3d16a02e13875609febcc63eed; do
+    mkdir "$proof/$revision"
+    git -C "$root" archive --format=tar "$revision" src >"$proof/source.tar"
+    tar -xf "$proof/source.tar" -C "$proof/$revision"
+    echo "code-rollback: testing $revision against the expanded schema"
+    compose run --rm --no-deps \
+      --volume "$proof/$revision:/old:ro" \
+      --volume "$root/tools/schema/code_rollback.py:/proof.py:ro" \
+      --env PYTHONPATH=/old/src --env ROLLBACK_SOURCE=/old/src \
+      --entrypoint python api /proof.py
+  done
+  echo "code-rollback: PASS: older API startup and identity on current schema; new-job drain remains separate"
+  exit 0
+fi
+compose up --detach --wait --wait-timeout 120 rustfs
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
-  api /repo/tools/schema/smoke.py
+  api /repo/tools/testing/run_python_contracts.py \
+    /repo/tools/schema/smoke.py \
+    /repo/tools/tasks/schema_contract.py \
+    /repo/tools/knowledge/schema_contract.py \
+    /repo/tools/materials/schema_contract.py \
+    /repo/tools/inbox/schema_contract.py \
+    /repo/tools/inbox/submission_contract.py \
+    /repo/tools/inbox/case_contract.py \
+    /repo/tools/inbox/http_contract.py \
+    /repo/tools/inbox/public_contract.py \
+    /repo/tools/inbox/task_contract.py \
+    /repo/tools/inbox/material_contract.py \
+    /repo/tools/materials/service_contract.py \
+    /repo/tools/materials/member_contract.py \
+    /repo/tools/materials/action_contract.py \
+    /repo/tools/materials/cleanup_contract.py \
+    /repo/tools/materials/http_contract.py \
+    /repo/tools/knowledge/service_contract.py \
+    /repo/tools/knowledge/material_contract.py \
+    /repo/tools/knowledge/http_contract.py \
+    /repo/tools/knowledge/action_contract.py \
+    /repo/tools/knowledge/task_contract.py \
+    /repo/tools/knowledge/member_contract.py \
+    /repo/tools/tasks/service_contract.py \
+    /repo/tools/tasks/planning_contract.py \
+    /repo/tools/tasks/ordering_contract.py \
+    /repo/tools/tasks/http_contract.py \
+    /repo/tools/tasks/action_contract.py
 
 echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
 compose --profile '*' down --volumes --remove-orphans

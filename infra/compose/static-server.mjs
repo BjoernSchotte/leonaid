@@ -22,27 +22,14 @@ const contentTypes = new Map([
 function assetFile(requestUrl, assetDirectory, kind) {
   if (!assetDirectory || appKind !== kind) return undefined;
   const pathname = new URL(requestUrl, "http://localhost").pathname;
+  // The SPA registry owns application routes, including unknown-route handling.
+  // Keep only static-asset and offline-document handling at this transport.
   let relative;
   if (kind === "web") {
     relative =
       pathname.startsWith("/assets/") || pathname === "/favicon.svg"
         ? pathname.slice(1)
-        : pathname === "/" ||
-            pathname === "/acquisition" ||
-            pathname === "/activities" ||
-            pathname === "/invoices" ||
-            pathname === "/legal" ||
-            pathname === "/members" ||
-            pathname === "/orders" ||
-            pathname === "/privacy" ||
-            pathname === "/surveys" ||
-            pathname.startsWith("/surveys/") ||
-            pathname === "/system" ||
-            pathname.startsWith("/system/") ||
-            pathname === "/actions" ||
-            pathname.startsWith("/actions/")
-          ? "index.html"
-          : undefined;
+        : "index.html";
   } else {
     relative =
       pathname.startsWith("/assets/") ||
@@ -53,12 +40,7 @@ function assetFile(requestUrl, assetDirectory, kind) {
         ? pathname.slice(1)
         : pathname === "/offline"
           ? "offline.html"
-          : pathname === "/" ||
-              pathname === "/sponsors" ||
-              pathname === "/activities" ||
-              pathname.startsWith("/commitments/")
-            ? "index.html"
-            : undefined;
+          : "index.html";
   }
   if (!relative) return undefined;
   const root = path.resolve(assetDirectory);

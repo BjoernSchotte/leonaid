@@ -28,6 +28,11 @@ trap 'exit 143' TERM
 image=true
 phase survey-aggregate-build docker buildx build --load \
   --file "$root/infra/compose/Dockerfile.survey-validator" --tag "$project" "$root"
+# Host virtualenvs may contain macOS binaries. Install the frozen Linux runtime
+# outside the read-only checkout before attaching to the isolated test network.
+docker run --rm --env UV_PROJECT_ENVIRONMENT=/proof/venv \
+  --volume "$root:/workspace:ro" --volume "$proof:/proof" --workdir /workspace \
+  "$UV_IMAGE" uv sync --frozen --no-dev --no-install-project
 subnet=$(python3 "$root/tools/surveys/network_override.py" --single)
 network=true
 docker network create --internal --subnet "$subnet" "$project" >/dev/null
@@ -45,6 +50,7 @@ ready() {
 }
 check() {
   docker run --rm --network "$project" --env PYTHONPATH=/workspace/src \
+    --env UV_PROJECT_ENVIRONMENT=/proof/venv \
     --volume "$root:/workspace:ro" --volume "$proof:/proof" --workdir /workspace \
     "$UV_IMAGE" uv run --frozen --no-sync python tools/surveys/analysis_live.py "$1"
 }

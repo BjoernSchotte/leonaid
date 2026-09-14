@@ -22,6 +22,7 @@ class DependencySignal:
     latency_ms: float
     request_id: str
     error_code: str | None
+    last_successful_sweep_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +71,8 @@ class OperationsSnapshot:
     login: dict[str, int]
     failed_jobs: tuple[FailedJob, ...]
     monitoring: MonitoringSnapshot
+    next_pending_attempt_at: datetime | None = None
+    oldest_due_pending_age_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

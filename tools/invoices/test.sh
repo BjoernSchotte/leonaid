@@ -35,7 +35,7 @@ cleanup() {
     echo "invoice-test: Diagnose der fehlgeschlagenen echten Services:" >&2
     compose ps >&2 || true
     compose logs --no-color --tail=180 \
-      api core-postgres twenty-server twenty-worker >&2 || true
+      api core-postgres twenty-server twenty-worker proxy >&2 || true
     /bin/sh "$root/tools/ci/capture-failure.sh" \
       "$root" "$proof" "$project" || true
   fi

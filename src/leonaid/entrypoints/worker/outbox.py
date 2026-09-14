@@ -1,4 +1,4 @@
-"""Executable composition root and operational CLI for the durable outbox."""
+"""Operational CLI for the durable outbox; process path remains stable."""
 
 from __future__ import annotations
 
@@ -8,143 +8,11 @@ import json
 import os
 import socket
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import datetime, timezone
 from uuid import UUID
 
-import asyncpg
-
-from leonaid.adapters.mail.invoice_smtp import InvoiceSmtpHandler
-from leonaid.adapters.mail.secure_payload import SecureMailPayload
-from leonaid.adapters.mail.smtp import SmtpMailHandler
-from leonaid.adapters.mail.survey_smtp import SurveyInvitationSmtpHandler
-from leonaid.adapters.mail.transport import SmtpTransport
-from leonaid.adapters.postgres.activity_projection import (
-    ActionProgressActivityHandler,
-)
-from leonaid.adapters.postgres.documents import AsyncpgGeneratedDocumentRepository
-from leonaid.adapters.postgres.invoice_deliveries import (
-    AsyncpgInvoiceDeliveryRepository,
-)
-from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
-from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.storage import S3ObjectStorage
-from leonaid.adapters.typst import TypstInvoiceRenderer
-from leonaid.application.documents import InvoiceDocumentStorageHandler
-from leonaid.adapters.operations import structured_event
-from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
-from leonaid.configuration import load_mail_transport_settings
-from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
-
-
-def observe_job(
-    name: str,
-    event: ClaimedOutboxEvent,
-    error_code: str | None,
-) -> None:
-    action_value = event.payload.get("actionId")
-    action_id = action_value if isinstance(action_value, str) else None
-    print(
-        structured_event(
-            name,
-            jobId=str(event.id),
-            eventType=event.event_type,
-            aggregateType=event.aggregate_type,
-            aggregateId=str(event.aggregate_id),
-            actionId=action_id,
-            attempt=event.attempts,
-            errorCode=error_code,
-        ),
-        flush=True,
-    )
-
-
-async def build_worker(
-    *,
-    database_url: str,
-    worker_id: str,
-    max_attempts: int,
-    base_backoff_seconds: float,
-    claim_lease_seconds: float,
-) -> tuple[asyncpg.Pool[Any], AsyncpgOutboxQueue, OutboxWorker]:
-    pool = await create_pool(database_url, maximum_size=5)
-    queue = AsyncpgOutboxQueue(
-        pool,
-        claim_lease=timedelta(seconds=claim_lease_seconds),
-    )
-    object_storage = S3ObjectStorage(
-        endpoint_url=os.environ["OBJECT_STORAGE_ENDPOINT_URL"],
-        access_key=os.environ["OBJECT_STORAGE_ACCESS_KEY"],
-        secret_key=os.environ["OBJECT_STORAGE_SECRET_KEY"],
-        bucket=os.environ["OBJECT_STORAGE_BUCKET"],
-        region=os.environ.get("OBJECT_STORAGE_REGION", "us-east-1"),
-        path_style=os.environ.get("OBJECT_STORAGE_PATH_STYLE", "true").casefold()
-        == "true",
-    )
-    mail_settings = load_mail_transport_settings()
-    mail_transport = SmtpTransport(
-        host=mail_settings.host,
-        port=mail_settings.port,
-        sender=mail_settings.sender,
-        mode=mail_settings.mode,
-        username=mail_settings.username,
-        password=(
-            mail_settings.password.get_secret_value()
-            if mail_settings.password is not None
-            else None
-        ),
-        timeout_seconds=mail_settings.timeout_seconds,
-        verify_certificates=mail_settings.verify_certificates,
-        ca_file=mail_settings.ca_file,
-        envelope_from=mail_settings.envelope_from,
-        reply_to=mail_settings.reply_to,
-    )
-    handlers: dict[str, OutboxEventHandler] = {
-        "survey.delete.v1": AsyncpgSurveyDeletion(
-            pool, object_storage, configured_publisher(pool)
-        ),
-        "survey.export.render.v1": AsyncpgSurveyExports(pool, object_storage),
-        "survey.invitation.send.v1": SurveyInvitationSmtpHandler(
-            pool,
-            transport=mail_transport,
-            secure_payload=SecureMailPayload(
-                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
-            ),
-        ),
-        "charity_action.progress.recorded.v1": ActionProgressActivityHandler(pool),
-        "invoice.document.render.requested.v1": InvoiceDocumentStorageHandler(
-            repository=AsyncpgGeneratedDocumentRepository(pool),
-            renderer=TypstInvoiceRenderer(),
-            storage=object_storage,
-        ),
-        "invoice.mail.send.requested.v1": InvoiceSmtpHandler(
-            repository=AsyncpgInvoiceDeliveryRepository(pool),
-            storage=object_storage,
-            transport=mail_transport,
-        ),
-        "mail.send.v1": SmtpMailHandler(
-            pool,
-            transport=mail_transport,
-            secure_payload=SecureMailPayload(
-                os.environ["LEONAID_SESSION_ENCRYPTION_KEY"]
-            ),
-        ),
-    }
-    worker = OutboxWorker(
-        worker_id=worker_id,
-        queue=queue,
-        handlers=handlers,
-        retry_policy=RetryPolicy(
-            max_attempts=max_attempts,
-            base_delay=timedelta(seconds=base_backoff_seconds),
-            maximum_delay=timedelta(minutes=15),
-        ),
-        observer=observe_job,
-    )
-    return pool, queue, worker
+from leonaid.bootstrap.worker import build_worker
+from leonaid.domain.outbox import OutboxState
 
 
 async def execute(arguments: argparse.Namespace) -> int:
@@ -193,7 +61,10 @@ async def execute(arguments: argparse.Namespace) -> int:
             return 0
         raise RuntimeError(f"Unbekannter Worker-Befehl: {arguments.command}")
     finally:
-        await pool.close()
+        try:
+            await worker.close()
+        finally:
+            await pool.close()
 
 
 def _json_state(state: OutboxState) -> dict[str, object]:

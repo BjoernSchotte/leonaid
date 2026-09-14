@@ -5,7 +5,10 @@ import sys
 from pathlib import Path
 
 from leonaid.domain.errors import DomainInvariantError
-from leonaid.domain.surveys.validation import validate_answers, validate_definition
+from leonaid.modules.surveys.domain.validation import (
+    validate_answers,
+    validate_definition,
+)
 
 root = Path("tests/fixtures/surveys")
 artifacts = Path(".artifacts/surveys")

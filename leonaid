@@ -577,7 +577,7 @@ check_all() {
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
-    tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
+    tools/pwa tools/security tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync ruff format --check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
@@ -586,7 +586,7 @@ check_all() {
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
     tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
-    tools/security tools/templates tools/testkit tools/twenty tools/typst \
+    tools/security tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync mypy \
     migrations src tools/action_admin tools/actions tools/activities \
@@ -595,7 +595,7 @@ check_all() {
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
     tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release \
     tools/pilot_readiness \
-    tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
+    tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
   run_python uv run --frozen --no-sync pytest tests/unit
   run_python env PYTHONPATH=/workspace:/workspace/src python tools/pilot_release/cms_contract_test.py
@@ -1323,22 +1323,20 @@ pilot_release_migrate() (
   cp "$release_manifest" "$manifest_directory/release-manifest.json"
   core_head=$(
     docker run --rm \
+      --env PYTHONPATH=/workspace \
+      --volume "$root:/workspace:ro" \
       --volume "$manifest_directory:/release:ro" \
       "$PYTHON_IMAGE" \
       python -c 'import json,pathlib
+from tools.pilot_release.manifest import MIGRATION_REVISION
 value=json.loads(pathlib.Path("/release/release-manifest.json").read_text())
-print(value["schemas"]["coreAlembicHead"])'
+head=value["schemas"]["coreAlembicHead"]
+if not isinstance(head,str) or MIGRATION_REVISION.fullmatch(head) is None:
+    raise SystemExit("pilot-release: BLOCKED: Core-Migrationsziel ist ungültig")
+print(head)'
   )
   rm -rf "$manifest_directory"
   trap - EXIT HUP INT TERM
-  case "$core_head" in
-    [0-9][0-9][0-9][0-9]) ;;
-    *)
-      echo "pilot-release: BLOCKED: Core-Migrationsziel ist ungültig" >&2
-      return 1
-      ;;
-  esac
-
   pilot_compose_command "$project" "$env_file" \
     up --detach --no-build --pull missing --force-recreate \
     --wait --wait-timeout 420 rustfs
@@ -2191,7 +2189,8 @@ case "$command" in
     ;;
   test-unit)
     require_docker
-    run_python uv run --frozen --no-sync pytest tests/unit
+    run_python env UV_PROJECT_ENVIRONMENT=/workspace/.cache/ci-venv \
+      uv run --frozen pytest tests/unit
     ;;
   dev) dev ;;
   test-integration)

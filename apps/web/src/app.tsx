@@ -1,5 +1,6 @@
+import { ModuleSearch } from "@leonaid/features";
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect } from "react";
+import { useEffect } from "react";
 
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import {
@@ -21,11 +22,9 @@ import {
   useCurrentActionId,
   campaignEditorHref,
 } from "@leonaid/features";
+import { registeredModules } from "@leonaid/features/registered-modules";
+import { resolveModuleRoute } from "@leonaid/features/modules";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
-
-const SurveysPage = lazy(() =>
-  import("./surveys").then(({ SurveysPage }) => ({ default: SurveysPage })),
-);
 
 export interface AppProps {
   readonly client: LeonAidApiClient;
@@ -50,11 +49,12 @@ function RedirectToOperationalApp() {
 function route() {
   const pathname =
     window.location.pathname.replace(/^\/admin/, "").replace(/\/+$/, "") || "/";
-  if (pathname === "/surveys" || pathname === "/surveys/new")
-    return { kind: "surveys", createNew: pathname.endsWith("/new") } as const;
-  const surveyMatch = pathname.match(/^\/surveys\/([0-9a-f-]{36})$/);
-  if (surveyMatch)
-    return { kind: "surveys", surveyId: surveyMatch[1] } as const;
+  const moduleRoute = resolveModuleRoute(
+    registeredModules,
+    "web",
+    window.location.pathname,
+  );
+  if (moduleRoute) return { kind: "module", ...moduleRoute } as const;
   if (pathname === "/") return { kind: "dashboard" } as const;
   if (pathname === "/actions") return { kind: "list" } as const;
   if (pathname === "/members") return { kind: "members" } as const;
@@ -71,7 +71,7 @@ function route() {
     /^\/actions\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
   );
   if (match) return { actionId: match[1], kind: "manage" } as const;
-  return { kind: "dashboard" } as const;
+  return { kind: "not-found" } as const;
 }
 
 export function App({ client }: AppProps) {
@@ -126,9 +126,11 @@ export function App({ client }: AppProps) {
   }
 
   if (
-    route().kind !== "surveys" &&
+    route().kind !== "module" &&
     !identity.data.navigation.some(
-      (item) => item.surface === "web" && item.key !== "surveys",
+      (item) =>
+        item.surface === "web" &&
+        !registeredModules.some((module) => module.id === item.key),
     )
   ) {
     return <RedirectToOperationalApp />;
@@ -148,8 +150,10 @@ export function App({ client }: AppProps) {
   );
   const editorHref = campaignEditorHref(identity.data, actionId);
   const currentAction =
-    currentRoute.kind === "surveys"
-      ? "Umfragen"
+    currentRoute.kind === "module"
+      ? (identity.data.navigation.find(
+          (item) => item.key === currentRoute.moduleId,
+        )?.label ?? "Arbeitsbereich")
       : currentRoute.kind === "manage"
         ? (identity.data.actionMemberships.find(
             (item) => item.actionId === currentRoute.actionId,
@@ -192,6 +196,7 @@ export function App({ client }: AppProps) {
   return (
     <FeatureFlagProvider client={client} identity={identity.data} surface="web">
       <AppShell
+        moduleNavigationKeys={registeredModules.map((module) => module.id)}
         currentActionName={selectedMembership?.actionName ?? currentAction}
         identity={{
           ...identity.data,
@@ -207,25 +212,20 @@ export function App({ client }: AppProps) {
           });
         }}
       >
+        <ModuleSearch
+          modules={registeredModules}
+          surface="web"
+          client={client}
+          identity={identity.data}
+        />
         <PreviewNotice />
-        {currentRoute.kind === "surveys" ? (
-          <Suspense
-            fallback={
-              <div className="action-loading" role="status" aria-live="polite">
-                <span aria-hidden="true" />
-                <p>Umfragen werden geladen …</p>
-              </div>
-            }
-          >
-            <SurveysPage
-              client={client}
-              identity={identity.data}
-              createNew={"createNew" in currentRoute && currentRoute.createNew}
-              surveyId={
-                "surveyId" in currentRoute ? currentRoute.surveyId : undefined
-              }
-            />
-          </Suspense>
+        {currentRoute.kind === "module" ? (
+          currentRoute.render({ client, identity: identity.data })
+        ) : currentRoute.kind === "not-found" ? (
+          <StatusMessage tone="error">
+            <h1>Seite nicht gefunden</h1>
+            <a href="/admin/">Zur Übersicht</a>
+          </StatusMessage>
         ) : currentRoute.kind === "new" ? (
           <CreateActionPage client={client} />
         ) : currentRoute.kind === "manage" ? (

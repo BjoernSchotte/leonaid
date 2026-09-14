@@ -16,17 +16,11 @@ from pydantic import (
     model_validator,
 )
 
-
-class TransportModel(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=lambda value: "".join(
-            part if index == 0 else part.capitalize()
-            for index, part in enumerate(value.split("_"))
-        ),
-        populate_by_name=True,
-        from_attributes=True,
-        extra="forbid",
-    )
+from leonaid.platform.http import (
+    ApiErrorDetail as ApiErrorDetail,
+    ApiErrorResponse as ApiErrorResponse,
+    TransportModel as TransportModel,
+)
 
 
 class PlatformStatusResponse(TransportModel):
@@ -1912,6 +1906,7 @@ class OperationalDependencyResponse(TransportModel):
     latency_ms: float = Field(ge=0)
     request_id: str
     error_code: str | None
+    last_successful_sweep_at: datetime | None = None
 
 
 class OperationalStatusCountsResponse(TransportModel):
@@ -1959,6 +1954,8 @@ class OperationalMonitoringResponse(TransportModel):
 
 
 class OperationsOverviewResponse(TransportModel):
+    next_pending_attempt_at: datetime | None = None
+    oldest_due_pending_age_seconds: float | None = Field(default=None, ge=0)
     generated_at: datetime
     request_id: str
     api: OperationalApiMetricsResponse
@@ -2022,22 +2019,6 @@ class OperationalJobRetryResponse(TransportModel):
     status: Literal["pending"]
     manual_retry_count: int = Field(ge=1)
     request_id: str
-
-
-class ApiErrorDetail(TransportModel):
-    code: str = Field(examples=["endpoint_not_found"])
-    message: str = Field(
-        examples=["Dieser API-Endpunkt existiert nicht."],
-    )
-    request_id: str = Field(
-        min_length=8,
-        max_length=128,
-        examples=["poc023:contract:golden-v1"],
-    )
-
-
-class ApiErrorResponse(TransportModel):
-    error: ApiErrorDetail
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, object]] = {

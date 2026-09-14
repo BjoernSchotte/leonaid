@@ -7,11 +7,22 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+    - id: cached
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
       with:
         path: ${{ runner.temp }}/leonaid-synthetic-fixture
         key: ${{ inputs.key }}
-        fail-on-cache-miss: true
+        fail-on-cache-miss: false
     - name: Validate fixture and select its synthetic environment
       shell: bash
-      run: python3 tools/testing/ci_fixture.py activate "$RUNNER_TEMP/leonaid-synthetic-fixture"
+      env:
+        FIXTURE_CACHE_HIT: ${{ steps.cached.outputs.cache-hit }}
+        FIXTURE_KEY: ${{ inputs.key }}
+      run: |
+        test "$FIXTURE_KEY" = "fixture-v1-$(python3 tools/testing/ci_fixture.py key)"
+        directory="$RUNNER_TEMP/leonaid-synthetic-fixture"
+        if [ "$FIXTURE_CACHE_HIT" != true ]; then
+          directory="$RUNNER_TEMP/leonaid-synthetic-fixture-rebuilt"
+          python3 tools/testing/ci_fixture.py build "$directory"
+        fi
+        python3 tools/testing/ci_fixture.py activate "$directory"
