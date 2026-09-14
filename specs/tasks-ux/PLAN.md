@@ -351,7 +351,7 @@ Abhängige Slices beginnen erst nach erfolgreicher Abnahme ihres Vorgängers.
 - [ ] **S4 – Abnahme der UX-Grundlage:** gemeinsame Abläufe, Grenzfälle und Rechte in Web/PWA,
   vollständige bestehende Modulregression, Screenshot-Beweise und CI. Voraussetzung
   für den Beginn der nachfolgenden Ausbaustufe.
-- [ ] **S5 – Persönliche Planung:** eigene Zustände/Operationen und Ansichten
+- [x] **S5 – Persönliche Planung:** eigene Zustände/Operationen und Ansichten
   Heute/Geplant/Irgendwann, ohne Deadline oder Teamzuordnung zu verändern.
 - [ ] **S6 – Drag-and-drop:** persönliche und gemeinsame manuelle Reihenfolge,
   Abschnittswechsel, Tastatur-/Menüalternativen und Konfliktbehandlung.

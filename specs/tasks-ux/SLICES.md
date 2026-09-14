@@ -201,7 +201,7 @@ Actor/Aufgabe; keine Spaltenänderung an gemeinsamer Deadline oder Zuweisung.
 - [x] S5-A1/A4/A5 als echte Mehrnutzer-/Transaktionsfälle ergänzen und ausführen.
 - [x] Migration, persönliche Operationen und UI gemeinsam liefern; historische
   Aufgaben bleiben ohne Plan und erhalten keine automatische Planung.
-- [ ] K1–K4, Migration über befüllten Altbestand prüfen; persönliche Desktop-/PWA-
+- [x] K1–K4, Migration über befüllten Altbestand prüfen; persönliche Desktop-/PWA-
   Ansichten aufnehmen, pushen/K5.
 **Rücknahmegrenze:** persönliche Tabelle erhalten, neue Oberfläche/Operationen
 zurücknehmen. Alte Task-Schreibaufträge dürfen persönliche Zustände nicht löschen.

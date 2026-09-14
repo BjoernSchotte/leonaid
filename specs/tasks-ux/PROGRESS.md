@@ -1,7 +1,7 @@
 # Aufgaben-UX: Implementierung und Abnahme
 
-Stand: S1 bis S4 sind mit vollständig grüner PR-CI abgeschlossen. S5 ist lokal
-vollständig abgenommen und wartet auf Push/K5; S6–S11 bleiben offen.
+Stand: S1 bis S5 sind mit vollständig grüner PR-CI abgeschlossen. S6–S11 bleiben
+offen.
 Ausgangsstand: `0a084c88ac5ddd73faf112d3d6abc767ab2d6c6f` auf Draft-PR #7.
 Die CI dieses Ausgangsstands war beim Implementierungsbeginn vollständig grün
 (`gh pr checks 7 --json name,state`, keine offenen/fehlgeschlagenen Checks).
@@ -38,12 +38,12 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 | S4-A2 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | Web/PWA: anlegen → zuweisen → Abschnitt anlegen/zuordnen → zurückstellen → suchen → erledigen → wiederöffnen | Aufgabe wieder offen und im Abschnitt; Fälligkeit bitgleich erhalten, Wiedervorlage entfernt; keine verlorene Referenz | bestanden | beide vollständigen Hauptabläufe in `modules-tasks.spec.mjs`, abschließender echter API-Read und Screenshots |
 | S4-A3 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | Eigentümer/Bearbeiter/Leser, 409, Rechteentzug, Direktlink und bestehende Wissens-/Inbox-/Materialverweise | Keine Mutation oder Detailauflösung nach Entzug; fremde Daten nicht sichtbar; bestehende Verweise bleiben funktionsfähig | bestanden | Web/PWA-Rechtefall plus unveränderte Modulregressionen im vollständigen K3-Lauf |
 | S4-A4 | `f8d4a85cb8ba171663f7c6fae19e64030c4a53a8` | K1, K3, K4, Push, Screenshot-Kommentar und vollständige PR-CI einschließlich K2 | Alle lokalen Gates und anschließend alle PR-Jobs grün; Draft bleibt erhalten | bestanden | K1, K3 19/19, K4 507/507 und 68/68 PR-Checks grün; Screenshot-Kommentar `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5668340706` |
-| S5-A1 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | A und B planen dieselbe Aufgabe für verschiedene Tage; Task vor/nach Planung vergleichen | Jeder sieht nur den eigenen Plan; gemeinsame Revision, Deadline, Zuweisung und Wiedervorlage bleiben unverändert | lokal bestanden | PostgreSQL-Mehrnutzervertrag in `planning_contract.py` |
-| S5-A2 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Überfälligen Plan schließen und wieder öffnen | Offen in Heute; geschlossen unsichtbar; nach Wiederöffnung mit ursprünglichem Datum wieder sichtbar | lokal bestanden | PostgreSQL-Servicevertrag in `planning_contract.py` |
-| S5-A3 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Geplante und heute fällige Aufgaben einschließlich künftig geplantem Fälligkeitstreffer | Keine Duplikate; ungeplante Fälligkeit bleibt Hinweis; kein automatisch erzeugter Plan | lokal bestanden | Servicevertrag und Desktop-Browserfall `tasks-planning.spec.mjs` |
-| S5-A4 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Leser plant persönlich, versucht gemeinsame Mutation; danach Rechteentzug | Eigene Planung zulässig, Task-Mutation gesperrt; danach weder Task noch Plan auflösbar | lokal bestanden | Service-/HTTP-Vertrag und PWA-Leserfall mit echtem Rechteentzug |
-| S5-A5 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Plan entfernen, veraltete Revision schreiben, identischen Auftrag wiederholen | Revisionsträger verhindert ABA; veraltet 409; identischer Retry genau ein Effekt | lokal bestanden | PostgreSQL-Transaktionsvertrag in `planning_contract.py` |
-| S5-A6 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Ungültige Zeitzone und widersprüchliche Zustände; Ansicht in zwei Zeitzonen | 422 ohne Mutation; lokales Datum bleibt gespeichert und Heute-Zuordnung folgt der Zeitzone | lokal bestanden | Service-/HTTP-Vertrag und vollständiger K2-Lauf |
+| S5-A1 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | A und B planen dieselbe Aufgabe für verschiedene Tage; Task vor/nach Planung vergleichen | Jeder sieht nur den eigenen Plan; gemeinsame Revision, Deadline, Zuweisung und Wiedervorlage bleiben unverändert | bestanden | PostgreSQL-Mehrnutzervertrag in `planning_contract.py` |
+| S5-A2 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Überfälligen Plan schließen und wieder öffnen | Offen in Heute; geschlossen unsichtbar; nach Wiederöffnung mit ursprünglichem Datum wieder sichtbar | bestanden | PostgreSQL-Servicevertrag in `planning_contract.py` |
+| S5-A3 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Geplante und heute fällige Aufgaben einschließlich künftig geplantem Fälligkeitstreffer | Keine Duplikate; ungeplante Fälligkeit bleibt Hinweis; kein automatisch erzeugter Plan | bestanden | Servicevertrag und Desktop-Browserfall `tasks-planning.spec.mjs` |
+| S5-A4 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Leser plant persönlich, versucht gemeinsame Mutation; danach Rechteentzug | Eigene Planung zulässig, Task-Mutation gesperrt; danach weder Task noch Plan auflösbar | bestanden | Service-/HTTP-Vertrag und PWA-Leserfall mit echtem Rechteentzug |
+| S5-A5 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Plan entfernen, veraltete Revision schreiben, identischen Auftrag wiederholen | Revisionsträger verhindert ABA; veraltet 409; identischer Retry genau ein Effekt | bestanden | PostgreSQL-Transaktionsvertrag in `planning_contract.py` |
+| S5-A6 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Ungültige Zeitzone und widersprüchliche Zustände; Ansicht in zwei Zeitzonen | 422 ohne Mutation; lokales Datum bleibt gespeichert und Heute-Zuordnung folgt der Zeitzone | bestanden | Service-/HTTP-Vertrag und vollständiger K2-Lauf |
 | S6-A1 | – | noch auszuführen | siehe SLICES.md, S6-A1 | offen | – |
 | S6-A2 | – | noch auszuführen | siehe SLICES.md, S6-A2 | offen | – |
 | S6-A3 | – | noch auszuführen | siehe SLICES.md, S6-A3 | offen | – |
@@ -207,4 +207,7 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
   Browserstack gelten. Kalter Bootstrap/Doctor, 507 Unit-Tests, vollständiger
   Lint-/Typ-Gate und der explizite Lean-/Full-Stack-Selbsttest sind nach den
   Korrekturen grün.
-- K5: wartet auf Push, Screenshot-Kommentar und vollständig grüne PR-CI.
+- K5: PR-Head `1fb71d650f9aef6b745a86b3e849e1b112ac7a77`, Draft-Status
+  erhalten, Merge-Status sauber und 69/69 ausgeführte PR-Checks grün; vier
+  bedingte Jobs wurden erwartungsgemäß übersprungen. Screenshot-Kommentar:
+  `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5670232217`.
