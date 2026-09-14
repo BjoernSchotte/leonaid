@@ -1,7 +1,8 @@
 # Aufgaben-UX: Implementierung und Abnahme
 
-Stand: S1 implementiert und lokal vollständig geprüft. PR-CI für S1 steht noch aus;
-S2–S11 bleiben offen. S2 beginnt nach grüner S1-CI.
+Stand: S1 ist mit vollständig grüner PR-CI abgeschlossen. S2 ist implementiert
+und lokal vollständig abgenommen; die PR-CI des S2-Commits steht noch aus.
+S3–S11 bleiben offen.
 Ausgangsstand: `0a084c88ac5ddd73faf112d3d6abc767ab2d6c6f` auf Draft-PR #7.
 Die CI dieses Ausgangsstands war beim Implementierungsbeginn vollständig grün
 (`gh pr checks 7 --json name,state`, keine offenen/fehlgeschlagenen Checks).
@@ -15,19 +16,19 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 
 | Kriterium | Commit | Prüfung/Testfall | Erwartung | Ergebnis | Beleg |
 | --- | --- | --- | --- | --- | --- |
-| S1-A1 | S1-Änderungsstand dieses Commits | Web/PWA: zwölf Aufgaben, 390/320 px, Zeilen- und Trefferflächenmessung | Erste Zeile sichtbar, kein Überlauf, Trefferfläche ≥44 px | lokal bestanden | `modules-tasks.spec.mjs`, finaler K3-Lauf: 12/12; Desktop/PWA-Screenshots |
-| S1-A2 | S1-Änderungsstand dieses Commits | Service/HTTP/Browser: Abschluss, Undo, Doppelklick, Receipts | Nur Status/Revision geändert, keine doppelten Effekte | lokal bestanden | K2 und K3 erfolgreich |
-| S1-A3 | S1-Änderungsstand dieses Commits | Zwei Akteure: Titeländerung vor Undo | 409 ohne Überschreiben, sichtbarer Konflikt und Neuladen | lokal bestanden | Service-, HTTP- und Browservertrag |
-| S1-A4 | S1-Änderungsstand dieses Commits | Leser, Bearbeiter, Fremdzugriff, Rechteentzug und Receipt-Replay | Aktuelle Rechte in Projektion und Mutation; Leser ohne Bearbeitungsaktionen | lokal bestanden | Aufgaben-/Aktionsverträge und Web/PWA |
-| S1-A5 | S1-Änderungsstand dieses Commits | SQL query_logger mit 1/50 Aufgaben; Browser zählt Requests | Konstante SQL-Leseanzahl, keine Einzelabfragen für Zeilenlabels | lokal bestanden | K2 und K3 erfolgreich |
-| S1-A6 | S1-Änderungsstand dieses Commits | Tastatur/Undo/Fokus, langer Titel, leere Suche, langsames Refetch | Bedienung ohne Fokusverlust oder verschwindende Bestandszeilen | lokal bestanden | Beide S1-Browserfälle erfolgreich |
-| S1-A7 | S1-Änderungsstand dieses Commits | Aufgaben/Wissen/Materialien Web/PWA, Inbox, 780-px-Abmelden, langes Materiallabel bei 320 px | Desktop 40 px, Touch/Iconflächen ≥44 px, Icons inline, kein Abschneiden | lokal bestanden | K3-Verbraucherfälle; Screenshots visuell geprüft |
-| S2-A1 | – | noch auszuführen | siehe SLICES.md, S2-A1 | offen | – |
-| S2-A2 | – | noch auszuführen | siehe SLICES.md, S2-A2 | offen | – |
-| S2-A3 | – | noch auszuführen | siehe SLICES.md, S2-A3 | offen | – |
-| S2-A4 | – | noch auszuführen | siehe SLICES.md, S2-A4 | offen | – |
-| S2-A5 | – | noch auszuführen | siehe SLICES.md, S2-A5 | offen | – |
-| S2-A6 | – | noch auszuführen | siehe SLICES.md, S2-A6 | offen | – |
+| S1-A1 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Web/PWA: zwölf Aufgaben, 390/320 px, Zeilen- und Trefferflächenmessung | Erste Zeile sichtbar, kein Überlauf, Trefferfläche ≥44 px | bestanden | `modules-tasks.spec.mjs`, finaler K3-Lauf: 12/12; Desktop/PWA-Screenshots |
+| S1-A2 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Service/HTTP/Browser: Abschluss, Undo, Doppelklick, Receipts | Nur Status/Revision geändert, keine doppelten Effekte | bestanden | K2 und K3 erfolgreich |
+| S1-A3 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Zwei Akteure: Titeländerung vor Undo | 409 ohne Überschreiben, sichtbarer Konflikt und Neuladen | bestanden | Service-, HTTP- und Browservertrag |
+| S1-A4 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Leser, Bearbeiter, Fremdzugriff, Rechteentzug und Receipt-Replay | Aktuelle Rechte in Projektion und Mutation; Leser ohne Bearbeitungsaktionen | bestanden | Aufgaben-/Aktionsverträge und Web/PWA |
+| S1-A5 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | SQL query_logger mit 1/50 Aufgaben; Browser zählt Requests | Konstante SQL-Leseanzahl, keine Einzelabfragen für Zeilenlabels | bestanden | K2 und K3 erfolgreich |
+| S1-A6 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Tastatur/Undo/Fokus, langer Titel, leere Suche, langsames Refetch | Bedienung ohne Fokusverlust oder verschwindende Bestandszeilen | bestanden | Beide S1-Browserfälle erfolgreich |
+| S1-A7 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Aufgaben/Wissen/Materialien Web/PWA, Inbox, 780-px-Abmelden, langes Materiallabel bei 320 px | Desktop 40 px, Touch/Iconflächen ≥44 px, Icons inline, kein Abschneiden | bestanden | K3-Verbraucherfälle, PR-CI und Screenshots erfolgreich |
+| S2-A1 | S2-Änderungsstand dieses Commits | Web/PWA: Schnellanlage per Enter und Button, leerer Titel, Zuweisung „Für mich“ | Genau eine Aufgabe, keine Mutation bei Leerwert, eigene Person nur wenn zulässig | lokal bestanden | `tasks-details.spec.mjs`, vollständiger K3-Lauf: 16/16 |
+| S2-A2 | S2-Änderungsstand dieses Commits | Ausgewählte und übergreifende Ansicht, Leserrolle | Liste nur im übergreifenden Kontext erforderlich; Leser ohne Anlageformular | lokal bestanden | Browserfälle für Liste, Aggregat und Leser |
+| S2-A3 | S2-Änderungsstand dieses Commits | 1440/1024/390 px, langer Listenname, Icon-Aktionen und Schnellanlage | Ruhige Kopfzeile; aktueller Listenname nicht redundant im Formular; Detail split/eigene Ansicht; ≥44-px-Ziele | lokal bestanden | Geometrieassertionen und visuell geprüfte Screenshots |
+| S2-A4 | S2-Änderungsstand dieses Commits | Filter, Suche, Direktlink, Reload, Browser-Zurück und Fokus | URL-Zustand und Rückkehrposition bleiben erhalten | lokal bestanden | reale Navigationsschritte in `tasks-details.spec.mjs` |
+| S2-A5 | S2-Änderungsstand dieses Commits | Geänderter Entwurf, Escape/Zurück/Abbrechen und simulierter konkurrierender Stand | Kein stiller Verlust; Konflikt lässt Entwurf editierbar und erhält Werte | lokal bestanden | Browserdialog-, Fokus- und Konfliktfälle |
+| S2-A6 | S2-Änderungsstand dieses Commits | PWA 390 px sowie echtes Safari unter iOS 26.5 mit geöffneter Tastatur | Aktionen bleiben erreichbar; Detail verdeckt nichts; Wissensreferenz öffnet die Aufgabe | lokal bestanden | `s2-app-390-detail-actions.png`, `s2-ios-safari-keyboard.png`, K3 16/16 |
 | S3-A1 | – | noch auszuführen | siehe SLICES.md, S3-A1 | offen | – |
 | S3-A2 | – | noch auszuführen | siehe SLICES.md, S3-A2 | offen | – |
 | S3-A3 | – | noch auszuführen | siehe SLICES.md, S3-A3 | offen | – |
@@ -104,5 +105,25 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
   `/tmp/leonaid-s1-diagnostic-browser-2.log`; Screenshots unter
   `.artifacts/tasks-s1-diagnostic/modules/`. Ausgewählte PNGs kommen als
   Anhänge in den Kommentar auf Draft-PR #7; Traces/Sitzungsdaten werden nicht publiziert.
-- K5: PR-CI des neuen S1-Commits noch offen. Die lokale Verifikation allein ist
-  keine vollständige Slice-Abnahme.
+- K5: PR-CI für Commit `faea4c800d4aa466a3f229384fe937ec9a8d48f3`
+  vollständig grün; Screenshot-Kommentar im Draft-PR veröffentlicht.
+
+## S2-Verifikation
+
+- RED: Die drei neuen Browserfälle für responsive Details, URL-/Entwurfsschutz
+  und mobile Erreichbarkeit scheiterten vor der Implementierung wie erwartet.
+- K1: vollständiger Repository-Lint inklusive Ruff, mypy, generierter API,
+  Modulgrenzen, Workspace-Typprüfung und Prettier bestanden.
+- K2: entfällt für S2, weil weder API-Verhalten noch Schema geändert wurden.
+- K3: vollständiger modularer Browserlauf mit 16/16 Fällen bestanden. Er umfasst
+  Web und PWA bei 1440, 1024 und 390 px, reale Navigation, Konfliktbehandlung,
+  Wissensreferenzen sowie bestehende Module.
+- Plattformnachweis: echtes Safari unter iOS 26.5 mit nativer Bildschirmtastatur
+  bestanden. In der mobilen Detailansicht wird die App-Navigation ausgeblendet;
+  Speichern und Abbrechen bleiben sichtbar. Nach dem Schließen erscheint die
+  einzeilige App-Navigation wieder.
+- Nachweise lokal: `.artifacts/tasks-s2/modules/`,
+  `.artifacts/tasks-s2/s2-ios-safari-workspace.png` und
+  `.artifacts/tasks-s2/s2-ios-safari-keyboard.png`. Ausgewählte PNGs werden ohne
+  Sitzungsdaten als Anhänge am Draft-PR veröffentlicht.
+- K5: nach Push des S2-Commits abzuwarten; S3 beginnt erst nach grüner PR-CI.

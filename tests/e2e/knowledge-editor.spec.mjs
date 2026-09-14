@@ -217,11 +217,15 @@ test("insert task/material and preserve viewer permissions", async ({
   const suffix = randomUUID();
   const listTitle = `Redaktionsliste ${suffix}`;
   await page.goto(`${baseURL}/admin/tasks`);
+  await page.getByRole("button", { name: "Liste wechseln" }).click();
   await page.getByText("Neue Liste", { exact: true }).click();
   await page.getByLabel("Name der Liste", { exact: true }).fill(listTitle);
   await page
     .getByRole("button", { name: "Liste anlegen", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: listTitle, exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Neue Aufgabe", exact: true }),
   ).toBeVisible();

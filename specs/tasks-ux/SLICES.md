@@ -74,10 +74,10 @@ Listenprojektion. `TaskList` erhält `canEdit`. `updateTask` bleibt unverändert
 | S1-A7 | Gemeinsame Buttons in Aufgaben, Wissen und Materialien auf Desktop/PWA | Einzeilige Icon/Text-Anordnung, Textbuttons desktop 40–44 px und auf Touch 44–48 px bei kurzen Labels; lange Labels wachsen ohne Abschneiden. Ruhigere Gewichtung und Innenabstände, sichtbarer Fokus und unveränderte Bedienbarkeit. |
 
 **Arbeitsschritte:**
-- [ ] S1-A2/A3 als echte Service-/HTTP-Nachweise und S1-A1 als Browserfall ergänzen;
+- [x] S1-A2/A3 als echte Service-/HTTP-Nachweise und S1-A1 als Browserfall ergänzen;
   vor Implementierung die fehlende direkte Statusaktion beziehungsweise Projektion belegen.
-- [ ] Projektion/Policy und Zeilen-/Navigationsdarstellung gemeinsam implementieren.
-- [ ] K1, K2, K3 ausführen; Screenshot `s1-desktop-list.png`, `s1-pwa-list.png`
+- [x] Projektion/Policy und Zeilen-/Navigationsdarstellung gemeinsam implementieren.
+- [x] K1, K2, K3 ausführen; Screenshot `s1-desktop-list.png`, `s1-pwa-list.png`
   und sichtbaren Rückgängig-Zustand prüfen, pushen, K5 abwarten.
 **Rücknahmegrenze:** UI-Revert, additive Lesefelder können bleiben. Aufgabeninhalte
 und Rechte dürfen bei Rücknahme nicht konvertiert werden. Kein S2 bei offenem A1–A7.
@@ -87,6 +87,13 @@ und Rechte dürfen bei Rücknahme nicht konvertiert werden. Kein S2 bei offenem 
 **Voraussetzung:** S1 einschließlich Rechteprojektion und Statusmutation grün.
 **Lieferumfang:** kompakte Erfassung, Details rechts oder eigene Ansicht,
 Eigenschaften auf Anforderung, Verwerfschutz und URL-/Fokuszustand.
+Ergänzender Nutzerauftrag: aktueller Listenname und die Icon-Aktionen
+„Liste wechseln“/„Zugriff verwalten“ in einer kompakten Kopfzeile; Zugriff nur
+mit Verwaltungsrecht. Icons mit Tooltip bei Hover/Fokus, zugänglichem Namen,
+`aria-expanded`/`aria-controls` und mindestens 44 × 44 px Trefferfläche.
+Geöffnete Bereiche erhalten sichtbare Überschriften; auf Touch ist keine
+Funktion vom Tooltip abhängig. Bei langen Listennamen wachsen oder kürzen
+sich nur die Namen, die beiden Aktionen bleiben erreichbar.
 **Dateien:** ändern `tasks.tsx`, `task-editor.tsx`, `epic-picker.tsx`,
 `assignee-picker.tsx`, `tasks.css`, `tests/e2e/modules-tasks.spec.mjs`,
 `tests/e2e/knowledge-editor.spec.mjs`; neu `tests/e2e/tasks-details.spec.mjs`,
@@ -99,14 +106,14 @@ bisherige Defaults. Scroll/Fokus in History-State, keine Task-Texte in der URL.
 | --- | --- | --- |
 | S2-A1 | Aktuelle Liste, „Für mich“, Titel eingeben und Enter | Genau eine Aufgabe in der sichtbaren Liste; eigene Person nur wenn zuweisbar sichtbar vorausgewählt. Leerer Titel erzeugt keine Aufgabe. |
 | S2-A2 | Übergreifende Ansicht ohne ausgewählte Liste | Erfassung verlangt eine bearbeitbare Liste. Kein unsichtbarer Default, keine automatisch erzeugte Inbox. Leser kann keine Aufgabe anlegen. |
-| S2-A3 | Detail öffnen bei 1440, 1024 und 390 px | Nebenansicht nur bei mindestens 360 px verbleibender Listenbreite; sonst eigene Ansicht. Beschreibung zuerst, Such-/Verwaltungsformulare nicht permanent geöffnet. |
+| S2-A3 | Detail öffnen bei 1440, 1024 und 390 px | Nebenansicht nur bei mindestens 360 px verbleibender Listenbreite; sonst eigene Ansicht. Beschreibung zuerst, Such-/Verwaltungsformulare nicht permanent geöffnet. Listenwechsel und berechtigtes Zugriffsmenü als Icon-Aktionen in einer Kopfzeile; Tooltip auch bei Tastaturfokus, klare Namen/Öffnungszustände, keine Überlagerung bei 320 px/langem Listennamen. |
 | S2-A4 | Suchfilter, zweite geladene Seite, Detail, Browser-Zurück und Reload | Filter/Ansicht bleiben gleich, Rückkehr zeigt vorherige Zeile/Fokus. Direkter `?task=`-Link funktioniert und hat Rückweg ohne fremde Historie. |
 | S2-A5 | Entwurf ändern; Escape, Schließen, Browser-Zurück; anschließend 409 | Änderungen gehen nicht still verloren; Abbrechen der Verwerfsentscheidung erhält den Entwurf. 409/Netzfehler lassen Felder editierbar und Werte erhalten. |
 | S2-A6 | PWA mit geöffneter Bildschirmtastatur; Aufgabe aus Wissensseite öffnen | Speichern erreichbar, kein Feld hinter der AppShell verdeckt; bestehende Referenz öffnet genau die Aufgabe. Test in echtem mobilen Browser zusätzlich zur Viewport-Emulation. |
 
 **Arbeitsschritte:**
-- [ ] S2-A4/A5 mit realen Navigationsschritten als zunächst fehlschlagende Fälle ergänzen.
-- [ ] Gemeinsamen Editor in responsive Detailansicht einbinden, URL/History und
+- [x] S2-A4/A5 mit realen Navigationsschritten als zunächst fehlschlagende Fälle ergänzen.
+- [x] Gemeinsamen Editor in responsive Detailansicht einbinden, URL/History und
   Verwerfschutz vervollständigen; keine zweite Mutationsimplementierung.
 - [ ] K1/K3; bei Änderung von API-Verhalten zusätzlich K2. Desktop-/PWA-Details
   und Schnellerfassung aufnehmen; Tastaturbeleg mit Plattform nennen. Push/K5.

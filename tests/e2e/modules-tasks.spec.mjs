@@ -34,8 +34,7 @@ for (const [surface, width] of [
       .toISOString()
       .slice(0, 16);
     await page.goto(`${baseURL}/${surface}/tasks`);
-    if (width < 1100)
-      await page.getByText("Listen wechseln", { exact: true }).click();
+    await page.getByRole("button", { name: "Liste wechseln" }).click();
     await page.getByText("Neue Liste", { exact: true }).click();
     await page
       .getByLabel("Name der Liste", { exact: true })
@@ -43,14 +42,23 @@ for (const [surface, width] of [
     await page
       .getByRole("button", { name: "Liste anlegen", exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "Neue Aufgabe", exact: true })
-      .click();
-    const editor = page.getByRole("form", {
-      name: "Neue Aufgabe",
+    await expect(
+      page.getByRole("heading", { name: `Liste ${title}`, exact: true }),
+    ).toBeVisible();
+    const quick = page.getByRole("form", {
+      name: "Aufgabe schnell erfassen",
       exact: true,
     });
-    await editor.getByLabel("Titel", { exact: true }).fill(title);
+    await quick.getByLabel("Titel", { exact: true }).fill(title);
+    await quick.getByLabel("Titel", { exact: true }).press("Enter");
+    const taskHeading = page.getByRole("heading", { name: title, exact: true });
+    await expect(taskHeading).toBeVisible();
+    await taskHeading.getByRole("button", { name: title, exact: true }).click();
+    const editor = page.getByRole("form", {
+      name: "Aufgabe bearbeiten",
+      exact: true,
+    });
+    await editor.getByText("Zuständigkeit auswählen", { exact: true }).click();
     const assignee = editor.getByRole("combobox", {
       name: "Zuständige Person",
       exact: true,
@@ -64,6 +72,9 @@ for (const [surface, width] of [
         .filter({ hasText: "(ich)" })
         .textContent(),
     });
+    await editor
+      .getByText("Termine und Wiedervorlage", { exact: true })
+      .click();
     await editor.getByLabel("Fällig am", { exact: true }).fill(due);
     await editor
       .getByLabel("Zurückgestellt bis", { exact: true })
@@ -88,6 +99,7 @@ for (const [surface, width] of [
       name: "Aufgabe bearbeiten",
       exact: true,
     });
+    await edit.getByText("Termine und Wiedervorlage", { exact: true }).click();
     await expect(edit.getByLabel("Fällig am", { exact: true })).toHaveValue(
       due,
     );
@@ -240,10 +252,11 @@ for (const [surface, width] of [
     await expect(minimalRow.getByText("Offen", { exact: true })).toHaveCount(0);
 
     expect(
-      readRequests.filter((url) =>
-        /\/tasks\/[^?]+|\/assignees|\/epics/.test(url),
-      ),
+      readRequests.filter((url) => /\/tasks\/[^?]+|\/epics/.test(url)),
     ).toHaveLength(0);
+    expect(
+      readRequests.filter((url) => url.includes("/assignees")),
+    ).toHaveLength(1);
     await page.screenshot({
       path: testInfo.outputPath(
         surface === "admin" ? "s1-desktop-list.png" : "s1-pwa-list.png",
@@ -434,6 +447,9 @@ for (const [surface, width] of [
     ).toBeVisible();
     await expect(
       readerPage.getByRole("button", { name: "Neue Aufgabe", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      readerPage.getByRole("form", { name: "Aufgabe schnell erfassen" }),
     ).toHaveCount(0);
     await expect(
       readerPage.getByRole("button", { name: "Bearbeiten", exact: true }),

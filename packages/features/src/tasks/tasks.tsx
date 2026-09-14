@@ -1,4 +1,9 @@
-import { Add01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  FolderOpenIcon,
+  MoreHorizontalIcon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -20,6 +25,202 @@ function date(value: string) {
   }).format(new Date(value));
 }
 
+type TaskView = "open" | "done";
+type TaskScope = "mine" | "all";
+
+function taskLocation(defaultScope: TaskScope = "mine") {
+  const query = new URLSearchParams(window.location.search);
+  return {
+    scope:
+      query.get("scope") === "all"
+        ? ("all" as const)
+        : query.get("scope") === "mine"
+          ? ("mine" as const)
+          : defaultScope,
+    view: query.get("view") === "done" ? ("done" as const) : ("open" as const),
+    search: query.get("search") ?? "",
+    taskId: query.get("task"),
+  };
+}
+
+function TaskTool({
+  label,
+  expanded,
+  controls,
+  onClick,
+  icon,
+}: {
+  label: string;
+  expanded: boolean;
+  controls: string;
+  onClick: () => void;
+  icon: typeof FolderOpenIcon;
+}) {
+  return (
+    <span className="task-tool">
+      <button
+        type="button"
+        className="ui-icon-button"
+        aria-label={label}
+        aria-expanded={expanded}
+        aria-controls={controls}
+        title={label}
+        onClick={onClick}
+      >
+        <HugeiconsIcon icon={icon} size={20} aria-hidden="true" />
+      </button>
+      <span role="tooltip">{label}</span>
+    </span>
+  );
+}
+
+function QuickTaskForm({
+  client,
+  identity,
+  list,
+  lists,
+  scope,
+  onCreated,
+}: {
+  client: ModulePageContext["client"];
+  identity: ModulePageContext["identity"];
+  list?: { id: string; title: string; canEdit: boolean };
+  lists: readonly { id: string; title: string; canEdit: boolean }[];
+  scope: TaskScope;
+  onCreated: () => Promise<unknown>;
+}) {
+  const editableLists = lists.filter((candidate) => candidate.canEdit);
+  const [listChoice, setListChoice] = useState(list?.id ?? "");
+  const [title, setTitle] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [assignmentTouched, setAssignmentTouched] = useState(false);
+  const operation = useRef(crypto.randomUUID());
+  useEffect(() => {
+    if (list) setListChoice(list.id);
+  }, [list]);
+  const assignees = useQuery({
+    queryKey: ["task-assignees", "quick", listChoice, identity.displayName],
+    queryFn: () =>
+      client.listTaskAssignees(listChoice, {
+        search: identity.displayName,
+        limit: 100,
+      }),
+    enabled: !!listChoice,
+    retry: false,
+  });
+  useEffect(() => {
+    if (assignmentTouched || !assignees.data) return;
+    const self = assignees.data.items.some(
+      (person) => person.userId === identity.userId,
+    );
+    setAssignee(scope === "mine" && self ? identity.userId : "");
+  }, [assignees.data, assignmentTouched, identity.userId, scope]);
+  const create = useMutation({
+    mutationFn: () =>
+      client.createTask(listChoice, {
+        title: title.trim(),
+        description: "",
+        assigneeUserId: assignee || null,
+        epicId: null,
+        dueAt: null,
+        deferredUntil: null,
+        idempotencyKey: operation.current,
+      }),
+    onSuccess: async () => {
+      setTitle("");
+      operation.current = crypto.randomUUID();
+      await onCreated();
+    },
+  });
+  if (list && !list.canEdit) return null;
+  return (
+    <form
+      className="task-quick-create"
+      aria-label="Aufgabe schnell erfassen"
+      data-list-scope={list ? "current" : "select"}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (listChoice && title.trim()) create.mutate();
+      }}
+    >
+      <label className="task-quick-title">
+        <span className="sr-only">Titel</span>
+        <input
+          aria-label="Titel"
+          maxLength={240}
+          placeholder="Neue Aufgabe …"
+          value={title}
+          disabled={create.isPending}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            operation.current = crypto.randomUUID();
+            create.reset();
+          }}
+        />
+      </label>
+      {!list && (
+        <label className="task-quick-list">
+          <span>Aufgabenliste</span>
+          <select
+            aria-label="Aufgabenliste"
+            value={listChoice}
+            disabled={create.isPending}
+            onChange={(event) => {
+              setListChoice(event.target.value);
+              setAssignmentTouched(false);
+              setAssignee("");
+              operation.current = crypto.randomUUID();
+              create.reset();
+            }}
+          >
+            <option value="">Liste wählen …</option>
+            {editableLists.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="task-quick-assignee">
+        <span>Zuständigkeit</span>
+        <select
+          aria-label="Zuständigkeit"
+          value={assignee}
+          disabled={!listChoice || assignees.isPending || create.isPending}
+          onChange={(event) => {
+            setAssignmentTouched(true);
+            setAssignee(event.target.value);
+            operation.current = crypto.randomUUID();
+            create.reset();
+          }}
+        >
+          <option value="">Nicht zugewiesen</option>
+          {assignees.data?.items.map((person) => (
+            <option key={person.userId} value={person.userId}>
+              {person.displayName}
+              {person.userId === identity.userId ? " (ich)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button
+        className="task-quick-submit"
+        type="submit"
+        disabled={!listChoice || !title.trim() || create.isPending}
+        icon={<HugeiconsIcon icon={Add01Icon} size={18} aria-hidden="true" />}
+      >
+        {create.isPending ? "Wird angelegt …" : "Neue Aufgabe"}
+      </Button>
+      {create.error && (
+        <StatusMessage tone="error">
+          Die Aufgabe konnte nicht angelegt werden. Der Titel bleibt erhalten.
+        </StatusMessage>
+      )}
+    </form>
+  );
+}
+
 export function TasksPage({
   client,
   identity,
@@ -27,16 +228,11 @@ export function TasksPage({
   listId,
 }: ModulePageContext & { basePath: string; listId?: string }) {
   const cache = useQueryClient();
-  const [navigationOpen, setNavigationOpen] = useState(
-    () => window.matchMedia("(min-width: 1100px)").matches,
-  );
-  useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 1100px)");
-    const update = () => setNavigationOpen(desktop.matches);
-    desktop.addEventListener("change", update);
-    return () => desktop.removeEventListener("change", update);
-  }, []);
-  const targetId = new URLSearchParams(window.location.search).get("task");
+  const initialLocation = useRef(taskLocation(listId ? "all" : "mine")).current;
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [detailTaskId, setDetailTaskId] = useState(initialLocation.taskId);
+  const targetId = detailTaskId;
   const target = useQuery({
     queryKey: ["tasks", "detail", identity.userId, targetId],
     queryFn: () => client.getTask(targetId!),
@@ -55,19 +251,18 @@ export function TasksPage({
   });
   const [editingCanEdit, setEditingCanEdit] = useState(false);
   const [editing, setEditing] = useState<Task | "new" | null>(null);
+  const editorDirty = useRef(false);
+  const closingDetail = useRef(false);
+  const detailUrl = useRef(window.location.href);
+  const pendingReturn = useRef<{ scrollY: number; focusId: string } | null>(
+    null,
+  );
   const editorTrigger = useRef<HTMLButtonElement | null>(null);
-  const closeEditor = () => {
-    setEditing(null);
-    requestAnimationFrame(() => {
-      if (editorTrigger.current?.isConnected) editorTrigger.current.focus();
-      else document.getElementById("tasks-heading")?.focus();
-    });
-  };
-  const [forMe, setForMe] = useState(!listId);
-  const [search, setSearch] = useState("");
+  const [forMe, setForMe] = useState(initialLocation.scope === "mine");
+  const [search, setSearch] = useState(initialLocation.search);
   const [offset, setOffset] = useState(0);
   const [listOffset, setListOffset] = useState(0);
-  const [status, setStatus] = useState<"open" | "done">("open");
+  const [status, setStatus] = useState<TaskView>(initialLocation.view);
   const [includeDeferred, setIncludeDeferred] = useState(false);
   const [title, setTitle] = useState("");
   const [newListActionId, setNewListActionId] = useState("");
@@ -88,6 +283,114 @@ export function TasksPage({
     queryFn: () => client.getTaskList(listId!),
     enabled: !!listId,
   });
+  const updateUrl = (
+    values: Partial<{
+      scope: TaskScope;
+      view: TaskView;
+      search: string;
+      taskId: string | null;
+    }>,
+    mode: "push" | "replace" = "replace",
+  ) => {
+    const url = new URL(window.location.href);
+    const nextScope = values.scope ?? (forMe ? "mine" : "all");
+    const nextView = values.view ?? status;
+    const nextSearch = values.search ?? search;
+    const nextTask = values.taskId === undefined ? detailTaskId : values.taskId;
+    url.searchParams.set("scope", nextScope);
+    url.searchParams.set("view", nextView);
+    if (nextSearch) url.searchParams.set("search", nextSearch);
+    else url.searchParams.delete("search");
+    if (nextTask) url.searchParams.set("task", nextTask);
+    else url.searchParams.delete("task");
+    window.history[`${mode}State`](window.history.state, "", url);
+    detailUrl.current = url.href;
+  };
+  const restoreListPosition = () => {
+    const target = pendingReturn.current;
+    pendingReturn.current = null;
+    requestAnimationFrame(() => {
+      if (target) {
+        window.scrollTo({ top: target.scrollY });
+        document.getElementById(target.focusId)?.focus();
+      } else if (editorTrigger.current?.isConnected) {
+        editorTrigger.current.focus();
+      } else {
+        document.getElementById("tasks-heading")?.focus();
+      }
+    });
+  };
+  const discardDraft = () =>
+    closingDetail.current ||
+    !editorDirty.current ||
+    window.confirm(
+      "Deine Änderungen wurden noch nicht gespeichert. Entwurf verwerfen?",
+    );
+  const closeEditor = (force = false) => {
+    if (!force && !discardDraft()) return;
+    closingDetail.current = true;
+    editorDirty.current = false;
+    setEditing(null);
+    if (!detailTaskId) {
+      restoreListPosition();
+      return;
+    }
+    if (window.history.state?.tasksDetail) {
+      window.history.back();
+      return;
+    }
+    updateUrl({ taskId: null });
+    setDetailTaskId(null);
+    closingDetail.current = false;
+    restoreListPosition();
+  };
+  useEffect(() => {
+    const back = (event: PopStateEvent) => {
+      if (!discardDraft()) {
+        window.history.pushState(
+          { ...(window.history.state ?? {}), tasksDetail: true },
+          "",
+          detailUrl.current,
+        );
+        return;
+      }
+      closingDetail.current = false;
+      editorDirty.current = false;
+      const location = taskLocation(listId ? "all" : "mine");
+      setForMe(location.scope === "mine");
+      setStatus(location.view);
+      setSearch(location.search);
+      setDetailTaskId(location.taskId);
+      setEditing(null);
+      const returnState = event.state?.tasksReturn;
+      if (returnState) pendingReturn.current = returnState;
+      if (!location.taskId) restoreListPosition();
+    };
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  });
+  const openTask = (
+    task: Task,
+    canEdit: boolean,
+    trigger: HTMLButtonElement,
+  ) => {
+    editorTrigger.current = trigger;
+    const focusId = trigger.id || `task-open-${task.id}`;
+    trigger.id = focusId;
+    const returnState = { scrollY: window.scrollY, focusId };
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), tasksReturn: returnState },
+      "",
+      window.location.href,
+    );
+    const url = new URL(window.location.href);
+    url.searchParams.set("task", task.id);
+    window.history.pushState({ tasksDetail: true }, "", url);
+    detailUrl.current = url.href;
+    setEditingCanEdit(canEdit);
+    setEditing(task);
+    setDetailTaskId(task.id);
+  };
   const tasks = useQuery({
     queryKey: ["tasks", listId, forMe, search, offset, status, includeDeferred],
     queryFn: () =>
@@ -211,39 +514,8 @@ export function TasksPage({
     [401, 403, 404].includes(changeStatus.error.status);
   const error = create.error ?? selected.error ?? lists.error ?? tasks.error;
   const reset = () => setOffset(0);
-  if (targetId) {
-    return (
-      <section className="tasks-workspace">
-        <h1>Aufgabe</h1>
-        <a href={listId ? `${basePath}/${listId}` : basePath}>
-          Zur Aufgabenliste
-        </a>
-        {target.isPending || (target.data && targetList.isPending) ? (
-          <p role="status">Aufgabe wird geladen …</p>
-        ) : target.isError ||
-          !target.data ||
-          targetList.isError ||
-          !targetList.data ||
-          (listId && target.data.listId !== listId) ? (
-          <StatusMessage tone="error">
-            Aufgabe nicht verfügbar oder kein Zugriff.
-          </StatusMessage>
-        ) : !targetList.data.canEdit ? (
-          <TaskReadOnly task={target.data} />
-        ) : (
-          <TaskEditor
-            client={client}
-            userId={identity.userId}
-            listId={target.data.listId}
-            task={target.data}
-            onClose={() =>
-              window.location.assign(`${basePath}/${target.data.listId}`)
-            }
-          />
-        )}
-      </section>
-    );
-  }
+  const detailTask = editing !== "new" ? (editing ?? target.data) : undefined;
+  const detailCanEdit = editing ? editingCanEdit : targetList.data?.canEdit;
   return (
     <section
       className="tasks-workspace"
@@ -255,10 +527,37 @@ export function TasksPage({
         keyboardInput.current = false;
       }}
     >
-      <header>
-        <h1 id="tasks-heading" tabIndex={-1}>
-          {listId ? (selected.data?.title ?? "Aufgabenliste") : "Aufgaben"}
-        </h1>
+      <header className="tasks-toolbar">
+        <div className="tasks-heading-block">
+          <h1 id="tasks-heading" tabIndex={-1}>
+            {listId ? (selected.data?.title ?? "Aufgabenliste") : "Aufgaben"}
+          </h1>
+          <span>{forMe ? "Für mich" : "Alle zugänglichen Aufgaben"}</span>
+        </div>
+        <div className="tasks-toolbar-actions" aria-label="Listenwerkzeuge">
+          <TaskTool
+            label="Liste wechseln"
+            expanded={navigationOpen}
+            controls="task-list-navigation"
+            icon={FolderOpenIcon}
+            onClick={() => {
+              setNavigationOpen((open) => !open);
+              setAccessOpen(false);
+            }}
+          />
+          {selected.data?.canEdit && (
+            <TaskTool
+              label="Zugriff verwalten"
+              expanded={accessOpen}
+              controls="task-list-access"
+              icon={UserGroupIcon}
+              onClick={() => {
+                setAccessOpen((open) => !open);
+                setNavigationOpen(false);
+              }}
+            />
+          )}
+        </div>
       </header>
       {error && (
         <StatusMessage tone="error">
@@ -281,180 +580,175 @@ export function TasksPage({
           </Button>
         </StatusMessage>
       )}
-      <div className="tasks-columns">
-        <aside aria-label="Aufgabenlisten">
-          <details
-            className="tasks-management tasks-navigation"
-            open={navigationOpen}
-            onToggle={(event) => setNavigationOpen(event.currentTarget.open)}
-          >
-            <summary>Listen wechseln</summary>
-            <ActionContextSearch contexts={contexts} />
-            {(knownActions.length > 0 || listActionFilter) && (
+      {navigationOpen && (
+        <section
+          id="task-list-navigation"
+          className="tasks-tool-panel tasks-navigation"
+          aria-labelledby="task-list-navigation-heading"
+        >
+          <div className="tasks-tool-panel-heading">
+            <h2 id="task-list-navigation-heading">Aufgabenliste wechseln</h2>
+            <Button
+              variant="secondary"
+              onClick={() => setNavigationOpen(false)}
+            >
+              Schließen
+            </Button>
+          </div>
+          <ActionContextSearch contexts={contexts} />
+          {(knownActions.length > 0 || listActionFilter) && (
+            <label>
+              Listen nach Aktion filtern
+              <select
+                value={listActionFilter}
+                onChange={(event) => {
+                  setListActionFilter(event.target.value);
+                  setListOffset(0);
+                }}
+              >
+                <option value="">Alle zugänglichen Listen</option>
+                {listActionFilter &&
+                  !knownActions.some(([id]) => id === listActionFilter) && (
+                    <option value={listActionFilter}>
+                      Ausgewählte Aktion beibehalten
+                    </option>
+                  )}
+                {knownActions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <a href={basePath}>Alle zugänglichen Aufgaben</a>
+          {lists.isPending ? (
+            <p role="status">Listen werden geladen …</p>
+          ) : (
+            <ul className="tasks-list-links">
+              {lists.data?.items.map((list) => (
+                <li key={list.id}>
+                  <a
+                    href={`${basePath}/${list.id}`}
+                    aria-current={list.id === listId ? "page" : undefined}
+                  >
+                    {list.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          {lists.data?.items.length === 0 && (
+            <p>Noch keine Listen vorhanden.</p>
+          )}
+          <div className="tasks-paging">
+            <Button
+              variant="secondary"
+              disabled={listOffset === 0}
+              onClick={() => setListOffset(Math.max(0, listOffset - 50))}
+            >
+              Vorherige Listen
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={lists.data?.nextOffset == null}
+              onClick={() => setListOffset(lists.data!.nextOffset!)}
+            >
+              Weitere Listen
+            </Button>
+          </div>
+          <details className="tasks-management">
+            <summary>Neue Liste</summary>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                create.mutate();
+              }}
+            >
               <label>
-                Listen nach Aktion filtern
+                Kontext der neuen Liste
                 <select
-                  value={listActionFilter}
+                  value={newListActionId}
+                  disabled={create.isPending}
                   onChange={(event) => {
-                    setListActionFilter(event.target.value);
-                    setListOffset(0);
+                    setNewListActionId(event.target.value);
+                    operation.current = crypto.randomUUID();
+                    create.reset();
                   }}
                 >
-                  <option value="">Alle zugänglichen Listen</option>
-                  {listActionFilter &&
-                    !knownActions.some(([id]) => id === listActionFilter) && (
-                      <option value={listActionFilter}>
+                  <option value="">Eigenständig</option>
+                  {newListActionId &&
+                    !managedActions.some(([id]) => id === newListActionId) && (
+                      <option value={newListActionId}>
                         Ausgewählte Aktion beibehalten
                       </option>
                     )}
-                  {knownActions.map(([id, name]) => (
+                  {managedActions.map(([id, name]) => (
                     <option key={id} value={id}>
                       {name}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
-            <a href={basePath}>Alle zugänglichen Aufgaben</a>
-            {lists.isPending ? (
-              <p role="status">Listen werden geladen …</p>
-            ) : (
-              <ul className="tasks-list-links">
-                {lists.data?.items.map((list) => (
-                  <li key={list.id}>
-                    <a
-                      href={`${basePath}/${list.id}`}
-                      aria-current={list.id === listId ? "page" : undefined}
-                    >
-                      {list.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {lists.data?.items.length === 0 && (
-              <p>Noch keine Listen vorhanden.</p>
-            )}
-            <div className="tasks-paging">
-              <Button
-                variant="secondary"
-                disabled={listOffset === 0}
-                onClick={() => setListOffset(Math.max(0, listOffset - 50))}
-              >
-                Vorherige Listen
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={lists.data?.nextOffset == null}
-                onClick={() => setListOffset(lists.data!.nextOffset!)}
-              >
-                Weitere Listen
-              </Button>
-            </div>
-            <details className="tasks-management">
-              <summary>Neue Liste</summary>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  create.mutate();
+              <p>
+                {newListActionId
+                  ? "Aktuelle Mitglieder dieser Aktion können die Liste lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
+                  : "Die Liste ist zunächst nur für dich sichtbar."}
+              </p>
+              <label htmlFor="task-list-title">Name der Liste</label>
+              <input
+                id="task-list-title"
+                required
+                maxLength={240}
+                value={title}
+                disabled={create.isPending}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  operation.current = crypto.randomUUID();
+                  create.reset();
                 }}
-              >
-                <label>
-                  Kontext der neuen Liste
-                  <select
-                    value={newListActionId}
-                    disabled={create.isPending}
-                    onChange={(event) => {
-                      setNewListActionId(event.target.value);
-                      operation.current = crypto.randomUUID();
-                      create.reset();
-                    }}
-                  >
-                    <option value="">Eigenständig</option>
-                    {newListActionId &&
-                      !managedActions.some(
-                        ([id]) => id === newListActionId,
-                      ) && (
-                        <option value={newListActionId}>
-                          Ausgewählte Aktion beibehalten
-                        </option>
-                      )}
-                    {managedActions.map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p>
-                  {newListActionId
-                    ? "Aktuelle Mitglieder dieser Aktion können die Liste lesen. Die Aktionsverwaltung kann sie bearbeiten und zusätzliche Bearbeitungsrechte vergeben."
-                    : "Die Liste ist zunächst nur für dich sichtbar."}
-                </p>
-                <label htmlFor="task-list-title">Name der Liste</label>
-                <input
-                  id="task-list-title"
-                  required
-                  maxLength={240}
-                  value={title}
-                  disabled={create.isPending}
-                  onChange={(event) => {
-                    setTitle(event.target.value);
-                    operation.current = crypto.randomUUID();
-                    create.reset();
-                  }}
-                />
-                <Button
-                  disabled={create.isPending || !title.trim()}
-                  type="submit"
-                >
-                  {create.isPending ? "Wird angelegt …" : "Liste anlegen"}
-                </Button>
-              </form>
-            </details>
-          </details>
-        </aside>
-        <div>
-          {selected.data?.canEdit && (
-            <details className="tasks-management tasks-access">
-              <summary>Zugriff verwalten</summary>
-              <ListMembersPanel
-                client={client}
-                listId={selected.data.id}
-                actionScoped={!!selected.data.actionId}
               />
-            </details>
-          )}
-          {listId && selected.data?.canEdit && !editing && (
-            <Button
-              icon={
-                <HugeiconsIcon icon={Add01Icon} size={20} aria-hidden="true" />
-              }
-              onClick={(event) => {
-                editorTrigger.current = event.currentTarget;
-                setEditingCanEdit(true);
-                setEditing("new");
-              }}
-            >
-              Neue Aufgabe
-            </Button>
-          )}
-          {editing && editing !== "new" && !editingCanEdit && (
-            <div className="task-editor">
-              <TaskReadOnly task={editing} focusOnOpen />
-              <Button variant="secondary" onClick={closeEditor}>
-                Schließen
+              <Button
+                disabled={create.isPending || !title.trim()}
+                type="submit"
+              >
+                {create.isPending ? "Wird angelegt …" : "Liste anlegen"}
               </Button>
-            </div>
-          )}
-          {editing && editingCanEdit && (
-            <TaskEditor
-              key={editing === "new" ? "new" : editing.id}
+            </form>
+          </details>
+        </section>
+      )}
+      {accessOpen && selected.data?.canEdit && (
+        <section
+          id="task-list-access"
+          className="tasks-tool-panel tasks-access"
+          aria-labelledby="task-list-access-heading"
+        >
+          <div className="tasks-tool-panel-heading">
+            <h2 id="task-list-access-heading">Zugriff verwalten</h2>
+            <Button variant="secondary" onClick={() => setAccessOpen(false)}>
+              Schließen
+            </Button>
+          </div>
+          <ListMembersPanel
+            client={client}
+            listId={selected.data.id}
+            actionScoped={!!selected.data.actionId}
+          />
+        </section>
+      )}
+      <div
+        className={`tasks-layout${detailTaskId ? " tasks-layout--detail" : ""}`}
+      >
+        <main className="tasks-main">
+          {(!listId || selected.data?.canEdit) && (
+            <QuickTaskForm
               client={client}
-              userId={identity.userId}
-              listId={editing === "new" ? listId! : editing.listId}
-              task={editing === "new" ? undefined : editing}
-              onClose={closeEditor}
+              identity={identity}
+              list={selected.data}
+              lists={lists.data?.items ?? []}
+              scope={forMe ? "mine" : "all"}
+              onCreated={() => tasks.refetch()}
             />
           )}
           {changeStatus.error ? (
@@ -506,12 +800,14 @@ export function TasksPage({
             <p role="status">Status wird gespeichert …</p>
           ) : null}
           <div className="tasks-filters">
-            <label>
+            <label className="tasks-filter-scope">
               Ansicht
               <select
                 value={forMe ? "mine" : "all"}
                 onChange={(event) => {
-                  setForMe(event.target.value === "mine");
+                  const scope = event.target.value as TaskScope;
+                  setForMe(scope === "mine");
+                  updateUrl({ scope });
                   reset();
                 }}
               >
@@ -519,12 +815,14 @@ export function TasksPage({
                 <option value="all">Alle zugänglichen Aufgaben</option>
               </select>
             </label>
-            <label>
+            <label className="tasks-filter-status">
               Status
               <select
                 value={status}
                 onChange={(event) => {
-                  setStatus(event.target.value as "open" | "done");
+                  const view = event.target.value as TaskView;
+                  setStatus(view);
+                  updateUrl({ view });
                   reset();
                 }}
               >
@@ -532,19 +830,21 @@ export function TasksPage({
                 <option value="done">Erledigt</option>
               </select>
             </label>
-            <label>
+            <label className="tasks-filter-search">
               Aufgaben suchen
               <input
                 type="search"
                 maxLength={200}
                 value={search}
                 onChange={(event) => {
-                  setSearch(event.target.value);
+                  const nextSearch = event.target.value;
+                  setSearch(nextSearch);
+                  updateUrl({ search: nextSearch });
                   reset();
                 }}
               />
             </label>
-            <label className="tasks-checkbox">
+            <label className="tasks-checkbox tasks-filter-deferred">
               <input
                 type="checkbox"
                 checked={includeDeferred}
@@ -603,14 +903,13 @@ export function TasksPage({
                     <h2 aria-label={task.title}>
                       <button
                         className="task-title"
+                        id={`task-open-${task.id}`}
                         aria-label={task.title}
                         aria-describedby={`task-metadata-${task.id}`}
                         disabled={!!editing || changeStatus.isPending}
-                        onClick={(event) => {
-                          editorTrigger.current = event.currentTarget;
-                          setEditingCanEdit(task.canEdit);
-                          setEditing(task);
-                        }}
+                        onClick={(event) =>
+                          openTask(task, task.canEdit, event.currentTarget)
+                        }
                       >
                         <span className="task-title-text">{task.title}</span>
                         <span
@@ -659,11 +958,9 @@ export function TasksPage({
                       <Button
                         variant="secondary"
                         disabled={!!editing || changeStatus.isPending}
-                        onClick={(event) => {
-                          editorTrigger.current = event.currentTarget;
-                          setEditingCanEdit(task.canEdit);
-                          setEditing(task);
-                        }}
+                        onClick={(event) =>
+                          openTask(task, task.canEdit, event.currentTarget)
+                        }
                       >
                         {task.canEdit ? "Bearbeiten" : "Details"}
                       </Button>
@@ -689,7 +986,44 @@ export function TasksPage({
               Weitere Aufgaben
             </Button>
           </div>
-        </div>
+        </main>
+        {detailTaskId && (
+          <aside className="tasks-detail-panel" aria-label="Aufgabendetails">
+            {!detailTask ||
+            target.isPending ||
+            (!editing && targetList.isPending) ? (
+              <p role="status">Aufgabe wird geladen …</p>
+            ) : target.isError ||
+              targetList.isError ||
+              (listId && detailTask.listId !== listId) ? (
+              <StatusMessage tone="error">
+                <p>Aufgabe nicht verfügbar oder kein Zugriff.</p>
+                <Button variant="secondary" onClick={() => closeEditor(true)}>
+                  Zur Aufgabenliste
+                </Button>
+              </StatusMessage>
+            ) : detailCanEdit ? (
+              <TaskEditor
+                key={detailTask.id}
+                client={client}
+                userId={identity.userId}
+                listId={detailTask.listId}
+                task={detailTask}
+                onDirtyChange={(dirty) => {
+                  editorDirty.current = dirty;
+                }}
+                onClose={() => closeEditor()}
+              />
+            ) : (
+              <div className="task-editor">
+                <TaskReadOnly task={detailTask} focusOnOpen />
+                <Button variant="secondary" onClick={() => closeEditor(true)}>
+                  Schließen
+                </Button>
+              </div>
+            )}
+          </aside>
+        )}
       </div>
     </section>
   );

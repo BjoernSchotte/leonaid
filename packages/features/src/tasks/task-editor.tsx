@@ -3,7 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 
@@ -26,6 +26,7 @@ export function TaskEditor({
   onClose,
   createTask,
   conflictMessage,
+  onDirtyChange,
 }: {
   client: LeonAidApiClient;
   listId: string;
@@ -33,6 +34,7 @@ export function TaskEditor({
   userId: string;
   onClose: () => void;
   conflictMessage?: string;
+  onDirtyChange?: (dirty: boolean) => void;
   createTask?: (
     command: Parameters<LeonAidApiClient["createTask"]>[1],
   ) => Promise<Task>;
@@ -49,6 +51,23 @@ export function TaskEditor({
   const [assignee, setAssignee] = useState(task?.assigneeUserId ?? "");
   const [due, setDue] = useState(localTime(task?.dueAt));
   const [deferred, setDeferred] = useState(localTime(task?.deferredUntil));
+  const dirty =
+    title !== (task?.title ?? "") ||
+    description !== (task?.description ?? "") ||
+    status !== (task?.status ?? "open") ||
+    epic !== (task?.epicId ?? "") ||
+    assignee !== (task?.assigneeUserId ?? "") ||
+    due !== localTime(task?.dueAt) ||
+    deferred !== localTime(task?.deferredUntil);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    if (!dirty) return;
+    const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", prevent);
+    return () => window.removeEventListener("beforeunload", prevent);
+  }, [dirty]);
   const save = useMutation({
     mutationFn: () => {
       const body = {
@@ -82,6 +101,7 @@ export function TaskEditor({
     },
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ["tasks"] });
+      onDirtyChange?.(false);
       onClose();
     },
   });
@@ -89,6 +109,11 @@ export function TaskEditor({
     <form
       className="task-editor"
       aria-labelledby={`${id}-heading`}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        onClose();
+      }}
       onSubmit={(event) => {
         event.preventDefault();
         save.mutate();
@@ -148,47 +173,58 @@ export function TaskEditor({
             </select>
           </label>
         )}
-        <AssigneePicker
-          client={client}
-          listId={listId}
-          value={assignee}
-          userId={userId}
-          onChange={(value) => {
-            setAssignee(value);
-            operation.current = crypto.randomUUID();
-            save.reset();
-          }}
-        />
-        <EpicPicker
-          client={client}
-          listId={listId}
-          value={epic}
-          onChange={(value) => {
-            setEpic(value);
-            operation.current = crypto.randomUUID();
-            save.reset();
-          }}
-        />
-        <label>
-          Fällig am
-          <input
-            type="datetime-local"
-            value={due}
-            onChange={(event) => setDue(event.target.value)}
+        <details className="task-editor-property">
+          <summary>Zuständigkeit auswählen</summary>
+          <AssigneePicker
+            client={client}
+            listId={listId}
+            value={assignee}
+            userId={userId}
+            onChange={(value) => {
+              setAssignee(value);
+              operation.current = crypto.randomUUID();
+              save.reset();
+            }}
           />
-        </label>
-        <label>
-          Zurückgestellt bis
-          <input
-            type="datetime-local"
-            value={deferred}
-            onChange={(event) => setDeferred(event.target.value)}
+        </details>
+        <details className="task-editor-property">
+          <summary>Abschnitt auswählen</summary>
+          <EpicPicker
+            client={client}
+            listId={listId}
+            value={epic}
+            onChange={(value) => {
+              setEpic(value);
+              operation.current = crypto.randomUUID();
+              save.reset();
+            }}
           />
-        </label>
-        <p>
-          Zeiten gelten in deiner lokalen Zeitzone. Zurückstellen blendet die
-          Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.
-        </p>
+        </details>
+        <details className="task-editor-property">
+          <summary>Termine und Wiedervorlage</summary>
+          <div className="task-editor-dates">
+            <label>
+              Fällig am
+              <input
+                type="datetime-local"
+                value={due}
+                onChange={(event) => setDue(event.target.value)}
+              />
+            </label>
+            <label>
+              Zurückgestellt bis
+              <input
+                type="datetime-local"
+                value={deferred}
+                onChange={(event) => setDeferred(event.target.value)}
+              />
+            </label>
+          </div>
+          <p>
+            Zeiten gelten in deiner lokalen Zeitzone. Zurückstellen blendet die
+            Aufgabe bis zu diesem Zeitpunkt aus; die Fälligkeit bleibt erhalten.
+          </p>
+        </details>
         <div className="tasks-paging">
           <Button type="submit" disabled={!title.trim()}>
             {save.isPending ? "Wird gespeichert …" : "Speichern"}
