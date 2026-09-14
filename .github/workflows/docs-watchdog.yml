@@ -13,7 +13,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: documentation-watchdog
+  group: documentation-watchdog-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
