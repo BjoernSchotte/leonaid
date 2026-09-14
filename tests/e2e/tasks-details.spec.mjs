@@ -115,7 +115,9 @@ test("S2 quick capture requires a visible editable list and keeps URL filters", 
 for (const [surface, width] of [
   ["admin", 1440],
   ["admin", 1024],
+  ["admin", 720],
   ["app", 390],
+  ["app", 320],
 ]) {
   test(`${surface} ${width}px: S2 responsive details, compact list tools and guarded navigation`, async ({
     browser,

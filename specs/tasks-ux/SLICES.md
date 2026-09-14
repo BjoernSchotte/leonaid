@@ -146,7 +146,7 @@ URL übernimmt `view=open|due-today|due-next|deferred|done` und `sort`.
 - [x] S3-A1/A2/A5 als Vertragsfälle vor API-Erweiterung ausführen und fehlendes
   Filterverhalten belegen; erwartete IDs unabhängig von der Produktabfrage festlegen.
 - [x] Query-Validierung, SQL vor Pagination, Client und Ansichten implementieren.
-- [ ] K1/K2/K3, gruppierte Desktop-Liste und mobile Terminansicht aufnehmen;
+- [x] K1/K2/K3, gruppierte Desktop-Liste und mobile Terminansicht aufnehmen;
   Resultatmatrix mit Grenzen/IDs dokumentieren, pushen, K5.
 **Rücknahmegrenze:** alter Standard bleibt `created`; neue Lesefilter können bleiben.
 Keine Datumswerte zur Herstellung einer Ansicht umschreiben.
@@ -166,8 +166,8 @@ Keine Datumswerte zur Herstellung einer Ansicht umschreiben.
 | S4-A4 | Abschluss-Commit gepusht | K1–K5 einschließlich gesamter CI grün; PROGRESS enthält pro S1–S4-Kriterium Commit/Beleg und PR-Anhänge. |
 
 **Arbeitsschritte:**
-- [ ] Offene Nachweiszellen ermitteln, Fälle durchführen, konkrete Fehler korrigieren.
-- [ ] K1–K5 auf dem Abschlussstand; Desktop-/PWA-Hauptablauf visuell dokumentieren.
+- [x] Offene Nachweiszellen ermitteln, Fälle durchführen, konkrete Fehler korrigieren.
+- [x] K1/K3/K4 auf dem Abschlussstand; Desktop-/PWA-Hauptablauf visuell dokumentieren.
 - [ ] S4 erst nach vollständigem Ergebnis abhaken; dann kann S5 beginnen.
 **Rücknahmegrenze:** bis hier keine fachliche Datenmigration. Bestehende Aufgaben
 müssen mit der vorherigen UI weiterhin les-/bearbeitbar sein.

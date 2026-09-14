@@ -63,12 +63,16 @@ prüfen echte Postgres-Transaktionen; Migrationsprüfung gehört zu K2.
 **K3 – Web/PWA und Modulregression:**
 
 ```sh
-rtk proxy env -u LEONAID_TEST_STACK -u LEONAID_CI_FIXTURE python3 tools/testing/shared_stack.py core tools/testing/modular_browser.sh
+rtk proxy env -u LEONAID_TEST_STACK -u LEONAID_CI_FIXTURE python3 tools/testing/shared_stack.py --reuse core tools/testing/modular_browser.sh
 ```
 
-Erwartet: Exit 0, sämtliche registrierten Fälle bestanden, eigener Stack entfernt.
-Keine Nutzung eines zufällig laufenden Benutzerstacks. Ein selektiver Fehlerlauf
-ist zur Diagnose erlaubt, ersetzt aber nicht K3 zum Slice-Abschluss.
+Erwartet: Exit 0, sämtliche registrierten Fälle bestanden und dieselbe private,
+checkout-lokale Fixture für die folgenden Slices behalten. Keine Nutzung eines
+zufällig laufenden Benutzerstacks. Ein selektiver Fehlerlauf ist zur Diagnose
+erlaubt, ersetzt aber nicht K3 zum Slice-Abschluss. K2 bleibt wegen seines
+destruktiven Leeraufbau-/Upgrade-Vertrags isoliert und läuft nie parallel zu K3.
+Nach dem letzten beauftragten Slice entfernt `rtk proxy ./leonaid test-env-stop`
+einmalig die gecachten Container, Netzwerke und synthetischen Fixture-Volumes.
 
 **K4 – deterministische Domainfälle und Migrationen:**
 

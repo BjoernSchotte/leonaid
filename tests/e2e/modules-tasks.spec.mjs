@@ -50,14 +50,19 @@ for (const [surface, width] of [
       exact: true,
     });
     await quick.getByLabel("Titel", { exact: true }).fill(title);
+    const createdResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/task-lists\/[^/]+\/tasks$/.test(response.url()) &&
+        response.ok(),
+    );
     await quick.getByLabel("Titel", { exact: true }).press("Enter");
+    const createdTask = await (await createdResponse).json();
     const taskHeading = page.getByRole("heading", { name: title, exact: true });
     await expect(taskHeading).toBeVisible();
     await taskHeading.getByRole("button", { name: title, exact: true }).click();
-    const editor = page.getByRole("form", {
-      name: "Aufgabe bearbeiten",
-      exact: true,
-    });
+    const editor = page.locator("form.task-editor");
+    await expect(editor).toBeVisible();
     await editor.getByText("Zuständigkeit auswählen", { exact: true }).click();
     const assignee = editor.getByRole("combobox", {
       name: "Zuständige Person",
@@ -72,6 +77,21 @@ for (const [surface, width] of [
         .filter({ hasText: "(ich)" })
         .textContent(),
     });
+    const epicTitle = `S4 Abschnitt ${randomUUID()}`;
+    await editor.getByText("Abschnitt auswählen", { exact: true }).click();
+    await editor.getByLabel("Epic-Titel", { exact: true }).fill(epicTitle);
+    const createdEpicResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/task-lists\/[^/]+\/epics$/.test(response.url()) &&
+        response.ok(),
+    );
+    await editor
+      .getByRole("button", { name: "Epic anlegen", exact: true })
+      .click();
+    const createdEpic = await (await createdEpicResponse).json();
+    const epic = page.locator("form.task-editor .task-epic-picker select");
+    await expect(epic).toHaveValue(createdEpic.id);
     await editor
       .getByText("Termine und Wiedervorlage", { exact: true })
       .click();
@@ -92,15 +112,15 @@ for (const [surface, width] of [
     await page
       .getByRole("combobox", { name: "Ansicht", exact: true })
       .selectOption("deferred");
+    await page.getByLabel("Aufgaben suchen", { exact: true }).fill(title);
     const row = page
       .locator(".tasks-results li")
       .filter({ has: page.getByRole("heading", { name: title, exact: true }) });
     await expect(row).toBeVisible();
+    await expect(row).toContainText(epicTitle);
     await row.getByRole("button", { name: title, exact: true }).click();
-    const edit = page.getByRole("form", {
-      name: "Aufgabe bearbeiten",
-      exact: true,
-    });
+    const edit = page.locator("form.task-editor");
+    await expect(edit).toBeVisible();
     await edit.getByText("Termine und Wiedervorlage", { exact: true }).click();
     await expect(edit.getByLabel("Fällig am", { exact: true })).toHaveValue(
       due,
@@ -114,9 +134,12 @@ for (const [surface, width] of [
       .selectOption("done");
     await edit.getByRole("button", { name: "Speichern", exact: true }).click();
     await expect(edit).toHaveCount(0);
-    await page
-      .getByRole("combobox", { name: "Ansicht", exact: true })
-      .selectOption("done");
+    const view = page.getByRole("combobox", {
+      name: "Ansicht",
+      exact: true,
+    });
+    await view.selectOption("done");
+    await expect(view).toHaveValue("done");
     await expect(row).toContainText("Erledigt");
     await row.getByRole("button", { name: title, exact: true }).click();
     await expect(edit.getByLabel("Fällig am", { exact: true })).toHaveValue(
@@ -125,13 +148,36 @@ for (const [surface, width] of [
     await expect(
       edit.getByLabel("Zurückgestellt bis", { exact: true }),
     ).toHaveValue("");
+    await edit
+      .getByRole("combobox", { name: "Status", exact: true })
+      .selectOption("open");
+    await edit.getByRole("button", { name: "Speichern", exact: true }).click();
+    await expect(edit).toHaveCount(0);
+    await view.selectOption("open");
+    await expect(view).toHaveValue("open");
+    await page
+      .getByRole("combobox", { name: "Sortierung", exact: true })
+      .selectOption("section");
+    await expect(row).toBeVisible();
+    await expect(
+      page.locator(".task-section-heading h2", { hasText: epicTitle }),
+    ).toHaveCount(1);
+    const finalResponse = await context.request.get(
+      `${baseURL}/api/v1/tasks/${createdTask.id}`,
+    );
+    expect(finalResponse.ok()).toBe(true);
+    const finalTask = await finalResponse.json();
+    expect(finalTask.status).toBe("open");
+    expect(finalTask.epicId).not.toBeNull();
+    expect(new Date(finalTask.dueAt).getTime()).toBe(new Date(due).getTime());
+    expect(finalTask.deferredUntil).toBeNull();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
     await page.screenshot({
-      path: testInfo.outputPath(`${surface}-task-completed.png`),
+      path: testInfo.outputPath(`s4-${surface}-foundation-flow.png`),
       fullPage: false,
     });
     await context.close();
@@ -540,6 +586,32 @@ for (const [surface, width] of [
     await expect(
       page.getByText("Keine Aufgaben für diese Suche.", { exact: true }),
     ).toBeVisible();
+    const revocation = await context.request.put(membershipPath, {
+      headers,
+      data: {
+        userId: secondIdentity.userId,
+        access: null,
+        expectedRevision: 3,
+        idempotencyKey: randomUUID(),
+      },
+    });
+    expect(revocation.ok()).toBe(true);
+    await readerPage.goto(
+      `${baseURL}/${surface}/tasks/${list.id}?task=${first.id}`,
+    );
+    await expect(
+      readerPage.getByText(
+        "Diese Liste ist nicht verfügbar oder du hast keinen Zugriff mehr.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      readerPage.getByRole("heading", { name: first.title, exact: true }),
+    ).toHaveCount(0);
+    const deniedDirectRead = await second.request.get(
+      `${baseURL}/api/v1/tasks/${first.id}`,
+    );
+    expect(deniedDirectRead.status()).toBe(404);
     await second.close();
     await context.close();
   });
