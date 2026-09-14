@@ -202,4 +202,9 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
   Compose-Stack. Unveränderte Images werden nicht gebaut; der warme Datenreset
   dauerte im finalen Lauf 2,0 Sekunden. Nach dem Lauf wurden nur die Container
   gestoppt, Cache, Images und Volumes bleiben erhalten.
+- Die erste PR-Ausführung deckte zwei CI-Vertragsfehler auf: Bootstrap muss seine
+  reguläre `.venv` behalten, und der schlanke Core-Modus darf nur für den lokalen
+  Browserstack gelten. Kalter Bootstrap/Doctor, 507 Unit-Tests, vollständiger
+  Lint-/Typ-Gate und der explizite Lean-/Full-Stack-Selbsttest sind nach den
+  Korrekturen grün.
 - K5: wartet auf Push, Screenshot-Kommentar und vollständig grüne PR-CI.
