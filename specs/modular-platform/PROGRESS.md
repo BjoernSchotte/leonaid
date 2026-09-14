@@ -731,7 +731,6 @@ Eine tatsächliche Twenty-Änderung nach der Vorschau invalidiert den Fingerprin
 
 Der erste HTTP-Lauf `leonaid-poc031-test-2137972478-93527` scheiterte beim Produktions-Lifespan am geerbten Recovery-Archiv vor Aufruf der Inbox-Route. Der Vertrag verwendet nun ein eigenes temporäres beschreibbares Archiv und führt dessen echte Veröffentlichung weiterhin aus; die Schutzprüfung wurde nicht deaktiviert. Mypy/Ruff bestanden. Die neue Inbox-Oberfläche und der laufende Browserstack sind nicht Bestandteil dieses Nachweises.
 
-
 ## Integration — Modul-Direktlinks im Produktions-Webserver
 
 Der tatsächliche Compose-/Chrome-Lauf zeigte einen bisher durch die temporären Browser-Harnesses nicht erfassten Fehler: `static-server.mjs` lieferte für neue Modulrouten seine alte Ersatzoberfläche. Die SPA-Registrierung wurde dadurch gar nicht erreicht. Web und PWA liefern jetzt für Anwendungsrouten den gebauten SPA-Einstieg; Asset- und Offline-Behandlung bleiben ausdrücklich erhalten. Neue Module benötigen keine zweite Routenliste im Transport.
@@ -741,7 +740,6 @@ Beide Docker-Produktionsbuilds und `tools/testing/spa_routes.mjs https://localho
 Chrome öffnete nach dem vom Nutzer ausdrücklich angeforderten macOS-Import der lokalen Caddy-Root-CA die HTTPS-Seite ohne Zertifikatswarnung. Mit einer echten synthetischen Sitzung zeigte Web die gespeicherte Aufgabenliste und die mobile PWA dieselbe Liste samt Aufgabe bei 390 px ohne horizontalen Seitenüberlauf. Screenshots: `/tmp/leonaid-module-routing-desktop.png` und `/tmp/leonaid-module-routing-mobile.png`. Die Testanmeldung setzte die zuvor tatsächlich in PostgreSQL angelegte Sitzung als Cookie; keine HTTP-Antworten oder Inhalte wurden ersetzt. Der Browser lief mit dem aktuellen Arbeitsbaum einschließlich noch nicht abgenommener Inbox-Navigation. Diese Bilder belegen die Produktions-Routenauslieferung, nicht die vollständige Inbox-Bedienabnahme.
 
 Die Inbox-Oberfläche, öffentliche Formulare und übrigen offenen Gesamtgates bleiben offen. Zertifikat, Schlüssel, Sitzungen und Testdaten werden nicht committed.
-
 
 ## M3 — Gemeinsame Inbox-Oberfläche und kompakte Aktionen
 
@@ -755,7 +753,6 @@ Nutzerfeedback: 14-px-Labels, gemessene 36-px-Desktop-Buttons, 44 px bei tatsäc
 
 Features-TypeScript, beide Produktionsbuilds, elf Modulregistrierungstests, 30 Identitäts-Unit-Tests, Ruff und no-test-doubles bestanden. Offen: Materialupload/-referenzen samt Wissenspicker-Regression, vollständige Rechte-/Konfliktmatrix, öffentliche Public-/Campaign-Formulare und Gesamtgates. Bereits vorhandene Material-Steuerelemente sind noch nicht durch diesen Browserlauf abgenommen.
 
-
 ## M3 — Gemeinsamer Materialpicker und unabhängige Referenzrechte
 
 Der eigene laufende Produktionsstack `leonaid-shared-32c62f415463ad67` wurde erneut als gesund geprüft. Im frischen RustFS fehlte der Materialbucket; der erste echte HTTP-Upload lieferte deshalb 503. Der Browser-Fixture-Helper initialisiert jetzt vor dem Seed den vorhandenen privaten versionierten Bucket über `S3ObjectStorage.ensure_private_versioned_bucket`. Nach derselben Initialisierung bestand der Upload mit demselben Idempotenzschlüssel. Keine zweite Dateiablage oder Änderung der Produktberechtigungen.
@@ -765,7 +762,6 @@ Zwei synthetische Textversionen wurden über echte HTTPS-Multipart-Aufrufe angel
 Die Inbox-Verwaltung ohne Materialfreigabe sieht nur „Material nicht verfügbar“. Explizite viewer-Freigabe über die echte Material-API zeigt Dateiname und Download-Button; HTTP-Download liefert exakt die alten Bytes. Nach Entzug liefert derselbe Download 404 und die noch offene Fallansicht blendet Dateiname/Download wieder aus. Verweis entfernen funktioniert weiterhin. Beide Dateiversionen bleiben bytegenau erhalten; der Wissensverweis bleibt bestehen. Die PWA verknüpft dieselbe Version anschließend erneut. Persistierte HTTP-Antworten bestätigen identische Material-ID/Version in Wissen und Inbox.
 
 Bei 390 px zeigen die Materialaktionen keinen horizontalen Seitenüberlauf. Screenshots: `/tmp/leonaid-shared-material-knowledge.png`, `/tmp/leonaid-inbox-material-revoked.png`, `/tmp/leonaid-inbox-material-mobile.png`. Der erneute Inbox-Browserdownload erzeugte keinen zusätzlich nachgewiesenen lokalen Download und ist ausdrücklich nicht abgenommen; der HTTP-Byte-Nachweis ersetzt diesen Browserpunkt nicht. Der Dateiauswahldialog bleibt wegen fehlender Erweiterungsberechtigung offen. Öffentliche Formulare, vollständige Konflikt-/Rechtematrix und Gesamtgates bleiben offen.
-
 
 ## M3 — Öffentliches Anfrageformular auf der Club-Startseite
 
@@ -779,7 +775,6 @@ Public-Dockerbuild mit Typprüfung und Campaign-Astro-Typprüfung bestanden. Una
 
 Screenshots: `/tmp/leonaid-public-inbox-desktop.png`, `/tmp/leonaid-public-inbox-mobile.png`, `/tmp/leonaid-public-inbox-mobile-bottom.png`, `/tmp/leonaid-public-inbox-success.png`.
 
-
 ## M3 — Aktionsanfragen unabhängig von Bestellungen
 
 Die vorbereitete Einbindung verwendete irrtümlich `submissionsAllowed`, das bestehende Bestellformulare und deren Freigabe beschreibt. PublicAction und die nicht-Krapfentaxi-Campaign-Einbindung zeigen die Inbox nun bei `availability === "published"`; die bestehende Core-Publikationsprüfung und Inbox-Schreibprüfung bleiben maßgeblich. Archive erhalten keine neue aktionsbezogene Anfrage.
@@ -790,13 +785,11 @@ Chrome öffnete den aktiven Alias ohne Bestellformular, sendete eine Anfrage und
 
 Public-Docker-Produktionsbuild, Public-/Campaign-Astro-Typprüfung, Ruff und Formatierung bestanden. Campaign-/Weiterleitungs-Browserprüfung, öffentlicher Twenty-Ausfall-/Recovery-Ablauf und vollständige Retry-Prüfung bleiben offen. Dieser Slice ändert die Sichtbarkeitsbedingung; die zuvor geprüfte Formulargestaltung bleibt unverändert.
 
-
 ### CMS-Operator für die Campaign-Browserabnahme portabel ausführen
 
 Der bestehende Storage-Operator scheiterte im lokalen macOS-Worktree am schreibgeschützt eingebundenen Host-`.venv`. Ein temporäres Linux-Venv mit `uv sync` war ebenfalls ungeeignet: `storage-data` ist absichtlich intern und erlaubt keinen Download von Python-Paketen. Der Operator baut deshalb dasselbe vorhandene Core-Dockerfile und verwendet dessen gesperrte Linux-Abhängigkeiten. Nur `tools/` wird schreibgeschützt eingebunden; kein Host-Venv überdeckt die Image-Abhängigkeiten. Die Netztrennung und dedizierten CMS-Zugangsdaten bleiben erhalten.
 
 Im bestehenden isolierten Browserprojekt `leonaid-shared-32c62f415463ad67` bestanden Image-Build und echte RustFS-Provisionierung (`private bucket and scoped IAM user provisioned`). Das CMS wurde über seine echte Setup-Oberfläche durch den vorgesehenen synthetischen Core-Administrator eingerichtet; die bestehenden Campaign-Schema-/Binding-/Media-Installer liefen bei gestopptem CMS erfolgreich, anschließend wurde der CMS-Dienst wieder healthy. Öffentliche Campaign-Einreichung und Alias-Weiterleitung sind damit noch nicht abgenommen.
-
 
 ### Kanonische Campaign-Inbox im echten Browser
 
@@ -805,7 +798,6 @@ Die synthetische aktive Aktion wurde im nativen CMS als Entwurf angelegt und pub
 Auf `/campaigns/inbox-active-c4ee700b-2026/` wurde die Anfrage im Browser abgesendet. Die API lehnte zunächst die reservierte Testdomain `.invalid` mit 422 ab; der Entwurf blieb erhalten. Nach Korrektur auf `example.com` wurde Referenz `ae651cbe-6cfe-46b4-80b6-6805f64727ae` bestätigt. SQL zeigt genau einen Fall mit Aktion `c4ee700b-70b8-4ae6-8414-27b1bf7432b0`, Status `pending` und einem Kontaktauftrag. Der Worker bleibt angehalten; dies ersetzt den vollständigen Twenty-Ausfall-/Recovery-Browsergate nicht.
 
 `public_form_routes.py --campaign` prüft zusätzlich echtes veröffentlichtes CMS-HTML und 308 vom slashlosen Pfad zur kanonischen Slash-URL. Startseite, Public-Alias, Archiv und inaktiver Alias sind weiterhin korrekt. Die separate Weiterleitung vom Public-Alias zur Campaign-URL bleibt offen. Screenshot: `/tmp/leonaid-inbox-campaign-success.png`, als PR-Kommentar angehängt.
-
 
 ### Campaign-Alias und tatsächlicher Twenty-Ausfall im Browser
 
@@ -817,7 +809,6 @@ Nach bestätigtem Twenty-Neustart wurde exakt Auftrag `4fb35a72-1a69-4e78-860e-1
 
 Screenshots im PR-Kommentar: öffentliche Bestätigung bei gestopptem Twenty, gespeicherte Fallbearbeitung während des Ausfalls und erfolgreiche Zuordnung nach Wiederholung. Keine E-Mail-Jobs entstanden laut Betriebsansicht; der allgemeine Nachweis der Versandfreiheit liegt weiterhin in den Eingangsverträgen.
 
-
 ### Öffentlicher Browser-Replay nach verlorenem HTTP-201-Erfolg
 
 Die echte Campaign-Oberfläche sendete einen synthetischen Eingang an die Produktions-API. Im Browser wurde ausschließlich die Fetch-Antwort für `/api/v1/public/inbox-cases` nach Eingang des echten Status 201 angehalten und mit `ConnectionClosed` verworfen. Weder Anfrage noch API-Antwort wurden durch erfundene Daten ersetzt. Der Server hatte Fall `c43a5523-d550-4995-8203-770dfd547bb9` mit Referenz `2efb5c73-dfb0-4c37-881a-289740f05036` bereits gespeichert; dies wurde vor dem erneuten Senden per SQL festgestellt.
@@ -825,7 +816,6 @@ Die echte Campaign-Oberfläche sendete einen synthetischen Eingang an die Produk
 Chrome zeigte den unklaren Ausgang mit erhaltenen, gesperrten Feldern und aktivem „Erneut senden“. Der zweite im Browser abgesendete JSON-Befehl war vollständig identisch, einschließlich `idempotencyKey`. Die echte Wiederholungsantwort (201) wurde unverändert durchgelassen. Die Oberfläche bestätigte die ursprüngliche Referenz. Die anschließende SQL-Abfrage über die eindeutige synthetische E-Mail/Betreff-Kombination ergab einen Fall, einen Kontaktauftrag und eine Kontaktzuordnung.
 
 Die nur für diesen API-Aufruf eingerichtete Browser-Interception wurde anschließend vollständig entfernt (`Fetch.enable` mit leerer Pattern-Liste). Screenshots von unklarem Ausgang und bestätigtem Replay wurden am PR angehängt. Dieser Nachweis deckt Antwortverlust nach Commit ab; zwischenzeitliche 429/422 nach unklarem Ausgang und automatische CRM-Erholung vor der Retry-Grenze bleiben eigene offene Prüfungen.
-
 
 ### Survey-Zugang aus der PWA wiederhergestellt
 
@@ -835,19 +825,18 @@ Die separate Browserabnahme fand eine reale Registrierungslücke: Der Survey-Bei
 
 Der parallel gestartete Survey-Integrations-/Exportlauf (Session 55844, Bericht `.artifacts/surveys-gate/results/d87d297714f74746998b0c3dae32a8c1.json`) bezieht sich auf den Ausgangsstand vor dieser Navigationskorrektur und ist noch nicht abgeschlossen. Seine Ergebnisse ersetzen weder die aktuelle Browserabnahme noch spätere Gesamt- und Recovery-Gates.
 
-
 ### Vollständige Survey-Exportjobmessung mit 5.000 Antworten
 
 `tools/outbox/benchmark_export_jobs.py` erstellt eine synthetische Umfrage über die laufende Produktions-API, publiziert sie, hinterlegt 5.000 Antworten aus der vorhandenen Golden-Fixture und fordert die vier vorhandenen Exportprodukte an. Die normalen dauerhaften Worker führen die Jobs aus; der Runner wartet auf echte Verfügbarkeit und lädt die Dateien über die autorisierte Download-API. Er prüft Größe/Dateisignatur bzw. CSV-Zeilen und widerruft abschließend seine eigene Testsitzung. Kein synchroner Ersatzrenderer oder künstlicher Jobtyp.
 
 Im eigenen Browserstack `leonaid-shared-32c62f415463ad67` gemessen (Sekunden ab Exportanforderung bis Verfügbarkeit / einschließlich Download):
 
-| Produkt | Verfügbar | Heruntergeladen | Bytes |
-| --- | ---: | ---: | ---: |
-| Analyse-PDF | 0,270 | 0,280 | 34571 |
-| Analyse-XLSX | 0,264 | 0,285 | 17793 |
-| Antworten-CSV | 0,451 | 0,481 | 5431472 |
-| Antworten-XLSX | 11,992 | 12,006 | 624023 |
+| Produkt        | Verfügbar | Heruntergeladen |   Bytes |
+| -------------- | --------: | --------------: | ------: |
+| Analyse-PDF    |     0,270 |           0,280 |   34571 |
+| Analyse-XLSX   |     0,264 |           0,285 |   17793 |
+| Antworten-CSV  |     0,451 |           0,481 | 5431472 |
+| Antworten-XLSX |    11,992 |          12,006 |  624023 |
 
 Der laufende Worker bestätigt eine Lease von 300 Sekunden; die vorhandene Export-Handlergrenze beträgt damit 240 Sekunden. Dies sind lokale Einzelmessungen mit synthetischer Last, kein allgemeiner Durchsatzbenchmark. Alle vier Jobs wurden zusätzlich in PostgreSQL als `available` bestätigt. Der vorherige reine Renderer-Benchmark bleibt als engerer Vergleich erhalten.
 
@@ -1203,3 +1192,20 @@ Shell-Syntax, No-Test-Doubles und Diffprüfung bestehen. Log:
 
 Grenze: Der separate erweiterte CI-Upgrade-Job auf bc3adab läuft im zweiten
 Versuch; die Gesamt-M1-Abnahme und Abschlussprüfung bleiben offen.
+
+## Abschluss M0–M3 und vollständige Abnahme
+
+14.09.2026: Die letzten beiden M1-Elternpunkte sind nach vollständiger
+Laufzeitabnahme geschlossen. Haupt-CI 34801326600, Survey-Abnahme 34801326723,
+API-Contract 34801326478 und Dependency-Pins 34801326552 bestehen auf `7869ed8`.
+Erweiterte Abnahme 34798774994 besteht im zweiten Versuch auf `bc3adab`;
+der spätere Diff betrifft ausschließlich Lifecycle-Test und Dokumentation.
+Alle Produktpfade sind unverändert. Der erfolgreiche Upgrade-Bericht bestätigt
+Exit 0, drei Golden-Journey-Phasen, Fehlermigration, Recovery und Cleanup.
+
+`AUDIT.md` ordnet den gesamten Planumfang M0–M3, die acht Prüfgates und die
+Rücknahme den tatsächlichen Code-, Datenbank-, Browser- und CI-Nachweisen zu.
+Frühere offene Grenzen werden durch spätere passende Nachweise geschlossen,
+nicht durch bloße Checkboxen. Erstversuch-Fehler und verbleibende ausdrücklich
+begrenzte Betriebsnachweise sind dort weiterhin benannt. Diese Abschlussänderung
+enthält ausschließlich Dokumentation und wird auf denselben Draft-PR gepusht.

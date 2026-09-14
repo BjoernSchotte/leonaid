@@ -1,52 +1,60 @@
 # Abschlussprüfung der modularen Plattform
 
-Status: laufend, keine Gesamtabnahme. Maßgeblich bleibt der vollständige Umfang von
-[PLAN.md](PLAN.md), einschließlich M0–M3, Prüfgates und Rücknahme. Die historischen
-Slice-Nachweise stehen in [PROGRESS.md](PROGRESS.md); dort genannte damalige offene
-Grenzen gelten erst durch einen späteren passenden Nachweis als geschlossen.
+Stand: 14.09.2026. M0–M3 und die Prüfgates aus [PLAN.md](PLAN.md) sind
+abgenommen. Geprüfter letzter Implementierungs-/Teststand: `7869ed8`.
+Die abschließende Änderung betrifft ausschließlich diese Dokumentation.
+Historische Slice-Ergebnisse und damalige Grenzen stehen in
+[PROGRESS.md](PROGRESS.md); die folgende Matrix nennt den Abschlussnachweis.
 
-Die folgende Matrix trennt aktuelle Codeprüfung von Laufzeitabnahme. Der zuletzt
-gepushte Produktstand ist `bc3adab`. Modulabhängigkeiten, Runner-Korrekturen und
-beide lokalen Recovery-Berichte sind ausgeliefert. Haupt-CI 34798766304 besteht
-im zweiten Versuch vollständig; reguläre Survey-Abnahme 34798766283 ebenfalls.
-Erweiterte Abnahme 34798774994 hat sämtliche Recovery-Shards einschließlich
-Restic bestanden. Ausschließlich der Upgrade-Job scheiterte im ersten Versuch
-bei der initialen Twenty-Feldprovisionierung. Versuch 2 dieses Jobs läuft.
-Der ergänzte lokale Konkurrenznachweis für Fristen-Sweeps ist bestanden;
-sein vollständiger Lifecycle-/Browser-Lauf ist noch nicht beendet.
+| Anforderung                                                | Abschlussnachweis                                                                                                                                        | Ergebnis                                                              |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| §1/3: Namespace, Dateneigentum, keine zusätzlichen Dienste | `src/leonaid/modules`, Plattform/Bootstrap getrennt; SQL-Review unten; Compose ergänzt nur zwei Twenty-Einstellungen am vorhandenen Worker.              | Bestanden                                                             |
+| §3.1/3.2: Importgrenzen und azyklische Abhängigkeiten      | Rekursive Architekturtests mit ungültigen Import-/Zyklusfällen; manuelles SQL-/Transaktionsreview.                                                       | Bestanden                                                             |
+| §4.1: explizite Registrierung und Startvalidierung         | Modul-/Handler-/Routenkollisionen und fehlende Abhängigkeiten vor App-Mutation geprüft; Inbox/Wissen verlangen Tasks/Materialien.                        | Bestanden                                                             |
+| §4.1/M1: Survey-Handler und Sweep genau einmal             | Produktionsregistrierung, unveränderte Handler-Namen, vollständige Survey-, Export-, Versand-, Lösch- und Recovery-Gates.                                | Bestanden                                                             |
+| §4.2: Web/PWA und bisherige Navigation                     | Geteilte UI-Beiträge, Direktlink-/Rollenprüfungen einschließlich Anna-Akquise, mobile Browserfälle und Nicht-gefunden-Zustand.                           | Bestanden                                                             |
+| §4.3/M2: autorisierte Suche und stabile Referenzen         | Zwei-Konten-Suche, begrenzte Treffer, unabhängige Zielrechte; erhaltene Dateiversionen und Task-Identitäten.                                             | Bestanden                                                             |
+| §5: direkte typisierte Fachoperationen und HTTP            | Datenbank-/HTTP-Verträge für jede Schreibgruppe unten; Rechteentzug beim Replay, Revision, Audit und atomare Receipts.                                   | Bestanden                                                             |
+| §5.1: Task aus Seite atomar                                | Echter Transaktionsrollback nach Task-Anlage, paralleler Replay, Seitenkonflikt ohne Task; Web→PWA→Seite-Abnahme.                                        | Bestanden                                                             |
+| §6: dauerhafte Jobs und Laufzeitgrenzen                    | Zwei echte Worker, Commit-/Claim-Verlust, Fencing, verzögerte Fälligkeit, DB-Sperrtimeout, SMTP-/Twenty-Ausfall und unklare externe Erfolge.             | Bestanden                                                             |
+| §6/§8: Zeitsteuerung                                       | Separater Worker-Neustart, zwei nachweislich konkurrierende PostgreSQL-Sweeps, genau ein Abschluss; UTC-Grenzen und getrennte Zurückstellung/Fälligkeit. | Bestanden                                                             |
+| M2: Tasks, Wissen, Materialien                             | Gemeinsame Web-/PWA-Abläufe, Freigabe/Entzug, Konfliktentwurf, wiederverwendete Materialien, exakte Versionsdownloads.                                   | Bestanden                                                             |
+| M3: Inbox und öffentliche Eingänge                         | Web/PWA, Club-/Campaign-/Alias-Eingänge, Commit-Replay, Rate Limit, Kontaktklärung und automatischer Twenty-Wiederanlauf.                                | Bestanden                                                             |
+| §8: Bestand und Betrieb                                    | Vollständige Haupt-CI, Survey-Abnahme und erweiterte Backup-/Recovery-/Upgrade-Gates; Operations-Ausfall und Job-Signale.                                | Bestanden                                                             |
+| §9: additive Migration und Rücknahme                       | Altbestandmigration; drei frühere API-Stände mit erweitertem Schema; neuer Job bei API-Stopp mit kompatiblem Worker; voller Upgrade-Rollback.            | Bestanden                                                             |
+| §10: Auslieferung                                          | Geprüfte Slices auf Draft-PR #7, Abschlussdokumentation und echte Browser-Screenshots in PR-Kommentaren.                                                 | Erbracht; abschließender Dokumentationspush gehört zu dieser Änderung |
 
-| Anforderung                                                                  | Aktuell geprüfte Evidenz                                                                                                                                                                                                                    | Noch erforderlicher Abschluss                                                                               |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| §1/3: gemeinsamer Namespace, fachliches Eigentum, keine zusätzlichen Dienste | Module unter `src/leonaid/modules/`; Bootstrap und Plattform getrennt. Compose-Diff zum Ausgangspunkt ergänzt nur Twenty-Verbindungseinstellungen am vorhandenen Worker.                                                                    | Auf bc3adab geprüft: keine weitere Topologie- oder Paketänderung.                                           |
-| §3.1/3.2: Importgrenzen, keine Zyklen oder privaten Modulimporte             | `tests/unit/test_architecture_boundaries.py` prüft rekursiv Plattform-Rückabhängigkeiten, Modulgrenzen und Infrastrukturimporte; absichtlich ungültige Imports und Zyklen werden erkannt.                                                   | Importprüfung und SQL-/Transaktionsreview zugeordnet; erneute Gesamt-CI läuft.                              |
-| §4.1: statische Registrierung, fehlende Abhängigkeiten, Kollisionen          | `bootstrap/registry.py` prüft IDs, Abhängigkeiten und Zyklen sowie Routen vor App-Mutation. Tatsächliche Inbox-/Wissensbeiträge verlangen jetzt Tasks und Materialien; vier Weglassfälle geprüft.                                           | Ergänzung gepusht; CI auf bc3adab abnehmen.                                                                 |
-| §4.1/M1: Survey-Handler und Sweep genau einmal                               | `modules/surveys/jobs.py` konstruiert die drei vorhandenen Handler; `bootstrap/worker.py` registriert diese und `surveys.deadlines`. Registry-Test bestätigt den tatsächlichen Sweep-Beitrag.                                               | Lokaler Pilot bestanden; erweiterten CI-Lauf abschließen.                                                   |
-| §4.2: Web/PWA, Rechte und bestehende Navigation                              | Beide Shells verwenden die Modulauflösung; gemeinsame Beiträge liegen im Features-Paket. Web besitzt einen Nicht-gefunden-Zustand. Bisherige Rollen-/Browsernachweise sind in PROGRESS dokumentiert.                                        | Separater Rollen-/Direktlinknachweis und sieben Browserfälle zugeordnet; neue CI läuft.                     |
-| §4.3/M2: begrenzte autorisierte Suche und stabile Verweise                   | Gemeinsamer UI-Vertrag beschränkt Suchtypen auf Task, Wissensseite und Material; Fachoperationen bleiben Ziel der Beiträge.                                                                                                                 | Zwei-Konten-Suche, Zielrechte und mobile Darstellung separat nachgewiesen.                                  |
-| §5: typisierte direkte Operationen, Rechte, Replay, Revisionen               | Direkte APIs, HTTP-Routen und echte Datenbankverträge vorhanden; bisherige Einzelabnahmen in PROGRESS.                                                                                                                                      | Schreibgruppen unten vollständig ihren Datenbank-/HTTP-Verträgen zugeordnet; neue CI läuft.                 |
-| §5.1: Task aus Seite atomar                                                  | `knowledge/repository.py` hält die äußere Transaktion; Bootstrap injiziert Task-Service mit derselben Verbindung. `tools/knowledge/task_contract.py` prüft Konkurrenz, Revision, fremde Rechte und vollständigen Rollback nach Task-Anlage. | Zugehörigen vollständigen Schema-/Browser-Gate auf finalen CI-Stand beziehen.                               |
-| §6: bestehende Queue, verzögertes Enqueue, Claim-Fencing, Retry und Laufzeit | Produktions-Outbox und dokumentierte PostgreSQL-/Export-/Operations-Nachweise vorhanden; kein zweites Queue-System.                                                                                                                         | Echte Queue-, Timeout-, CRM-Ausfall- und Operations-Nachweise zugeordnet; neue CI läuft.                    |
-| M2: Tasks, Wissen, Materialien und gemeinsamer Ablauf                        | Implementierte Module und dokumentierte reale Web-/PWA-, Datenbank- und RustFS-Verträge.                                                                                                                                                    | Fachabnahmen mit unverändertem Modulcode zugeordnet; übergreifende CI bleibt offen.                         |
-| M3: Inbox, öffentliche Eingänge und Twenty-Recovery                          | Implementiertes Inbox-Modul und dokumentierte echte Ausfall-, Replay-, Rechte- und Browsernachweise.                                                                                                                                        | Public-/Campaign-Alias, Falloberflächen und automatischer Wiederanlauf separat zugeordnet; neue CI läuft.   |
-| §8: vorhandene CI und Betrieb                                                | Upgrade-Bericht `.artifacts/poc113/result.json` bestätigt vollständigen Lauf einschließlich drei Golden Journeys, Fehlermigration und Rollback.                                                                                             | Lokaler Pilot bestanden; vollständige reguläre und erweiterte CI auf bc3adab.                               |
-| §9: additive Migration und Rücknahme                                         | Getrennte Nachweise und Grenzen in [ROLLBACK.md](ROLLBACK.md).                                                                                                                                                                              | Drei frühere API-Stände und separater neuer Job bei API-Stopp geprüft; Grenzen unten festgehalten.          |
-| §10: vollständige Auslieferung                                               | Draft-PR #7 bleibt Ziel; Screenshot-Kommentare sind Bestandteil der bisherigen Browsernachweise.                                                                                                                                            | Offene Gates schließen, alle Änderungen pushen, Plan und diese Matrix erst danach auf abgeschlossen setzen. |
+## Endgültige CI-Zuordnung
 
-Aktueller gezielter Start-/Architekturtest: 31 bestanden, neun bestehende
-Pydantic-Aliaswarnungen; Ruff, Formatprüfung, No-Test-Doubles und Diffprüfung
-bestanden. Dies ersetzt keine der in der Matrix noch offenen Laufzeitprüfungen.
+Auf `7869ed8b50639117703df63f5f9f1cee84a19f6e` bestanden:
 
-Während des manifestgebundenen Pilot-Laufs bleibt Git-HEAD unverändert. Seine
-gebauten Images enthalten die nachträgliche Abhängigkeitsergänzung nicht; sein
-Ergebnis darf deshalb nicht als Test dieser Ergänzung ausgegeben werden.
+- [Haupt-CI 34801326600](https://github.com/BjoernSchotte/leonaid/actions/runs/34801326600), Versuch 1.
+- [Survey-Abnahme 34801326723](https://github.com/BjoernSchotte/leonaid/actions/runs/34801326723), Versuch 2.
+- [API-Contract 34801326478](https://github.com/BjoernSchotte/leonaid/actions/runs/34801326478).
+- [Dependency-Pins 34801326552](https://github.com/BjoernSchotte/leonaid/actions/runs/34801326552).
 
-Aktualisierung: Der Pilot-Lauf 78399 ist inzwischen vollständig mit Exit 0
-beendet; alle zwölf Ressourceninventare seiner vier Projekte sind leer.
-Die Commit-Sperre ist aufgehoben. Die in der Matrix verlangte lokale
-Pilot-Abnahme ist damit erbracht; der neue Remote-Nightly-Lauf bleibt offen.
-Die geprüften Berichte liegen unter [Pilot-Recovery](proofs/pilot-recovery.json)
-und [Upgrade/Rollback](proofs/upgrade-rollback.json), Ablauf und Grenzen in
-PROGRESS. Die Gesamtprüfung ist weiterhin nicht abgeschlossen.
+Die [erweiterte Survey-/Backup-Abnahme 34798774994](https://github.com/BjoernSchotte/leonaid/actions/runs/34798774994)
+bestand vollständig auf `bc3adab5e7d03eb3215de502a5632c537efb9944`, Versuch 2.
+Sie umfasst Backup, Pilot-Import/-Deployment/-Release/-Backup, Upgrade sowie
+Retention-, Receipt-, Pilot-, Export-, Restic- und Deletion-Recovery.
+Der Diff von `bc3adab` zu `7869ed8` enthält ausschließlich den zusätzlichen
+Lifecycle-Test und Dokumentation; `src`, `apps` und `packages` sind unverändert.
+Deshalb gilt die erweiterte Produktabnahme weiter. Reguläre Survey-PR-Gates
+werden nicht als Ersatz für ihre übersprungenen Nightly-Jobs gewertet.
+
+Der erfolgreiche Upgrade-Bericht (Artefakt 10330794805) bestätigt `status=0`,
+den exakten Commit und Abschluss am 14.09.2026 um 03:17:33 UTC. Das gelesene
+Command-Log bestätigt reale Twenty-/RustFS-Upgrades, Golden Journeys jeweils
+vorher/nachher/Rollback, Wartungsgrenze, Fehlermigration, Manifest-Promotion,
+Recovery und Entfernung der eigenen Ressourcen. Die separaten lokalen Berichte
+[Pilot-Recovery](proofs/pilot-recovery.json) und
+[Upgrade/Rollback](proofs/upgrade-rollback.json) ergänzen diese CI-Evidenz.
+
+Fehlgeschlagene Erstversuche bleiben nachvollziehbar: Upgrade erreichte zunächst
+wegen einer nicht sichtbaren Twenty-Metadatenfeldanlage seine Prüfung nicht;
+Foundation endete zunächst im Migrations-Check mit Exit 125. Die konkreten
+Ursachen sind nicht rückwirkend bewiesen. Gezielte Wiederholungen mit
+unveränderten Assertions bestanden; keine Produktprüfung wurde abgeschwächt.
 
 ## Zugeordnete Nachweise: Queue und bestehende CI
 
@@ -90,8 +98,8 @@ Für die externe Nebenwirkung besitzt `InboxContactHandler` eine vor dem
 Twenty-Aufruf committete Create-Absicht und prüft den aktuellen Claim bei jeder
 Statusänderung. Wiederaufnahme sucht die exakte vorgesehene Twenty-ID und
 vergleicht den Snapshot; ein ungeklärter Ausgang endet in `needs_review`.
-Die endgültige M3-Zuordnung muss zusätzlich die vorhandenen echten Twenty-
-Ausfall-/Antwortverlust-Nachweise enthalten.
+Die M3-Zuordnung wird unten durch die echten Twenty-Ausfall- und
+Antwortverlust-Nachweise vervollständigt.
 
 ## Zugeordnete Nachweise: dauerhafter Modul-Browser-Gate
 
@@ -151,8 +159,8 @@ Der aktuelle Diff von `c6dcaae` bis `bc3adab` unter `src`, `packages` und `apps`
 enthält ausschließlich die vollständigen `requires`-Einträge im API-Bootstrap
 und die Entfernung des globalen sanften Scrollens. Die zuvor abgenommenen
 Fachoperationen, SQL-Regeln, Module und Formulare wurden seither nicht geändert.
-Ihre Nachweise gelten deshalb weiter; die laufende CI prüft zusätzlich die
-Integration des jetzigen Standes.
+Ihre Nachweise gelten deshalb weiter; die bestandene CI auf `7869ed8` prüft zusätzlich die Integration des
+aktuellen Standes.
 
 Die separaten M2-Abnahmen in PROGRESS decken den zusammengesetzten Ablauf ab:
 Web-Seite speichern, über denselben Editor einen Task anlegen und zuweisen,
@@ -262,64 +270,35 @@ geprüft; identischer Replay bestätigt dieselbe Referenz und hinterlässt nur
 einen Fall. Die spätere dauerhafte 429-Folgeprüfung und die Web-/PWA-Downloads
 schließen die in früheren Einzelnachweisen genannten offenen Grenzen.
 Der vollständige Public-Katalog-Gate mit drei Browsern und zusätzlicher
-Chromium-Breitenmatrix besteht separat. Die Oberflächen- und Fachcodepfade sind
-seit dieser Abnahme unverändert; die laufende CI auf bc3adab bleibt der noch
-offene übergreifende Nachweis.
+Chromium-Breitenmatrix besteht separat. Die Oberflächen- und Fachcodepfade sind seit dieser Abnahme unverändert.
+Die vollständige CI auf `7869ed8` und die erweiterte Abnahme auf `bc3adab`
+sind inzwischen bestanden.
 
-## Aktueller erweiterter CI-Abgleich auf bc3adab
+## Zeitsteuerung und Grenzen der Abnahme
 
-Die erneute GitHub-Abfrage bestätigt den exakten Head
-`bc3adab5e7d03eb3215de502a5632c537efb9944` für Lauf
-[34798774994](https://github.com/BjoernSchotte/leonaid/actions/runs/34798774994).
-Backup, Pilot-Import, Pilot-Deployment, Pilot-Release und Pilot-Backup sind
-erfolgreich abgeschlossen. Ebenfalls bestanden sind die Survey-Shards
-`recovery-retention`, `restore-receipts`, `recovery-pilot`, `exports-recovery`
-und `recovery-deletion`. `recovery-restic` ist weiterhin in Arbeit.
+`tools/surveys/infrastructure.sh . lifecycle` bestand lokal als Lauf 38924 mit
+Exit 0. Die ursprünglichen Fristenprüfungen stoppen den echten Worker, prüfen
+abgelaufene Eingaben und lassen ihn nach Neustart genau einmal schließen.
+Antworten und Teilnahme-Revisionen bleiben erhalten; Wiederöffnung ist gesperrt.
 
-Der fehlgeschlagene Upgrade-Job erreicht die eigentliche Upgrade-/Rollback-
-Prüfung nicht: Die anfängliche Twenty-Provisionierung sieht das angelegte
-Personenfeld nicht innerhalb ihres bestehenden Zeitlimits. Die Ursache ist
-noch nicht bewiesen. Der erfolgreiche lokale Upgrade-Bericht bleibt ein
-separater Nachweis; er macht diesen Remote-Fehler nicht grün. Nach Abschluss
-des laufenden Elternlaufs wird ausschließlich der fehlgeschlagene Job erneut
-gestartet, ohne Assertions oder Zeitgrenzen zu ändern.
+Der ergänzte `schedule.py compete` verwendet zwei separate PostgreSQL-Pools und
+die unveränderte Produktionsoperation. Eine echte Tabellensperre hält beide
+Aufrufe an; `pg_stat_activity` bestätigt beide gleichzeitig als aktiv wartend.
+Nach Freigabe ergeben die beiden Ergebnisse genau `[0, 1]`, eine beendete Umfrage
+und eine Revisionsänderung. Ein weiterer Worker-Neustart erhält diesen Stand.
+Drei Chromium-Browserfälle und alle drei eigenen Cleanup-Inventare bestanden.
+Die [visuell geprüften Screenshots](https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5658401423)
+zeigen die Desktop-Lifecycle-Ansicht und die mobile Designer-Rolle. Die Bilder
+belegen die Oberfläche; der Datenbankvertrag belegt die Konkurrenz.
 
-## Noch zu schließender Zeitsteuerungsnachweis
+Es wurde kein zweiter periodischer Produktbedarf eingeführt. Daher entsteht
+entsprechend §6.3 keine neue Schedule-Tabelle oder Kalender-Engine. MCP und ein
+veröffentlichtes SDK bleiben ausdrücklich außerhalb von M0–M3. FastAPI und die
+autorisierten direkten Fachoperationen bilden den späteren Adapteranschluss.
 
-Die gelesenen Runner `tools/surveys/schedule.py` und `timeouts.py` werden durch
-`infrastructure.sh` mit echtem Worker-Stopp und -Neustart ausgeführt. Sie prüfen
-Nachholen, unveränderte Antworten und Teilnahme-Revisionen sowie ausbleibende
-Doppelrevision nach einem weiteren Sweep. Der Schedule-Vertrag weist außerdem
-naive Zeitangaben zurück und prüft UTC-Zeitpunkte.
-
-Diese sequenziellen Wiederholungen beweisen für sich allein keine konkurrierenden
-Scheduler. Für das explizite Zeit-Gate aus §8 ist noch ein gezielter Abgleich
-beziehungsweise ein realer Datenbanknachweis konkurrierender Fristen-Sweeps
-erforderlich. Die bestehende Zwei-Worker-Queue-Prüfung deckt diese andere
-Operation nicht automatisch ab.
-
-Aktualisierung: Lauf 34798774994, Versuch 1, ist beendet. Auch
-`recovery-restic` ist erfolgreich; ausschließlich `test-upgrade` scheiterte.
-Der gezielte Wiederholungslauf über `gh run rerun 34798774994 --failed` wurde
-erfolgreich angefordert. Die Assertions und Zeitgrenzen bleiben unverändert.
-
-Für die Sweep-Konkurrenz erweitert `schedule.py compete` den vorhandenen
-Lifecycle-Runner: Zwei separate PostgreSQL-Pools führen die Produktionsoperation
-aus. Eine echte Tabellensperre hält beide an; `pg_stat_activity` muss beide
-als aktiv und auf eine Sperre wartend bestätigen. Nach Freigabe werden genau
-ein Abschluss und eine Revisionsänderung verlangt. Der unveränderte vorherige
-Neustart-Test und die Antwort-/Revisionsprüfung laufen weiterhin separat.
-Der vollständige lokale Lifecycle-Lauf ist gestartet; noch keine Abnahme.
-
-Zwischenergebnis des lokalen Lifecycle-Laufs 38924: Der bestehende echte
-Worker-Neustart ist bestanden. Auch `schedule.py compete` bestätigt nach
-beobachteter PostgreSQL-Sperrkonkurrenz genau einen Abschluss durch die zwei
-Produktionsaufrufe. Die nachgelagerte Antwort-/Revisionsprüfung und der gesamte
-Browser-/Cleanup-Abschluss bleiben abzuwarten; der Slice ist noch nicht
-als vollständig abgenommen markiert.
-
-Abschluss des lokalen Lifecycle-Laufs 38924: Exit 0, drei Browserfälle
-bestanden, beide Modul-Screenshots angesehen und alle drei eigenen
-Ressourceninventare leer. Damit ist der oben offene Konkurrenznachweis
-einschließlich unveränderter Antworten/Revisionen geschlossen. Der separate
-Upgrade-Wiederholungslauf bleibt offen. Details in PROGRESS.
+Die Rücknahmegrenzen aus [ROLLBACK.md](ROLLBACK.md) gelten: kein alter Worker
+ohne neue Handler; neue Jobs nur mit kompatiblem Worker drainieren. Der lokale
+Pilotnachweis verwendete einen vorher gesicherten Checkpoint und ein externes
+S3-Ziel auf demselben Docker-Host. Er beweist keine automatische Wiedergewinnung
+des neuesten Checkpoints nach unerwartetem Hostverlust. Diese ausdrücklich
+beschriebenen Betriebsgrenzen werden nicht als zusätzliche Funktionen ausgegeben.

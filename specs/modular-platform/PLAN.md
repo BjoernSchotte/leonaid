@@ -1,6 +1,7 @@
 # Modulare LeonAid-Plattform: Implementierungsspec
 
-Stand: 13.09.2026. Status: in Umsetzung; geprüfte Slices siehe [PROGRESS.md](PROGRESS.md).
+Stand: 14.09.2026. Status: M0–M3 umgesetzt und abgenommen; Abschlussmatrix siehe [AUDIT.md](AUDIT.md), Slice-Nachweise siehe [PROGRESS.md](PROGRESS.md).
+Die Unterpunkte dokumentieren historische Zwischenstände; damalige offene Grenzen sind in der Abschlussmatrix ihren späteren Nachweisen zugeordnet.
 Gelesener Ausgangsstand: `2043b72` (Krapfentaxi-Lieferfenster und Lieferkontakte).
 
 ## 1. Ziel und Umfang
@@ -290,7 +291,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
   - [x] Analyse, Antwortauswahl, Einladungsverwaltung und Teilnahme auf benannte typisierte Methoden umstellen; generische `SurveyService.author`-/`participate`-Aufrufe entfernen. Vollständige LIVE-Matrix und Export-Fassade bleiben offen.
   - [x] Export-Fassade mit Direktaufruf-Validierung und expliziten öffentlichen Python-Exports ergänzen; HTTP auf dieselben Methoden umstellen.
 - [x] Erweiterte Restic-Recovery in manueller, Archiv- und dauerhafter Bestätigungsvariante im CI bestehen: drei vollständige Checks mit Exit 0 einschließlich Browser und Bereinigung. Pilot-Wrapper und Upgrade bleiben separate Gates.
-- [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
+- [x] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
   - [x] Konkurrierende Fristen-Sweeps mit zwei echten PostgreSQL-Verbindungen und beobachteter Sperrkonkurrenz prüfen; genau ein Abschluss, erhaltene Antworten/Revisionen und separater Worker-Neustart. Vollständiger Lifecycle-Runner einschließlich drei Browserfällen und Cleanup bestanden (PROGRESS).
   - [x] Implementierung: Handler-Konstruktion und vorhandenen Sweep in `modules/surveys/jobs.py` bündeln, über Bootstrap registrieren und doppelte Sweep-Namen beim Start ablehnen. LIVE-Regressionsabnahme bleibt für den übergeordneten Task offen.
 - [x] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
@@ -304,7 +305,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
   - [x] Nächsten Versuch und Alter des ältesten fälligen wartenden Jobs aus PostgreSQL über Operations-API und generierten Client in die bestehende Anzeige aufnehmen. Reale SQL-Grenzfälle bestanden; Browser-/Gesamtabnahme bleibt offen.
 - [x] Backup-Wiederaufnahme mit Compose 2.38.2 kompatibel halten: tatsächlicher Cleanup startet bestehende Container ohne Neuerstellung und wartet auf gesunde Dienste; isolierter Lauf und Fehlerregression bestanden. Vollständige Remote-Recovery-Abnahme bleibt separat offen.
 - [x] CLI-Migrationsziel mit dem bestehenden Release-Manifestvertrag abgleichen: tatsächlicher Reader akzeptiert benannte Alembic-Revisionen und verweigert ungültige Eingaben im gepinnten Docker-Image. Vollständige Pilot-Promotion bleibt separat offen.
-- [ ] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
+- [x] Ersetzte zentrale Survey-Verdrahtung entfernen; keine dauerhafte doppelte Registrierung.
   - [x] Konkrete Konstruktion von Survey-Service, Export-Service und Erasure-Publisher aus dem API-Entrypoint nach Bootstrap verschieben. LIVE-Start-/Recovery-Abnahme bleibt offen.
   - [x] Survey-Domain, Application und fachliche Adapter samt Typst-Template nach `modules/surveys/` verschieben; alte Implementierungspfade entfernen, Importgrenzen und Fixture-Fingerprints nachziehen. Unit-Suite und Renderer im frisch gebauten Image bestanden; vollständige LIVE-Abnahme bleibt offen.
 
