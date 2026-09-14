@@ -1180,3 +1180,26 @@ Nach vollständigem Entfernen der Quelle verweigert der tatsächliche Pilot-Rest
 Die geprüften inhaltsfreien Ergebnisdateien sind unter [proofs/pilot-recovery.json](proofs/pilot-recovery.json) und [proofs/upgrade-rollback.json](proofs/upgrade-rollback.json) abgelegt. Die ausdrücklich beibehaltenen Pilot-Nachweisgrenzen sind ein vorab gesicherter Checkpoint/Cutoff, S3-Speicher auf demselben Docker-Host sowie nicht separat geprüfte Vorgänger-Backup-Kompatibilität durch diesen Wrapper. Kein zusätzlicher Browserlauf wurde im Pilot-Slice ausgeführt; die bereits angehängten Upgrade-Browserbilder bleiben dessen gesonderter Nachweis.
 
 Die Wartebedingung für Commit/Push ist damit aufgehoben. Die nachträgliche API-Abhängigkeitsergänzung wurde separat mit 31 Tests geprüft und war nicht in den Pilot-Images enthalten. Neue Remote-CI einschließlich Nightly und vollständiger Abschlussabgleich bleiben offen.
+
+## M1 — Konkurrierende Fristen-Sweeps vollständig nachgewiesen
+
+Ausgangsstand `bc3adab`, ausschließlich ergänzter Test-Runner und Dokumentation.
+`sh tools/surveys/infrastructure.sh . lifecycle` ist als lokaler Lauf 38924
+mit Exit 0 beendet. `schedule.py compete` startet zwei Produktionsaufrufe
+über getrennte PostgreSQL-Pools. Eine echte Tabellensperre hält beide an;
+`pg_stat_activity` bestätigt zwei aktive wartende Verbindungen. Nach Freigabe
+schließt genau ein Aufruf die Umfrage, der andere keinen Datensatz. Die Revision
+steigt genau einmal. Der nachfolgende Worker-Neustart erhält Antworten und
+Teilnahme-Revisionen und erzeugt keinen weiteren Abschluss. Der ursprüngliche
+Neustart-/Nachholtest bleibt als eigener Ablauf erhalten.
+
+Auch die 25 Lifecycle-/Aktionspaare, direkte Modul-/HTTP-Rechte und drei
+Chromium-Browserfälle bestehen. Screenshots `surveys-module-lifecycle.png` und
+`surveys-module-designer.png` wurden visuell geprüft und werden am Draft-PR
+angehängt. Drei unabhängig abgefragte Ressourceninventare für das eigene
+Projekt `leonaid-surveys-2137972478-22453` sind leer. Ruff, Formatprüfung,
+Shell-Syntax, No-Test-Doubles und Diffprüfung bestehen. Log:
+`/tmp/leonaid-concurrent-schedule-lifecycle.log`.
+
+Grenze: Der separate erweiterte CI-Upgrade-Job auf bc3adab läuft im zweiten
+Versuch; die Gesamt-M1-Abnahme und Abschlussprüfung bleiben offen.

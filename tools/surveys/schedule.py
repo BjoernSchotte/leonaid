@@ -12,6 +12,8 @@ from uuid import UUID, uuid4
 import asyncpg
 import httpx
 
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+
 
 async def main():
     conn = await asyncpg.connect(os.environ["CORE_DATABASE_URL"])
@@ -210,6 +212,60 @@ async def main():
             print(
                 "PASS: schedule validation, revision/replay, expired draft and active deadline rejection with actual worker stopped"
             )
+        elif sys.argv[1] == "compete":
+            names = [f"schedule-{uuid4()}" for _ in range(2)]
+            pools = []
+            tasks = []
+            try:
+                for name in names:
+                    pools.append(
+                        await asyncpg.create_pool(
+                            os.environ["CORE_DATABASE_URL"],
+                            min_size=1,
+                            max_size=1,
+                            server_settings={"application_name": name},
+                        )
+                    )
+                async with conn.transaction():
+                    await conn.execute("LOCK TABLE survey IN SHARE MODE")
+                    tasks = [
+                        asyncio.create_task(
+                            AsyncpgSurveyRepository(pool).close_due_surveys()
+                        )
+                        for pool in pools
+                    ]
+                    async with asyncio.timeout(10):
+                        while True:
+                            await conn.execute("SELECT pg_stat_clear_snapshot()")
+                            waiting = await conn.fetchval(
+                                """SELECT count(*) FROM pg_stat_activity
+                            WHERE application_name=ANY($1::text[])
+                            AND state='active' AND wait_event_type='Lock'""",
+                                names,
+                            )
+                            if waiting == 2:
+                                break
+                            await asyncio.sleep(0.05)
+                async with asyncio.timeout(10):
+                    counts = await asyncio.gather(*tasks)
+                assert sorted(counts) == [0, 1], counts
+                state = json.loads(state_file.read_text())
+                row = await conn.fetchrow(
+                    "SELECT status,revision FROM survey WHERE id=$1",
+                    UUID(state["survey"]),
+                )
+                assert row["status"] == "ended"
+                assert row["revision"] == state["revision"] + 1
+                print(
+                    "PASS: two real concurrent deadline sweeps close once after observed database contention"
+                )
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                for pool in pools:
+                    await pool.close()
         else:
             state = json.loads(state_file.read_text())
             sid = UUID(state["survey"])
