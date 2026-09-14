@@ -1138,3 +1138,9 @@ Seed-Reset auf a326ff0 (Job 103812838108) scheitert in CreateField nach protokol
 ## CI — Unzulässigen Testdouble entfernen
 
 Security-Job 103815429236 lehnt den neuen Twenty-Feldtest wegen `unittest.mock` ab. Dieser Test wird vollständig entfernt; weder Importregel noch Testgrenze werden gelockert. Seine vier zuvor grünen Fälle zählen nicht als akzeptierter Nachweis. Der vorhandene Twenty-Integrationsrunner prüft Idempotenz, vollständigen Schemaabgleich, absichtlich erzeugten echten Drift und Integrations-Key-Rechte gegen das reale System. Die Feldkorrektur bleibt bis zu dessen Abschluss und dem Seed-Reset offen.
+
+## Betrieb — CLI akzeptiert deklarierte Alembic-Revisionsnamen
+
+Nightly-Pilot-Deployment 103814450096 auf 3c5de25 besteht Backup und Wiederanlauf, verweigert anschließend aber den korrekten Head `0041_inbox_cases`: die CLI erwartete nur vier Ziffern. Der tatsächliche Manifest-Reader verwendet jetzt denselben Revisionsausdruck wie der Release-Vertrag. Der bisherige verkürzte Shellvergleich entfällt. Ausführung des tatsächlichen Reader-Codes im gepinnten Python-Docker-Image akzeptiert benannte aktuelle und ältere Revisionen und verweigert reine Ziffern, Fremdzeichen sowie Nicht-Strings (Session 11568, Exit 0). Manifest-/Promotion-Vertrag, Shellsyntax und Diffprüfung bestehen. Die vollständige Pilot-Promotion bleibt bis zum erneuten Lauf offen.
+
+Nightly 34790776237 bestätigt inzwischen vollständiges Backup, Pilot-Backup, Pilot-Import, Survey-Retention, Export-Recovery, Deletion-Recovery und Restore-Receipts. Pilot-Release und Pilot-Recovery sind ebenfalls fehlgeschlagen; deren Ursachen werden getrennt geprüft. Der laufende Restic-Gesamtnachweis und Upgrade sind noch nicht abgeschlossen.
