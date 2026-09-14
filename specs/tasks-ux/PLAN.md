@@ -1,6 +1,9 @@
 # Aufgabenverwaltung: kompakte Listen und fokussierte Bearbeitung
 
 Status: Umsetzungsspec, noch nicht implementiert. Beauftragt am 14.09.2026.
+Überarbeitung: Jeder Slice besitzt einen eigenen Vertrag in [SLICES.md](SLICES.md).
+Gemeinsame Prüfkommandos, Nachweisformat und Abschlussregeln stehen in
+[ACCEPTANCE.md](ACCEPTANCE.md). Alle drei Dateien bilden zusammen diese Spec.
 Ausgangsstand: `6f2123d` auf Draft-PR #7. Der Wissenseditor ist separat in
 [`knowledge-editor`](../knowledge-editor/PLAN.md) dokumentiert.
 
@@ -227,7 +230,9 @@ zugeordnet. Gemeinsame Änderungen benötigen weiterhin Schreibrechte an der Lis
   Das ändert weder Zuweisung noch Deadline, gemeinsamen Status oder Wiedervorlage.
 - Minimaler Datensatz pro Nutzer/Aufgabe: Planungsdatum als lokales Kalenderdatum
   oder expliziter Zustand „Irgendwann“, Revision; ab S6 zusätzlich Reihenfolge.
-  Keine Zeile bedeutet ungeplant. Einzigartigkeit über Nutzer/Aufgabe. Die
+  Keine Zeile bedeutet initial ungeplant. Nach Entfernen eines Plans bleibt ein
+  Zustand „unplanned“ als Revisionsträger gegen veraltete Aufträge erhalten.
+  Einzigartigkeit über Nutzer/Aufgabe. Die
   Zeitzone für „heute“ wird explizit bestimmt; Kalenderdaten werden nicht als
   UTC-Mitternachtszeitpunkte gespeichert.
 - „Heute“ enthält heute oder früher eingeplante, noch offene Aufgaben. Nicht
@@ -265,7 +270,8 @@ zugeordnet. Gemeinsame Änderungen benötigen weiterhin Schreibrechte an der Lis
   den Anfang/das Ende eines Ziels, auch wenn es leer ist; keine vom Client
   behauptete vollständige Liste. Der Server bestimmt die globale Position,
   prüft Ziel/Nachbar/Rechte und serialisiert konkurrierende Änderungen pro
-  gemeinsamer Liste oder persönlichem Tagesplan mit einer Ordnungsrevision.
+  gemeinsamer Liste oder Nutzer mit einer Ordnungsrevision; persönliche
+  tagübergreifende Moves sind dadurch atomar.
 - Einfache serververwaltete ganzzahlige Positionen mit begrenzter Neunummerierung;
   keine CRDTs oder generische Ranking-Bibliothek. Bestehende Aufgaben erhalten
   deterministische Anfangspositionen in ihrer bisherigen Erstellreihenfolge.
@@ -295,7 +301,8 @@ Browserabnahme. Kein gemeinsamer großer „Advanced Settings“-Block.
   explizit unterschieden. Ein nicht vorhandener Monatstag fällt auf den letzten
   Tag des Monats, ohne den ursprünglichen Ankertag zu verändern. Verpasste feste
   Vorkommen werden nach Ausfall in begrenzten Batches nachgeholt. Zeitzone gehört
-  zur Serie; bei Abschlussfolgen gibt es höchstens einen Nachfolger pro Vorkommen. Pro Vorkommen genau eine Aufgabe durch eindeutigen Serien-/Terminbezug;
+  zur Serie; bei Abschlussfolgen gibt es höchstens einen Nachfolger pro Vorkommen.
+  Pro Vorkommen genau eine Aufgabe durch eindeutigen Serien-/Terminbezug;
   keine Mutation erledigter Historie. Serie pausieren/beenden, Änderungen gelten
   standardmäßig für zukünftige Vorkommen. Persönliche Planung erzeugt keine Serie.
 - **Erinnerungen:** persönliche Opt-in-Erinnerung mit explizitem Zeitpunkt und
@@ -303,7 +310,9 @@ Browserabnahme. Kein gemeinsamer großer „Advanced Settings“-Block.
   PostgreSQL-Outbox/Worker-Infrastruktur übernimmt Zeitsteuerung, begrenzte Retries
   und Backoff. Vor Zustellung Rechte, Status und aktuelle Konfiguration erneut
   prüfen. Bearbeiten/Erledigen/Rechteentzug verhindert veraltete Zustellungen.
-  Idempotente Zustellung beziehungsweise Wiederabgleich bei unklarem Ausgang.
+  Bestätigte Zustellungen werden nicht wiederholt. Unklare SMTP-Ausgänge werden
+  als „Zustellung unklar“ gespeichert und nicht automatisch erneut versendet;
+  SMTP bietet keine verlässliche Exactly-once-Garantie. Details stehen in S9.
 - **Kalender und Mehrfachaktionen:** zuerst ein widerrufbarer persönlicher,
   nur lesender Kalenderfeed für geplante/fällige Aufgaben, keine bidirektionale
   Fremdkalender-Synchronisation. Token-URLs sind Geheimnisse, werden nicht geloggt
@@ -314,6 +323,11 @@ Browserabnahme. Kein gemeinsamer großer „Advanced Settings“-Block.
   überschreiben. Begrenzte Batches verwenden bestehende Fachoperationen.
 
 ## Umsetzungsslices
+
+Die Übersicht ist die Reihenfolge, nicht bereits die Abnahme. Verbindlich sind
+pro Slice die Kriterien `Sx-Ay`, Voraussetzungen, Schnittstellen, Prüfschritte
+und Rücknahmegrenzen in [SLICES.md](SLICES.md). S10 wird getrennt als S10a und
+S10b geliefert. Ein offenes Kriterium bedeutet, dass der Slice offen bleibt.
 
 Jeder Slice endet mit gezielten Tests, realem Desktop-/PWA-Browsernachweis,
 visueller Prüfung, Commit und Push auf Draft-PR #7. Screenshots als Anhänge eines
@@ -341,85 +355,7 @@ Abhängige Slices beginnen erst nach erfolgreicher Abnahme ihres Vorgängers.
   Pausieren/Beenden und echte Worker-/Kalendergrenzfalltests.
 - [ ] **S9 – Erinnerungen:** persönliches Opt-in, vorhandener Zustellkanal,
   Outbox-Zeitsteuerung, Rechteprüfung und Wiederholungs-/Ausfallnachweise.
-- [ ] **S10 – Kalender und Mehrfachaktionen:** zunächst Kalenderfeed, anschließend
-  begrenzte Mehrfachaktionen als getrennte Teillieferungen mit eigener Abnahme.
+- [ ] **S10a – Kalenderfeed:** persönlicher Feed, Token-Schutz und Widerruf.
+- [ ] **S10b – Mehrfachaktionen:** begrenzte Auswahl, Teilresultate und sichere Retries.
 - [ ] **S11 – Gesamtabnahme des Ausbaus:** Migrationen, Zusammenspiel aller Ansichten,
   persönliche Isolation, mobile Bedienung, Worker-Verhalten und vollständige CI.
-
-## Abnahmekriterien
-
-### Browser und Darstellung
-
-- Desktop bei 1440 × 900 sowie 1024 × 768, Touch-PWA bei 390 × 844 und schmalem
-  320-px-Viewport. 200 % Zoom beziehungsweise entsprechend reduzierte Breite,
-  lange deutsche Titel, 0/1/viele Aufgaben, unzugewiesene Personen und fehlende
-  Termine prüfen. Kein horizontaler Seitenscroll, kein abgeschnittener Fokus.
-- Mobile: Erste Aufgaben stehen vor Listenverwaltung; Detailansicht und Tastatur
-  verdecken keine erforderliche Aktion. Touch-Trefferflächen nachmessen.
-- Native Checkbox-/Button-/Formularsemantik, sichtbarer Fokus und verständliche
-  Namen. Alle Aktionen ohne Maus ausführbar. Kein ausschließlich farblicher Status
-  und keine ausschließlich per Hover oder Wischgeste zugängliche Funktion.
-- Echte Abläufe: anlegen, Details öffnen, ändern, abhaken, rückgängig machen,
-  zurückstellen, wiederfinden, suchen, Ansicht wechseln, Browser-Zurück, Neuladen,
-  Direktlink und Aufgabe aus einer Wissensseite öffnen.
-- Aufnahmen je Slice zeigen die veränderten Zustände, mindestens Desktop-Liste
-  und PWA-Liste; bei S2 zusätzlich Details, bei S3 Abschnitte/Terminansicht.
-
-### Daten und Rechte
-
-- Zwei echte Sitzungen: konkurrierende Änderungen und Status-Rückgängig ergeben
-  einen verständlichen Konflikt statt verlorener Felder. Identischer Retry
-  erzeugt keine zweite Operation. Erfolg, Fehler und unklarer Ausgang getrennt.
-- Eigentümer/Bearbeiter/Leser, aktionsgebundene und eigenständige Liste sowie
-  Rechteentzug nach dem Laden. Leser sehen keine Controls zum Ändern gemeinsamer
-  Aufgaben; entsprechende direkte API-Aufrufe bleiben gesperrt. Eigene Planung
-  ab S5 ist davon ausdrücklich getrennt. Fremde Listen/Personen/Referenzen werden nicht
-  durch Labels, Suche oder Navigation offengelegt.
-- Aufgaben jenseits der ersten Ergebnisseite, gleiche Fälligkeiten/Epic-Titel,
-  NULL-Werte, Abschnitt über Seitengrenze und mindestens 120 synthetische Aufgaben.
-  Exakte Ergebnismenge, keine Duplikate bei unverändertem Datenbestand.
-- Lokale Mitternacht, Sommer-/Winterzeitwechsel und fällige zugleich
-  zurückgestellte Aufgabe. Abhaken/Zurückstellen verändert Fälligkeit nicht.
-- Bestehende Wissens-/Inbox-Verweise und Aufgabenanlage aus Wissen weiter testen.
-  Keine gemockten Serverantworten als Ersatz für diese Integrationsnachweise.
-
-### Zusätzliche Abnahme für S5–S11
-
-- Zwei Nutzer planen dieselbe Aufgabe an verschiedenen Tagen und sortieren sie
-  unterschiedlich. Kein Einfluss auf den anderen Plan oder die gemeinsame
-  Fälligkeit/Zuständigkeit. Leser planen persönlich, können aber nicht gemeinsam
-  umsortieren oder abhaken. Rechteentzug entfernt alle persönlichen Sichtpfade.
-- Heute/übernommene offene Planung/Irgendwann und Zeitzonenwechsel; keine doppelten
-  Einträge zwischen Plan und Fälligkeitshinweisen. Erledigen und Wiederöffnen
-  zeigen einen konsistenten Plan ohne stilles Löschen persönlicher Daten.
-- Drag-and-drop und gleichwertige Tastatur-/Menübedienung auf Desktop/Touch,
-  Bewegung über Abschnitte/geladene Seiten, Filter, konkurrierende Moves und
-  fehlender Nachbar. Alle Aufgaben bleiben genau einmal vorhanden.
-- Wiederholungen bei Monatsende und Sommerzeit, parallele Worker, Crash nach
-  Commit, Retry und Serienpause. Genau ein Vorkommen pro vorgesehenem Termin.
-- Erinnerungen nach Änderung, Erledigen und Rechteentzug unterdrücken; Retries
-  und unklare Zustellung ohne unkontrollierte Duplikate nachweisen. Zeitsteuerung
-  mit realen Persistenz-/Workergrenzen testen, nicht durch Browser-Mockantworten.
-- Kalenderfeed nach Tokenwiderruf/Rechteentzug; Mehrfachaktion mit gemischten
-  Erfolgen/Konflikten. Dokumentierte Datenmigration von bestehenden Aufgaben und
-  fachlich nachvollziehbare Rücknahme pro neuem Slice.
-
-### Abschluss und Rücknahme
-
-Bestehende Type-/Lint-/Contract-Gates sowie Modulbrowserlauf verwenden und gezielt
-erweitern. Abnahme dokumentiert Commit, Befehle, Ergebnis und Screenshot-Kommentar;
-laufende CI wird nicht als bestanden gemeldet. Kein Teststack mit anderen lokalen
-Installationen vermischen. Nur selbst erzeugte Ressourcen zurücknehmen.
-
-Für S1–S4 bleiben Datenmodell und Schreibverträge unverändert; die UI kann auf den
-vorherigen Stand zurückgenommen werden. Additive Lesefelder/-filter dürfen dabei
-zunächst bestehen bleiben; persistierte Aufgaben und Zuordnungen werden nicht
-gelöscht oder konvertiert. Ein Revert erfordert den üblichen Vertrags- und
-Modulregressionstest, keinen Reset von Volumes oder Nutzerdaten.
-
-Für S5–S11 Migrationen additiv anlegen und neue Daten bei UI-Rücknahme erhalten.
-Neue Serien/Erinnerungsjobs vor Rücknahme ihrer Verarbeitung kontrolliert pausieren;
-keine hängenden Zustellungen und kein stiller Verlust persönlicher Planung.
-Alte Anwendungen dürfen neue Attribute ignorieren, aber nicht überschreiben.
-Destruktive Down-Migrationen sind kein regulärer Rollback. Der jeweilige Slice
-muss seine konkrete Kompatibilitätsgrenze und den Rücknahmeweg dokumentieren.
