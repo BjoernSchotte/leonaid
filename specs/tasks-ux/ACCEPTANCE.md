@@ -1,8 +1,9 @@
 # Aufgaben-UX: gemeinsame Abnahme und Nachweise
 
 Diese Regeln gelten zusätzlich zu jedem einzelnen Slice in [SLICES.md](SLICES.md).
-Produktumfang: [PLAN.md](PLAN.md). Stand: Spec, keine Umsetzung oder bestandene
-Abnahme behauptet. Alle Testpfade mit „neu“ werden erst im zugehörigen Slice angelegt.
+Produktumfang: [PLAN.md](PLAN.md). Umsetzungsstand und tatsächlich bestandene
+Prüfungen stehen in [PROGRESS.md](PROGRESS.md). Testpfade mit „neu“ werden im
+zugehörigen Slice angelegt; ihre Nennung allein ist kein Abnahmenachweis.
 
 ## Einheitlicher Abschlussvertrag
 
@@ -131,6 +132,9 @@ muss im Touch-Kontext die gemessene Größe besitzen.
   Termine prüfen. Kein horizontaler Seitenscroll, kein abgeschnittener Fokus.
 - Mobile: Erste Aufgaben stehen vor Listenverwaltung; Detailansicht und Tastatur
   verdecken keine erforderliche Aktion. Touch-Trefferflächen nachmessen.
+- Gemeinsame Textbuttons: Desktop-Mindesthöhe 40 px, Touch mindestens 44 × 44 px;
+  Icon/Text nebeneinander und lange Beschriftungen ohne Abschneiden. Aufgaben,
+  Wissen und Materialien als tatsächliche Verbraucher prüfen.
 - Native Checkbox-/Button-/Formularsemantik, sichtbarer Fokus und verständliche
   Namen. Alle Aktionen ohne Maus ausführbar. Kein ausschließlich farblicher Status
   und keine ausschließlich per Hover oder Wischgeste zugängliche Funktion.

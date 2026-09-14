@@ -1,6 +1,7 @@
 # Aufgabenverwaltung: kompakte Listen und fokussierte Bearbeitung
 
-Status: Umsetzungsspec, noch nicht implementiert. Beauftragt am 14.09.2026.
+Status: Umsetzung beauftragt und begonnen; Einzelabnahmen in [PROGRESS.md](PROGRESS.md).
+Beauftragt am 14.09.2026.
 Überarbeitung: Jeder Slice besitzt einen eigenen Vertrag in [SLICES.md](SLICES.md).
 Gemeinsame Prüfkommandos, Nachweisformat und Abschlussregeln stehen in
 [ACCEPTANCE.md](ACCEPTANCE.md). Alle drei Dateien bilden zusammen diese Spec.
@@ -94,7 +95,12 @@ angedeutet. Keine vollständigen Beschreibungsblöcke oder wiederholten „Statu
 Labels. Überfälligkeit ist durch Text und Farbe erkennbar.
 
 - Richtwerte: Text 16 px; Metadaten 14 px; Icons 18–20 px. Bestehende Tokens und
-  freie Hugeicons verwenden. Keine Verkleinerung aller globalen Buttons.
+  freie Hugeicons verwenden. Ergänzender Nutzerauftrag vom 14.09.2026: gemeinsame
+  Button-Dichte ebenfalls anpassen. Desktop-Textbuttons 40 px Mindesthöhe,
+  kompakter Innenabstand und Schriftgewicht 600; Touch beziehungsweise schmale
+  Ansichten behalten mindestens 44 × 44 px. Icon und Text stehen nebeneinander,
+  lange Beschriftungen dürfen ohne Abschneiden wachsen. Keine globale Verkleinerung
+  der Leseschrift oder der Touch-Trefferflächen.
 - Desktop-Zeilen typischerweise 44–52 px, Touch-Zeilen etwa 56–64 px; bei langen
   Titeln oder größerer Schrift wachsen sie. Kein Abschneiden wesentlicher Inhalte
   durch feste Höhe und kein horizontaler Seitenscroll.

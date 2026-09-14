@@ -64,6 +64,7 @@ class CreateList(TaskModel):
 
 
 class TaskList(TaskModel):
+    can_edit: bool
     id: UUID
     title: str
     action_id: UUID | None
@@ -105,6 +106,14 @@ class Task(TaskFields):
     updated_at: datetime
 
 
+class TaskSummary(Task):
+    list_title: str
+    action_title: str | None
+    assignee_name: str | None
+    epic_title: str | None
+    can_edit: bool
+
+
 class SearchPage(TaskModel):
     search: str = Field(default="", max_length=200)
     offset: int = Field(default=0, ge=0, le=5000)
@@ -128,7 +137,7 @@ class TaskLists(TaskModel):
 
 
 class Tasks(TaskModel):
-    items: list[Task]
+    items: list[TaskSummary]
     next_offset: int | None
 
 
@@ -373,6 +382,7 @@ __all__ = [
     "CreateTask",
     "UpdateTask",
     "Task",
+    "TaskSummary",
     "TaskList",
     "TaskService",
 ]

@@ -1,8 +1,8 @@
 # Aufgaben-UX: Implementation Plan pro Slice
 
-> Für die spätere Ausführung: Superpowers `executing-plans` kann diese Pakete
-> schrittweise abarbeiten. Die aktuelle Beauftragung überarbeitet ausschließlich
-> die Spec; sie startet keine Implementierung und keine Subagenten.
+> Implementierung beauftragt: Die Pakete werden mit Superpowers schrittweise
+> ausgeführt. Verifizierter Fortschritt und offene Einzelabnahmen stehen in
+> [PROGRESS.md](PROGRESS.md); ein Plan-Häkchen ersetzt keinen Nachweis.
 
 **Ziel:** Erst eine kompakte Desktop-/PWA-Aufgabenverwaltung liefern, anschließend
 persönliche Planung und zusätzliche Funktionen mit nachprüfbaren Einzelabnahmen.
@@ -23,7 +23,9 @@ Dies sind Slice-Verträge zur Spec, keine vorab fertig geschriebenen Produktpatc
 ## Globale Grenzen und Leseregeln
 
 - Deutsche gemeinsame Web/PWA-Oberfläche, AppShell-Rechte erhalten, Touch-Ziele
-  mindestens 44 × 44 CSS-px, keine Verkleinerung globaler Buttons.
+  mindestens 44 × 44 CSS-px. Ergänzender Nutzerauftrag vom 14.09.2026:
+  gemeinsame Textbuttons auf Desktop auf 40 px Mindesthöhe verdichten, Touch
+  mindestens 44 px; normale Leseschrift und Icon-Trefferflächen erhalten.
 - Keine zusätzlichen Dienste, keine Offline-Schreibwarteschlange, keine neue
   Realtime-Infrastruktur. Bestehende freie Hugeicons und Design-Tokens verwenden.
 - Jede neue schreibende Operation: Actor aus Sitzung, aktuelle Rechteprüfung,
@@ -54,7 +56,8 @@ Dies sind Slice-Verträge zur Spec, keine vorab fertig geschriebenen Produktpatc
 **Lieferumfang:** kompakte Zeilen, mobile Liste zuerst, Verwaltungsmenüs,
 Metadaten, direktes Abhaken/Rückgängig. Terminsemantik bleibt unverändert.
 **Dateien:** ändern `packages/features/src/tasks/tasks.tsx`, `tasks.css`, Backend,
-Client, `tools/tasks/service_contract.py`, `http_contract.py`,
+Client, `packages/ui/src/styles/globals.css` (gemeinsame Button-Dichte),
+`tools/tasks/service_contract.py`, `http_contract.py`,
 `tests/e2e/modules-tasks.spec.mjs`; kleine Zeilenkomponente nur bei Bedarf extrahieren.
 **Schnittstelle:** `TaskSummary = Task + {listTitle: string, actionTitle: string|null,
 assigneeName: string|null, epicTitle: string|null, canEdit: boolean}` in der
@@ -68,6 +71,7 @@ Listenprojektion. `TaskList` erhält `canEdit`. `updateTask` bleibt unverändert
 | S1-A4 | Leser, Bearbeiter und fremde Liste; danach Rechteentzug | `canEdit` stimmt mit Schreibprüfung überein. Leser ohne Schreibcontrols, fremde Labels nicht sichtbar, veralteter Bearbeiterzugriff serverseitig gesperrt. |
 | S1-A5 | 1 und 50 Aufgaben laden | Labels ohne zusätzliche HTTP-Abfrage pro Zeile; SQL-Leseanzahl wächst nicht mit der Zeilenzahl. Unzugewiesen hat keinen erfundenen Personennamen. |
 | S1-A6 | Tastatur, 240-Zeichen-Titel, leere Suche, langsame Aktualisierung | Alle Aktionen fokussierbar; Checkbox öffnet nicht Details. Titel wächst, vorhandene Daten verschwinden beim Refetch nicht. Leerzustände unterscheidbar. |
+| S1-A7 | Gemeinsame Buttons in Aufgaben, Wissen und Materialien auf Desktop/PWA | Einzeilige Icon/Text-Anordnung, Textbuttons desktop 40–44 px und auf Touch 44–48 px bei kurzen Labels; lange Labels wachsen ohne Abschneiden. Ruhigere Gewichtung und Innenabstände, sichtbarer Fokus und unveränderte Bedienbarkeit. |
 
 **Arbeitsschritte:**
 - [ ] S1-A2/A3 als echte Service-/HTTP-Nachweise und S1-A1 als Browserfall ergänzen;
@@ -76,7 +80,7 @@ Listenprojektion. `TaskList` erhält `canEdit`. `updateTask` bleibt unverändert
 - [ ] K1, K2, K3 ausführen; Screenshot `s1-desktop-list.png`, `s1-pwa-list.png`
   und sichtbaren Rückgängig-Zustand prüfen, pushen, K5 abwarten.
 **Rücknahmegrenze:** UI-Revert, additive Lesefelder können bleiben. Aufgabeninhalte
-und Rechte dürfen bei Rücknahme nicht konvertiert werden. Kein S2 bei offenem A1–A6.
+und Rechte dürfen bei Rücknahme nicht konvertiert werden. Kein S2 bei offenem A1–A7.
 
 ## S2 – Schnellerfassung, Details und Rücknavigation
 

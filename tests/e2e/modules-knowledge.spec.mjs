@@ -33,9 +33,15 @@ for (const [surface, width] of [
     await page.goto(`${baseURL}/${surface}/knowledge`);
     await page.getByText("Neue Seite", { exact: true }).click();
     await page.getByLabel("Seitentitel", { exact: true }).fill(title);
-    await page
-      .getByRole("button", { name: "Seite anlegen", exact: true })
-      .click();
+    const createPageButton = page.getByRole("button", {
+      name: "Seite anlegen",
+      exact: true,
+    });
+    const createPageBox = await createPageButton.boundingBox();
+    expect(createPageBox.height).toBeGreaterThanOrEqual(width <= 760 ? 44 : 40);
+    expect(createPageBox.height).toBeLessThanOrEqual(width <= 760 ? 48 : 44);
+    await expect(createPageButton).toHaveCSS("font-weight", "600");
+    await createPageButton.click();
     await page.getByRole("link", { name: title, exact: true }).click();
     const editor = page.getByRole("textbox", {
       name: "Seiteninhalt",

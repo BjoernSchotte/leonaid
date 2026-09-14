@@ -43,6 +43,7 @@ from leonaid.modules.tasks.api import (
     CreateTask,
     UpdateTask,
     Task,
+    TaskSummary,
     TaskList,
 )
 
@@ -55,6 +56,19 @@ _READ_ACCESS = """
         EXISTS (SELECT 1 FROM user_global_role g WHERE g.user_id=$1 AND g.role='system_admin')
         OR EXISTS (SELECT 1 FROM action_membership m WHERE m.user_id=$1 AND m.action_id=l.action_id
             AND m.active_from <= now() AND (m.active_until IS NULL OR m.active_until > now())))))
+"""
+
+
+# Applied only after _READ_ACCESS: action owners and explicit editors also need
+# current action membership. Projection and mutation use this same expression.
+_WRITE_ACCESS = """
+    (l.owner_user_id=$1
+    OR (l.action_id IS NOT NULL AND (
+        EXISTS (SELECT 1 FROM user_global_role g WHERE g.user_id=$1 AND g.role='system_admin')
+        OR EXISTS (SELECT 1 FROM action_membership m WHERE m.user_id=$1 AND m.action_id=l.action_id
+            AND m.role='charity_admin' AND m.active_from<=now()
+            AND (m.active_until IS NULL OR m.active_until>now()))))
+    OR EXISTS (SELECT 1 FROM task_list_member m WHERE m.list_id=l.id AND m.user_id=$1 AND m.access='editor'))
 """
 
 
@@ -116,26 +130,13 @@ class AsyncpgTaskRepository:
         write: bool,
     ) -> TaskList:
         row = await conn.fetchrow(
-            f"SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision FROM task_list l WHERE l.id=$2 AND {_READ_ACCESS} FOR SHARE OF l",
+            f"SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l WHERE l.id=$2 AND {_READ_ACCESS} FOR SHARE OF l",
             user_id,
             list_id,
         )
         if row is None:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
-        allowed = not write or row["owner_user_id"] == user_id
-        if not allowed and row["action_id"] is not None:
-            allowed = await self._action_access(
-                conn, user_id, row["action_id"], write=True
-            )
-        if not allowed:
-            allowed = bool(
-                await conn.fetchval(
-                    "SELECT EXISTS (SELECT 1 FROM task_list_member WHERE list_id=$1 AND user_id=$2 AND access='editor')",
-                    list_id,
-                    user_id,
-                )
-            )
-        if not allowed:
+        if write and not row["can_edit"]:
             raise ResourceNotFound("not_found", "Liste nicht gefunden.")
         return TaskList.model_validate(dict(row))
 
@@ -208,7 +209,7 @@ class AsyncpgTaskRepository:
             await self._active(conn, actor.account.id)
             rows = await conn.fetch(
                 f"""
-                SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision FROM task_list l
+                SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l
                 WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR l.action_id=$2)
                     AND strpos(lower(l.title), lower($3)) > 0
                 ORDER BY l.created_at,l.id LIMIT $4 OFFSET $5
@@ -235,7 +236,13 @@ class AsyncpgTaskRepository:
                 await self._list(conn, actor.account.id, query.list_id, write=False)
             rows = await conn.fetch(
                 f"""
-                SELECT t.* FROM task t JOIN task_list l ON l.id=t.list_id
+                SELECT t.*,l.title AS list_title,a.name AS action_title,
+                    u.display_name AS assignee_name,e.title AS epic_title,
+                    ({_WRITE_ACCESS}) AS can_edit
+                FROM task t JOIN task_list l ON l.id=t.list_id
+                LEFT JOIN charity_action a ON a.id=l.action_id
+                LEFT JOIN user_account u ON u.id=t.assignee_user_id
+                LEFT JOIN task_epic e ON e.id=t.epic_id AND e.list_id=t.list_id
                 WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR t.list_id=$2)
                     AND (NOT $3 OR t.assignee_user_id=$1)
                     AND ($4::text IS NULL OR t.status=$4)
@@ -253,7 +260,9 @@ class AsyncpgTaskRepository:
                 query.offset,
             )
             return Tasks(
-                items=[Task.model_validate(dict(row)) for row in rows[: query.limit]],
+                items=[
+                    TaskSummary.model_validate(dict(row)) for row in rows[: query.limit]
+                ],
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
@@ -343,9 +352,13 @@ class AsyncpgTaskRepository:
                 command,
             )
             if replay:
-                result = TaskList.model_validate_json(replay["document"])
-                await self._list(conn, actor.account.id, result.id, write=True)
-                return result
+                document = json.loads(replay["document"])
+                current = await self._list(
+                    conn, actor.account.id, UUID(document["id"]), write=True
+                )
+                return TaskList.model_validate(
+                    {**document, "can_edit": current.can_edit}
+                )
             row = await conn.fetchrow(
                 """
                 INSERT INTO task_list (id,title,action_id,owner_user_id) VALUES ($1,$2,$3,$4)
@@ -357,7 +370,7 @@ class AsyncpgTaskRepository:
                 actor.account.id,
             )
             assert row is not None
-            result = TaskList.model_validate(dict(row))
+            result = await self._list(conn, actor.account.id, row["id"], write=False)
             await self._finish(
                 conn,
                 key=key,
@@ -618,7 +631,9 @@ class AsyncpgTaskRepository:
                 conn, actor.account.id, list_id, "tasks.list.member.changed", command
             )
             if replay:
-                return TaskList.model_validate_json(replay["document"])
+                return TaskList.model_validate(
+                    {**json.loads(replay["document"]), "can_edit": listing.can_edit}
+                )
             if listing.revision != command.expected_revision:
                 raise Conflict(
                     "revision_conflict", "Listenrechte wurden inzwischen geändert."
@@ -671,7 +686,7 @@ class AsyncpgTaskRepository:
                 list_id,
             )
             assert row is not None
-            result = TaskList.model_validate(dict(row))
+            result = await self._list(conn, actor.account.id, row["id"], write=False)
             await self._finish(
                 conn,
                 key=key,

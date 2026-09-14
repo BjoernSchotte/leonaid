@@ -13758,6 +13758,10 @@
             ],
             "title": "Actionid"
           },
+          "canEdit": {
+            "title": "Canedit",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -13778,6 +13782,7 @@
           }
         },
         "required": [
+          "canEdit",
           "id",
           "title",
           "actionId",
@@ -13859,12 +13864,172 @@
         "title": "TaskReferences",
         "type": "object"
       },
+      "TaskSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "actionTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actiontitle"
+          },
+          "assigneeName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigneename"
+          },
+          "assigneeUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigneeuserid"
+          },
+          "canEdit": {
+            "title": "Canedit",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "uuid",
+            "title": "Createdby",
+            "type": "string"
+          },
+          "deferredUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferreduntil"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 10000,
+            "title": "Description",
+            "type": "string"
+          },
+          "dueAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dueat"
+          },
+          "epicId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epicid"
+          },
+          "epicTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epictitle"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "listId": {
+            "format": "uuid",
+            "title": "Listid",
+            "type": "string"
+          },
+          "listTitle": {
+            "title": "Listtitle",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "done"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "id",
+          "listId",
+          "status",
+          "revision",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "listTitle",
+          "actionTitle",
+          "assigneeName",
+          "epicTitle",
+          "canEdit"
+        ],
+        "title": "TaskSummary",
+        "type": "object"
+      },
       "Tasks": {
         "additionalProperties": false,
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Task"
+              "$ref": "#/components/schemas/TaskSummary"
             },
             "title": "Items",
             "type": "array"

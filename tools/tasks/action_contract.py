@@ -241,6 +241,16 @@ async def main() -> None:
             "global",
         ):
             assert (await service.get_task(actors[name], task.id)).id == task.id
+            expected_edit = name in ("owner", "manager", "global")
+            assert (
+                await service.get_list(actors[name], listing.id)
+            ).can_edit == expected_edit
+            projection = (await service.list_tasks(actors[name], TaskQuery())).items[0]
+            assert projection.can_edit == expected_edit
+            assert (
+                projection.action_title == context_search
+                and projection.assignee_name == "acquirer"
+            )
             assert [
                 item.id
                 for item in (await service.list_tasks(actors[name], TaskQuery())).items

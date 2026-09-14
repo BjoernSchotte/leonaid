@@ -153,3 +153,211 @@
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
+
+/* Shared task rows keep the same controls and reading order on web and PWA. */
+.tasks-management summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  font-weight: 600;
+}
+.tasks-management summary:focus-visible,
+.tasks-workspace button:focus-visible,
+.task-read-only h2:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.tasks-access {
+  margin-bottom: 0.5rem;
+}
+.tasks-filters {
+  margin-top: 1rem;
+  gap: 0.5rem 1rem;
+}
+.tasks-results .task-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+}
+.task-row h2 {
+  font-size: var(--text-base);
+  line-height: 1.45;
+  margin: 0.5rem 0 0.25rem;
+  overflow-wrap: anywhere;
+}
+.task-row-body {
+  min-width: 0;
+}
+.tasks-workspace .task-complete {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.tasks-workspace .task-complete:disabled {
+  cursor: wait;
+}
+.task-read-status {
+  font-size: var(--text-sm);
+  padding-top: 0.6rem;
+}
+.tasks-results .task-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.75rem;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.25;
+  white-space: normal;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tasks-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-radius: var(--radius-sm);
+}
+.task-read-only p {
+  white-space: pre-wrap;
+}
+@media (max-width: 760px) {
+  .tasks-workspace {
+    gap: 0.5rem;
+  }
+  .tasks-columns {
+    gap: 0.5rem;
+  }
+  .tasks-columns aside {
+    padding: 0;
+    border: 0;
+  }
+  .tasks-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .tasks-filters > label:nth-child(3),
+  .tasks-filters > label:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+}
+.task-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  text-align: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.25;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  min-height: 44px;
+}
+.task-title:hover .task-title-text {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.task-row h2 {
+  margin: 0;
+}
+.task-row-menu {
+  position: relative;
+}
+.task-row-menu summary {
+  list-style: none;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+}
+.task-row-menu summary::-webkit-details-marker {
+  display: none;
+}
+.task-row-menu summary:hover {
+  background: var(--accent);
+}
+.task-row-menu summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.task-row-menu > div {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.tasks-workspace .task-complete {
+  appearance: none;
+  position: relative;
+  background: transparent;
+  display: grid;
+  place-content: center;
+}
+.task-complete::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--muted);
+  border-radius: 4px;
+}
+.task-complete:checked::before {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.task-complete:checked::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 11px;
+  border: solid var(--primary-foreground);
+  border-width: 0 2px 2px 0;
+  transform: translate(18px, 14px) rotate(45deg);
+}
+.tasks-workspace .task-complete:disabled {
+  opacity: 0.55;
+}
+@media (max-width: 1099px) {
+  .tasks-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+  .tasks-columns aside {
+    border: 0;
+    padding: 0;
+  }
+}
+@media (pointer: coarse), (max-width: 760px) {
+  .tasks-results .task-row {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 0.25rem;
+    padding-block: 0.5rem;
+  }
+}

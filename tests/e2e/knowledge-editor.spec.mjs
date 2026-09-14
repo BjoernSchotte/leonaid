@@ -217,6 +217,7 @@ test("insert task/material and preserve viewer permissions", async ({
   const suffix = randomUUID();
   const listTitle = `Redaktionsliste ${suffix}`;
   await page.goto(`${baseURL}/admin/tasks`);
+  await page.getByText("Neue Liste", { exact: true }).click();
   await page.getByLabel("Name der Liste", { exact: true }).fill(listTitle);
   await page
     .getByRole("button", { name: "Liste anlegen", exact: true })

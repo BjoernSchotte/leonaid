@@ -23,6 +23,8 @@ from leonaid.modules.tasks.api import (
     SearchPage,
     ListQuery,
     TaskQuery,
+    CreateEpic,
+    Task,
     CreateList,
     CreateTask,
     UpdateTask,
@@ -65,6 +67,17 @@ async def main() -> None:
             service.create_list(owner, command), service.create_list(owner, command)
         )
         assert first == replay and first.title == "Preparation"
+        assert getattr(first, "can_edit", None) is True, (
+            "S1-A4: owner list projection must expose canEdit=true"
+        )
+        # Old deployed receipts predate the additive read projection. Replay
+        # keeps its original revision and computes permission from live policy.
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE command_receipt SET result=jsonb_build_object('document', ((result->>'document')::jsonb - 'can_edit')::text) WHERE idempotency_key=$1",
+                f"tasks:{owner_id}:tasks.list.created:{owner_id}:{command.idempotency_key}",
+            )
+        assert await service.create_list(owner, command) == first
         assert [
             item.user_id
             for item in (
@@ -104,7 +117,7 @@ async def main() -> None:
             await service.list_tasks(
                 owner, TaskQuery(for_me=True, include_deferred=True)
             )
-        ).items == [task]
+        ).items[0].model_dump(include=set(Task.model_fields)) == task.model_dump()
         assert not (
             await service.list_tasks(
                 reader, TaskQuery(search="Prepare", include_deferred=True)
@@ -208,6 +221,14 @@ async def main() -> None:
         )
         assert granted == replayed_grant and granted.revision == 2
         assert (await service.get_list(reader, first.id)).id == first.id
+        assert not (await service.get_list(reader, first.id)).can_edit
+        reader_summary = (
+            await service.list_tasks(reader, TaskQuery(include_deferred=True))
+        ).items[0]
+        assert not reader_summary.can_edit
+        assert reader_summary.list_title == "Preparation"
+        assert reader_summary.assignee_name == "Task proof"
+        assert reader_summary.action_title is None and reader_summary.epic_title is None
         members = await service.list_members(owner, first.id, SearchPage())
         assert (
             members.revision == 2
@@ -250,6 +271,13 @@ async def main() -> None:
             ).items
         } == {owner_id, reader_id}
         assert promoted.revision == 3
+        assert (await service.get_list(reader, first.id)).can_edit
+        assert all(
+            item.can_edit
+            for item in (
+                await service.list_tasks(reader, TaskQuery(include_deferred=True))
+            ).items
+        )
         reader_command = CreateTask(idempotency_key=uuid4(), title="Shared task")
         shared = await service.create_task(reader, first.id, reader_command)
         assert await service.get_task(reader, shared.id) == shared
@@ -266,12 +294,117 @@ async def main() -> None:
             await service.list_tasks(
                 owner, TaskQuery(for_me=True, status="done", include_deferred=True)
             )
-        ).items == [changed]
+        ).items[0].model_dump(include=set(Task.model_fields)) == changed.model_dump()
         assert not (
             await service.list_tasks(
                 owner, TaskQuery(for_me=True, status="open", include_deferred=True)
             )
         ).items
+        # S1-A2/A3: complete and undo full records, then reject stale undo after
+        # a different real actor edits the title. Count exact receipts below.
+        epic = await service.create_epic(
+            owner, first.id, CreateEpic(idempotency_key=uuid4(), title="Supplies")
+        )
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE task SET description='All fields retained',epic_id=$2,assignee_user_id=$3,due_at=$4,deferred_until=$5 WHERE id=$1",
+                shared.id,
+                epic.id,
+                owner_id,
+                now,
+                now + timedelta(days=1),
+            )
+        original = await service.get_task(reader, shared.id)
+
+        def status_command(current: Task, status: str) -> UpdateTask:
+            return UpdateTask.model_validate(
+                {
+                    **current.model_dump(
+                        include={
+                            "title",
+                            "description",
+                            "epic_id",
+                            "assignee_user_id",
+                            "due_at",
+                            "deferred_until",
+                        }
+                    ),
+                    "status": status,
+                    "expected_revision": current.revision,
+                    "idempotency_key": uuid4(),
+                }
+            )
+
+        complete = status_command(original, "done")
+        completed, completed_replay = await asyncio.gather(
+            service.update_task(reader, shared.id, complete),
+            service.update_task(reader, shared.id, complete),
+        )
+        assert completed == completed_replay
+        undo = status_command(completed, "open")
+        undone = await service.update_task(reader, shared.id, undo)
+        assert await service.update_task(reader, shared.id, undo) == undone
+        preserved = set(Task.model_fields) - {"status", "revision", "updated_at"}
+        for current in (completed, undone, await service.get_task(reader, shared.id)):
+            assert current.model_dump(include=preserved) == original.model_dump(
+                include=preserved
+            )
+        assert undone.revision == original.revision + 2 and undone.status == "open"
+        completed = await service.update_task(
+            reader, shared.id, status_command(undone, "done")
+        )
+        other_edit = status_command(completed, "done").model_copy(
+            update={"title": "Other actor title"}
+        )
+        edited = await service.update_task(owner, shared.id, other_edit)
+        try:
+            await service.update_task(
+                reader, shared.id, status_command(completed, "open")
+            )
+        except Conflict as error:
+            assert error.code == "revision_conflict"
+        else:
+            raise AssertionError("S1-A3: stale undo overwrote other actor")
+        assert await service.get_task(reader, shared.id) == edited
+        async with pool.acquire() as conn:
+            # Observe real SQL, no substitute connection or repository. Fixture
+            # rows do not create domain receipts and are removed before totals.
+            observed: list[str] = []
+            repo = TaskService(AsyncpgTaskRepository(pool, connection=conn))
+
+            def record_query(record: object) -> None:
+                observed.append(getattr(record, "query"))
+
+            with conn.query_logger(record_query):
+                one = await repo.list_tasks(
+                    owner, TaskQuery(list_id=first.id, include_deferred=True, limit=1)
+                )
+                await asyncio.sleep(0)
+            one_count = len(observed)
+            assert one_count > 0
+            extra_ids = [uuid4() for _ in range(49)]
+            await conn.executemany(
+                "INSERT INTO task (id,list_id,title,created_by) VALUES ($1,$2,'Unassigned load proof',$3)",
+                [(identifier, first.id, owner_id) for identifier in extra_ids],
+            )
+            observed.clear()
+            with conn.query_logger(record_query):
+                fifty = await repo.list_tasks(
+                    owner, TaskQuery(list_id=first.id, include_deferred=True, limit=50)
+                )
+                await asyncio.sleep(0)
+            assert len(fifty.items) == 50 and len(observed) == one_count, (
+                one_count,
+                len(observed),
+            )
+            assert one.items[0].list_title == "Preparation"
+            assert any(item.epic_title == "Supplies" for item in fifty.items)
+            assert all(
+                item.assignee_name is None
+                for item in fifty.items
+                if item.assignee_user_id is None
+            )
+            await conn.execute("DELETE FROM task WHERE id=ANY($1::uuid[])", extra_ids)
         revoked = await service.set_list_member(
             owner,
             first.id,
@@ -315,7 +448,7 @@ async def main() -> None:
                     "SELECT count(*) FROM audit_event WHERE actor_user_id=ANY($1::uuid[]) AND event_type LIKE 'tasks.%'",
                     [owner_id, reader_id],
                 )
-                == 7
+                == 12
             )
             assert (
                 await conn.fetchval(
@@ -323,7 +456,7 @@ async def main() -> None:
                     f"tasks:{owner_id}:%",
                     f"tasks:{reader_id}:%",
                 )
-                == 7
+                == 12
             )
         print(
             "PASS: direct operations, concurrent replay, conflict rollback, revisions, current permissions, suspension, authorized search, pagination and database-time deferral"
@@ -332,6 +465,10 @@ async def main() -> None:
         async with pool.acquire() as conn, conn.transaction():
             await conn.execute(
                 "DELETE FROM task WHERE list_id IN (SELECT id FROM task_list WHERE owner_user_id=$1)",
+                owner_id,
+            )
+            await conn.execute(
+                "DELETE FROM task_epic WHERE list_id IN (SELECT id FROM task_list WHERE owner_user_id=$1)",
                 owner_id,
             )
             await conn.execute("DELETE FROM task_list WHERE owner_user_id=$1", owner_id)
