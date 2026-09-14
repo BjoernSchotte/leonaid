@@ -84,11 +84,21 @@ if (!pagesUpload?.uses?.startsWith("actions/upload-pages-artifact@")) {
 if (!String(pagesUpload?.if).includes("refs/heads/main")) {
   errors.push("Pages artifact must be limited to the default branch");
 }
+for (const event of ["schedule", "workflow_dispatch"]) {
+  if (!String(pagesUpload?.if).includes(`github.event_name == '${event}'`)) {
+    errors.push(`Pages artifact must be limited to ${event} publications`);
+  }
+}
 if (deploy?.needs !== "build") {
   errors.push("deployment must depend on the shared build job");
 }
 if (!String(deploy?.if).includes("refs/heads/main")) {
   errors.push("deployment must be limited to the default branch");
+}
+for (const event of ["schedule", "workflow_dispatch"]) {
+  if (!String(deploy?.if).includes(`github.event_name == '${event}'`)) {
+    errors.push(`deployment must be limited to ${event} publications`);
+  }
 }
 if (deploy?.environment?.name !== "github-pages") {
   errors.push("deployment must use the github-pages environment");
@@ -152,6 +162,9 @@ const watchdogJob = watchdog.jobs?.monitor;
 const watchdogScript = watchdogJob?.steps?.[0]?.run ?? "";
 for (const contract of [
   "github.event.workflow_run.head_branch == 'main'",
+  'RUN_EVENT" != schedule',
+  'RUN_EVENT" != workflow_dispatch',
+  '.event == "schedule" or .event == "workflow_dispatch"',
   "-gt 108000",
   "gh issue create",
   "gh issue close",

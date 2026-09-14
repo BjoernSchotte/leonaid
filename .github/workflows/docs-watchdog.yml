@@ -30,6 +30,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
           set -eu
@@ -37,10 +38,13 @@ jobs:
           problem=
           if [ "$EVENT_NAME" = workflow_run ] && [ "$RUN_CONCLUSION" != success ]; then
             problem="The Documentation workflow failed: $RUN_URL"
+          elif [ "$EVENT_NAME" = workflow_run ] && \
+            [ "$RUN_EVENT" != schedule ] && [ "$RUN_EVENT" != workflow_dispatch ]; then
+            exit 0
           elif [ "$EVENT_NAME" != workflow_run ]; then
             last_success=$(gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?branch=main&status=success&per_page=1" \
-              --jq '.workflow_runs[0].created_at // empty')
+              "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?branch=main&status=success&per_page=100" \
+              --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].created_at // empty')
             if [ -z "$last_success" ] || \
               [ "$(( $(date -u +%s) - $(date -u -d "$last_success" +%s) ))" -gt 108000 ]; then
               problem="No successful Documentation publication was recorded in the last 30 hours."

@@ -62,14 +62,14 @@ jobs:
           retention-days: 14
 
       - name: Stage GitHub Pages artifact
-        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
         with:
           path: apps/docs/dist
 
   deploy:
     name: Deploy and smoke GitHub Pages
-    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
