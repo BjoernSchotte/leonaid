@@ -353,7 +353,7 @@ Abhängige Slices beginnen erst nach erfolgreicher Abnahme ihres Vorgängers.
   für den Beginn der nachfolgenden Ausbaustufe.
 - [x] **S5 – Persönliche Planung:** eigene Zustände/Operationen und Ansichten
   Heute/Geplant/Irgendwann, ohne Deadline oder Teamzuordnung zu verändern.
-- [ ] **S6 – Drag-and-drop:** persönliche und gemeinsame manuelle Reihenfolge,
+- [x] **S6 – Drag-and-drop:** persönliche und gemeinsame manuelle Reihenfolge,
   Abschnittswechsel, Tastatur-/Menüalternativen und Konfliktbehandlung.
 - [ ] **S7 – Aufgabenstruktur:** Priorität, Tags und einfache Checklisten mit
   gezielten Filtern und zurückhaltender Darstellung.

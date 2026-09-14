@@ -1,6 +1,6 @@
 # Aufgaben-UX: Implementierung und Abnahme
 
-Stand: S1 bis S5 sind mit vollständig grüner PR-CI abgeschlossen. S6–S11 bleiben
+Stand: S1 bis S6 sind mit vollständig grüner PR-CI abgeschlossen. S7–S11 bleiben
 offen.
 Ausgangsstand: `0a084c88ac5ddd73faf112d3d6abc767ab2d6c6f` auf Draft-PR #7.
 Die CI dieses Ausgangsstands war beim Implementierungsbeginn vollständig grün
@@ -44,12 +44,12 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 | S5-A4 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Leser plant persönlich, versucht gemeinsame Mutation; danach Rechteentzug | Eigene Planung zulässig, Task-Mutation gesperrt; danach weder Task noch Plan auflösbar | bestanden | Service-/HTTP-Vertrag und PWA-Leserfall mit echtem Rechteentzug |
 | S5-A5 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Plan entfernen, veraltete Revision schreiben, identischen Auftrag wiederholen | Revisionsträger verhindert ABA; veraltet 409; identischer Retry genau ein Effekt | bestanden | PostgreSQL-Transaktionsvertrag in `planning_contract.py` |
 | S5-A6 | `5821d57ad7ddf71086b03988ee1f9eb5079073dd` | Ungültige Zeitzone und widersprüchliche Zustände; Ansicht in zwei Zeitzonen | 422 ohne Mutation; lokales Datum bleibt gespeichert und Heute-Zuordnung folgt der Zeitzone | bestanden | Service-/HTTP-Vertrag und vollständiger K2-Lauf |
-| S6-A1 | – | noch auszuführen | siehe SLICES.md, S6-A1 | offen | – |
-| S6-A2 | – | noch auszuführen | siehe SLICES.md, S6-A2 | offen | – |
-| S6-A3 | – | noch auszuführen | siehe SLICES.md, S6-A3 | offen | – |
-| S6-A4 | – | noch auszuführen | siehe SLICES.md, S6-A4 | offen | – |
-| S6-A5 | – | noch auszuführen | siehe SLICES.md, S6-A5 | offen | – |
-| S6-A6 | – | noch auszuführen | siehe SLICES.md, S6-A6 | offen | – |
+| S6-A1 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | 120 Aufgaben über drei Seiten; Move vor Nachbar auf Seite eins; SQL-Positionsvergleich | Genau die gewählte Position ändert sich; 120 eindeutige IDs bleiben erhalten | bestanden | PostgreSQL-Vertrag `ordering_contract.py`, vollständiger K2-Lauf |
+| S6-A2 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | Anfang/Ende, leerer Abschnitt und fremder Nachbar über Service/UI | Gültige Ziele persistieren; fremdes Ziel 409 ohne Teiländerung oder Datenpreisgabe | bestanden | PostgreSQL-Vertrag und Browser-Menü-/Abschnittsfall |
+| S6-A3 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | Zwei parallele Moves mit gleicher Ordnungsrevision; identischer Retry; Reload | Genau ein Gewinner, ein 409; Replay liefert dasselbe Ergebnis; Reihenfolge stabil | bestanden | echte konkurrierende Transaktionen in K2 und Reload in K3 |
+| S6-A4 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | Eigentümer und Leser mit getrennten persönlichen Plänen; Leser versucht Teamordnung | Persönliche Ordnung isoliert; Leser ändert nur eigene Planung; gemeinsame Task-Felder unverändert | bestanden | Mehrnutzervertrag und PWA-Leserfall |
+| S6-A5 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | Maus, Touch-Long-press-Griff, Tastatur und Menü auf derselben Move-Operation | Persistente Reihenfolge, Fokus am Griff; Scrollfläche außerhalb des Griffs behält Touch-Scroll | bestanden | `tasks-ordering.spec.mjs`, K3 21/21, Desktop-/PWA-Screenshots |
+| S6-A6 | `5a301ebdfa9a8253ab58fe31a780fd6b9e7e29e6` | Fälligkeitssortierung, Wechsel auf Manuell und Upgrade eines befüllten Altstands | Griff nur bei zulässiger manueller Ordnung; deterministischer Backfill nach Erstellreihenfolge | bestanden | Browser- und vollständiger Migrations-/Schema-Vertrag |
 | S7-A1 | – | noch auszuführen | siehe SLICES.md, S7-A1 | offen | – |
 | S7-A2 | – | noch auszuführen | siehe SLICES.md, S7-A2 | offen | – |
 | S7-A3 | – | noch auszuführen | siehe SLICES.md, S7-A3 | offen | – |
@@ -211,3 +211,26 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
   erhalten, Merge-Status sauber und 69/69 ausgeführte PR-Checks grün; vier
   bedingte Jobs wurden erwartungsgemäß übersprungen. Screenshot-Kommentar:
   `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5670232217`.
+
+## S6-Verifikation
+
+- K1: vollständiger Repository-Lint mit Ruff, Formatierung, mypy für 406 Quellen,
+  deterministischem OpenAPI-Client, Frontend-Grenzen und allen Workspace-Typen
+  bestanden.
+- K2: vollständiger isolierter Schema-/Service-/HTTP-Lauf bestanden. Er umfasst
+  Migration 0043 auf leerem und befülltem Stand, 120 Aufgaben über Pagination,
+  konkurrierende Moves, Idempotenz, ungültige Ziele und persönliche Isolation.
+- K3: vollständiger modularer Browserlauf mit 21/21 Fällen bestanden. Der neue
+  Fall prüft Maus, Touch-Long-press, Tastatur, Menü, Abschnitts- und Tageswechsel,
+  Reload, Leserrechte, Fokus und horizontale PWA-Stabilität.
+- K4: 507/507 Unit-/Domain-/Architektur-/Migrationsfälle bestanden; zusätzlich
+  sind Test-Double- und Diff-Prüfung grün. Der Secret-Scan fand keine Secrets.
+- Visuelle Prüfung: Desktop und PWA zeigen kompakte Zeilen, klar begrenzte Griffe,
+  stabile Abschnitts-/Tagesgruppen und eine intakte mobile Navigation. Belege
+  liegen unter `.artifacts/tasks-s6-final/modules/`.
+- K5: PR-Head `cde74efbeec17854222a7c37a36cb7bde21bc4e8`, Draft-Status
+  erhalten und 69/69 ausgeführte Checks grün; vier bedingte Jobs wurden
+  erwartungsgemäß übersprungen. Ein erster Core-Job scheiterte ausschließlich an
+  einem Docker-Hub-Authentifizierungs-Timeout; derselbe unveränderte Job bestand
+  im gezielten Retry. Screenshot-Kommentar:
+  `https://github.com/BjoernSchotte/leonaid/pull/7#issuecomment-5671660368`.

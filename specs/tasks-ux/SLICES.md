@@ -231,10 +231,10 @@ so sind tagübergreifende persönliche Moves atomar. `sort=manual` ab S6.
 | S6-A6 | Sortierung nach Fälligkeit statt Manuell | Kein aktiver gemeinsamer Drag-Griff; Benutzer kann explizit in manuelle Sortierung wechseln. Alte Aufgaben behalten initial ihre bisherige Reihenfolge. |
 
 **Arbeitsschritte:**
-- [ ] A1–A3 zuerst gegen echte Transaktionen prüfen; deterministischen Altbestand
+- [x] A1–A3 zuerst gegen echte Transaktionen prüfen; deterministischen Altbestand
   für Backfill und konkurrierende Moves vorbereiten.
-- [ ] Server-Move und Backfill, dann Pointer-/Tastatur-UI auf derselben Operation.
-- [ ] K1–K4; Desktop-/PWA-Vorher/Nachher und Tastaturnachweis dokumentieren, Push/K5.
+- [x] Server-Move und Backfill, dann Pointer-/Tastatur-UI auf derselben Operation.
+- [x] K1–K4; Desktop-/PWA-Vorher/Nachher und Tastaturnachweis dokumentieren, Push/K5.
 **Rücknahmegrenze:** Positionsdaten erhalten, UI wieder auf created sortieren.
 Ordnungsrevisionen dürfen nicht mit einem Revert zurückgesetzt werden.
 
