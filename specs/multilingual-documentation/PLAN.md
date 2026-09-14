@@ -37,6 +37,15 @@ Erfolg bedeutet: Eine deutsch- oder englischsprachige Person findet ihren Einsti
 
 Die folgende Bestandsaufnahme beruht auf gelesenen Dateien, nicht auf neuen Laufzeitnachweisen. Vor dem Schreiben von Bedien- und Betriebsanleitungen muss der dann aktuelle Stand praktisch geprüft werden.
 
+**Verbindliche Wahrheitsquelle:** Der implementierte Code ist immer maßgeblich.
+Ausführbare Tests und reale Laufzeitnachweise zeigen, ob der relevante Codepfad
+funktioniert. Specs, READMEs, frühere Proofs und dieses Inventar liefern
+Absicht, Kontext und Fundstellen, dürfen dem aktuellen Code aber nicht
+widersprechen oder ihn überstimmen. Bei einer Abweichung wird die
+Dokumentation an den Code angepasst. Soll stattdessen das Produktverhalten
+geändert werden, ist das eine eigene Implementierungsänderung mit eigenem
+Nachweis; die Dokumentation nimmt sie nicht vorweg.
+
 | Quelle | Befund | Konsequenz |
 | --- | --- | --- |
 | [Root-README](../../README.md) | Deutscher Einstieg, Golden Journey, verstreute Dokumentlinks; teilweise historische PoC-Formulierungen | Auf einen kurzen englischen GitHub-Einstieg reduzieren; ausführliche Anleitungen in die Docs übertragen und deren vorhandene Quelldateien verlinken |
@@ -118,6 +127,10 @@ Starlight unterstützt Locale-Verzeichnisse, Seitenzuordnung über gleiche Datei
 ### 4.3 Verantwortung und Definition of Done
 
 Produktänderungen mit Einfluss auf Bedienung, API, Konfiguration oder Betrieb aktualisieren betroffene Docs im selben PR. Eine PR-Checkliste verlangt Docs-Links oder eine konkrete Begründung „keine Dokumentationsauswirkung“. Eine reine Pfadprüfung kann diese Verantwortung nicht ersetzen.
+
+Bei jedem Review wird die beschriebene Strecke vom sichtbaren Einstieg bis zum
+maßgeblichen Codepfad verfolgt. Historische Specs und Proofs gelten nie als
+Ersatz für diesen Abgleich.
 
 Fachreview: zuständige Produkt-/Codeverantwortliche. Sprachreview: Person mit ausreichender DE/EN-Kompetenz; anfangs kann dieselbe Person beide Aufgaben übernehmen. Betrieb und Freigabe der Docs-Site haben einen benannten Maintainer. Konkrete Personen werden bei DOC-010 eingetragen.
 

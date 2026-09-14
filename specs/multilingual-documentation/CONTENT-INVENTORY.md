@@ -27,8 +27,10 @@ gilt trotzdem erst als freigegeben, wenn beide Zustände im Inventar auf
 
 Jede Tabellenzeile bezeichnet ein DE/EN-Paar. Relative Pfade unterhalb von
 `apps/docs/src/content/docs/{de,en}/` und die Routen sind absichtlich
-sprachsymmetrisch. `Quelle` benennt die zu prüfenden Ausgangsdokumente oder
-Laufzeitpfade; sie ist kein pauschaler Wahrheitsanspruch für historischen Text.
+sprachsymmetrisch. Der implementierte Code ist immer die Wahrheitsquelle.
+`Quelle` benennt die zuerst zu prüfenden Code-, Test- und ergänzenden
+Kontextpfade. Specs, READMEs und ältere Proofs helfen bei der Suche und
+Einordnung, können aktuelles Verhalten aber nicht beweisen oder überstimmen.
 
 | ID | CONTENT | Bereich | Diátaxis | Relativer Pfad / Route | Quelle | DE/EN-Status | Review | Abnahme |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -93,3 +95,5 @@ DOC-040 und DOC-050 ersetzen `geplant` durch `freigegeben` nur nach fachlichem
 und sprachlichem Review. Änderungen am Seitenumfang aktualisieren ID, Quelle,
 Review und Abnahme gemeinsam. Entfernte Seiten behalten ihre ID im
 `PROGRESS.md`, damit Links und Entscheidungen nachvollziehbar bleiben.
+Jede Freigabe nennt den geprüften Codepfad und einen passenden ausführbaren
+Nachweis; ein historisches Dokument allein reicht dafür nicht aus.
