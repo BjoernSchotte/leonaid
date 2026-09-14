@@ -1,0 +1,20 @@
+---
+title: LeonAid Core API
+description: Reproduzierbar erzeugte Referenz der Routen im kanonischen OpenAPI-Vertrag des LeonAid Core.
+docId: DOC-P035
+audience: [dev]
+diataxis: reference
+contentRevision: 1
+reviewedRevision: 1
+verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+reviewer: Björn Schotte
+---
+
+import ApiReference from "../../../../../components/ApiReference.astro";
+
+Diese Tabelle wird vor jedem Check und Build deterministisch aus
+`packages/api-client/openapi.json` erzeugt. Routen, Methoden, Operation-IDs und
+Tags stammen aus dem Vertrag; die Einordnung dieser Seite bleibt kuratiert.
+FastAPI und `./leonaid generate-api-client` besitzen den Vertrag.
+
+<ApiReference locale="de" />

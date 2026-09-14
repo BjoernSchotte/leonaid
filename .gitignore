@@ -11,6 +11,7 @@ node_modules/
 apps/*/dist/
 apps/*/.astro/
 apps/*/.emdash/
+apps/docs/src/generated/
 .cache/
 
 # Generated proof artifacts

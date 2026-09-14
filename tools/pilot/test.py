@@ -243,8 +243,34 @@ def prove_workflow_upload_boundary(workspace: Path) -> None:
 
     ci.write_text(
         workflow_with_upload(
-            ".artifacts/ci/pages",
+            "apps/docs/dist",
             action="actions/upload-pages-artifact@pin",
+        ),
+        encoding="utf-8",
+    )
+    check_workflows(root)
+
+    ci.write_text(
+        workflow_with_upload(
+            "apps/docs",
+            action="actions/upload-pages-artifact@pin",
+        ),
+        encoding="utf-8",
+    )
+    try:
+        check_workflows(root)
+    except BoundaryError as error:
+        if "nicht freigegebener öffentlicher Uploadpfad" not in str(error):
+            raise AssertionError(
+                f"Pages-Upload meldete falschen Fehler: {error}"
+            ) from error
+    else:
+        raise AssertionError("nicht freigegebener Pages-Upload wurde erlaubt")
+
+    ci.write_text(
+        workflow_with_upload(
+            "apps/docs/dist",
+            action="example/upload-bucket@pin",
         ),
         encoding="utf-8",
     )

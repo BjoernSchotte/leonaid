@@ -283,6 +283,7 @@ LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   LEONAID_RESTORE_START_APP=false \
+  LEONAID_RESTORE_RESERVE_TEST_NETWORKS=true \
   LEONAID_RESTORE_COMPOSE_OVERLAY="$target_isolation" \
   LEONAID_RESTORE_STATE_FILE="$proof/restore-state.json" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"

@@ -11,14 +11,16 @@ MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
 REQUIRED_CONTENT: dict[str, tuple[str, ...]] = {
     "README.md": (
-        "In höchstens 30 Minuten zur Golden Journey",
-        "./leonaid bootstrap",
-        "./leonaid provision-twenty",
-        "./leonaid test-golden-journey",
-        "http://127.0.0.1:8080/krapfentaxi",
-        ".local/test-logins.md",
-        "Finanz-Lesezugriff",
-        "specs/leonaid-poc/KNOWN-LIMITS.md",
+        "# LeonAid",
+        "## Documentation",
+        "apps/docs/src/content/docs/de/user/index.mdx",
+        "apps/docs/src/content/docs/en/user/index.mdx",
+        "apps/docs/src/content/docs/de/ops/index.mdx",
+        "apps/docs/src/content/docs/en/ops/index.mdx",
+        "apps/docs/src/content/docs/de/dev/index.mdx",
+        "apps/docs/src/content/docs/en/dev/index.mdx",
+        "./leonaid help",
+        "## Status and license",
     ),
     "specs/leonaid-poc/ARCHITECTURE.md": (
         "Laufzeitbild",
@@ -87,8 +89,8 @@ def main() -> None:
             print(f"handoff-check: ERROR: {problem}", file=sys.stderr)
         raise SystemExit(1)
     print(
-        "handoff-check: OK: Onboarding, Architektur, Runbooks, Grenzen und "
-        "Abnahmeprotokoll vollständig verlinkt"
+        "handoff-check: OK: kompakter GitHub-Einstieg, aktuelle Docs-Quellen "
+        "und historische Übergabedokumente vollständig verlinkt"
     )
 
 

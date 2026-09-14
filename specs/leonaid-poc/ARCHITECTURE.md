@@ -1,5 +1,10 @@
 # LeonAid PoC – verbindlicher Architekturindex
 
+Current bilingual architecture explanation:
+[Deutsch](../../apps/docs/src/content/docs/de/dev/explanation/architecture-and-data-ownership.md) ·
+[English](../../apps/docs/src/content/docs/en/dev/explanation/architecture-and-data-ownership.md).
+This document remains the detailed PoC architecture record.
+
 Stand: 2026-07-27
 
 Dieses Dokument ist der kurze Einstieg in den implementierten Stand. Das
@@ -10,17 +15,17 @@ Konkrete, bereits umgesetzte Entscheidungen stehen in den
 
 ## Laufzeitbild
 
-| Baustein | Verantwortung | Persistenz |
-| --- | --- | --- |
-| Caddy | einziger veröffentlichter HTTP-/HTTPS-Einstieg | keine Fachdaten |
-| Web | React-Portal für Charity- und System-Administration | keine Fachdaten |
-| PWA | mobile Akquisiteur-Oberfläche und installierbare Shell | nur Browsercache, keine führenden Daten |
-| Public Web | Astro-Aktionsseiten und öffentliche Standardformulare | keine führenden Daten |
-| FastAPI Core | Authentifizierung, Policies und sämtliche Fachoperationen | Core PostgreSQL |
-| Outbox-Worker | idempotente Dokument- und Mailjobs | Core PostgreSQL |
-| Twenty | Firmen und Personen als CRM-System of Record | Twenty PostgreSQL und Dateien |
-| RustFS | private, unveränderliche Dokumentbytes über S3-Port | RustFS-Volume |
-| Mail-Relay | Zustellung von Login-, Einladungs- und Rechnungs-E-Mails | extern; lokal Mailpit |
+| Baustein      | Verantwortung                                             | Persistenz                              |
+| ------------- | --------------------------------------------------------- | --------------------------------------- |
+| Caddy         | einziger veröffentlichter HTTP-/HTTPS-Einstieg            | keine Fachdaten                         |
+| Web           | React-Portal für Charity- und System-Administration       | keine Fachdaten                         |
+| PWA           | mobile Akquisiteur-Oberfläche und installierbare Shell    | nur Browsercache, keine führenden Daten |
+| Public Web    | Astro-Aktionsseiten und öffentliche Standardformulare     | keine führenden Daten                   |
+| FastAPI Core  | Authentifizierung, Policies und sämtliche Fachoperationen | Core PostgreSQL                         |
+| Outbox-Worker | idempotente Dokument- und Mailjobs                        | Core PostgreSQL                         |
+| Twenty        | Firmen und Personen als CRM-System of Record              | Twenty PostgreSQL und Dateien           |
+| RustFS        | private, unveränderliche Dokumentbytes über S3-Port       | RustFS-Volume                           |
+| Mail-Relay    | Zustellung von Login-, Einladungs- und Rechnungs-E-Mails  | extern; lokal Mailpit                   |
 
 Browser und Astro Actions besitzen keine maßgebliche Fachlogik. Web, PWA,
 Public Web und eine spätere Tauri-App verwenden den generierten
@@ -70,16 +75,16 @@ Security-, Betriebs- und Recoveryentscheidungen sind in
 
 ## Verbindliche Entscheidungen
 
-| Thema | Entscheidung |
-| --- | --- |
-| PoC-Scope und Beweis | [ADR-0001](decisions/ADR-0001-poc-scope.md), [ADR-0002](decisions/ADR-0002-proof-and-delivery.md) |
-| Core- und API-Grenze | [ADR-0003](decisions/ADR-0003-core-architecture.md) |
-| Rechnung und Typst | [ADR-0004](decisions/ADR-0004-invoice-issuing.md), [ADR-0005](decisions/ADR-0005-typst-invoice-renderer.md) |
-| Dokumente und S3 | [ADR-0006](decisions/ADR-0006-provider-neutral-object-storage.md), [ADR-0007](decisions/ADR-0007-contextual-document-access.md) |
-| Mail und Zahlung | [ADR-0008](decisions/ADR-0008-durable-invoice-delivery.md), [ADR-0009](decisions/ADR-0009-exact-invoice-settlement.md) |
-| Feature Flags | [ADR-0010](decisions/ADR-0010-openfeature-rollout-controls.md) |
+| Thema                | Entscheidung                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| PoC-Scope und Beweis | [ADR-0001](decisions/ADR-0001-poc-scope.md), [ADR-0002](decisions/ADR-0002-proof-and-delivery.md)                                       |
+| Core- und API-Grenze | [ADR-0003](decisions/ADR-0003-core-architecture.md)                                                                                     |
+| Rechnung und Typst   | [ADR-0004](decisions/ADR-0004-invoice-issuing.md), [ADR-0005](decisions/ADR-0005-typst-invoice-renderer.md)                             |
+| Dokumente und S3     | [ADR-0006](decisions/ADR-0006-provider-neutral-object-storage.md), [ADR-0007](decisions/ADR-0007-contextual-document-access.md)         |
+| Mail und Zahlung     | [ADR-0008](decisions/ADR-0008-durable-invoice-delivery.md), [ADR-0009](decisions/ADR-0009-exact-invoice-settlement.md)                  |
+| Feature Flags        | [ADR-0010](decisions/ADR-0010-openfeature-rollout-controls.md)                                                                          |
 | Recovery und Upgrade | [ADR-0011](decisions/ADR-0011-encrypted-cross-system-backups.md), [ADR-0012](decisions/ADR-0012-pinned-upgrades-and-backup-rollback.md) |
-| Betriebssignale | [ADR-0013](decisions/ADR-0013-operational-signals-and-safe-retry.md) |
+| Betriebssignale      | [ADR-0013](decisions/ADR-0013-operational-signals-and-safe-retry.md)                                                                    |
 
 ## Änderungsregel
 

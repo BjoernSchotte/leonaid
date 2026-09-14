@@ -1,5 +1,10 @@
 # Backup, Restore und Disaster Recovery
 
+Current bilingual task guide:
+[Deutsch](../../apps/docs/src/content/docs/de/ops/how-to/backup-and-restore.md) ·
+[English](../../apps/docs/src/content/docs/en/ops/how-to/backup-and-restore.md).
+This file remains the detailed recovery contract.
+
 Dieses Runbook ist der operative Vertrag für den LeonAid-PoC. Es umfasst die
 Core-PostgreSQL-Datenbank, die Twenty-PostgreSQL-Datenbank, Twenty lokale
 Dateien und das vollständige RustFS-Datenvolume. Restic verschlüsselt jeden

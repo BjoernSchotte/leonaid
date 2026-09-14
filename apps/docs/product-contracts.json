@@ -1,0 +1,318 @@
+{
+  "DOC-P011": [
+    {
+      "file": "packages/features/src/commitments/commitment-capture.tsx",
+      "contains": [
+        "Zugeordneter Sponsor",
+        "Prüfbereit erfassen",
+        "Als Entwurf speichern",
+        "LeonAid berechnet den verbindlichen Preis beim Speichern erneut."
+      ]
+    },
+    {
+      "file": "packages/features/src/commitments/complete-draft.tsx",
+      "contains": ["Entwurf prüfbereit abschließen"]
+    }
+  ],
+  "DOC-P012": [
+    {
+      "file": "packages/features/src/action-admin/delivery-section.tsx",
+      "contains": [
+        "Lieferplanung für diese Aktion aktivieren",
+        "Weiteren Tag hinzufügen",
+        "Zeitfenster hinzufügen",
+        "Lieferplanung speichern",
+        "Aktuellen Stand laden und Eingaben behalten"
+      ]
+    },
+    {
+      "file": "packages/features/src/action-admin/manage-action.tsx",
+      "contains": ["configuration.data?.template.key === \"krapfentaxi\""]
+    }
+  ],
+  "DOC-P013": [
+    {
+      "file": "apps/public/src/components/PublicOrder.astro",
+      "contains": [
+        "Aktueller Bestellwert",
+        "Rechnungsadresse entspricht der Lieferadresse",
+        "Ich bestelle die gewählte Menge verbindlich.",
+        "Bestellung eingegangen"
+      ]
+    }
+  ],
+  "DOC-P014": [
+    {
+      "file": "packages/features/src/invoices/invoice-admin.tsx",
+      "contains": [
+        "Zahlung erfassen",
+        "Vollzahlung verbuchen",
+        "Vollständig bezahlt",
+        "mayManageSettlements"
+      ]
+    }
+  ],
+  "DOC-P015": [
+    {
+      "file": "apps/public/src/components/AuthPage.astro",
+      "contains": [
+        "Login-Code anfordern",
+        "Sechsstelliger Code",
+        "Zu viele Versuche in kurzer Zeit. Warte bitte zehn Minuten"
+      ]
+    },
+    {
+      "file": "apps/public/src/pages/invite.astro",
+      "contains": ["Einladung bestätigen", "ungültig oder nicht mehr gültig"]
+    }
+  ],
+  "DOC-P016": [
+    {
+      "file": "PERSONAS.md",
+      "contains": [
+        "`system_admin`",
+        "`finance_reader`",
+        "`finance_manager`",
+        "`charity_admin`",
+        "`acquirer`",
+        "`driver`"
+      ]
+    }
+  ],
+  "DOC-P017": [
+    {
+      "file": "packages/api-client/src/generated.ts",
+      "contains": [
+        "\"draft\" | \"scheduled\" | \"active\" | \"completed\" | \"archived\"",
+        "\"draft\" | \"review_ready\" | \"confirmed\" | \"invoiced\" | \"cancelled\"",
+        "\"issued\" | \"sent\" | \"paid\" | \"cancelled\"",
+        "\"queued\" | \"sending\" | \"retrying\" | \"failed\" | \"sent\""
+      ]
+    }
+  ],
+  "DOC-P018": [
+    {
+      "file": "src/leonaid/domain/commitments.py",
+      "contains": [
+        "class Commitment",
+        "invoice_recipient",
+        "delivery_window_snapshot"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/commitments.py",
+      "contains": ["CommitmentRepository"]
+    }
+  ],
+  "DOC-P019": [
+    {
+      "file": "src/leonaid/domain/identity.py",
+      "contains": ["CHARITY_ADMIN", "ACQUIRER", "FINANCE_READER"]
+    },
+    {
+      "file": "apps/public/src/components/AuthPage.astro",
+      "contains": ["requestFreshLogin", "completeFreshLogin"]
+    }
+  ],
+  "DOC-P021": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "bootstrap) bootstrap ;;",
+        "doctor) doctor ;;",
+        "test-handoff)"
+      ]
+    },
+    {
+      "file": "infra/compose/README.md",
+      "contains": ["https://localhost:8443", "http://localhost:8080"]
+    }
+  ],
+  "DOC-P022": [
+    {
+      "file": "infra/pilot/README.md",
+      "contains": [
+        "LEONAID_RELEASE_COMMIT",
+        "up --no-build --pull missing",
+        "Exit `0` bedeutet bereit"
+      ]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["pilot-deploy)", "pilot-doctor)"]
+    }
+  ],
+  "DOC-P023": [
+    {
+      "file": "infra/backup/README.md",
+      "contains": ["restic check --read-data", "leonaid-restore-<name>", "RPO"]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["pilot-backup)", "pilot-restore)"]
+    }
+  ],
+  "DOC-P024": [
+    {
+      "file": "infra/upgrade/README.md",
+      "contains": [
+        "command:prod run-instance-commands",
+        "command:prod upgrade",
+        "503 maintenance_mode"
+      ]
+    }
+  ],
+  "DOC-P025": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "Docker ist nicht erreichbar",
+        "doctor) doctor ;;",
+        "test-mail-domain"
+      ]
+    },
+    {
+      "file": "src/leonaid/entrypoints/fastapi/platform.py",
+      "contains": ["maintenance_mode", "Retry-After"]
+    }
+  ],
+  "DOC-P026": [
+    {
+      "file": ".env.example",
+      "contains": [
+        "LEONAID_ENV=local",
+        "__GENERATE_HEX_32__",
+        "TWENTY_BOOTSTRAP_EMAIL"
+      ]
+    },
+    {
+      "file": "infra/pilot/production.env.example",
+      "contains": ["LEONAID_RELEASE_COMMIT", "LEONAID_DEPLOYMENT_STAGE"]
+    }
+  ],
+  "DOC-P027": [
+    {
+      "file": "infra/compose/compose.yml",
+      "contains": ["core-postgres:", "twenty-server:", "rustfs:", "proxy:"]
+    },
+    {
+      "file": "leonaid",
+      "contains": [
+        "backup            Create encrypted",
+        "test-upgrade      Prove pinned"
+      ]
+    }
+  ],
+  "DOC-P028": [
+    {
+      "file": "src/leonaid/domain/commitments.py",
+      "contains": ["invoice_recipient", "delivery_window_snapshot"]
+    },
+    {
+      "file": "src/leonaid/domain/documents.py",
+      "contains": ["sha256", "object_key"]
+    }
+  ],
+  "DOC-P029": [
+    {
+      "file": "infra/upgrade/maintenance.sh",
+      "contains": ["enable", "disable", "status"]
+    },
+    {
+      "file": "infra/pilot/compose.yml",
+      "contains": ["80:80", "443:443"]
+    }
+  ],
+  "DOC-P031": [
+    {
+      "file": "leonaid",
+      "contains": [
+        "bootstrap         Create local secrets",
+        "check             Run non-mutating",
+        "test-handoff"
+      ]
+    },
+    {
+      "file": "tools/dx/test-fresh-checkout.sh",
+      "contains": [
+        "pre-bootstrap-doctor",
+        "bootstrap",
+        "doctor",
+        "fresh bootstrap/doctor/check"
+      ]
+    }
+  ],
+  "DOC-P032": [
+    {
+      "file": "tools/openapi/generate.py",
+      "contains": ["document = app.openapi()", "openapi.json", "generated.ts"]
+    },
+    {
+      "file": "tools/openapi/test.sh",
+      "contains": ["--check", "cmp", "check_frontend.py"]
+    }
+  ],
+  "DOC-P033": [
+    {
+      "file": "leonaid",
+      "contains": ["doctor            Diagnose Docker", "test-env-stop"]
+    },
+    {
+      "file": "infra/compose/compose.yml",
+      "contains": ["healthcheck:", "networks:"]
+    }
+  ],
+  "DOC-P034": [
+    {
+      "file": "migrations/README.md",
+      "contains": [
+        "Alembic ist alleiniger Owner",
+        "drop_table",
+        "interne Twenty-Tabellen"
+      ]
+    }
+  ],
+  "DOC-P035": [
+    {
+      "file": "packages/api-client/openapi.json",
+      "contains": ["\"openapi\": \"3.1.0\"", "\"title\": \"LeonAid Core\""]
+    },
+    {
+      "file": "apps/docs/scripts/generate-api-reference.mjs",
+      "contains": [
+        "packages/api-client/openapi.json",
+        "createHash(\"sha256\")",
+        "Object.keys(contract.paths"
+      ]
+    }
+  ],
+  "DOC-P036": [
+    {
+      "file": "package.json",
+      "contains": ["\"apps/*\"", "\"packages/*\"", "\"typecheck:docs\""]
+    },
+    {
+      "file": "leonaid",
+      "contains": ["docs-check", "generate-api-client", "test-integration"]
+    }
+  ],
+  "DOC-P037": [
+    {
+      "file": "src/leonaid/domain/identity.py",
+      "contains": [
+        "class GlobalRole",
+        "class ActionRole",
+        "CHARITY_ADMIN",
+        "ACQUIRER"
+      ]
+    },
+    {
+      "file": "src/leonaid/adapters/postgres/commitments.py",
+      "contains": ["CommitmentRepository"]
+    },
+    {
+      "file": "src/leonaid/adapters/twenty/gateway.py",
+      "contains": ["class TwentyCrmGateway"]
+    }
+  ]
+}

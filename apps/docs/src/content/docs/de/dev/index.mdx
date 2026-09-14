@@ -1,0 +1,28 @@
+---
+title: LeonAid entwickeln
+description: Der Einstieg für Mitwirkende, die LeonAid verstehen, ändern und anhand der Verträge prüfen möchten.
+docId: DOC-P030
+audience: [dev]
+diataxis: explanation
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+reviewer: Björn Schotte
+---
+
+LeonAid trennt den Python-Domain-Core, seine Adapter, generierte API-Verträge
+und mehrere Weboberflächen. Änderungen werden über die gelockte
+Docker-Toolchain und den zugehörigen ausführbaren Vertrag geprüft.
+
+## Nach Aufgabe einsteigen
+
+- **Lernen:** [Die erste geprüfte Änderung](./tutorials/first-change/)
+- **Anleitungen:** [API-Vertrag aktualisieren](./how-to/update-api-contract/),
+  [debuggen](./how-to/debug/) und [Core-Migration ergänzen](./how-to/add-migration/)
+- **Referenz:** [Generierte API](./reference/api/) sowie
+  [Repository und Befehle](./reference/repository-and-commands/)
+- **Hintergrund:** [Architektur und Datenhoheit](./explanation/architecture-and-data-ownership/)
+
+Beginne bei Abweichungen im implementierten Code und seinen Tests. Specs,
+ADRs und Runbooks erklären Entscheidungen, ersetzen aber keinen aktuellen
+Code- oder Laufzeitnachweis.
