@@ -32,6 +32,8 @@ from leonaid.modules.tasks.api import (
     ListQuery,
     PersonalPlan,
     PlanQuery,
+    MoveTask,
+    TaskMove,
     SetTaskPlan,
     TaskPlans,
     TaskService,
@@ -118,7 +120,7 @@ async def list_tasks(
     deferred_state: Literal["active", "deferred", "all"] | None = Query(
         default=None, alias="deferredState"
     ),
-    sort: Literal["created", "due", "section"] = "created",
+    sort: Literal["created", "due", "section", "manual"] = "created",
 ) -> Tasks:
     try:
         query = TaskQuery(
@@ -167,6 +169,19 @@ async def set_task_plan(
     request: Request, response: Response, task_id: UUID, body: SetTaskPlan
 ) -> PersonalPlan:
     return await service(request).set_task_plan(
+        await actor(request, response), task_id, body
+    )
+
+
+@router.patch(
+    "/tasks/{task_id}/position",
+    operation_id="moveTask",
+    response_model=TaskMove,
+)
+async def move_task(
+    request: Request, response: Response, task_id: UUID, body: MoveTask
+) -> TaskMove:
+    return await service(request).move_task(
         await actor(request, response), task_id, body
     )
 

@@ -38,6 +38,9 @@ class TaskModel(TransportModel):
         "owner_user_id",
         "user_id",
         "assignee_user_id",
+        "target_epic_id",
+        "before",
+        "after",
         "created_by",
         mode="before",
         check_fields=False,
@@ -60,7 +63,7 @@ class TaskModel(TransportModel):
     def parse_timestamp(cls, value: object) -> object:
         return datetime.fromisoformat(value) if isinstance(value, str) else value
 
-    @field_validator("planned_on", mode="before", check_fields=False)
+    @field_validator("planned_on", "target_date", mode="before", check_fields=False)
     @classmethod
     def parse_date(cls, value: object) -> object:
         return date.fromisoformat(value) if isinstance(value, str) else value
@@ -79,6 +82,7 @@ class TaskList(TaskModel):
     action_id: UUID | None
     owner_user_id: UUID
     revision: int
+    order_revision: int
 
 
 class TaskFields(TaskModel):
@@ -153,7 +157,7 @@ class TaskQuery(SearchPage):
     due_from: AwareDatetime | None = None
     due_before: AwareDatetime | None = None
     deferred_state: Literal["active", "deferred", "all"] | None = None
-    sort: Literal["created", "due", "section"] = "created"
+    sort: Literal["created", "due", "section", "manual"] = "created"
 
     @model_validator(mode="after")
     def validate_filters(self) -> Self:
@@ -163,8 +167,8 @@ class TaskQuery(SearchPage):
             and self.due_from >= self.due_before
         ):
             raise ValueError("dueFrom muss vor dueBefore liegen.")
-        if self.sort == "section" and self.list_id is None:
-            raise ValueError("Abschnittssortierung benötigt listId.")
+        if self.sort in ("section", "manual") and self.list_id is None:
+            raise ValueError("Abschnitts- und manuelle Sortierung benötigen listId.")
         if self.deferred_state is not None and self.include_deferred is not None:
             legacy = "all" if self.include_deferred else "active"
             if self.deferred_state != legacy:
@@ -188,6 +192,7 @@ class TaskLists(TaskModel):
 class Tasks(TaskModel):
     items: list[TaskSummary]
     next_offset: int | None
+    order_revision: int | None
 
 
 class SetTaskPlan(TaskModel):
@@ -218,6 +223,60 @@ class PlannedTask(TaskSummary):
 class TaskPlans(TaskModel):
     items: list[PlannedTask]
     next_offset: int | None
+    order_revision: int
+
+
+class MovePlacement(TaskModel):
+    before: UUID | None = None
+    after: UUID | None = None
+    edge: Literal["start", "end"] | None = None
+
+    @model_validator(mode="after")
+    def validate_target(self) -> Self:
+        if (
+            sum(value is not None for value in (self.before, self.after, self.edge))
+            != 1
+        ):
+            raise ValueError("Genau ein Ziel für die Position ist erforderlich.")
+        return self
+
+
+class MoveTask(TaskModel):
+    idempotency_key: UUID
+    context: Literal["list", "personal"]
+    target_epic_id: UUID | None = None
+    target_date: date | None = None
+    placement: MovePlacement
+    expected_task_revision: int | None = Field(default=None, ge=1)
+    expected_plan_revision: int | None = Field(default=None, ge=0)
+    expected_order_revision: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_context(self) -> Self:
+        if self.context == "list":
+            if (
+                self.expected_task_revision is None
+                or self.expected_plan_revision is not None
+            ):
+                raise ValueError("Listenreihenfolge benötigt nur die Task-Revision.")
+            if self.target_date is not None:
+                raise ValueError("Listenreihenfolge verwendet kein Planungsdatum.")
+        elif (
+            self.expected_plan_revision is None
+            or self.expected_task_revision is not None
+        ):
+            raise ValueError("Persönliche Reihenfolge benötigt nur die Planrevision.")
+        elif self.target_epic_id is not None:
+            raise ValueError("Persönliche Reihenfolge verwendet keinen Abschnitt.")
+        return self
+
+
+class TaskMove(TaskModel):
+    task_id: UUID
+    context: Literal["list", "personal"]
+    order_revision: int
+    task_revision: int | None
+    plan_revision: int | None
 
 
 class CreateEpic(TaskModel):
@@ -331,6 +390,9 @@ class TaskRepository(Protocol):
     async def set_task_plan(
         self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskPlan
     ) -> PersonalPlan: ...
+    async def move_task(
+        self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
+    ) -> TaskMove: ...
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList: ...
@@ -429,6 +491,13 @@ class TaskService:
             actor, task_id, SetTaskPlan.model_validate(command)
         )
 
+    async def move_task(
+        self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
+    ) -> TaskMove:
+        return await self._repository.move_task(
+            actor, task_id, MoveTask.model_validate(command)
+        )
+
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList:
@@ -487,6 +556,9 @@ __all__ = [
     "PlannedTask",
     "SetTaskPlan",
     "TaskPlans",
+    "MovePlacement",
+    "MoveTask",
+    "TaskMove",
     "TaskQuery",
     "TaskLists",
     "Tasks",

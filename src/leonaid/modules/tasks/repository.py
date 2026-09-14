@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from datetime import date
 
 import hashlib
 import json
@@ -40,6 +41,9 @@ from leonaid.modules.tasks.api import (
     TaskQuery,
     PersonalPlan,
     PlannedTask,
+    MovePlacement,
+    MoveTask,
+    TaskMove,
     SetTaskPlan,
     TaskPlans,
     TaskLists,
@@ -52,6 +56,35 @@ from leonaid.modules.tasks.api import (
     TaskList,
 )
 from leonaid.modules.tasks.planning import planning_day
+from leonaid.modules.tasks.ordering import POSITION_STEP, position_between
+
+
+def _target_position(
+    rows: list[tuple[UUID, int]], placement: MovePlacement
+) -> int | None:
+    if placement.edge == "start":
+        index = 0
+    elif placement.edge == "end":
+        index = len(rows)
+    else:
+        target = placement.before or placement.after
+        try:
+            index = next(i for i, row in enumerate(rows) if row[0] == target)
+        except StopIteration as error:
+            raise Conflict(
+                "task_order_target_changed", "Das Ziel hat sich geändert."
+            ) from error
+        if placement.after is not None:
+            index += 1
+    previous = rows[index - 1][1] if index else None
+    following = rows[index][1] if index < len(rows) else None
+    return position_between(previous, following)
+
+
+def _task_data(row: asyncpg.Record) -> dict[str, Any]:
+    data = dict(row)
+    data.pop("manual_position", None)
+    return data
 
 
 # Same read policy for individual objects, lists, search and "for me".
@@ -136,7 +169,7 @@ class AsyncpgTaskRepository:
         write: bool,
     ) -> TaskList:
         row = await conn.fetchrow(
-            f"SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l WHERE l.id=$2 AND {_READ_ACCESS} FOR SHARE OF l",
+            f"SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,l.order_revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l WHERE l.id=$2 AND {_READ_ACCESS} FOR SHARE OF l",
             user_id,
             list_id,
         )
@@ -215,7 +248,7 @@ class AsyncpgTaskRepository:
             await self._active(conn, actor.account.id)
             rows = await conn.fetch(
                 f"""
-                SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l
+                SELECT l.id,l.title,l.action_id,l.owner_user_id,l.revision,l.order_revision,({_WRITE_ACCESS}) AS can_edit FROM task_list l
                 WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR l.action_id=$2)
                     AND strpos(lower(l.title), lower($3)) > 0
                 ORDER BY l.created_at,l.id LIMIT $4 OFFSET $5
@@ -238,12 +271,18 @@ class AsyncpgTaskRepository:
     async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks:
         async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
+            listing = None
             if query.list_id is not None:
-                await self._list(conn, actor.account.id, query.list_id, write=False)
+                listing = await self._list(
+                    conn, actor.account.id, query.list_id, write=False
+                )
             order_by = {
                 "created": "t.created_at,t.id",
                 "due": "(t.due_at IS NULL),t.due_at,t.created_at,t.id",
                 "section": ("(e.id IS NULL),lower(e.title),e.id,t.created_at,t.id"),
+                "manual": (
+                    "(e.id IS NULL),lower(e.title),e.id,t.manual_position,t.created_at,t.id"
+                ),
             }[query.sort]
             rows = await conn.fetch(
                 f"""
@@ -278,11 +317,13 @@ class AsyncpgTaskRepository:
             )
             return Tasks(
                 items=[
-                    TaskSummary.model_validate(dict(row)) for row in rows[: query.limit]
+                    TaskSummary.model_validate(_task_data(row))
+                    for row in rows[: query.limit]
                 ],
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
+                order_revision=listing.order_revision if listing is not None else None,
             )
 
     async def list_task_plans(
@@ -291,6 +332,13 @@ class AsyncpgTaskRepository:
         today, _, end = planning_day(query.time_zone)
         async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
+            order_revision = (
+                await conn.fetchval(
+                    "SELECT revision FROM task_personal_order_state WHERE user_id=$1",
+                    actor.account.id,
+                )
+                or 1
+            )
             rows = await conn.fetch(
                 f"""
                 SELECT t.*,l.title AS list_title,a.name AS action_title,
@@ -315,7 +363,8 @@ class AsyncpgTaskRepository:
                 )
                 ORDER BY
                     (NOT (p.state='scheduled' AND p.planned_on<=$2)),
-                    p.planned_on NULLS LAST,t.due_at NULLS LAST,t.created_at,t.id
+                    p.planned_on NULLS LAST,p.manual_position NULLS LAST,
+                    t.due_at NULLS LAST,t.created_at,t.id
                 LIMIT $5 OFFSET $6
                 """,
                 actor.account.id,
@@ -327,7 +376,7 @@ class AsyncpgTaskRepository:
             )
             items = []
             for row in rows[: query.limit]:
-                data = dict(row)
+                data = _task_data(row)
                 plan_state = data.pop("plan_state")
                 plan_revision = data.pop("plan_revision")
                 personal_plan = (
@@ -350,6 +399,7 @@ class AsyncpgTaskRepository:
                 next_offset=query.offset + query.limit
                 if len(rows) > query.limit and query.offset + query.limit <= 5000
                 else None,
+                order_revision=order_revision,
             )
 
     async def get_task_plan(
@@ -377,6 +427,97 @@ class AsyncpgTaskRepository:
                 )
             )
 
+    async def _lock_personal_order(
+        self, conn: asyncpg.Connection[Any], user_id: UUID
+    ) -> int:
+        await conn.execute(
+            "INSERT INTO task_personal_order_state(user_id) VALUES($1) ON CONFLICT DO NOTHING",
+            user_id,
+        )
+        revision = await conn.fetchval(
+            "SELECT revision FROM task_personal_order_state WHERE user_id=$1 FOR UPDATE",
+            user_id,
+        )
+        assert revision is not None
+        return int(revision)
+
+    async def _list_position(
+        self,
+        conn: asyncpg.Connection[Any],
+        *,
+        list_id: UUID,
+        epic_id: UUID | None,
+        task_id: UUID,
+        placement: MovePlacement,
+    ) -> int:
+        records = await conn.fetch(
+            """
+            SELECT id,manual_position FROM task
+            WHERE list_id=$1 AND epic_id IS NOT DISTINCT FROM $2 AND id<>$3
+            ORDER BY manual_position,created_at,id FOR UPDATE
+            """,
+            list_id,
+            epic_id,
+            task_id,
+        )
+        rows = [(row["id"], row["manual_position"]) for row in records]
+        position = _target_position(rows, placement)
+        if position is not None:
+            return position
+        rows = [
+            (item_id, (index + 1) * POSITION_STEP)
+            for index, (item_id, _) in enumerate(rows)
+        ]
+        await conn.executemany(
+            "UPDATE task SET manual_position=$1 WHERE id=$2",
+            [(position, item_id) for item_id, position in rows],
+        )
+        position = _target_position(rows, placement)
+        assert position is not None
+        return position
+
+    async def _personal_position(
+        self,
+        conn: asyncpg.Connection[Any],
+        *,
+        user_id: UUID,
+        state: str,
+        planned_on: date | None,
+        task_id: UUID,
+        placement: MovePlacement,
+    ) -> int:
+        records = await conn.fetch(
+            f"""
+            SELECT p.task_id AS id,p.manual_position
+            FROM task_personal_plan p
+            JOIN task t ON t.id=p.task_id
+            JOIN task_list l ON l.id=t.list_id
+            WHERE p.user_id=$1 AND p.state=$2
+              AND p.planned_on IS NOT DISTINCT FROM $3::date AND p.task_id<>$4
+              AND {_READ_ACCESS}
+            ORDER BY p.manual_position,t.created_at,t.id FOR UPDATE OF p
+            """,
+            user_id,
+            state,
+            planned_on,
+            task_id,
+        )
+        rows = [(row["id"], row["manual_position"]) for row in records]
+        position = _target_position(rows, placement)
+        if position is not None:
+            return position
+        rows = [
+            (item_id, (index + 1) * POSITION_STEP)
+            for index, (item_id, _) in enumerate(rows)
+        ]
+        await conn.executemany(
+            "UPDATE task_personal_plan SET manual_position=$1 WHERE task_id=$2 AND user_id=$3",
+            [(position, item_id, user_id) for item_id, position in rows],
+        )
+        position = _target_position(rows, placement)
+        assert position is not None
+        return position
+
     async def set_task_plan(
         self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskPlan
     ) -> PersonalPlan:
@@ -399,41 +540,273 @@ class AsyncpgTaskRepository:
             )
             if replay:
                 return PersonalPlan.model_validate_json(replay["document"])
-            if command.expected_revision == 0:
+            await self._lock_personal_order(conn, actor.account.id)
+            current = await conn.fetchrow(
+                """
+                SELECT state,planned_on,manual_position,revision
+                FROM task_personal_plan WHERE task_id=$1 AND user_id=$2 FOR UPDATE
+                """,
+                task_id,
+                actor.account.id,
+            )
+            current_revision = current["revision"] if current is not None else 0
+            if current_revision != command.expected_revision:
+                raise Conflict(
+                    "revision_conflict", "Die persönliche Planung wurde geändert."
+                )
+            group_changed = current is None or (
+                current["state"],
+                current["planned_on"],
+            ) != (command.state, command.planned_on)
+            position = (
+                await conn.fetchval(
+                    """
+                    SELECT coalesce(max(manual_position),0)+$4
+                    FROM task_personal_plan
+                    WHERE user_id=$1 AND state=$2 AND planned_on IS NOT DISTINCT FROM $3
+                    """,
+                    actor.account.id,
+                    command.state,
+                    command.planned_on,
+                    POSITION_STEP,
+                )
+                if group_changed
+                else current["manual_position"]
+            )
+            if current is None:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO task_personal_plan(task_id,user_id,state,planned_on)
-                    VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING
+                    INSERT INTO task_personal_plan(task_id,user_id,state,planned_on,manual_position)
+                    VALUES ($1,$2,$3,$4,$5)
                     RETURNING task_id,state,planned_on,revision
                     """,
                     task_id,
                     actor.account.id,
                     command.state,
                     command.planned_on,
+                    position,
                 )
             else:
                 row = await conn.fetchrow(
                     """
                     UPDATE task_personal_plan SET state=$3,planned_on=$4,
-                        revision=revision+1,updated_at=now()
-                    WHERE task_id=$1 AND user_id=$2 AND revision=$5
+                        manual_position=$5,revision=revision+1,updated_at=now()
+                    WHERE task_id=$1 AND user_id=$2
                     RETURNING task_id,state,planned_on,revision
                     """,
                     task_id,
                     actor.account.id,
                     command.state,
                     command.planned_on,
-                    command.expected_revision,
+                    position,
                 )
-            if row is None:
-                raise Conflict(
-                    "revision_conflict", "Die persönliche Planung wurde geändert."
+            assert row is not None
+            if group_changed:
+                await conn.execute(
+                    "UPDATE task_personal_order_state SET revision=revision+1 WHERE user_id=$1",
+                    actor.account.id,
                 )
             result = PersonalPlan.model_validate(dict(row))
             await self._finish(
                 conn,
                 key=key,
                 operation="tasks.plan.updated",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
+    async def move_task(
+        self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
+    ) -> TaskMove:
+        if command.context == "list":
+            return await self._move_list_task(actor, task_id, command)
+        return await self._move_personal_task(actor, task_id, command)
+
+    async def _move_list_task(
+        self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
+    ) -> TaskMove:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            list_id = await conn.fetchval(
+                "SELECT list_id FROM task WHERE id=$1", task_id
+            )
+            if list_id is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            await conn.fetchval(
+                "SELECT id FROM task_list WHERE id=$1 FOR UPDATE", list_id
+            )
+            task = await conn.fetchrow(
+                "SELECT * FROM task WHERE id=$1 FOR UPDATE", task_id
+            )
+            assert task is not None
+            listing = await self._list(conn, actor.account.id, list_id, write=True)
+            key, replay = await self._receipt(
+                conn, actor.account.id, task_id, "tasks.task.moved", command
+            )
+            if replay:
+                return TaskMove.model_validate_json(replay["document"])
+            if task["revision"] != command.expected_task_revision:
+                raise Conflict("revision_conflict", "Task wurde inzwischen geändert.")
+            if listing.order_revision != command.expected_order_revision:
+                raise Conflict(
+                    "order_revision_conflict",
+                    "Die Reihenfolge wurde inzwischen geändert.",
+                )
+            if command.target_epic_id is not None and not await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM task_epic WHERE id=$1 AND list_id=$2)",
+                command.target_epic_id,
+                list_id,
+            ):
+                raise Conflict(
+                    "task_order_target_changed", "Das Ziel hat sich geändert."
+                )
+            position = await self._list_position(
+                conn,
+                list_id=list_id,
+                epic_id=command.target_epic_id,
+                task_id=task_id,
+                placement=command.placement,
+            )
+            updated = await conn.fetchrow(
+                """
+                UPDATE task SET epic_id=$2,manual_position=$3,
+                    revision=revision+1,updated_at=now()
+                WHERE id=$1 RETURNING revision
+                """,
+                task_id,
+                command.target_epic_id,
+                position,
+            )
+            order_revision = await conn.fetchval(
+                """
+                UPDATE task_list SET order_revision=order_revision+1
+                WHERE id=$1 RETURNING order_revision
+                """,
+                list_id,
+            )
+            assert updated is not None and order_revision is not None
+            result = TaskMove(
+                task_id=task_id,
+                context="list",
+                order_revision=order_revision,
+                task_revision=updated["revision"],
+                plan_revision=None,
+            )
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.task.moved",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
+    async def _move_personal_task(
+        self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
+    ) -> TaskMove:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            task = await conn.fetchrow(
+                "SELECT list_id,status FROM task WHERE id=$1", task_id
+            )
+            if task is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            listing = await self._list(
+                conn, actor.account.id, task["list_id"], write=False
+            )
+            if task["status"] != "open":
+                raise Conflict(
+                    "task_closed", "Nur offene Aufgaben können geplant werden."
+                )
+            key, replay = await self._receipt(
+                conn, actor.account.id, task_id, "tasks.plan.moved", command
+            )
+            if replay:
+                return TaskMove.model_validate_json(replay["document"])
+            current_order = await self._lock_personal_order(conn, actor.account.id)
+            if current_order != command.expected_order_revision:
+                raise Conflict(
+                    "order_revision_conflict",
+                    "Die Reihenfolge wurde inzwischen geändert.",
+                )
+            plan = await conn.fetchrow(
+                """
+                SELECT state,planned_on,revision FROM task_personal_plan
+                WHERE task_id=$1 AND user_id=$2 FOR UPDATE
+                """,
+                task_id,
+                actor.account.id,
+            )
+            plan_revision = plan["revision"] if plan is not None else 0
+            if plan_revision != command.expected_plan_revision:
+                raise Conflict(
+                    "revision_conflict", "Die persönliche Planung wurde geändert."
+                )
+            if command.target_date is not None:
+                state, planned_on = "scheduled", command.target_date
+            elif plan is not None and plan["state"] != "unplanned":
+                state, planned_on = plan["state"], plan["planned_on"]
+            else:
+                raise Conflict(
+                    "task_order_target_changed",
+                    "Für eine ungeplante Aufgabe ist ein Zieldatum erforderlich.",
+                )
+            position = await self._personal_position(
+                conn,
+                user_id=actor.account.id,
+                state=state,
+                planned_on=planned_on,
+                task_id=task_id,
+                placement=command.placement,
+            )
+            if plan is None:
+                updated = await conn.fetchrow(
+                    """
+                    INSERT INTO task_personal_plan(
+                        task_id,user_id,state,planned_on,manual_position
+                    ) VALUES($1,$2,$3,$4,$5) RETURNING revision
+                    """,
+                    task_id,
+                    actor.account.id,
+                    state,
+                    planned_on,
+                    position,
+                )
+            else:
+                updated = await conn.fetchrow(
+                    """
+                    UPDATE task_personal_plan SET state=$3,planned_on=$4,
+                        manual_position=$5,revision=revision+1,updated_at=now()
+                    WHERE task_id=$1 AND user_id=$2 RETURNING revision
+                    """,
+                    task_id,
+                    actor.account.id,
+                    state,
+                    planned_on,
+                    position,
+                )
+            order_revision = await conn.fetchval(
+                """
+                UPDATE task_personal_order_state SET revision=revision+1
+                WHERE user_id=$1 RETURNING revision
+                """,
+                actor.account.id,
+            )
+            assert updated is not None and order_revision is not None
+            result = TaskMove(
+                task_id=task_id,
+                context="personal",
+                order_revision=order_revision,
+                task_revision=None,
+                plan_revision=updated["revision"],
+            )
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.plan.moved",
                 actor=actor.account.id,
                 action_id=listing.action_id,
                 result=result,
@@ -453,7 +826,8 @@ class AsyncpgTaskRepository:
         | UpdateEpic
         | SetListMember
         | SetListMemberByEmail
-        | SetTaskPlan,
+        | SetTaskPlan
+        | MoveTask,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -475,7 +849,7 @@ class AsyncpgTaskRepository:
         operation: str,
         actor: UUID,
         action_id: UUID | None,
-        result: Task | TaskList | Epic | PersonalPlan,
+        result: Task | TaskList | Epic | PersonalPlan | TaskMove,
         details: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
@@ -488,13 +862,16 @@ class AsyncpgTaskRepository:
             actor,
             operation,
             "task_plan"
-            if isinstance(result, PersonalPlan)
+            if isinstance(result, (PersonalPlan, TaskMove))
+            and not (isinstance(result, TaskMove) and result.context == "list")
             else "task_list"
             if isinstance(result, TaskList)
             else "task_epic"
             if isinstance(result, Epic)
             else "task",
-            result.task_id if isinstance(result, PersonalPlan) else result.id,
+            result.task_id
+            if isinstance(result, (PersonalPlan, TaskMove))
+            else result.id,
             key,
             json.dumps(details or {}),
         )
@@ -588,6 +965,9 @@ class AsyncpgTaskRepository:
     ) -> Task:
         async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
+            await conn.fetchval(
+                "SELECT id FROM task_list WHERE id=$1 FOR UPDATE", list_id
+            )
             listing = await self._list(conn, actor.account.id, list_id, write=True)
             key, replay = await self._receipt(
                 conn, actor.account.id, list_id, "tasks.task.created", command
@@ -595,10 +975,21 @@ class AsyncpgTaskRepository:
             if replay:
                 return Task.model_validate_json(replay["document"])
             await self._validate_references(conn, list_id, command)
+            position = await conn.fetchval(
+                """
+                SELECT coalesce(max(manual_position),0)+$3 FROM task
+                WHERE list_id=$1 AND epic_id IS NOT DISTINCT FROM $2
+                """,
+                list_id,
+                command.epic_id,
+                POSITION_STEP,
+            )
             row = await conn.fetchrow(
                 """
-                INSERT INTO task (id,list_id,title,description,epic_id,assignee_user_id,due_at,deferred_until,created_by)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+                INSERT INTO task (
+                    id,list_id,title,description,epic_id,assignee_user_id,
+                    due_at,deferred_until,created_by,manual_position
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
             """,
                 uuid4(),
                 list_id,
@@ -609,9 +1000,14 @@ class AsyncpgTaskRepository:
                 command.due_at,
                 command.deferred_until,
                 actor.account.id,
+                position,
             )
             assert row is not None
-            result = Task.model_validate(dict(row))
+            await conn.execute(
+                "UPDATE task_list SET order_revision=order_revision+1 WHERE id=$1",
+                list_id,
+            )
+            result = Task.model_validate(_task_data(row))
             await self._finish(
                 conn,
                 key=key,
@@ -629,21 +1025,28 @@ class AsyncpgTaskRepository:
             if row is None:
                 raise ResourceNotFound("not_found", "Task nicht gefunden.")
             await self._list(conn, actor.account.id, row["list_id"], write=False)
-            return Task.model_validate(dict(row))
+            return Task.model_validate(_task_data(row))
 
     async def update_task(
         self, actor: IdentityPrincipal, task_id: UUID, command: UpdateTask
     ) -> Task:
         async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
+            list_id = await conn.fetchval(
+                "SELECT list_id FROM task WHERE id=$1", task_id
+            )
+            if list_id is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            # ponytail: one list lock keeps task and ordering revisions deadlock-free;
+            # split locks only if same-list write throughput becomes measurable.
+            await conn.fetchval(
+                "SELECT id FROM task_list WHERE id=$1 FOR UPDATE", list_id
+            )
             row = await conn.fetchrow(
                 "SELECT * FROM task WHERE id=$1 FOR UPDATE", task_id
             )
-            if row is None:
-                raise ResourceNotFound("not_found", "Task nicht gefunden.")
-            listing = await self._list(
-                conn, actor.account.id, row["list_id"], write=True
-            )
+            assert row is not None
+            listing = await self._list(conn, actor.account.id, list_id, write=True)
             key, replay = await self._receipt(
                 conn, actor.account.id, task_id, "tasks.task.updated", command
             )
@@ -651,11 +1054,24 @@ class AsyncpgTaskRepository:
                 return Task.model_validate_json(replay["document"])
             if row["revision"] != command.expected_revision:
                 raise Conflict("revision_conflict", "Task wurde inzwischen geändert.")
-            await self._validate_references(conn, row["list_id"], command)
+            await self._validate_references(conn, list_id, command)
+            epic_changed = row["epic_id"] != command.epic_id
+            position = (
+                await self._list_position(
+                    conn,
+                    list_id=list_id,
+                    epic_id=command.epic_id,
+                    task_id=task_id,
+                    placement=MovePlacement(edge="end"),
+                )
+                if epic_changed
+                else row["manual_position"]
+            )
             updated = await conn.fetchrow(
                 """
                 UPDATE task SET title=$2,description=$3,epic_id=$4,assignee_user_id=$5,due_at=$6,
-                    deferred_until=$7,status=$8,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *
+                    deferred_until=$7,status=$8,manual_position=$9,
+                    revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *
             """,
                 task_id,
                 command.title,
@@ -665,9 +1081,15 @@ class AsyncpgTaskRepository:
                 command.due_at,
                 command.deferred_until,
                 command.status,
+                position,
             )
             assert updated is not None
-            result = Task.model_validate(dict(updated))
+            if epic_changed:
+                await conn.execute(
+                    "UPDATE task_list SET order_revision=order_revision+1 WHERE id=$1",
+                    list_id,
+                )
+            result = Task.model_validate(_task_data(updated))
             await self._finish(
                 conn,
                 key=key,

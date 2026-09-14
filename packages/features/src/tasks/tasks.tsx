@@ -1,18 +1,45 @@
 import {
   Add01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  Calendar03Icon,
+  DragDropIcon,
   FolderOpenIcon,
   MoreHorizontalIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Fragment, useEffect, useRef, useState } from "react";
-import { ApiError, type PlannedTask } from "@leonaid/api-client";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ApiError,
+  type MovePlacement,
+  type MoveTask,
+  type PlannedTask,
+  type TaskSummary,
+} from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import { ListMembersPanel } from "./list-members";
@@ -40,7 +67,9 @@ type TaskView =
   | "plan-planned"
   | "plan-someday";
 type TaskScope = "mine" | "all";
-type TaskSort = "created" | "due" | "section";
+type TaskSort = "created" | "due" | "section" | "manual";
+type ListedTask = TaskSummary | PlannedTask;
+type MoveAttempt = { taskId: string; title: string; body: MoveTask };
 
 const taskViews = new Set<TaskView>([
   "open",
@@ -52,7 +81,7 @@ const taskViews = new Set<TaskView>([
   "plan-planned",
   "plan-someday",
 ]);
-const taskSorts = new Set<TaskSort>(["created", "due", "section"]);
+const taskSorts = new Set<TaskSort>(["created", "due", "section", "manual"]);
 
 function calendarBoundary(daysFromToday: number) {
   const now = new Date();
@@ -113,6 +142,63 @@ function calendarDate(value: string) {
 
 function isPlannedTask(value: object): value is PlannedTask {
   return "personalPlan" in value && "planSource" in value;
+}
+
+function localToday() {
+  const now = new Date();
+  const part = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${part(now.getMonth() + 1)}-${part(now.getDate())}`;
+}
+
+function closeTaskMenu(element: Element) {
+  element.closest("details")?.removeAttribute("open");
+}
+
+function SortableTaskRow({
+  task,
+  movable,
+  disabled,
+  children,
+}: {
+  task: ListedTask;
+  movable: boolean;
+  disabled: boolean;
+  children: (handle: ReactNode) => ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, disabled: !movable || disabled });
+  const handle = movable ? (
+    <button
+      {...attributes}
+      {...listeners}
+      ref={setActivatorNodeRef}
+      className="task-order-handle"
+      id={`task-move-${task.id}`}
+      type="button"
+      disabled={disabled}
+      aria-label={`Aufgabe verschieben: ${task.title}`}
+      title="Ziehen oder mit Leertaste und Pfeiltasten verschieben"
+    >
+      <HugeiconsIcon icon={DragDropIcon} size={18} aria-hidden="true" />
+    </button>
+  ) : null;
+  return (
+    <li
+      ref={setNodeRef}
+      className={`task-row${movable ? " task-row--sortable" : ""}${isDragging ? " task-row--dragging" : ""}`}
+      data-task-id={task.id}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      {children(handle)}
+    </li>
+  );
 }
 
 function taskLocation(defaultScope: TaskScope = "mine") {
@@ -318,6 +404,15 @@ export function TasksPage({
   listId,
 }: ModulePageContext & { basePath: string; listId?: string }) {
   const cache = useQueryClient();
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
   const initialLocation = useRef(taskLocation(listId ? "all" : "mine")).current;
   const initialPersonalView = !listId && !!planView(initialLocation.view);
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -360,9 +455,11 @@ export function TasksPage({
     listId && planView(initialLocation.view) ? "open" : initialLocation.view,
   );
   const [sort, setSort] = useState<TaskSort>(
-    initialPersonalView || (initialLocation.sort === "section" && !listId)
-      ? "created"
-      : initialLocation.sort,
+    initialPersonalView
+      ? "manual"
+      : !listId && ["section", "manual"].includes(initialLocation.sort)
+        ? "created"
+        : initialLocation.sort,
   );
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set(),
@@ -385,6 +482,12 @@ export function TasksPage({
     queryKey: ["task-list", listId],
     queryFn: () => client.getTaskList(listId!),
     enabled: !!listId,
+  });
+  const epics = useQuery({
+    queryKey: ["task-epics", listId, "ordering"],
+    queryFn: () => client.listTaskEpics(listId!, { limit: 100 }),
+    enabled: !!listId && sort === "manual" && !!selected.data?.canEdit,
+    retry: false,
   });
   const updateUrl = (
     values: Partial<{
@@ -468,9 +571,11 @@ export function TasksPage({
       setForMe(personal || location.scope === "mine");
       setStatus(view);
       setSort(
-        personal || (location.sort === "section" && !listId)
-          ? "created"
-          : location.sort,
+        personal
+          ? "manual"
+          : !listId && ["section", "manual"].includes(location.sort)
+            ? "created"
+            : location.sort,
       );
       setSearch(personal ? "" : location.search);
       setDetailTaskId(location.taskId);
@@ -531,6 +636,106 @@ export function TasksPage({
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     retry: false,
   });
+  const taskItems = tasks.data?.pages.flatMap((page) => page.items) ?? [];
+  const orderRevision = tasks.data?.pages[0]?.orderRevision;
+  const canMove = (task: ListedTask) =>
+    personalView
+      ? isPlannedTask(task) && task.personalPlan !== null
+      : !!listId && sort === "manual" && task.canEdit;
+  const movableTasks = taskItems.filter(canMove);
+  const movableTaskIds = movableTasks.map((task) => task.id);
+  const [moveMessage, setMoveMessage] = useState("");
+  const moveFocus = useRef<string | null>(null);
+  const reorder = useMutation({
+    mutationFn: (attempt: MoveAttempt) =>
+      client.moveTask(attempt.taskId, attempt.body),
+    onSuccess: async (_result, attempt) => {
+      setMoveMessage(`Aufgabe „${attempt.title}“ wurde verschoben.`);
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: ["tasks"] }),
+        ...(listId
+          ? [cache.invalidateQueries({ queryKey: ["task-list", listId] })]
+          : []),
+      ]);
+      requestAnimationFrame(() => {
+        (
+          document.getElementById(`task-move-${moveFocus.current}`) ??
+          document.getElementById("tasks-heading")
+        )?.focus();
+        moveFocus.current = null;
+      });
+    },
+  });
+  const submitMove = (
+    task: ListedTask,
+    placement: MovePlacement,
+    options: {
+      target?: ListedTask;
+      targetEpicId?: string | null;
+      targetDate?: string;
+    } = {},
+  ) => {
+    if (orderRevision == null || !canMove(task)) return;
+    const plan = isPlannedTask(task) ? task.personalPlan : null;
+    const targetPlan =
+      options.target && isPlannedTask(options.target)
+        ? options.target.personalPlan
+        : null;
+    moveFocus.current = task.id;
+    setMoveMessage(`Aufgabe „${task.title}“ wird verschoben.`);
+    reorder.mutate({
+      taskId: task.id,
+      title: task.title,
+      body: personalView
+        ? {
+            context: "personal",
+            expectedOrderRevision: orderRevision,
+            expectedPlanRevision: plan!.revision,
+            idempotencyKey: crypto.randomUUID(),
+            placement,
+            targetDate:
+              options.targetDate ?? targetPlan?.plannedOn ?? plan?.plannedOn,
+          }
+        : {
+            context: "list",
+            expectedOrderRevision: orderRevision,
+            expectedTaskRevision: task.revision,
+            idempotencyKey: crypto.randomUUID(),
+            placement,
+            targetEpicId:
+              options.targetEpicId !== undefined
+                ? options.targetEpicId
+                : (options.target?.epicId ?? task.epicId ?? null),
+          },
+    });
+  };
+  const finishDrag = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id || reorder.isPending) return;
+    const from = movableTaskIds.indexOf(String(active.id));
+    const to = movableTaskIds.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    submitMove(
+      movableTasks[from]!,
+      from < to ? { after: String(over.id) } : { before: String(over.id) },
+      { target: movableTasks[to] },
+    );
+  };
+  const reloadOrder = async () => {
+    const taskId = moveFocus.current;
+    await Promise.all([
+      tasks.refetch(),
+      ...(listId ? [selected.refetch()] : []),
+    ]);
+    reorder.reset();
+    setMoveMessage("Reihenfolge neu geladen.");
+    requestAnimationFrame(() => {
+      (
+        document.getElementById(`task-move-${taskId}`) ??
+        document.getElementById("tasks-heading")
+      )?.focus();
+      moveFocus.current = null;
+    });
+  };
   const create = useMutation({
     mutationFn: () =>
       client.createTaskList({
@@ -639,8 +844,8 @@ export function TasksPage({
   const statusDenied =
     changeStatus.error instanceof ApiError &&
     [401, 403, 404].includes(changeStatus.error.status);
-  const error = create.error ?? selected.error ?? lists.error ?? tasks.error;
-  const taskItems = tasks.data?.pages.flatMap((page) => page.items) ?? [];
+  const error =
+    create.error ?? selected.error ?? lists.error ?? tasks.error ?? epics.error;
   const detailTask = editing !== "new" ? (editing ?? target.data) : undefined;
   const detailCanEdit = editing ? editingCanEdit : targetList.data?.canEdit;
   return (
@@ -932,6 +1137,43 @@ export function TasksPage({
           ) : changeStatus.isPending ? (
             <p role="status">Status wird gespeichert …</p>
           ) : null}
+          {reorder.error && (
+            <StatusMessage tone="error">
+              <p>
+                {reorder.error instanceof ApiError &&
+                reorder.error.status === 409
+                  ? "Die Reihenfolge wurde inzwischen geändert. Lade sie neu; die Bewegung wurde nicht übernommen."
+                  : reorder.error instanceof ApiError &&
+                      [401, 403, 404].includes(reorder.error.status)
+                    ? "Du darfst diese Reihenfolge nicht mehr ändern. Lade die Aufgaben neu."
+                    : "Der Speicherstatus der Bewegung ist unklar. Wiederhole denselben Vorgang oder lade die Reihenfolge neu."}
+              </p>
+              {!(
+                reorder.error instanceof ApiError &&
+                [401, 403, 404, 409].includes(reorder.error.status)
+              ) &&
+                reorder.variables && (
+                  <Button
+                    variant="secondary"
+                    disabled={reorder.isPending}
+                    onClick={() => reorder.mutate(reorder.variables!)}
+                  >
+                    Erneut versuchen
+                  </Button>
+                )}
+              <Button
+                id="task-order-reload"
+                variant="secondary"
+                disabled={reorder.isPending}
+                onClick={() => void reloadOrder()}
+              >
+                Neu laden
+              </Button>
+            </StatusMessage>
+          )}
+          <p className="sr-only" role="status" aria-live="polite">
+            {moveMessage}
+          </p>
           <div className="tasks-filters">
             <label className="tasks-filter-scope">
               Bereich
@@ -958,13 +1200,16 @@ export function TasksPage({
                   if (planView(view)) {
                     setForMe(true);
                     setSearch("");
-                    setSort("created");
+                    setSort("manual");
                     updateUrl({
                       view,
                       scope: "mine",
                       search: "",
-                      sort: "created",
+                      sort: "manual",
                     });
+                  } else if (!listId && sort === "manual") {
+                    setSort("created");
+                    updateUrl({ view, sort: "created" });
                   } else {
                     updateUrl({ view });
                   }
@@ -1009,6 +1254,9 @@ export function TasksPage({
                 <option value="created">Erstellreihenfolge</option>
                 <option value="due">Fälligkeit</option>
                 {listId && <option value="section">Abschnitte</option>}
+                {(listId || personalView) && (
+                  <option value="manual">Manuell</option>
+                )}
               </select>
             </label>
           </div>
@@ -1035,204 +1283,429 @@ export function TasksPage({
                               : "Keine offenen Aufgaben für diese Auswahl."}
             </p>
           ) : (
-            <ul className="tasks-results">
-              {taskItems.map((task, index) => {
-                const planningTask = isPlannedTask(task) ? task : null;
-                const planned = planningTask?.personalPlan;
-                const planSource = planningTask?.planSource;
-                const previousTask = taskItems[index - 1];
-                const previousPlan =
-                  previousTask && isPlannedTask(previousTask)
-                    ? previousTask
-                    : null;
-                const sectionId =
-                  status === "plan-today"
-                    ? (planSource ?? "planned")
-                    : status === "plan-planned"
-                      ? (planned?.plannedOn ?? "planned")
-                      : (task.epicId ?? "unassigned");
-                const previousSectionId =
-                  index === 0
-                    ? null
-                    : status === "plan-today"
-                      ? (previousPlan?.planSource ?? "planned")
-                      : status === "plan-planned"
-                        ? (previousPlan?.personalPlan?.plannedOn ?? "planned")
-                        : (taskItems[index - 1]?.epicId ?? "unassigned");
-                const startsSection =
-                  (sort === "section" ||
-                    status === "plan-today" ||
-                    status === "plan-planned") &&
-                  sectionId !== previousSectionId;
-                const collapsed = collapsedSections.has(sectionId);
-                return (
-                  <Fragment key={task.id}>
-                    {startsSection && (
-                      <li
-                        className="task-section-heading"
-                        data-section-id={sectionId}
-                      >
-                        <button
-                          type="button"
-                          aria-expanded={!collapsed}
-                          onClick={() =>
-                            setCollapsedSections((current) => {
-                              const next = new Set(current);
-                              if (next.has(sectionId)) next.delete(sectionId);
-                              else next.add(sectionId);
-                              return next;
-                            })
-                          }
-                        >
-                          <span
-                            className="task-section-chevron"
-                            aria-hidden="true"
-                          />
-                          <h2>
-                            {status === "plan-today"
-                              ? planSource === "due"
-                                ? "Heute fällig / Überfällig"
-                                : "Persönlich geplant"
-                              : status === "plan-planned" && planned?.plannedOn
-                                ? calendarDate(planned.plannedOn)
-                                : (task.epicTitle ?? "Ohne Abschnitt")}
-                          </h2>
-                        </button>
-                      </li>
-                    )}
-                    {!collapsed && (
-                      <li className="task-row">
-                        {task.canEdit ? (
-                          <input
-                            className="task-complete"
-                            id={`task-complete-${task.id}`}
-                            type="checkbox"
-                            aria-label={`${task.status === "done" ? "Aufgabe wieder öffnen" : "Aufgabe abschließen"}: ${task.title}`}
-                            checked={task.status === "done"}
-                            disabled={
-                              changeStatus.isPending ||
-                              !!changeStatus.error ||
-                              !!editing
-                            }
-                            onChange={(event) =>
-                              submitStatus(
-                                {
-                                  task,
-                                  status:
-                                    task.status === "done" ? "open" : "done",
-                                  idempotencyKey: crypto.randomUUID(),
-                                  undo: false,
-                                },
-                                event.currentTarget,
-                              )
-                            }
-                          />
-                        ) : (
-                          <span className="task-read-status">
-                            {task.status === "done" ? "Erledigt" : "Offen"}
-                          </span>
-                        )}
-                        <div className="task-row-body">
-                          <h2 aria-label={task.title}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={finishDrag}
+              onDragCancel={() => setMoveMessage("Verschieben abgebrochen.")}
+              accessibility={{
+                screenReaderInstructions: {
+                  draggable:
+                    "Zum Verschieben Leertaste drücken, mit den Pfeiltasten bewegen und mit Leertaste ablegen. Escape bricht ab.",
+                },
+                announcements: {
+                  onDragStart: () => "Aufgabe aufgenommen.",
+                  onDragOver: ({ over }) =>
+                    over ? "Neue Position gewählt." : "Kein Ziel gewählt.",
+                  onDragEnd: ({ over }) =>
+                    over ? "Aufgabe abgelegt." : "Verschieben abgebrochen.",
+                  onDragCancel: () => "Verschieben abgebrochen.",
+                },
+              }}
+            >
+              <SortableContext
+                items={movableTaskIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="tasks-results">
+                  {taskItems.map((task, index) => {
+                    const planningTask = isPlannedTask(task) ? task : null;
+                    const planned = planningTask?.personalPlan;
+                    const planSource = planningTask?.planSource;
+                    const previousTask = taskItems[index - 1];
+                    const previousPlan =
+                      previousTask && isPlannedTask(previousTask)
+                        ? previousTask
+                        : null;
+                    const sectionId =
+                      status === "plan-today"
+                        ? (planSource ?? "planned")
+                        : status === "plan-planned"
+                          ? (planned?.plannedOn ?? "planned")
+                          : (task.epicId ?? "unassigned");
+                    const previousSectionId =
+                      index === 0
+                        ? null
+                        : status === "plan-today"
+                          ? (previousPlan?.planSource ?? "planned")
+                          : status === "plan-planned"
+                            ? (previousPlan?.personalPlan?.plannedOn ??
+                              "planned")
+                            : (taskItems[index - 1]?.epicId ?? "unassigned");
+                    const startsSection =
+                      (sort === "section" ||
+                        sort === "manual" ||
+                        status === "plan-today" ||
+                        status === "plan-planned") &&
+                      sectionId !== previousSectionId;
+                    const collapsed = collapsedSections.has(sectionId);
+                    const movable = canMove(task);
+                    const movableIndex = movableTaskIds.indexOf(task.id);
+                    const previousMovable = movableTasks[movableIndex - 1];
+                    const nextMovable = movableTasks[movableIndex + 1];
+                    return (
+                      <Fragment key={task.id}>
+                        {startsSection && (
+                          <li
+                            className="task-section-heading"
+                            data-section-id={sectionId}
+                          >
                             <button
-                              className="task-title"
-                              id={`task-open-${task.id}`}
-                              aria-label={task.title}
-                              aria-describedby={`task-metadata-${task.id}`}
-                              disabled={!!editing || changeStatus.isPending}
-                              onClick={(event) =>
-                                openTask(
-                                  task,
-                                  task.canEdit,
-                                  event.currentTarget,
-                                )
+                              type="button"
+                              aria-expanded={!collapsed}
+                              onClick={() =>
+                                setCollapsedSections((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(sectionId))
+                                    next.delete(sectionId);
+                                  else next.add(sectionId);
+                                  return next;
+                                })
                               }
                             >
-                              <span className="task-title-text">
-                                {task.title}
-                              </span>
                               <span
-                                className="task-metadata"
-                                id={`task-metadata-${task.id}`}
-                              >
-                                {!listId && <span>{task.listTitle}</span>}
-                                {!listId && task.actionTitle && (
-                                  <span>{task.actionTitle}</span>
-                                )}
-                                <span>
-                                  {task.assigneeName ?? "Nicht zugewiesen"}
-                                </span>
-                                {task.epicTitle && (
-                                  <span>{task.epicTitle}</span>
-                                )}
-                                {task.canEdit && task.status === "done" && (
-                                  <span>Erledigt</span>
-                                )}
-                                {task.dueAt && (
-                                  <span>
-                                    Fällig{" "}
-                                    <time dateTime={task.dueAt}>
-                                      {date(task.dueAt)}
-                                    </time>
-                                  </span>
-                                )}
-                                {task.deferredUntil && (
-                                  <span>
-                                    Zurückgestellt bis{" "}
-                                    <time dateTime={task.deferredUntil}>
-                                      {date(task.deferredUntil)}
-                                    </time>
-                                  </span>
-                                )}
-                                {planned?.plannedOn && (
-                                  <span>
-                                    Persönlich geplant für{" "}
-                                    <time dateTime={planned.plannedOn}>
-                                      {calendarDate(planned.plannedOn)}
-                                    </time>
-                                  </span>
-                                )}
-                                {planned?.state === "someday" && (
-                                  <span>Persönlich: Irgendwann</span>
-                                )}
-                                {planSource === "due" && (
-                                  <span>Fälligkeitshinweis</span>
-                                )}
-                              </span>
+                                className="task-section-chevron"
+                                aria-hidden="true"
+                              />
+                              <h2>
+                                {status === "plan-today"
+                                  ? planSource === "due"
+                                    ? "Heute fällig / Überfällig"
+                                    : "Persönlich geplant"
+                                  : status === "plan-planned" &&
+                                      planned?.plannedOn
+                                    ? calendarDate(planned.plannedOn)
+                                    : (task.epicTitle ?? "Ohne Abschnitt")}
+                              </h2>
                             </button>
-                          </h2>
-                        </div>
-                        <details className="task-row-menu">
-                          <summary aria-label={`Aktionen für ${task.title}`}>
-                            <HugeiconsIcon
-                              icon={MoreHorizontalIcon}
-                              size={20}
-                              aria-hidden="true"
-                            />
-                          </summary>
-                          <div>
-                            {" "}
-                            <Button
-                              variant="secondary"
-                              disabled={!!editing || changeStatus.isPending}
-                              onClick={(event) =>
-                                openTask(
-                                  task,
-                                  task.canEdit,
-                                  event.currentTarget,
-                                )
-                              }
-                            >
-                              {task.canEdit ? "Bearbeiten" : "Details"}
-                            </Button>
-                          </div>
-                        </details>
-                      </li>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </ul>
+                          </li>
+                        )}
+                        {!collapsed && (
+                          <SortableTaskRow
+                            task={task}
+                            movable={movable}
+                            disabled={reorder.isPending || !!reorder.error}
+                          >
+                            {(handle) => (
+                              <>
+                                {task.canEdit ? (
+                                  <input
+                                    className="task-complete"
+                                    id={`task-complete-${task.id}`}
+                                    type="checkbox"
+                                    aria-label={`${task.status === "done" ? "Aufgabe wieder öffnen" : "Aufgabe abschließen"}: ${task.title}`}
+                                    checked={task.status === "done"}
+                                    disabled={
+                                      changeStatus.isPending ||
+                                      !!changeStatus.error ||
+                                      !!editing
+                                    }
+                                    onChange={(event) =>
+                                      submitStatus(
+                                        {
+                                          task,
+                                          status:
+                                            task.status === "done"
+                                              ? "open"
+                                              : "done",
+                                          idempotencyKey: crypto.randomUUID(),
+                                          undo: false,
+                                        },
+                                        event.currentTarget,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <span className="task-read-status">
+                                    {task.status === "done"
+                                      ? "Erledigt"
+                                      : "Offen"}
+                                  </span>
+                                )}
+                                <div className="task-row-body">
+                                  <h2 aria-label={task.title}>
+                                    <button
+                                      className="task-title"
+                                      id={`task-open-${task.id}`}
+                                      aria-label={task.title}
+                                      aria-describedby={`task-metadata-${task.id}`}
+                                      disabled={
+                                        !!editing || changeStatus.isPending
+                                      }
+                                      onClick={(event) => {
+                                        closeTaskMenu(event.currentTarget);
+                                        openTask(
+                                          task,
+                                          task.canEdit,
+                                          event.currentTarget,
+                                        );
+                                      }}
+                                    >
+                                      <span className="task-title-text">
+                                        {task.title}
+                                      </span>
+                                      <span
+                                        className="task-metadata"
+                                        id={`task-metadata-${task.id}`}
+                                      >
+                                        {!listId && (
+                                          <span>{task.listTitle}</span>
+                                        )}
+                                        {!listId && task.actionTitle && (
+                                          <span>{task.actionTitle}</span>
+                                        )}
+                                        <span>
+                                          {task.assigneeName ??
+                                            "Nicht zugewiesen"}
+                                        </span>
+                                        {task.epicTitle && (
+                                          <span>{task.epicTitle}</span>
+                                        )}
+                                        {task.canEdit &&
+                                          task.status === "done" && (
+                                            <span>Erledigt</span>
+                                          )}
+                                        {task.dueAt && (
+                                          <span>
+                                            Fällig{" "}
+                                            <time dateTime={task.dueAt}>
+                                              {date(task.dueAt)}
+                                            </time>
+                                          </span>
+                                        )}
+                                        {task.deferredUntil && (
+                                          <span>
+                                            Zurückgestellt bis{" "}
+                                            <time dateTime={task.deferredUntil}>
+                                              {date(task.deferredUntil)}
+                                            </time>
+                                          </span>
+                                        )}
+                                        {planned?.plannedOn && (
+                                          <span>
+                                            Persönlich geplant für{" "}
+                                            <time dateTime={planned.plannedOn}>
+                                              {calendarDate(planned.plannedOn)}
+                                            </time>
+                                          </span>
+                                        )}
+                                        {planned?.state === "someday" && (
+                                          <span>Persönlich: Irgendwann</span>
+                                        )}
+                                        {planSource === "due" && (
+                                          <span>Fälligkeitshinweis</span>
+                                        )}
+                                      </span>
+                                    </button>
+                                  </h2>
+                                </div>
+                                {handle}
+                                <details className="task-row-menu">
+                                  <summary
+                                    aria-label={`Aktionen für ${task.title}`}
+                                  >
+                                    <HugeiconsIcon
+                                      icon={MoreHorizontalIcon}
+                                      size={20}
+                                      aria-hidden="true"
+                                    />
+                                  </summary>
+                                  <div>
+                                    <Button
+                                      variant="secondary"
+                                      disabled={
+                                        !!editing || changeStatus.isPending
+                                      }
+                                      onClick={(event) =>
+                                        openTask(
+                                          task,
+                                          task.canEdit,
+                                          event.currentTarget,
+                                        )
+                                      }
+                                    >
+                                      {task.canEdit ? "Bearbeiten" : "Details"}
+                                    </Button>
+                                    {movable && (
+                                      <>
+                                        <div
+                                          className="task-menu-directions"
+                                          aria-label="Reihenfolge ändern"
+                                        >
+                                          <button
+                                            type="button"
+                                            className="task-menu-action"
+                                            disabled={
+                                              !previousMovable ||
+                                              reorder.isPending
+                                            }
+                                            onClick={(event) => {
+                                              closeTaskMenu(
+                                                event.currentTarget,
+                                              );
+                                              if (previousMovable)
+                                                submitMove(
+                                                  task,
+                                                  {
+                                                    before: previousMovable.id,
+                                                  },
+                                                  { target: previousMovable },
+                                                );
+                                            }}
+                                          >
+                                            <HugeiconsIcon
+                                              icon={ArrowUp01Icon}
+                                              size={18}
+                                              aria-hidden="true"
+                                            />
+                                            Nach oben
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="task-menu-action"
+                                            disabled={
+                                              !nextMovable || reorder.isPending
+                                            }
+                                            onClick={(event) => {
+                                              closeTaskMenu(
+                                                event.currentTarget,
+                                              );
+                                              if (nextMovable)
+                                                submitMove(
+                                                  task,
+                                                  { after: nextMovable.id },
+                                                  { target: nextMovable },
+                                                );
+                                            }}
+                                          >
+                                            <HugeiconsIcon
+                                              icon={ArrowDown01Icon}
+                                              size={18}
+                                              aria-hidden="true"
+                                            />
+                                            Nach unten
+                                          </button>
+                                        </div>
+                                        {!personalView && listId && (
+                                          <form
+                                            className="task-menu-move"
+                                            onSubmit={(event) => {
+                                              event.preventDefault();
+                                              closeTaskMenu(
+                                                event.currentTarget,
+                                              );
+                                              const value = String(
+                                                new FormData(
+                                                  event.currentTarget,
+                                                ).get("epic") ?? "",
+                                              );
+                                              submitMove(
+                                                task,
+                                                { edge: "end" },
+                                                { targetEpicId: value || null },
+                                              );
+                                            }}
+                                          >
+                                            <label>
+                                              In Abschnitt
+                                              <select
+                                                name="epic"
+                                                defaultValue={task.epicId ?? ""}
+                                                disabled={epics.isPending}
+                                              >
+                                                <option value="">
+                                                  Ohne Abschnitt
+                                                </option>
+                                                {epics.data?.items.map(
+                                                  (epic) => (
+                                                    <option
+                                                      key={epic.id}
+                                                      value={epic.id}
+                                                    >
+                                                      {epic.title}
+                                                    </option>
+                                                  ),
+                                                )}
+                                              </select>
+                                            </label>
+                                            <button
+                                              type="submit"
+                                              className="task-menu-action"
+                                              disabled={
+                                                reorder.isPending ||
+                                                epics.isPending
+                                              }
+                                            >
+                                              <HugeiconsIcon
+                                                icon={FolderOpenIcon}
+                                                size={18}
+                                                aria-hidden="true"
+                                              />
+                                              Verschieben
+                                            </button>
+                                          </form>
+                                        )}
+                                        {personalView && planned && (
+                                          <form
+                                            className="task-menu-move"
+                                            onSubmit={(event) => {
+                                              event.preventDefault();
+                                              closeTaskMenu(
+                                                event.currentTarget,
+                                              );
+                                              const targetDate = String(
+                                                new FormData(
+                                                  event.currentTarget,
+                                                ).get("plannedOn") ?? "",
+                                              );
+                                              if (targetDate)
+                                                submitMove(
+                                                  task,
+                                                  { edge: "end" },
+                                                  { targetDate },
+                                                );
+                                            }}
+                                          >
+                                            <label>
+                                              Für Tag planen
+                                              <input
+                                                name="plannedOn"
+                                                type="date"
+                                                required
+                                                defaultValue={
+                                                  planned.plannedOn ??
+                                                  localToday()
+                                                }
+                                              />
+                                            </label>
+                                            <button
+                                              type="submit"
+                                              className="task-menu-action"
+                                              disabled={reorder.isPending}
+                                            >
+                                              <HugeiconsIcon
+                                                icon={Calendar03Icon}
+                                                size={18}
+                                                aria-hidden="true"
+                                              />
+                                              Planen
+                                            </button>
+                                          </form>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </details>
+                              </>
+                            )}
+                          </SortableTaskRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </ul>
+              </SortableContext>
+            </DndContext>
           )}
           {tasks.hasNextPage && (
             <div className="tasks-paging">

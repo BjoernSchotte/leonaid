@@ -186,6 +186,8 @@ export type MemberDirectoryMembershipResponse = { readonly actionId: string; rea
 export type MemberDirectoryResponse = { readonly actions: Array<MemberDirectoryActionResponse>; readonly items: Array<MemberDirectoryMemberResponse>; readonly nextCursor: string | null; readonly partial: boolean; readonly total: number; };
 export type MemberRoleChangeResponse = { readonly actionId: string | null; readonly actionName: string | null; readonly enabled: boolean; readonly replayed: boolean; readonly revision: number; readonly role: "system_admin" | "finance_reader" | "finance_manager" | "charity_admin" | "acquirer" | "driver"; readonly roleLabel: string; readonly scope: "global" | "action"; readonly userId: string; };
 export type MemberStatusChangeResponse = { readonly displayName: string; readonly previousStatus: "active" | "suspended"; readonly previousStatusLabel: string; readonly replayed: boolean; readonly revision: number; readonly revokedSessionCount: number; readonly status: "active" | "suspended" | "archived"; readonly statusLabel: string; readonly userId: string; };
+export type MovePlacement = { readonly after?: string | null; readonly before?: string | null; readonly edge?: "start" | "end" | null; };
+export type MoveTask = { readonly context: "list" | "personal"; readonly expectedOrderRevision: number; readonly expectedPlanRevision?: number | null; readonly expectedTaskRevision?: number | null; readonly idempotencyKey: string; readonly placement: MovePlacement; readonly targetDate?: string | null; readonly targetEpicId?: string | null; };
 export type Mutation = { readonly expectedRevision: number; readonly operationId: string; };
 export type NavigationItemResponse = { readonly href: string; readonly key: string; readonly label: string; readonly surface: "web" | "pwa"; };
 export type OperationalAlertResponse = { readonly category: string; readonly name: string; readonly runbookUrl: string; readonly severity: "P0" | "P1" | "P2"; readonly summary: string; };
@@ -297,13 +299,14 @@ export type SurveyTimeoutSettings = { readonly expectedRevision: number; readonl
 export type SurveyVersionResponse = { readonly capabilityProfile: string; readonly definition: Record<string, unknown>; readonly id: string; readonly number: number; readonly publishedAt: string; readonly rendererVersion: string; readonly surveyId: string; };
 export type Task = { readonly assigneeUserId?: string | null; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly id: string; readonly listId: string; readonly revision: number; readonly status: "open" | "done"; readonly title: string; readonly updatedAt: string; };
 export type TaskFromPage = { readonly page: Page; readonly task: Task; };
-export type TaskList = { readonly actionId: string | null; readonly canEdit: boolean; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
+export type TaskList = { readonly actionId: string | null; readonly canEdit: boolean; readonly id: string; readonly orderRevision: number; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type TaskLists = { readonly items: Array<TaskList>; readonly nextOffset: number | null; };
-export type TaskPlans = { readonly items: Array<PlannedTask>; readonly nextOffset: number | null; };
+export type TaskMove = { readonly context: "list" | "personal"; readonly orderRevision: number; readonly planRevision: number | null; readonly taskId: string; readonly taskRevision: number | null; };
+export type TaskPlans = { readonly items: Array<PlannedTask>; readonly nextOffset: number | null; readonly orderRevision: number; };
 export type TaskReference = { readonly task: Task | null; readonly taskId: string; };
 export type TaskReferences = { readonly items: Array<TaskReference>; };
 export type TaskSummary = { readonly actionTitle: string | null; readonly assigneeName: string | null; readonly assigneeUserId?: string | null; readonly canEdit: boolean; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly epicTitle: string | null; readonly id: string; readonly listId: string; readonly listTitle: string; readonly revision: number; readonly status: "open" | "done"; readonly title: string; readonly updatedAt: string; };
-export type Tasks = { readonly items: Array<TaskSummary>; readonly nextOffset: number | null; };
+export type Tasks = { readonly items: Array<TaskSummary>; readonly nextOffset: number | null; readonly orderRevision: number | null; };
 export type TimeoutSettings = { readonly endedRetentionSeconds?: number | null; readonly expectedRevision: number; readonly inactivityTimeoutSeconds: number; readonly operationId: string; readonly trashRetentionSeconds?: number | null; };
 export type TimeoutSettingsResponse = { readonly endedRetentionSeconds?: number | null; readonly inactivityTimeoutSeconds: number; readonly revision: number; readonly trashRetentionSeconds?: number | null; };
 export type Transition = { readonly action: "end" | "archive" | "unarchive" | "trash" | "restore"; readonly expectedRevision: number; readonly operationId: string; };
@@ -3228,7 +3231,7 @@ export class LeonAidApiClient {
   }
 
   async listTasks(
-    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly listId?: string | null; readonly forMe?: boolean; readonly status?: "open" | "done" | null; readonly includeDeferred?: boolean | null; readonly dueFrom?: string | null; readonly dueBefore?: string | null; readonly deferredState?: "active" | "deferred" | "all" | null; readonly sort?: "created" | "due" | "section"; } = {},
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly listId?: string | null; readonly forMe?: boolean; readonly status?: "open" | "done" | null; readonly includeDeferred?: boolean | null; readonly dueFrom?: string | null; readonly dueBefore?: string | null; readonly deferredState?: "active" | "deferred" | "all" | null; readonly sort?: "created" | "due" | "section" | "manual"; } = {},
     options: RequestOptions = {},
   ): Promise<Tasks> {
     const searchParameters = new URLSearchParams();
@@ -3321,6 +3324,22 @@ export class LeonAidApiClient {
       `/api/v1/tasks/${encodeURIComponent(String(taskId))}/plan`,
       {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async moveTask(
+    taskId: string,
+    body: MoveTask,
+    options: RequestOptions = {},
+  ): Promise<TaskMove> {
+    return this.request<TaskMove>(
+      `/api/v1/tasks/${encodeURIComponent(String(taskId))}/position`,
+      {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },

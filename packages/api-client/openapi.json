@@ -8379,6 +8379,134 @@
         "title": "MemberStatusChangeResponse",
         "type": "object"
       },
+      "MovePlacement": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "edge": {
+            "anyOf": [
+              {
+                "enum": [
+                  "start",
+                  "end"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge"
+          }
+        },
+        "title": "MovePlacement",
+        "type": "object"
+      },
+      "MoveTask": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "enum": [
+              "list",
+              "personal"
+            ],
+            "title": "Context",
+            "type": "string"
+          },
+          "expectedOrderRevision": {
+            "minimum": 1.0,
+            "title": "Expectedorderrevision",
+            "type": "integer"
+          },
+          "expectedPlanRevision": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedplanrevision"
+          },
+          "expectedTaskRevision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedtaskrevision"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "placement": {
+            "$ref": "#/components/schemas/MovePlacement"
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetdate"
+          },
+          "targetEpicId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetepicid"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "context",
+          "placement",
+          "expectedOrderRevision"
+        ],
+        "title": "MoveTask",
+        "type": "object"
+      },
       "Mutation": {
         "additionalProperties": false,
         "properties": {
@@ -14033,6 +14161,10 @@
             "title": "Id",
             "type": "string"
           },
+          "orderRevision": {
+            "title": "Orderrevision",
+            "type": "integer"
+          },
           "ownerUserId": {
             "format": "uuid",
             "title": "Owneruserid",
@@ -14053,7 +14185,8 @@
           "title",
           "actionId",
           "ownerUserId",
-          "revision"
+          "revision",
+          "orderRevision"
         ],
         "title": "TaskList",
         "type": "object"
@@ -14087,6 +14220,59 @@
         "title": "TaskLists",
         "type": "object"
       },
+      "TaskMove": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "enum": [
+              "list",
+              "personal"
+            ],
+            "title": "Context",
+            "type": "string"
+          },
+          "orderRevision": {
+            "title": "Orderrevision",
+            "type": "integer"
+          },
+          "planRevision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planrevision"
+          },
+          "taskId": {
+            "format": "uuid",
+            "title": "Taskid",
+            "type": "string"
+          },
+          "taskRevision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskrevision"
+          }
+        },
+        "required": [
+          "taskId",
+          "context",
+          "orderRevision",
+          "taskRevision",
+          "planRevision"
+        ],
+        "title": "TaskMove",
+        "type": "object"
+      },
       "TaskPlans": {
         "additionalProperties": false,
         "properties": {
@@ -14107,11 +14293,16 @@
               }
             ],
             "title": "Nextoffset"
+          },
+          "orderRevision": {
+            "title": "Orderrevision",
+            "type": "integer"
           }
         },
         "required": [
           "items",
-          "nextOffset"
+          "nextOffset",
+          "orderRevision"
         ],
         "title": "TaskPlans",
         "type": "object"
@@ -14339,11 +14530,23 @@
               }
             ],
             "title": "Nextoffset"
+          },
+          "orderRevision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderrevision"
           }
         },
         "required": [
           "items",
-          "nextOffset"
+          "nextOffset",
+          "orderRevision"
         ],
         "title": "Tasks",
         "type": "object"
@@ -35659,7 +35862,8 @@
               "enum": [
                 "created",
                 "due",
-                "section"
+                "section",
+                "manual"
               ],
               "title": "Sort",
               "type": "string"
@@ -36177,6 +36381,119 @@
           }
         },
         "summary": "Set Task Plan",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task_id}/position": {
+      "patch": {
+        "operationId": "moveTask",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveTask"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskMove"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Move Task",
         "tags": [
           "tasks"
         ]

@@ -118,6 +118,7 @@ compose run --rm --no-deps \
     /repo/tools/knowledge/member_contract.py \
     /repo/tools/tasks/service_contract.py \
     /repo/tools/tasks/planning_contract.py \
+    /repo/tools/tasks/ordering_contract.py \
     /repo/tools/tasks/http_contract.py \
     /repo/tools/tasks/action_contract.py
 
