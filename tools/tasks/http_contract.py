@@ -5,6 +5,7 @@ import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import httpx
@@ -169,6 +170,43 @@ async def main() -> None:
                 )
                 assert response.status_code == 200, response.text
                 task = response.json()
+                plan_path = f"/api/v1/tasks/{task['id']}/plan"
+                empty_plan = await client.get(plan_path, headers=headers)
+                assert empty_plan.status_code == 200
+                assert empty_plan.json()["state"] == "unplanned"
+                assert empty_plan.json()["revision"] == 0
+                plan_command = {
+                    "idempotencyKey": str(uuid4()),
+                    "expectedRevision": 0,
+                    "state": "scheduled",
+                    "plannedOn": datetime.now(ZoneInfo("Europe/Berlin"))
+                    .date()
+                    .isoformat(),
+                }
+                planned = await client.put(
+                    plan_path, headers=headers, json=plan_command
+                )
+                assert planned.status_code == 200, planned.text
+                assert (
+                    await client.put(plan_path, headers=headers, json=plan_command)
+                ).json() == planned.json()
+                plan_list = await client.get(
+                    "/api/v1/task-plans",
+                    headers=headers,
+                    params={"view": "today", "timeZone": "Europe/Berlin"},
+                )
+                assert plan_list.status_code == 200, plan_list.text
+                assert [item["id"] for item in plan_list.json()["items"]] == [
+                    task["id"]
+                ]
+                assert plan_list.json()["items"][0]["planSource"] == "planned"
+                assert (
+                    await client.get(
+                        "/api/v1/task-plans",
+                        headers=headers,
+                        params={"view": "today", "timeZone": "Mars/Olympus"},
+                    )
+                ).status_code == 422
                 rename = {
                     "idempotencyKey": str(uuid4()),
                     "expectedRevision": 1,

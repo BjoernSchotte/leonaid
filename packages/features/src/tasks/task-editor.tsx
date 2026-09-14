@@ -1,6 +1,7 @@
 import {
   useIsMutating,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
@@ -11,6 +12,114 @@ import { AssigneePicker } from "./assignee-picker";
 import { EpicPicker } from "./epic-picker";
 
 export type Task = Awaited<ReturnType<LeonAidApiClient["getTask"]>>;
+
+export function TaskPlanPanel({
+  client,
+  taskId,
+}: {
+  client: LeonAidApiClient;
+  taskId: string;
+}) {
+  const cache = useQueryClient();
+  const operation = useRef(crypto.randomUUID());
+  const plan = useQuery({
+    queryKey: ["task-plan", taskId],
+    queryFn: () => client.getTaskPlan(taskId),
+    retry: false,
+  });
+  const [state, setState] = useState<"scheduled" | "someday" | "unplanned">(
+    "unplanned",
+  );
+  const [plannedOn, setPlannedOn] = useState("");
+  useEffect(() => {
+    if (!plan.data) return;
+    setState(plan.data.state);
+    setPlannedOn(plan.data.plannedOn ?? "");
+  }, [plan.data]);
+  const save = useMutation({
+    mutationFn: () =>
+      client.setTaskPlan(taskId, {
+        idempotencyKey: operation.current,
+        expectedRevision: plan.data?.revision ?? 0,
+        state,
+        plannedOn: state === "scheduled" ? plannedOn : null,
+      }),
+    onSuccess: async (saved) => {
+      cache.setQueryData(["task-plan", taskId], saved);
+      operation.current = crypto.randomUUID();
+      await cache.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+  const changed = () => {
+    operation.current = crypto.randomUUID();
+    save.reset();
+  };
+  return (
+    <form
+      className="task-plan"
+      onSubmit={(event) => {
+        event.preventDefault();
+        save.mutate();
+      }}
+    >
+      <h2>Persönliche Planung</h2>
+      <p>Nur du siehst diese Einordnung. Teamtermine bleiben unverändert.</p>
+      {plan.isPending ? (
+        <p role="status">Planung wird geladen …</p>
+      ) : plan.isError ? (
+        <StatusMessage tone="error">
+          <p>Die persönliche Planung konnte nicht geladen werden.</p>
+        </StatusMessage>
+      ) : (
+        <fieldset disabled={save.isPending}>
+          <label>
+            Einordnung
+            <select
+              value={state}
+              onChange={(event) => {
+                setState(
+                  event.target.value as "scheduled" | "someday" | "unplanned",
+                );
+                changed();
+              }}
+            >
+              <option value="unplanned">Nicht geplant</option>
+              <option value="scheduled">An einem Tag</option>
+              <option value="someday">Irgendwann</option>
+            </select>
+          </label>
+          {state === "scheduled" && (
+            <label>
+              Geplant für
+              <input
+                type="date"
+                required
+                value={plannedOn}
+                onChange={(event) => {
+                  setPlannedOn(event.target.value);
+                  changed();
+                }}
+              />
+            </label>
+          )}
+          {save.error && (
+            <StatusMessage tone="error">
+              <p>
+                {save.error instanceof ApiError && save.error.status === 409
+                  ? "Die Planung wurde inzwischen geändert. Schließe die Aufgabe und öffne sie erneut."
+                  : "Die persönliche Planung konnte nicht gespeichert werden."}
+              </p>
+            </StatusMessage>
+          )}
+          {save.isSuccess && <p role="status">Planung gespeichert.</p>}
+          <Button type="submit" disabled={state === "scheduled" && !plannedOn}>
+            {save.isPending ? "Wird gespeichert …" : "Planung speichern"}
+          </Button>
+        </fieldset>
+      )}
+    </form>
+  );
+}
 
 function localTime(value: string | null | undefined) {
   if (!value) return "";

@@ -76,7 +76,15 @@ async def main() -> None:
         finally:
             await pool.close()
         output = Path("/proof/material-browser-fixture.json")
-        output.write_text(json.dumps({"sessions": tokens, "cases": cases}))
+        output.write_text(
+            json.dumps(
+                {
+                    "sessions": tokens,
+                    "users": [str(user_id) for user_id in users],
+                    "cases": cases,
+                }
+            )
+        )
         output.chmod(0o600)
     finally:
         await conn.close()

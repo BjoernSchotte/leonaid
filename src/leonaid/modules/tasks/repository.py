@@ -36,7 +36,12 @@ from leonaid.modules.tasks.api import (
     Epics,
     SearchPage,
     ListQuery,
+    PlanQuery,
     TaskQuery,
+    PersonalPlan,
+    PlannedTask,
+    SetTaskPlan,
+    TaskPlans,
     TaskLists,
     Tasks,
     CreateList,
@@ -46,6 +51,7 @@ from leonaid.modules.tasks.api import (
     TaskSummary,
     TaskList,
 )
+from leonaid.modules.tasks.planning import planning_day
 
 
 # Same read policy for individual objects, lists, search and "for me".
@@ -279,6 +285,161 @@ class AsyncpgTaskRepository:
                 else None,
             )
 
+    async def list_task_plans(
+        self, actor: IdentityPrincipal, query: PlanQuery
+    ) -> TaskPlans:
+        today, _, end = planning_day(query.time_zone)
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            rows = await conn.fetch(
+                f"""
+                SELECT t.*,l.title AS list_title,a.name AS action_title,
+                    u.display_name AS assignee_name,e.title AS epic_title,
+                    ({_WRITE_ACCESS}) AS can_edit,
+                    p.state AS plan_state,p.planned_on,p.revision AS plan_revision,
+                    CASE WHEN $4<>'today'
+                            OR (p.state='scheduled' AND p.planned_on<=$2)
+                        THEN 'planned' ELSE 'due' END AS plan_source
+                FROM task t JOIN task_list l ON l.id=t.list_id
+                LEFT JOIN charity_action a ON a.id=l.action_id
+                LEFT JOIN user_account u ON u.id=t.assignee_user_id
+                LEFT JOIN task_epic e ON e.id=t.epic_id AND e.list_id=t.list_id
+                LEFT JOIN task_personal_plan p ON p.task_id=t.id AND p.user_id=$1
+                WHERE {_READ_ACCESS} AND t.status='open' AND (
+                    ($4='today' AND (
+                        (p.state='scheduled' AND p.planned_on<=$2)
+                        OR (t.assignee_user_id=$1 AND t.due_at<$3)
+                    ))
+                    OR ($4='planned' AND p.state='scheduled' AND p.planned_on>$2)
+                    OR ($4='someday' AND p.state='someday')
+                )
+                ORDER BY
+                    (NOT (p.state='scheduled' AND p.planned_on<=$2)),
+                    p.planned_on NULLS LAST,t.due_at NULLS LAST,t.created_at,t.id
+                LIMIT $5 OFFSET $6
+                """,
+                actor.account.id,
+                today,
+                end,
+                query.view,
+                query.limit + 1,
+                query.offset,
+            )
+            items = []
+            for row in rows[: query.limit]:
+                data = dict(row)
+                plan_state = data.pop("plan_state")
+                plan_revision = data.pop("plan_revision")
+                personal_plan = (
+                    PersonalPlan(
+                        task_id=data["id"],
+                        state=plan_state,
+                        planned_on=data.pop("planned_on"),
+                        revision=plan_revision,
+                    )
+                    if plan_revision is not None
+                    else None
+                )
+                if plan_revision is None:
+                    data.pop("planned_on")
+                items.append(
+                    PlannedTask.model_validate({**data, "personal_plan": personal_plan})
+                )
+            return TaskPlans(
+                items=items,
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def get_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID
+    ) -> PersonalPlan:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            task = await conn.fetchrow("SELECT list_id FROM task WHERE id=$1", task_id)
+            if task is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            await self._list(conn, actor.account.id, task["list_id"], write=False)
+            row = await conn.fetchrow(
+                "SELECT task_id,state,planned_on,revision FROM task_personal_plan WHERE task_id=$1 AND user_id=$2",
+                task_id,
+                actor.account.id,
+            )
+            return (
+                PersonalPlan.model_validate(dict(row))
+                if row is not None
+                else PersonalPlan(
+                    task_id=task_id,
+                    state="unplanned",
+                    planned_on=None,
+                    revision=0,
+                )
+            )
+
+    async def set_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskPlan
+    ) -> PersonalPlan:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            task = await conn.fetchrow(
+                "SELECT list_id,status FROM task WHERE id=$1", task_id
+            )
+            if task is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            listing = await self._list(
+                conn, actor.account.id, task["list_id"], write=False
+            )
+            if task["status"] != "open":
+                raise Conflict(
+                    "task_closed", "Nur offene Aufgaben können geplant werden."
+                )
+            key, replay = await self._receipt(
+                conn, actor.account.id, task_id, "tasks.plan.updated", command
+            )
+            if replay:
+                return PersonalPlan.model_validate_json(replay["document"])
+            if command.expected_revision == 0:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO task_personal_plan(task_id,user_id,state,planned_on)
+                    VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING
+                    RETURNING task_id,state,planned_on,revision
+                    """,
+                    task_id,
+                    actor.account.id,
+                    command.state,
+                    command.planned_on,
+                )
+            else:
+                row = await conn.fetchrow(
+                    """
+                    UPDATE task_personal_plan SET state=$3,planned_on=$4,
+                        revision=revision+1,updated_at=now()
+                    WHERE task_id=$1 AND user_id=$2 AND revision=$5
+                    RETURNING task_id,state,planned_on,revision
+                    """,
+                    task_id,
+                    actor.account.id,
+                    command.state,
+                    command.planned_on,
+                    command.expected_revision,
+                )
+            if row is None:
+                raise Conflict(
+                    "revision_conflict", "Die persönliche Planung wurde geändert."
+                )
+            result = PersonalPlan.model_validate(dict(row))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.plan.updated",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
     async def _receipt(
         self,
         conn: asyncpg.Connection[Any],
@@ -291,7 +452,8 @@ class AsyncpgTaskRepository:
         | CreateEpic
         | UpdateEpic
         | SetListMember
-        | SetListMemberByEmail,
+        | SetListMemberByEmail
+        | SetTaskPlan,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -313,7 +475,7 @@ class AsyncpgTaskRepository:
         operation: str,
         actor: UUID,
         action_id: UUID | None,
-        result: Task | TaskList | Epic,
+        result: Task | TaskList | Epic | PersonalPlan,
         details: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
@@ -325,12 +487,14 @@ class AsyncpgTaskRepository:
             action_id,
             actor,
             operation,
-            "task_list"
+            "task_plan"
+            if isinstance(result, PersonalPlan)
+            else "task_list"
             if isinstance(result, TaskList)
             else "task_epic"
             if isinstance(result, Epic)
             else "task",
-            result.id,
+            result.task_id if isinstance(result, PersonalPlan) else result.id,
             key,
             json.dumps(details or {}),
         )

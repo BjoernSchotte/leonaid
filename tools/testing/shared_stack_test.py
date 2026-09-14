@@ -83,6 +83,31 @@ class SharedStackTests(unittest.TestCase):
         self.assertTrue((first.directory / "in-use").is_dir())
         self.assertTrue((second.directory / "in-use").is_dir())
 
+    def test_matching_local_image_fingerprint_skips_build(self):
+        stack = module.SharedStack(ROOT, "core")
+        self.addCleanup(stack.close)
+        stack.env["LEONAID_REUSE_BUILD_HASH"] = "current"
+        marker = stack.directory.parent / f"{stack.project}.images.hash"
+        marker.write_text("current")
+        self.addCleanup(marker.unlink, missing_ok=True)
+        calls = []
+        stack.call = lambda args, capture=False: calls.append(args) or ""
+
+        stack.build(["api", "web"])
+
+        self.assertEqual(
+            calls,
+            [
+                [
+                    "docker",
+                    "image",
+                    "inspect",
+                    f"{stack.project}-api",
+                    f"{stack.project}-web",
+                ]
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

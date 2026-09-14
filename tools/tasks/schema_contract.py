@@ -47,6 +47,11 @@ async def main() -> None:
         row = await connection.fetchrow("SELECT * FROM task WHERE id = $1", task)
         assert row is not None and row["status"] == "open" and row["revision"] == 1
         assert row["due_at"] == due and row["deferred_until"] == deferred
+        await connection.execute(
+            "INSERT INTO task_personal_plan(task_id,user_id,state,planned_on) VALUES($1,$2,'scheduled',current_date)",
+            task,
+            owner,
+        )
         # Each rejected write gets a real PostgreSQL savepoint.
         rejected = (
             ("UPDATE task SET list_id = $2 WHERE id = $1", task, second),
@@ -56,6 +61,21 @@ async def main() -> None:
             ("UPDATE task SET assignee_user_id = $2 WHERE id = $1", task, uuid4()),
             ("DELETE FROM task_epic WHERE id = $1", epic),
             ("DELETE FROM task_list WHERE id = $1", first),
+            (
+                "UPDATE task_personal_plan SET planned_on=NULL WHERE task_id=$1 AND user_id=$2",
+                task,
+                owner,
+            ),
+            (
+                "UPDATE task_personal_plan SET state='someday' WHERE task_id=$1 AND user_id=$2",
+                task,
+                owner,
+            ),
+            (
+                "UPDATE task_personal_plan SET revision=0 WHERE task_id=$1 AND user_id=$2",
+                task,
+                owner,
+            ),
         )
         for sql, *values in rejected:
             try:
@@ -74,7 +94,7 @@ async def main() -> None:
             == 1
         )
         print(
-            "PASS: independent dates, one same-list epic, revisions, status, references and safe deletion"
+            "PASS: independent dates, personal plan constraints, one same-list epic, revisions, status, references and safe deletion"
         )
     finally:
         await transaction.rollback()

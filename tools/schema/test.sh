@@ -89,95 +89,37 @@ if [ "${2:-full}" = "code-rollback" ]; then
   echo "code-rollback: PASS: older API startup and identity on current schema; new-job drain remains separate"
   exit 0
 fi
-compose run --rm --no-deps --entrypoint alembic api upgrade head
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/schema/smoke.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/tasks/schema_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/schema_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/schema_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/inbox/schema_contract.py
-for inbox_contract in submission case http public task; do
-  compose run --rm --no-deps \
-    --volume "$root:/repo:ro" \
-    --entrypoint python \
-    api "/repo/tools/inbox/${inbox_contract}_contract.py"
-done
 compose up --detach --wait --wait-timeout 120 rustfs
 compose run --rm --no-deps \
   --volume "$root:/repo:ro" \
   --entrypoint python \
-  api /repo/tools/inbox/material_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/service_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/member_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/action_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/cleanup_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/materials/http_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/service_contract.py
-
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/material_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/http_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/action_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/task_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/knowledge/member_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/tasks/service_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/tasks/http_contract.py
-compose run --rm --no-deps \
-  --volume "$root:/repo:ro" \
-  --entrypoint python \
-  api /repo/tools/tasks/action_contract.py
+  api /repo/tools/testing/run_python_contracts.py \
+    /repo/tools/schema/smoke.py \
+    /repo/tools/tasks/schema_contract.py \
+    /repo/tools/knowledge/schema_contract.py \
+    /repo/tools/materials/schema_contract.py \
+    /repo/tools/inbox/schema_contract.py \
+    /repo/tools/inbox/submission_contract.py \
+    /repo/tools/inbox/case_contract.py \
+    /repo/tools/inbox/http_contract.py \
+    /repo/tools/inbox/public_contract.py \
+    /repo/tools/inbox/task_contract.py \
+    /repo/tools/inbox/material_contract.py \
+    /repo/tools/materials/service_contract.py \
+    /repo/tools/materials/member_contract.py \
+    /repo/tools/materials/action_contract.py \
+    /repo/tools/materials/cleanup_contract.py \
+    /repo/tools/materials/http_contract.py \
+    /repo/tools/knowledge/service_contract.py \
+    /repo/tools/knowledge/material_contract.py \
+    /repo/tools/knowledge/http_contract.py \
+    /repo/tools/knowledge/action_contract.py \
+    /repo/tools/knowledge/task_contract.py \
+    /repo/tools/knowledge/member_contract.py \
+    /repo/tools/tasks/service_contract.py \
+    /repo/tools/tasks/planning_contract.py \
+    /repo/tools/tasks/http_contract.py \
+    /repo/tools/tasks/action_contract.py
 
 echo "poc021-test: migriert den versionierten Vorgänger-Snapshot samt Daten"
 compose --profile '*' down --volumes --remove-orphans

@@ -207,9 +207,11 @@ export type PagePermissions = { readonly canEdit: boolean; readonly canManage: b
 export type PageSummary = { readonly actionId: string | null; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type Pages = { readonly items: Array<PageSummary>; readonly nextOffset: number | null; };
 export type ParticipationCounts = { readonly completed: number; readonly in_progress: number; readonly partial: number; };
+export type PersonalPlan = { readonly plannedOn: string | null; readonly revision: number; readonly state: "scheduled" | "someday" | "unplanned"; readonly taskId: string; };
 export type PilotDailyDependenciesResponse = { readonly ready: number; readonly total: number; readonly unavailable: Array<"twenty" | "rustfs" | "mail" | "worker">; };
 export type PilotDailyMonitoringResponse = { readonly activeP0: number; readonly activeP1: number; readonly activeP2: number; readonly backupAgeSeconds?: number | null; readonly backupStatus: "ready" | "critical" | "unavailable"; readonly diskFreeRatio?: number | null; readonly diskStatus: "ready" | "critical" | "unavailable"; readonly status: "inactive" | "ready" | "attention" | "unavailable"; readonly tlsRemainingSeconds?: number | null; readonly tlsStatus: "ready" | "critical" | "unavailable"; };
 export type PilotDailyReportResponse = { readonly api: OperationalApiMetricsResponse; readonly checksumSha256: string; readonly dependencies: PilotDailyDependenciesResponse; readonly generatedAt: string; readonly monitoring: PilotDailyMonitoringResponse; readonly nextStep: string; readonly outbox: OperationalStatusCountsResponse; readonly release: string; readonly schemaVersion: "leonaid.pilot.daily-report/v1"; readonly scope: "technical-daily-check"; readonly stopReasons: Array<string>; readonly technicalStatus: "ready" | "attention" | "blocked"; };
+export type PlannedTask = { readonly actionTitle: string | null; readonly assigneeName: string | null; readonly assigneeUserId?: string | null; readonly canEdit: boolean; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly epicTitle: string | null; readonly id: string; readonly listId: string; readonly listTitle: string; readonly personalPlan: PersonalPlan | null; readonly planSource: "planned" | "due"; readonly revision: number; readonly status: "open" | "done"; readonly title: string; readonly updatedAt: string; };
 export type PlatformInformationResponse = { readonly apiVersion: string; readonly release: string; readonly service: string; };
 export type PlatformStatusResponse = { readonly service: string; readonly status: "live"; };
 export type PrivacyConsentResponse = { readonly actionId: string | null; readonly channel: "email" | "phone" | "postal"; readonly commitmentId: string | null; readonly evidenceKind: "notice_acknowledgement" | "explicit_consent"; readonly grantedAt: string; readonly id: string; readonly legalBasisStatus: "legal_review_pending" | "confirmed"; readonly purpose: "public_order_fulfilment" | "acquisition" | "marketing"; readonly revokedAt: string | null; readonly source: string; readonly textVersion: string; };
@@ -265,6 +267,7 @@ export type SetMaterialReference = { readonly expectedRevision: number; readonly
 export type SetPageMember = { readonly access: "viewer" | "editor" | null; readonly expectedAccessRevision: number; readonly idempotencyKey: string; readonly userId: string; };
 export type SetPageMemberByEmail = { readonly access: "viewer" | "editor"; readonly email: string; readonly expectedAccessRevision: number; readonly idempotencyKey: string; };
 export type SetResponsibleAdministratorsRequest = { readonly revision: number; readonly userIds: Array<string>; };
+export type SetTaskPlan = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly plannedOn?: string | null; readonly state: "scheduled" | "someday" | "unplanned"; };
 export type SetTaskReference = { readonly expectedRevision: number; readonly idempotencyKey: string; readonly present: boolean; readonly taskId: string; };
 export type SponsorDraftRequest = { readonly city?: string | null; readonly companyName?: string | null; readonly email?: string | null; readonly familyName?: string | null; readonly givenName?: string | null; readonly postalCode?: string | null; readonly streetLine1?: string | null; };
 export type SponsorDraftResponse = { readonly city: string | null; readonly companyName: string | null; readonly email: string | null; readonly familyName: string | null; readonly givenName: string | null; readonly postalCode: string | null; readonly streetLine1: string | null; };
@@ -296,6 +299,7 @@ export type Task = { readonly assigneeUserId?: string | null; readonly createdAt
 export type TaskFromPage = { readonly page: Page; readonly task: Task; };
 export type TaskList = { readonly actionId: string | null; readonly canEdit: boolean; readonly id: string; readonly ownerUserId: string; readonly revision: number; readonly title: string; };
 export type TaskLists = { readonly items: Array<TaskList>; readonly nextOffset: number | null; };
+export type TaskPlans = { readonly items: Array<PlannedTask>; readonly nextOffset: number | null; };
 export type TaskReference = { readonly task: Task | null; readonly taskId: string; };
 export type TaskReferences = { readonly items: Array<TaskReference>; };
 export type TaskSummary = { readonly actionTitle: string | null; readonly assigneeName: string | null; readonly assigneeUserId?: string | null; readonly canEdit: boolean; readonly createdAt: string; readonly createdBy: string; readonly deferredUntil?: string | null; readonly description?: string; readonly dueAt?: string | null; readonly epicId?: string | null; readonly epicTitle: string | null; readonly id: string; readonly listId: string; readonly listTitle: string; readonly revision: number; readonly status: "open" | "done"; readonly title: string; readonly updatedAt: string; };
@@ -3197,6 +3201,32 @@ export class LeonAidApiClient {
     );
   }
 
+  async listTaskPlans(
+    queryParameters: { readonly view: "today" | "planned" | "someday"; readonly timeZone: string; readonly offset?: number; readonly limit?: number; },
+    options: RequestOptions = {},
+  ): Promise<TaskPlans> {
+    const searchParameters = new URLSearchParams();
+    if (queryParameters.view !== undefined && queryParameters.view !== null) {
+      searchParameters.set("view", String(queryParameters.view));
+    }
+    if (queryParameters.timeZone !== undefined && queryParameters.timeZone !== null) {
+      searchParameters.set("timeZone", String(queryParameters.timeZone));
+    }
+    if (queryParameters.offset !== undefined && queryParameters.offset !== null) {
+      searchParameters.set("offset", String(queryParameters.offset));
+    }
+    if (queryParameters.limit !== undefined && queryParameters.limit !== null) {
+      searchParameters.set("limit", String(queryParameters.limit));
+    }
+    const queryString = searchParameters.toString();
+    const requestPath = "/api/v1/task-plans" + (queryString ? `?${queryString}` : "");
+    return this.request<TaskPlans>(
+      requestPath,
+      { method: "GET" },
+      options,
+    );
+  }
+
   async listTasks(
     queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly listId?: string | null; readonly forMe?: boolean; readonly status?: "open" | "done" | null; readonly includeDeferred?: boolean | null; readonly dueFrom?: string | null; readonly dueBefore?: string | null; readonly deferredState?: "active" | "deferred" | "all" | null; readonly sort?: "created" | "due" | "section"; } = {},
     options: RequestOptions = {},
@@ -3262,6 +3292,33 @@ export class LeonAidApiClient {
   ): Promise<Task> {
     return this.request<Task>(
       `/api/v1/tasks/${encodeURIComponent(String(taskId))}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
+  async getTaskPlan(
+    taskId: string,
+    options: RequestOptions = {},
+  ): Promise<PersonalPlan> {
+    return this.request<PersonalPlan>(
+      `/api/v1/tasks/${encodeURIComponent(String(taskId))}/plan`,
+      { method: "GET" },
+      options,
+    );
+  }
+
+  async setTaskPlan(
+    taskId: string,
+    body: SetTaskPlan,
+    options: RequestOptions = {},
+  ): Promise<PersonalPlan> {
+    return this.request<PersonalPlan>(
+      `/api/v1/tasks/${encodeURIComponent(String(taskId))}/plan`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

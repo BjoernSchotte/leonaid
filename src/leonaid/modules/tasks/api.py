@@ -1,6 +1,6 @@
 """Typed task operations shared by HTTP and direct application callers."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Protocol, Self
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from pydantic import (
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.platform.navigation import NavigationItem
 from leonaid.platform.http import TransportModel
+from leonaid.modules.tasks.planning import require_time_zone
 
 Title = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
@@ -58,6 +59,11 @@ class TaskModel(TransportModel):
     @classmethod
     def parse_timestamp(cls, value: object) -> object:
         return datetime.fromisoformat(value) if isinstance(value, str) else value
+
+    @field_validator("planned_on", mode="before", check_fields=False)
+    @classmethod
+    def parse_date(cls, value: object) -> object:
+        return date.fromisoformat(value) if isinstance(value, str) else value
 
 
 class CreateList(TaskModel):
@@ -123,6 +129,18 @@ class SearchPage(TaskModel):
     limit: int = Field(default=50, ge=1, le=100)
 
 
+class PlanQuery(TaskModel):
+    view: Literal["today", "planned", "someday"]
+    time_zone: str = Field(min_length=1, max_length=100)
+    offset: int = Field(default=0, ge=0, le=5000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+    @field_validator("time_zone")
+    @classmethod
+    def validate_time_zone(cls, value: str) -> str:
+        return require_time_zone(value)
+
+
 class ListQuery(SearchPage):
     action_id: UUID | None = None
 
@@ -169,6 +187,36 @@ class TaskLists(TaskModel):
 
 class Tasks(TaskModel):
     items: list[TaskSummary]
+    next_offset: int | None
+
+
+class SetTaskPlan(TaskModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=0)
+    state: Literal["scheduled", "someday", "unplanned"]
+    planned_on: date | None = None
+
+    @model_validator(mode="after")
+    def validate_state(self) -> Self:
+        if (self.state == "scheduled") != (self.planned_on is not None):
+            raise ValueError("Nur eine geplante Aufgabe benötigt ein Datum.")
+        return self
+
+
+class PersonalPlan(TaskModel):
+    task_id: UUID
+    state: Literal["scheduled", "someday", "unplanned"]
+    planned_on: date | None
+    revision: int
+
+
+class PlannedTask(TaskSummary):
+    personal_plan: PersonalPlan | None
+    plan_source: Literal["planned", "due"]
+
+
+class TaskPlans(TaskModel):
+    items: list[PlannedTask]
     next_offset: int | None
 
 
@@ -274,6 +322,15 @@ class TaskRepository(Protocol):
         self, actor: IdentityPrincipal, query: ListQuery
     ) -> TaskLists: ...
     async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks: ...
+    async def list_task_plans(
+        self, actor: IdentityPrincipal, query: PlanQuery
+    ) -> TaskPlans: ...
+    async def get_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID
+    ) -> PersonalPlan: ...
+    async def set_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskPlan
+    ) -> PersonalPlan: ...
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList: ...
@@ -353,6 +410,25 @@ class TaskService:
     async def list_tasks(self, actor: IdentityPrincipal, query: TaskQuery) -> Tasks:
         return await self._repository.list_tasks(actor, TaskQuery.model_validate(query))
 
+    async def list_task_plans(
+        self, actor: IdentityPrincipal, query: PlanQuery
+    ) -> TaskPlans:
+        return await self._repository.list_task_plans(
+            actor, PlanQuery.model_validate(query)
+        )
+
+    async def get_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID
+    ) -> PersonalPlan:
+        return await self._repository.get_task_plan(actor, task_id)
+
+    async def set_task_plan(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskPlan
+    ) -> PersonalPlan:
+        return await self._repository.set_task_plan(
+            actor, task_id, SetTaskPlan.model_validate(command)
+        )
+
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList:
@@ -406,6 +482,11 @@ __all__ = [
     "Epics",
     "SearchPage",
     "ListQuery",
+    "PlanQuery",
+    "PersonalPlan",
+    "PlannedTask",
+    "SetTaskPlan",
+    "TaskPlans",
     "TaskQuery",
     "TaskLists",
     "Tasks",

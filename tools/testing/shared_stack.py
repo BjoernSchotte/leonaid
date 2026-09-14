@@ -19,6 +19,30 @@ import tempfile
 import time
 
 
+_CORE_SERVICES = """services:
+  api:
+    depends_on: !override
+      survey-validator:
+        condition: service_healthy
+      core-postgres:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=3)"]
+  proxy:
+    depends_on: !override
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      pwa:
+        condition: service_healthy
+      public:
+        condition: service_healthy
+"""
+
+
 class SharedStack:
     def __init__(
         self, root: Path, kind: str, output=None, directory: Path | None = None
@@ -34,6 +58,8 @@ class SharedStack:
         profile.write_text(
             (self.root / "tools/testing/survey-runtime.yml").read_text()
             if kind == "survey"
+            else _CORE_SERVICES
+            if kind == "core"
             else "services: {}\n"
         )
         self.project = "leonaid-shared-" + secrets.token_hex(8)
@@ -65,6 +91,11 @@ class SharedStack:
             "--profile",
             "dev-mail",
         ]
+        if kind == "core":
+            self.compose += [
+                "--file",
+                str(self.root / "tools/testing/shared-runtime.yml"),
+            ]
         locks = dict(
             line.split("=", 1)
             for line in (self.root / "infra/locks/images.env").read_text().splitlines()
@@ -100,6 +131,27 @@ class SharedStack:
                 capture=True,
             ).split()
         )
+
+    def build(self, targets):
+        fingerprint = self.env.get("LEONAID_REUSE_BUILD_HASH")
+        marker = self.directory.parent / f"{self.project}.images.hash"
+        if fingerprint and marker.exists() and marker.read_text() == fingerprint:
+            try:
+                self.call(
+                    [
+                        "docker",
+                        "image",
+                        "inspect",
+                        *[f"{self.project}-{name}" for name in targets],
+                    ],
+                    capture=True,
+                )
+                return
+            except subprocess.CalledProcessError:
+                pass
+        self.call([*self.compose, "build", *targets])
+        if fingerprint:
+            marker.write_text(fingerprint)
 
     def initialize(self):
         start = time.monotonic()
@@ -144,11 +196,13 @@ class SharedStack:
         )
         # Ordinary Survey leaves never start the PWA; journeys explicitly needs it.
         targets = (
-            ["api", "worker", "proxy", "web", "public", "survey-validator"]
+            ["api", "proxy", "web", "pwa", "public", "survey-validator"]
+            if self.kind == "core"
+            else ["api", "worker", "proxy", "web", "public", "survey-validator"]
             if self.kind == "survey"
             else []
         )
-        self.call([*self.compose, "build", *targets])
+        self.build(targets)
         fixture = self.env.get("LEONAID_CI_FIXTURE")
         if fixture:
             self.import_fixture(Path(fixture))
@@ -174,12 +228,12 @@ class SharedStack:
                     if self.env.get("LEONAID_FIXTURE_BUILD") == "1"
                     else ["api"]
                 ),
-                "twenty-worker",
+                *([] if self.kind == "core" else ["twenty-worker"]),
                 "mailpit",
                 *(["seaweedfs"] if self.kind == "documents" else []),
             ]
         )
-        if self.env.get("LEONAID_FIXTURE_BUILD") == "1":
+        if self.env.get("LEONAID_FIXTURE_BUILD") == "1" and self.kind != "core":
             # A template contains schema, not API startup side effects. Run the
             # real migrations directly so unrelated request code is not an input.
             self.call(
@@ -243,9 +297,22 @@ class SharedStack:
             )
         # Schema and scheduled jobs now exist; keep repeated upgrades/registration
         # out of functional leaves that always restore this exact fixture.
-        self.compose += ["--file", str(self.root / "tools/testing/shared-runtime.yml")]
+        if self.kind != "core":
+            self.compose += [
+                "--file",
+                str(self.root / "tools/testing/shared-runtime.yml"),
+            ]
         # Create remaining containers/volumes without running application workers.
-        self.call([*self.compose, "create", "--no-build", "proxy", "worker", "mailpit"])
+        self.call(
+            [
+                *self.compose,
+                "create",
+                "--no-build",
+                "proxy",
+                *([] if self.kind == "core" else ["worker"]),
+                "mailpit",
+            ]
+        )
         # Preserve the initial persisted queues/databases with a normal stop window.
         self.call([*self.compose, "--profile", "*", "stop", "--timeout", "30"])
         self.volumes = self.inventory("volumes")
@@ -450,7 +517,7 @@ def main():
     if args.reuse or args.stop:
         from local_stack import LocalStack
 
-        cache = LocalStack(root, stop=args.stop)
+        cache = LocalStack(root, kind=args.kind, stop=args.stop)
         if args.stop:
             cache.close()
             return 0

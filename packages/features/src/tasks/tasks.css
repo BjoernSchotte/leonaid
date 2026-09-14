@@ -153,6 +153,29 @@
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
+.tasks-workspace .task-plan {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding-block: 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.task-plan h2,
+.task-plan p {
+  margin: 0;
+}
+.task-plan > p {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.task-plan fieldset {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 
 .tasks-toolbar {
   display: flex;

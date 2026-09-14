@@ -30,6 +30,10 @@ from leonaid.modules.tasks.api import (
     TaskLists,
     TaskQuery,
     ListQuery,
+    PersonalPlan,
+    PlanQuery,
+    SetTaskPlan,
+    TaskPlans,
     TaskService,
 )
 from leonaid.platform.http import ApiErrorResponse
@@ -141,6 +145,51 @@ async def list_tasks(
 @router.get("/tasks/{task_id}", operation_id="getTask", response_model=Task)
 async def get_task(request: Request, response: Response, task_id: UUID) -> Task:
     return await service(request).get_task(await actor(request, response), task_id)
+
+
+@router.get(
+    "/tasks/{task_id}/plan",
+    operation_id="getTaskPlan",
+    response_model=PersonalPlan,
+)
+async def get_task_plan(
+    request: Request, response: Response, task_id: UUID
+) -> PersonalPlan:
+    return await service(request).get_task_plan(await actor(request, response), task_id)
+
+
+@router.put(
+    "/tasks/{task_id}/plan",
+    operation_id="setTaskPlan",
+    response_model=PersonalPlan,
+)
+async def set_task_plan(
+    request: Request, response: Response, task_id: UUID, body: SetTaskPlan
+) -> PersonalPlan:
+    return await service(request).set_task_plan(
+        await actor(request, response), task_id, body
+    )
+
+
+@router.get("/task-plans", operation_id="listTaskPlans", response_model=TaskPlans)
+async def list_task_plans(
+    request: Request,
+    response: Response,
+    view: Literal["today", "planned", "someday"],
+    time_zone: str = Query(alias="timeZone", min_length=1, max_length=100),
+    offset: int = Query(default=0, ge=0, le=5000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> TaskPlans:
+    try:
+        query = PlanQuery(
+            view=view,
+            time_zone=time_zone,
+            offset=offset,
+            limit=limit,
+        )
+    except ValidationError as error:
+        raise RequestValidationError(error.errors()) from error
+    return await service(request).list_task_plans(await actor(request, response), query)
 
 
 @router.put("/tasks/{task_id}", operation_id="updateTask", response_model=Task)

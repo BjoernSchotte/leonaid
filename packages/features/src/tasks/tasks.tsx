@@ -12,11 +12,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { ApiError } from "@leonaid/api-client";
+import { ApiError, type PlannedTask } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
 import { ListMembersPanel } from "./list-members";
-import { TaskEditor, type Task } from "./task-editor";
+import { TaskEditor, TaskPlanPanel, type Task } from "./task-editor";
 import {
   ActionContextSearch,
   useActionContexts,
@@ -30,7 +30,15 @@ function date(value: string) {
   }).format(new Date(value));
 }
 
-type TaskView = "open" | "due-today" | "due-next" | "deferred" | "done";
+type TaskView =
+  | "open"
+  | "due-today"
+  | "due-next"
+  | "deferred"
+  | "done"
+  | "plan-today"
+  | "plan-planned"
+  | "plan-someday";
 type TaskScope = "mine" | "all";
 type TaskSort = "created" | "due" | "section";
 
@@ -40,6 +48,9 @@ const taskViews = new Set<TaskView>([
   "due-next",
   "deferred",
   "done",
+  "plan-today",
+  "plan-planned",
+  "plan-someday",
 ]);
 const taskSorts = new Set<TaskSort>(["created", "due", "section"]);
 
@@ -84,6 +95,24 @@ function viewQuery(view: TaskView) {
         deferredState: "active" as const,
       };
   }
+}
+
+function planView(view: TaskView) {
+  if (view === "plan-today") return "today" as const;
+  if (view === "plan-planned") return "planned" as const;
+  if (view === "plan-someday") return "someday" as const;
+  return null;
+}
+
+function calendarDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" }).format(
+    new Date(year!, month! - 1, day),
+  );
+}
+
+function isPlannedTask(value: object): value is PlannedTask {
+  return "personalPlan" in value && "planSource" in value;
 }
 
 function taskLocation(defaultScope: TaskScope = "mine") {
@@ -290,6 +319,7 @@ export function TasksPage({
 }: ModulePageContext & { basePath: string; listId?: string }) {
   const cache = useQueryClient();
   const initialLocation = useRef(taskLocation(listId ? "all" : "mine")).current;
+  const initialPersonalView = !listId && !!planView(initialLocation.view);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
   const [detailTaskId, setDetailTaskId] = useState(initialLocation.taskId);
@@ -319,12 +349,18 @@ export function TasksPage({
     null,
   );
   const editorTrigger = useRef<HTMLButtonElement | null>(null);
-  const [forMe, setForMe] = useState(initialLocation.scope === "mine");
-  const [search, setSearch] = useState(initialLocation.search);
+  const [forMe, setForMe] = useState(
+    initialPersonalView || initialLocation.scope === "mine",
+  );
+  const [search, setSearch] = useState(
+    initialPersonalView ? "" : initialLocation.search,
+  );
   const [listOffset, setListOffset] = useState(0);
-  const [status, setStatus] = useState<TaskView>(initialLocation.view);
+  const [status, setStatus] = useState<TaskView>(
+    listId && planView(initialLocation.view) ? "open" : initialLocation.view,
+  );
   const [sort, setSort] = useState<TaskSort>(
-    initialLocation.sort === "section" && !listId
+    initialPersonalView || (initialLocation.sort === "section" && !listId)
       ? "created"
       : initialLocation.sort,
   );
@@ -427,12 +463,16 @@ export function TasksPage({
       closingDetail.current = false;
       editorDirty.current = false;
       const location = taskLocation(listId ? "all" : "mine");
-      setForMe(location.scope === "mine");
-      setStatus(location.view);
+      const view = listId && planView(location.view) ? "open" : location.view;
+      const personal = !listId && !!planView(view);
+      setForMe(personal || location.scope === "mine");
+      setStatus(view);
       setSort(
-        location.sort === "section" && !listId ? "created" : location.sort,
+        personal || (location.sort === "section" && !listId)
+          ? "created"
+          : location.sort,
       );
-      setSearch(location.search);
+      setSearch(personal ? "" : location.search);
       setDetailTaskId(location.taskId);
       setEditing(null);
       const returnState = event.state?.tasksReturn;
@@ -464,18 +504,29 @@ export function TasksPage({
     setEditing(task);
     setDetailTaskId(task.id);
   };
+  const personalView = planView(status);
+  const timeZone = useRef(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  ).current;
   const tasks = useInfiniteQuery({
     queryKey: ["tasks", listId, forMe, search, status, sort],
     queryFn: ({ pageParam }) =>
-      client.listTasks({
-        listId,
-        forMe,
-        search,
-        offset: pageParam,
-        limit: 50,
-        sort,
-        ...viewQuery(status),
-      }),
+      personalView
+        ? client.listTaskPlans({
+            view: personalView,
+            timeZone,
+            offset: pageParam,
+            limit: 50,
+          })
+        : client.listTasks({
+            listId,
+            forMe,
+            search,
+            offset: pageParam,
+            limit: 50,
+            sort,
+            ...viewQuery(status),
+          }),
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     retry: false,
@@ -608,7 +659,13 @@ export function TasksPage({
           <h1 id="tasks-heading" tabIndex={-1}>
             {listId ? (selected.data?.title ?? "Aufgabenliste") : "Aufgaben"}
           </h1>
-          <span>{forMe ? "Für mich" : "Alle zugänglichen Aufgaben"}</span>
+          <span>
+            {personalView
+              ? "Meine persönliche Planung"
+              : forMe
+                ? "Für mich"
+                : "Alle zugänglichen Aufgaben"}
+          </span>
         </div>
         <div className="tasks-toolbar-actions" aria-label="Listenwerkzeuge">
           <TaskTool
@@ -880,6 +937,7 @@ export function TasksPage({
               Bereich
               <select
                 value={forMe ? "mine" : "all"}
+                disabled={!!personalView}
                 onChange={(event) => {
                   const scope = event.target.value as TaskScope;
                   setForMe(scope === "mine");
@@ -897,7 +955,19 @@ export function TasksPage({
                 onChange={(event) => {
                   const view = event.target.value as TaskView;
                   setStatus(view);
-                  updateUrl({ view });
+                  if (planView(view)) {
+                    setForMe(true);
+                    setSearch("");
+                    setSort("created");
+                    updateUrl({
+                      view,
+                      scope: "mine",
+                      search: "",
+                      sort: "created",
+                    });
+                  } else {
+                    updateUrl({ view });
+                  }
                 }}
               >
                 <option value="open">Offen</option>
@@ -905,6 +975,9 @@ export function TasksPage({
                 <option value="due-next">Demnächst fällig</option>
                 <option value="deferred">Zurückgestellt</option>
                 <option value="done">Erledigt</option>
+                {!listId && <option value="plan-today">Mein Heute</option>}
+                {!listId && <option value="plan-planned">Meine Planung</option>}
+                {!listId && <option value="plan-someday">Irgendwann</option>}
               </select>
             </label>
             <label className="tasks-filter-search">
@@ -912,6 +985,7 @@ export function TasksPage({
               <input
                 type="search"
                 maxLength={200}
+                disabled={!!personalView}
                 value={search}
                 onChange={(event) => {
                   const nextSearch = event.target.value;
@@ -924,6 +998,7 @@ export function TasksPage({
               Sortierung
               <select
                 value={sort}
+                disabled={!!personalView}
                 onChange={(event) => {
                   const nextSort = event.target.value as TaskSort;
                   setSort(nextSort);
@@ -943,26 +1018,52 @@ export function TasksPage({
             <p role="status">
               {search
                 ? "Keine Aufgaben für diese Suche."
-                : status === "done"
-                  ? "Noch keine erledigten Aufgaben für diese Auswahl."
-                  : status === "due-today"
-                    ? "Heute ist für diese Auswahl nichts fällig."
-                    : status === "due-next"
-                      ? "In den nächsten sieben Tagen ist für diese Auswahl nichts fällig."
-                      : status === "deferred"
-                        ? "Keine zurückgestellten Aufgaben für diese Auswahl."
-                        : "Keine offenen Aufgaben für diese Auswahl."}
+                : status === "plan-today"
+                  ? "Heute ist nichts persönlich eingeplant oder fällig."
+                  : status === "plan-planned"
+                    ? "Keine zukünftige persönliche Planung."
+                    : status === "plan-someday"
+                      ? "Keine Aufgaben für Irgendwann."
+                      : status === "done"
+                        ? "Noch keine erledigten Aufgaben für diese Auswahl."
+                        : status === "due-today"
+                          ? "Heute ist für diese Auswahl nichts fällig."
+                          : status === "due-next"
+                            ? "In den nächsten sieben Tagen ist für diese Auswahl nichts fällig."
+                            : status === "deferred"
+                              ? "Keine zurückgestellten Aufgaben für diese Auswahl."
+                              : "Keine offenen Aufgaben für diese Auswahl."}
             </p>
           ) : (
             <ul className="tasks-results">
               {taskItems.map((task, index) => {
-                const sectionId = task.epicId ?? "unassigned";
+                const planningTask = isPlannedTask(task) ? task : null;
+                const planned = planningTask?.personalPlan;
+                const planSource = planningTask?.planSource;
+                const previousTask = taskItems[index - 1];
+                const previousPlan =
+                  previousTask && isPlannedTask(previousTask)
+                    ? previousTask
+                    : null;
+                const sectionId =
+                  status === "plan-today"
+                    ? (planSource ?? "planned")
+                    : status === "plan-planned"
+                      ? (planned?.plannedOn ?? "planned")
+                      : (task.epicId ?? "unassigned");
                 const previousSectionId =
                   index === 0
                     ? null
-                    : (taskItems[index - 1]?.epicId ?? "unassigned");
+                    : status === "plan-today"
+                      ? (previousPlan?.planSource ?? "planned")
+                      : status === "plan-planned"
+                        ? (previousPlan?.personalPlan?.plannedOn ?? "planned")
+                        : (taskItems[index - 1]?.epicId ?? "unassigned");
                 const startsSection =
-                  sort === "section" && sectionId !== previousSectionId;
+                  (sort === "section" ||
+                    status === "plan-today" ||
+                    status === "plan-planned") &&
+                  sectionId !== previousSectionId;
                 const collapsed = collapsedSections.has(sectionId);
                 return (
                   <Fragment key={task.id}>
@@ -987,7 +1088,15 @@ export function TasksPage({
                             className="task-section-chevron"
                             aria-hidden="true"
                           />
-                          <h2>{task.epicTitle ?? "Ohne Abschnitt"}</h2>
+                          <h2>
+                            {status === "plan-today"
+                              ? planSource === "due"
+                                ? "Heute fällig / Überfällig"
+                                : "Persönlich geplant"
+                              : status === "plan-planned" && planned?.plannedOn
+                                ? calendarDate(planned.plannedOn)
+                                : (task.epicTitle ?? "Ohne Abschnitt")}
+                          </h2>
                         </button>
                       </li>
                     )}
@@ -1075,6 +1184,20 @@ export function TasksPage({
                                     </time>
                                   </span>
                                 )}
+                                {planned?.plannedOn && (
+                                  <span>
+                                    Persönlich geplant für{" "}
+                                    <time dateTime={planned.plannedOn}>
+                                      {calendarDate(planned.plannedOn)}
+                                    </time>
+                                  </span>
+                                )}
+                                {planned?.state === "someday" && (
+                                  <span>Persönlich: Irgendwann</span>
+                                )}
+                                {planSource === "due" && (
+                                  <span>Fälligkeitshinweis</span>
+                                )}
                               </span>
                             </button>
                           </h2>
@@ -1141,24 +1264,30 @@ export function TasksPage({
                 </Button>
               </StatusMessage>
             ) : detailCanEdit ? (
-              <TaskEditor
-                key={detailTask.id}
-                client={client}
-                userId={identity.userId}
-                listId={detailTask.listId}
-                task={detailTask}
-                onDirtyChange={(dirty) => {
-                  editorDirty.current = dirty;
-                }}
-                onClose={() => closeEditor()}
-              />
+              <>
+                <TaskEditor
+                  key={detailTask.id}
+                  client={client}
+                  userId={identity.userId}
+                  listId={detailTask.listId}
+                  task={detailTask}
+                  onDirtyChange={(dirty) => {
+                    editorDirty.current = dirty;
+                  }}
+                  onClose={() => closeEditor()}
+                />
+                <TaskPlanPanel client={client} taskId={detailTask.id} />
+              </>
             ) : (
-              <div className="task-editor">
-                <TaskReadOnly task={detailTask} focusOnOpen />
-                <Button variant="secondary" onClick={() => closeEditor(true)}>
-                  Schließen
-                </Button>
-              </div>
+              <>
+                <div className="task-editor">
+                  <TaskReadOnly task={detailTask} focusOnOpen />
+                  <Button variant="secondary" onClick={() => closeEditor(true)}>
+                    Schließen
+                  </Button>
+                </div>
+                <TaskPlanPanel client={client} taskId={detailTask.id} />
+              </>
             )}
           </aside>
         )}
