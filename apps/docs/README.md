@@ -48,8 +48,17 @@ against the current code path and an executable contract before publishing it.
 ./leonaid test-docs
 ```
 
-The first four commands use the locked Bun container. `test-docs` remains
-fail-closed until its DOC-060 browser contract is implemented.
+The first four commands use the locked Bun container. `docs-check` also proves
+that the checked-in OpenAPI contract matches the current Core generator.
+`test-docs` serves the exact production build and checks its manifest, German
+and English navigation, language switch, search, keyboard path, responsive
+layouts, and accessibility in the locked Playwright container. Set
+`LEONAID_DOCS_BASE_URL=http://host.docker.internal:4321` to reuse an already
+running `docs-preview` process.
+
+Every build writes `apps/docs/dist/build-manifest.json` with the source SHA,
+build time, artifact ID, documented product revisions, content hash, and
+OpenAPI hash. Only the allowlisted static site files may be uploaded.
 
 `bun run --filter @leonaid/docs generate:api` reads the checked-in
 `packages/api-client/openapi.json` contract and writes the stable, sorted

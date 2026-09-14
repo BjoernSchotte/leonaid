@@ -58,7 +58,7 @@ const operationCount = reference.tags.reduce(
         {tag.name} <span>{tag.operations.length}</span>
       </summary>
       <div class="table-wrap">
-        <table>
+        <table tabindex="0" aria-label={`${labels.routes}: ${tag.name}`}>
           <thead>
             <tr>
               <th scope="col">{labels.method}</th>
@@ -146,6 +146,11 @@ const operationCount = reference.tags.reduce(
     width: 100%;
     min-width: 42rem;
     font-size: 0.86rem;
+  }
+
+  table:focus-visible {
+    outline: 3px solid var(--sl-color-accent);
+    outline-offset: 2px;
   }
 
   th,

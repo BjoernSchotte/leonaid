@@ -261,7 +261,6 @@ source_compose --profile '*' down --volumes --remove-orphans
 verify_cleanup "$source_project"
 python3 "$root/tools/surveys/network_override.py" "$target_isolation"
 target_owned=true
-target_compose --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$target_project" "$target_isolation"
 restore_started=$(date +%s)
 LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_HTTPS_PORT="$target_https_port" \
@@ -273,6 +272,7 @@ LEONAID_HTTP_PORT="$target_http_port" \
   LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
   LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
   LEONAID_RESTORE_START_APP=false \
+  LEONAID_RESTORE_RESERVE_TEST_NETWORKS=true \
   LEONAID_RESTORE_COMPOSE_OVERLAY="$target_isolation" \
   LEONAID_RESTORE_STATE_FILE="$proof/restore-state.json" \
   /bin/sh "$root/tools/backup/restore.sh" "$root"

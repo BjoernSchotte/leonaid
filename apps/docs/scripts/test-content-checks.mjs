@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { checkUrl } from "./check-external-links.mjs";
 import { validateContent } from "./check-content.mjs";
+import { isAllowedOutput } from "./output-contract.mjs";
 
 const inventory = path.resolve(
   import.meta.dirname,
@@ -124,6 +125,25 @@ if (missing.category !== "permanent" || missing.attempts !== 1) {
   throw new Error("permanent link failure classification failed");
 }
 
+for (const file of [
+  "build-manifest.json",
+  "de/ops/index.html",
+  "_astro/site.abc123.css",
+  "pagefind/fragment/de_abc123.pf_fragment",
+]) {
+  if (!isAllowedOutput(file))
+    throw new Error(`expected allowlisted output: ${file}`);
+}
+for (const file of [
+  "private-build-canary.txt",
+  "repository.env",
+  "_astro/debug.js.map",
+  "de/_drafts/not-published/index.html",
+]) {
+  if (isAllowedOutput(file))
+    throw new Error(`unexpected allowlisted output: ${file}`);
+}
+
 console.log(
-  "docs-quality: OK: parity, revision, anchor, draft and external retry contracts",
+  "docs-quality: OK: parity, revision, anchor, draft, output allowlist and external retry contracts",
 );

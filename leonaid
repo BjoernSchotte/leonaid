@@ -250,9 +250,14 @@ run_bun() {
 
 run_docs_bun() {
   require_docker
+  docs_revision=${LEONAID_DOCS_REVISION:-$(git -C "$root" rev-parse HEAD 2>/dev/null || printf development)}
+  docs_built_at=${LEONAID_DOCS_BUILT_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+  docs_artifact_id=${LEONAID_DOCS_ARTIFACT_ID:-local-$(printf %s "$docs_revision" | cut -c 1-12)}
   docker_retry docker run --rm \
     -e ASTRO_TELEMETRY_DISABLED=1 \
-    -e LEONAID_DOCS_REVISION="${LEONAID_DOCS_REVISION:-development}" \
+    -e LEONAID_DOCS_ARTIFACT_ID="$docs_artifact_id" \
+    -e LEONAID_DOCS_BUILT_AT="$docs_built_at" \
+    -e LEONAID_DOCS_REVISION="$docs_revision" \
     --network none \
     -v "$root:/workspace" \
     -w /workspace \
@@ -263,14 +268,95 @@ run_docs_bun() {
 serve_docs() {
   mode=$1
   require_docker
+  docs_revision=${LEONAID_DOCS_REVISION:-$(git -C "$root" rev-parse HEAD 2>/dev/null || printf development)}
   docker_retry docker run --rm \
     -e ASTRO_TELEMETRY_DISABLED=1 \
-    -e LEONAID_DOCS_REVISION="${LEONAID_DOCS_REVISION:-development}" \
+    -e LEONAID_DOCS_REVISION="$docs_revision" \
     -p "127.0.0.1:${LEONAID_DOCS_PORT:-4321}:4321" \
     -v "$root:/workspace" \
     -w /workspace \
     "$BUN_IMAGE" \
     bun run --filter @leonaid/docs "$mode"
+}
+
+test_docs() {
+  require_docker
+  artifact_directory=${LEONAID_DOCS_ARTIFACT_DIR:-$root/.artifacts/docs}
+  case "$artifact_directory" in
+    "$root"/*) ;;
+    *)
+      echo "test-docs: ERROR: artefact directory must be inside the checkout" >&2
+      exit 64
+      ;;
+  esac
+  mkdir -p "$artifact_directory"
+
+  preview_container=
+  preview_network=
+  base_url=${LEONAID_DOCS_BASE_URL:-}
+  browser_network_arguments="--add-host host.docker.internal:host-gateway"
+  cleanup_docs_test() {
+    status=$?
+    if [ -n "$preview_container" ]; then
+      if [ "$status" -ne 0 ]; then
+        docker logs "$preview_container" >&2 || true
+      fi
+      docker rm --force "$preview_container" >/dev/null 2>&1 || status=1
+    fi
+    if [ -n "$preview_network" ]; then
+      docker network rm "$preview_network" >/dev/null 2>&1 || status=1
+    fi
+    trap - EXIT HUP INT TERM
+    exit "$status"
+  }
+  abort_docs_test() {
+    exit 130
+  }
+  trap cleanup_docs_test EXIT
+  trap abort_docs_test HUP INT TERM
+
+  if [ -z "$base_url" ]; then
+    preview_container="leonaid-docs-preview-$$"
+    preview_network="leonaid-docs-test-$$"
+    docker_retry docker network create "$preview_network" >/dev/null
+    docs_revision=${LEONAID_DOCS_REVISION:-$(git -C "$root" rev-parse HEAD 2>/dev/null || printf development)}
+    docker_retry docker run --detach \
+      --name "$preview_container" \
+      --network "$preview_network" \
+      -e ASTRO_TELEMETRY_DISABLED=1 \
+      -e LEONAID_DOCS_REVISION="$docs_revision" \
+      -v "$root:/workspace" \
+      -w /workspace \
+      "$BUN_IMAGE" \
+      bun run --filter @leonaid/docs preview >/dev/null
+    preview_address=$(docker inspect \
+      --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+      "$preview_container")
+    if [ -z "$preview_address" ]; then
+      echo "test-docs: ERROR: isolated preview has no network address" >&2
+      exit 1
+    fi
+    base_url="http://$preview_address:4321"
+    browser_network_arguments="--network $preview_network"
+  fi
+
+  # shellcheck disable=SC2086
+  docker_retry docker run --rm \
+    $browser_network_arguments \
+    -e CI=1 \
+    -e HOME=/tmp \
+    -e LEONAID_DOCS_ARTIFACT_DIR=/proof \
+    -e LEONAID_DOCS_BASE_URL="$base_url" \
+    -e LEONAID_DOCS_TEST_OUTPUT=/proof/results \
+    -v "$root:/workspace:ro" \
+    -v "$artifact_directory:/proof" \
+    -w /workspace/apps/docs \
+    --user "$(id -u):$(id -g)" \
+    "$PLAYWRIGHT_IMAGE" \
+    ../../node_modules/.bin/playwright test --config=playwright.config.mjs
+
+  echo "test-docs: OK: manifest, DE/EN navigation, language switch, search, keyboard,"
+  echo "test-docs:     375 px, desktop, 200% zoom and accessibility proven"
 }
 
 generate_test_logins() {
@@ -2065,13 +2151,14 @@ case "$command" in
   doctor) doctor ;;
   check) check_all ;;
   docs-dev) serve_docs dev ;;
-  docs-check) run_docs_bun check ;;
+  docs-check)
+    run_python uv run --frozen --no-sync \
+      python tools/openapi/generate.py --root /workspace --check
+    run_docs_bun check
+    ;;
   docs-build) run_docs_bun build ;;
   docs-preview) serve_docs preview ;;
-  test-docs)
-    echo "test-docs: DOC-060 browser contract is not implemented yet." >&2
-    exit 1
-    ;;
+  test-docs) test_docs ;;
   export-campaign-schema)
     require_docker
     docker_retry docker run --rm --network none \

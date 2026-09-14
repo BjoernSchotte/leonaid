@@ -21,6 +21,7 @@ restore_scope=${LEONAID_RESTORE_SCOPE:-full}
 case "$topology" in legacy|emdash) ;; *) echo "restore: ERROR: unknown topology" >&2; exit 1 ;; esac
 restore_no_build=${LEONAID_RESTORE_NO_BUILD:-false}
 restore_profile=${LEONAID_RESTORE_PROFILE:-dev-mail}
+reserve_test_networks=${LEONAID_RESTORE_RESERVE_TEST_NETWORKS:-false}
 fail() {
   echo "restore: ERROR: $*" >&2
   exit 1
@@ -150,6 +151,19 @@ fi
 
 if [ -n "$(docker network ls -q --filter "label=com.docker.compose.project=$target_project")" ]; then
   fail "Restore-Ziel besitzt bereits Netzwerke"
+fi
+
+if [ "$reserve_test_networks" = true ]; then
+  [ "${LEONAID_BACKUP_ALLOW_LOCAL_TEST:-false}" = true ] ||
+    fail "Netzwerkreservierung ist nur im lokalen Test erlaubt"
+  [ -n "$compose_overlay" ] ||
+    fail "Netzwerkreservierung benötigt ein primäres Compose-Overlay"
+  [ -z "$compose_overlay_secondary" ] && [ -z "$recovery_overlay_list" ] ||
+    fail "Netzwerkreservierung unterstützt genau ein Test-Overlay"
+  compose --profile '*' config --format json |
+    python3 "$root/tools/testing/reserve_compose_networks.py" \
+      "$target_project" "$compose_overlay"
+  compose config --format json >"$stage/compose.json"
 fi
 
 local_repository=false

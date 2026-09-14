@@ -1,0 +1,60 @@
+name: Documentation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: documentation-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Bilingual site artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LEONAID_DOCS_ARTIFACT_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+      LEONAID_DOCS_REVISION: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Record reproducible build metadata
+        run: echo "LEONAID_DOCS_BUILT_AT=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_ENV"
+
+      - name: Bootstrap locked toolchains
+        run: ./leonaid bootstrap
+
+      - name: Validate content, translations, links and API source
+        run: ./leonaid docs-check
+
+      - name: Build allowlisted static artifact and manifest
+        run: ./leonaid docs-build
+
+      - name: Prove the production build in Chromium
+        run: ./leonaid test-docs
+
+      - name: Publish browser evidence
+        if: ${{ always() && hashFiles('.artifacts/docs/**') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: docs-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/docs
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish complete documentation site
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: docs-site-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/docs/dist
+          if-no-files-found: error
+          retention-days: 14

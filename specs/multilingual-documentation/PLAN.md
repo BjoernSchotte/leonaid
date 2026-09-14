@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-040 abgeschlossen.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-050 abgeschlossen, DOC-060 lokal abgenommen und vor dem CI-Nachweis.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -285,12 +285,12 @@ Nachweis: Erwartete Ergebnisse treten ein, Rollen- und Aktionsgrenzen sind korre
 
 Abhängigkeit: DOC-030; kann nach DOC-040 oder unabhängig davon bearbeitet werden.
 
-- [ ] CONTENT-05 bis CONTENT-08 erstellen; Demo, Pilotkonfiguration und produktive Betreiberverantwortung klar kennzeichnen.
-- [ ] OpenAPI-Referenz aus dem bestehenden geprüften Vertrag reproduzierbar bauen; kuratierte Erklärung davon getrennt halten.
-- [ ] Installations- und Entwicklungstutorial aus frischem Checkout durchführen; vorhandenen `test-handoff` auf Wiederverwendung prüfen.
-- [ ] Restore und Upgrade/Rollback anhand der Anleitungen in isolierter synthetischer Umgebung durchspielen; vorhandene passende Betriebsnachweise wiederverwenden/gezielt ergänzen.
-- [ ] Alte Einstiegspunkte zur neuen kanonischen Anleitung verlinken und historische Dokumente als solche erhalten.
-- [ ] Root-README gemäß Abschnitt 5.4 auf einen kurzen englischen GitHub-Einstieg reduzieren und die tatsächlich vorhandenen DE/EN-Docs-Quelldateien für Anwendung, Betrieb und Entwicklung relativ verlinken; typische weitere Repository-Informationen bleiben einer späteren Ergänzung vorbehalten.
+- [x] CONTENT-05 bis CONTENT-08 erstellen; Demo, Pilotkonfiguration und produktive Betreiberverantwortung klar kennzeichnen.
+- [x] OpenAPI-Referenz aus dem bestehenden geprüften Vertrag reproduzierbar bauen; kuratierte Erklärung davon getrennt halten.
+- [x] Installations- und Entwicklungstutorial aus frischem Checkout durchführen; vorhandenen `test-handoff` auf Wiederverwendung prüfen.
+- [x] Restore und Upgrade/Rollback anhand der Anleitungen in isolierter synthetischer Umgebung durchspielen; vorhandene passende Betriebsnachweise wiederverwenden/gezielt ergänzen.
+- [x] Alte Einstiegspunkte zur neuen kanonischen Anleitung verlinken und historische Dokumente als solche erhalten.
+- [x] Root-README gemäß Abschnitt 5.4 auf einen kurzen englischen GitHub-Einstieg reduzieren und die tatsächlich vorhandenen DE/EN-Docs-Quelldateien für Anwendung, Betrieb und Entwicklung relativ verlinken; typische weitere Repository-Informationen bleiben einer späteren Ergänzung vorbehalten.
 
 Nachweis: Keine fehlenden impliziten Installationsschritte; Erfolg, Fehlerdiagnose und Rückweg belegt. Zweimalige Referenzgenerierung aus identischen Eingaben liefert identische fachliche Inhalte. Fehlender oder vom Core abweichender API-Vertrag blockiert die Referenz. Synthetische Betriebsproben werden nicht als produktive Betreiberfreigabe ausgegeben. Das englische Root-README bleibt auf GitHub übersichtlich; alle Dokumentationslinks lösen auf vorhandene Quelldateien auf und sind ohne Site-Deployment nutzbar. Die README-Reduktion wartet bei Anwenderinhalten auf deren Abnahme in DOC-040.
 
@@ -298,10 +298,10 @@ Nachweis: Keine fehlenden impliziten Installationsschritte; Erfolg, Fehlerdiagno
 
 Abhängigkeit: DOC-040 und DOC-050.
 
-- [ ] PR, Push, Nachtlauf und manuellen Wiederanlauf mit denselben Docs-Gates einrichten; benötigte API-Vertragsprüfung integrieren.
-- [ ] Manifest, übersetzte Navigation, Sprachwechsel, Suchindex, Linkprüfung und Browser-Smoke in beiden Sprachen nachweisen.
-- [ ] Mindestens 375-px-Mobilansicht, Desktop, 200-%-Zoom, Tastaturbedienung und automatisierte Accessibility-Prüfung durchführen; kritische Befunde beheben.
-- [ ] Veröffentlichtes Dateiset über Allowlist prüfen; absichtlich platzierte Testdatei außerhalb des Docs-Ausgabevertrags darf nicht im Artefakt landen.
+- [x] PR, Push, Nachtlauf und manuellen Wiederanlauf mit denselben Docs-Gates einrichten; benötigte API-Vertragsprüfung integrieren.
+- [x] Manifest, übersetzte Navigation, Sprachwechsel, Suchindex, Linkprüfung und Browser-Smoke in beiden Sprachen nachweisen.
+- [x] Mindestens 375-px-Mobilansicht, Desktop, 200-%-Zoom, Tastaturbedienung und automatisierte Accessibility-Prüfung durchführen; kritische Befunde beheben.
+- [x] Veröffentlichtes Dateiset über Allowlist prüfen; absichtlich platzierte Testdatei außerhalb des Docs-Ausgabevertrags darf nicht im Artefakt landen.
 
 Nachweis: Echter PR-CI-Lauf und manueller Lauf terminal grün; echtes Nacht-Ereignis separat nachgewiesen, sobald der Workflow auf dem Default-Branch liegt. Ein manueller Lauf beweist den Schedule nicht. Fehlerfälle verhindern Promotion. Alle ersten DE/EN-Seiten sind fachlich und sprachlich freigegeben. Ohne Hosting endet dieser Task bei einem geprüften Artefakt.
 
