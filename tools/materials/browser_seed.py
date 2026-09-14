@@ -38,7 +38,7 @@ async def main() -> None:
                 await conn.execute(
                     "INSERT INTO user_account(id,email,display_name,status) VALUES($1,$2,'Material Browsernachweis','active')",
                     user_id,
-                    f"{user_id}@example.invalid",
+                    f"{user_id}@example.org",
                 )
                 await conn.execute(
                     "INSERT INTO user_session(id,user_id,token_digest,expires_at,last_seen_at,fresh_login_at,device_hint,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5,'Browser proof',$5,$5)",

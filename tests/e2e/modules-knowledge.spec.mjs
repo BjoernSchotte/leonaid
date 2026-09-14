@@ -47,6 +47,25 @@ for (const [surface, width] of [
       name: "Textformatierung",
       exact: true,
     });
+    const mainRoot = page
+      .locator(".knowledge-formatting")
+      .filter({ has: mainToolbar });
+    const mainSelect = async (name, value) => {
+      const select = mainRoot.getByRole("combobox", { name, exact: true });
+      if (!(await select.isVisible()))
+        await mainToolbar
+          .getByRole("button", { name: "Weitere Formate", exact: true })
+          .click();
+      await select.selectOption(value);
+    };
+    const mainButton = async (name) => {
+      const button = mainRoot.getByRole("button", { name, exact: true });
+      if (!(await button.isVisible()))
+        await mainToolbar
+          .getByRole("button", { name: "Weitere Formate", exact: true })
+          .click();
+      await button.click();
+    };
     const bubble = page.getByRole("toolbar", {
       name: "Auswahl formatieren",
       exact: true,
@@ -55,15 +74,18 @@ for (const [surface, width] of [
     await bubble
       .getByRole("button", { name: "Unterstreichen", exact: true })
       .click();
-    await mainToolbar
-      .getByLabel("Schriftart", { exact: true })
-      .selectOption("serif");
-    await mainToolbar
-      .getByLabel("Schriftgröße", { exact: true })
-      .selectOption("18px");
-    await mainToolbar
-      .getByRole("button", { name: "Zentriert", exact: true })
-      .click();
+    await mainSelect("Schriftart", "serif");
+    await mainSelect("Schriftgröße", "18px");
+    await mainButton("Zentriert");
+    if (
+      await mainToolbar
+        .getByRole("button", { name: "Weitere Formate", exact: true })
+        .isVisible()
+    ) {
+      await mainToolbar
+        .getByRole("button", { name: "Weitere Formate", exact: true })
+        .click();
+    }
     await expect(editor.locator("u")).toHaveText("Erster gemeinsamer Inhalt.");
     await expect(editor.locator("p")).toHaveCSS("text-align", "center");
     await expect(editor.locator("span").first()).toHaveCSS("font-size", "18px");
@@ -105,6 +127,14 @@ for (const [surface, width] of [
         );
       })
       .toBeLessThan(24);
+    const mainPositions = await mainToolbar
+      .getByRole("button")
+      .evaluateAll((buttons) =>
+        buttons
+          .filter((button) => button.getClientRects().length)
+          .map((button) => Math.round(button.getBoundingClientRect().y)),
+      );
+    expect(new Set(mainPositions).size).toBe(1);
     const menuBounds = await bubbleRoot.boundingBox();
     const iconBounds = await bubble.getByRole("button").evaluateAll((buttons) =>
       buttons.map((button) => ({

@@ -14,6 +14,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontFamily, FontSize } from "@tiptap/extension-text-style";
 import TextAlign from "@tiptap/extension-text-align";
 import { FormattingToolbar } from "./formatting-toolbar";
+import { normalizePastedHTML } from "./paste";
 import { ApiError, type LeonAidApiClient } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
@@ -204,6 +205,7 @@ function PageEditor({
     onContentError: () => setInvalid(true),
     onUpdate: changed,
     editorProps: {
+      transformPastedHTML: normalizePastedHTML,
       attributes: {
         role: "textbox",
         "aria-label": "Seiteninhalt",

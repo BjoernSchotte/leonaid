@@ -360,6 +360,31 @@ def test_font_styles_reject_unbounded_or_injected_values(attrs: object) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"fontFamily": "", "fontSize": ""},
+        {"fontFamily": "serif", "fontSize": ""},
+        {"fontFamily": "", "fontSize": "20px"},
+        {"fontFamily": None, "fontSize": ""},
+    ],
+)
+def test_pasted_text_keeps_tiptap_unset_font_attributes(attrs: object) -> None:
+    source = document(
+        {
+            "type": "paragraph",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Eingefügter Text",
+                    "marks": [{"type": "textStyle", "attrs": attrs}],
+                }
+            ],
+        }
+    )
+    assert validate_document(source) == source
+
+
 @pytest.mark.parametrize("alignment", ["float", "left;position:fixed", 1, [], {}])
 def test_alignment_rejects_non_contract_values(alignment: object) -> None:
     with pytest.raises(ValueError):

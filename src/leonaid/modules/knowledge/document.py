@@ -182,7 +182,8 @@ def validate_mark(mark: object) -> None:
             raise ValueError("Ungültige Schriftattribute.")
         for key, allowed in (("fontFamily", FONT_FAMILIES), ("fontSize", FONT_SIZES)):
             value = attrs.get(key)
-            if value is not None and (
+            # Tiptap's HTML parser represents absent style properties as "".
+            if value not in (None, "") and (
                 not isinstance(value, str) or value not in allowed
             ):
                 raise ValueError("Nicht unterstützte Schrift oder Schriftgröße.")

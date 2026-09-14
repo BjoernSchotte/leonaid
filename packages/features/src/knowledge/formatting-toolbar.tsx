@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { FONT_FAMILIES, FONT_SIZES } from "./paste";
 import {
   TextBoldIcon,
   TextItalicIcon,
@@ -60,6 +61,8 @@ export function FormattingToolbar({
       link: e.isActive("link"),
       undo: e.can().undo(),
       redo: e.can().redo(),
+      indent: e.can().sinkListItem("listItem"),
+      outdent: e.can().liftListItem("listItem"),
     }),
   });
   const action = (
@@ -113,9 +116,11 @@ export function FormattingToolbar({
         }
       >
         <option value="">Standardschrift</option>
-        <option value="sans-serif">Sans Serif</option>
-        <option value="serif">Serif</option>
-        <option value="monospace">Monospace</option>
+        {FONT_FAMILIES.map(({ value, label }) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
       </select>
       <select
         aria-label="Schriftgröße"
@@ -128,7 +133,7 @@ export function FormattingToolbar({
         }
       >
         <option value="">Standardgröße</option>
-        {[12, 14, 16, 18, 20, 24, 32].map((n) => (
+        {FONT_SIZES.map((n) => (
           <option key={n} value={`${n}px`}>
             {n} px
           </option>
@@ -156,14 +161,14 @@ export function FormattingToolbar({
           ListIndentIncreaseIcon,
           () => editor.chain().focus().sinkListItem("listItem").run(),
           undefined,
-          !editor.can().sinkListItem("listItem"),
+          !state.indent,
         )}
         {action(
           "Ausrücken",
           ListIndentDecreaseIcon,
           () => editor.chain().focus().liftListItem("listItem").run(),
           undefined,
-          !editor.can().liftListItem("listItem"),
+          !state.outdent,
         )}
       </span>
       <span className="knowledge-tool-group">
@@ -230,7 +235,7 @@ export function FormattingToolbar({
             event.currentTarget.querySelectorAll<HTMLButtonElement>(
               "button:not(:disabled)",
             ),
-          );
+          ).filter((button) => button.getClientRects().length > 0);
           const index = buttons.indexOf(event.target);
           const next =
             event.key === "Home"
@@ -245,7 +250,9 @@ export function FormattingToolbar({
           buttons[next]?.focus();
         }}
       >
-        {!compact && styleControls}
+        {!compact && (
+          <div className="knowledge-primary-controls">{styleControls}</div>
+        )}
         <span className="knowledge-tool-group">
           {action(
             "Fett",
@@ -283,11 +290,13 @@ export function FormattingToolbar({
             state.link,
           )}
         </span>
-        {!compact && blockControls}
-        {compact && (
+        {!compact && (
+          <div className="knowledge-primary-controls">{blockControls}</div>
+        )}
+        {
           <button
             type="button"
-            className="knowledge-tool"
+            className="knowledge-tool knowledge-more-trigger"
             title="Weitere Formate"
             aria-label="Weitere Formate"
             aria-expanded={more}
@@ -303,9 +312,9 @@ export function FormattingToolbar({
               aria-hidden="true"
             />
           </button>
-        )}
+        }
       </div>
-      {compact && more && (
+      {more && (
         <div
           className="knowledge-more-panel"
           role="group"

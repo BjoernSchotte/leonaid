@@ -33,6 +33,6 @@ docker run --rm --network "${project}_edge" \
   --volume "$root:/workspace:ro" --volume "$proof:/proof" \
   --volume "$results:/results" --workdir /workspace \
   "$PLAYWRIGHT_IMAGE" node_modules/.bin/playwright test \
-  tests/e2e/modules-materials.spec.mjs tests/e2e/modules-knowledge.spec.mjs \
+  tests/e2e/modules-materials.spec.mjs tests/e2e/modules-knowledge.spec.mjs tests/e2e/knowledge-editor.spec.mjs \
   tests/e2e/modules-tasks.spec.mjs tests/e2e/public-inbox-retry.spec.mjs \
   --output=/results/modules --reporter=line
