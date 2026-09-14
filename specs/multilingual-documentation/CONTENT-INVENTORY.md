@@ -35,7 +35,7 @@ Einordnung, können aktuelles Verhalten aber nicht beweisen oder überstimmen.
 | ID | CONTENT | Bereich | Diátaxis | Relativer Pfad / Route | Quelle | DE/EN-Status | Review | Abnahme |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | DOC-P001 | 01 | Orientierung | Erklärung | `index.mdx` · `/{locale}/` | `README.md`, `PERSONAS.md`, dieses Inventar | geplant/geplant | Björn Schotte: offen/offen | DOC-040 + DOC-050 |
-| DOC-P002 | 01 | Orientierung | Referenz | `glossary.md` · `/{locale}/glossary/` | `PERSONAS.md`, Domain- und UI-Begriffe | geplant/geplant | Björn Schotte: offen/offen | DOC-040 + DOC-050 |
+| DOC-P002 | 01 | Orientierung | Referenz | `glossary.md` · `/{locale}/glossary/` | `PERSONAS.md`, Domain- und UI-Begriffe | erstellt/erstellt | Björn Schotte: Sprachpaar und Struktur geprüft; Fachabnahme mit DOC-040/050 | DOC-040 + DOC-050 |
 | DOC-P003 | 01 | Orientierung | Referenz | `known-limits.md` · `/{locale}/known-limits/` | `specs/leonaid-poc/KNOWN-LIMITS.md`, aktuelle Specs und Implementierung | geplant/geplant | Björn Schotte: offen/offen | DOC-040 + DOC-050 |
 | DOC-P010 | 01 | Anwendung | Erklärung | `user/index.mdx` · `/{locale}/user/` | `PERSONAS.md`, `packages/features`, `apps/public` | geplant/geplant | Björn Schotte: offen/offen | DOC-040 |
 | DOC-P011 | 02 | Anwendung | Tutorial | `user/tutorials/first-customer-order.md` · `/{locale}/user/tutorials/first-customer-order/` | `packages/features/src/commitments`, `tests/e2e`, Golden Dataset | geplant/geplant | Björn Schotte: offen/offen | DOC-040 |

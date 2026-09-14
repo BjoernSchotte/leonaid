@@ -5,16 +5,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "astro build",
-    "check": "astro check",
+    "build": "astro build && bun scripts/check-build.mjs",
+    "check": "astro check && bun run check:content && bun run test:quality",
+    "check:content": "bun scripts/check-content.mjs",
+    "check:external": "bun scripts/check-external-links.mjs",
     "dev": "astro dev --host 0.0.0.0 --port 4321",
-    "preview": "astro preview --host 0.0.0.0 --port 4321"
+    "preview": "astro preview --host 0.0.0.0 --port 4321",
+    "test:quality": "bun scripts/test-content-checks.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "0.41.7",
     "@fontsource-variable/instrument-sans": "5.3.0",
     "@fontsource-variable/newsreader": "5.3.0",
-    "astro": "7.2.8"
+    "astro": "7.2.8",
+    "github-slugger": "2.0.0",
+    "js-yaml": "4.3.2"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.9"

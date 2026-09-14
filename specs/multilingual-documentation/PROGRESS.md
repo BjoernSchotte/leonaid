@@ -8,7 +8,7 @@ Draft-PR: [#8](https://github.com/BjoernSchotte/leonaid/pull/8)
 | --- | --- | --- |
 | DOC-010 | abgeschlossen | [proofs/DOC-010.md](proofs/DOC-010.md) |
 | DOC-020 | abgeschlossen | [proofs/DOC-020.md](proofs/DOC-020.md) |
-| DOC-030 | offen | — |
+| DOC-030 | abgeschlossen | [proofs/DOC-030.md](proofs/DOC-030.md) |
 | DOC-040 | offen | — |
 | DOC-050 | offen | — |
 | DOC-060 | offen | — |

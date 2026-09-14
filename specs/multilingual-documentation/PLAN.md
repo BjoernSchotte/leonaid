@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 und DOC-020 abgeschlossen.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-030 abgeschlossen.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen
@@ -264,10 +264,10 @@ Nachweis: Frischer Checkout baut und previewt die Site ohne Produktstack oder Pr
 
 Abhängigkeit: DOC-020.
 
-- [ ] Vier kurze Autorenvorlagen, Glossar und Pflegevertrag dokumentieren.
-- [ ] Prüfung auf eindeutige Seiten-IDs, gültige Metadaten, DE/EN-Parität und veraltete Übersetzungsrevisionen einführen.
-- [ ] Interne Routen/Anker, Assets und locale-treue Links am Build prüfen; externe Links im Nachtlauf mit begrenzten Retries kontrollieren und temporäre Netzfehler getrennt melden.
-- [ ] PR-Checkliste für Dokumentationsauswirkung und Reviews ergänzen.
+- [x] Vier kurze Autorenvorlagen, Glossar und Pflegevertrag dokumentieren.
+- [x] Prüfung auf eindeutige Seiten-IDs, gültige Metadaten, DE/EN-Parität und veraltete Übersetzungsrevisionen einführen.
+- [x] Interne Routen/Anker, Assets und locale-treue Links am Build prüfen; externe Links im Nachtlauf mit begrenzten Retries kontrollieren und temporäre Netzfehler getrennt melden.
+- [x] PR-Checkliste für Dokumentationsauswirkung und Reviews ergänzen.
 
 Nachweis: Bewusst fehlende Übersetzung, veraltete Revision und defekter interner Anker lassen `docs-check` scheitern. Nach Korrektur besteht der Check. Ein Entwurf taucht weder über direkten URL-Aufruf noch in Suche/Sitemap auf. Ein fachlich falscher Text wird durch Review behandelt, nicht als automatisch erkannt behauptet.
 
