@@ -285,6 +285,7 @@ Abnahme: Tests erkennen absichtlich eingebrachte ungültige Imports/Kollisionen 
   - [x] Lebenszyklus, Liste und Grundeinstellungen: gemeinsame Eingabe-/Ergebnismodelle, benannte typisierte Methoden und Nutzung durch HTTP; Direktaufruf-Validierung einschließlich nachträglich veränderter Eingaben geprüft. Analyse, Antwortauswahl, Teilnahme und vollständiger LIVE-Rechtenachweis bleiben offen.
   - [x] Analyse, Antwortauswahl, Einladungsverwaltung und Teilnahme auf benannte typisierte Methoden umstellen; generische `SurveyService.author`-/`participate`-Aufrufe entfernen. Vollständige LIVE-Matrix und Export-Fassade bleiben offen.
   - [x] Export-Fassade mit Direktaufruf-Validierung und expliziten öffentlichen Python-Exports ergänzen; HTTP auf dieselben Methoden umstellen.
+- [x] Erweiterte Restic-Recovery in manueller, Archiv- und dauerhafter Bestätigungsvariante im CI bestehen: drei vollständige Checks mit Exit 0 einschließlich Browser und Bereinigung. Pilot-Wrapper und Upgrade bleiben separate Gates.
 - [ ] Bestehende Survey-Handler und Fristen-Sweep explizit registrieren. Bestehende Export-, Versand-, Lösch- und Recovery-Semantik erhalten.
   - [x] Implementierung: Handler-Konstruktion und vorhandenen Sweep in `modules/surveys/jobs.py` bündeln, über Bootstrap registrieren und doppelte Sweep-Namen beim Start ablehnen. LIVE-Regressionsabnahme bleibt für den übergeordneten Task offen.
 - [x] Verzögertes Enqueue, Laufzeit-/Lease-Grenzen und sichere Retry-Fehler anhand eines realen vorhandenen Jobtyps prüfen; keine künstlichen Produktjobs erzeugen.
