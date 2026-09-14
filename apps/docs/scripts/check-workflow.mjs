@@ -158,6 +158,13 @@ if (
 ) {
   errors.push("watchdog permissions must be limited to actions and issues");
 }
+if (
+  watchdog.concurrency?.group !==
+    "documentation-watchdog-${{ github.event.workflow_run.head_branch || github.ref }}" ||
+  watchdog.concurrency?.["cancel-in-progress"] !== true
+) {
+  errors.push("watchdog concurrency must isolate Documentation branches");
+}
 const watchdogJob = watchdog.jobs?.monitor;
 const watchdogScript = watchdogJob?.steps?.[0]?.run ?? "";
 for (const contract of [
