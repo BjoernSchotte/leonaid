@@ -1,8 +1,7 @@
 # Aufgaben-UX: Implementierung und Abnahme
 
-Stand: S1 ist mit vollständig grüner PR-CI abgeschlossen. S2 ist implementiert
-und lokal vollständig abgenommen; die PR-CI des S2-Commits steht noch aus.
-S3–S11 bleiben offen.
+Stand: S1 und S2 sind mit vollständig grüner PR-CI abgeschlossen. S3 ist lokal
+vollständig abgenommen und wartet auf Push/K5; S4–S11 bleiben offen.
 Ausgangsstand: `0a084c88ac5ddd73faf112d3d6abc767ab2d6c6f` auf Draft-PR #7.
 Die CI dieses Ausgangsstands war beim Implementierungsbeginn vollständig grün
 (`gh pr checks 7 --json name,state`, keine offenen/fehlgeschlagenen Checks).
@@ -23,18 +22,18 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
 | S1-A5 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | SQL query_logger mit 1/50 Aufgaben; Browser zählt Requests | Konstante SQL-Leseanzahl, keine Einzelabfragen für Zeilenlabels | bestanden | K2 und K3 erfolgreich |
 | S1-A6 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Tastatur/Undo/Fokus, langer Titel, leere Suche, langsames Refetch | Bedienung ohne Fokusverlust oder verschwindende Bestandszeilen | bestanden | Beide S1-Browserfälle erfolgreich |
 | S1-A7 | `faea4c800d4aa466a3f229384fe937ec9a8d48f3` | Aufgaben/Wissen/Materialien Web/PWA, Inbox, 780-px-Abmelden, langes Materiallabel bei 320 px | Desktop 40 px, Touch/Iconflächen ≥44 px, Icons inline, kein Abschneiden | bestanden | K3-Verbraucherfälle, PR-CI und Screenshots erfolgreich |
-| S2-A1 | S2-Änderungsstand dieses Commits | Web/PWA: Schnellanlage per Enter und Button, leerer Titel, Zuweisung „Für mich“ | Genau eine Aufgabe, keine Mutation bei Leerwert, eigene Person nur wenn zulässig | lokal bestanden | `tasks-details.spec.mjs`, vollständiger K3-Lauf: 16/16 |
-| S2-A2 | S2-Änderungsstand dieses Commits | Ausgewählte und übergreifende Ansicht, Leserrolle | Liste nur im übergreifenden Kontext erforderlich; Leser ohne Anlageformular | lokal bestanden | Browserfälle für Liste, Aggregat und Leser |
-| S2-A3 | S2-Änderungsstand dieses Commits | 1440/1024/390 px, langer Listenname, Icon-Aktionen und Schnellanlage | Ruhige Kopfzeile; aktueller Listenname nicht redundant im Formular; Detail split/eigene Ansicht; ≥44-px-Ziele | lokal bestanden | Geometrieassertionen und visuell geprüfte Screenshots |
-| S2-A4 | S2-Änderungsstand dieses Commits | Filter, Suche, Direktlink, Reload, Browser-Zurück und Fokus | URL-Zustand und Rückkehrposition bleiben erhalten | lokal bestanden | reale Navigationsschritte in `tasks-details.spec.mjs` |
-| S2-A5 | S2-Änderungsstand dieses Commits | Geänderter Entwurf, Escape/Zurück/Abbrechen und simulierter konkurrierender Stand | Kein stiller Verlust; Konflikt lässt Entwurf editierbar und erhält Werte | lokal bestanden | Browserdialog-, Fokus- und Konfliktfälle |
-| S2-A6 | S2-Änderungsstand dieses Commits | PWA 390 px sowie echtes Safari unter iOS 26.5 mit geöffneter Tastatur | Aktionen bleiben erreichbar; Detail verdeckt nichts; Wissensreferenz öffnet die Aufgabe | lokal bestanden | `s2-app-390-detail-actions.png`, `s2-ios-safari-keyboard.png`, K3 16/16 |
-| S3-A1 | – | noch auszuführen | siehe SLICES.md, S3-A1 | offen | – |
-| S3-A2 | – | noch auszuführen | siehe SLICES.md, S3-A2 | offen | – |
-| S3-A3 | – | noch auszuführen | siehe SLICES.md, S3-A3 | offen | – |
-| S3-A4 | – | noch auszuführen | siehe SLICES.md, S3-A4 | offen | – |
-| S3-A5 | – | noch auszuführen | siehe SLICES.md, S3-A5 | offen | – |
-| S3-A6 | – | noch auszuführen | siehe SLICES.md, S3-A6 | offen | – |
+| S2-A1 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | Web/PWA: Schnellanlage per Enter und Button, leerer Titel, Zuweisung „Für mich“ | Genau eine Aufgabe, keine Mutation bei Leerwert, eigene Person nur wenn zulässig | bestanden | `tasks-details.spec.mjs`, vollständiger K3-Lauf: 16/16 |
+| S2-A2 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | Ausgewählte und übergreifende Ansicht, Leserrolle | Liste nur im übergreifenden Kontext erforderlich; Leser ohne Anlageformular | bestanden | Browserfälle für Liste, Aggregat und Leser |
+| S2-A3 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | 1440/1024/390 px, langer Listenname, Icon-Aktionen und Schnellanlage | Ruhige Kopfzeile; aktueller Listenname nicht redundant im Formular; Detail split/eigene Ansicht; ≥44-px-Ziele | bestanden | Geometrieassertionen und visuell geprüfte Screenshots |
+| S2-A4 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | Filter, Suche, Direktlink, Reload, Browser-Zurück und Fokus | URL-Zustand und Rückkehrposition bleiben erhalten | bestanden | reale Navigationsschritte in `tasks-details.spec.mjs` |
+| S2-A5 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | Geänderter Entwurf, Escape/Zurück/Abbrechen und simulierter konkurrierender Stand | Kein stiller Verlust; Konflikt lässt Entwurf editierbar und erhält Werte | bestanden | Browserdialog-, Fokus- und Konfliktfälle |
+| S2-A6 | `2ee6610f30f4417b60e573f4ce83ecfd4fb77566` | PWA 390 px sowie echtes Safari unter iOS 26.5 mit geöffneter Tastatur | Aktionen bleiben erreichbar; Detail verdeckt nichts; Wissensreferenz öffnet die Aufgabe | bestanden | `s2-app-390-detail-actions.png`, `s2-ios-safari-keyboard.png`, K3 16/16 |
+| S3-A1 | S3-Änderungsstand dieses Commits | 125 Service- und 122 Browser-Aufgaben, Suchtreffer jenseits Seite 50 | Filter greifen vor Pagination; vollständige ID-Menge wird nachgeladen | lokal bestanden | Servicevertrag und `tasks-views.spec.mjs`, K2/K3 grün |
+| S3-A2 | S3-Änderungsstand dieses Commits | Berlin-Frühjahrs-/Herbstwechsel mit exakten Grenzwerten | `[2026-03-28T23:00Z, 2026-03-29T22:00Z)` und `[2026-10-24T22:00Z, 2026-10-25T23:00Z)` inklusive/exklusive Grenze | lokal bestanden | echter PostgreSQL-Servicevertrag in K2 |
+| S3-A3 | S3-Änderungsstand dieses Commits | Heute fällige, bis morgen zurückgestellte Aufgabe | In Heute und Zurückgestellt, nicht in Offen; beide Zeiten unverändert | lokal bestanden | Servicevertrag und Web/PWA-Browseransichten |
+| S3-A4 | S3-Änderungsstand dieses Commits | Gleiche Fälligkeit, doppelte Abschnittstitel, ohne Abschnitt, drei Seiten | Stabile Reihenfolge, 125 eindeutige IDs, je eine zusammenhängende Überschrift, ohne Abschnitt zuletzt | lokal bestanden | PostgreSQL-Vertrag; Browser lädt 121 aktive Zeilen und drei Gruppen |
+| S3-A5 | S3-Änderungsstand dieses Commits | Legacy- und fehlerhafte Query-Kombinationen über Service/FastAPI | `includeDeferred` kompatibel; Widersprüche, naive/invertierte Grenzen und Abschnitt ohne Liste liefern 422 | lokal bestanden | vollständiger K2-Service-/HTTP-Lauf |
+| S3-A6 | S3-Änderungsstand dieses Commits | Nachladen, Filter-/Sortierwechsel, Detail und Browser-Zurück | Alte Seiten verschwinden; URL-Zustand kehrt zurück; Ladebutton fehlt am Ende | lokal bestanden | `tasks-views.spec.mjs`, vollständiger K3-Lauf: 17/17 |
 | S4-A1 | – | noch auszuführen | siehe SLICES.md, S4-A1 | offen | – |
 | S4-A2 | – | noch auszuführen | siehe SLICES.md, S4-A2 | offen | – |
 | S4-A3 | – | noch auszuführen | siehe SLICES.md, S4-A3 | offen | – |
@@ -126,4 +125,30 @@ passende Verifikation. Fehlende Plattformnachweise bleiben ausdrücklich offen.
   `.artifacts/tasks-s2/s2-ios-safari-workspace.png` und
   `.artifacts/tasks-s2/s2-ios-safari-keyboard.png`. Ausgewählte PNGs werden ohne
   Sitzungsdaten als Anhänge am Draft-PR veröffentlicht.
-- K5: nach Push des S2-Commits abzuwarten; S3 beginnt erst nach grüner PR-CI.
+- K5: PR-CI für Commit `2ee6610f30f4417b60e573f4ce83ecfd4fb77566`
+  einschließlich aller Vertrags-, Integrations-, E2E-, Survey-, Sicherheits- und
+  Installationsjobs vollständig grün. Screenshot-Kommentar im Draft-PR veröffentlicht.
+
+## S3-Verifikation
+
+- RED: Der erweiterte Servicevertrag scheiterte vor der Implementierung am
+  unbekannten `deferredState`; der Browservertrag blieb in `view=open` statt die
+  angeforderte Terminansicht zu laden.
+- K1: vollständiger Repository-Lint mit Ruff, mypy für 400 Quellen,
+  deterministischem OpenAPI-Client, Frontend-Grenzen, allen Workspace-Typen und
+  Prettier bestanden.
+- K2: vollständiger isolierter Schema-/Service-/HTTP-Lauf bestanden. Er umfasst
+  leeren Aufbau, befülltes Vorgänger-Upgrade, 125 Aufgaben, Sommerzeitgrenzen,
+  Legacy-Kompatibilität und sämtliche Query-Fehlerfälle. Alle eigenen Container,
+  Netze und Volumes wurden entfernt.
+- K3: vollständiger modularer Browserlauf mit 17/17 Fällen bestanden. Der neue
+  Fall lädt 122 Aufgaben über echte FastAPI-Aufrufe, hängt drei Seiten ohne
+  Duplikate an, gruppiert Abschnitte und prüft Terminansichten sowie Zurücknavigation
+  in Web und PWA.
+- Visuelle Prüfung: Desktop zeigt Schnellerfassung und vier Filter in je einer
+  ruhigen Zeile sowie kompakte, einklappbare Abschnittsüberschriften. Bei 390 px
+  bleiben Beschriftungen, Touchflächen, Aufgabenzeilen und App-Navigation lesbar
+  und ohne horizontalen Überlauf.
+- Nachweise lokal: `.artifacts/tasks-s3-final/modules/`; die beiden S3-PNGs werden
+  ohne Sitzungstraces oder Fixture-Daten am Draft-PR veröffentlicht.
+- K5: wartet auf Push und vollständig grüne PR-CI.

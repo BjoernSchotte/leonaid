@@ -1,11 +1,12 @@
 """Typed task operations shared by HTTP and direct application callers."""
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Literal, Protocol, Self
 from uuid import UUID
 
 from pydantic import (
     field_validator,
+    model_validator,
     EmailStr,
     AwareDatetime,
     ConfigDict,
@@ -47,6 +48,8 @@ class TaskModel(TransportModel):
     @field_validator(
         "due_at",
         "deferred_until",
+        "due_from",
+        "due_before",
         "created_at",
         "updated_at",
         mode="before",
@@ -128,7 +131,35 @@ class TaskQuery(SearchPage):
     list_id: UUID | None = None
     for_me: bool = False
     status: Literal["open", "done"] | None = None
-    include_deferred: bool = False
+    include_deferred: bool | None = None
+    due_from: AwareDatetime | None = None
+    due_before: AwareDatetime | None = None
+    deferred_state: Literal["active", "deferred", "all"] | None = None
+    sort: Literal["created", "due", "section"] = "created"
+
+    @model_validator(mode="after")
+    def validate_filters(self) -> Self:
+        if (
+            self.due_from is not None
+            and self.due_before is not None
+            and self.due_from >= self.due_before
+        ):
+            raise ValueError("dueFrom muss vor dueBefore liegen.")
+        if self.sort == "section" and self.list_id is None:
+            raise ValueError("Abschnittssortierung benötigt listId.")
+        if self.deferred_state is not None and self.include_deferred is not None:
+            legacy = "all" if self.include_deferred else "active"
+            if self.deferred_state != legacy:
+                raise ValueError(
+                    "includeDeferred und deferredState widersprechen sich."
+                )
+        return self
+
+    @property
+    def effective_deferred_state(self) -> Literal["active", "deferred", "all"]:
+        if self.deferred_state is not None:
+            return self.deferred_state
+        return "all" if self.include_deferred else "active"
 
 
 class TaskLists(TaskModel):

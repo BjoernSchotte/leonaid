@@ -115,7 +115,7 @@ bisherige Defaults. Scroll/Fokus in History-State, keine Task-Texte in der URL.
 - [x] S2-A4/A5 mit realen Navigationsschritten als zunächst fehlschlagende Fälle ergänzen.
 - [x] Gemeinsamen Editor in responsive Detailansicht einbinden, URL/History und
   Verwerfschutz vervollständigen; keine zweite Mutationsimplementierung.
-- [ ] K1/K3; bei Änderung von API-Verhalten zusätzlich K2. Desktop-/PWA-Details
+- [x] K1/K3; bei Änderung von API-Verhalten zusätzlich K2. Desktop-/PWA-Details
   und Schnellerfassung aufnehmen; Tastaturbeleg mit Plattform nennen. Push/K5.
 **Rücknahmegrenze:** UI zurücknehmen; URLs mit `?task=` bleiben auflösbar. Kein
 Browser-State darf Voraussetzung zum Lesen persistierter Aufgaben werden.
@@ -143,9 +143,9 @@ URL übernimmt `view=open|due-today|due-next|deferred|done` und `sort`.
 | S3-A6 | Filter/Sortierung ändern nach Nachladen | Pagination zurückgesetzt, fremde alte Seiten verschwinden; Zurücknavigation stellt denselben Filter wieder her. „Weitere laden“ fehlt am Ende. |
 
 **Arbeitsschritte:**
-- [ ] S3-A1/A2/A5 als Vertragsfälle vor API-Erweiterung ausführen und fehlendes
+- [x] S3-A1/A2/A5 als Vertragsfälle vor API-Erweiterung ausführen und fehlendes
   Filterverhalten belegen; erwartete IDs unabhängig von der Produktabfrage festlegen.
-- [ ] Query-Validierung, SQL vor Pagination, Client und Ansichten implementieren.
+- [x] Query-Validierung, SQL vor Pagination, Client und Ansichten implementieren.
 - [ ] K1/K2/K3, gruppierte Desktop-Liste und mobile Terminansicht aufnehmen;
   Resultatmatrix mit Grenzen/IDs dokumentieren, pushen, K5.
 **Rücknahmegrenze:** alter Standard bleibt `created`; neue Lesefilter können bleiben.

@@ -5,8 +5,13 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ApiError } from "@leonaid/api-client";
 import { Button, StatusMessage } from "@leonaid/ui";
 import type { ModulePageContext } from "../modules";
@@ -25,11 +30,66 @@ function date(value: string) {
   }).format(new Date(value));
 }
 
-type TaskView = "open" | "done";
+type TaskView = "open" | "due-today" | "due-next" | "deferred" | "done";
 type TaskScope = "mine" | "all";
+type TaskSort = "created" | "due" | "section";
+
+const taskViews = new Set<TaskView>([
+  "open",
+  "due-today",
+  "due-next",
+  "deferred",
+  "done",
+]);
+const taskSorts = new Set<TaskSort>(["created", "due", "section"]);
+
+function calendarBoundary(daysFromToday: number) {
+  const now = new Date();
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + daysFromToday,
+  ).toISOString();
+}
+
+function viewQuery(view: TaskView) {
+  switch (view) {
+    case "due-today":
+      return {
+        status: "open" as const,
+        deferredState: "all" as const,
+        dueFrom: calendarBoundary(0),
+        dueBefore: calendarBoundary(1),
+      };
+    case "due-next":
+      return {
+        status: "open" as const,
+        deferredState: "all" as const,
+        dueFrom: calendarBoundary(1),
+        dueBefore: calendarBoundary(8),
+      };
+    case "deferred":
+      return {
+        status: "open" as const,
+        deferredState: "deferred" as const,
+      };
+    case "done":
+      return {
+        status: "done" as const,
+        deferredState: "all" as const,
+      };
+    default:
+      return {
+        status: "open" as const,
+        deferredState: "active" as const,
+      };
+  }
+}
 
 function taskLocation(defaultScope: TaskScope = "mine") {
   const query = new URLSearchParams(window.location.search);
+  const view = query.get("view") as TaskView | null;
+  const sort = query.get("sort") as TaskSort | null;
   return {
     scope:
       query.get("scope") === "all"
@@ -37,7 +97,8 @@ function taskLocation(defaultScope: TaskScope = "mine") {
         : query.get("scope") === "mine"
           ? ("mine" as const)
           : defaultScope,
-    view: query.get("view") === "done" ? ("done" as const) : ("open" as const),
+    view: view && taskViews.has(view) ? view : ("open" as const),
+    sort: sort && taskSorts.has(sort) ? sort : ("created" as const),
     search: query.get("search") ?? "",
     taskId: query.get("task"),
   };
@@ -260,10 +321,16 @@ export function TasksPage({
   const editorTrigger = useRef<HTMLButtonElement | null>(null);
   const [forMe, setForMe] = useState(initialLocation.scope === "mine");
   const [search, setSearch] = useState(initialLocation.search);
-  const [offset, setOffset] = useState(0);
   const [listOffset, setListOffset] = useState(0);
   const [status, setStatus] = useState<TaskView>(initialLocation.view);
-  const [includeDeferred, setIncludeDeferred] = useState(false);
+  const [sort, setSort] = useState<TaskSort>(
+    initialLocation.sort === "section" && !listId
+      ? "created"
+      : initialLocation.sort,
+  );
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [title, setTitle] = useState("");
   const [newListActionId, setNewListActionId] = useState("");
   const [listActionFilter, setListActionFilter] = useState("");
@@ -287,6 +354,7 @@ export function TasksPage({
     values: Partial<{
       scope: TaskScope;
       view: TaskView;
+      sort: TaskSort;
       search: string;
       taskId: string | null;
     }>,
@@ -295,10 +363,12 @@ export function TasksPage({
     const url = new URL(window.location.href);
     const nextScope = values.scope ?? (forMe ? "mine" : "all");
     const nextView = values.view ?? status;
+    const nextSort = values.sort ?? sort;
     const nextSearch = values.search ?? search;
     const nextTask = values.taskId === undefined ? detailTaskId : values.taskId;
     url.searchParams.set("scope", nextScope);
     url.searchParams.set("view", nextView);
+    url.searchParams.set("sort", nextSort);
     if (nextSearch) url.searchParams.set("search", nextSearch);
     else url.searchParams.delete("search");
     if (nextTask) url.searchParams.set("task", nextTask);
@@ -359,6 +429,9 @@ export function TasksPage({
       const location = taskLocation(listId ? "all" : "mine");
       setForMe(location.scope === "mine");
       setStatus(location.view);
+      setSort(
+        location.sort === "section" && !listId ? "created" : location.sort,
+      );
       setSearch(location.search);
       setDetailTaskId(location.taskId);
       setEditing(null);
@@ -391,17 +464,20 @@ export function TasksPage({
     setEditing(task);
     setDetailTaskId(task.id);
   };
-  const tasks = useQuery({
-    queryKey: ["tasks", listId, forMe, search, offset, status, includeDeferred],
-    queryFn: () =>
+  const tasks = useInfiniteQuery({
+    queryKey: ["tasks", listId, forMe, search, status, sort],
+    queryFn: ({ pageParam }) =>
       client.listTasks({
         listId,
         forMe,
         search,
-        offset,
-        status,
-        includeDeferred,
+        offset: pageParam,
+        limit: 50,
+        sort,
+        ...viewQuery(status),
       }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     retry: false,
   });
   const create = useMutation({
@@ -513,7 +589,7 @@ export function TasksPage({
     changeStatus.error instanceof ApiError &&
     [401, 403, 404].includes(changeStatus.error.status);
   const error = create.error ?? selected.error ?? lists.error ?? tasks.error;
-  const reset = () => setOffset(0);
+  const taskItems = tasks.data?.pages.flatMap((page) => page.items) ?? [];
   const detailTask = editing !== "new" ? (editing ?? target.data) : undefined;
   const detailCanEdit = editing ? editingCanEdit : targetList.data?.canEdit;
   return (
@@ -801,32 +877,33 @@ export function TasksPage({
           ) : null}
           <div className="tasks-filters">
             <label className="tasks-filter-scope">
-              Ansicht
+              Bereich
               <select
                 value={forMe ? "mine" : "all"}
                 onChange={(event) => {
                   const scope = event.target.value as TaskScope;
                   setForMe(scope === "mine");
                   updateUrl({ scope });
-                  reset();
                 }}
               >
                 <option value="mine">Für mich</option>
-                <option value="all">Alle zugänglichen Aufgaben</option>
+                <option value="all">Alle Aufgaben</option>
               </select>
             </label>
             <label className="tasks-filter-status">
-              Status
+              Ansicht
               <select
                 value={status}
                 onChange={(event) => {
                   const view = event.target.value as TaskView;
                   setStatus(view);
                   updateUrl({ view });
-                  reset();
                 }}
               >
                 <option value="open">Offen</option>
+                <option value="due-today">Heute fällig</option>
+                <option value="due-next">Demnächst fällig</option>
+                <option value="deferred">Zurückgestellt</option>
                 <option value="done">Erledigt</option>
               </select>
             </label>
@@ -840,152 +917,213 @@ export function TasksPage({
                   const nextSearch = event.target.value;
                   setSearch(nextSearch);
                   updateUrl({ search: nextSearch });
-                  reset();
                 }}
               />
             </label>
-            <label className="tasks-checkbox tasks-filter-deferred">
-              <input
-                type="checkbox"
-                checked={includeDeferred}
+            <label className="tasks-filter-sort">
+              Sortierung
+              <select
+                value={sort}
                 onChange={(event) => {
-                  setIncludeDeferred(event.target.checked);
-                  reset();
+                  const nextSort = event.target.value as TaskSort;
+                  setSort(nextSort);
+                  setCollapsedSections(new Set());
+                  updateUrl({ sort: nextSort });
                 }}
-              />
-              Zurückgestellte anzeigen
+              >
+                <option value="created">Erstellreihenfolge</option>
+                <option value="due">Fälligkeit</option>
+                {listId && <option value="section">Abschnitte</option>}
+              </select>
             </label>
           </div>
           {tasks.isPending ? (
             <p role="status">Aufgaben werden geladen …</p>
-          ) : tasks.data?.items.length === 0 ? (
+          ) : taskItems.length === 0 ? (
             <p role="status">
               {search
                 ? "Keine Aufgaben für diese Suche."
                 : status === "done"
                   ? "Noch keine erledigten Aufgaben für diese Auswahl."
-                  : "Keine offenen Aufgaben für diese Auswahl."}
+                  : status === "due-today"
+                    ? "Heute ist für diese Auswahl nichts fällig."
+                    : status === "due-next"
+                      ? "In den nächsten sieben Tagen ist für diese Auswahl nichts fällig."
+                      : status === "deferred"
+                        ? "Keine zurückgestellten Aufgaben für diese Auswahl."
+                        : "Keine offenen Aufgaben für diese Auswahl."}
             </p>
           ) : (
             <ul className="tasks-results">
-              {tasks.data?.items.map((task) => (
-                <li key={task.id} className="task-row">
-                  {task.canEdit ? (
-                    <input
-                      className="task-complete"
-                      id={`task-complete-${task.id}`}
-                      type="checkbox"
-                      aria-label={`${task.status === "done" ? "Aufgabe wieder öffnen" : "Aufgabe abschließen"}: ${task.title}`}
-                      checked={task.status === "done"}
-                      disabled={
-                        changeStatus.isPending ||
-                        !!changeStatus.error ||
-                        !!editing
-                      }
-                      onChange={(event) =>
-                        submitStatus(
-                          {
-                            task,
-                            status: task.status === "done" ? "open" : "done",
-                            idempotencyKey: crypto.randomUUID(),
-                            undo: false,
-                          },
-                          event.currentTarget,
-                        )
-                      }
-                    />
-                  ) : (
-                    <span className="task-read-status">
-                      {task.status === "done" ? "Erledigt" : "Offen"}
-                    </span>
-                  )}
-                  <div className="task-row-body">
-                    <h2 aria-label={task.title}>
-                      <button
-                        className="task-title"
-                        id={`task-open-${task.id}`}
-                        aria-label={task.title}
-                        aria-describedby={`task-metadata-${task.id}`}
-                        disabled={!!editing || changeStatus.isPending}
-                        onClick={(event) =>
-                          openTask(task, task.canEdit, event.currentTarget)
-                        }
+              {taskItems.map((task, index) => {
+                const sectionId = task.epicId ?? "unassigned";
+                const previousSectionId =
+                  index === 0
+                    ? null
+                    : (taskItems[index - 1]?.epicId ?? "unassigned");
+                const startsSection =
+                  sort === "section" && sectionId !== previousSectionId;
+                const collapsed = collapsedSections.has(sectionId);
+                return (
+                  <Fragment key={task.id}>
+                    {startsSection && (
+                      <li
+                        className="task-section-heading"
+                        data-section-id={sectionId}
                       >
-                        <span className="task-title-text">{task.title}</span>
-                        <span
-                          className="task-metadata"
-                          id={`task-metadata-${task.id}`}
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          onClick={() =>
+                            setCollapsedSections((current) => {
+                              const next = new Set(current);
+                              if (next.has(sectionId)) next.delete(sectionId);
+                              else next.add(sectionId);
+                              return next;
+                            })
+                          }
                         >
-                          {!listId && <span>{task.listTitle}</span>}
-                          {!listId && task.actionTitle && (
-                            <span>{task.actionTitle}</span>
-                          )}
-                          <span>{task.assigneeName ?? "Nicht zugewiesen"}</span>
-                          {task.epicTitle && <span>{task.epicTitle}</span>}
-                          {task.canEdit && task.status === "done" && (
-                            <span>Erledigt</span>
-                          )}
-                          {task.dueAt && (
-                            <span>
-                              Fällig{" "}
-                              <time dateTime={task.dueAt}>
-                                {date(task.dueAt)}
-                              </time>
-                            </span>
-                          )}
-                          {task.deferredUntil && (
-                            <span>
-                              Zurückgestellt bis{" "}
-                              <time dateTime={task.deferredUntil}>
-                                {date(task.deferredUntil)}
-                              </time>
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    </h2>
-                  </div>
-                  <details className="task-row-menu">
-                    <summary aria-label={`Aktionen für ${task.title}`}>
-                      <HugeiconsIcon
-                        icon={MoreHorizontalIcon}
-                        size={20}
-                        aria-hidden="true"
-                      />
-                    </summary>
-                    <div>
-                      {" "}
-                      <Button
-                        variant="secondary"
-                        disabled={!!editing || changeStatus.isPending}
-                        onClick={(event) =>
-                          openTask(task, task.canEdit, event.currentTarget)
-                        }
-                      >
-                        {task.canEdit ? "Bearbeiten" : "Details"}
-                      </Button>
-                    </div>
-                  </details>
-                </li>
-              ))}
+                          <span
+                            className="task-section-chevron"
+                            aria-hidden="true"
+                          />
+                          <h2>{task.epicTitle ?? "Ohne Abschnitt"}</h2>
+                        </button>
+                      </li>
+                    )}
+                    {!collapsed && (
+                      <li className="task-row">
+                        {task.canEdit ? (
+                          <input
+                            className="task-complete"
+                            id={`task-complete-${task.id}`}
+                            type="checkbox"
+                            aria-label={`${task.status === "done" ? "Aufgabe wieder öffnen" : "Aufgabe abschließen"}: ${task.title}`}
+                            checked={task.status === "done"}
+                            disabled={
+                              changeStatus.isPending ||
+                              !!changeStatus.error ||
+                              !!editing
+                            }
+                            onChange={(event) =>
+                              submitStatus(
+                                {
+                                  task,
+                                  status:
+                                    task.status === "done" ? "open" : "done",
+                                  idempotencyKey: crypto.randomUUID(),
+                                  undo: false,
+                                },
+                                event.currentTarget,
+                              )
+                            }
+                          />
+                        ) : (
+                          <span className="task-read-status">
+                            {task.status === "done" ? "Erledigt" : "Offen"}
+                          </span>
+                        )}
+                        <div className="task-row-body">
+                          <h2 aria-label={task.title}>
+                            <button
+                              className="task-title"
+                              id={`task-open-${task.id}`}
+                              aria-label={task.title}
+                              aria-describedby={`task-metadata-${task.id}`}
+                              disabled={!!editing || changeStatus.isPending}
+                              onClick={(event) =>
+                                openTask(
+                                  task,
+                                  task.canEdit,
+                                  event.currentTarget,
+                                )
+                              }
+                            >
+                              <span className="task-title-text">
+                                {task.title}
+                              </span>
+                              <span
+                                className="task-metadata"
+                                id={`task-metadata-${task.id}`}
+                              >
+                                {!listId && <span>{task.listTitle}</span>}
+                                {!listId && task.actionTitle && (
+                                  <span>{task.actionTitle}</span>
+                                )}
+                                <span>
+                                  {task.assigneeName ?? "Nicht zugewiesen"}
+                                </span>
+                                {task.epicTitle && (
+                                  <span>{task.epicTitle}</span>
+                                )}
+                                {task.canEdit && task.status === "done" && (
+                                  <span>Erledigt</span>
+                                )}
+                                {task.dueAt && (
+                                  <span>
+                                    Fällig{" "}
+                                    <time dateTime={task.dueAt}>
+                                      {date(task.dueAt)}
+                                    </time>
+                                  </span>
+                                )}
+                                {task.deferredUntil && (
+                                  <span>
+                                    Zurückgestellt bis{" "}
+                                    <time dateTime={task.deferredUntil}>
+                                      {date(task.deferredUntil)}
+                                    </time>
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          </h2>
+                        </div>
+                        <details className="task-row-menu">
+                          <summary aria-label={`Aktionen für ${task.title}`}>
+                            <HugeiconsIcon
+                              icon={MoreHorizontalIcon}
+                              size={20}
+                              aria-hidden="true"
+                            />
+                          </summary>
+                          <div>
+                            {" "}
+                            <Button
+                              variant="secondary"
+                              disabled={!!editing || changeStatus.isPending}
+                              onClick={(event) =>
+                                openTask(
+                                  task,
+                                  task.canEdit,
+                                  event.currentTarget,
+                                )
+                              }
+                            >
+                              {task.canEdit ? "Bearbeiten" : "Details"}
+                            </Button>
+                          </div>
+                        </details>
+                      </li>
+                    )}
+                  </Fragment>
+                );
+              })}
             </ul>
           )}
-          <div className="tasks-paging">
-            <Button
-              variant="secondary"
-              disabled={offset === 0 || tasks.isFetching}
-              onClick={() => setOffset(Math.max(0, offset - 50))}
-            >
-              Zurück
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={tasks.data?.nextOffset == null || tasks.isFetching}
-              onClick={() => setOffset(tasks.data!.nextOffset!)}
-            >
-              Weitere Aufgaben
-            </Button>
-          </div>
+          {tasks.hasNextPage && (
+            <div className="tasks-paging">
+              <Button
+                variant="secondary"
+                disabled={tasks.isFetchingNextPage}
+                onClick={() => void tasks.fetchNextPage()}
+              >
+                {tasks.isFetchingNextPage
+                  ? "Weitere Aufgaben werden geladen …"
+                  : "Weitere Aufgaben"}
+              </Button>
+            </div>
+          )}
         </main>
         {detailTaskId && (
           <aside className="tasks-detail-panel" aria-label="Aufgabendetails">

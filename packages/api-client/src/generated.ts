@@ -3198,7 +3198,7 @@ export class LeonAidApiClient {
   }
 
   async listTasks(
-    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly listId?: string | null; readonly forMe?: boolean; readonly status?: "open" | "done" | null; readonly includeDeferred?: boolean; } = {},
+    queryParameters: { readonly search?: string; readonly offset?: number; readonly limit?: number; readonly listId?: string | null; readonly forMe?: boolean; readonly status?: "open" | "done" | null; readonly includeDeferred?: boolean | null; readonly dueFrom?: string | null; readonly dueBefore?: string | null; readonly deferredState?: "active" | "deferred" | "all" | null; readonly sort?: "created" | "due" | "section"; } = {},
     options: RequestOptions = {},
   ): Promise<Tasks> {
     const searchParameters = new URLSearchParams();
@@ -3222,6 +3222,18 @@ export class LeonAidApiClient {
     }
     if (queryParameters.includeDeferred !== undefined && queryParameters.includeDeferred !== null) {
       searchParameters.set("includeDeferred", String(queryParameters.includeDeferred));
+    }
+    if (queryParameters.dueFrom !== undefined && queryParameters.dueFrom !== null) {
+      searchParameters.set("dueFrom", String(queryParameters.dueFrom));
+    }
+    if (queryParameters.dueBefore !== undefined && queryParameters.dueBefore !== null) {
+      searchParameters.set("dueBefore", String(queryParameters.dueBefore));
+    }
+    if (queryParameters.deferredState !== undefined && queryParameters.deferredState !== null) {
+      searchParameters.set("deferredState", String(queryParameters.deferredState));
+    }
+    if (queryParameters.sort !== undefined && queryParameters.sort !== null) {
+      searchParameters.set("sort", String(queryParameters.sort));
     }
     const queryString = searchParameters.toString();
     const requestPath = "/api/v1/tasks" + (queryString ? `?${queryString}` : "");

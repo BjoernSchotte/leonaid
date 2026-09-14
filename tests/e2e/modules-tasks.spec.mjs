@@ -84,12 +84,14 @@ for (const [surface, width] of [
       .click();
     await expect(editor).toHaveCount(0);
     await page
-      .getByRole("combobox", { name: "Ansicht", exact: true })
+      .getByRole("combobox", { name: "Bereich", exact: true })
       .selectOption("mine");
     await expect(
       page.getByRole("heading", { name: title, exact: true }),
     ).toHaveCount(0);
-    await page.getByLabel("Zurückgestellte anzeigen", { exact: true }).check();
+    await page
+      .getByRole("combobox", { name: "Ansicht", exact: true })
+      .selectOption("deferred");
     const row = page
       .locator(".tasks-results li")
       .filter({ has: page.getByRole("heading", { name: title, exact: true }) });
@@ -113,7 +115,7 @@ for (const [surface, width] of [
     await edit.getByRole("button", { name: "Speichern", exact: true }).click();
     await expect(edit).toHaveCount(0);
     await page
-      .getByRole("combobox", { name: "Status", exact: true })
+      .getByRole("combobox", { name: "Ansicht", exact: true })
       .selectOption("done");
     await expect(row).toContainText("Erledigt");
     await row.getByRole("button", { name: title, exact: true }).click();

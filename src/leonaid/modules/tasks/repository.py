@@ -234,6 +234,11 @@ class AsyncpgTaskRepository:
             await self._active(conn, actor.account.id)
             if query.list_id is not None:
                 await self._list(conn, actor.account.id, query.list_id, write=False)
+            order_by = {
+                "created": "t.created_at,t.id",
+                "due": "(t.due_at IS NULL),t.due_at,t.created_at,t.id",
+                "section": ("(e.id IS NULL),lower(e.title),e.id,t.created_at,t.id"),
+            }[query.sort]
             rows = await conn.fetch(
                 f"""
                 SELECT t.*,l.title AS list_title,a.name AS action_title,
@@ -246,15 +251,21 @@ class AsyncpgTaskRepository:
                 WHERE {_READ_ACCESS} AND ($2::uuid IS NULL OR t.list_id=$2)
                     AND (NOT $3 OR t.assignee_user_id=$1)
                     AND ($4::text IS NULL OR t.status=$4)
-                    AND ($5 OR t.deferred_until IS NULL OR t.deferred_until<=now())
-                    AND strpos(lower(t.title), lower($6)) > 0
-                ORDER BY t.created_at,t.id LIMIT $7 OFFSET $8
+                    AND ($5::text='all'
+                        OR ($5='active' AND (t.deferred_until IS NULL OR t.deferred_until<=now()))
+                        OR ($5='deferred' AND t.deferred_until>now()))
+                    AND ($6::timestamptz IS NULL OR t.due_at >= $6)
+                    AND ($7::timestamptz IS NULL OR t.due_at < $7)
+                    AND strpos(lower(t.title), lower($8)) > 0
+                ORDER BY {order_by} LIMIT $9 OFFSET $10
             """,
                 actor.account.id,
                 query.list_id,
                 query.for_me,
                 query.status,
-                query.include_deferred,
+                query.effective_deferred_state,
+                query.due_from,
+                query.due_before,
                 query.search,
                 query.limit + 1,
                 query.offset,

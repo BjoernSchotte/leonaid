@@ -1,9 +1,12 @@
 """Session-authenticated HTTP adapter for the shared task operations."""
 
+from datetime import datetime
 from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from leonaid.domain.identity import IdentityPrincipal
 from leonaid.domain.sessions import SESSION_COOKIE_NAME
@@ -105,11 +108,16 @@ async def list_tasks(
     list_id: UUID | None = Query(default=None, alias="listId"),
     for_me: bool = Query(default=False, alias="forMe"),
     status: Literal["open", "done"] | None = None,
-    include_deferred: bool = Query(default=False, alias="includeDeferred"),
+    include_deferred: bool | None = Query(default=None, alias="includeDeferred"),
+    due_from: datetime | None = Query(default=None, alias="dueFrom"),
+    due_before: datetime | None = Query(default=None, alias="dueBefore"),
+    deferred_state: Literal["active", "deferred", "all"] | None = Query(
+        default=None, alias="deferredState"
+    ),
+    sort: Literal["created", "due", "section"] = "created",
 ) -> Tasks:
-    return await service(request).list_tasks(
-        await actor(request, response),
-        TaskQuery(
+    try:
+        query = TaskQuery(
             search=search,
             offset=offset,
             limit=limit,
@@ -117,7 +125,16 @@ async def list_tasks(
             for_me=for_me,
             status=status,
             include_deferred=include_deferred,
-        ),
+            due_from=due_from,
+            due_before=due_before,
+            deferred_state=deferred_state,
+            sort=sort,
+        )
+    except ValidationError as error:
+        raise RequestValidationError(error.errors()) from error
+    return await service(request).list_tasks(
+        await actor(request, response),
+        query,
     )
 
 

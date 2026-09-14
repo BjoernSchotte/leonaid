@@ -35147,9 +35147,85 @@
             "name": "includeDeferred",
             "required": false,
             "schema": {
-              "default": false,
-              "title": "Includedeferred",
-              "type": "boolean"
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Includedeferred"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dueFrom",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duefrom"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dueBefore",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Duebefore"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deferredState",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "deferred",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Deferredstate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "created",
+              "enum": [
+                "created",
+                "due",
+                "section"
+              ],
+              "title": "Sort",
+              "type": "string"
             }
           }
         ],

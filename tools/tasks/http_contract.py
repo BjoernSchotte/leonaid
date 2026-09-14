@@ -3,7 +3,7 @@
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import asyncpg
@@ -211,6 +211,37 @@ async def main() -> None:
                     and summary["assigneeName"] == "Task HTTP proof"
                 )
                 assert summary["actionTitle"] is None
+                s3_query = await client.get(
+                    "/api/v1/tasks",
+                    headers=headers,
+                    params={
+                        "listId": listing["id"],
+                        "status": "open",
+                        "dueFrom": (now - timedelta(seconds=1)).isoformat(),
+                        "dueBefore": (now + timedelta(seconds=1)).isoformat(),
+                        "deferredState": "all",
+                        "sort": "due",
+                    },
+                )
+                assert s3_query.status_code == 200, s3_query.text
+                assert [item["id"] for item in s3_query.json()["items"]] == [task["id"]]
+                for params in (
+                    {
+                        "dueFrom": now.isoformat(),
+                        "dueBefore": (now - timedelta(seconds=1)).isoformat(),
+                    },
+                    {"sort": "section"},
+                    {"includeDeferred": "false", "deferredState": "all"},
+                    {"includeDeferred": "true", "deferredState": "active"},
+                    {"dueFrom": "2026-03-29T00:00:00"},
+                ):
+                    invalid_query = await client.get(
+                        "/api/v1/tasks", headers=headers, params=params
+                    )
+                    assert invalid_query.status_code == 422, (
+                        params,
+                        invalid_query.text,
+                    )
                 assert (
                     await client.get("/api/v1/tasks", headers=editor_headers)
                 ).json()["items"] == []

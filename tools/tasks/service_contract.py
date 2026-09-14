@@ -5,6 +5,7 @@ import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import asyncpg
 from pydantic import ValidationError
@@ -25,6 +26,7 @@ from leonaid.modules.tasks.api import (
     TaskQuery,
     CreateEpic,
     Task,
+    TaskSummary,
     CreateList,
     CreateTask,
     UpdateTask,
@@ -405,6 +407,243 @@ async def main() -> None:
                 if item.assignee_user_id is None
             )
             await conn.execute("DELETE FROM task WHERE id=ANY($1::uuid[])", extra_ids)
+
+        # S3-A1–A6: query every view in PostgreSQL before pagination. The fixture
+        # contains more than two pages, boundary timestamps, duplicate section
+        # titles and a deferred task whose due date must never be rewritten.
+        berlin = ZoneInfo("Europe/Berlin")
+        spring_start = datetime(2026, 3, 29, tzinfo=berlin).astimezone(timezone.utc)
+        spring_end = datetime(2026, 3, 30, tzinfo=berlin).astimezone(timezone.utc)
+        autumn_start = datetime(2026, 10, 25, tzinfo=berlin).astimezone(timezone.utc)
+        autumn_end = datetime(2026, 10, 26, tzinfo=berlin).astimezone(timezone.utc)
+        assert (spring_start.isoformat(), spring_end.isoformat()) == (
+            "2026-03-28T23:00:00+00:00",
+            "2026-03-29T22:00:00+00:00",
+        )
+        assert (autumn_start.isoformat(), autumn_end.isoformat()) == (
+            "2026-10-24T22:00:00+00:00",
+            "2026-10-25T23:00:00+00:00",
+        )
+        section_ids = [uuid4(), uuid4(), uuid4()]
+        s3_ids = [uuid4() for _ in range(125)]
+        created_base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        due_by_index: dict[int, datetime | None] = {
+            75: spring_start + timedelta(hours=1),
+            76: spring_end,
+            77: spring_start,
+            78: None,
+            90: autumn_start,
+            91: autumn_end - timedelta(seconds=1),
+            92: autumn_end,
+            110: now,
+        }
+        deferred_index = 110
+        task_rows = []
+        for index, task_id in enumerate(s3_ids):
+            epic_id = (
+                section_ids[0]
+                if index % 4 == 0
+                else section_ids[1]
+                if index % 4 == 1
+                else section_ids[2]
+                if index % 4 == 2
+                else None
+            )
+            title = (
+                "S3 Treffer jenseits Seite eins"
+                if index == 75
+                else f"S3 Aufgabe {index:03d}"
+            )
+            task_rows.append(
+                (
+                    task_id,
+                    first.id,
+                    epic_id,
+                    title,
+                    owner_id,
+                    due_by_index.get(
+                        index,
+                        datetime(2027, 1, 1, tzinfo=timezone.utc)
+                        + timedelta(minutes=index),
+                    ),
+                    now + timedelta(days=1) if index == deferred_index else None,
+                    created_base + timedelta(minutes=index),
+                )
+            )
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.executemany(
+                "INSERT INTO task_epic (id,list_id,title) VALUES ($1,$2,$3)",
+                [
+                    (section_ids[0], first.id, "Gleicher Abschnitt"),
+                    (section_ids[1], first.id, "Gleicher Abschnitt"),
+                    (section_ids[2], first.id, "Später Abschnitt"),
+                ],
+            )
+            await conn.executemany(
+                "INSERT INTO task (id,list_id,epic_id,title,created_by,due_at,deferred_until,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+                task_rows,
+            )
+
+        async def collect(query: TaskQuery) -> list[TaskSummary]:
+            items: list[TaskSummary] = []
+            current = query
+            while True:
+                result = await service.list_tasks(owner, current)
+                items.extend(result.items)
+                if result.next_offset is None:
+                    return items
+                current = current.model_copy(update={"offset": result.next_offset})
+
+        needle = await service.list_tasks(
+            owner,
+            TaskQuery(
+                list_id=first.id,
+                search="Treffer jenseits",
+                deferred_state="all",
+                limit=50,
+            ),
+        )
+        assert [item.id for item in needle.items] == [s3_ids[75]]
+        spring = await service.list_tasks(
+            owner,
+            TaskQuery(
+                list_id=first.id,
+                search="S3",
+                due_from=spring_start,
+                due_before=spring_end,
+                deferred_state="all",
+                limit=100,
+            ),
+        )
+        assert {item.id for item in spring.items} == {s3_ids[75], s3_ids[77]}
+        autumn = await service.list_tasks(
+            owner,
+            TaskQuery(
+                list_id=first.id,
+                search="S3",
+                due_from=autumn_start,
+                due_before=autumn_end,
+                deferred_state="all",
+                limit=100,
+            ),
+        )
+        assert {item.id for item in autumn.items} == {s3_ids[90], s3_ids[91]}
+        deferred = await service.list_tasks(
+            owner,
+            TaskQuery(
+                list_id=first.id,
+                search="S3 Aufgabe 110",
+                deferred_state="deferred",
+            ),
+        )
+        assert [item.id for item in deferred.items] == [s3_ids[deferred_index]]
+        assert not (
+            await service.list_tasks(
+                owner,
+                TaskQuery(
+                    list_id=first.id,
+                    search="S3 Aufgabe 110",
+                    deferred_state="active",
+                ),
+            )
+        ).items
+        due_and_deferred = await service.list_tasks(
+            owner,
+            TaskQuery(
+                list_id=first.id,
+                search="S3 Aufgabe 110",
+                due_from=now - timedelta(seconds=1),
+                due_before=now + timedelta(seconds=1),
+                deferred_state="all",
+            ),
+        )
+        assert len(due_and_deferred.items) == 1
+        assert due_and_deferred.items[0].due_at == now
+        assert due_and_deferred.items[0].deferred_until == now + timedelta(days=1)
+        assert not (
+            await service.list_tasks(
+                owner,
+                TaskQuery(list_id=first.id, search="S3 Aufgabe 110"),
+            )
+        ).items
+        assert [
+            item.id
+            for item in (
+                await service.list_tasks(
+                    owner,
+                    TaskQuery(
+                        list_id=first.id,
+                        search="S3 Aufgabe 110",
+                        include_deferred=True,
+                    ),
+                )
+            ).items
+        ] == [s3_ids[deferred_index]]
+        section_items = await collect(
+            TaskQuery(
+                list_id=first.id,
+                search="S3",
+                deferred_state="all",
+                sort="section",
+                limit=50,
+            )
+        )
+        assert len(section_items) == 125
+        assert len({item.id for item in section_items}) == 125
+        section_titles = {
+            section_ids[0]: "Gleicher Abschnitt",
+            section_ids[1]: "Gleicher Abschnitt",
+            section_ids[2]: "Später Abschnitt",
+        }
+        expected_section_order = [
+            row[0]
+            for row in sorted(
+                task_rows,
+                key=lambda row: (
+                    row[2] is None,
+                    (section_titles[row[2]] if row[2] is not None else "").casefold(),
+                    row[2] or section_ids[0],
+                    row[7],
+                    row[0],
+                ),
+            )
+        ]
+        assert [item.id for item in section_items] == expected_section_order
+        due_items = await collect(
+            TaskQuery(
+                list_id=first.id,
+                search="S3",
+                deferred_state="all",
+                sort="due",
+                limit=50,
+            )
+        )
+        assert due_items[-1].id == s3_ids[78]
+        assert [item.id for item in due_items[:3]] == [
+            s3_ids[77],
+            s3_ids[75],
+            s3_ids[76],
+        ]
+        for invalid_query in (
+            {
+                "due_from": spring_end,
+                "due_before": spring_start,
+            },
+            {"deferred_state": "all", "include_deferred": False},
+            {"deferred_state": "active", "include_deferred": True},
+            {"sort": "section"},
+        ):
+            try:
+                TaskQuery.model_validate(invalid_query)
+            except ValidationError:
+                pass
+            else:
+                raise AssertionError(f"Invalid S3 query accepted: {invalid_query}")
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute("DELETE FROM task WHERE id=ANY($1::uuid[])", s3_ids)
+            await conn.execute(
+                "DELETE FROM task_epic WHERE id=ANY($1::uuid[])", section_ids
+            )
         revoked = await service.set_list_member(
             owner,
             first.id,

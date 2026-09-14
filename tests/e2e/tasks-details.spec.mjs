@@ -185,8 +185,8 @@ for (const [surface, width] of [
       ).toBe(true);
     }
     if (width <= 1024) {
-      const scopeBox = await page.getByLabel("Ansicht").boundingBox();
-      const statusBox = await page.getByLabel("Status").boundingBox();
+      const scopeBox = await page.getByLabel("Bereich").boundingBox();
+      const statusBox = await page.getByLabel("Ansicht").boundingBox();
       const searchBox = await page.getByLabel("Aufgaben suchen").boundingBox();
       expect(Math.abs(scopeBox.y - statusBox.y)).toBeLessThanOrEqual(2);
       expect(searchBox.y).toBeGreaterThan(scopeBox.y + scopeBox.height);
