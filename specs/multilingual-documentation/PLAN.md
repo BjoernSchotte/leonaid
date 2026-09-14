@@ -1,6 +1,6 @@
 # LeonAid: mehrsprachige Dokumentation
 
-Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-050 abgeschlossen, DOC-060 lokal abgenommen und vor dem CI-Nachweis.
+Stand: 14.09.2026. Status: in Umsetzung; DOC-010 bis DOC-060 abgeschlossen, DOC-070 wartet auf Hosting und öffentliche Abnahme.
 Planungsbasis: Checkout `5074/leonaid`, Commit `2043b72b7c5453b37978f2a58436243dbc378a00`.
 
 ## 1. Ziel und Entscheidungsrahmen

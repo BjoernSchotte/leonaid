@@ -11,7 +11,7 @@ Draft-PR: [#8](https://github.com/BjoernSchotte/leonaid/pull/8)
 | DOC-030 | abgeschlossen                                                 | [proofs/DOC-030.md](proofs/DOC-030.md) |
 | DOC-040 | abgeschlossen                                                 | [proofs/DOC-040.md](proofs/DOC-040.md) |
 | DOC-050 | abgeschlossen                                                 | [proofs/DOC-050.md](proofs/DOC-050.md) |
-| DOC-060 | lokal abgenommen; Push, PR-CI und manueller Lauf offen        | [proofs/DOC-060.md](proofs/DOC-060.md) |
+| DOC-060 | abgeschlossen                                                 | [proofs/DOC-060.md](proofs/DOC-060.md) |
 | DOC-070 | blockiert bis Hoster, Domain und Deployment-Zugang feststehen | —                                      |
 
 Der Gesamtstatus bleibt „in Umsetzung“. Ein Task wird erst nach seinem
