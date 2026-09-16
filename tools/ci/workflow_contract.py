@@ -39,12 +39,16 @@ def check(path: Path) -> list[str]:
     for job in sorted(REQUIRED_JOBS):
         if f"\n  {job}:\n" not in text:
             problems.append(f"Job fehlt: {job}")
-    # The Integration summary has no test output; its shards publish evidence.
-    evidence_jobs = len(REQUIRED_JOBS - {"integration"})
-    if text.count("actions/upload-artifact@") < evidence_jobs:
-        problems.append("Nicht jeder Job veröffentlicht Beweisartefakte.")
-    if text.count("if: always()") < evidence_jobs:
-        problems.append("Nicht jeder Artefakt-Upload läuft auch nach Fehlern.")
+    # Summary jobs consume evidence; each producing job must retain its own
+    # always-upload even when another job adds optional screenshots.
+    evidence_jobs = (REQUIRED_JOBS - {"integration", "golden-journey"}) | {
+        "golden-parts"
+    }
+    for job in sorted(evidence_jobs):
+        if "if: always()\n        uses: actions/upload-artifact@" not in job_block(
+            text, job
+        ):
+            problems.append(f"Job {job} veröffentlicht nicht immer Beweisartefakte.")
     if "tools/ci/run-job.sh" not in text:
         problems.append("Gemeinsame Log-/Sanitizing-Hülle fehlt.")
     if "tools/ci/integration.sh" not in text or "tools/ci/e2e.sh" not in text:

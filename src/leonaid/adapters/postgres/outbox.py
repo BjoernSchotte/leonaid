@@ -15,6 +15,20 @@ from leonaid.domain.outbox import (
 )
 
 
+async def complete_resolved_event(
+    connection: asyncpg.Connection[Any], event_id: UUID
+) -> None:
+    """Complete a verified external outcome inside its owning domain transaction."""
+    status = await connection.execute(
+        """UPDATE outbox_event SET status='completed',completed_at=now(),dead_lettered_at=NULL,
+            claim_token=NULL,claimed_by=NULL,last_error_code=NULL,last_error_detail=NULL
+            WHERE id=$1 AND status IN ('pending','dead_letter')""",
+        event_id,
+    )
+    if status != "UPDATE 1":
+        raise ValueError("Nur ein ruhender Auftrag kann fachlich abgeschlossen werden.")
+
+
 class AsyncpgOutboxQueue:
     def __init__(
         self,

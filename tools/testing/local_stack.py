@@ -3,6 +3,7 @@
 import fcntl
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -33,6 +34,7 @@ def fingerprints(root: Path) -> tuple[str, str]:
                 "tools/testing/",
                 "tests/fixtures/golden/",
                 "src/leonaid/adapters/typst/",
+                "src/leonaid/modules/surveys/adapters/typst/",
             )
         ) or name in {
             ".env.local",
@@ -61,8 +63,17 @@ def fingerprints(root: Path) -> tuple[str, str]:
     return data.hexdigest(), build.hexdigest()
 
 
+def configure_core(stack: SharedStack, build_hash: str) -> None:
+    stack.env.update(
+        COMPOSE_PARALLEL_LIMIT="2",
+        BUILDX_NO_DEFAULT_ATTESTATIONS="1",
+        LEONAID_REUSE_BUILD_HASH=build_hash,
+        PATH=str(Path.home() / ".orbstack/bin") + os.pathsep + stack.env["PATH"],
+    )
+
+
 class LocalStack:
-    def __init__(self, root: Path, *, stop=False, output=None):
+    def __init__(self, root: Path, *, kind="core", stop=False, output=None):
         self.output = output
         self.root = root.resolve()
         self.directory = self.root / ".local/test-stack"
@@ -86,11 +97,13 @@ class LocalStack:
                 else None
             )
             if state:
+                stored_kind = state.get("kind", "documents")
                 if (
                     state.get("schemaVersion") != 1
                     or state.get("root") != str(self.root)
                     or not re.fullmatch(
-                        r"leonaid-shared-[0-9a-f]{16}", state.get("project", "")
+                        r"leonaid-(?:shared-[0-9a-f]{16}|local-[0-9a-f]{12}|local-[0-9a-f]{8}-[0-9a-f]{12})",
+                        state.get("project", ""),
                     )
                 ):
                     raise RuntimeError(
@@ -98,9 +111,10 @@ class LocalStack:
                     )
                 self.stack = SharedStack(
                     self.root,
-                    "documents",
+                    stored_kind,
                     output=self.output,
                     directory=self.directory / "data",
+                    lean=stored_kind == "core",
                 )
                 self.stack.project = state["project"]
                 self.stack.compose[self.stack.compose.index("--project-name") + 1] = (
@@ -118,17 +132,31 @@ class LocalStack:
                 self.stack.env["TWENTY_INTEGRATION_API_KEY"] = state.get(
                     "integrationKey", ""
                 )
-                self.stack.compose += [
-                    "--file",
-                    str(self.root / "tools/testing/shared-runtime.yml"),
-                ]
+                if stored_kind == "core":
+                    configure_core(self.stack, self.build_hash)
+                if stored_kind != "core":
+                    self.stack.compose += [
+                        "--file",
+                        str(self.root / "tools/testing/shared-runtime.yml"),
+                    ]
                 if (
                     stop
                     or not self.stack.ready
+                    or stored_kind != kind
                     or state.get("dataHash") != self.data_hash
                 ):
                     self.discard()
                 else:
+                    images: tuple[str, ...] = (
+                        "api",
+                        "pwa",
+                        "web",
+                        "public",
+                        "proxy",
+                        "survey-validator",
+                    )
+                    if stored_kind != "core":
+                        images = (*images, "worker")
                     if self.stack.inventory("volumes") != self.stack.volumes:
                         raise RuntimeError(
                             "Local fixture resources changed; run ./leonaid test-env-stop before retrying"
@@ -145,15 +173,7 @@ class LocalStack:
                                     "{{.Id}}",
                                     *[
                                         f"{self.stack.project}-{name}"
-                                        for name in (
-                                            "api",
-                                            "worker",
-                                            "pwa",
-                                            "web",
-                                            "public",
-                                            "proxy",
-                                            "survey-validator",
-                                        )
+                                        for name in images
                                     ],
                                 ],
                                 capture=True,
@@ -166,16 +186,26 @@ class LocalStack:
                             flush=True,
                             file=self.output,
                         )
-                        self.stack.call([*self.stack.compose, "build"])
+                        self.stack.build(list(images))
             if stop:
                 return
             if self.stack is None:
                 self.stack = SharedStack(
                     self.root,
-                    "documents",
+                    kind,
                     output=self.output,
                     directory=self.directory / "data",
+                    lean=kind == "core",
                 )
+                if kind == "core":
+                    self.stack.project = (
+                        "leonaid-local-"
+                        + hashlib.sha256(str(self.root).encode()).hexdigest()[:12]
+                    )
+                    self.stack.compose[
+                        self.stack.compose.index("--project-name") + 1
+                    ] = self.stack.project
+                    configure_core(self.stack, self.build_hash)
                 self.save()  # Record ownership before any Docker mutation, including interrupted setup.
             else:
                 print(
@@ -193,6 +223,7 @@ class LocalStack:
             "schemaVersion": 1,
             "root": str(self.root),
             "project": stack.project,
+            "kind": stack.kind,
             "token": stack.token,
             "ready": stack.ready,
             "volumes": stack.volumes,

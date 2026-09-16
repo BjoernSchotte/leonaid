@@ -63,6 +63,8 @@ def ts_type(schema: dict[str, Any]) -> str:
     values = schema.get("enum")
     if isinstance(values, list) and values:
         return " | ".join(literal(value) for value in values)
+    if schema.get("type") == "string" and schema.get("format") == "binary":
+        return "Blob"
     schema_type = schema.get("type")
     if schema_type == "array":
         items = schema.get("items")
@@ -232,14 +234,14 @@ def request_body_type(operation: dict[str, Any]) -> str | None:
         return None
     if not isinstance(request_body, dict) or request_body.get("required") is not True:
         raise GenerationError(
-            "Nur erforderliche JSON-Request-Bodies werden unterstützt."
+            "Nur erforderliche JSON- oder Multipart-Request-Bodies werden unterstützt."
         )
     content = request_body.get("content")
     if not isinstance(content, dict):
         raise GenerationError("RequestBody ohne content.")
-    media = content.get("application/json")
+    media = content.get("application/json") or content.get("multipart/form-data")
     if not isinstance(media, dict) or not isinstance(media.get("schema"), dict):
-        raise GenerationError("RequestBody ohne JSON-Schema.")
+        raise GenerationError("RequestBody ohne JSON- oder Multipart-Schema.")
     return ts_type(media["schema"])
 
 
@@ -301,6 +303,9 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                     "Pfadparameter kollidiert mit generiertem Query-Objekt."
                 )
             body_type = request_body_type(operation)
+            multipart = "multipart/form-data" in operation.get("requestBody", {}).get(
+                "content", {}
+            )
             result_type = response_type(operation)
             arguments = [
                 f"    {identifier}: {parameter_type},"
@@ -323,6 +328,19 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                     '        headers: { "Content-Type": "application/json" },',
                     "        body: JSON.stringify(body),",
                     "      },",
+                ]
+            body_lines: list[str] = []
+            if multipart:
+                body_lines = [
+                    "    const form = new FormData();",
+                    "    for (const [key, value] of Object.entries(body)) {",
+                    "      if (value !== undefined && value !== null) {",
+                    "        form.append(key, value instanceof Blob ? value : String(value));",
+                    "      }",
+                    "    }",
+                ]
+                init_lines = [
+                    f"      {{ method: {json.dumps(method.upper())}, body: form }},"
                 ]
             request_path = path_expression(path, parameters)
             query_lines: list[str] = []
@@ -353,6 +371,7 @@ def operation_lines(document: dict[str, Any]) -> list[str]:
                     *arguments,
                     f"  ): Promise<{result_type}> {{",
                     *query_lines,
+                    *body_lines,
                     (
                         "    return this.requestBlob("
                         if result_type == "Blob"

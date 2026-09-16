@@ -1,0 +1,146 @@
+"""Explicit API module composition."""
+
+from __future__ import annotations
+
+from typing import Any
+import asyncpg
+from fastapi import FastAPI
+from leonaid.configuration import Settings
+from leonaid.application.crm import CrmGateway
+from leonaid.adapters.postgres.outbox import complete_resolved_event
+from leonaid.application.object_storage import ObjectStorage
+from leonaid.adapters.mail.secure_payload import SecureMailPayload
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
+    AsyncpgErasureCheckpointPublisher,
+)
+from leonaid.modules.surveys.api import SurveyService, SurveyExportService
+
+from leonaid.bootstrap.registry import ModuleRegistration, register_routes
+from leonaid.domain.identity import IdentityPrincipal
+from leonaid.modules.surveys.api import navigation as survey_navigation
+from leonaid.modules.surveys.routes import router as surveys_router
+from leonaid.platform.navigation import NavigationItem
+
+from leonaid.modules.inbox.routes import router as inbox_router
+from leonaid.modules.inbox.api import InboxService, navigation as inbox_navigation
+from leonaid.modules.inbox.repository import AsyncpgInboxRepository
+
+from leonaid.modules.knowledge.routes import router as knowledge_router
+from leonaid.modules.knowledge.api import (
+    KnowledgeService,
+    navigation as knowledge_navigation,
+)
+from leonaid.modules.knowledge.repository import AsyncpgKnowledgeRepository
+from leonaid.modules.tasks.api import TaskService, navigation as task_navigation
+from leonaid.modules.tasks.repository import AsyncpgTaskRepository
+from leonaid.modules.tasks.routes import router as tasks_router
+
+from leonaid.modules.materials.api import (
+    MaterialService,
+    navigation as material_navigation,
+)
+from leonaid.modules.materials.repository import AsyncpgMaterialRepository
+from leonaid.modules.materials.routes import router as materials_router
+
+MODULES = (
+    ModuleRegistration(
+        "inbox",
+        router=inbox_router,
+        navigation=inbox_navigation,
+        requires=("tasks", "materials"),
+    ),
+    ModuleRegistration(
+        "materials", router=materials_router, navigation=material_navigation
+    ),
+    ModuleRegistration(
+        "knowledge",
+        router=knowledge_router,
+        navigation=knowledge_navigation,
+        requires=("tasks", "materials"),
+    ),
+    ModuleRegistration("tasks", router=tasks_router, navigation=task_navigation),
+    ModuleRegistration("surveys", router=surveys_router, navigation=survey_navigation),
+)
+
+
+def register_api_modules(app: FastAPI) -> None:
+    register_routes(app, MODULES)
+
+
+def module_navigation(actor: IdentityPrincipal) -> tuple[NavigationItem, ...]:
+    return tuple(
+        item
+        for module in MODULES
+        if module.navigation is not None
+        for item in module.navigation(actor)
+    )
+
+
+def build_survey_services(
+    pool: asyncpg.Pool[Any], settings: Settings, storage: ObjectStorage
+) -> tuple[SurveyService, SurveyExportService, AsyncpgErasureCheckpointPublisher]:
+    publisher = AsyncpgErasureCheckpointPublisher(
+        pool,
+        settings.survey_erasure_archive_dir,
+        settings.mail_payload_secret.get_secret_value(),
+    )
+    surveys = SurveyService(
+        AsyncpgSurveyRepository(
+            pool,
+            invitation_mail=SecureMailPayload(
+                settings.mail_payload_secret.get_secret_value()
+            ),
+            public_base_url=str(settings.public_base_url),
+            checkpoint_publisher=publisher,
+        )
+    )
+    exports = SurveyExportService(AsyncpgSurveyExports(pool, storage))
+    return surveys, exports, publisher
+
+
+def build_task_service(pool: asyncpg.Pool[Any]) -> TaskService:
+    return TaskService(AsyncpgTaskRepository(pool))
+
+
+def build_knowledge_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> KnowledgeService:
+    return KnowledgeService(
+        AsyncpgKnowledgeRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+            lambda connection: MaterialService(
+                AsyncpgMaterialRepository(pool, storage, connection=connection)
+            ),
+        )
+    )
+
+
+def build_material_service(
+    pool: asyncpg.Pool[Any], storage: ObjectStorage
+) -> MaterialService:
+    return MaterialService(AsyncpgMaterialRepository(pool, storage))
+
+
+def build_inbox_service(
+    pool: asyncpg.Pool[Any], crm: CrmGateway | None = None
+) -> InboxService:
+    return InboxService(
+        AsyncpgInboxRepository(
+            pool,
+            lambda connection: TaskService(
+                AsyncpgTaskRepository(pool, connection=connection)
+            ),
+            lambda connection: MaterialService(
+                AsyncpgMaterialRepository(pool, connection=connection)
+            ),
+            complete_resolved_event,
+        ),
+        crm,
+    )

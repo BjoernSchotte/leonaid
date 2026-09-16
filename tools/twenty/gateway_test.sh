@@ -83,6 +83,10 @@ run_python() {
     --user "$host_user_id:$host_group_id" \
     --env-from-file "$env_file" \
     --env-from-file "$proof/integration.env" \
+    --env MAIL_SMTP_HOST=mailpit \
+    --env MAIL_SMTP_PORT=1025 \
+    --env 'MAIL_FROM=LeonAid <noreply@leonaid.invalid>' \
+    --env MAIL_SMTP_MODE=plain \
     --env PYTHONPATH=/repo/src:/workspace/src \
     --volume "$root:/repo:ro" \
     --volume "$proof:/proof" \
@@ -106,7 +110,7 @@ provision() {
 }
 
 if [ -n "${LEONAID_TEST_STACK:-}" ]; then
-  shared_services="twenty-server twenty-worker"
+  shared_services="twenty-server twenty-worker core-postgres"
   . "$root/tools/testing/borrow_stack.sh"
 else
 compose build api
@@ -114,16 +118,22 @@ compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
 provision
 fi
 
+compose up --detach --wait --wait-timeout 120 core-postgres
+compose run --rm --no-deps --entrypoint alembic api upgrade head
+
 echo "twenty-gateway-test: führt CRUD, echte Batches und Cursor-Pagination aus"
 run_python tools/twenty/gateway_contract.py exercise --state /proof/state.json
 
 echo "twenty-gateway-test: stoppt Twenty real und erwartet sichere Fehler"
 compose stop twenty-server
 run_python tools/twenty/gateway_contract.py expect-outage --state /proof/state.json
+run_python tools/inbox/jobs_contract.py expect-outage --state /proof/inbox.json
 
 echo "twenty-gateway-test: startet Twenty neu und prüft alle bestätigten Daten"
 compose up --detach --wait --wait-timeout 420 twenty-server
 run_python \
   tools/twenty/gateway_contract.py verify-after-restart --state /proof/state.json
+
+run_python tools/inbox/jobs_contract.py verify-after-restart --state /proof/inbox.json
 
 echo "twenty-gateway-test: OK: CRM-Port, Pagination und Ausfallvertrag real bewiesen"

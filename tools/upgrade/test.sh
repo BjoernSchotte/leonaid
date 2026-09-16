@@ -8,6 +8,7 @@ root=$(cd "$root" && pwd)
 suffix="$(printf %s "$root" | cksum | cut -d ' ' -f 1)-$$"
 source_project=${LEONAID_UPGRADE_TEST_PROJECT:-leonaid-poc113-upgrade}-$suffix
 rollback_project=${LEONAID_UPGRADE_ROLLBACK_PROJECT:-leonaid-restore-poc113-rollback}-$suffix
+rollback_network_project="$rollback_project-networks"
 source_owned=false
 rollback_owned=false
 restore_generation=0
@@ -83,6 +84,15 @@ rollback_target() {
       "$@"
 }
 
+cleanup_rollback_networks() {
+  network_ids=$(docker network ls -q --filter "label=com.docker.compose.project=$rollback_network_project") || return 1
+  if [ -n "$network_ids" ]; then
+    # Exact fixture ownership; never remove other projects or restore volumes.
+    docker network rm $network_ids >/dev/null || return 1
+  fi
+  verify_cleanup "$rollback_network_project"
+}
+
 verify_cleanup() {
   checked_project=$1
   for inventory in containers volumes networks; do
@@ -118,6 +128,7 @@ cleanup() {
   if [ "$rollback_owned" = true ]; then
     if ! rollback_target --profile '*' down --volumes --remove-orphans >/dev/null 2>&1; then status=1; fi
     if ! verify_cleanup "$rollback_project"; then status=1; fi
+    if ! cleanup_rollback_networks; then status=1; fi
   fi
   if [ "$source_owned" = true ]; then
     if [ "${LEONAID_UPGRADE_KEEP:-false}" != "true" ] || [ "$status" -ne 0 ]; then
@@ -379,6 +390,8 @@ snapshot_and_verify() {
 
 run_e2e() {
   project=$1
+  browser_network_project=$project
+  if [ "$project" = "$rollback_project" ]; then browser_network_project=$rollback_network_project; fi
   phase=$2
   case "$phase" in
     before)
@@ -396,7 +409,7 @@ run_e2e() {
     *) fail "Unbekannte Browser-Smoke-Phase: $phase" ;;
   esac
   docker run --rm \
-    --network "${project}_edge" \
+    --network "${browser_network_project}_edge" \
     --env CI=1 \
     --env HOME=/tmp \
     --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
@@ -432,6 +445,8 @@ run_full_golden_journey() {
     rollback) runner=rollback_target ;;
     *) fail "Unbekannter Golden-Journey-Modus: $mode" ;;
   esac
+  browser_network_project=$project
+  if [ "$project" = "$rollback_project" ]; then browser_network_project=$rollback_network_project; fi
   artifact_path="journey-$phase"
   session_file="sessions-$phase.env"
   summary_file="journey-$phase.json"
@@ -459,7 +474,7 @@ run_full_golden_journey() {
     fail "Golden-Journey-Sitzungsdatei ist nicht Modus 600: $phase"
 
   docker run --rm \
-    --network "${project}_edge" \
+    --network "${browser_network_project}_edge" \
     --env CI=1 \
     --env HOME=/tmp \
     --env LEONAID_E2E_BASE_URL=https://proxy:8443 \
@@ -510,6 +525,7 @@ response.raise_for_status()'
 
 restore_source_version() {
   verify_cleanup "$rollback_project"
+  cleanup_rollback_networks
   restore_generation=$((restore_generation + 1))
   python3 "$root/tools/surveys/network_override.py" "$rollback_network_overlay"
   python3 - "$rollback_network_template" "$rollback_network_overlay" <<'PY_OVERLAY'
@@ -523,7 +539,7 @@ original = original.replace("services:\n  proxy:\n", "services:\n  proxy:\n    p
 path.write_text(original + selected[selected.index("networks:\n"):])
 PY_OVERLAY
   rollback_owned=true
-  rollback_old --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$rollback_project" "$rollback_network_overlay"
+  rollback_old --profile '*' config --format json | python3 "$root/tools/testing/reserve_compose_networks.py" "$rollback_network_project" "$rollback_network_overlay" --external
   LEONAID_HTTP_PORT="$rollback_http_port" \
     LEONAID_HTTPS_PORT="$rollback_https_port" \
     TWENTY_INTEGRATION_API_KEY="$integration_key" \
@@ -541,7 +557,7 @@ PY_OVERLAY
 }
 
 # Refuse either occupied identity before acquiring any source resources.
-for checked_project in "$source_project" "$rollback_project"; do
+for checked_project in "$source_project" "$rollback_project" "$rollback_network_project"; do
   existing=$(docker ps -aq --filter "label=com.docker.compose.project=$checked_project")
   [ -z "$existing" ]
   existing=$(docker volume ls -q --filter "label=com.docker.compose.project=$checked_project")

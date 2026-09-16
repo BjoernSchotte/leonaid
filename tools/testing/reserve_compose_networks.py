@@ -81,9 +81,25 @@ def reserve(project: str, override: Path, configuration: dict) -> None:
     )
 
 
+def reserve_external(project: str, override: Path, configuration: dict) -> None:
+    """Own fixture networks separately so restore still sees an empty target."""
+    for key, settings in configuration["networks"].items():
+        settings["name"] = f"{project}_{key}"
+    reserve(project, override, configuration)
+    document = override.read_text().split("networks:\n", 1)[0] + "networks:\n"
+    for key in configuration["networks"]:
+        document += (
+            f"  {key}: !override\n    external: true\n    name: {project}_{key}\n"
+        )
+    override.write_text(document)
+
+
 if __name__ == "__main__":
     try:
-        reserve(sys.argv[1], Path(sys.argv[2]), json.load(sys.stdin))
+        if sys.argv[3:] not in ([], ["--external"]):
+            raise ValueError("unsupported reservation mode")
+        operation = reserve_external if sys.argv[3:] else reserve
+        operation(sys.argv[1], Path(sys.argv[2]), json.load(sys.stdin))
     except (
         OSError,
         ValueError,

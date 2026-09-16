@@ -163,8 +163,23 @@ def main() -> None:
         ):
             raise AssertionError("Numerische Docker-Layer-ID wurde nicht redigiert")
 
+        uuid_artifacts = workspace / "uuid-artifacts"
+        uuid_artifacts.mkdir()
+        uuid_log = uuid_artifacts / "command.log"
+        uuid_log.write_text(
+            "GET /api/v1/materials/64d4ae07-b4eb-5f46-8a5b-059041671553/versions/1\n"
+        )
+        uuid_result = run_sanitizer(sanitizer, uuid_artifacts, env_file, proof)
+        if uuid_result.returncode != 0 or uuid_log.read_text() != (
+            "GET /api/v1/materials/[UUID]/versions/1\n"
+        ):
+            raise AssertionError("Numerisches UUID-Ende wurde nicht redigiert")
+
         private_canary = b"PII_NAME_CANARY_Erika-Mustermann"
         cases = {
+            "uuid-and-phone.txt": (
+                b"id=64d4ae07-b4eb-5f46-8a5b-059041671553 Kontakt: 089 12345678"
+            ),
             "private.txt": private_canary,
             "private-secret.md": b"SECRET_TOKEN_CANARY_not-from-env",
             "private.json": b'{"displayName":"PII_NAME_CANARY_Erika"}',

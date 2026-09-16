@@ -1,8 +1,11 @@
 import asyncio
 
-from leonaid.entrypoints.fastapi.survey_body_limit import (
-    SURVEY_REQUEST_BYTES,
-    SurveyBodyLimitMiddleware,
+from leonaid.platform.http_body import RequestBodyLimitMiddleware
+
+SURVEY_REQUEST_BYTES = 1_048_576
+LIMITS = (
+    ("/api/v1/public/surveys", SURVEY_REQUEST_BYTES),
+    ("/api/v1/survey-settings", SURVEY_REQUEST_BYTES),
 )
 
 
@@ -34,7 +37,7 @@ def test_body_limit_counts_streamed_bytes_instead_of_trusting_content_length():
             "path": "/api/v1/public/surveys/compact-id/participations",
             "headers": [(b"content-length", b"1")],
         }
-        await SurveyBodyLimitMiddleware(forbidden_app)(scope, receive, send)
+        await RequestBodyLimitMiddleware(forbidden_app, LIMITS)(scope, receive, send)
         assert output[0]["status"] == 413
         assert scope["state"]["error_code"] == "limit_exceeded"
         assert b"limit_exceeded" in output[1]["body"]
@@ -50,7 +53,7 @@ def test_disconnect_during_body_never_dispatches_a_partial_request():
         async def forbidden(*args):
             raise AssertionError("Disconnected request was dispatched or answered")
 
-        await SurveyBodyLimitMiddleware(forbidden)(
+        await RequestBodyLimitMiddleware(forbidden, LIMITS)(
             {"type": "http", "path": "/api/v1/survey-settings"}, receive, forbidden
         )
 

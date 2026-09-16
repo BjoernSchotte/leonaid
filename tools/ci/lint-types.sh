@@ -9,6 +9,7 @@ run_python() {
     -e PYTHONPATH=/workspace/src \
     -e UV_CACHE_DIR=/workspace/.cache/uv \
     -e UV_LINK_MODE=copy \
+    -e UV_PROJECT_ENVIRONMENT=/workspace/.cache/ci-venv \
     -v "$root:/workspace" \
     -w /workspace \
     "$UV_IMAGE" \
@@ -24,7 +25,7 @@ run_bun() {
     "$@"
 }
 
-run_python uv run --frozen --no-sync ruff check \
+run_python uv run --frozen ruff check \
   tools/testing/phase_test.py tools/testing/ci_fixture.py tools/testing/ci_fixture_test.py tools/testing/seed_fixture.py tools/local_tests_test.py tools/testing/local_stack.py tools/testing/shared_stack.py tools/testing/shared_stack_test.py \
   tools/testing/shared_stack_live.py tools/surveys/gate.py tools/surveys/gate_test.py
 run_python uv run --frozen --no-sync ruff format --check \
@@ -40,7 +41,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync ruff format --check \
   migrations src tests tools/action_admin tools/actions tools/activities tools/backup \
@@ -51,7 +52,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync mypy \
   migrations src tools/action_admin tools/actions tools/activities tools/backup \
@@ -62,7 +63,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
   tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
-  tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
+  tools/security tools/sessions tools/tasks tools/knowledge tools/materials tools/inbox tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
 run_python uv run --frozen --no-sync \
   python tools/openapi/generate.py --root /workspace --check

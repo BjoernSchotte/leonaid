@@ -2,6 +2,7 @@
 import { actions } from "astro:actions";
 
 import PublicAction from "../components/PublicAction.astro";
+import PublicInbox from "../components/PublicInbox.astro";
 import PublicState from "../components/PublicState.astro";
 import PublicLayout from "../layouts/PublicLayout.astro";
 import { isKrapfentaxiAction } from "../lib/presentation";
@@ -165,4 +166,5 @@ const robots =
       />
     )
   }
+  {state === "home" && <PublicInbox />}
 </PublicLayout>

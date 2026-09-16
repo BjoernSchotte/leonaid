@@ -127,7 +127,7 @@ def request_fingerprint(
         trust_proxy_headers=trust_proxy_headers,
     )
     user_agent = request.headers.get("user-agent", "unknown")[:320]
-    # Public survey quotas span surveys and cannot be reset with client-chosen
+    # Public quotas cannot be reset with client-chosen
     # cookies, User-Agent values or participation IDs. Store only a keyed digest.
     material = (
         f"survey-address:{address}"
@@ -171,8 +171,14 @@ async def rate_limit_violation(
 ) -> RateLimitPolicy | None:
     policy = RATE_LIMITS.get((request.method, request.url.path))
     survey_policy = survey_rate_policy(request)
+    inbox_policy = (
+        RateLimitPolicy("inbox.public.submit", 5, timedelta(minutes=10))
+        if request.method == "POST"
+        and request.url.path.rstrip("/") == "/api/v1/public/inbox-cases"
+        else None
+    )
     if policy is None:
-        policy = survey_policy
+        policy = survey_policy or inbox_policy
     if (
         policy is None
         and request.method == "POST"
@@ -201,7 +207,7 @@ async def rate_limit_violation(
             request,
             secret=secret,
             trust_proxy_headers=trust_proxy_headers,
-            address_only=survey_policy is not None,
+            address_only=survey_policy is not None or inbox_policy is not None,
         ),
         attempted_at=datetime.now(timezone.utc),
         window=policy.window,

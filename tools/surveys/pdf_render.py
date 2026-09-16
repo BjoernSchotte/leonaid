@@ -6,13 +6,16 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
-from leonaid.adapters.typst.survey_renderer import TypstSurveyRenderer, render_payload
-from leonaid.application.surveys.analysis_snapshot import AnalysisSnapshot
-from leonaid.application.surveys.export_rendering import (
+from leonaid.modules.surveys.adapters.typst.survey_renderer import (
+    TypstSurveyRenderer,
+    render_payload,
+)
+from leonaid.modules.surveys.application.analysis_snapshot import AnalysisSnapshot
+from leonaid.modules.surveys.application.export_rendering import (
     SurveyExportSource,
     SurveyExportRenderError,
 )
-from leonaid.application.surveys.response_selection import IndividualResponse
+from leonaid.modules.surveys.application.response_selection import IndividualResponse
 
 
 def main():

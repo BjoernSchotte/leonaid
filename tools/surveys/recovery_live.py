@@ -14,19 +14,25 @@ import httpx
 
 from leonaid.adapters.postgres.pool import create_pool
 from leonaid.adapters.postgres.outbox import AsyncpgOutboxQueue
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.adapters.postgres.survey_deletion import AsyncpgSurveyDeletion
-from leonaid.adapters.postgres.survey_recovery import (
+from leonaid.modules.surveys.adapters.postgres.survey_exports import (
+    AsyncpgSurveyExports,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_deletion import (
+    AsyncpgSurveyDeletion,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_recovery import (
     RECORD_COLUMNS,
     export_checkpoint,
     reapply_checkpoint,
 )
 from leonaid.adapters.storage.s3 import S3ObjectStorage
-from leonaid.adapters.storage.survey_checkpoint_archive import FileCheckpointArchive
+from leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive import (
+    FileCheckpointArchive,
+)
 from leonaid.application.object_storage import ObjectLocation
 from leonaid.application.outbox import OutboxWorker
-from leonaid.application.surveys.recovery import seal, verify
-from leonaid.entrypoints.worker.outbox import build_worker
+from leonaid.modules.surveys.application.recovery import seal, verify
+from leonaid.bootstrap.worker import build_worker
 from leonaid.domain.outbox import RetryPolicy
 
 PROOF = Path("/proof")
@@ -270,6 +276,7 @@ async def main():
                         )
                         == 1
                     )
+                    await production_worker.close()
                     await production_pool.close()
                     (PROOF / "recovery-installation.txt").write_text(
                         str(checkpoint.installation_id)
@@ -361,11 +368,14 @@ async def main():
                 assert json.loads(answers[0]["answers"]) == {
                     "answer": "SENSITIVE_BACKUP_ANSWER"
                 }
-                assert await conn.fetchval(
-                    "SELECT status FROM survey_export_job WHERE id=$1 AND survey_id=$2",
-                    UUID(state["job"]),
-                    sid,
-                ) == "available"
+                assert (
+                    await conn.fetchval(
+                        "SELECT status FROM survey_export_job WHERE id=$1 AND survey_id=$2",
+                        UUID(state["job"]),
+                        sid,
+                    )
+                    == "available"
+                )
                 assert (
                     await conn.fetchval(
                         "SELECT count(*) FROM survey_deletion WHERE survey_id=$1", sid

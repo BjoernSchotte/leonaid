@@ -12,6 +12,10 @@ from datetime import datetime, timezone
 import asyncpg
 import httpx
 from leonaid.domain.sessions import SESSION_LIFETIME, session_token_digest
+from leonaid.modules.surveys.adapters.postgres.surveys import AsyncpgSurveyRepository
+from leonaid.modules.surveys.adapters.postgres.survey_exports import current_principal
+from leonaid.application.errors import ResourceNotFound
+from leonaid.modules.surveys.api import Mutation, SurveyListQuery, SurveyService
 
 
 async def main():
@@ -111,6 +115,39 @@ async def main():
             and listed["actions"] == []
         )
         assert listed["items"][0]["capabilities"] == ["design"]
+        async with asyncpg.create_pool(os.environ["CORE_DATABASE_URL"]) as pool:
+            direct = SurveyService(AsyncpgSurveyRepository(pool))
+            actor = await current_principal(conn, member)
+            assert (
+                await direct.list_surveys(actor, SurveyListQuery())
+            ).model_dump() == listed
+            assert (await direct.get_survey(actor, ids[0])).id == str(ids[0])
+            for sid in ids[1:]:
+                try:
+                    await direct.get_survey(actor, sid)
+                except ResourceNotFound:
+                    pass
+                else:
+                    raise AssertionError("Direct call bypassed survey/action scope")
+            try:
+                await direct.publish(
+                    actor,
+                    ids[0],
+                    Mutation(operationId="direct-denied", expectedRevision=1),
+                )
+            except ResourceNotFound:
+                pass
+            else:
+                raise AssertionError("Direct call bypassed publication capability")
+            assert (
+                await conn.fetchval(
+                    "SELECT count(*) FROM survey_version WHERE survey_id=$1", ids[0]
+                )
+                == 0
+            )
+        print(
+            "PASS: typed direct module reads match HTTP; action scope and publication denial enforced by real PostgreSQL repository"
+        )
         for sid in ids[1:]:
             await request("GET", f"/api/v1/surveys/{sid}", auth=headers, expected=404)
         assert (await request("GET", "/api/v1/surveys?search=Private", auth=headers))[

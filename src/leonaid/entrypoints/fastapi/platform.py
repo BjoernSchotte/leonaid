@@ -48,14 +48,16 @@ from leonaid.adapters.postgres.legal_configuration import (
     AsyncpgLegalConfigurationRepository,
 )
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_checkpoint_publisher import (
-    AsyncpgErasureCheckpointPublisher,
+from leonaid.bootstrap.api import (
+    module_navigation,
+    register_api_modules,
+    build_survey_services,
+    build_task_service,
+    build_material_service,
+    build_inbox_service,
+    build_knowledge_service,
 )
-from leonaid.adapters.postgres.survey_exports import AsyncpgSurveyExports
-from leonaid.application.surveys import SurveyService
-from leonaid.entrypoints.fastapi.surveys import router as surveys_router
-from leonaid.entrypoints.fastapi.survey_body_limit import SurveyBodyLimitMiddleware
+from leonaid.platform.http_body import RequestBodyLimitMiddleware
 from leonaid.adapters.postgres.privacy import AsyncpgPrivacyRepository
 from leonaid.adapters.postgres.public_orders import AsyncpgPublicOrderRepository
 from leonaid.adapters.postgres.readiness import PostgresReadinessProbe
@@ -145,6 +147,9 @@ def error_response(
         status_code=status_code,
         headers={"Cache-Control": "no-store"}
         if status_code in {401, 403}
+        or request.url.path.startswith(
+            ("/api/v1/inbox-cases", "/api/v1/public/inbox-cases")
+        )
         or request.url.path.startswith("/api/v1/public/actions/")
         or (
             request.url.path.startswith("/api/v1/actions/")
@@ -190,21 +195,6 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             else None
         )
         pool = await create_pool(settings.core_database_url.get_secret_value())
-        checkpoint_publisher = AsyncpgErasureCheckpointPublisher(
-            pool,
-            settings.survey_erasure_archive_dir,
-            settings.mail_payload_secret.get_secret_value(),
-        )
-        application.state.survey_service = SurveyService(
-            AsyncpgSurveyRepository(
-                pool,
-                invitation_mail=SecureMailPayload(
-                    settings.mail_payload_secret.get_secret_value()
-                ),
-                public_base_url=str(settings.public_base_url),
-                checkpoint_publisher=checkpoint_publisher,
-            )
-        )
         application.state.platform_service = build_service(
             settings, PostgresReadinessProbe(pool)
         )
@@ -246,6 +236,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         identity_repository = AsyncpgIdentityRepository(pool)
         application.state.identity_service = IdentityQueryService(
             identity_repository,
+            module_navigation=module_navigation,
             fresh_login_window=timedelta(seconds=settings.fresh_login_seconds),
         )
         application.state.identity_administration_service = (
@@ -311,7 +302,18 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             repository=document_repository,
             storage=object_storage,
         )
-        application.state.survey_exports = AsyncpgSurveyExports(pool, object_storage)
+        (
+            application.state.survey_service,
+            application.state.survey_exports,
+            checkpoint_publisher,
+        ) = build_survey_services(pool, settings, object_storage)
+        application.state.material_service = build_material_service(
+            pool, object_storage
+        )
+        application.state.task_service = build_task_service(pool)
+        application.state.knowledge_service = build_knowledge_service(
+            pool, object_storage
+        )
         public_order_tokens = PublicOrderTokenCodec(
             settings.invitation_hmac_secret.get_secret_value()
         )
@@ -383,6 +385,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
             application.state.assignment_management_service = None
             application.state.activity_management_service = None
             application.state.public_order_service = None
+        application.state.inbox_service = build_inbox_service(pool, crm_gateway)
         try:
             if settings.survey_erasure_archive_dir is not None:
                 await checkpoint_publisher.publish()
@@ -398,7 +401,17 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         version="0.0.0",
         lifespan=lifespan,
     )
-    application.add_middleware(SurveyBodyLimitMiddleware)
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        limits=(
+            ("/api/v1/public/inbox-cases", 64 * 1024),
+            ("/api/v1/inbox-cases", 64 * 1024),
+            ("/api/v1/surveys", 1_048_576),
+            ("/api/v1/public/surveys", 1_048_576),
+            ("/api/v1/survey-settings", 1_048_576),
+            ("/api/v1/materials", 25 * 1024 * 1024 + 65_536),
+        ),
+    )
 
     @application.middleware("http")
     async def correlate_request(
@@ -635,7 +648,7 @@ def create_app(configured_settings: Settings | None = None) -> FastAPI:
         )
 
     application.include_router(router)
-    application.include_router(surveys_router)
+    register_api_modules(application)
     return application
 
 

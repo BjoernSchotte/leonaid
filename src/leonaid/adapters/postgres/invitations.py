@@ -426,7 +426,7 @@ class AsyncpgInvitationRepository:
                         available_at,
                         created_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
+                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, COALESCE($8::timestamptz, $7), $7)
                     """,
                     mail_event.id,
                     mail_event.aggregate_type,
@@ -435,6 +435,7 @@ class AsyncpgInvitationRepository:
                     mail_event.idempotency_key,
                     json.dumps(mail_event.payload, separators=(",", ":")),
                     occurred_at,
+                    mail_event.available_at,
                 )
                 return invitation.id
 
@@ -918,7 +919,7 @@ class AsyncpgInvitationRepository:
                         available_at,
                         created_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
+                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, COALESCE($8::timestamptz, $7), $7)
                     """,
                     mail_event.id,
                     mail_event.aggregate_type,
@@ -927,6 +928,7 @@ class AsyncpgInvitationRepository:
                     mail_event.idempotency_key,
                     json.dumps(mail_event.payload, separators=(",", ":")),
                     occurred_at,
+                    mail_event.available_at,
                 )
                 return replacement.id
 

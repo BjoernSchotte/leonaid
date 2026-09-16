@@ -2,7 +2,10 @@
 
 import asyncio
 
-from leonaid.adapters.surveyjs_validation import aggregate_batch, validate_answers
+from leonaid.modules.surveys.adapters.surveyjs_validation import (
+    aggregate_batch,
+    validate_answers,
+)
 from leonaid.domain.errors import DomainInvariantError
 
 

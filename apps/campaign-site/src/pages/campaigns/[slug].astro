@@ -1,6 +1,7 @@
 ---
 import { actions } from "astro:actions";
 import PublicLayout from "../../../../public/src/layouts/PublicLayout.astro";
+import PublicInbox from "../../../../public/src/components/PublicInbox.astro";
 import PublicOrder from "../../../../public/src/components/PublicOrder.astro";
 import PublicAction from "../../../../public/src/components/PublicAction.astro";
 import KrapfentaxiCampaignIntro from "../../components/KrapfentaxiCampaignIntro.astro";
@@ -273,6 +274,11 @@ const units = {
         publicAlias={route.orderAlias}
         orderResult={orderResult}
       />
+    )
+  }
+  {
+    !isKrapfentaxi && action && route?.availability === "published" && (
+      <PublicInbox actionId={action.id} actionName={action.name} />
     )
   }
 </PublicLayout>

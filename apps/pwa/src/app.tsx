@@ -1,3 +1,4 @@
+import { ModuleSearch } from "@leonaid/features";
 import {
   Download04Icon,
   RefreshIcon,
@@ -20,6 +21,8 @@ import {
   SponsorWorkspace,
   useCurrentActionId,
 } from "@leonaid/features";
+import { registeredPwaModules } from "@leonaid/features/pwa-modules";
+import { resolveModuleRoute } from "@leonaid/features/modules";
 import { AppShell, Button, StatusMessage } from "@leonaid/ui";
 
 interface AppProps {
@@ -339,6 +342,11 @@ export function App({ client }: AppProps) {
     );
   }
 
+  const moduleRoute = resolveModuleRoute(
+    registeredPwaModules,
+    "pwa",
+    window.location.pathname,
+  );
   const route = currentRoute();
   const memberships = identity.data.actionMemberships.filter(
     (membership) => membership.role === "acquirer",
@@ -352,6 +360,7 @@ export function App({ client }: AppProps) {
   return (
     <>
       <AppShell
+        moduleNavigationKeys={registeredPwaModules.map((module) => module.id)}
         currentActionName={currentAction}
         identity={identity.data}
         onLogout={() => {
@@ -362,7 +371,15 @@ export function App({ client }: AppProps) {
         surface="pwa"
         systemBanner={<PwaLifecycle />}
       >
-        {route === "sponsors" ? (
+        <ModuleSearch
+          modules={registeredPwaModules}
+          surface="pwa"
+          client={client}
+          identity={identity.data}
+        />
+        {moduleRoute ? (
+          moduleRoute.render({ client, identity: identity.data })
+        ) : route === "sponsors" ? (
           <SponsorWorkspace client={client} identity={identity.data} />
         ) : route === "commitment" ? (
           <CommitmentCapturePage client={client} identity={identity.data} />

@@ -78,9 +78,9 @@ class AsyncpgTransactionalOutboxRepository:
             """
             INSERT INTO outbox_event (
                 id, aggregate_type, aggregate_id, event_type,
-                idempotency_key, payload
+                idempotency_key, payload, available_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, COALESCE($7::timestamptz, now()))
             """,
             event.id,
             event.aggregate_type,
@@ -88,6 +88,7 @@ class AsyncpgTransactionalOutboxRepository:
             event.event_type,
             event.idempotency_key,
             json.dumps(event.payload, separators=(",", ":")),
+            event.available_at,
         )
 
 

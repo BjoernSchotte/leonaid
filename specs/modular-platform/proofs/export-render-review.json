@@ -1,0 +1,85 @@
+{
+  "sourceCommit": "c773d2a60beab27d0b2bbed783c03d7810ffa71f",
+  "pdfReview": "All 20 pages rendered with Poppler at 1000px and visually inspected. No clipped labels, overlapping content or replacement glyphs observed. Not a PDF accessibility certification.",
+  "freshRendererCheck": "Production API image, current mounted source, tools/surveys/pdf_render.py and xlsx_render.py; session 76271 exit 0.",
+  "pdfs": [
+    {
+      "path": ".artifacts/surveys-pdf/normal.pdf",
+      "sha256": "3f9819b1c4e899906504b10d103c0566ee930e52718bd14686382e494bfce229",
+      "manuallyReviewedPages": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "path": ".artifacts/surveys-pdf/long-labels.pdf",
+      "sha256": "ede3401261b097f7ae3ee4ab4dcf14252c9bd38d1a53c462c3ea4ab071d2d032",
+      "manuallyReviewedPages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "path": ".artifacts/surveys-pdf/empty.pdf",
+      "sha256": "a5ac7c5a449268e5b33bc797fa2c796468e4ca7db566b33e4e1f2ff54a500cb2",
+      "manuallyReviewedPages": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "path": ".artifacts/surveys-infrastructure/survey-worker-report.pdf",
+      "sha256": "0ea3f6efd6f6451427e31e5d5539127110cc4c1f4cf6082ea2737e78c63c7d53",
+      "manuallyReviewedPages": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "workbooks": [
+    {
+      "path": ".artifacts/surveys-xlsx/normal.xlsx",
+      "sha256": "64d0fdbf0da1558b2cb169046cc5ace8ebdc262ed418aa2cef1853eacd511b1b",
+      "priorConsumerReview": "specs/surveyjs-surveys-spike/proofs/assets/SURV-080-xlsx-final-review.json",
+      "consumerPdfSha256": "63fedc7f62fa17327f84c220699b3fb00d9a57d79ea84bab2c47c74180845dc6",
+      "pages": 12,
+      "reviewBasis": "Byte-identical workbook and retained consumer PDF; existing complete manual review remains applicable."
+    },
+    {
+      "path": ".artifacts/surveys-xlsx/long-labels.xlsx",
+      "sha256": "7a9e82363fa041f0304987b7ac79d468e703b1cf923a3bf05db6cf2efaf6f604",
+      "priorConsumerReview": "specs/surveyjs-surveys-spike/proofs/assets/SURV-080-xlsx-final-review.json",
+      "consumerPdfSha256": "95f11a3504bbdfd9462049616b31942c7f93e732af1410ea146bb36db399e7ea",
+      "pages": 16,
+      "reviewBasis": "Byte-identical workbook and retained consumer PDF; existing complete manual review remains applicable."
+    },
+    {
+      "path": ".artifacts/surveys-xlsx/empty.xlsx",
+      "sha256": "3cd6a56b23a5d32b1160fdea960f34f1dfa547e978029f7ad0637f0c28568bcd",
+      "priorConsumerReview": "specs/surveyjs-surveys-spike/proofs/assets/SURV-080-xlsx-final-review.json",
+      "consumerPdfSha256": "f76992f6532b5a70351436f769cfb637ee1a0d4e28614bcf2866582079bafd34",
+      "pages": 12,
+      "reviewBasis": "Byte-identical workbook and retained consumer PDF; existing complete manual review remains applicable."
+    },
+    {
+      "path": ".artifacts/surveys-xlsx/responses.xlsx",
+      "sha256": "3cbcd582c73f5146c8cddb0ee3b44c3442e12ff61c5fcfe1db46438476ebc246",
+      "priorConsumerReview": "specs/surveyjs-surveys-spike/proofs/assets/SURV-080-xlsx-final-review.json",
+      "consumerPdfSha256": "9deda815c18cdccc1a8dcd98bbc43e0d9febda5a9e0fcfd0ecfa423e537b0d5a",
+      "pages": 6,
+      "reviewBasis": "Byte-identical workbook and retained consumer PDF; existing complete manual review remains applicable."
+    }
+  ]
+}

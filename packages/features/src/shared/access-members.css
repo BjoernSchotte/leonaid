@@ -1,0 +1,51 @@
+.access-members {
+  margin-block: 1rem;
+}
+.access-members fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.access-members h2 {
+  font-size: var(--text-lg);
+  margin-block: 1.25rem 0.5rem;
+}
+.access-members label,
+.access-members form {
+  display: grid;
+  gap: 0.5rem;
+}
+.access-members form {
+  margin-top: 1.5rem;
+}
+.access-members :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.65rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+.access-members :is(input, select):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.access-results {
+  list-style: none;
+  padding: 0;
+  margin-block: 1rem;
+}
+.access-results li {
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.access-paging {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}

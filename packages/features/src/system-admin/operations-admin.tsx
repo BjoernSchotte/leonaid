@@ -56,6 +56,14 @@ function DependencyCard({
       <div>
         <span>{DEPENDENCY_LABELS[dependency.dependency]}</span>
         <strong>{ready ? "Bereit" : "Nicht erreichbar"}</strong>
+        {dependency.dependency === "worker" && (
+          <small>
+            {dependency.lastSuccessfulSweepAt
+              ? `Letzter erfolgreicher Fristenlauf: ${formatDate(dependency.lastSuccessfulSweepAt)}`
+              : "Kein erfolgreicher Fristenlauf gemeldet."}{" "}
+            Angabe seit dem letzten Worker-Start.
+          </small>
+        )}
       </div>
       <small>{dependency.latencyMs.toLocaleString("de-DE")} ms</small>
     </article>
@@ -547,6 +555,17 @@ export function OperationsAdminPanel({
           <span>Outbox</span>
           <strong>{overview.data.outbox.pending} wartend</strong>
           <small>{overview.data.outbox.deadLetter} fehlgeschlagen</small>
+          <small>
+            Nächster Versuch:{" "}
+            {overview.data.nextPendingAttemptAt
+              ? formatDate(overview.data.nextPendingAttemptAt)
+              : "keine wartenden Jobs"}
+          </small>
+          <small>
+            {overview.data.oldestDuePendingAgeSeconds != null
+              ? `Ältester fälliger Job: ${Math.floor(overview.data.oldestDuePendingAgeSeconds).toLocaleString("de-DE")} s überfällig`
+              : "Keine fälligen wartenden Jobs"}
+          </small>
         </article>
         <article>
           <HugeiconsIcon

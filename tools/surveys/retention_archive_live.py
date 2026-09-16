@@ -9,11 +9,13 @@ import sys
 from uuid import UUID
 
 from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
-from leonaid.adapters.postgres.survey_recovery import RECORD_COLUMNS
-from leonaid.adapters.postgres.survey_retention import sweep_retention
-import leonaid.adapters.storage.survey_checkpoint_archive as archive
-from leonaid.application.surveys.recovery import ErasureRecord, verify
+from leonaid.modules.surveys.adapters.postgres.survey_checkpoint_publisher import (
+    configured_publisher,
+)
+from leonaid.modules.surveys.adapters.postgres.survey_recovery import RECORD_COLUMNS
+from leonaid.modules.surveys.adapters.postgres.survey_retention import sweep_retention
+import leonaid.modules.surveys.adapters.storage.survey_checkpoint_archive as archive
+from leonaid.modules.surveys.application.recovery import ErasureRecord, verify
 
 PROOF = Path("/proof")
 

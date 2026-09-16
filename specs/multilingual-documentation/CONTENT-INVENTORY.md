@@ -1,10 +1,10 @@
 # LeonAid documentation content inventory
 
-Stand: 14.09.2026  
-Produktbasis: `2043b72b7c5453b37978f2a58436243dbc378a00`  
+Stand: 14.09.2026<br>
+Produktbasis: `2043b72b7c5453b37978f2a58436243dbc378a00`<br>
 Publikationskanal: ausdrücklich gekennzeichneter Entwicklungs-/Pilotstand des
-Default-Branches  
-Repository-Modell: `apps/docs` im LeonAid-Monorepo  
+Default-Branches<br>
+Repository-Modell: `apps/docs` im LeonAid-Monorepo<br>
 Locales: explizite Präfixe `/de/` und `/en/`, Deutsch als redaktionelle
 Ausgangssprache
 

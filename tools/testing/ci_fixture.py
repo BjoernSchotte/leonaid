@@ -40,6 +40,8 @@ def inputs(root):
             name.startswith(
                 (
                     "src/leonaid/adapters/typst/",
+                    "src/leonaid/modules/surveys/adapters/typst/",
+                    "src/leonaid/modules/surveys/domain/",
                     "src/leonaid/domain/",
                     "migrations/",
                     "infra/",

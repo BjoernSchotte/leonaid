@@ -11,11 +11,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import asyncpg
 
-from leonaid.adapters.postgres.pool import create_pool
-from leonaid.adapters.postgres.surveys import AsyncpgSurveyRepository
-from leonaid.adapters.postgres.survey_retention import sweep_retention
-from leonaid.adapters.postgres.survey_checkpoint_publisher import configured_publisher
-from leonaid.entrypoints.worker.outbox import build_worker
+from leonaid.bootstrap.worker import build_worker, background_tasks
+from leonaid.platform.worker_signals import (
+    last_success_at,
+    record_success,
+    render_activity_metrics,
+)
 
 last_database_success = 0.0
 
@@ -33,16 +34,18 @@ class HealthHandler(BaseHTTPRequestHandler):
                     "service": "leonaid-worker",
                     "status": "ready" if ready else "not-ready",
                     "checks": {"postgres": "ready" if ready else "not-ready"},
+                    "lastSuccessfulSweepAt": last_success_at("survey_sweep"),
                 },
             )
             return
         if self.path == "/metrics":
             ready = time.monotonic() - last_database_success < 10
-            body = (
+            metrics = (
                 "# HELP leonaid_worker_ready Whether the durable worker can reach PostgreSQL.\n"
                 "# TYPE leonaid_worker_ready gauge\n"
                 f"leonaid_worker_ready {1 if ready else 0}\n"
-            ).encode()
+            )
+            body = (metrics + render_activity_metrics()).encode()
             self.send_response(200)
             self.send_header(
                 "Content-Type",
@@ -70,6 +73,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 async def durable_worker_loop() -> None:
     while True:
         pool = None
+        worker = None
         try:
             pool, _, worker = await build_worker(
                 database_url=os.environ["CORE_DATABASE_URL"],
@@ -84,13 +88,18 @@ async def durable_worker_loop() -> None:
             )
             while True:
                 handled = await worker.run_once()
+                record_success("queue_poll")
                 if not handled:
                     await asyncio.sleep(0.25)
         except Exception:
             await asyncio.sleep(2)
         finally:
-            if pool is not None:
-                await pool.close()
+            try:
+                if worker is not None:
+                    await worker.close()
+            finally:
+                if pool is not None:
+                    await pool.close()
 
 
 async def database_readiness_loop() -> None:
@@ -113,31 +122,10 @@ async def database_readiness_loop() -> None:
 
 async def service_loop() -> None:
     await asyncio.gather(
-        durable_worker_loop(), database_readiness_loop(), survey_timeout_loop()
+        durable_worker_loop(),
+        database_readiness_loop(),
+        *(task() for task in background_tasks().values()),
     )
-
-
-async def survey_timeout_loop() -> None:
-    """Independent five-second sweep; catch up in bounded batches after outages."""
-    while True:
-        pool = None
-        try:
-            pool = await create_pool(os.environ["CORE_DATABASE_URL"], maximum_size=2)
-            repository = AsyncpgSurveyRepository(pool)
-            publisher = configured_publisher(pool)
-            while True:
-                closed = await repository.close_due_surveys()
-                count = await repository.classify_overdue()
-                retained = await sweep_retention(pool, checkpoint_publisher=publisher)
-                await asyncio.sleep(
-                    0.25 if count == 1000 or closed == 100 or retained == 100 else 5
-                )
-        except Exception:
-            # Migration/startup/database outages are retried without logging private rows.
-            await asyncio.sleep(2)
-        finally:
-            if pool is not None:
-                await pool.close()
 
 
 def main() -> None:

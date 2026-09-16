@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 from decimal import Decimal
 from uuid import UUID
 
@@ -57,3 +58,20 @@ def test_retry_policy_is_exponential_capped_and_dead_letters() -> None:
     assert policy.after_failure(2, now).available_at == now + timedelta(seconds=10)
     assert policy.after_failure(3, now).available_at == now + timedelta(seconds=12)
     assert policy.after_failure(4, now).dead_letter is True
+
+
+def test_optional_execution_time_preserves_immediate_default_and_requires_timezone() -> (
+    None
+):
+    event = RecordActionProgressCommand(
+        command_id=COMMAND_ID,
+        action_id=ACTION_ID,
+        actor_user_id=ACTOR_ID,
+        actual_value=Decimal("1"),
+        request_id="scheduled",
+    ).outbox_event()
+    assert event.available_at is None
+    due = datetime(2026, 9, 13, 14, tzinfo=timezone(timedelta(hours=2)))
+    assert replace(event, available_at=due).available_at == due
+    with pytest.raises(ValueError, match="timezone-aware"):
+        replace(event, available_at=due.replace(tzinfo=None))

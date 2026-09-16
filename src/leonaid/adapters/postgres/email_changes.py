@@ -385,7 +385,7 @@ class AsyncpgEmailChangeRepository:
                   id, aggregate_type, aggregate_id, event_type,
                   idempotency_key, payload, available_at, created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $7)
+                VALUES ($1, $2, $3, $4, $5, $6::jsonb, COALESCE($8::timestamptz, $7), $7)
                 """,
                 event.id,
                 event.aggregate_type,
@@ -394,6 +394,7 @@ class AsyncpgEmailChangeRepository:
                 event.idempotency_key,
                 json.dumps(event.payload, separators=(",", ":")),
                 occurred_at,
+                event.available_at,
             )
 
     @staticmethod
