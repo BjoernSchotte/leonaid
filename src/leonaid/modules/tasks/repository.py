@@ -27,6 +27,7 @@ from leonaid.modules.tasks.api import (
     ActionContexts,
     Assignee,
     Assignees,
+    CreateTaskTag,
     SetListMember,
     SetListMemberByEmail,
     ListMember,
@@ -43,6 +44,9 @@ from leonaid.modules.tasks.api import (
     PlannedTask,
     MovePlacement,
     MoveTask,
+    SetTaskStructure,
+    TaskTag,
+    TaskTags,
     TaskMove,
     SetTaskPlan,
     TaskPlans,
@@ -84,7 +88,28 @@ def _target_position(
 def _task_data(row: asyncpg.Record) -> dict[str, Any]:
     data = dict(row)
     data.pop("manual_position", None)
+    for field in ("tags", "checklist"):
+        if isinstance(data.get(field), str):
+            data[field] = json.loads(data[field])
+    data.setdefault("tags", [])
     return data
+
+
+def _normalized_tag_title(title: str) -> str:
+    return " ".join(title.casefold().split())
+
+
+_TASK_TAGS = """
+    coalesce((
+        SELECT jsonb_agg(
+            jsonb_build_object('id',tag.id,'title',tag.title)
+            ORDER BY lower(tag.title),tag.id
+        )
+        FROM task_tag_assignment assignment
+        JOIN task_tag tag ON tag.id=assignment.tag_id
+        WHERE assignment.task_id=t.id
+    ),'[]'::jsonb) AS tags
+"""
 
 
 # Same read policy for individual objects, lists, search and "for me".
@@ -288,7 +313,7 @@ class AsyncpgTaskRepository:
                 f"""
                 SELECT t.*,l.title AS list_title,a.name AS action_title,
                     u.display_name AS assignee_name,e.title AS epic_title,
-                    ({_WRITE_ACCESS}) AS can_edit
+                    ({_WRITE_ACCESS}) AS can_edit,{_TASK_TAGS}
                 FROM task t JOIN task_list l ON l.id=t.list_id
                 LEFT JOIN charity_action a ON a.id=l.action_id
                 LEFT JOIN user_account u ON u.id=t.assignee_user_id
@@ -302,7 +327,12 @@ class AsyncpgTaskRepository:
                     AND ($6::timestamptz IS NULL OR t.due_at >= $6)
                     AND ($7::timestamptz IS NULL OR t.due_at < $7)
                     AND strpos(lower(t.title), lower($8)) > 0
-                ORDER BY {order_by} LIMIT $9 OFFSET $10
+                    AND ($9::text IS NULL OR t.priority=$9)
+                    AND ($10::uuid IS NULL OR EXISTS(
+                        SELECT 1 FROM task_tag_assignment filter_tag
+                        WHERE filter_tag.task_id=t.id AND filter_tag.tag_id=$10
+                    ))
+                ORDER BY {order_by} LIMIT $11 OFFSET $12
             """,
                 actor.account.id,
                 query.list_id,
@@ -312,6 +342,8 @@ class AsyncpgTaskRepository:
                 query.due_from,
                 query.due_before,
                 query.search,
+                query.priority,
+                query.tag_id,
                 query.limit + 1,
                 query.offset,
             )
@@ -347,7 +379,8 @@ class AsyncpgTaskRepository:
                     p.state AS plan_state,p.planned_on,p.revision AS plan_revision,
                     CASE WHEN $4<>'today'
                             OR (p.state='scheduled' AND p.planned_on<=$2)
-                        THEN 'planned' ELSE 'due' END AS plan_source
+                        THEN 'planned' ELSE 'due' END AS plan_source,
+                    {_TASK_TAGS}
                 FROM task t JOIN task_list l ON l.id=t.list_id
                 LEFT JOIN charity_action a ON a.id=l.action_id
                 LEFT JOIN user_account u ON u.id=t.assignee_user_id
@@ -624,6 +657,141 @@ class AsyncpgTaskRepository:
             return await self._move_list_task(actor, task_id, command)
         return await self._move_personal_task(actor, task_id, command)
 
+    async def create_tag(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateTaskTag
+    ) -> TaskTag:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            listing = await self._list(conn, actor.account.id, list_id, write=True)
+            key, replay = await self._receipt(
+                conn, actor.account.id, list_id, "tasks.tag.created", command
+            )
+            if replay:
+                return TaskTag.model_validate_json(replay["document"])
+            try:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO task_tag(id,list_id,title,normalized_title)
+                    VALUES($1,$2,$3,$4) RETURNING id,title
+                    """,
+                    uuid4(),
+                    list_id,
+                    command.title,
+                    _normalized_tag_title(command.title),
+                )
+            except asyncpg.UniqueViolationError as error:
+                raise Conflict("task_tag_exists", "Dieser Tag ist bereits vorhanden.") from error
+            assert row is not None
+            result = TaskTag.model_validate(dict(row))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.tag.created",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
+    async def list_tags(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> TaskTags:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            await self._list(conn, actor.account.id, list_id, write=False)
+            rows = await conn.fetch(
+                """
+                SELECT id,title FROM task_tag
+                WHERE list_id=$1 AND strpos(lower(title),lower($2))>0
+                ORDER BY lower(title),id LIMIT $3 OFFSET $4
+                """,
+                list_id,
+                query.search,
+                query.limit + 1,
+                query.offset,
+            )
+            return TaskTags(
+                items=[TaskTag.model_validate(dict(row)) for row in rows[: query.limit]],
+                next_offset=query.offset + query.limit
+                if len(rows) > query.limit and query.offset + query.limit <= 5000
+                else None,
+            )
+
+    async def set_task_structure(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskStructure
+    ) -> Task:
+        async with self._connection() as conn, conn.transaction():
+            await self._active(conn, actor.account.id)
+            list_id = await conn.fetchval(
+                "SELECT list_id FROM task WHERE id=$1", task_id
+            )
+            if list_id is None:
+                raise ResourceNotFound("not_found", "Task nicht gefunden.")
+            await conn.fetchval(
+                "SELECT id FROM task_list WHERE id=$1 FOR UPDATE", list_id
+            )
+            task = await conn.fetchrow(
+                "SELECT revision FROM task WHERE id=$1 FOR UPDATE", task_id
+            )
+            assert task is not None
+            listing = await self._list(conn, actor.account.id, list_id, write=True)
+            key, replay = await self._receipt(
+                conn,
+                actor.account.id,
+                task_id,
+                "tasks.task.structure.updated",
+                command,
+            )
+            if replay:
+                return Task.model_validate_json(replay["document"])
+            if task["revision"] != command.expected_revision:
+                raise Conflict("revision_conflict", "Task wurde inzwischen geändert.")
+            tag_ids = set(
+                await conn.fetchval(
+                    "SELECT coalesce(array_agg(id),'{}'::uuid[]) FROM task_tag WHERE list_id=$1 AND id=ANY($2::uuid[])",
+                    list_id,
+                    command.tag_ids,
+                )
+            )
+            if tag_ids != set(command.tag_ids):
+                raise Conflict(
+                    "task_tag_invalid", "Mindestens ein Tag ist nicht verfügbar."
+                )
+            await conn.execute(
+                "DELETE FROM task_tag_assignment WHERE task_id=$1", task_id
+            )
+            if command.tag_ids:
+                await conn.executemany(
+                    "INSERT INTO task_tag_assignment(list_id,task_id,tag_id) VALUES($1,$2,$3)",
+                    [(list_id, task_id, tag_id) for tag_id in command.tag_ids],
+                )
+            await conn.execute(
+                """
+                UPDATE task SET priority=$2,checklist=$3::jsonb,
+                    revision=revision+1,updated_at=now() WHERE id=$1
+                """,
+                task_id,
+                command.priority,
+                json.dumps(
+                    [item.model_dump(mode="json") for item in command.checklist],
+                    separators=(",", ":"),
+                ),
+            )
+            row = await conn.fetchrow(
+                f"SELECT t.*,{_TASK_TAGS} FROM task t WHERE t.id=$1", task_id
+            )
+            assert row is not None
+            result = Task.model_validate(_task_data(row))
+            await self._finish(
+                conn,
+                key=key,
+                operation="tasks.task.structure.updated",
+                actor=actor.account.id,
+                action_id=listing.action_id,
+                result=result,
+            )
+            return result
+
     async def _move_list_task(
         self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
     ) -> TaskMove:
@@ -827,7 +995,9 @@ class AsyncpgTaskRepository:
         | SetListMember
         | SetListMemberByEmail
         | SetTaskPlan
-        | MoveTask,
+        | MoveTask
+        | CreateTaskTag
+        | SetTaskStructure,
     ) -> tuple[str, dict[str, str] | None]:
         key = f"tasks:{actor}:{operation}:{context}:{command.idempotency_key}"
         digest = hashlib.sha256(command.model_dump_json().encode()).hexdigest()
@@ -849,7 +1019,7 @@ class AsyncpgTaskRepository:
         operation: str,
         actor: UUID,
         action_id: UUID | None,
-        result: Task | TaskList | Epic | PersonalPlan | TaskMove,
+        result: Task | TaskList | Epic | PersonalPlan | TaskMove | TaskTag,
         details: dict[str, str] | None = None,
     ) -> None:
         await conn.execute(
@@ -866,6 +1036,8 @@ class AsyncpgTaskRepository:
             and not (isinstance(result, TaskMove) and result.context == "list")
             else "task_list"
             if isinstance(result, TaskList)
+            else "task_tag"
+            if isinstance(result, TaskTag)
             else "task_epic"
             if isinstance(result, Epic)
             else "task",
@@ -1021,7 +1193,9 @@ class AsyncpgTaskRepository:
     async def get_task(self, actor: IdentityPrincipal, task_id: UUID) -> Task:
         async with self._connection() as conn, conn.transaction():
             await self._active(conn, actor.account.id)
-            row = await conn.fetchrow("SELECT * FROM task WHERE id=$1", task_id)
+            row = await conn.fetchrow(
+                f"SELECT t.*,{_TASK_TAGS} FROM task t WHERE t.id=$1", task_id
+            )
             if row is None:
                 raise ResourceNotFound("not_found", "Task nicht gefunden.")
             await self._list(conn, actor.account.id, row["list_id"], write=False)
@@ -1089,7 +1263,11 @@ class AsyncpgTaskRepository:
                     "UPDATE task_list SET order_revision=order_revision+1 WHERE id=$1",
                     list_id,
                 )
-            result = Task.model_validate(_task_data(updated))
+            current = await conn.fetchrow(
+                f"SELECT t.*,{_TASK_TAGS} FROM task t WHERE t.id=$1", task_id
+            )
+            assert current is not None
+            result = Task.model_validate(_task_data(current))
             await self._finish(
                 conn,
                 key=key,

@@ -22,6 +22,12 @@ from leonaid.modules.tasks.planning import require_time_zone
 Title = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
 ]
+TagTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)
+]
+ChecklistText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
 
 
 class TaskModel(TransportModel):
@@ -39,6 +45,7 @@ class TaskModel(TransportModel):
         "user_id",
         "assignee_user_id",
         "target_epic_id",
+        "tag_id",
         "before",
         "after",
         "created_by",
@@ -48,6 +55,13 @@ class TaskModel(TransportModel):
     @classmethod
     def parse_identifier(cls, value: object) -> object:
         return UUID(value) if isinstance(value, str) else value
+
+    @field_validator("tag_ids", mode="before", check_fields=False)
+    @classmethod
+    def parse_identifiers(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [UUID(item) if isinstance(item, str) else item for item in value]
+        return value
 
     @field_validator(
         "due_at",
@@ -109,10 +123,24 @@ class UpdateTask(TaskFields):
     status: Literal["open", "done"]
 
 
+class TaskTag(TaskModel):
+    id: UUID
+    title: TagTitle
+
+
+class ChecklistItem(TaskModel):
+    id: UUID
+    text: ChecklistText
+    done: bool
+
+
 class Task(TaskFields):
     id: UUID
     list_id: UUID
     status: Literal["open", "done"]
+    priority: Literal["none", "high"]
+    tags: list[TaskTag]
+    checklist: list[ChecklistItem]
     revision: int
     created_by: UUID
     created_at: datetime
@@ -158,6 +186,8 @@ class TaskQuery(SearchPage):
     due_before: AwareDatetime | None = None
     deferred_state: Literal["active", "deferred", "all"] | None = None
     sort: Literal["created", "due", "section", "manual"] = "created"
+    priority: Literal["none", "high"] | None = None
+    tag_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_filters(self) -> Self:
@@ -206,8 +236,6 @@ class SetTaskPlan(TaskModel):
         if (self.state == "scheduled") != (self.planned_on is not None):
             raise ValueError("Nur eine geplante Aufgabe benötigt ein Datum.")
         return self
-
-
 class PersonalPlan(TaskModel):
     task_id: UUID
     state: Literal["scheduled", "someday", "unplanned"]
@@ -277,6 +305,33 @@ class TaskMove(TaskModel):
     order_revision: int
     task_revision: int | None
     plan_revision: int | None
+
+
+class CreateTaskTag(TaskModel):
+    idempotency_key: UUID
+    title: TagTitle
+
+
+class TaskTags(TaskModel):
+    items: list[TaskTag]
+    next_offset: int | None
+
+
+class SetTaskStructure(TaskModel):
+    idempotency_key: UUID
+    expected_revision: int = Field(ge=1)
+    priority: Literal["none", "high"]
+    tag_ids: list[UUID] = Field(max_length=20)
+    checklist: list[ChecklistItem] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def validate_unique_items(self) -> Self:
+        if len(set(self.tag_ids)) != len(self.tag_ids):
+            raise ValueError("Tags dürfen nicht doppelt vorkommen.")
+        checklist_ids = [item.id for item in self.checklist]
+        if len(set(checklist_ids)) != len(checklist_ids):
+            raise ValueError("Checklistenschritte benötigen eindeutige IDs.")
+        return self
 
 
 class CreateEpic(TaskModel):
@@ -393,6 +448,15 @@ class TaskRepository(Protocol):
     async def move_task(
         self, actor: IdentityPrincipal, task_id: UUID, command: MoveTask
     ) -> TaskMove: ...
+    async def create_tag(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateTaskTag
+    ) -> TaskTag: ...
+    async def list_tags(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> TaskTags: ...
+    async def set_task_structure(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskStructure
+    ) -> Task: ...
     async def create_list(
         self, actor: IdentityPrincipal, command: CreateList
     ) -> TaskList: ...
@@ -496,6 +560,27 @@ class TaskService:
     ) -> TaskMove:
         return await self._repository.move_task(
             actor, task_id, MoveTask.model_validate(command)
+        )
+
+    async def create_tag(
+        self, actor: IdentityPrincipal, list_id: UUID, command: CreateTaskTag
+    ) -> TaskTag:
+        return await self._repository.create_tag(
+            actor, list_id, CreateTaskTag.model_validate(command)
+        )
+
+    async def list_tags(
+        self, actor: IdentityPrincipal, list_id: UUID, query: SearchPage
+    ) -> TaskTags:
+        return await self._repository.list_tags(
+            actor, list_id, SearchPage.model_validate(query)
+        )
+
+    async def set_task_structure(
+        self, actor: IdentityPrincipal, task_id: UUID, command: SetTaskStructure
+    ) -> Task:
+        return await self._repository.set_task_structure(
+            actor, task_id, SetTaskStructure.model_validate(command)
         )
 
     async def create_list(
