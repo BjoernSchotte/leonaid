@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 import sys
 from pathlib import Path
 
 PORT_KEYS = {"LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT"}
-CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS}
+NETWORK_KEYS = {"LEONAID_BIND_ADDRESS", "LEONAID_LAN_HOST"}
+CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS, *NETWORK_KEYS}
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -58,6 +60,21 @@ def main() -> int:
         print(
             "secret-check: ERROR: local host ports must be distinct, 1024-65535",
             file=sys.stderr,
+        )
+        return 1
+
+    try:
+        ipaddress.ip_address(actual["LEONAID_BIND_ADDRESS"])
+    except ValueError:
+        print(
+            "secret-check: ERROR: LEONAID_BIND_ADDRESS must be an IP", file=sys.stderr
+        )
+        return 1
+    if not actual["LEONAID_LAN_HOST"] or any(
+        char in actual["LEONAID_LAN_HOST"] for char in " ,/:{}"
+    ):
+        print(
+            "secret-check: ERROR: LEONAID_LAN_HOST must be a bare host", file=sys.stderr
         )
         return 1
 

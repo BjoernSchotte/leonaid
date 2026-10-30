@@ -22,7 +22,9 @@ reviewer: Björn Schotte
 Lokal veröffentlicht nur Caddy `127.0.0.1:8443` für HTTPS und
 `127.0.0.1:8080` für Diagnose-HTTP. Ist einer der Ports belegt, wählt
 `bootstrap` einmalig das erste freie Paar ab 28080 und speichert es als
-`LEONAID_HTTP_PORT` und `LEONAID_HTTPS_PORT` in `.env.local`. Im Pilot-Overlay sind ausschließlich
+`LEONAID_HTTP_PORT` und `LEONAID_HTTPS_PORT` in `.env.local`. Für Zugriff aus
+dem LAN setzt man `LEONAID_BIND_ADDRESS=0.0.0.0` und `LEONAID_LAN_HOST` auf die
+LAN-IP oder den Namen des Hosts; dann ist der Dev-Stack im LAN erreichbar. Im Pilot-Overlay sind ausschließlich
 80/443 öffentlich. Datenbanken, Redis, S3 und interne APIs bleiben in
 Compose-Netzen.
 
