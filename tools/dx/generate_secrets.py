@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import re
 import secrets
 import stat
@@ -21,6 +22,7 @@ TOKENS: dict[str, Callable[[], str]] = {
     "__GENERATE_IDENTIFIER_20__": lambda: generate_identifier(20),
     "__GENERATE_EMAIL__": lambda: generate_email(),
 }
+HOST_PORT_TOKEN = "__HOST_PORT__"
 
 
 def generate_password(length: int) -> str:
@@ -98,6 +100,15 @@ def main() -> int:
             rendered_lines.append(f"{key}={existing}")
             continue
         value = template_value
+        if value == HOST_PORT_TOKEN:
+            # Host ports are probed by ./leonaid bootstrap outside this container.
+            value = os.environ.get(key, "")
+            if not value.isdigit():
+                print(
+                    f"secret-bootstrap: ERROR: {key} must be passed from the host",
+                    file=sys.stderr,
+                )
+                return 1
         for token, generator in TOKENS.items():
             value = re.sub(re.escape(token), lambda _match: generator(), value)
         rendered_lines.append(f"{key}={value}")

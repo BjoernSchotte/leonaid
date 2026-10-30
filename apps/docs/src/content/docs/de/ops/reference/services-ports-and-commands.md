@@ -20,7 +20,9 @@ reviewer: Björn Schotte
 | Mail-Relay                    | Login-, Einladungs- und Rechnungs-E-Mail     | externer Provider; lokal Mailpit        |
 
 Lokal veröffentlicht nur Caddy `127.0.0.1:8443` für HTTPS und
-`127.0.0.1:8080` für Diagnose-HTTP. Im Pilot-Overlay sind ausschließlich
+`127.0.0.1:8080` für Diagnose-HTTP. Ist einer der Ports belegt, wählt
+`bootstrap` einmalig das erste freie Paar ab 28080 und speichert es als
+`LEONAID_HTTP_PORT` und `LEONAID_HTTPS_PORT` in `.env.local`. Im Pilot-Overlay sind ausschließlich
 80/443 öffentlich. Datenbanken, Redis, S3 und interne APIs bleiben in
 Compose-Netzen.
 

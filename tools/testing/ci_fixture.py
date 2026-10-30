@@ -86,10 +86,11 @@ def environment(root):
             "__GENERATE_PASSWORD_32__": value[:32],
             "__GENERATE_IDENTIFIER_20__": value[:20].upper(),
             "__GENERATE_EMAIL__": "ci-fixture@leonaid.invalid",
+            "__HOST_PORT__": "8443" if name == "LEONAID_HTTPS_PORT" else "8080",
         }
         for token, replacement in replacements.items():
             line = line.replace(token, replacement)
-        if "__GENERATE_" in line:
+        if "__GENERATE_" in line or "__HOST_PORT__" in line:
             raise ValueError("Unrecognized synthetic environment token")
         result.append(line)
     return "\n".join(result) + "\n"

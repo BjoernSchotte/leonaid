@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
-python3 tools/dx/generate_secrets.py .env.example .env.local
+LEONAID_HTTP_PORT=8080 LEONAID_HTTPS_PORT=8443 \
+  python3 tools/dx/generate_secrets.py .env.example .env.local
 mkdir -p .artifacts/cache-measurement
 start=$(date +%s)
 if [ "$CACHE_TARGETS" = proxy ]; then

@@ -6,7 +6,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED"}
+PORT_KEYS = {"LEONAID_HTTP_PORT", "LEONAID_HTTPS_PORT"}
+CONFIG_KEYS = {"LEONAID_ENV", "LEONAID_RESET_ALLOWED", *PORT_KEYS}
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -46,6 +47,16 @@ def main() -> int:
     if actual.get("LEONAID_RESET_ALLOWED") != "true":
         print(
             "secret-check: ERROR: LEONAID_RESET_ALLOWED must be true locally",
+            file=sys.stderr,
+        )
+        return 1
+
+    ports = [actual[key] for key in sorted(PORT_KEYS)]
+    if not all(port.isdigit() and 1024 <= int(port) <= 65535 for port in ports) or (
+        len(set(ports)) != len(ports)
+    ):
+        print(
+            "secret-check: ERROR: local host ports must be distinct, 1024-65535",
             file=sys.stderr,
         )
         return 1

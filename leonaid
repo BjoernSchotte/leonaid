@@ -400,13 +400,56 @@ compose() {
     "$@"
 }
 
+host_port_free() {
+  ! nc -z 127.0.0.1 "$1" >/dev/null 2>&1
+}
+
+# Pick the local HTTP/HTTPS pair once; generate_secrets.py keeps it afterwards.
+# A running proxy of this project keeps its ports, so it does not count as busy.
+choose_local_ports() {
+  proxy=$(docker ps -q \
+    --filter "label=com.docker.compose.project=${LEONAID_COMPOSE_PROJECT:-leonaid}" \
+    --filter label=com.docker.compose.service=proxy | head -n 1)
+  if [ -n "$proxy" ]; then
+    local_http_port=$(docker port "$proxy" 8080/tcp | head -n 1 | sed 's/.*://')
+    local_https_port=$(docker port "$proxy" 8443/tcp | head -n 1 | sed 's/.*://')
+    [ -n "$local_http_port" ] && [ -n "$local_https_port" ] && return 0
+  fi
+  if host_port_free 8080 && host_port_free 8443; then
+    local_http_port=8080
+    local_https_port=8443
+    return 0
+  fi
+  candidate=28080
+  while [ "$candidate" -lt 29000 ]; do
+    if host_port_free "$candidate" && host_port_free $((candidate + 1)); then
+      local_http_port=$candidate
+      local_https_port=$((candidate + 1))
+      return 0
+    fi
+    candidate=$((candidate + 2))
+  done
+  echo "bootstrap: ERROR: kein freies Portpaar zwischen 28080 und 29000" >&2
+  exit 1
+}
+
 bootstrap() {
   require_docker
   mkdir -p "$root/.cache"
   host_user_id=$(id -u)
   host_group_id=$(id -g)
+  if grep -q '^LEONAID_HTTP_PORT=[0-9]' "$root/.env.local" 2>/dev/null &&
+    grep -q '^LEONAID_HTTPS_PORT=[0-9]' "$root/.env.local"; then
+    local_http_port=
+    local_https_port=
+  else
+    choose_local_ports
+    echo "bootstrap: lokale Ports HTTP $local_http_port, HTTPS $local_https_port"
+  fi
   docker_retry docker run --rm \
     --user "$host_user_id:$host_group_id" \
+    -e LEONAID_HTTP_PORT="$local_http_port" \
+    -e LEONAID_HTTPS_PORT="$local_https_port" \
     -v "$root:/workspace" \
     -w /workspace \
     "$PYTHON_IMAGE" \
