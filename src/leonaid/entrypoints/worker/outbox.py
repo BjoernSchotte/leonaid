@@ -36,7 +36,7 @@ from leonaid.adapters.typst import TypstInvoiceRenderer
 from leonaid.application.documents import InvoiceDocumentStorageHandler
 from leonaid.adapters.operations import structured_event
 from leonaid.application.outbox import OutboxEventHandler, OutboxWorker
-from leonaid.configuration import load_mail_transport_settings
+from leonaid.configuration import ConfigurationError, load_mail_transport_settings
 from leonaid.domain.outbox import ClaimedOutboxEvent, OutboxState, RetryPolicy
 
 
@@ -60,6 +60,35 @@ def observe_job(
         ),
         flush=True,
     )
+
+
+REQUIRED_ENVIRONMENT = (
+    "CORE_DATABASE_URL",
+    "OBJECT_STORAGE_ENDPOINT_URL",
+    "OBJECT_STORAGE_ACCESS_KEY",
+    "OBJECT_STORAGE_SECRET_KEY",
+    "OBJECT_STORAGE_BUCKET",
+    "LEONAID_SESSION_ENCRYPTION_KEY",
+)
+
+
+def configuration_problems() -> list[str]:
+    """List configuration errors that no retry can fix.
+
+    The worker checks these once at startup and exits, so a broken deployment
+    fails loudly instead of retrying forever inside the outbox loop.
+    """
+
+    problems = [
+        f"{name}:missing"
+        for name in REQUIRED_ENVIRONMENT
+        if not os.environ.get(name, "").strip()
+    ]
+    try:
+        load_mail_transport_settings()
+    except ConfigurationError as error:
+        problems.append(str(error))
+    return problems
 
 
 async def build_worker(

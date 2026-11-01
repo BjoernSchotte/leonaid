@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from leonaid.application.outbox import OutboxClaimLost
 from leonaid.domain.outbox import (
     ClaimedOutboxEvent,
     OutboxState,
@@ -225,7 +226,7 @@ class AsyncpgOutboxQueue:
     @staticmethod
     def _require_fenced_update(status: str, action: str) -> None:
         if status != "UPDATE 1":
-            raise RuntimeError(
+            raise OutboxClaimLost(
                 f"Outbox-Claim konnte nicht sicher {action} werden; "
                 "der Claim ist abgelaufen oder wurde übernommen."
             )
