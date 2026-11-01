@@ -129,6 +129,7 @@ jobs:
           - test-upgrade
           - test-pilot-backup
           - test-pilot-deployment
+          - test-pilot-install
           - test-pilot-import
           - test-pilot-release
     env:

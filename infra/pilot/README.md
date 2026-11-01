@@ -56,6 +56,39 @@ Rotation und Provider-Wiederanlauf folgen dem
 Der einmalige Excel-Intake, Dry Run, Konfliktentscheidungen, Vier-Augen-Apply
 und Verify folgen dem [`IMPORT-RUNBOOK.md`](IMPORT-RUNBOOK.md).
 
+## Erstinstallation
+
+Ein leerer Host wird einmalig mit `pilot-install` aufgesetzt; die vollständige
+Server-Vorbereitung beschreibt
+[Install on a fresh VPS](../../apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md) ·
+[Auf einem frischen VPS installieren](../../apps/docs/src/content/docs/de/ops/how-to/install-on-a-vps.md).
+
+```sh
+./leonaid pilot-secrets --output /etc/leonaid/production.env
+./leonaid pilot-install \
+  --env-file /etc/leonaid/production.env \
+  --release-manifest /var/lib/leonaid/releases/release-manifest.json \
+  --twenty-bootstrap-file /etc/leonaid/twenty-bootstrap.env \
+  --password-file /etc/leonaid/secrets/restic-password \
+  --credentials-file /etc/leonaid/secrets/restic-backend.env
+```
+
+`pilot-install` läuft nur auf einem Projekt ohne Volumes und Container und nur
+solange `TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL` gilt. Produktives
+Twenty verlangt bestätigte E-Mail-Adressen und verweigert sonst jeden
+Token-Tausch; der erste Administrator könnte sich also nie anmelden. Deshalb
+startet `pilot-install` zuerst nur Twenty mit `compose.bootstrap.yml`
+(Verifizierung aus, kein Proxy, kein öffentlicher Zugang), provisioniert
+Schema, Rollen und Key, bestätigt die Adresse des Administrators über Twentys
+eigene Mutation `verifyEmailAndGetLoginToken` mit einem einmaligen Token und
+startet danach den vollständigen Stack mit aktiver Verifizierung. Es folgen
+erstes Backup, Monitoring mit Watchdog-Heartbeat und der vollständige Doctor.
+
+Tägliche Backups plant `systemd/leonaid-backup.timer`. Der Alarm
+`LeonAidWatchdog` feuert ständig und geht ausschließlich an die externe URL aus
+`LEONAID_ALERT_HEARTBEAT_URL_FILE`; bleiben die Pings aus, alarmiert der
+externe Dienst.
+
 ## Compose- und Release-Prüfung
 
 Vor einem Start wird die effektive Konfiguration erzeugt und geprüft:

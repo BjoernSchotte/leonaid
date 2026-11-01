@@ -263,7 +263,11 @@ docker run --rm \
   "$ALPINE_IMAGE" \
   tar -C /source -cf /backup/rustfs-data.tar .
 
+# As the host user: the manifest is created 0600, and the host copies it to
+# LEONAID_BACKUP_MANIFEST_OUTPUT below. A root-owned file would be unreadable
+# on native Linux (Docker Desktop hides this).
 docker run --rm --network none \
+  --user "$(id -u):$(id -g)" \
   --env-file "$env_file" \
   -e PYTHONPATH=/workspace \
   -v "$root:/workspace:ro" -v "$stage:/backup" "$PYTHON_IMAGE" \

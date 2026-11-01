@@ -533,6 +533,7 @@ PY_OVERLAY
     LEONAID_BACKUP_REPOSITORY="$repository" \
     LEONAID_BACKUP_PASSWORD_FILE="$password_file" \
     LEONAID_BACKUP_ALLOW_LOCAL_TEST=true \
+    LEONAID_RESTORE_NETWORKS_PRERESERVED=true \
     LEONAID_RESTORE_START_APP=false \
     LEONAID_RESTORE_STATE_FILE="$proof/restore-state-$restore_generation.json" \
     LEONAID_RESTORE_COMPOSE_OVERLAY="$source_overlay" \
