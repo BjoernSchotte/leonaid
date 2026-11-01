@@ -8,10 +8,11 @@ keine der in `specs/leonaid-pilot/DECISIONS.md` fälligen Entscheidungen.
 
 ## Rollen und harte Grenzen
 
-- **Release-Verantwortlicher** baut, scannt und publiziert die fünf
-  LeonAid-Images (Core, Web, PWA, Public und Survey-Validator) in CI und erzeugt
-  das Release-Manifest. `LEONAID_SURVEY_VALIDATOR_IMAGE` muss wie die übrigen
-  Release-Images unveränderlich per Digest gebunden sein.
+- **Release-Verantwortlicher** startet mit `./leonaid release` ein
+  CalVer-Release. Der Workflow `Release` baut und publiziert die sechs
+  LeonAid-Images (Core, Web, PWA, Public, Proxy und Survey-Validator) mit Tag
+  und Digest und hängt `release-images.env` und `release-manifest.json` an das
+  GitHub-Release (siehe `apps/docs/.../ops/how-to/release-a-version.md`).
 - **Operator** promoted exakt dieses Manifest zuerst nach Staging und erst
   nach grünen Gates nach Produktion.
 - **Fachliche Freigabe** bestätigt Golden Journey, Rechnungsinhalt und

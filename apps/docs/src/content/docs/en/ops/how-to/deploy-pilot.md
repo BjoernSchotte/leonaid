@@ -4,9 +4,9 @@ description: Deploy a manifest-bound staging or production installation without 
 docId: DOC-P022
 audience: [ops]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 86b4e396de4569cbc7dbd03cdb2153a8698bb0d1
 reviewer: Björn Schotte
 ---
 
@@ -16,8 +16,10 @@ organisation gets a further installation.
 
 1. Copy `infra/pilot/production.env.example` outside the repository. The
    completed file belongs to the operator account and has mode `0600`.
-2. Enter digest-pinned images, the approved full `LEONAID_RELEASE_COMMIT`, and
-   an external backup target.
+2. Copy the lines of `release-images.env` from the approved GitHub release
+   (see [Release a version](/en/ops/how-to/release-a-version/)): version,
+   full `LEONAID_RELEASE_COMMIT` and images with tag and digest. Add an
+   external backup target.
 3. Render and inspect the effective configuration with `docker compose ...
 config --format json`, using `infra/compose/compose.yml` and
    `infra/pilot/compose.yml`.
