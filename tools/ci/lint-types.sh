@@ -42,7 +42,7 @@ run_python uv run --frozen --no-sync ruff check \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
-  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
+  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
@@ -53,7 +53,7 @@ run_python uv run --frozen --no-sync ruff format --check \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
-  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
+  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit
@@ -64,7 +64,7 @@ run_python uv run --frozen --no-sync mypy \
   tools/documents tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/mail_domain tools/mail_relay \
   tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements \
   tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting \
-  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
+  tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_readiness tools/pilot_release tools/release tools/policy tools/storage \
   tools/public_actions tools/public_orders tools/privacy tools/pwa tools/schema tools/seed \
   tools/security tools/sessions tools/templates tools/testkit tools/twenty tools/typst \
   tools/upgrade tools/emdash_spike packages/testkit

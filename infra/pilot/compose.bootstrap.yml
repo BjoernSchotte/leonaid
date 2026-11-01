@@ -1,0 +1,18 @@
+# Bootstrap-only override for ./leonaid pilot-install. Do not pass it anywhere
+# else.
+#
+# infra/pilot/compose.yml requires e-mail verification in Twenty. Twenty then
+# refuses every token exchange of an unverified user, so the first workspace
+# admin could never sign up and provision the schema and API key. pilot-install
+# therefore runs only Twenty and its datastores with this override, while the
+# proxy and with it all public ingress stay down. It then verifies the admin's
+# address through Twenty's own verification mutation and restarts Twenty with
+# the production setting before anything is published.
+services:
+  twenty-server:
+    environment:
+      IS_EMAIL_VERIFICATION_REQUIRED: "false"
+
+  twenty-worker:
+    environment:
+      IS_EMAIL_VERIFICATION_REQUIRED: "false"

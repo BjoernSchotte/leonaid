@@ -59,8 +59,11 @@ def has_event(
     alert_name: str,
     status: str,
     dependency: str | None,
+    receiver_path: str | None = None,
 ) -> bool:
     for document in _documents(path):
+        if receiver_path is not None and document.get("path") != receiver_path:
+            continue
         payload = document.get("payload")
         if not isinstance(payload, dict) or payload.get("status") != status:
             continue
@@ -122,12 +125,18 @@ def parser() -> argparse.ArgumentParser:
     event.add_argument("--alert", required=True)
     event.add_argument("--status", choices=("firing", "resolved"), required=True)
     event.add_argument("--dependency")
+    event.add_argument("--receiver-path", choices=("/alerts", "/heartbeat"))
     wait = commands.add_parser("wait-event")
     wait.add_argument("path", type=Path)
     wait.add_argument("--alert", required=True)
     wait.add_argument("--status", choices=("firing", "resolved"), required=True)
     wait.add_argument("--dependency")
+    wait.add_argument("--receiver-path", choices=("/alerts", "/heartbeat"))
     wait.add_argument("--timeout-seconds", type=float, default=75)
+    absent = commands.add_parser("assert-no-event")
+    absent.add_argument("path", type=Path)
+    absent.add_argument("--alert", required=True)
+    absent.add_argument("--receiver-path", choices=("/alerts", "/heartbeat"))
     sensitive = commands.add_parser("assert-no-sensitive")
     sensitive.add_argument("path", type=Path)
     sensitive.add_argument("values", nargs="+")
@@ -158,9 +167,27 @@ def main() -> int:
                 alert_name=arguments.alert,
                 status=arguments.status,
                 dependency=arguments.dependency,
+                receiver_path=arguments.receiver_path,
             )
             else 1
         )
+    if arguments.command == "assert-no-event":
+        if any(
+            has_event(
+                arguments.path,
+                alert_name=arguments.alert,
+                status=status,
+                dependency=None,
+                receiver_path=arguments.receiver_path,
+            )
+            for status in ("firing", "resolved")
+        ):
+            print(
+                "pilot-alerting-contract: BLOCKED: unexpected_alert_delivery",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
     if arguments.command == "wait-event":
         deadline = time.monotonic() + arguments.timeout_seconds
         while time.monotonic() < deadline:
@@ -169,6 +196,7 @@ def main() -> int:
                 alert_name=arguments.alert,
                 status=arguments.status,
                 dependency=arguments.dependency,
+                receiver_path=arguments.receiver_path,
             ):
                 return 0
             time.sleep(1)

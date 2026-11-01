@@ -28,6 +28,59 @@ from leonaid.application.operations import (
 )
 
 
+# Always firing by design; it only feeds the external heartbeat check.
+WATCHDOG_ALERT_NAME = "LeonAidWatchdog"
+
+
+def parse_active_alerts(document: object) -> tuple[OperationalAlert, ...]:
+    """Map Alertmanager's v2 alert list onto the admin UI contract.
+
+    The dead man's switch is not an incident: it fires permanently so that the
+    external heartbeat service notices when the alert path stops.
+    """
+    if not isinstance(document, list):
+        raise ValueError("Alertmanager-Antwort ist keine Liste.")
+    alerts: list[OperationalAlert] = []
+    for item in document[:50]:
+        if not isinstance(item, dict):
+            raise ValueError("Alertmanager-Eintrag ist ungültig.")
+        labels = item.get("labels")
+        annotations = item.get("annotations")
+        if not isinstance(labels, dict) or not isinstance(annotations, dict):
+            raise ValueError("Alertmanager-Metadaten fehlen.")
+        name = labels.get("alertname")
+        if name == WATCHDOG_ALERT_NAME:
+            continue
+        severity = labels.get("severity")
+        category = labels.get("category")
+        summary = annotations.get("summary")
+        runbook_url = annotations.get("runbook_url")
+        if (
+            not isinstance(name, str)
+            or not name.startswith("LeonAid")
+            or not isinstance(severity, str)
+            or severity not in {"P0", "P1", "P2"}
+            or not isinstance(category, str)
+            or len(category) > 64
+            or not isinstance(summary, str)
+            or len(summary) > 200
+            or not isinstance(runbook_url, str)
+            or not runbook_url.startswith("https://")
+            or len(runbook_url) > 500
+        ):
+            raise ValueError("Alertmanager-Inhalt verletzt den UI-Vertrag.")
+        alerts.append(
+            OperationalAlert(
+                name=name,
+                severity=cast(Literal["P0", "P1", "P2"], severity),
+                category=category,
+                summary=summary,
+                runbook_url=runbook_url,
+            )
+        )
+    return tuple(sorted(alerts, key=lambda alert: (alert.severity, alert.name)))
+
+
 class ApiMetrics:
     """Process-local request counters; durable business metrics stay in SQL."""
 
@@ -401,46 +454,7 @@ class OperationsService:
         async with httpx.AsyncClient(timeout=3) as client:
             response = await client.get(url)
         response.raise_for_status()
-        document = response.json()
-        if not isinstance(document, list):
-            raise ValueError("Alertmanager-Antwort ist keine Liste.")
-        alerts: list[OperationalAlert] = []
-        for item in document[:50]:
-            if not isinstance(item, dict):
-                raise ValueError("Alertmanager-Eintrag ist ungültig.")
-            labels = item.get("labels")
-            annotations = item.get("annotations")
-            if not isinstance(labels, dict) or not isinstance(annotations, dict):
-                raise ValueError("Alertmanager-Metadaten fehlen.")
-            name = labels.get("alertname")
-            severity = labels.get("severity")
-            category = labels.get("category")
-            summary = annotations.get("summary")
-            runbook_url = annotations.get("runbook_url")
-            if (
-                not isinstance(name, str)
-                or not name.startswith("LeonAid")
-                or not isinstance(severity, str)
-                or severity not in {"P0", "P1", "P2"}
-                or not isinstance(category, str)
-                or len(category) > 64
-                or not isinstance(summary, str)
-                or len(summary) > 200
-                or not isinstance(runbook_url, str)
-                or not runbook_url.startswith("https://")
-                or len(runbook_url) > 500
-            ):
-                raise ValueError("Alertmanager-Inhalt verletzt den UI-Vertrag.")
-            alerts.append(
-                OperationalAlert(
-                    name=name,
-                    severity=cast(Literal["P0", "P1", "P2"], severity),
-                    category=category,
-                    summary=summary,
-                    runbook_url=runbook_url,
-                )
-            )
-        return tuple(sorted(alerts, key=lambda alert: (alert.severity, alert.name)))
+        return parse_active_alerts(response.json())
 
     @staticmethod
     def _status_counts(rows: list[asyncpg.Record]) -> dict[str, int]:

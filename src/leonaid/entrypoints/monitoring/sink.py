@@ -23,7 +23,9 @@ class AlertSinkHandler(BaseHTTPRequestHandler):
         self._respond(404, b'{"status":"not-found"}')
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
-        if self.path != "/alerts":
+        # /alerts stands in for the operator webhook, /heartbeat for the
+        # external dead man's switch; recording the path proves the routing.
+        if self.path not in {"/alerts", "/heartbeat"}:
             self._respond(404, b'{"status":"not-found"}')
             return
         try:
@@ -44,6 +46,7 @@ class AlertSinkHandler(BaseHTTPRequestHandler):
             return
         event = {
             "receivedAt": datetime.now(timezone.utc).isoformat(),
+            "path": self.path,
             "payload": payload,
         }
         EVENTS_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -19,9 +19,10 @@ shards still contain 13 checks, with no overlap or missing checks. Nightly-only 
 `main`. PRs and ordinary main pushes never select these nightly shards, even
 when backup code changes. Manual dispatch offers `pr`, `nightly` and `all`.
 The nightly workflow also runs test-backup, test-upgrade, test-pilot-backup,
-test-pilot-deployment, test-pilot-import and test-pilot-release on separate
-runners. These cover full restore, upgrade rollback, the backup target and
-pilot restore/release paths. Each selected test runs once.
+test-pilot-deployment, test-pilot-install, test-pilot-import and
+test-pilot-release on separate runners. These cover full restore, upgrade
+rollback, the backup target, the first install on an empty host and pilot
+restore/release paths. Each selected test runs once.
 
 Existing `Surveys / <group>` check names remain conservative policy summaries:
 every shard selected for that event must succeed. They do not claim that

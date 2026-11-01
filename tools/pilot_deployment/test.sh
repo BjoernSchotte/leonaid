@@ -47,6 +47,7 @@ wrong_restic_password_file="$workspace/wrong-restic-password"
 backup_credentials_file="$workspace/backup-s3.env"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
+alert_heartbeat_file="$workspace/alert-heartbeat-url"
 operator_backup_project="leonaid-pilot-backup-$suffix"
 operator_backup_container="$operator_backup_project-rustfs"
 operator_backup_volume="$operator_backup_project-rustfs-data"
@@ -176,7 +177,7 @@ print(
     fi
   fi
   if [ "$runtime_owned" = true ]; then
-    runtime_compose down --volumes --remove-orphans >/dev/null 2>&1 || status=1
+    runtime_compose --profile monitoring down --volumes --remove-orphans >/dev/null 2>&1 || status=1
     verify_project_absent "$project" || status=1
   fi
   if [ "$restore_owned" = true ]; then
@@ -284,6 +285,8 @@ s3.create_bucket(Bucket='$operator_backup_bucket')"
 cp "$root/.env.local" "$env_file"
 printf '%s\n' "https://alerts.leonaid.org/pilot" >"$alert_webhook_file"
 chmod 600 "$alert_webhook_file"
+printf '%s\n' "https://heartbeat.leonaid.org/pilot" >"$alert_heartbeat_file"
+chmod 600 "$alert_heartbeat_file"
 digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 {
   printf '%s\n' \
@@ -317,6 +320,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
     "LEONAID_MONITORED_DISK_PATH=$workspace" \
     "LEONAID_ALERT_WEBHOOK_URL_FILE=$alert_webhook_file" \
+    "LEONAID_ALERT_HEARTBEAT_URL_FILE=$alert_heartbeat_file" \
     "CORE_POSTGRES_PASSWORD=core-postgres-production-test-001" \
     "LEONAID_SECRET_KEY=leonaid-application-production-test-002" \
     "LEONAID_SESSION_ENCRYPTION_KEY=leonaid-session-production-test-003" \
@@ -815,7 +819,7 @@ LEONAID_PILOT_TEST_COMPOSE_OVERLAY="$source_overlay" \
 if [ "$mode" = surveys ]; then
   # Both DBs, objects, writers and source archive are gone. Only independently
   # retained encrypted backups, explicit checkpoint and operator inputs remain.
-  runtime_compose down --volumes --remove-orphans
+  runtime_compose --profile monitoring down --volumes --remove-orphans
   [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$project")" ]
   [ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$project")" ]
   runtime_owned=false

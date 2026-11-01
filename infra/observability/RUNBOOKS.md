@@ -71,6 +71,22 @@ loop (`outbox`, `survey_sweep`) keeps completing iterations.
 3. Check dependencies, the database migration and the latest release.
 4. If a release regression is suspected, follow the release runbook.
 
+## Watchdog
+
+`LeonAidWatchdog` fires all the time on purpose. Alertmanager sends it every
+five minutes to the external heartbeat URL (`LEONAID_ALERT_HEARTBEAT_URL_FILE`)
+and to nothing else. The external service alarms when these pings stop.
+
+When the heartbeat service reports missing pings:
+
+1. Check that the host answers and that `https://<portal-domain>/_health`
+   returns `ready`.
+2. Check that `prometheus` and `alertmanager` run:
+   `docker compose ... --profile monitoring ps`.
+3. Check the Alertmanager log for delivery errors to the heartbeat URL.
+4. Start the monitoring profile again with `./leonaid pilot-monitoring`.
+5. Close the incident only after the heartbeat service shows new pings.
+
 ## Login
 
 1. Check rate limits, provider state and delivery state separately.

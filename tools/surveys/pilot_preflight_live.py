@@ -67,6 +67,7 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
             "LEONAID_BACKUP_MANIFEST_PATH": "/proof/backup-manifest.json",
             "LEONAID_MONITORED_DISK_PATH": "/proof",
             "LEONAID_ALERT_WEBHOOK_URL_FILE": "/proof/webhook-url",
+            "LEONAID_ALERT_HEARTBEAT_URL_FILE": "/proof/heartbeat-url",
         }
     )
     for service, key in {
@@ -95,6 +96,10 @@ with tempfile.TemporaryDirectory(prefix="survey-pilot-preflight-") as temporary:
         "https://alerts.leonaid.org/synthetic-preflight\n"
     )
     (proof / "webhook-url").chmod(0o600)
+    (proof / "heartbeat-url").write_text(
+        "https://heartbeat.leonaid.org/synthetic-preflight\n"
+    )
+    (proof / "heartbeat-url").chmod(0o600)
     overlay = proof / "overlay.yml"
     overlay.write_text(
         'services:\n  proxy:\n    ports: !override\n      - "127.0.0.1:19080:80"\n      - "127.0.0.1:19443:443"\n'

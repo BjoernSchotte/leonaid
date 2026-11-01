@@ -135,6 +135,7 @@ services:
     volumes:
       - ../observability/pilot/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ${LEONAID_ALERT_WEBHOOK_URL_FILE:?LEONAID_ALERT_WEBHOOK_URL_FILE fehlt}:/run/secrets/alert-webhook-url:ro
+      - ${LEONAID_ALERT_HEARTBEAT_URL_FILE:?LEONAID_ALERT_HEARTBEAT_URL_FILE fehlt}:/run/secrets/alert-heartbeat-url:ro
       - alertmanager-data:/alertmanager
     networks:
       - telemetry

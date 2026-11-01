@@ -12,6 +12,7 @@ import tempfile
 from typing import Any, Callable
 
 from tools.pilot_deployment.doctor import (
+    PENDING_INTEGRATION_KEY,
     DoctorError,
     parse_resolve,
     read_dotenv,
@@ -137,9 +138,126 @@ def main() -> None:
             lambda: parse_resolve(["portal.leonaid.org=:70000"]),
         )
 
+        # A first install may carry the pending marker; no other gate may.
+        pending_key = dict(values)
+        pending_key["TWENTY_INTEGRATION_API_KEY"] = PENDING_INTEGRATION_KEY
+        write_environment(environment_path, pending_key)
+        rejected(
+            "pending integration key outside a first install",
+            lambda: validate_environment(
+                pending_key,
+                root=root,
+                env_file=environment_path,
+                compose_config=compose_config,
+                expected_release_commit=expected_commit,
+            ),
+        )
+        validate_environment(
+            pending_key,
+            root=root,
+            env_file=environment_path,
+            compose_config=compose_config,
+            expected_release_commit=expected_commit,
+            first_install=True,
+        )
+        other_placeholder = dict(pending_key)
+        other_placeholder["LEONAID_SECRET_KEY"] = PENDING_INTEGRATION_KEY
+        write_environment(environment_path, other_placeholder)
+        rejected(
+            "pending marker on another secret",
+            lambda: validate_environment(
+                other_placeholder,
+                root=root,
+                env_file=environment_path,
+                compose_config=compose_config,
+                expected_release_commit=expected_commit,
+                first_install=True,
+            ),
+        )
+
+        heartbeat = temporary_root / "alert-heartbeat-url"
+        for label, url, mode in (
+            ("heartbeat equals the operator webhook", None, 0o600),
+            ("plain-HTTP heartbeat", "http://hc-ping.leonaid.org/check\n", 0o600),
+            ("reserved heartbeat host", "https://hc.example.org/check\n", 0o600),
+            (
+                "world-readable heartbeat file",
+                "https://hc-ping.leonaid.org/check\n",
+                0o644,
+            ),
+        ):
+            if url is None:
+                url = Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"]).read_text(
+                    encoding="utf-8"
+                )
+            heartbeat.write_text(url, encoding="utf-8")
+            heartbeat.chmod(mode)
+            changed = dict(values)
+            changed["LEONAID_ALERT_HEARTBEAT_URL_FILE"] = str(heartbeat)
+            write_environment(environment_path, changed)
+            rejected(
+                label,
+                lambda: validate_environment(
+                    changed,
+                    root=root,
+                    env_file=environment_path,
+                    compose_config=compose_config,
+                    expected_release_commit=expected_commit,
+                ),
+            )
+        missing_heartbeat = dict(values)
+        del missing_heartbeat["LEONAID_ALERT_HEARTBEAT_URL_FILE"]
+        write_environment(environment_path, missing_heartbeat)
+        rejected(
+            "missing heartbeat configuration",
+            lambda: validate_environment(
+                missing_heartbeat,
+                root=root,
+                env_file=environment_path,
+                compose_config=compose_config,
+                expected_release_commit=expected_commit,
+            ),
+        )
+
+        # pilot-backup repairs a missing or stale backup, but never accepts a
+        # manifest of another installation.
+        missing_manifest = temporary_root / "missing-backup.json"
+        validate_backup(
+            missing_manifest,
+            project=project,
+            maximum_age_hours=26,
+            tolerate_missing_or_stale=True,
+        )
+        rejected(
+            "missing backup outside pilot-backup",
+            lambda: validate_backup(
+                missing_manifest, project=project, maximum_age_hours=26
+            ),
+        )
+        validate_backup(
+            stale_path,
+            project=project,
+            maximum_age_hours=26,
+            tolerate_missing_or_stale=True,
+        )
+        foreign_payload = dict(stale_payload)
+        foreign_payload["sourceProject"] = "leonaid-production-other-club"
+        foreign_path = temporary_root / "foreign-backup.json"
+        foreign_path.write_text(json.dumps(foreign_payload), encoding="utf-8")
+        rejected(
+            "backup manifest of another installation",
+            lambda: validate_backup(
+                foreign_path,
+                project=project,
+                maximum_age_hours=26,
+                tolerate_missing_or_stale=True,
+            ),
+        )
+
     print(
-        "pilot-deployment-doctor-test: OK: sechs unsichere reale "
-        "Datei-/Parameter-Mutationen fail-closed abgewiesen"
+        "pilot-deployment-doctor-test: OK: unsafe real file and parameter "
+        "mutations rejected fail-closed, including first-install, heartbeat "
+        "and backup-gate boundaries"
     )
 
 

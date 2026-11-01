@@ -128,6 +128,8 @@ Commands:
                     Prove private pilot paths, manifests and public evidence
   test-pilot-deployment
                     Prove the merged production topology and fail-closed guards
+  test-pilot-install
+                    Prove the first install end to end in an isolated stack
   test-pilot-import Prove private Dry Run, approval, Apply, Verify and Restore
   test-pilot-backup Prove a real networked S3/Restic target and failures
   test-pilot-alerting
@@ -147,12 +149,24 @@ Commands:
   pilot-evidence-init
                     Create private 0700 intake/evidence/backup directories
   pilot-doctor --env-file FILE --backup-manifest FILE [--gate GATE] [--json]
+               [--first-install]
                     Validate deployment and decisions for productive actions
+  pilot-secrets --output FILE
+                    Write production.env.example with fresh secrets (0600)
+  pilot-install --env-file FILE --release-manifest FILE
+                --twenty-bootstrap-file FILE --password-file FILE
+                [--credentials-file FILE]
+                    First install on an empty host: Twenty admin and key,
+                    full stack, first backup, monitoring
+  pilot-monitoring --env-file FILE
+                    Start Prometheus, Alertmanager and the Watchdog heartbeat
   pilot-deploy --env-file FILE --backup-manifest FILE --release-manifest FILE
                     Deploy the manifest-bound pilot without a live build
   pilot-release --env-file FILE --backup-manifest FILE --release-manifest FILE
                 --ledger FILE --password-file FILE --evidence-id ID
-                    Release staging/production with backup and explicit migrations
+                [--twenty-bootstrap-file FILE]
+                    Release staging/production with backup and explicit migrations;
+                    the bootstrap file also applies Twenty schema changes
   pilot-import <dry-run|apply|verify> SOURCE [OPTIONS]
                     Run the private, fingerprint-bound pilot import
   pilot-backup --env-file FILE --backup-manifest FILE --password-file FILE
@@ -666,6 +680,13 @@ check_all() {
   docker run --rm --network none \
     -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
     python /workspace/tools/backup/compose_overlays_test.py
+  docker run --rm --network none \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_install/systemd_test.py /workspace
+  docker run --rm --network none \
+    --user "$host_user" -e PYTHONPATH=/workspace \
+    -v "$root:/workspace:ro" "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_install/production_secrets_test.py /workspace
   docker run --rm \
     -v "$root:/workspace:ro" \
     -v "$check_git_common:$check_git_common:ro" \
@@ -681,7 +702,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -690,7 +711,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -699,7 +720,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_deployment tools/pilot_import tools/pilot_install tools/pilot_release tools/release \
     tools/pilot_readiness \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -808,10 +829,10 @@ pilot_doctor() {
     exit 1
   fi
   env_file=$(CDPATH= cd -- "$(dirname -- "$env_file")" && pwd)/$(basename -- "$env_file")
-  backup_manifest=$(
-    CDPATH= cd -- "$(dirname -- "$backup_manifest")" &&
-      pwd
-  )/$(basename -- "$backup_manifest")
+  backup_manifest=$(pilot_absolute_path pilot-doctor "$backup_manifest") || {
+    echo "pilot-doctor: BLOCKED: Verzeichnis des Backup-Manifests fehlt" >&2
+    exit 1
+  }
   project=$(sed -n 's/^LEONAID_COMPOSE_PROJECT=//p' "$env_file" | tail -n 1)
   case "$project" in
     leonaid-production*|leonaid-staging*) ;;
@@ -824,6 +845,9 @@ pilot_doctor() {
   alert_webhook_file=$(
     pilot_environment_value LEONAID_ALERT_WEBHOOK_URL_FILE "$env_file"
   )
+  alert_heartbeat_file=$(
+    pilot_environment_value LEONAID_ALERT_HEARTBEAT_URL_FILE "$env_file"
+  )
   monitored_disk_path=$(
     pilot_environment_value LEONAID_MONITORED_DISK_PATH "$env_file"
   )
@@ -834,6 +858,17 @@ pilot_doctor() {
       return 1
       ;;
   esac
+  case "$alert_heartbeat_file" in
+    /*) ;;
+    *)
+      echo "pilot-doctor: BLOCKED: the alert heartbeat path must be absolute" >&2
+      return 1
+      ;;
+  esac
+  [ -f "$alert_heartbeat_file" ] || {
+    echo "pilot-doctor: BLOCKED: the alert heartbeat URL file is missing" >&2
+    return 1
+  }
   case "$monitored_disk_path" in
     /*) ;;
     *)
@@ -878,12 +913,25 @@ pilot_doctor() {
       trap - EXIT HUP INT TERM
       return 1
     fi
-    test_ca_file=$(pilot_absolute_file pilot-doctor "$test_ca_file") || {
-      rm -f "$config_file"
-      rm -rf "$doctor_input_directory"
-      trap - EXIT HUP INT TERM
-      return 1
-    }
+    if [ "$test_ca_file" = proxy-data ]; then
+      # Test-only: trust the internal CA of this isolated project's own proxy.
+      # pilot-install creates that proxy itself, so no CA file exists upfront.
+      set -- --volume "${project}_caddy-data:/doctor/caddy-data:ro"
+      test_ca_path=/doctor/caddy-data/caddy/pki/authorities/local/root.crt
+    else
+      test_ca_file=$(pilot_absolute_file pilot-doctor "$test_ca_file") || {
+        rm -f "$config_file"
+        rm -rf "$doctor_input_directory"
+        trap - EXIT HUP INT TERM
+        return 1
+      }
+      set -- --volume "$test_ca_file:/doctor/ca.crt:ro"
+      test_ca_path=/doctor/ca.crt
+    fi
+    # A first install has no proxy yet and probes nothing live.
+    if [ -n "$first_install_argument" ]; then
+      test_network=none
+    fi
     test_decisions_file=$(
       pilot_absolute_file pilot-doctor "$test_decisions_file"
     ) || {
@@ -905,8 +953,9 @@ pilot_doctor() {
       --volume "$env_file:/doctor/production.env:ro" \
       --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
-      --volume "$test_ca_file:/doctor/ca.crt:ro" \
+      "$@" \
       --volume "$alert_webhook_file:$alert_webhook_file:ro" \
+      --volume "$alert_heartbeat_file:$alert_heartbeat_file:ro" \
       --volume "$monitored_disk_path:$monitored_disk_path:ro" \
       --workdir /workspace \
       "$PYTHON_IMAGE" \
@@ -917,7 +966,7 @@ pilot_doctor() {
         --expected-release-commit "$release_commit" \
         --gate "$gate" \
         --isolated-test-mode \
-        --ca-file /doctor/ca.crt \
+        --ca-file "$test_ca_path" \
         --resolve "$portal_domain=127.0.0.1:443" \
         --resolve "$crm_domain=127.0.0.1:443" \
         --disk-path /workspace \
@@ -932,6 +981,7 @@ pilot_doctor() {
       --volume "$doctor_input_directory:/doctor/input:ro" \
       --volume "$config_file:/doctor/compose.json:ro" \
       --volume "$alert_webhook_file:$alert_webhook_file:ro" \
+      --volume "$alert_heartbeat_file:$alert_heartbeat_file:ro" \
       --volume "$monitored_disk_path:$monitored_disk_path:ro" \
       --workdir /workspace \
       "$PYTHON_IMAGE" \
@@ -976,6 +1026,50 @@ pilot_absolute_file() {
   }
   directory=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd)
   printf '%s/%s\n' "$directory" "$(basename -- "$path")"
+}
+
+# Like pilot_absolute_file for a file that may not exist yet (a first backup
+# manifest); its directory must exist.
+pilot_absolute_path() {
+  label=$1
+  path=$2
+  [ -n "$path" ] || {
+    echo "$label: ERROR: Pfad fehlt" >&2
+    return 64
+  }
+  [ -d "$(dirname -- "$path")" ] || {
+    echo "$label: ERROR: directory of $path is missing" >&2
+    return 1
+  }
+  [ ! -e "$path" ] || [ -f "$path" ] || {
+    echo "$label: ERROR: $path is not a regular file" >&2
+    return 1
+  }
+  directory=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd)
+  printf '%s/%s\n' "$directory" "$(basename -- "$path")"
+}
+
+# Refuse secrets that other accounts can read or that live in the checkout.
+pilot_require_private_external() {
+  label=$1
+  path=$2
+  description=$3
+  mode=$(ls -ld -- "$path")
+  case "$mode" in
+    -rw-------*|-r--------*) ;;
+    *)
+      echo "$label: BLOCKED: the $description must have mode 0600" >&2
+      return 1
+      ;;
+  esac
+  resolved=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd -P)
+  repository=$(CDPATH= cd -- "$root" && pwd -P)
+  case "$resolved/" in
+    "$repository"/*)
+      echo "$label: BLOCKED: the $description must live outside the checkout" >&2
+      return 1
+      ;;
+  esac
 }
 
 pilot_test_overlay() {
@@ -1193,9 +1287,419 @@ pilot_deploy() {
     --env-file "$env_file" \
     --backup-manifest "$backup_manifest" \
     --gate pilot-deploy
+  # The monitoring profile sits outside the 13 deployed services; recreate it
+  # so alerting and the dead man's switch survive every deploy.
+  pilot_monitoring_up "$project" "$env_file"
   rm -f "$config_file"
   trap - EXIT HUP INT TERM
   echo "pilot-deploy: OK: $project läuft exakt aus dem verifizierten Release-Manifest"
+}
+
+# Only pilot-install may use this: it adds the bootstrap override that lifts
+# Twenty's e-mail verification while no public ingress runs.
+pilot_bootstrap_compose() {
+  project=$1
+  env_file=$2
+  shift 2
+  if [ -n "${LEONAID_PILOT_TEST_COMPOSE_OVERLAY:-}" ]; then
+    overlay=$(pilot_test_overlay "$project") || return
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$overlay" \
+      --file "$root/infra/pilot/compose.bootstrap.yml" \
+      "$@"
+  else
+    docker compose \
+      --project-name "$project" \
+      --env-file "$env_file" \
+      --file "$root/infra/compose/compose.yml" \
+      --file "$root/infra/pilot/compose.yml" \
+      --file "$root/infra/pilot/compose.bootstrap.yml" \
+      "$@"
+  fi
+}
+
+# Prometheus, Alertmanager and the exporter carry the Watchdog heartbeat. The
+# exporter bind-mounts the backup manifest, so it must exist first; otherwise
+# Docker would create a directory in its place.
+pilot_monitoring_up() {
+  project=$1
+  env_file=$2
+  manifest=$(pilot_environment_value LEONAID_BACKUP_MANIFEST_PATH "$env_file")
+  [ -f "$manifest" ] || {
+    echo "pilot-monitoring: BLOCKED: no backup manifest yet; run pilot-backup first" >&2
+    return 1
+  }
+  pilot_compose_command "$project" "$env_file" --profile monitoring \
+    up --detach --no-build --pull missing --wait --wait-timeout 300 \
+    pilot-exporter prometheus alertmanager
+}
+
+pilot_monitoring() {
+  require_docker
+  env_file=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-monitoring: ERROR: --env-file needs a path" >&2
+          exit 64
+        }
+        env_file=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-monitoring: ERROR: unknown option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$env_file" ] || {
+    echo "pilot-monitoring: ERROR: --env-file is missing" >&2
+    exit 64
+  }
+  env_file=$(pilot_absolute_file pilot-monitoring "$env_file")
+  project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$env_file")
+  case "$project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      echo "pilot-monitoring: BLOCKED: the Compose project is not environment-specific" >&2
+      exit 1
+      ;;
+  esac
+  pilot_monitoring_up "$project" "$env_file"
+  echo "pilot-monitoring: OK: Prometheus, Alertmanager and the Watchdog heartbeat run for $project"
+}
+
+pilot_secrets() {
+  require_docker
+  secrets_output=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --output)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-secrets: ERROR: --output needs a path" >&2
+          exit 64
+        }
+        secrets_output=$2
+        shift 2
+        ;;
+      *)
+        echo "pilot-secrets: ERROR: unknown option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  [ -n "$secrets_output" ] || {
+    echo "pilot-secrets: ERROR: --output is missing" >&2
+    exit 64
+  }
+  [ ! -e "$secrets_output" ] || {
+    echo "pilot-secrets: BLOCKED: $secrets_output exists; refusing to overwrite it" >&2
+    exit 1
+  }
+  secrets_directory=$(dirname -- "$secrets_output")
+  [ -d "$secrets_directory" ] || {
+    echo "pilot-secrets: ERROR: directory $secrets_directory is missing" >&2
+    exit 1
+  }
+  secrets_directory=$(CDPATH= cd -- "$secrets_directory" && pwd -P)
+  repository=$(CDPATH= cd -- "$root" && pwd -P)
+  case "$secrets_directory/" in
+    "$repository"/*)
+      echo "pilot-secrets: BLOCKED: production secrets must live outside the checkout" >&2
+      exit 1
+      ;;
+  esac
+  secrets_name=$(basename -- "$secrets_output")
+  docker run --rm --network none \
+    --user "$host_user" \
+    --env PYTHONPATH=/workspace \
+    --volume "$root:/workspace:ro" \
+    --volume "$secrets_directory:/output" \
+    "$PYTHON_IMAGE" \
+    python /workspace/tools/pilot_install/production_secrets.py \
+      --template /workspace/infra/pilot/production.env.example \
+      --output "/output/$secrets_name"
+  pilot_require_private_external pilot-secrets \
+    "$secrets_directory/$secrets_name" "generated environment file"
+}
+
+pilot_install_fail() {
+  echo "pilot-install: ERROR: $1" >&2
+  exit 1
+}
+
+# Validate the bootstrap credentials without printing them.
+pilot_install_check_bootstrap() {
+  problem=$(awk '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      separator = index($0, "=")
+      if (separator == 0) { problem = "syntax"; exit }
+      key = substr($0, 1, separator - 1)
+      value = substr($0, separator + 1)
+      if (key == "TWENTY_BOOTSTRAP_EMAIL") {
+        email++
+        if (value !~ /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z][a-z]+$/)
+          problem = "TWENTY_BOOTSTRAP_EMAIL must be a lower-case e-mail address"
+      } else if (key == "TWENTY_BOOTSTRAP_PASSWORD") {
+        password++
+        if (value !~ /^[A-Za-z0-9]+$/ || length(value) < 16)
+          problem = "TWENTY_BOOTSTRAP_PASSWORD needs at least 16 letters or digits"
+      } else {
+        problem = "unexpected key " key
+      }
+    }
+    END {
+      if (problem == "syntax") problem = "every line must be KEY=VALUE"
+      if (problem == "" && (email != 1 || password != 1))
+        problem = "set TWENTY_BOOTSTRAP_EMAIL and TWENTY_BOOTSTRAP_PASSWORD exactly once"
+      print problem
+    }' "$1")
+  [ -z "$problem" ] || pilot_install_fail "bootstrap file: $problem"
+}
+
+# Swap the pending marker for the provisioned key: same directory, mode 0600,
+# atomic rename. Only shell builtins and cat touch the key, so it never shows
+# up in a process list or in output.
+pilot_install_write_key() {
+  key_env=$1
+  key_file=$2
+  [ "$(wc -l <"$key_file")" -eq 1 ] &&
+    grep -q '^TWENTY_INTEGRATION_API_KEY=[A-Za-z0-9._-]\{32,\}$' "$key_file" ||
+    pilot_install_fail "the provisioned key file is malformed"
+  key_temporary=$(mktemp "$(dirname -- "$key_env")/.leonaid-install.XXXXXX") ||
+    pilot_install_fail "cannot write next to $key_env; the operator must own its directory"
+  chmod 600 "$key_temporary"
+  replaced=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      TWENTY_INTEGRATION_API_KEY=*)
+        replaced=$((replaced + 1))
+        cat "$key_file"
+        ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done <"$key_env" >"$key_temporary"
+  if [ "$replaced" -ne 1 ]; then
+    rm -f "$key_temporary"
+    pilot_install_fail "expected exactly one TWENTY_INTEGRATION_API_KEY line"
+  fi
+  mv -f "$key_temporary" "$key_env"
+}
+
+pilot_install_cleanup() {
+  status=$?
+  rm -rf "$install_work"
+  if [ "$status" -ne 0 ] && [ "$install_started" = true ]; then
+    echo "pilot-install: FAILED. The containers and volumes of $install_project stay for diagnosis." >&2
+    echo "pilot-install: a new attempt needs an empty project; remove them first with:" >&2
+    echo "  docker compose --project-name $install_project --env-file $install_env --file $root/infra/compose/compose.yml --file $root/infra/pilot/compose.yml --profile monitoring down --volumes" >&2
+    if [ "$install_key_written" = true ]; then
+      echo "pilot-install: the env file holds the key of the removed Twenty; set TWENTY_INTEGRATION_API_KEY=PENDING_PILOT_INSTALL again before the next attempt" >&2
+    fi
+  fi
+  exit "$status"
+}
+
+pilot_install() {
+  require_docker
+  install_env=
+  install_release=
+  install_bootstrap=
+  install_password=
+  install_credentials=
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --env-file|--release-manifest|--twenty-bootstrap-file|--password-file|--credentials-file)
+        [ "$#" -ge 2 ] || {
+          echo "pilot-install: ERROR: $1 needs a path" >&2
+          exit 64
+        }
+        case "$1" in
+          --env-file) install_env=$2 ;;
+          --release-manifest) install_release=$2 ;;
+          --twenty-bootstrap-file) install_bootstrap=$2 ;;
+          --password-file) install_password=$2 ;;
+          --credentials-file) install_credentials=$2 ;;
+        esac
+        shift 2
+        ;;
+      *)
+        echo "pilot-install: ERROR: unknown option '$1'" >&2
+        exit 64
+        ;;
+    esac
+  done
+  for required in \
+    "--env-file:$install_env" \
+    "--release-manifest:$install_release" \
+    "--twenty-bootstrap-file:$install_bootstrap" \
+    "--password-file:$install_password"; do
+    [ -n "${required#*:}" ] || {
+      echo "pilot-install: ERROR: ${required%%:*} is missing" >&2
+      exit 64
+    }
+  done
+  install_env=$(pilot_absolute_file pilot-install "$install_env")
+  install_release=$(pilot_absolute_file pilot-install "$install_release")
+  install_bootstrap=$(pilot_absolute_file pilot-install "$install_bootstrap")
+  install_password=$(pilot_absolute_file pilot-install "$install_password")
+  pilot_require_private_external pilot-install "$install_env" "environment file"
+  pilot_require_private_external pilot-install "$install_bootstrap" "Twenty bootstrap file"
+  pilot_require_private_external pilot-install "$install_password" "Restic password file"
+  if [ -n "$install_credentials" ]; then
+    install_credentials=$(pilot_absolute_file pilot-install "$install_credentials")
+    pilot_require_private_external pilot-install "$install_credentials" "backup credentials file"
+  fi
+  install_project=$(pilot_environment_value LEONAID_COMPOSE_PROJECT "$install_env")
+  case "$install_project" in
+    leonaid-production*|leonaid-staging*) ;;
+    *)
+      pilot_install_fail "LEONAID_COMPOSE_PROJECT must start with leonaid-production or leonaid-staging"
+      ;;
+  esac
+  [ "$(grep -c '^TWENTY_INTEGRATION_API_KEY=' "$install_env")" -eq 1 ] ||
+    pilot_install_fail "the environment file needs exactly one TWENTY_INTEGRATION_API_KEY line"
+  [ "$(pilot_environment_value TWENTY_INTEGRATION_API_KEY "$install_env")" = PENDING_PILOT_INSTALL ] ||
+    pilot_install_fail "TWENTY_INTEGRATION_API_KEY is not PENDING_PILOT_INSTALL; this installation is provisioned already, use pilot-deploy or pilot-release"
+  pilot_install_check_bootstrap "$install_bootstrap"
+  install_manifest=$(pilot_environment_value LEONAID_BACKUP_MANIFEST_PATH "$install_env")
+  case "$install_manifest" in
+    /*) ;;
+    *) pilot_install_fail "LEONAID_BACKUP_MANIFEST_PATH must be absolute" ;;
+  esac
+  install_manifest=$(pilot_absolute_path pilot-install "$install_manifest")
+  # A first install starts from nothing. Existing volumes are an installation
+  # (or a failed attempt) whose data pilot-install must never touch.
+  install_existing=$(
+    docker volume ls -q --filter "label=com.docker.compose.project=$install_project"
+    docker ps -aq --filter "label=com.docker.compose.project=$install_project"
+  )
+  [ -z "$install_existing" ] ||
+    pilot_install_fail "$install_project already has Docker volumes or containers. pilot-install only runs on an empty project; use pilot-deploy or pilot-release for an existing installation."
+
+  install_commit=$(git -C "$root" rev-parse HEAD)
+  install_work=$(mktemp -d)
+  install_config="$install_work/compose.json"
+  install_started=false
+  install_key_written=false
+  trap 'pilot_install_cleanup' EXIT
+  trap 'exit 130' HUP INT TERM
+
+  echo "pilot-install: checking configuration, release manifest and decisions"
+  pilot_compose_config "$install_project" "$install_env" "$install_config"
+  pilot_verify_release_manifest "$install_release" "$install_config" "$install_commit"
+  (pilot_decision_gate "$install_project" pilot-deploy)
+  (pilot_doctor --env-file "$install_env" --backup-manifest "$install_manifest" \
+    --gate pilot-deploy --first-install)
+
+  echo "pilot-install: starting Twenty without public ingress for the admin bootstrap"
+  install_started=true
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    up --detach --no-build --pull missing --wait --wait-timeout 420 \
+    twenty-postgres twenty-redis twenty-server twenty-worker
+  [ -z "$(docker ps -q --filter "label=com.docker.compose.project=$install_project" --filter label=com.docker.compose.service=proxy)" ] ||
+    pilot_install_fail "the proxy runs during the Twenty bootstrap"
+
+  echo "pilot-install: provisioning the Twenty schema, roles and integration key"
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$install_bootstrap" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$install_work:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py apply --token-output /install/integration.env
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$install_work:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py verify-key --token-file /install/integration.env
+
+  echo "pilot-install: verifying the bootstrap admin address in Twenty"
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$install_bootstrap" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$install_work:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/pilot_install/twenty_admin.py remove-proof-company
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$install_bootstrap" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$install_work:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/pilot_install/twenty_admin.py mint-verification \
+      --sql-output /install/verification.sql \
+      --token-output /install/verification-token
+  twenty_database_user=$(pilot_environment_value TWENTY_POSTGRES_USER "$install_env")
+  twenty_database=$(pilot_environment_value TWENTY_POSTGRES_DB "$install_env")
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    exec -T twenty-postgres psql --quiet \
+      --username "${twenty_database_user:-twenty}" \
+      --dbname "${twenty_database:-default}" <"$install_work/verification.sql"
+  pilot_bootstrap_compose "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$install_bootstrap" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --volume "$install_work:/install" \
+    --workdir /repo --entrypoint python \
+    api tools/pilot_install/twenty_admin.py verify-email \
+      --token-file /install/verification-token
+
+  pilot_install_write_key "$install_env" "$install_work/integration.env"
+  install_key_written=true
+  echo "pilot-install: wrote the verified integration key to the environment file (0600)"
+
+  echo "pilot-install: starting the production stack with e-mail verification on"
+  (pilot_compose_up "$install_project" "$install_env")
+  for service in twenty-server twenty-worker; do
+    [ "$(pilot_compose_command "$install_project" "$install_env" exec -T "$service" printenv IS_EMAIL_VERIFICATION_REQUIRED)" = true ] ||
+      pilot_install_fail "$service does not require e-mail verification after the bootstrap"
+  done
+  # Signs in as the bootstrap admin under the production setting and proves
+  # that the schema matches the declaration.
+  pilot_compose_command "$install_project" "$install_env" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$install_bootstrap" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py check
+
+  echo "pilot-install: creating the first encrypted backup"
+  if [ -n "$install_credentials" ]; then
+    (pilot_backup --env-file "$install_env" --backup-manifest "$install_manifest" \
+      --password-file "$install_password" --credentials-file "$install_credentials")
+  else
+    (pilot_backup --env-file "$install_env" --backup-manifest "$install_manifest" \
+      --password-file "$install_password")
+  fi
+
+  echo "pilot-install: starting monitoring and the Watchdog heartbeat"
+  pilot_monitoring_up "$install_project" "$install_env"
+
+  (pilot_doctor --env-file "$install_env" --backup-manifest "$install_manifest" \
+    --gate pilot-deploy)
+  echo "pilot-install: OK: $install_project runs release $install_commit with a verified Twenty admin, a provisioned integration key and a first backup"
+  echo "pilot-install: next: enable leonaid-backup.timer and check that the external heartbeat receives pings"
 }
 
 pilot_backup() {
@@ -1257,7 +1761,9 @@ pilot_backup() {
     exit 64
   }
   env_file=$(pilot_absolute_file pilot-backup "$env_file")
-  backup_manifest=$(pilot_absolute_file pilot-backup "$backup_manifest")
+  # The first backup creates the manifest, and a missing one must not block
+  # the backup that repairs it.
+  backup_manifest=$(pilot_absolute_path pilot-backup "$backup_manifest")
   password_file=$(pilot_absolute_file pilot-backup "$password_file")
   if [ -n "$credentials_file" ]; then
     credentials_file=$(pilot_absolute_file pilot-backup "$credentials_file")
@@ -1268,7 +1774,7 @@ pilot_backup() {
     pilot_environment_value LEONAID_BACKUP_MANIFEST_PATH "$env_file"
   )
   configured_manifest=$(
-    pilot_absolute_file pilot-backup "$configured_manifest"
+    pilot_absolute_path pilot-backup "$configured_manifest"
   )
   [ "$configured_manifest" = "$backup_manifest" ] || {
     echo "pilot-backup: BLOCKED: --backup-manifest weicht von der Environment-Konfiguration ab" >&2
@@ -1447,8 +1953,15 @@ print(value["schemas"]["coreAlembicHead"])'
   )
   rm -rf "$manifest_directory"
   trap - EXIT HUP INT TERM
+  # Same shape as MIGRATION_REVISION in tools/pilot_release/manifest.py:
+  # four digits, an underscore and a lower-case slug (0036_delivery_windows).
   case "$core_head" in
-    [0-9][0-9][0-9][0-9]) ;;
+    *[!a-z0-9_]*) core_head_valid=false ;;
+    [0-9][0-9][0-9][0-9]_?*) core_head_valid=true ;;
+    *) core_head_valid=false ;;
+  esac
+  case "$core_head_valid" in
+    true) ;;
     *)
       echo "pilot-release: BLOCKED: Core-Migrationsziel ist ungültig" >&2
       return 1
@@ -1483,11 +1996,41 @@ print(value["schemas"]["coreAlembicHead"])'
   echo "pilot-release: OK: RustFS, Twenty und Core wurden explizit auf das Manifestziel migriert"
 )
 
+# Apply the versioned Twenty schema with the admin bootstrap credentials and
+# repair CRM match keys. Idempotent; never creates or prints an API key.
+pilot_release_twenty_schema() {
+  project=$1
+  env_file=$2
+  bootstrap_file=$(pilot_absolute_file pilot-release "$3")
+  case "$(stat -c %a "$bootstrap_file" 2>/dev/null || stat -f %Lp "$bootstrap_file")" in
+    600|400) ;;
+    *)
+      echo "pilot-release: BLOCKED: --twenty-bootstrap-file must have mode 0600" >&2
+      return 1
+      ;;
+  esac
+  echo "pilot-release: applying the Twenty schema and repairing CRM match keys"
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --env-from-file "$bootstrap_file" \
+    --env PYTHONPATH=/repo:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo --entrypoint python \
+    api tools/twenty/provision.py apply
+  pilot_compose_command "$project" "$env_file" \
+    run --rm --no-deps \
+    --user "$host_user" --env HOME=/tmp \
+    --entrypoint python \
+    api -m leonaid.entrypoints.crm_match_keys
+}
+
 pilot_release() {
   require_docker
   env_file=
   backup_manifest=
   release_manifest=
+  twenty_bootstrap_file=
   ledger=
   password_file=
   credentials_file=
@@ -1495,7 +2038,7 @@ pilot_release() {
   occurred_at=
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at)
+      --env-file|--backup-manifest|--release-manifest|--ledger|--password-file|--credentials-file|--evidence-id|--occurred-at|--twenty-bootstrap-file)
         [ "$#" -ge 2 ] || {
           echo "pilot-release: ERROR: $1 benötigt einen Wert" >&2
           exit 64
@@ -1512,6 +2055,7 @@ pilot_release() {
           --credentials-file) credentials_file=$value ;;
           --evidence-id) evidence_id=$value ;;
           --occurred-at) occurred_at=$value ;;
+          --twenty-bootstrap-file) twenty_bootstrap_file=$value ;;
         esac
         ;;
       *)
@@ -1656,6 +2200,15 @@ pilot_release() {
         --env-file "$env_file" \
         --backup-manifest "$backup_manifest" \
         --release-manifest "$release_manifest"
+    )
+    status=$?
+  fi
+  if [ "$status" -eq 0 ] && [ -n "$twenty_bootstrap_file" ]; then
+    # Still in maintenance: bring the Twenty schema (e.g. new custom fields)
+    # to the manifest's state and repair match keys before users return.
+    (
+      set -e
+      pilot_release_twenty_schema "$project" "$env_file" "$twenty_bootstrap_file"
     )
     status=$?
   fi
@@ -2373,6 +2926,7 @@ case "$command" in
     /bin/sh "$root/tools/upgrade/test.sh" "$root"
     /bin/sh "$root/tools/pilot_backup/test.sh" "$root"
     /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
+    /bin/sh "$root/tools/pilot_install/test.sh" "$root"
     /bin/sh "$root/tools/pilot_import/test.sh" "$root"
     /bin/sh "$root/tools/pilot_release/test.sh" "$root"
     python3 "$root/tools/surveys/gate.py" --root "$root" --suite nightly
@@ -2554,6 +3108,10 @@ case "$command" in
     require_docker
     /bin/sh "$root/tools/pilot_deployment/test.sh" "$root"
     ;;
+  test-pilot-install)
+    require_docker
+    /bin/sh "$root/tools/pilot_install/test.sh" "$root"
+    ;;
   test-pilot-import)
     require_docker
     /bin/sh "$root/tools/pilot_import/test.sh" "$root"
@@ -2647,6 +3205,18 @@ case "$command" in
   pilot-deploy)
     shift
     pilot_deploy "$@"
+    ;;
+  pilot-install)
+    shift
+    pilot_install "$@"
+    ;;
+  pilot-secrets)
+    shift
+    pilot_secrets "$@"
+    ;;
+  pilot-monitoring)
+    shift
+    pilot_monitoring "$@"
     ;;
   pilot-release)
     shift
