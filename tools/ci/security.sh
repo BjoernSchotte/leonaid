@@ -31,6 +31,11 @@ docker run --rm \
   "$PYTHON_IMAGE" \
   python /workspace/tools/ci/sanitize_artifacts_test.py /workspace
 /bin/sh "$root/tools/pilot/test.sh" "$root"
+docker run --rm --network none \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  --volume "$root:/workspace:ro" \
+  "$PLAYWRIGHT_IMAGE" \
+  python3 /workspace/tools/release/release_test.py
 docker run --rm \
   --volume "$root:/workspace:ro" \
   "$PYTHON_IMAGE" \

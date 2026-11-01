@@ -20,6 +20,8 @@ Commands:
   bootstrap         Create local secrets and install locked packages in Docker
   doctor            Diagnose Docker, locks, secrets and local dependencies
   repair-ownership  Give root-owned files in the checkout back to the current user
+  release [--dry-run] [--no-ci-check]
+                    Tag the next CalVer release (vYYYY.M.N, fixes vYYYY.M.N.P)
   dev               Build and start the ready PoC core stack
   check             Run non-mutating quality and policy gates
   docs-dev          Serve the bilingual documentation source for authoring
@@ -667,12 +669,17 @@ check_all() {
     -v "$check_git_common:$check_git_common:ro" \
     "$PLAYWRIGHT_IMAGE" \
     python3 /workspace/tools/pilot/boundary.py /workspace
+  docker run --rm --network none \
+    --user "$host_user" -e HOME=/tmp \
+    -v "$root:/workspace:ro" \
+    "$PLAYWRIGHT_IMAGE" \
+    python3 /workspace/tools/release/release_test.py
   run_python uv run --frozen --no-sync ruff check \
     migrations src tests tools/action_admin tools/actions tools/commitments \
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/matching tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/pwa tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -681,7 +688,7 @@ check_all() {
     tools/activities tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/matching tools/mail_relay \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core \
     tools/dx tools/feature_flags tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/openapi tools/outbox \
-    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
+    tools/golden_journey tools/handoff tools/operations tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release tools/policy tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/seed tools/sessions tools/storage \
     tools/pilot_readiness \
     tools/security tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -690,7 +697,7 @@ check_all() {
     tools/activity_feed tools/assignments tools/dashboard tools/documents tools/mail_domain tools/mail_relay \
     tools/commitments \
     tools/backup tools/ci tools/compose/persistence_probe.py tools/core tools/dx \
-    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release \
+    tools/feature_flags tools/golden_journey tools/handoff tools/identity tools/invitations tools/invoices tools/invoice_delivery tools/invoice_settlements tools/legal_configuration tools/matching tools/openapi tools/operations tools/outbox tools/pilot tools/pilot_alerting tools/pilot_contract tools/pilot_decisions tools/pilot_import tools/pilot_release tools/release \
     tools/pilot_readiness \
     tools/privacy tools/public_actions tools/public_orders tools/pwa tools/schema tools/policy tools/security tools/seed tools/sessions tools/storage tools/templates tools/testkit tools/twenty tools/typst \
     tools/upgrade tools/emdash_spike packages/testkit
@@ -2260,6 +2267,10 @@ case "$command" in
   bootstrap) bootstrap ;;
   doctor) doctor ;;
   repair-ownership) repair_ownership ;;
+  release)
+    shift
+    exec /bin/sh "$root/tools/release/release.sh" "$@"
+    ;;
   check) check_all ;;
   docs-dev) serve_docs dev ;;
   docs-check)
