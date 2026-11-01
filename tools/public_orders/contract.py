@@ -772,6 +772,33 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
                 "Inaktives Angebot wurde nicht serverseitig abgewiesen"
             )
 
+        # The golden action delivers (delivery capability), so Core must
+        # require the delivery recipient that the transport schema now allows
+        # to be omitted for pickup or donation campaigns.
+        without_delivery = order_body(
+            token=token,
+            command=command_id("missing-delivery-recipient"),
+            company_name="Musterwerk GmbH",
+            given_name="Mara",
+            family_name="Muster",
+            email="mara.muster@musterwerk.leonaid.invalid",
+        )
+        without_delivery.pop("deliveryRecipient")
+        missing_delivery = await submit(
+            api,
+            without_delivery,
+            label="missing-delivery-recipient",
+            forwarded_for="203.0.113.79",
+        )
+        if (
+            missing_delivery.status_code != 422
+            or error_code(missing_delivery)
+            != "public_order_delivery_recipient_required"
+        ):
+            raise ContractFailure(
+                "Lieferaktion akzeptierte eine Bestellung ohne Lieferanschrift"
+            )
+
         archived_token = PublicOrderTokenCodec(require_env("LEONAID_SECRET_KEY")).issue(
             ARCHIVED_ACTION_ID, "krapfentaxi"
         )
