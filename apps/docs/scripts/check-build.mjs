@@ -1,6 +1,11 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import {
+  defaultDocsRoot,
+  defaultInventory,
+  validateContent,
+} from "./check-content.mjs";
 import { isAllowedOutput } from "./output-contract.mjs";
 
 const distRoot = path.resolve(import.meta.dirname, "../dist");
@@ -192,8 +197,16 @@ try {
   if (manifest.documentation?.locales?.join(",") !== "de,en") {
     errors.push("manifest locales are not de,en");
   }
-  if (manifest.documentation?.publishedPages !== 62) {
-    errors.push("manifest does not contain all 62 published language pages");
+  // Derive the expected count from the content itself, so adding a page
+  // never needs a second edit here.
+  const { published } = await validateContent({
+    docsRoot: defaultDocsRoot,
+    inventory: defaultInventory,
+  });
+  if (manifest.documentation?.publishedPages !== published.length) {
+    errors.push(
+      `manifest does not contain all ${published.length} published language pages`,
+    );
   }
   if (!/^[0-9a-f]{64}$/.test(manifest.api?.sha256 ?? "")) {
     errors.push("manifest OpenAPI SHA is invalid");
