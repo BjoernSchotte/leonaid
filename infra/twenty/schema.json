@@ -305,6 +305,36 @@
       ]
     }
   ],
+  "standardObjects": [
+    {
+      "nameSingular": "company",
+      "fields": [
+        {
+          "name": "leonaidMatchKey",
+          "label": "LeonAid Match-Schlüssel",
+          "description": "Von LeonAid gepflegter normalisierter Namensschlüssel für exaktes Firmen-Matching. Nicht manuell bearbeiten; LeonAid berechnet ihn neu.",
+          "icon": "IconKey",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": false
+        }
+      ]
+    },
+    {
+      "nameSingular": "person",
+      "fields": [
+        {
+          "name": "leonaidMatchKey",
+          "label": "LeonAid Match-Schlüssel",
+          "description": "Von LeonAid gepflegter normalisierter Namensschlüssel für exaktes Personen-Matching. Nicht manuell bearbeiten; LeonAid berechnet ihn neu.",
+          "icon": "IconKey",
+          "type": "TEXT",
+          "isNullable": true,
+          "isUnique": false
+        }
+      ]
+    }
+  ],
   "views": [
     {
       "id": "48f0e752-1144-4e41-af61-77624dfa1001",
@@ -444,6 +474,7 @@
             "address",
             "people",
             "leonaidAkquiseZuweisungen",
+            "leonaidMatchKey",
             "position",
             "createdBy",
             "updatedBy",
@@ -456,6 +487,7 @@
             "address",
             "people",
             "leonaidAkquiseZuweisungen",
+            "leonaidMatchKey",
             "position",
             "createdBy",
             "updatedBy"
@@ -474,6 +506,7 @@
             "phones",
             "company",
             "leonaidAkquiseZuweisungen",
+            "leonaidMatchKey",
             "position",
             "createdBy",
             "updatedBy",
@@ -487,6 +520,7 @@
             "phones",
             "company",
             "leonaidAkquiseZuweisungen",
+            "leonaidMatchKey",
             "position",
             "createdBy",
             "updatedBy"
