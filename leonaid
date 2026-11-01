@@ -1946,8 +1946,15 @@ print(value["schemas"]["coreAlembicHead"])'
   )
   rm -rf "$manifest_directory"
   trap - EXIT HUP INT TERM
+  # Same shape as MIGRATION_REVISION in tools/pilot_release/manifest.py:
+  # four digits, an underscore and a lower-case slug (0036_delivery_windows).
   case "$core_head" in
-    [0-9][0-9][0-9][0-9]) ;;
+    *[!a-z0-9_]*) core_head_valid=false ;;
+    [0-9][0-9][0-9][0-9]_?*) core_head_valid=true ;;
+    *) core_head_valid=false ;;
+  esac
+  case "$core_head_valid" in
+    true) ;;
     *)
       echo "pilot-release: BLOCKED: Core-Migrationsziel ist ungültig" >&2
       return 1
