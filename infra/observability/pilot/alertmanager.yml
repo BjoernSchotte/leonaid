@@ -7,9 +7,24 @@ route:
   group_wait: 5s
   group_interval: 15s
   repeat_interval: 4h
+  routes:
+    # Dead man's switch: LeonAidWatchdog always fires. The external heartbeat
+    # service alarms when these pings stop, so a dead host, Prometheus or
+    # Alertmanager is noticed although nothing on the host can report it.
+    - receiver: external-heartbeat
+      matchers: ['alertname="LeonAidWatchdog"']
+      group_by: ["alertname"]
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: false
 
 receivers:
   - name: operator-webhook
     webhook_configs:
       - url_file: /run/secrets/alert-webhook-url
         send_resolved: true
+  - name: external-heartbeat
+    webhook_configs:
+      - url_file: /run/secrets/alert-heartbeat-url
+        send_resolved: false

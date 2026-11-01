@@ -27,3 +27,18 @@ tests:
             exp_annotations:
               summary: "LeonAid-Backupnachweis ist ungültig"
               runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#backup"
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      # The dead man's switch fires without any input series.
+      - eval_time: 1m
+        alertname: LeonAidWatchdog
+        exp_alerts:
+          - exp_labels:
+              alertname: LeonAidWatchdog
+              category: heartbeat
+              owner: pilot-operations
+              severity: heartbeat
+            exp_annotations:
+              summary: "LeonAid alert pipeline is alive (dead man's switch)"
+              runbook_url: "https://github.com/BjoernSchotte/leonaid/blob/main/infra/observability/RUNBOOKS.md#watchdog"

@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from leonaid.adapters.operations import (
     ApiMetrics,
     InMemoryRequestDiagnostics,
+    parse_active_alerts,
     structured_event,
 )
 from leonaid.application.operations import (
@@ -15,6 +18,62 @@ from leonaid.application.operations import (
     build_pilot_daily_report,
 )
 from leonaid.entrypoints.fastapi.prometheus import render_operations_metrics
+
+
+def test_active_alerts_hide_the_watchdog_and_keep_incidents_sorted() -> None:
+    runbook = "https://github.com/BjoernSchotte/leonaid/blob/main/RUNBOOKS.md"
+    document = [
+        {
+            "labels": {
+                "alertname": "LeonAidWatchdog",
+                "severity": "heartbeat",
+                "category": "heartbeat",
+            },
+            "annotations": {"summary": "alive", "runbook_url": runbook},
+        },
+        {
+            "labels": {
+                "alertname": "LeonAidBackupStale",
+                "severity": "P1",
+                "category": "backup",
+            },
+            "annotations": {"summary": "stale", "runbook_url": runbook},
+        },
+        {
+            "labels": {
+                "alertname": "LeonAidBackupManifestInvalid",
+                "severity": "P0",
+                "category": "backup",
+            },
+            "annotations": {"summary": "invalid", "runbook_url": runbook},
+        },
+    ]
+
+    alerts = parse_active_alerts(document)
+
+    assert [alert.name for alert in alerts] == [
+        "LeonAidBackupManifestInvalid",
+        "LeonAidBackupStale",
+    ]
+
+
+def test_active_alerts_reject_unknown_severity_outside_the_watchdog() -> None:
+    document = [
+        {
+            "labels": {
+                "alertname": "LeonAidSomethingElse",
+                "severity": "heartbeat",
+                "category": "heartbeat",
+            },
+            "annotations": {
+                "summary": "unexpected",
+                "runbook_url": "https://example.org/runbook",
+            },
+        }
+    ]
+
+    with pytest.raises(ValueError):
+        parse_active_alerts(document)
 
 
 def test_api_metrics_count_server_errors_and_average_real_values() -> None:

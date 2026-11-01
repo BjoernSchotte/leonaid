@@ -47,6 +47,7 @@ wrong_restic_password_file="$workspace/wrong-restic-password"
 backup_credentials_file="$workspace/backup-s3.env"
 ca_file="$workspace/caddy-root.crt"
 alert_webhook_file="$workspace/alert-webhook-url"
+alert_heartbeat_file="$workspace/alert-heartbeat-url"
 operator_backup_project="leonaid-pilot-backup-$suffix"
 operator_backup_container="$operator_backup_project-rustfs"
 operator_backup_volume="$operator_backup_project-rustfs-data"
@@ -284,6 +285,8 @@ s3.create_bucket(Bucket='$operator_backup_bucket')"
 cp "$root/.env.local" "$env_file"
 printf '%s\n' "https://alerts.leonaid.org/pilot" >"$alert_webhook_file"
 chmod 600 "$alert_webhook_file"
+printf '%s\n' "https://heartbeat.leonaid.org/pilot" >"$alert_heartbeat_file"
+chmod 600 "$alert_heartbeat_file"
 digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 {
   printf '%s\n' \
@@ -317,6 +320,7 @@ digest=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     "LEONAID_BACKUP_MANIFEST_PATH=$backup_manifest" \
     "LEONAID_MONITORED_DISK_PATH=$workspace" \
     "LEONAID_ALERT_WEBHOOK_URL_FILE=$alert_webhook_file" \
+    "LEONAID_ALERT_HEARTBEAT_URL_FILE=$alert_heartbeat_file" \
     "CORE_POSTGRES_PASSWORD=core-postgres-production-test-001" \
     "LEONAID_SECRET_KEY=leonaid-application-production-test-002" \
     "LEONAID_SESSION_ENCRYPTION_KEY=leonaid-session-production-test-003" \

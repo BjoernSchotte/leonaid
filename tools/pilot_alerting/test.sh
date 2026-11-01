@@ -69,10 +69,10 @@ wait_event() {
   status=$2
   dependency=${3:-}
   if [ -n "$dependency" ]; then
-    contract wait-event /proof/events/events.jsonl \
+    contract wait-event /proof/events/events.jsonl --receiver-path /alerts \
       --alert "$alert" --status "$status" --dependency "$dependency"
   else
-    contract wait-event /proof/events/events.jsonl \
+    contract wait-event /proof/events/events.jsonl --receiver-path /alerts \
       --alert "$alert" --status "$status"
   fi
 }
@@ -103,11 +103,29 @@ docker run --rm --entrypoint /bin/promtool \
   --volume "$root/infra/observability/pilot:/etc/prometheus:ro" \
   "$PROMETHEUS_IMAGE" \
   test rules /etc/prometheus/rules.test.yml
-docker run --rm --entrypoint /bin/amtool \
-  --volume "$root/infra/observability/pilot:/etc/alertmanager:ro" \
-  --volume "$root/tests/fixtures/monitoring/alert-webhook-url:/run/secrets/alert-webhook-url:ro" \
-  "$ALERTMANAGER_IMAGE" \
-  check-config /etc/alertmanager/alertmanager.yml
+amtool() {
+  docker run --rm --entrypoint /bin/amtool \
+    --volume "$root/infra/observability/pilot:/etc/alertmanager:ro" \
+    --volume "$root/tests/fixtures/monitoring/alert-webhook-url:/run/secrets/alert-webhook-url:ro" \
+    --volume "$root/tests/fixtures/monitoring/alert-heartbeat-url:/run/secrets/alert-heartbeat-url:ro" \
+    "$ALERTMANAGER_IMAGE" \
+    "$@"
+}
+amtool check-config /etc/alertmanager/alertmanager.yml
+# The Watchdog reaches only the external heartbeat; incidents only the operator.
+watchdog_receiver=$(amtool config routes test \
+  --config.file=/etc/alertmanager/alertmanager.yml alertname=LeonAidWatchdog)
+[ "$watchdog_receiver" = external-heartbeat ] || {
+  echo "pilot-alerting-test: ERROR: Watchdog routes to '$watchdog_receiver'" >&2
+  exit 1
+}
+incident_receiver=$(amtool config routes test \
+  --config.file=/etc/alertmanager/alertmanager.yml \
+  alertname=LeonAidBackupStale severity=P1 category=backup)
+[ "$incident_receiver" = operator-webhook ] || {
+  echo "pilot-alerting-test: ERROR: incidents route to '$incident_receiver'" >&2
+  exit 1
+}
 
 compose --profile dev-mail --profile monitoring \
   down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -129,6 +147,10 @@ for check in backup disk tls; do
     --check "$check" \
     --status ready
 done
+
+echo "pilot-alerting-test: expects the always-firing Watchdog at the heartbeat receiver"
+contract wait-event /proof/events/events.jsonl --receiver-path /heartbeat \
+  --alert LeonAidWatchdog --status firing
 
 dependency_cycle twenty-server twenty
 dependency_cycle rustfs rustfs
@@ -207,5 +229,9 @@ if grep -E \
   exit 1
 fi
 
+contract assert-no-event /proof/events/events.jsonl --receiver-path /alerts \
+  --alert LeonAidWatchdog
+
+echo "pilot-alerting-test: OK: Watchdog reached only the heartbeat receiver"
 echo "pilot-alerting-test: OK: vier reale Ausfälle, Backup, Disk, Recovery,"
 echo "pilot-alerting-test:     Wartungsgrenze und PII-freier Webhook bewiesen"

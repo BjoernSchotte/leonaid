@@ -146,6 +146,12 @@ Manifest.
 Fehlt im Ledger das `staging_verified` desselben Manifest-SHA, endet der
 Befehl vor Started-Ereignis, Backup, Wartungsmodus und Deployment.
 
+`pilot-release` und `pilot-deploy` lassen das Monitoring-Profil unverändert.
+Nach jedem erfolgreichen Release startet
+`./leonaid pilot-monitoring --env-file /etc/leonaid/production.env` Exporter,
+Prometheus und Alertmanager mit dem neuen Release-Image; der
+Watchdog-Heartbeat läuft dabei weiter.
+
 ## 4. Fehler und Rollback
 
 Bei einem Fehler:

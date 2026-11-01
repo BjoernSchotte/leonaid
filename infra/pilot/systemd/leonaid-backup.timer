@@ -1,0 +1,16 @@
+# Daily LeonAid pilot backup. The pilot doctor and the LeonAidBackupStale
+# alert both require a backup younger than 26 hours; a 02:30 run with up to
+# 45 minutes of random delay stays well inside that window. Persistent=true
+# catches up a run that was missed while the host was down.
+[Unit]
+Description=Daily LeonAid encrypted pilot backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=45min
+AccuracySec=1min
+Persistent=true
+Unit=leonaid-backup.service
+
+[Install]
+WantedBy=timers.target

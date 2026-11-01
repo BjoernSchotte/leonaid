@@ -27,3 +27,6 @@ services:
 
   survey-validator:
     image: ${LEONAID_TEST_SURVEY_VALIDATOR_IMAGE:?LEONAID_TEST_SURVEY_VALIDATOR_IMAGE fehlt}
+
+  pilot-exporter:
+    image: ${LEONAID_TEST_CORE_IMAGE:?LEONAID_TEST_CORE_IMAGE fehlt}

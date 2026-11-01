@@ -54,6 +54,7 @@ SECRET_KEYS = (
 REQUIRED_ENVIRONMENT_KEYS = (
     "CADDY_ACME_EMAIL",
     "LEONAID_ALLOWED_ORIGINS",
+    "LEONAID_ALERT_HEARTBEAT_URL_FILE",
     "LEONAID_ALERT_WEBHOOK_URL_FILE",
     "LEONAID_BACKUP_MANIFEST_PATH",
     "LEONAID_COMPOSE_PROJECT",
@@ -140,6 +141,24 @@ def require_external_path(path: Path, root: Path, label: str) -> None:
     raise DoctorError(f"{label}_inside_repository")
 
 
+def external_https_url_file(path: Path, *, root: Path, label: str) -> str:
+    """Read a private file outside the checkout that holds one public HTTPS URL."""
+    require_private_file(path, f"{label}_file")
+    require_external_path(path, root, f"{label}_file")
+    try:
+        url = path.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise DoctorError(f"{label}_unreadable") from error
+    parsed = urlparse(url)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or forbidden_public_host(parsed.hostname)
+    ):
+        raise DoctorError(f"{label}_invalid")
+    return url
+
+
 def validate_environment(
     values: dict[str, str],
     *,
@@ -202,20 +221,20 @@ def validate_environment(
 
     backup_path = Path(values["LEONAID_BACKUP_MANIFEST_PATH"])
     require_external_path(backup_path, root, "backup_manifest")
-    alert_webhook_path = Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"])
-    require_private_file(alert_webhook_path, "alert_webhook_url_file")
-    require_external_path(alert_webhook_path, root, "alert_webhook_url_file")
-    try:
-        alert_webhook_url = alert_webhook_path.read_text(encoding="utf-8").strip()
-    except OSError as error:
-        raise DoctorError("alert_webhook_url_unreadable") from error
-    parsed_alert_webhook = urlparse(alert_webhook_url)
-    if (
-        parsed_alert_webhook.scheme != "https"
-        or not parsed_alert_webhook.hostname
-        or forbidden_public_host(parsed_alert_webhook.hostname)
-    ):
-        raise DoctorError("alert_webhook_url_invalid")
+    alert_webhook_url = external_https_url_file(
+        Path(values["LEONAID_ALERT_WEBHOOK_URL_FILE"]),
+        root=root,
+        label="alert_webhook_url",
+    )
+    # The dead man's switch must leave the host: a heartbeat that ends at the
+    # operator webhook would fall silent together with the alert path.
+    alert_heartbeat_url = external_https_url_file(
+        Path(values["LEONAID_ALERT_HEARTBEAT_URL_FILE"]),
+        root=root,
+        label="alert_heartbeat_url",
+    )
+    if alert_heartbeat_url == alert_webhook_url:
+        raise DoctorError("alert_heartbeat_url_not_distinct")
     monitored_disk_path = Path(values["LEONAID_MONITORED_DISK_PATH"])
     if not monitored_disk_path.is_dir():
         raise DoctorError("monitored_disk_path_missing")
@@ -433,6 +452,7 @@ def report_json(
     open_ids: list[str],
     stop_ids: list[str],
     deployment_only: bool,
+    first_install: bool = False,
 ) -> str:
     status = (
         "ready"
@@ -444,6 +464,17 @@ def report_json(
     live_status = (
         "not_checked_restore"
         if gate == "pilot-restore"
+        else "not_checked_backup"
+        if gate == "pilot-backup"
+        else "not_checked_first_install"
+        if first_install
+        else "ok"
+        if infrastructure_ready
+        else "blocked"
+    )
+    backup_status = (
+        "not_checked_first_install"
+        if first_install
         else "ok"
         if infrastructure_ready
         else "blocked"
@@ -451,7 +482,7 @@ def report_json(
     return json.dumps(
         {
             "checks": {
-                "backupAge": "ok" if infrastructure_ready else "blocked",
+                "backupAge": backup_status,
                 "dependencies": live_status,
                 "disk": "ok" if infrastructure_ready else "blocked",
                 "dns": live_status,
@@ -461,6 +492,7 @@ def report_json(
                 "tls": live_status,
             },
             "deploymentOnly": deployment_only,
+            "firstInstall": first_install,
             "gate": gate,
             "openDecisionIds": open_ids,
             "status": status,
@@ -605,6 +637,8 @@ def main() -> int:
             or arguments.timeout_seconds <= 0
         ):
             raise DoctorError("doctor_threshold_invalid")
+        if arguments.first_install and arguments.gate != "pilot-deploy":
+            raise DoctorError("first_install_requires_pilot_deploy_gate")
         compose_config = json.loads(
             arguments.compose_config.read_text(encoding="utf-8")
         )
@@ -619,8 +653,6 @@ def main() -> int:
             isolated_test_mode=arguments.isolated_test_mode,
             first_install=arguments.first_install,
         )
-        if arguments.first_install and arguments.gate != "pilot-deploy":
-            raise DoctorError("first_install_requires_pilot_deploy_gate")
         if not arguments.first_install:
             validate_backup(
                 arguments.backup_manifest,
@@ -631,7 +663,14 @@ def main() -> int:
         if shutil.disk_usage(arguments.disk_path).free < arguments.minimum_free_bytes:
             raise DoctorError("disk_space_insufficient")
 
-        if arguments.gate != "pilot-restore" and not arguments.first_install:
+        # A backup must not depend on public TLS, the mail provider or the
+        # clock of a third party: an expiring certificate or a provider outage
+        # would otherwise stop the nightly backups. backup.sh itself requires
+        # the data services to run.
+        if (
+            arguments.gate not in {"pilot-restore", "pilot-backup"}
+            and not arguments.first_install
+        ):
             probe_running_installation(arguments, environment)
 
         open_ids: list[str] = []
@@ -648,6 +687,7 @@ def main() -> int:
                     open_ids=open_ids,
                     stop_ids=stop_ids,
                     deployment_only=arguments.deployment_only,
+                    first_install=arguments.first_install,
                 )
             )
         elif stop_ids:
@@ -670,6 +710,12 @@ def main() -> int:
                 "pilot-restore-preflight: OK: Konfiguration, Backup-Alter und Speicher geprüft; "
                 f"{decision_scope}; Quell-Erreichbarkeit "
                 "und Ziel-Betriebsbereitschaft sind nicht geprüft"
+            )
+        elif arguments.first_install:
+            print(
+                "pilot-doctor: OK (pilot-deploy, first install): configuration, "
+                "secrets, disk and decisions are ready; backup and live services "
+                "are checked after the first start"
             )
         elif arguments.deployment_only:
             print(

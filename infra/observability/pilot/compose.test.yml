@@ -101,6 +101,7 @@ services:
     volumes:
       - ../observability/pilot/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ../../tests/fixtures/monitoring/alert-webhook-url:/run/secrets/alert-webhook-url:ro
+      - ../../tests/fixtures/monitoring/alert-heartbeat-url:/run/secrets/alert-heartbeat-url:ro
       - alerting-alertmanager-data:/alertmanager
     networks:
       - telemetry

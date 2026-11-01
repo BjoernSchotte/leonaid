@@ -1,0 +1,26 @@
+# Encrypted LeonAid pilot backup, started daily by leonaid-backup.timer.
+# Install: copy both units to /etc/systemd/system/, create
+# /etc/leonaid/backup.env from backup.env.example and run
+#   systemctl daemon-reload && systemctl enable --now leonaid-backup.timer
+# The operator account is called "leonaid". For another name, override User=
+# and Group= with "systemctl edit leonaid-backup.service".
+[Unit]
+Description=LeonAid encrypted pilot backup
+Documentation=https://github.com/BjoernSchotte/leonaid/blob/main/apps/docs/src/content/docs/en/ops/how-to/install-on-a-vps.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=leonaid
+Group=leonaid
+EnvironmentFile=/etc/leonaid/backup.env
+UMask=0077
+NoNewPrivileges=yes
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=4h
+# $$ hands the variables to the shell unexpanded; they come from backup.env.
+ExecStart=/bin/sh -eu -c 'cd "$$LEONAID_CHECKOUT" && exec ./leonaid pilot-backup --env-file "$$LEONAID_ENV_FILE" --backup-manifest "$$LEONAID_BACKUP_MANIFEST" --password-file "$$LEONAID_RESTIC_PASSWORD_FILE" --credentials-file "$$LEONAID_BACKUP_CREDENTIALS_FILE"'
