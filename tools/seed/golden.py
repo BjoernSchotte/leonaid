@@ -647,12 +647,11 @@ async def seed_identity(
                 goal_value,
                 actual_value,
                 goal_unit,
-                currency,
-                presentation_theme
+                currency
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7,
-                $8, $9, $10, $11, $12, $13, $14, $15
+                $8, $9, $10, $11, $12, $13, $14
             )
             ON CONFLICT (id) DO UPDATE
             SET carrier_name = EXCLUDED.carrier_name,
@@ -668,7 +667,6 @@ async def seed_identity(
                 actual_value = EXCLUDED.actual_value,
                 goal_unit = EXCLUDED.goal_unit,
                 currency = EXCLUDED.currency,
-                presentation_theme = EXCLUDED.presentation_theme,
                 updated_at = CURRENT_TIMESTAMP
             """,
             action["id"],
@@ -693,8 +691,25 @@ async def seed_identity(
             actual_value,
             action["goalUnit"],
             action["currency"],
-            # The golden campaign kind doubles as its public presentation theme.
-            str(action["kind"]).lower().replace("_", "-"),
+        )
+    # Older schema revisions (seeded by migration proofs) have no theme column.
+    if await connection.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'charity_action'
+              AND column_name = 'presentation_theme'
+        )
+        """
+    ):
+        # The golden campaign kind doubles as its public presentation theme.
+        await connection.executemany(
+            "UPDATE charity_action SET presentation_theme = $2 WHERE id = $1",
+            [
+                (action["id"], str(action["kind"]).lower().replace("_", "-"))
+                for action in dataset["actions"]
+            ],
         )
 
     golden_action_ids = [action["id"] for action in dataset["actions"]]
