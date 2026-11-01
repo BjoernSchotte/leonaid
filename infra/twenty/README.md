@@ -122,6 +122,38 @@ Die Provisionierung nutzt nur unterstützte Metadata-Mutationen:
 
 Interne Twenty-Tabellen werden weder gelesen noch verändert.
 
+## Match keys on standard objects
+
+`standardObjects` in the manifest declares LeonAid-managed scalar fields on
+Twenty's built-in objects. The provisioner creates missing fields with
+`createOneField`, verifies them for drift like custom-object fields and
+includes them in the snapshot; it never changes other standard fields.
+
+Companies and people receive the text field `leonaidMatchKey`. It holds the
+normalized name (`normalize_match_name`: case, Unicode, umlaut, punctuation and
+`K.G.`/`e.K.` folding) that public orders, sponsor capture and imports use to
+detect an existing party. The integration role may read and update it. Core
+sets it on every create and name change, and request paths look parties up
+with an exact `leonaidMatchKey[eq]` filter instead of listing all records.
+`provision.py verify-key` proves that the integration key can write the field
+and filter by it.
+
+Records created or renamed outside LeonAid (Twenty UI, native CSV import,
+installations from before this field existed) have no or a stale key. Such a
+record is still found when its name contains the searched word literally, but
+spelling variants (for example `Müller`/`Mueller`) need the stored key:
+
+```sh
+./leonaid repair-crm-match-keys                       # full, idempotent run
+./leonaid repair-crm-match-keys --changed-within 30   # recent changes only
+```
+
+`./leonaid provision-twenty` runs the full repair after provisioning. On an
+existing installation, run the full repair once after the schema update, and
+again after bulk imports or edits in the Twenty UI. The command uses at most
+60 Twenty requests per minute by default (`--requests-per-minute`) so the live
+system keeps headroom in Twenty's shared quota.
+
 ## Least-Privilege-Key
 
 `LeonAid Integration` darf nur Companies, People, Charity-Aktionen und

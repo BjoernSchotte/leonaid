@@ -29,6 +29,8 @@ def fingerprints(root: Path) -> tuple[str, str]:
         baseline = name.startswith(
             (
                 "migrations/",
+                # The provisioned Twenty schema is part of the data fixture.
+                "infra/twenty/",
                 "tools/twenty/",
                 "tools/testing/",
                 "tests/fixtures/golden/",

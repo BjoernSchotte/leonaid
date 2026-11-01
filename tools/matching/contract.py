@@ -495,6 +495,41 @@ async def exercise(connection: asyncpg.Connection[Any]) -> None:
             raise ContractFailure("Neue Person wurde nicht real angelegt")
         await twenty_record(twenty, "people", created_person.json()["twentyId"])
 
+        # A spelling variant that the literal name search cannot see must be
+        # found through the match key stored when LeonAid created the person.
+        umlaut_person = await post(
+            api,
+            f"{path}/resolve",
+            tokens[ANNA_ID],
+            {
+                "commandId": command_id("umlaut-person"),
+                "sponsor": {"givenName": "Jörg", "familyName": "POC032-Ölmüller"},
+                "expectedStatus": "no_match",
+                "selectedTwentyId": None,
+                "confirmExistingAssignments": False,
+            },
+            "poc032:umlaut-person-resolve",
+        )
+        umlaut_person.raise_for_status()
+        variant_preview = await post(
+            api,
+            path,
+            tokens[ANNA_ID],
+            {"givenName": "JOERG", "familyName": "poc032 oelmueller"},
+            "poc032:umlaut-person-variant",
+        )
+        variant_preview.raise_for_status()
+        variant_match = variant_preview.json()
+        if (
+            umlaut_person.json()["outcome"] != "created"
+            or variant_match["status"] != "single_match"
+            or [item["twentyId"] for item in variant_match["candidates"]]
+            != [umlaut_person.json()["twentyId"]]
+        ):
+            raise ContractFailure(
+                "Schreibvariante wurde nicht über den Match-Schlüssel erkannt"
+            )
+
         unauthorized = await post(
             api,
             path,

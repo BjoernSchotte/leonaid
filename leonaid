@@ -34,6 +34,8 @@ Commands:
   provision-twenty  Provision and verify Twenty schema, roles and API key
   import-crm <dry-run|apply> SOURCE [OPTIONS]
                     Analyze or import an XLSX/CSV file through the Twenty API
+  repair-crm-match-keys [--changed-within MINUTES|--changed-since ISO]
+                    Backfill/repair the CRM match keys stored in Twenty
   test-twenty-gateway
                     Run the real Twenty CRM gateway contract
   test-crm-import   Prove the Golden XLSX import against an empty real Twenty
@@ -2550,9 +2552,45 @@ provision_twenty() {
     rmdir "$staged_directory"
     return 1
   fi
+  # Backfill match keys of records that existed before the key field or were
+  # written outside LeonAid; request paths look parties up by this key.
+  if ! compose run --rm --no-deps \
+    --user "$host_user_id:$host_group_id" \
+    --env-from-file "$root/.env.local" \
+    --env-from-file "$staged_token" \
+    --env PYTHONPATH=/repo/src:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api -m leonaid.entrypoints.crm_match_keys; then
+    rm -f "$staged_token"
+    rmdir "$staged_directory"
+    return 1
+  fi
   mv "$staged_token" "$root/.local/twenty/integration.env"
   rmdir "$staged_directory"
   echo "provision-twenty: OK: deklarationsgleicher, real verifizierter Key liegt geschützt unter .local/twenty/integration.env und wird von ./leonaid automatisch verwendet"
+}
+
+repair_crm_match_keys() {
+  require_docker
+  if [ ! -f "$root/.local/twenty/integration.env" ]; then
+    echo "leonaid: ERROR: Twenty-Key fehlt. Führe zuerst './leonaid provision-twenty' aus." >&2
+    exit 1
+  fi
+  host_user_id=$(id -u)
+  host_group_id=$(id -g)
+  compose build api
+  compose up --detach --wait --wait-timeout 420 twenty-server twenty-worker
+  compose run --rm --no-deps \
+    --user "$host_user_id:$host_group_id" \
+    --env-from-file "$root/.env.local" \
+    --env-from-file "$root/.local/twenty/integration.env" \
+    --env PYTHONPATH=/repo/src:/workspace/src \
+    --volume "$root:/repo:ro" \
+    --workdir /repo \
+    --entrypoint python \
+    api -m leonaid.entrypoints.crm_match_keys "$@"
 }
 
 import_crm() {
@@ -3169,6 +3207,10 @@ case "$command" in
       python tools/openapi/generate.py --root /workspace
     ;;
   provision-twenty) provision_twenty ;;
+  repair-crm-match-keys)
+    shift
+    repair_crm_match_keys "$@"
+    ;;
   import-crm)
     shift
     import_crm "$@"

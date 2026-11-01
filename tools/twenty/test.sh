@@ -111,12 +111,21 @@ run_tool mutate-field \
   --object charityAction \
   --field goalValue \
   --label "ABSICHTLICHER POC-030 DRIFT"
+run_tool mutate-field \
+  --object company \
+  --field leonaidMatchKey \
+  --label "ABSICHTLICHER MATCH-KEY DRIFT"
 if run_tool check >"$proof/drift.log" 2>&1; then
   echo "twenty-test: ERROR: absichtlicher Feld-Drift wurde nicht erkannt" >&2
   exit 1
 fi
 if ! grep -F "objects.charityAction.fields.goalValue.label" "$proof/drift.log" >/dev/null; then
   echo "twenty-test: ERROR: Drift-Diagnose nennt den Feldpfad nicht" >&2
+  sed -n '1,120p' "$proof/drift.log" >&2
+  exit 1
+fi
+if ! grep -F "objects.company.fields.leonaidMatchKey.label" "$proof/drift.log" >/dev/null; then
+  echo "twenty-test: ERROR: Drift am Standard-Object-Feld wurde nicht erkannt" >&2
   sed -n '1,120p' "$proof/drift.log" >&2
   exit 1
 fi

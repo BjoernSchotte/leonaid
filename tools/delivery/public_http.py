@@ -47,8 +47,13 @@ class RecordingCrm:
         self.calls.append("search_people")
         return () if self.create_new else (self.person,)
 
-    async def list_companies(self, *, correlation_id):
-        self.calls.append("list_companies")
+    async def find_companies_by_match_key(self, match_key, *, correlation_id):
+        # Existing records here carry no stored key; the name search finds them.
+        self.calls.append("find_companies_by_match_key")
+        return ()
+
+    async def find_people_by_match_key(self, match_key, *, correlation_id):
+        self.calls.append("find_people_by_match_key")
         return ()
 
     async def get_company(self, identifier, *, correlation_id):
@@ -186,7 +191,12 @@ async def prove_public_http(
             == "Invoice road 1"
         )
         assert "Separate delivery contact" not in response.text
-        assert crm.calls == ["search_companies", "search_people"]
+        assert crm.calls == [
+            "find_companies_by_match_key",
+            "search_companies",
+            "find_people_by_match_key",
+            "search_people",
+        ]
 
         async def retire(identifier):
             current = await schedules.get(action_id)
@@ -205,10 +215,10 @@ async def prove_public_http(
         assert replay.status_code == 200 and replay.json()["commitmentId"] == str(
             commitment_id
         )
-        assert len(crm.calls) == 2
+        assert len(crm.calls) == 4
         assert (await post({"deliveryContact": {"name": "Changed"}})).status_code == 409
         assert (await post({"commandId": str(uuid4())})).status_code == 422
-        assert len(crm.calls) == 2
+        assert len(crm.calls) == 4
 
         # The incumbent order transaction holds the action/configuration locks
         # across CRM resolution. A concurrent edit must wait, then affect only

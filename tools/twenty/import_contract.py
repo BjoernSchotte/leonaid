@@ -149,7 +149,6 @@ async def verify(arguments: argparse.Namespace) -> None:
         base_url=require_env("TWENTY_BASE_URL"),
         api_key=SecretStr(require_env("TWENTY_INTEGRATION_API_KEY")),
         timeout_seconds=5,
-        page_size=20,
     )
     async with TwentyCrmGateway(settings) as gateway:
         nordstern_candidates = await gateway.search_companies(

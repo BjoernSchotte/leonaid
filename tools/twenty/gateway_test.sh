@@ -117,6 +117,12 @@ fi
 echo "twenty-gateway-test: führt CRUD, echte Batches und Cursor-Pagination aus"
 run_python tools/twenty/gateway_contract.py exercise --state /proof/state.json
 
+echo "twenty-gateway-test: repariert Match-Schlüssel mit dem Operator-Kommando"
+run_python -m leonaid.entrypoints.crm_match_keys --changed-within 120
+run_python -m leonaid.entrypoints.crm_match_keys
+run_python \
+  tools/twenty/gateway_contract.py verify-match-key-repair --state /proof/state.json
+
 echo "twenty-gateway-test: stoppt Twenty real und erwartet sichere Fehler"
 compose stop twenty-server
 run_python tools/twenty/gateway_contract.py expect-outage --state /proof/state.json

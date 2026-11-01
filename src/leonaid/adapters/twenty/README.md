@@ -38,6 +38,32 @@ Der Gateway implementiert den fachlichen Port aus
   `starting_after`. Doppelte IDs, wiederholte Cursor, fehlende Folgecursor und
   eine unendliche Seitenfolge werden abgewiesen.
 
+## Bounded queries and match keys
+
+Request paths never list a whole Twenty collection. The port
+(`CrmGateway`) offers only queries bounded by a name, a match key or explicit
+record IDs; `list_companies`/`list_people` exist on the adapter for imports
+and maintenance only.
+
+- Every create and every name-changing update stores the normalized match key
+  (`leonaid.application.crm_matching.normalize_match_name`) in the provisioned
+  custom field `leonaidMatchKey` on companies and people. After each update
+  the gateway compares the stored key with the key of the returned name and
+  patches it when they differ (for example after a partial person rename).
+- `find_companies_by_match_key`/`find_people_by_match_key` use an exact
+  `leonaidMatchKey[eq]` filter. `find_company_matches`/`find_person_matches`
+  combine that lookup with the literal name search and keep only records
+  whose current name still has the requested key. Matching therefore costs two
+  bounded queries, independent of the CRM size, and a stale key never causes a
+  false match.
+- `get_companies`, `get_people` and `list_company_contacts` read referenced
+  records with `id[in]`/`companyId[in]` filters in chunks of 50 IDs.
+- List pages use Twenty's maximum of 200 records (`page_size` default).
+- `repair_match_keys` (operator command
+  `./leonaid repair-crm-match-keys`) backfills keys for records created or
+  renamed outside LeonAid. It is idempotent and patches only records whose
+  stored key differs from their name.
+
 Twenty 2.24.0 benötigt für die People-Batch-Projektion das direkte Feld
 `companyId`. Eine GraphQL-Auswahl der Relation `company { id }` versucht
 zusätzlich das nicht freigegebene technische Company-Feld `deletedAt` zu lesen

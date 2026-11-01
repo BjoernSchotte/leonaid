@@ -235,13 +235,29 @@ def check_python(root: Path, problems: Problems) -> None:
                 )
 
 
+def checkout_files(root: Path) -> list[Path]:
+    """Files of this checkout, without nested Git worktrees or repositories.
+
+    Agent or developer worktrees inside the checkout (for example
+    .claude/worktrees/*) carry their own .git entry and are not this tree.
+    """
+    files: list[Path] = []
+    pending = [root]
+    pruned = {".artifacts", ".cache", ".git", ".venv", "node_modules"}
+    while pending:
+        directory = pending.pop()
+        for entry in directory.iterdir():
+            if entry.is_dir() and not entry.is_symlink():
+                if entry.name in pruned or (entry / ".git").exists():
+                    continue
+                pending.append(entry)
+            elif entry.is_file():
+                files.append(entry)
+    return files
+
+
 def iter_package_json(root: Path) -> list[Path]:
-    excluded = {".artifacts", ".cache", ".git", ".venv", "node_modules"}
-    return sorted(
-        path
-        for path in root.rglob("package.json")
-        if not any(part in excluded for part in path.relative_to(root).parts)
-    )
+    return sorted(path for path in checkout_files(root) if path.name == "package.json")
 
 
 def check_frontend(root: Path, problems: Problems) -> None:
@@ -466,9 +482,7 @@ def check_renovate(root: Path, problems: Problems) -> None:
 
 def check_image_references(root: Path, problems: Problems) -> None:
     candidates: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
+    for path in checkout_files(root):
         relative = path.relative_to(root)
         if any(
             part in {".artifacts", ".cache", ".git", ".venv", "node_modules"}
@@ -481,7 +495,10 @@ def check_image_references(root: Path, problems: Problems) -> None:
             and ("compose" in name or relative.parts[:2] == (".github", "workflows"))
         ):
             candidates.append(path)
-    reference = re.compile(r"(?:^\s*image:\s*|^\s*FROM\s+(?:--platform=[^\s]+\s+)?)([^\s#]+)", re.IGNORECASE)
+    reference = re.compile(
+        r"(?:^\s*image:\s*|^\s*FROM\s+(?:--platform=[^\s]+\s+)?)([^\s#]+)",
+        re.IGNORECASE,
+    )
     dynamic_reference = re.compile(
         r"^\s*image:\s*\$\{(?P<variable>[A-Z][A-Z0-9_]*)"
         r"(?::[^}]*)?\}\s*(?:#.*)?$"
