@@ -4,15 +4,17 @@ description: Lieferplanung einer Aktion aktivieren, Zeitfenster ergänzen und be
 docId: DOC-P012
 audience: [user]
 diataxis: how-to
-contentRevision: 1
-reviewedRevision: 1
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 2
+reviewedRevision: 2
+verifiedAgainst: 3ffbc7ebf669d360fb6ec7352034e4067d7eb8a4
 reviewer: Björn Schotte
 ---
 
 **Rolle:** Charity-Admin der betroffenen Aktion. Der Editor wird für Aktionen
-aus der Vorlage **Krapfentaxi** angeboten. Öffne im Backoffice die Aktion und
-den Abschnitt **Lieferung planen**.
+mit der Funktion **Auslieferung** angeboten. Vorlagen wie **Krapfentaxi**
+aktivieren sie; bei anderen Aktionen aktivierst du sie im Entwurf oder in der
+Planung unter **Funktionen & Team**. Auslieferung setzt **Bestellungen** voraus.
+Öffne im Backoffice die Aktion und den Abschnitt **Lieferung planen**.
 
 1. Aktiviere bei einer neuen Planung **Lieferplanung für diese Aktion
    aktivieren**.

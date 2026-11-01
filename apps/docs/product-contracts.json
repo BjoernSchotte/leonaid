@@ -28,6 +28,10 @@
     {
       "file": "packages/features/src/action-admin/manage-action.tsx",
       "contains": ["query.data?.action.capabilities.includes(\"delivery\")"]
+    },
+    {
+      "file": "packages/features/src/action-admin/manage-sections.tsx",
+      "contains": ["label: \"Auslieferung\"", "value: \"delivery\""]
     }
   ],
   "DOC-P013": [
@@ -313,6 +317,28 @@
     {
       "file": "src/leonaid/adapters/twenty/gateway.py",
       "contains": ["class TwentyCrmGateway"]
+    }
+  ],
+  "DOC-P039": [
+    {
+      "file": "migrations/versions/0038_open_action_templates.py",
+      "contains": ["presentation_theme", "ck_action_template_key"]
+    },
+    {
+      "file": "tools/templates/contract.py",
+      "contains": ["christbaumverkauf"]
+    },
+    {
+      "file": "apps/public/src/themes/index.ts",
+      "contains": ["resolvePublicTheme"]
+    },
+    {
+      "file": "apps/campaign-site/src/themes/index.ts",
+      "contains": ["Record<CampaignThemeKey, CampaignTheme>"]
+    },
+    {
+      "file": "src/leonaid/domain/actions.py",
+      "contains": ["DELIVERY = \"delivery\""]
     }
   ]
 }
