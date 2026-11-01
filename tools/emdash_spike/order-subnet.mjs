@@ -17,13 +17,20 @@ function range(cidr) {
   return [start, start + size - 1];
 }
 
+// Docker's default pools hand out whole /16s from 172.17.0.0/12, so on a busy
+// host another project can cover 172.29.0.0/16 completely. 10.214.0.0/16 lies
+// outside Docker's defaults and outside the Python test pools (10.213/16).
+const PREFIXES = ["172.29", "10.214"];
+
 function choose(subnets, offset) {
   const occupied = subnets.map(range).filter(Boolean);
-  for (let index = 0; index < 256; index++) {
-    const candidate = `172.29.${(index + offset) % 256}.0/24`;
-    const [start, end] = range(candidate);
-    if (occupied.every(([low, high]) => end < low || start > high))
-      return candidate;
+  for (const prefix of PREFIXES) {
+    for (let index = 0; index < 256; index++) {
+      const candidate = `${prefix}.${(index + offset) % 256}.0/24`;
+      const [start, end] = range(candidate);
+      if (occupied.every(([low, high]) => end < low || start > high))
+        return candidate;
+    }
   }
   throw new Error("No non-overlapping isolated CRM subnet available");
 }
@@ -31,10 +38,11 @@ function choose(subnets, offset) {
 if (process.argv.includes("--self-test")) {
   assert.equal(choose(["172.29.0.0/23", "fc00::/64"], 0), "172.29.2.0/24");
   assert.equal(choose(["172.29.255.128/25"], 255), "172.29.0.0/24");
-  assert.throws(() => choose(["172.16.0.0/12"], 0));
+  assert.equal(choose(["172.29.0.0/16"], 7), "10.214.7.0/24");
+  assert.throws(() => choose(["172.16.0.0/12", "10.0.0.0/8"], 0));
   assert.throws(() => range("invalid/24"));
   console.log(
-    "order-subnet: overlap, enclosing/contained ranges, IPv6 and exhaustion checks passed",
+    "order-subnet: overlap, enclosing/contained ranges, IPv6, fallback pool and exhaustion checks passed",
   );
 } else {
   let input = "";
