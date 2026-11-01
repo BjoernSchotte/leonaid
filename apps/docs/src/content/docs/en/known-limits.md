@@ -4,9 +4,9 @@ description: Verified limits of the current LeonAid development and pilot state.
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: eb6beaafa55551234a561a0353b0e0babc81d094
 reviewer: Björn Schotte
 ---
 
@@ -32,6 +32,9 @@ general production approval.
   cancellation and a new transaction.
 - Partial payments and overpayments are not implemented; recording a payment
   accepts only the exact full invoice amount.
+- Listmonk (Compose profile `mailing`) is not part of the pilot production
+  stack. There it has no public route, no backup and no monitoring; all three
+  must exist before the profile is enabled.
 - The separate documentation website will be published as a static GitHub Pages
   site from the verified artifact. Until public acceptance, the versioned
   source and CI artifacts remain the reliable entry points.

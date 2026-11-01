@@ -4,9 +4,9 @@ description: Belegte Grenzen des aktuellen LeonAid-Entwicklungs- und Pilotstands
 docId: DOC-P003
 audience: [user, ops, dev]
 diataxis: reference
-contentRevision: 2
-reviewedRevision: 2
-verifiedAgainst: 2043b72b7c5453b37978f2a58436243dbc378a00
+contentRevision: 3
+reviewedRevision: 3
+verifiedAgainst: eb6beaafa55551234a561a0353b0e0babc81d094
 reviewer: Björn Schotte
 ---
 
@@ -33,6 +33,9 @@ allgemeine Produktionsfreigabe.
   überschrieben. Korrekturen erfolgen durch Storno und einen neuen Vorgang.
 - Teil- und Überzahlungen sind nicht implementiert; die Buchung akzeptiert nur
   den exakten vollständigen Rechnungsbetrag.
+- Listmonk (Compose-Profil `mailing`) gehört nicht zum produktiven
+  Pilot-Stack. Dort hat es weder öffentliche Route noch Backup noch
+  Monitoring; alle drei müssen vor dem Aktivieren des Profils existieren.
 - Die getrennte Dokumentationswebsite wird als statische GitHub-Pages-Site aus
   dem geprüften Artefakt veröffentlicht. Bis zur öffentlichen Abnahme sind die
   versionierten Quellen und CI-Artefakte der belastbare Zugang.
