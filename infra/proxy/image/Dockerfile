@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM docker.io/library/caddy:2.11.4-builder-alpine@sha256:1a1689db91cfb390b2d856a1b3774e796852822cd723fa54c475b272f82bb4b7 AS build
+FROM --platform=$BUILDPLATFORM docker.io/library/caddy:2.11.4-builder-alpine@sha256:0aa610043dab5da82ad0a0268e46bb852785e6f5160f12f1c6fe3f42903d7e1b AS build
 WORKDIR /src
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOMAXPROCS=1
 COPY go.mod go.sum ./
@@ -7,5 +7,5 @@ COPY main.go ./
 ARG TARGETOS
 ARG TARGETARCH
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=readonly -p=1 -trimpath -ldflags='-w -s' -o /out/caddy .
-FROM docker.io/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+FROM docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
 COPY --from=build /out/caddy /usr/bin/caddy
